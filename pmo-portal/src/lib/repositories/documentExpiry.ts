@@ -21,4 +21,5 @@ export const documentExpiryRepository: DocumentExpiryRepository = {
   archiveType: (id) => wrap(() => dal.archiveDocumentType(id)),
   getWarningDays: () => wrap(() => dal.getDocumentWarningDays()),
   setWarningDays: (days) => wrap(() => dal.setDocumentWarningDays(days)),
+  recordRenewal: (id, on) => wrap(() => dal.recordDocumentRenewal(id, on)),
 };

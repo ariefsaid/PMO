@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   role: 'Admin' as string,
   people: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   create: vi.fn(), update: vi.fn(), archive: vi.fn(),
+  // one stable function, like the real hook: a Combobox reloads when its loader's identity changes
+  loadProfiles: () => Promise.resolve([{ id: 'u1', full_name: 'Sari Dewi', status: 'active' }, { id: 'u2', full_name: 'Former Boss', status: 'disabled' }]),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 vi.mock('@/src/hooks/usePeople', () => ({
@@ -16,7 +18,7 @@ vi.mock('@/src/hooks/usePeople', () => ({
   usePeopleMutations: () => ({ create: { mutateAsync: h.create }, update: { mutateAsync: h.update }, archive: { mutateAsync: h.archive, isPending: false } }),
 }));
 vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({
-  useOrgProfilesLoader: () => () => Promise.resolve([{ id: 'u1', full_name: 'Sari Dewi' }]),
+  useOrgProfilesLoader: () => h.loadProfiles,
 }));
 
 // The document import has its own test (PersonDocumentImport.test.tsx); this file is about the register.
@@ -24,7 +26,7 @@ vi.mock('./PersonDocumentImport', () => ({ PersonDocumentImport: () => null }));
 
 import People from './People';
 
-const person = (over: Record<string, unknown> = {}) => ({ id: 'p1', code: 'P-0001', name: 'Budi Santoso', job_title: 'Welder', profile_id: null, ...over });
+const person = (over: Record<string, unknown> = {}) => ({ id: 'p1', code: 'P-0001', name: 'Budi Santoso', job_title: 'Welder', profile_id: null, manager_id: null, ...over });
 const renderPage = () => render(<MemoryRouter><ToastProvider><People /></ToastProvider></MemoryRouter>);
 
 describe('People register screen', () => {
@@ -50,7 +52,7 @@ describe('People register screen', () => {
     await user.click(screen.getByRole('button', { name: 'Add person' }));
     await user.type(within(screen.getByRole('dialog')).getByLabelText(/^Name/), 'Ayu Lestari');
     await user.click(screen.getByRole('button', { name: 'Save person' }));
-    expect(h.create).toHaveBeenCalledWith({ name: 'Ayu Lestari', code: null, job_title: null, profile_id: null });
+    expect(h.create).toHaveBeenCalledWith({ name: 'Ayu Lestari', code: null, job_title: null, profile_id: null, manager_id: null });
   });
 
   it('AC-PPL-006 edits name, code, job title and link only', async () => {
@@ -60,7 +62,22 @@ describe('People register screen', () => {
     const code = within(screen.getByRole('dialog')).getByLabelText(/^Person code/);
     await user.clear(code); await user.type(code, 'EMP-7');
     await user.click(screen.getByRole('button', { name: 'Save person' }));
-    expect(h.update).toHaveBeenCalledWith({ id: 'p1', input: { name: 'Budi Santoso', code: 'EMP-7', job_title: 'Welder', profile_id: null } });
+    expect(h.update).toHaveBeenCalledWith({ id: 'p1', input: { name: 'Budi Santoso', code: 'EMP-7', job_title: 'Welder', profile_id: null, manager_id: null } });
+  });
+
+  it('AC-EXM-006 the person form sets the direct manager from active members only', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /Edit Budi Santoso/ }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.click(dialog.getByRole('combobox', { name: /Direct manager/ }));
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
+    expect(await screen.findByRole('option', { name: /Sari Dewi/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Former Boss/ })).toBeNull();
+    await user.type(search, 'Sari');
+    await user.click(await screen.findByRole('option', { name: /Sari Dewi/ }));
+    await user.click(screen.getByRole('button', { name: 'Save person' }));
+    expect(h.update).toHaveBeenCalledWith({ id: 'p1', input: { name: 'Budi Santoso', code: 'P-0001', job_title: 'Welder', profile_id: null, manager_id: 'u1' } });
   });
 
   it('AC-PPL-009 a duplicate code names the code field', async () => {

@@ -14,7 +14,7 @@ export interface PersonListRow {
   name: string;
   job_title: string | null;
   profile_id: string | null;
-  /** The app user who manages this person (an active member), when set. */
+  /** The person's direct manager (an app user); who is warned first when their documents expire. */
   manager_id: string | null;
   /** Set when the person has left; the row is then former staff (#2703). Never written by the register. */
   archived_at: string | null;
@@ -27,6 +27,7 @@ export interface PersonInput {
   code?: string | null;
   job_title: string | null;
   profile_id: string | null;
+  manager_id: string | null;
 }
 
 const COLUMNS = 'id, code, name, job_title, profile_id, manager_id, archived_at';
@@ -45,16 +46,16 @@ export async function listPeople(status: PeopleListStatus = 'active'): Promise<P
 }
 
 /** `job_title`, `profile_id` and `manager_id` are optional on create (the people import sends code, name, job title and manager). */
-export async function createPerson(input: Omit<PersonInput, 'job_title' | 'profile_id'> & Partial<Pick<PersonInput, 'job_title' | 'profile_id'>> & { manager_id?: string | null }): Promise<PersonListRow> {
+export async function createPerson(input: Omit<PersonInput, 'job_title' | 'profile_id' | 'manager_id'> & Partial<Pick<PersonInput, 'job_title' | 'profile_id' | 'manager_id'>>): Promise<PersonListRow> {
   const code = input.code?.trim();
-  const row = { name: input.name.trim(), job_title: input.job_title ?? null, profile_id: input.profile_id ?? null, ...(input.manager_id ? { manager_id: input.manager_id } : {}), ...(code ? { code } : {}) };
+  const row = { name: input.name.trim(), job_title: input.job_title ?? null, profile_id: input.profile_id ?? null, manager_id: input.manager_id ?? null, ...(code ? { code } : {}) };
   const { data, error } = await table().insert(row).select(COLUMNS).single();
   if (error) fail(error);
   return data as PersonListRow;
 }
 
 export async function updatePerson(id: string, input: PersonInput & { code: string }): Promise<void> {
-  const fields = { name: input.name.trim(), code: input.code.trim(), job_title: input.job_title, profile_id: input.profile_id };
+  const fields = { name: input.name.trim(), code: input.code.trim(), job_title: input.job_title, profile_id: input.profile_id, manager_id: input.manager_id };
   const { data, error } = await table().update(fields).eq('id', id).select('id');
   if (error) fail(error);
   assertWriteLanded(data, 'Person not found, or you may not change them.');

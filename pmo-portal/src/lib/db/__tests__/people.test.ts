@@ -16,17 +16,24 @@ describe('people register writes (#2542 follow-up)', () => {
   it('AC-PPL-005 create with only a name sends no org_id and no code', async () => {
     await createPerson({ name: ' Ayu ', code: '  ', job_title: null, profile_id: null });
     const row = h.calls.find((c) => c.op === 'insert')?.arg as Record<string, unknown>;
-    expect(row).toEqual({ name: 'Ayu', job_title: null, profile_id: null });
+    expect(row).toEqual({ name: 'Ayu', job_title: null, profile_id: null, manager_id: null });
   });
 
   it('AC-PPL-005 create keeps a typed code', async () => {
     await createPerson({ name: 'Ayu', code: ' EMP-9 ', job_title: 'Welder', profile_id: 'u1' });
-    expect(h.calls.find((c) => c.op === 'insert')?.arg).toEqual({ name: 'Ayu', code: 'EMP-9', job_title: 'Welder', profile_id: 'u1' });
+    expect(h.calls.find((c) => c.op === 'insert')?.arg).toEqual({ name: 'Ayu', code: 'EMP-9', job_title: 'Welder', profile_id: 'u1', manager_id: null });
+  });
+
+  it('AC-EXM-006 a create and an update carry the chosen direct manager', async () => {
+    await createPerson({ name: 'Ayu', job_title: null, profile_id: null, manager_id: 'm1' });
+    expect(h.calls.find((c) => c.op === 'insert')?.arg).toMatchObject({ manager_id: 'm1' });
+    await updatePerson('p1', { name: 'Ayu', code: 'P-0001', job_title: null, profile_id: null, manager_id: 'm2' });
+    expect(h.calls.find((c) => c.op === 'update')?.arg).toMatchObject({ manager_id: 'm2' });
   });
 
   it('AC-PPL-006 update carries only name, code, job title and profile', async () => {
-    await updatePerson('p1', { name: 'Ayu', code: 'P-0001', job_title: null, profile_id: null });
-    expect(Object.keys(h.calls.find((c) => c.op === 'update')?.arg as object).sort()).toEqual(['code', 'job_title', 'name', 'profile_id']);
+    await updatePerson('p1', { name: 'Ayu', code: 'P-0001', job_title: null, profile_id: null, manager_id: null });
+    expect(Object.keys(h.calls.find((c) => c.op === 'update')?.arg as object).sort()).toEqual(['code', 'job_title', 'manager_id', 'name', 'profile_id']);
   });
 
   it('AC-PPL-007 archive sets archived_at only', async () => {
@@ -41,7 +48,7 @@ describe('people register writes (#2542 follow-up)', () => {
 
   it('AC-PPL-009 preserves the Postgres code and message so the form can name the field', async () => {
     h.result = { data: null, error: { message: 'duplicate key value violates unique constraint "people_code_live"', code: '23505' } };
-    await expect(updatePerson('p1', { name: 'A', code: 'P-0001', job_title: null, profile_id: null }))
+    await expect(updatePerson('p1', { name: 'A', code: 'P-0001', job_title: null, profile_id: null, manager_id: null }))
       .rejects.toMatchObject({ code: '23505', message: expect.stringContaining('people_code_live') });
   });
 });

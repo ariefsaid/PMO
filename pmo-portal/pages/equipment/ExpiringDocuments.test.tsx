@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 const h = vi.hoisted(() => ({ q: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() } }));
-vi.mock('@/src/hooks/useDocumentExpiry', () => ({ useExpiringDocuments: () => h.q }));
+vi.mock('@/src/hooks/useDocumentExpiry', () => ({ useExpiringDocuments: () => h.q, useRecordRenewal: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 
 import ExpiringDocumentsPage from './ExpiringDocuments';
 
@@ -11,7 +11,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   id: 'd1', subject_kind: 'person', subject_id: 'p1', subject_name: 'Person One', type_name: 'Work permit', is_medical: false,
   number: 'WP-1', expires_on: '2026-12-20', days_left: 30, medical_status: null, location_note: 'Site office', ...over,
 });
-const renderPage = () => render(<MemoryRouter><ExpiringDocumentsPage /></MemoryRouter>);
+import { ToastProvider } from '@/src/components/ui';
+const renderPage = () => render(<MemoryRouter><ToastProvider><ExpiringDocumentsPage /></ToastProvider></MemoryRouter>);
 
 describe('ExpiringDocumentsPage (AC-DEX-006)', () => {
   beforeEach(() => { h.q = { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; });
@@ -30,6 +31,14 @@ describe('ExpiringDocumentsPage (AC-DEX-006)', () => {
     renderPage();
     expect(screen.getAllByText('Fit').length).toBeGreaterThan(0);
     expect(screen.queryByText('R-99')).toBeNull();
+  });
+
+  it('AC-EXM-004 offers "Record renewal" on a person\'s document only (not equipment, not a medical status)', () => {
+    h.q.data = [row(), row({ id: 'd2', subject_kind: 'equipment', subject_id: 'a1', subject_name: 'Crane One' }), row({ id: 'd3', subject_name: 'Medic', is_medical: true, medical_status: 'fit', number: null })];
+    renderPage();
+    expect(screen.getAllByRole('button', { name: 'Record renewal for Person One' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Record renewal for Crane One' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Record renewal for Medic' })).toBeNull();
   });
 
   it('explains an empty window', () => {

@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { DataTable, ListPage, ListState, type Column } from '@/src/components/ui';
 import { useExpiringDocuments } from '@/src/hooks/useDocumentExpiry';
 import type { ExpiringDocumentRow } from '@/src/lib/db/documentExpiry';
+import RecordRenewalAction from './RecordRenewalAction';
 
 /** Expiring documents (#2527): everything for people and equipment that expires in the next 30 days, plus what already has.
- *  Read-only; RLS decides the rows (medical status is Admin-only and carries a status, never results). */
+ *  RLS decides the rows (medical status is Admin-only and carries a status, never results). A person's direct manager (or an Admin)
+ *  records a renewal from the row; the database decides who may and tells the person. */
 const ExpiringDocumentsPage: React.FC = () => {
   const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useExpiringDocuments();
@@ -26,6 +28,8 @@ const ExpiringDocumentsPage: React.FC = () => {
         ? <span className="text-destructive-text">{t('equipment:expiry.expired', 'Expired {{count}} days ago', { count: -d.days_left })}</span>
         : <span>{d.days_left}</span> },
     { key: 'where', header: t('equipment:expiry.location', 'Kept at'), cell: (d) => (d.location_note ? <span>{d.location_note}</span> : null) },
+    { key: 'actions', header: <span className="sr-only">{t('equipment:expiry.actions', 'Actions')}</span>,
+      cell: (d) => (d.subject_kind === 'person' && !d.is_medical ? <RecordRenewalAction doc={{ id: d.id, subject_name: d.subject_name, type_name: d.type_name, expires_on: d.expires_on }} /> : null) },
   ];
 
   return (
