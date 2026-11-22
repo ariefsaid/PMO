@@ -27,7 +27,7 @@ import BoqDisciplinePicker from '../BoqDisciplinePicker';
 import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
-import ProgressClaimModal from '../ProgressClaimModal';
+import ProgressClaimModalForOrg from '../ProgressClaimModalForOrg';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
 import { ClaimBillingStages } from './ClaimBillingStages';
@@ -855,7 +855,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       )}
       {termsOpen && <BillingTermsModal projectId={projectId} onClose={() => setTermsOpen(false)} />}
       {claimFormOpen && (
-        <ProgressClaimModal sources={claimSources.map(({ query, name }) => ({ name,
+        <ProgressClaimModalForOrg sources={claimSources.map(({ query, name }) => ({ name,
           pending: query.isPending || (!query.isError && query.data == null), error: query.isError, retry: () => { void query.refetch(); } }))}
           boqItems={boqRows} workOrders={workOrders.data ?? []}
           allocations={allocations.data ?? []} contractLines={summary?.contractLines ?? []} contractNet={summary?.contractNet ?? 0}

@@ -36,6 +36,8 @@ export interface ProgressClaimModalProps {
   /** Customer order that opened the modal; its accepted-minus-claimed quantities are prefilled for review. */
   initialWorkOrderId?: string;
   sources?: Array<{ name: string; pending: boolean; error: boolean; retry: () => void }>;
+  /** The organisation's claim-quantity setting: `block` means the database refuses a line over its headroom (default `warn`). */
+  overCapMode?: 'warn' | 'block';
   onClose: () => void;
   onSave: (input: Omit<ProgressClaimInput, 'projectId'>) => Promise<void>;
   onError: (err: unknown) => void;
@@ -45,7 +47,7 @@ type Kind = ProgressClaimInput['kind'];
 
 const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   boqItems, workOrders, allocations, contractLines, contractNet, currencySymbolPrefix, hasDownPayment, claimedByBoqItem, assessedByBoqItem,
-  assessmentMonth, initialWorkOrderId, sources = [], onClose, onSave, onError,
+  assessmentMonth, initialWorkOrderId, sources = [], overCapMode = 'warn', onClose, onSave, onError,
 }) => {
   const { t } = useTranslation('project');
   const [kind, setKind] = useState<Kind>('progress');
@@ -74,9 +76,9 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   const suggested = dpValue === null ? null : suggestedRecoveryPct(dpValue, contractNet);
 
   /**
-   * Over-claim warning (never a block here, OD-SCOPE-6; the database stop is the organisation's own setting): a typed quantity past
-   * what the work-order line can still claim, and one past the quality-ready quantity. Where the line has a certified (surveyed)
-   * quantity the ceiling is that figure; the surveyed and quality-ready figures show beside the line.
+   * Over-claim note: a warning (OD-SCOPE-6), or "will be refused" when the organisation's setting makes the database refuse it. Where the
+   * line has a certified (surveyed) quantity the ceiling is that figure, and the surveyed and quality-ready figures show beside the line.
+   * Passing quality-ready is only ever a warning: there is no setting for it.
    */
   const overClaimHelper = (line: BoqItemRow): React.ReactNode => {
     if (scope === '' || line.earning_basis === 'lump_sum') return undefined;
@@ -85,31 +87,38 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
     const surveyed = allocation.surveyedQuantity ?? null;
     const qualityReady = allocation.qualityReadyQuantity ?? null;
     const typed = parseMoneyInputAtScale((quantities[line.id] ?? '').trim(), 3);
-    const figures = surveyed === null ? null : (
+    const survey = surveyed === null ? null : (
       <span data-testid={`claim-survey-${line.id}`} className="text-control text-muted-foreground">
         {t('projectTabs:contractQuantities.billing.claimForm.surveyFigures', 'Surveyed {{surveyed}} {{unit}}, of which quality-ready {{quality}}',
           { surveyed: formatNumberExact(surveyed), unit: line.unit, quality: formatNumberExact(qualityReady ?? 0) })}
       </span>
     );
+    const refuse = overCapMode === 'block';
     let warning: string | null = null;
     if (typed !== null && typed > 0) {
       const room = claimableHeadroom({ ordered: allocation.quantity, claimed: allocation.claimedQuantity, accepted: allocation.acceptedQuantity, surveyed });
-      const values = { headroom: formatNumberExact(room.headroom), unit: line.unit, ceiling: formatNumberExact(room.ceiling), claimed: formatNumberExact(allocation.claimedQuantity) };
+      const figures = { headroom: formatNumberExact(room.headroom), unit: line.unit, ceiling: formatNumberExact(room.ceiling), claimed: formatNumberExact(allocation.claimedQuantity) };
       if (milli(typed) > milli(room.headroom)) {
         warning = room.basis === 'surveyed'
-          ? t('projectTabs:contractQuantities.billing.claimForm.overClaimSurveyed', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (surveyed {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or have the next survey confirmed first. You can still raise the claim.', values)
+          ? (refuse
+            ? t('projectTabs:contractQuantities.billing.claimForm.overClaimSurveyedBlock', 'Will be refused: this is more than the {{headroom}} {{unit}} still claimable (surveyed {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or have the next survey confirmed first.', figures)
+            : t('projectTabs:contractQuantities.billing.claimForm.overClaimSurveyed', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (surveyed {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or have the next survey confirmed first. You can still raise the claim.', figures))
           : room.basis === 'accepted'
-            ? t('projectTabs:contractQuantities.billing.claimForm.overClaimAccepted', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first. You can still raise the claim.', values)
-            : t('projectTabs:contractQuantities.billing.claimForm.overClaimOrdered', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first. You can still raise the claim.', values);
+            ? (refuse
+              ? t('projectTabs:contractQuantities.billing.claimForm.overClaimAcceptedBlock', 'Will be refused: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first.', figures)
+              : t('projectTabs:contractQuantities.billing.claimForm.overClaimAccepted', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first. You can still raise the claim.', figures))
+            : (refuse
+              ? t('projectTabs:contractQuantities.billing.claimForm.overClaimOrderedBlock', 'Will be refused: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first.', figures)
+              : t('projectTabs:contractQuantities.billing.claimForm.overClaimOrdered', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first. You can still raise the claim.', figures));
       } else if (qualityReady !== null && milli(allocation.claimedQuantity) + milli(typed) > milli(qualityReady)) {
         warning = t('projectTabs:contractQuantities.billing.claimForm.overQualityReady', 'Warning: with this claim, {{total}} {{unit}} is claimed but only {{quality}} {{unit}} has quality documents. Attach the quality documents to a survey, or lower it. You can still raise the claim.',
           { total: formatNumberExact((milli(allocation.claimedQuantity) + milli(typed)) / 1000), unit: line.unit, quality: formatNumberExact(qualityReady) });
       }
     }
-    if (figures === null && warning === null) return undefined;
+    if (survey === null && warning === null) return undefined;
     return (
       <span className="flex flex-col gap-1">
-        {figures}
+        {survey}
         {warning !== null && (
           <span data-testid={`claim-overclaim-${line.id}`} role="status" className="flex items-start gap-1.5 text-control font-medium text-warning-foreground">
             <Icon name="alert" className="mt-0.5 size-[13px] shrink-0 text-warning-icon" />
