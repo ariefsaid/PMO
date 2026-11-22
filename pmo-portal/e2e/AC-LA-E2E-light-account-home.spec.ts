@@ -1,19 +1,23 @@
-// @e2e-isolation: self-isolated — creates its own uniquely-named project, work order and crew each run; turns the seeded Engineer into a Foreman for the run and clears it after; the organization setting is restored to its prior value.
+// @e2e-isolation: self-isolated — each run creates its own disposable Foreman login (auth user, profile, workforce person) plus its own uniquely-named project, work order, crew and roster, and removes every row by its exact id; the shared seed user and the organisation setting are only read, never written.
 /**
- * AC-LA-E2E — a Foreman's light account (#2710, OD-SCOPE-4). The seeded Engineer is given the Foreman role, leads a crew
- * rostered on a work order today. Signing in lands on the one phone home screen; a typed project link returns to it; the
- * screen shows the four sections and the crew to tick; no navigation is offered.
+ * AC-LA-E2E — a Foreman's light account (#2710, OD-SCOPE-4). A disposable Foreman — its own login, not the shared seed Engineer —
+ * leads a crew rostered on a work order today. Signing in lands on the one phone home screen; a typed project link returns to it;
+ * the screen shows the four sections and the crew to tick; no navigation is offered.
  * Goal oracle: the Foreman can do their own jobs and cannot reach the project.
+ *
+ * Why an own actor: the role is a row on `profiles` (the authority the app and the RLS read). Two journeys that flip the one shared
+ * seed Engineer's `built_in_role` race each other and every other Engineer journey in the parallel lane — the 2026-11-22 browser run
+ * showed the light screen on the shared Engineer's procurement journey (AC-PFR-001) and a full Engineer shell here. A disposable
+ * profile carries the same real role with a real JWT, and no other journey can read or clear it.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
-import { signIn, requireServiceRoleKey } from './helpers';
+import { requireServiceRoleKey } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PM_ID = '00000000-0000-0000-0000-0000000000a2';
-const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
 const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
   process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
@@ -23,11 +27,14 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 test.setTimeout(120_000);
 
 let admin: SupabaseClient;
+let run = '';
+let email = '';
+let password = '';
+let foremanId = '';
+let personId = '';
 let projectId = '';
-let priorSetting = false;
-let crewId = '';
 let workOrderId = '';
-let hadPerson = false;
+let crewId = '';
 
 const need = <D>(step: string, r: { data: D; error: { message: string } | null }): NonNullable<D> => {
   if (r.error) throw new Error(`AC-LA-E2E ${step}: ${r.error.message}`);
@@ -35,41 +42,109 @@ const need = <D>(step: string, r: { data: D; error: { message: string } | null }
   return r.data as NonNullable<D>;
 };
 
+/**
+ * Sign in the disposable Foreman through the real form (the same flow `e2e/auth.setup.ts` captures for the seed accounts).
+ * `signIn()` replays a captured storage state, which exists only for the seed emails — a user created mid-run has none, and
+ * signing this one in for real is what gives the journey a genuine JWT and lets the database and the shell read the profile row.
+ */
+async function signInAs(page: Page, as: string, secret: string) {
+  await page.goto('/login');
+  await page.getByLabel(/email/i).fill(as);
+  await page.getByLabel(/password/i).fill(secret);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  // A light account lands on its one phone home screen instead of the full shell.
+  await expect(page).toHaveURL(/\/my$/, { timeout: 20_000 });
+}
+
+/** Remove every row this run created, by its own exact id; nothing shared and nothing another journey owns is touched. */
+async function removeFixture() {
+  const failures: string[] = [];
+  const attempt = async (step: string, operation: () => PromiseLike<{ error: { message: string } | null }>) => {
+    try {
+      const { error } = await operation();
+      if (error) failures.push(`${step}: ${error.message}`);
+    } catch (error) {
+      failures.push(`${step}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  if (workOrderId) {
+    await attempt('remove check-ins', () => admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId));
+    await attempt('remove attendance', () => admin.from('attendance_days').delete().eq('work_order_id', workOrderId));
+  }
+  if (crewId) {
+    await attempt('remove roster', () => admin.from('work_order_crews').delete().eq('crew_id', crewId));
+    await attempt('remove crew members', () => admin.from('crew_members').delete().eq('crew_id', crewId));
+  }
+  if (personId) await attempt('remove person', () => admin.from('people').delete().eq('id', personId));
+  if (crewId) await attempt('remove crew', () => admin.from('crews').delete().eq('id', crewId));
+  if (workOrderId) await attempt('remove work order', () => admin.from('work_orders').delete().eq('id', workOrderId));
+  if (projectId) await attempt('remove project', () => admin.from('projects').delete().eq('id', projectId));
+  if (foremanId) {
+    await attempt('remove profile', () => admin.from('profiles').delete().eq('id', foremanId));
+    await attempt('remove login', () => admin.auth.admin.deleteUser(foremanId));
+  }
+  if (failures.length > 0) throw new Error(`AC-LA-E2E cleanup failed: ${failures.join('; ')}`);
+}
+
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('AC-LA-E2E needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
-  const run = `E2E-LA-${Date.now()}`;
-  priorSetting = need('read setting', await admin.from('organizations').select('built_in_roles_enabled').eq('id', ORG_ID).single()).built_in_roles_enabled;
-  need('enable', await admin.from('organizations').update({ built_in_roles_enabled: true }).eq('id', ORG_ID).select('id').single());
-  projectId = need('project', await admin.from('projects').insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
-  workOrderId = need('work order', await admin.from('work_orders').insert({
-    org_id: ORG_ID, project_id: projectId, title: `${run} slab`, status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
-  }).select('id').single()).id;
-  crewId = need('crew', await admin.from('crews').insert({
-    org_id: ORG_ID, code: run.slice(-18), name: `${run} crew`, kind: 'own', field_controller_id: ENGINEER_ID,
-  }).select('id').single()).id;
-  const from = new Date(); from.setDate(from.getDate() - 2);
-  need('roster', await admin.from('work_order_crews').insert({
-    org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from.toISOString().slice(0, 10),
-  }).select('id').single());
-  // A Foreman clocks in as a person of the workforce list (a login with none cannot); the journey adds one when the seed has none and removes it again.
-  hadPerson = Boolean((await admin.from('people').select('id').eq('org_id', ORG_ID).eq('profile_id', ENGINEER_ID).is('archived_at', null).maybeSingle()).data);
-  if (!hadPerson) need('person', await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', code: `FM-${Date.now()}`.slice(0, 40), name: `${run} foreman`, profile_id: ENGINEER_ID }).select('id').single());
-  need('role', await admin.from('profiles').update({ built_in_role: 'foreman' }).eq('id', ENGINEER_ID).select('id').single());
+
+  // Precondition, asserted and never written: #1670 made the organisation switch default to on and turned it on for every
+  // existing row, so this journey reads it. Writing it here is what broke other journeys in the 2026-11-22 run.
+  const org = need('read setting', await admin.from('organizations').select('built_in_roles_enabled').eq('id', ORG_ID).single());
+  if (!org.built_in_roles_enabled) {
+    throw new Error('AC-LA-E2E precondition: built_in_roles_enabled is off for this organisation (#1670 default is on)');
+  }
+
+  const suffix = crypto.randomUUID();
+  run = `E2E-LA-${Date.now()}-${suffix.slice(0, 6)}`;
+  email = `e2e-la-${suffix}@example.invalid`;
+  password = `${crypto.randomUUID()}-Aa1!`;
+
+  try {
+    // A disposable Foreman: its own login, profile (the role lives on the profile row, as it does for every person) and
+    // workforce person. The seeded Engineer keeps its own role, so no journey running beside this one can read this run's role.
+    const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    if (created.error || !created.data.user) {
+      throw new Error(`AC-LA-E2E login: ${created.error?.message ?? 'no user returned'}`);
+    }
+    foremanId = created.data.user.id;
+    need('profile', await admin.from('profiles').insert({
+      id: foremanId, org_id: ORG_ID, email, full_name: `${run} foreman`, role: 'Engineer', built_in_role: 'foreman',
+    }).select('id').single());
+    personId = need('person', await admin.from('people').insert({
+      org_id: ORG_ID, kind: 'own', code: `LA-${suffix.slice(0, 8)}`, name: `${run} foreman`, profile_id: foremanId,
+    }).select('id').single()).id;
+    projectId = need('project', await admin.from('projects').insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
+    workOrderId = need('work order', await admin.from('work_orders').insert({
+      org_id: ORG_ID, project_id: projectId, title: `${run} slab`, status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
+    }).select('id').single()).id;
+    crewId = need('crew', await admin.from('crews').insert({
+      org_id: ORG_ID, code: `LA-${suffix.slice(0, 8)}`, name: `${run} crew`, kind: 'own', field_controller_id: foremanId,
+    }).select('id').single()).id;
+    const from = new Date(); from.setDate(from.getDate() - 2);
+    need('roster', await admin.from('work_order_crews').insert({
+      org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from.toISOString().slice(0, 10),
+    }).select('id').single());
+  } catch (error) {
+    try {
+      await removeFixture();
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'AC-LA-E2E fixture setup and partial cleanup failed', { cause: cleanupError });
+    }
+    throw error;
+  }
 });
 
 test.afterEach(async () => {
-  await admin.from('profiles').update({ built_in_role: null }).eq('id', ENGINEER_ID);
-  await admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId);
-  await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
-  await admin.from('work_order_crews').delete().eq('crew_id', crewId);
-  if (!hadPerson) await admin.from('people').delete().eq('org_id', ORG_ID).eq('profile_id', ENGINEER_ID);
-  await admin.from('organizations').update({ built_in_roles_enabled: priorSetting }).eq('id', ORG_ID);
+  await removeFixture();
 });
 
 test('AC-LA-E2E a Foreman lands on the phone home screen and cannot open a project', async ({ page }) => {
-  await signIn(page, 'engineer@acme.test', { home: '/my' });
+  await signInAs(page, email, password);
   await page.goto('/');
   await expect(page).toHaveURL(/\/my$/);
   await expect(page.getByRole('heading', { name: 'My tasks' })).toBeVisible();
@@ -82,8 +157,9 @@ test('AC-LA-E2E a Foreman lands on the phone home screen and cannot open a proje
 });
 
 test('AC-LA-E2E-FOREMAN a Foreman clocks in himself on his crew\'s work order, and the home says so, with the time, after a reload', async ({ page }) => {
-  await signIn(page, 'engineer@acme.test', { home: '/my' });
-  const card = page.getByRole('listitem').filter({ hasText: 'slab' });
+  await signInAs(page, email, password);
+  // The card is this run's own work order, by its exact title: a sibling journey's work order must never match it.
+  const card = page.getByRole('listitem').filter({ hasText: `${run} slab` });
   // The button is enabled, or says why it is not: never a dead grey button.
   await expect(card.getByRole('button', { name: 'Clock in' })).toBeEnabled();
   await expect(card.getByText(/Crew:/)).toBeVisible();
