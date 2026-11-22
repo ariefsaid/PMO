@@ -21,7 +21,8 @@ begin
   if not found then return new; end if;
   if round(new.quantity * 1000) > round(v_head * 1000) then
     raise exception 'CLM_OVER_CAP: only % % still claimable on this work-order line (% %, already claimed %); lower the quantity or confirm the next acceptance',
-      v_head, v_unit, v_basis, v_ceiling, public.work_order_line_claimed_quantity(v_wo, new.boq_item_id, new.claim_id)
+      trim_scale(v_head), v_unit, v_basis, trim_scale(v_ceiling),
+      trim_scale(public.work_order_line_claimed_quantity(v_wo, new.boq_item_id, new.claim_id))
       using errcode = '23514';
   end if;
   return new;
