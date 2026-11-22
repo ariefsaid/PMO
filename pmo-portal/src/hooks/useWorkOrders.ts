@@ -107,3 +107,14 @@ export function useWorkOrderMutations(projectId: string) {
 
   return { create, update, setValue, transition };
 }
+
+/** Every work order the reader may see, across projects (the menu's Work orders page). RLS-scoped, no money. */
+export function useAllWorkOrders() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-orders', orgId, 'all', currentUser?.id, currentUser?.role],
+    queryFn: () => repositories.workOrder.listAll(),
+    enabled: Boolean(orgId),
+  });
+}

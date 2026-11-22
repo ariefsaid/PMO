@@ -18,6 +18,7 @@ import {
   getWorkOrder,
   createWorkOrder,
   updateWorkOrder,
+  listAllWorkOrders,
   setWorkOrderValue,
   transitionWorkOrder,
   getProjectDrawdown,
@@ -75,6 +76,7 @@ export const milestoneRepository: MilestoneRepository = {
 export const workOrderRepository: WorkOrderRepository = {
   claimDocuments: (id) => wrap(() => listWorkOrderClaimDocuments(id)),
   list: (projectId) => wrap(() => listProjectWorkOrders(projectId)),
+  listAll: () => wrap(() => listAllWorkOrders()),
   get: (id) => wrap(() => getWorkOrder(id)),
   create: (projectId, input) => wrap(() => createWorkOrder(projectId, input)),
   update: (id, patch) => wrap(() => updateWorkOrder(id, patch)),

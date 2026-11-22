@@ -284,5 +284,12 @@
     "stillToCollect": "Belum diambil",
     "title": "Material klien",
     "importTakeoff": "Impor take-off"
+  },
+  "all": {
+    "search": "Cari menurut nomor, judul, atau proyek",
+    "error": "Gagal memuat daftar $t(common:terms.clientWorkOrder) Anda",
+    "noMatch": "Tidak ada $t(common:terms.clientWorkOrder) yang cocok dengan pencarian Anda",
+    "empty": "Anda belum punya $t(common:terms.clientWorkOrder)",
+    "until": "sampai {{date}}"
   }
 }
