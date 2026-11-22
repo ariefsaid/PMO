@@ -89,6 +89,7 @@ create function public.assign_work_order_step(p_step uuid, p_person uuid) return
 declare v_s public.work_order_billing_steps; v_new public.work_order_billing_steps;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   if p_step is null then raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002'; end if;
   v_s := public.lock_wo_billing_step(p_step);
   if v_s.done_on is not null or v_s.skipped_on is not null then
@@ -119,6 +120,7 @@ declare
   v_slot   uuid;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   if p_step is null then raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002'; end if;
   v_s := public.lock_wo_billing_step(p_step);
   if v_s.done_on is not null or v_s.skipped_on is not null then
@@ -159,6 +161,7 @@ create function public.complete_work_order_step(p_step uuid, p_done_on date) ret
 declare v_s public.work_order_billing_steps; v_next public.work_order_billing_steps;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   if p_step is null then raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002'; end if;
   v_s := public.lock_wo_billing_step(p_step);
   if v_s.done_on is not null or v_s.skipped_on is not null then
@@ -194,6 +197,7 @@ create function public.skip_work_order_step(p_step uuid) returns void
 declare v_s public.work_order_billing_steps; v_next public.work_order_billing_steps; v_today date;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   if p_step is null then raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002'; end if;
   v_s := public.lock_wo_billing_step(p_step);
   if v_s.done_on is not null or v_s.skipped_on is not null then
