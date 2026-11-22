@@ -1,3 +1,2 @@
-# 1860/1861: an Admin sets the one material usage warning threshold; any active member reads installed quantity per item. Both refuse anon.
-set_material_usage_threshold
-mrq_installed_for
+# 1330: an Admin sets the two material-request usage thresholds (percent of plan).
+mrq_set_usage_thresholds
