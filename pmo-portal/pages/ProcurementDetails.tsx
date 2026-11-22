@@ -40,6 +40,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
+import { waitingForText } from '@/src/lib/approvals/waitingFor';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { ProcurementDetailsTab, ProcurementItemsTab, ProcurementQuotesTab } from './procurement/ProcurementDetailTabs';
@@ -412,10 +413,16 @@ const ProcurementDetails: React.FC = () => {
         budget: formatCurrency(p.approvalRoute.lineBudget, p.currency),
       })
     : null;
+  // fix-waiting item 3: who the request waits for, from the route the database already computed (never a bare "Waiting for approval").
+  const requestedRoute = p.approvalRoute;
   const waitingNote = p.status === 'Requested' && isRequester
-    ? isEngineer
-      ? t('procurementRecord:waiting.engineerApproval', 'Waiting for approval by a project manager or Finance')
-      : t('procurementRecord:waiting.approval', 'Waiting for approval')
+    ? waitingForText({
+        names: (requestedRoute?.approvers ?? []).map((approver) => approver.fullName),
+        role: requestedRoute?.route === 'admin' ? t('approvals.waitingFor.roleAdmin', 'Admin')
+          : requestedRoute?.route === 'org' ? t('approvals.waitingFor.roleOrg', 'senior approver')
+          : requestedRoute?.route === 'project' ? t('approvals.waitingFor.roleProject', 'project approver')
+          : t('approvals.waitingFor.roleFlat', 'project manager or Finance'),
+      }, t)
     : p.status === 'Vendor Invoiced' && !actionFor('Paid')
       ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
       : null;

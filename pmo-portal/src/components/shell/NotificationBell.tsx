@@ -56,6 +56,8 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   sales_invoice: '/sales-invoices',
   material_request: '/material-requests',
   quantity_change_request: '/quantity-changes',
+  daily_site_report: '/site-reports',
+  subcontract_certificate: '/subcontract-certificates',
 };
 
 /** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
@@ -66,6 +68,7 @@ const ENTITY_LIST_ROUTE: Record<string, string> = {
   imprest_plan: '/imprest',
   imprest_replenishment: '/imprest',
   expiry_document: '/equipment/expiring',
+  equipment_plan: '/equipment-plans',
 };
 
 interface NotificationEntity {

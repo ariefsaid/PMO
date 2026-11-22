@@ -32,11 +32,13 @@ vi.mock('@/src/lib/db/dashboard', () => ({
   getFinanceBudgetReview: () => Promise.resolve([]),
   getPMDashboardProjects: () => Promise.resolve([]),
 }));
-vi.mock('@/src/lib/db/timesheetTransition', () => ({
-  listTimesheetsAwaitingApproval: () => h.timesheetsAwaitingFails
-    ? Promise.reject(new Error('timesheets unavailable'))
-    : Promise.resolve(h.timesheetsAwaiting),
+// fix-waiting: the shared waiting list reads timesheets through the same hook the inbox page uses.
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useTimesheetsAwaitingApproval: () => h.timesheetsAwaitingFails
+    ? { data: undefined, isPending: false, isError: true, refetch: vi.fn() }
+    : { data: h.timesheetsAwaiting, isPending: false, isError: false, refetch: vi.fn() },
 }));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     fxRates: { context: () => Promise.resolve({ currency: 'USD', timezone: 'UTC' }) },

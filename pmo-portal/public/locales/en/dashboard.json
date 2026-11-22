@@ -917,7 +917,10 @@
     "nothingOwedByClients": "Nothing owed by clients",
     "hoursInTotal": "{{hours}} h in total",
     "pipelineMixedCurrency": "Pipeline weighted amounts are hidden for mixed currencies.",
-    "marginCurrencyMismatch": "Forecast margin is hidden when a contract currency differs from the budget currency."
+    "marginCurrencyMismatch": "Forecast margin is hidden when a contract currency differs from the budget currency.",
+    "approvalMaterial": "Material request, step {{n}}: {{label}}",
+    "approvalLeave": "{{name}}: leave {{from}} to {{to}}",
+    "approvalImprest": "Site cash plan {{month}}"
   },
   "doneNotYetBilled": {
     "title": "Done, not yet billed",

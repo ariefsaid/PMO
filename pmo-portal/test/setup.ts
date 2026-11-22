@@ -292,3 +292,10 @@ if (typeof document !== 'undefined') {
     return instance;
   };
 }
+
+// fix-waiting: the two database reads behind the shared waiting list are held idle by default, so a test of one screen sees only the
+// kinds it feeds. A test of the list itself (or of a kind that needs them) overrides this with its own vi.mock of the module.
+vi.mock('@/src/hooks/useWaitingDecisions', () => ({
+  useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
+  useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
+}));

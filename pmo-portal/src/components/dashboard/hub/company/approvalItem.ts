@@ -5,6 +5,10 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
+import type { LeaveRequestRow } from '@/src/lib/db/leave';
+import type { WaitingDecisionRow } from '@/src/lib/db/waitingDecisions';
+import { isDatabaseListedKind, scopeKeyWithNamespace, WAITING_KIND_META } from '@/src/lib/approvals/waitingKinds';
 
 export interface ApprovalItem { key: string; what: string; who: string | null; amount: string | null; days: number | null; href: string }
 
@@ -32,7 +36,19 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
       const name = [row.pmo_number, row.customer_name].filter(Boolean).join(' · ');
       return { key: entry.key, what: name || t('home.approvalInvoice', 'Client invoice'), who: null, amount: money(invoiceGross(row), row.currency), days, href: `/sales-invoices/${row.id}` };
     }
-    default: {
+    case 'material': {
+      const step = entry.row as WaitingStep;
+      return { key: entry.key, what: t('home.approvalMaterial', 'Material request, step {{n}}: {{label}}', { n: step.stepPosition, label: step.label }), who: null, amount: null, days, href: `/material-requests/${step.requestId}` };
+    }
+    case 'leave': {
+      const row = entry.row as LeaveRequestRow;
+      return { key: entry.key, what: t('home.approvalLeave', '{{name}}: leave {{from}} to {{to}}', { name: row.person_name, from: formatDay(row.start_date), to: formatDay(row.end_date) }), who: null, amount: null, days, href: '/approvals?scope=leave' };
+    }
+    case 'imprest': {
+      const row = entry.row as { id: string; float_id: string; number?: string | null; month?: string | null };
+      return { key: entry.key, what: row.number ?? t('home.approvalImprest', 'Site cash plan {{month}}', { month: row.month ? formatDay(row.month) : '' }), who: null, amount: null, days, href: `/imprest/${row.float_id}` };
+    }
+    case 'timesheets': {
       const row = entry.row as TimesheetAwaitingApproval;
       // Whose timesheet and which week, so two rows from one person are told apart.
       const owner = row.owner?.full_name;
@@ -40,6 +56,12 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
         ? t('home.approvalTimesheetOf', "{{name}}'s timesheet, week of {{week}}", { name: owner, week: formatDay(row.week_start_date) })
         : t('home.approvalTimesheetWeek', 'Timesheet, week of {{week}}', { week: formatDay(row.week_start_date) });
       return { key: entry.key, what, who: null, amount: null, days, href: '/approvals?scope=timesheets' };
+    }
+    default: {
+      if (!isDatabaseListedKind(entry.kind)) throw new Error(`approvalItem: kind ${entry.kind} has no row mapping`);
+      const row = entry.row as WaitingDecisionRow;
+      const meta = WAITING_KIND_META[entry.kind];
+      return { key: entry.key, what: `${t(scopeKeyWithNamespace(meta), meta.scopeLabel)}: ${row.title}`, who: null, amount: null, days, href: meta.href ? meta.href(row.recordId) : '/approvals' };
     }
   }
 }

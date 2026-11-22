@@ -24,6 +24,43 @@ export function notificationBody(row: NotificationCopy, t: TFunction): string | 
   }
 }
 
+/**
+ * The fixed English titles the database writes (0237 and later workflow hand-offs), by the catalogue key that carries them in the reader's
+ * language. A title not listed (free text, or a count in the wording) is shown as stored. Every new database title is ONE line here.
+ */
+export const NOTIFICATION_TITLE_KEYS: Record<string, string> = {
+  "A task was assigned to you": "taskAssigned",
+  "Checkpoint is late": "checkpointLate",
+  "Customer invoice awaiting your approval": "invoiceAwaiting",
+  "Inspection overdue": "inspectionOverdue",
+  "Material usage threshold reached": "usageThreshold",
+  "Out-of-plan site cash item awaiting your approval": "imprestOutOfPlan",
+  "Procurement awaiting your approval": "procurementAwaiting",
+  "Quantity change request approved": "qcrApproved",
+  "Quantity change request awaiting approval": "qcrAwaiting",
+  "Quantity change request returned": "qcrReturned",
+  "Reminder: a task is overdue": "taskOverdue",
+  "Site cash plan awaiting your approval": "imprestPlanAwaiting",
+  "Timesheet awaiting your approval": "timesheetAwaiting",
+  "You were mentioned in a comment": "mentioned",
+  "Your procurement was approved": "procurementApproved",
+  "Your procurement was rejected": "procurementRejected",
+  "Your timesheet was approved": "timesheetApproved",
+  "Your timesheet was rejected": "timesheetRejected",
+  "Material request awaiting your approval": "mrqAwaiting",
+  "Your site cash plan was approved": "imprestPlanApproved",
+  "Your site cash plan was rejected": "imprestPlanRejected",
+  "Your material request was sent back": "mrqReturned",
+  "Your material request was refused": "mrqRefused",
+  "Your material request was approved": "mrqApproved",
+  "Your daily report was sent back": "dsrReturned",
+  "Your subcontract certificate was sent back": "certReturned",
+  "Your equipment plan was sent back": "eqpReturned",
+  "Your equipment plan was approved": "eqpApproved"
+};
+
 export function notificationTitle(row: { title: string; message_key: string | null }, t: TFunction): string {
-  return row.message_key === 'unassignedInvoice' ? t('notifications:unassignedInvoiceTitle', 'Invoice needs a project') : row.title;
+  if (row.message_key === 'unassignedInvoice') return t('notifications:unassignedInvoiceTitle', 'Invoice needs a project');
+  const key = NOTIFICATION_TITLE_KEYS[row.title];
+  return key ? t(`notifications:title.${key}`, row.title) : row.title;
 }

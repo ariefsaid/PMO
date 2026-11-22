@@ -55,7 +55,8 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   roleState.activeRole = role;
   const pendingRows = queues.pending ?? approvalsData.timesheets;
   const correctionRows = queues.corrections ?? [];
-  const queryClient = new QueryClient();
+  // fix-waiting: the badge reads the shared live list, so every source it reads is seeded and kept fresh for these short cases.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, refetchOnMount: false, refetchOnWindowFocus: false } } });
   // Rail's Engineer-only eligibility wrapper mounts both real queue hooks. Other roles still get
   // seeded cache entries.
   // staleTime: Infinity keeps seeded data fresh at mount; each hook's explicit 60s
@@ -65,6 +66,8 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   queryClient.setQueryDefaults(['timesheets-reopenable-approved'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryDefaults(['timesheet-approval-work'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryData(['external-domain-ownership', 'synthetic-org'], []);
+  queryClient.setQueryData(['material-requests', 'synthetic-org', 'waiting'], []);
+  queryClient.setQueryData(['imprest-awaiting', 'synthetic-org'], { plans: [], replenishments: [] });
   queryClient.setQueryData(['procurements', 'synthetic-org', 'requested'], approvalsData.procurements);
   queryClient.setQueryData(['expense-claims-awaiting', 'synthetic-org'], approvalsData.expenses);
   queryClient.setQueryData(awaitingApprovalKey('synthetic-org', userId, roleState.activeRole as AuthContextValue['role']), pendingRows);
