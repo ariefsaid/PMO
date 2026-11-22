@@ -252,5 +252,25 @@
     "noReceipts": "No receipts yet",
     "noReplenishments": "No top-ups yet",
     "noCounts": "No cash counts yet"
+  },
+  "open": {
+    "title": "Open purchase requests",
+    "help": "Requests not yet ordered or paid. This list only suggests; the plan is yours to edit and save.",
+    "empty": "No open purchase requests on this site's project. Project members raise one under Procurement, and it shows here until it is ordered.",
+    "startPlan": "Start the plan from these",
+    "noPrices": "You can't see prices on requests, so amounts can't be filled in. Add the lines yourself in the plan.",
+    "nothingToStart": "None of these requests has a purpose and a price in {{currency}}, so there is nothing to fill in. Add the lines yourself in the plan.",
+    "skipped": "{{count}} request(s) with no purpose, no visible price or another currency are not counted in the plan.",
+    "error": "Couldn't load the open purchase requests",
+    "noPurpose": "No purpose set",
+    "noWorkOrder": "No work order",
+    "truncated": "Showing the first {{count}} lines only.",
+    "created": "Draft plan created from the open requests",
+    "partial": "Draft plan created, but {{count}} line(s) were not saved. Add them in the plan.",
+    "editorTitle": "New plan for {{month}}, from the open requests",
+    "editorHelp": "Change or remove any amount. Nothing is saved until you create the draft; you submit it for approval as usual.",
+    "createDraft": "Create draft plan",
+    "discard": "Discard",
+    "invalid": "Every amount must be more than zero."
   }
 }
