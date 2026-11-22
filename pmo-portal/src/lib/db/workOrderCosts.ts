@@ -6,7 +6,7 @@ import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 /**
  * Work orders on the cost side (#2517, migrations 0950 + 0951, ADR-0104).
  *
- * Seven cost sources can name an optional work order and an optional discipline. The database decides
+ * Seven cost sources (and a purchase line, 1880) can name an optional work order and an optional discipline. The database decides
  * whether that is allowed (the work order must be on the cost's own project and org; the discipline must be
  * the org's, live) — this module only carries the request:
  *
@@ -28,6 +28,12 @@ export type CostSource =
   | 'stock_document'
   | 'equipment_usage'
   | 'expense_claim';
+
+/**
+ * What `set_cost_attribution` accepts: the cost sources plus a purchase line (migration 1880). A line is a work-order-only
+ * attribution (it takes no discipline) and is not a cost-lines source: the document list stays per record.
+ */
+export type AttributionSource = CostSource | 'procurement_item';
 
 export const COST_SOURCES: readonly CostSource[] = [
   'purchase_request',
@@ -126,7 +132,7 @@ export function archiveCostDiscipline(id: string): Promise<void> {
  * number of records changed. A refusal keeps its Postgres code (`23514` rule, `42501` not yours, `P0002`
  * not found) so `classifyMutationError` can map it.
  */
-export async function setCostAttribution(source: CostSource, ids: string[], attribution: CostAttribution): Promise<number> {
+export async function setCostAttribution(source: AttributionSource, ids: string[], attribution: CostAttribution): Promise<number> {
   const { data, error } = await supabase.rpc('set_cost_attribution', {
     p_source: source,
     p_ids: ids,

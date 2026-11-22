@@ -76,7 +76,7 @@ select lives_ok($$ select public.create_procurement_with_items(
                      'purchase_type_id', '47020000-0000-0000-0000-0000000000f2'::uuid,
                      'rental_from', '2026-02-05'::date, 'rental_to', '2026-02-20'::date),
   jsonb_build_array(jsonb_build_object('id', pg_temp._iid('47020000-0000-0000-0000-000000000b02', 1),
-                     'name', 'Excavator', 'description', 'Monthly plan 2026-02 · Work order EQP WO on project',
+                     'name', 'Excavator', 'description', 'Monthly plan 2026-02',
                      'quantity', 2, 'rate', 1000))) $$, 'the approver raises the first purchase of the second plan themselves');
 select lives_ok($$ select public.approve_equipment_plan('47020000-0000-0000-0000-000000000b02') $$,
   'the approval takes that purchase over instead of refusing it');

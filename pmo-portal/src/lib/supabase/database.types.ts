@@ -15302,6 +15302,7 @@ export type Database = {
           amount: number | null
           category_id: string | null
           description: string | null
+          discipline_id: string | null
           erp_docstatus: number | null
           erp_line_amount: number | null
           erp_modified: string | null
@@ -15312,11 +15313,13 @@ export type Database = {
           procurement_id: string
           quantity: number
           rate: number
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
           category_id?: string | null
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
@@ -15327,11 +15330,13 @@ export type Database = {
           procurement_id: string
           quantity?: number
           rate?: number
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
           category_id?: string | null
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
@@ -15342,6 +15347,7 @@ export type Database = {
           procurement_id?: string
           quantity?: number
           rate?: number
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -15363,6 +15369,20 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_items_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
           {
@@ -26219,6 +26239,7 @@ export type Database = {
         Row: {
           amount: number | null
           description: string | null
+          discipline_id: string | null
           erp_docstatus: number | null
           erp_line_amount: number | null
           erp_modified: string | null
@@ -26228,10 +26249,12 @@ export type Database = {
           procurement_id: string | null
           quantity: number | null
           rate: number | null
+          work_order_id: string | null
         }
         Insert: {
           amount?: never
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: never
           erp_modified?: string | null
@@ -26241,10 +26264,12 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          work_order_id?: string | null
         }
         Update: {
           amount?: never
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: never
           erp_modified?: string | null
@@ -26254,6 +26279,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          work_order_id?: string | null
         }
         Relationships: [
           {
