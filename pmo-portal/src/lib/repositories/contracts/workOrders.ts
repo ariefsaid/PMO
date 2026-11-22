@@ -18,6 +18,7 @@ import type {
 import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
 import type {
   WorkOrderRow,
+  WorkOrderListRow,
   WorkOrderStatus,
   WorkOrderInput,
   WorkOrderPatch,
@@ -62,6 +63,8 @@ export interface MilestoneRepository {
 export interface WorkOrderRepository {
   claimDocuments(id: string): Promise<string[]>;
   list(projectId: string): Promise<WorkOrderRow[]>;
+  /** Every work order the reader may see across projects (RLS-scoped; no money). */
+  listAll(): Promise<WorkOrderListRow[]>;
   get(id: string): Promise<WorkOrderRow | null>;
   create(projectId: string, input: WorkOrderInput): Promise<WorkOrderRow>;
   /** Body only — never the value or its tax basis (0197 §5(a) revoked those from the grant). */

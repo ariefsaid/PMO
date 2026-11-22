@@ -239,7 +239,7 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     expect(region.getByTestId('bast-a1')).toHaveTextContent('Confirmed');
     expect(region.getByTestId('bast-a1')).toHaveTextContent('Stage');
     expect(region.getByTestId('bast-a1')).toHaveTextContent('Signed BAST 1');
-    expect(region.getByTestId('bast-a2')).toHaveTextContent('Draft');
+    expect(region.getByTestId('bast-a2')).toHaveTextContent('Waiting for Finance or an Admin to confirm');
     expect(region.getByTestId('bast-a2')).toHaveTextContent('Final');
     expect(region.getByTestId('bast-a3')).toHaveTextContent('Withdrawn');
   });

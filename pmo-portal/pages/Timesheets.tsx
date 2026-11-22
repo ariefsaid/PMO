@@ -1,6 +1,8 @@
 import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { formatNumberMax2 } from '@/src/lib/format';
+import { useApproverName } from '@/src/hooks/useApproverName';
 import {
   Button,
   Card,
@@ -124,10 +126,14 @@ const TimesheetsPage: React.FC = () => {
   const { saveWeek, deleteRow, isReconciling, retryDeleteRefresh } = entryMutations;
   const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjectPickerOptions();
 
+  // Who a submitted week goes to: the person's line manager, read only once a submit is in view (the confirmation and the toast say it).
+  const [wantsApprover, setWantsApprover] = useState(false);
+  const approverName = useApproverName(wantsApprover);
   const editor = useTimesheetWeekEditor({
     currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString,
-    allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
+    allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit, approverName,
   });
+  useEffect(() => { if (editor.view.confirmSubmit) setWantsApprover(true); }, [editor.view.confirmSubmit]);
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes, rowAttributions,
     editRawHours, rowToDelete, dirty, hasUnsavedBuffer, pendingWeekDelta, weekRangeLabel,
     isOwner, editBufferHasHours, canSubmit, confirmSubmit, saveState, copyPlan } = editor.view;
@@ -178,10 +184,9 @@ const TimesheetsPage: React.FC = () => {
       open
       tone="default"
       title={t('timesheets.submitConfirm.title', 'Submit this week for approval?')}
-      description={t(
-        'timesheets.submitConfirm.description',
-        "This sends the whole week to your line manager. You can't edit it again until it's returned.",
-      )}
+      description={approverName
+        ? t('timesheets:submitConfirm.descriptionTo', { defaultValue: "This sends {{hours}} hours for {{week}} to {{name}} for approval. You can't edit the week again until it's returned.", hours: formatNumberMax2(editTotals.weekly), week: weekRangeLabel, name: approverName })
+        : t('timesheets.submitConfirm.description', "This sends the whole week to your line manager. You can't edit it again until it's returned.")}
       confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit week')}
       loading={submit.isPending || saveWeek.isPending}
       onCancel={cancelSubmit}

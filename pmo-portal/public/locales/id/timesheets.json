@@ -60,5 +60,13 @@
     "saving": "Menyimpan…",
     "invalid": "Perbaiki jam yang ditandai merah agar bisa disimpan",
     "failed": "Gagal menyimpan. Jam Anda tetap ada: coba lagi."
+  },
+  "submitConfirm": {
+    "descriptionTo": "Ini mengirim {{hours}} jam untuk {{week}} kepada {{name}} untuk disetujui. Anda tidak dapat mengubah minggu ini lagi sampai dikembalikan."
+  },
+  "toast": {
+    "submitted": {
+      "detailTo": "{{hours}} jam untuk {{week}} dikirim kepada {{name}} untuk disetujui"
+    }
   }
 }

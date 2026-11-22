@@ -17,6 +17,7 @@ const repositoryMocks = vi.hoisted(() => ({
   saveWeek: vi.fn(),
   submit: vi.fn(),
   listPickerOptions: vi.fn(),
+  listManagerChoices: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories', () => ({
@@ -29,6 +30,7 @@ vi.mock('@/src/lib/repositories', () => ({
       submit: repositoryMocks.submit,
     },
     project: { listPickerOptions: repositoryMocks.listPickerOptions },
+    profile: { listManagerChoices: repositoryMocks.listManagerChoices },
   },
 }));
 
@@ -99,7 +101,7 @@ function emptySheetRepository({ holdReads = false } = {}) {
 
 const authValue = {
   session: null,
-  currentUser: { id: 'u1', org_id: 'org1', role: 'Project Manager' },
+  currentUser: { id: 'u1', org_id: 'org1', role: 'Project Manager', manager_id: 'm1' },
   role: 'Project Manager',
   loading: false,
   profileError: null,
@@ -219,3 +221,18 @@ describe('AC-TM-018: save a new week before submitting it', () => {
     expect(repositoryMocks.saveWeek.mock.calls[0][0]).toBeNull();
   });
 });
+
+describe('JOB-TS-SUBMIT: submitting the week says what is sent and to whom', () => {
+  it('the confirmation and the result name the hours, the week and the line manager', async () => {
+    emptySheetRepository();
+    repositoryMocks.listManagerChoices.mockResolvedValue([{ id: 'm1', full_name: 'Bu Sari', role: 'Project Manager' }]);
+    renderPage();
+    const user = await enterHours();
+    await user.click(screen.getByRole('button', { name: /^Submit week$/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(await within(dialog).findByText(/This sends 8 hours for .* to Bu Sari for approval/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: /^Submit week$/i }));
+    expect((await screen.findAllByText(/8 hours for .* sent to Bu Sari for approval/)).length).toBeGreaterThan(0);
+  });
+});
+

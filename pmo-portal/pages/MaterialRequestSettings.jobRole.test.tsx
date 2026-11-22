@@ -15,6 +15,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequestCutoff: () => ({ ...ok, data: null }),
   useDeliveryNoteSettings: () => ({ ...ok, data: { enabled: false, signatureBlocks: [] } }),
   useStandIns: () => ({ ...ok, data: [] }),
+  useUsageInstalledSource: () => ({ data: 'site_reports', refetch: vi.fn() }),
   useMaterialRequestMutations: () => ({
     setChain: { mutateAsync: h.setChain, isPending: false }, setCutoff: { mutateAsync: vi.fn(), isPending: false },
     setDeliveryNoteSettings: { mutateAsync: vi.fn(), isPending: false },

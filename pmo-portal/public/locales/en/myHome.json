@@ -1,6 +1,7 @@
 {
   "title": "My work",
   "signOut": "Sign out",
+  "settings": "Settings",
   "error": "Couldn't load your work",
   "tasks": {
     "title": "My tasks",
@@ -30,10 +31,6 @@
     "whoDefault": "your supervisor",
     "refused": "{{who}} refused this check-in: {{reason}}",
     "again": "Clock in again",
-    "positionInvalid": "Your position could not be read. Tap Ask my supervisor, or try again.",
-    "noPerson": "You are not in the workforce list yet. Ask your supervisor.",
-    "notInCrew": "You are not in that crew today. Pick another crew or ask your supervisor.",
-    "notRostered": "You are not rostered on a work order today. Ask your supervisor.",
     "pendingOutsideShort": "You are outside the work area.",
     "noPersonHere": "You are not in the workforce list yet, so you cannot clock in. Ask your supervisor to add you."
   },
@@ -58,5 +55,8 @@
     "light": "Light accounts (Foreman, Field user)",
     "total": "Active seats",
     "helper": "A light account has one phone home screen. Price and seat counts are agreed with the owner."
+  },
+  "workOrders": {
+    "empty": "You are not on a work order today"
   }
 }

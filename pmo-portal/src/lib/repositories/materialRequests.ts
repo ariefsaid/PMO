@@ -10,7 +10,7 @@ export type {
   MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow,
   MaterialRequestLine, MaterialRequestStep, MaterialRequestEvent, MaterialRequestDetail, WaitingStep, ChainStep,
   ChainStepInput, StandIn, StepPin, LinePlan, PlanSource, UsageThresholds, UsageWarning, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
-  DeliveryNoteSettings,
+  DeliveryNoteSettings, PriorRequestLine,
 } from '@/src/lib/db/materialRequests';
 export { linePlanStatus, lineUsageWarning, parseUsageThresholds, draftLineErrors, materialRequestRefusal, MATERIAL_REQUEST_PAGE_SIZE, DEFAULT_DELIVERY_NOTE_SIGNATURE_BLOCKS } from '@/src/lib/db/materialRequests';
 
@@ -20,6 +20,8 @@ export const materialRequestRepository = {
   waitingForMe: () => wrap(() => dal.listWaitingForMe()),
   linePlans: (workOrderId: string, itemIds: string[], excludeRequestId?: string | null) =>
     wrap(() => dal.getLinePlans(workOrderId, itemIds, excludeRequestId)),
+  priorRequests: (workOrderId: string, itemId: string, excludeRequestId?: string | null) =>
+    wrap(() => dal.listPriorRequestLines(workOrderId, itemId, excludeRequestId)),
   saveDraft: (id: string | null, header: dal.MaterialRequestHeader, lines: dal.MaterialRequestLineInput[], clientRequestId?: string) =>
     wrap(() => dal.saveMaterialRequestDraft(id, header, lines, clientRequestId)),
   submit: (id: string, clientRequestId?: string) => wrap(() => dal.submitMaterialRequest(id, clientRequestId)),

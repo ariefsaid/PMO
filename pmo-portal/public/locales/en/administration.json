@@ -641,16 +641,29 @@
       "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
+      "setup": {
+        "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
+        "linkAction": "Link them to a person",
+        "noCrew": "Not in any crew, so they have no work to check in to.",
+        "crewAction": "Add them to a crew"
+      },
       "builtIn": {
         "tier": {
           "manager": "Managers",
           "officer": "Officers",
           "field": "Field"
         },
-        "none": "No built-in role (access level only)",
-        "label": "Built-in role",
-        "helper": "A built-in role starts from one access level and sets what this person sees and does for their job.",
-        "baseLevel": "Access level: {{level}} (set by the built-in role)"
+        "none": "No job role (access level only)",
+        "label": "Job role",
+        "helper": "A job role starts from one access level and sets what this person sees and does for their job.",
+        "baseLevel": "Access level: {{level}} (set by the job role)",
+        "inviteRequired": "Choose the job role.",
+        "invitePlaceholder": "Choose a job role",
+        "inviteSearch": "Search job roles",
+        "inviteNoun": "job role",
+        "menuEdit": "Change job role",
+        "formTitle": "Change job role: {{name}}",
+        "formSubmit": "Save job role"
       },
       "fieldLogin": {
         "noPerson": "This login is not in the workforce list, so it cannot clock in. Add this person to the workforce list, then place them in a crew.",
@@ -686,7 +699,12 @@
         "retry": "This address is already being invited",
         "retryDetail": "Try again in a moment.",
         "seatLimit": "Your plan has no seats left",
-        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
+        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again.",
+        "notSent": "The invitation was not sent",
+        "notSentDetail": "The email could not be sent, so nothing was saved. What you typed is still here: check the address and try again. If it keeps failing, tell your Operator that invitation emails are not going out.",
+        "rateLimited": "Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.",
+        "roleNotSet": "Invitation sent, job role not saved",
+        "roleNotSetDetail": "{{email}} was invited. Open their row and choose Change job role to set it."
       },
       "statusError": {
         "seatLimit": "Your plan has no seats left",
@@ -893,25 +911,26 @@
     "user": "App user (optional)",
     "userPlaceholder": "Not an app user",
     "userSearch": "Search users",
-    "archived": "Person archived",
     "actions": "Actions",
     "editLabel": "Edit {{name}}",
     "edit": "Edit",
-    "archiveLabel": "Archive {{name}}",
-    "archive": "Archive",
     "add": "Add person",
     "error": "Couldn't load people",
     "errorSub": "The request failed. Check your connection and try again.",
     "retry": "Retry",
     "empty": "No people yet. Add the first person to record their documents.",
-    "archiveTitle": "Archive person",
-    "archiveBody": "They leave the active list and the expiry warnings, and stay on record under Former staff.",
     "staffStatus": "Staff status",
     "active": "Active",
     "former": "Former staff",
     "all": "All",
-    "formerEmpty": "No former staff. People you archive appear here.",
-    "navLabel": "People"
+    "formerEmpty": "No former staff. People you mark as left appear here.",
+    "navLabel": "People",
+    "markLeft": "Mark as left",
+    "markLeftLabel": "Mark {{name}} as left",
+    "leftTitle": "Mark {{name}} as left",
+    "leftBody": "They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.",
+    "leftOn": "Last day of work",
+    "markedLeft": "{{name}} is now former staff"
   },
   "roleNames": {
     "title": "Role names",
@@ -1135,7 +1154,10 @@
       "archiveBody": "It leaves every checklist and no longer counts toward being cleared. Dates already recorded are kept.",
       "archived": "Item archived",
       "editLabel": "Edit {{name}}",
-      "archiveLabel": "Archive {{name}}"
+      "archiveLabel": "Archive {{name}}",
+      "documentType": "Takes its dates from this document",
+      "noDocumentType": "None: record the date on the checklist",
+      "documentTypeHelp": "Pick the document type, such as a licence. The expiry is then kept once, on the person’s document, and also appears on the expiring list."
     },
     "cancel": "Cancel",
     "people": {
@@ -1184,7 +1206,12 @@
       "removed": "Date removed",
       "link": "Cleared-for-site checklist",
       "editLabel": "{{action}} {{name}}",
-      "removeLabel": "Remove {{name}}"
+      "removeLabel": "Remove {{name}}",
+      "documentLabel": "{{action}} {{name}}",
+      "openDocument": "Open the document",
+      "addDocument": "Add the document",
+      "fromDocument": "From the {{type}} document",
+      "noDocument": "No {{type}} document yet. Add it on the person’s record."
     },
     "state": {
       "done": "Done",

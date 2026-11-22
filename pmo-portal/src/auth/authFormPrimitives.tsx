@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../components/ui/cn';
 import { Icon } from '../components/ui/icons';
+import { setPreSessionLocale, usePreSessionLocale, type PreSessionLocale } from '../lib/locale/preSessionLocale';
 
 // -----------------------------------------------------------------------
 // authFormPrimitives — shared auth-form UI (D-AUTHF-12).
@@ -115,5 +116,35 @@ export const AuthInput: React.FC<{
       )}
     </div>
   </div>
+  );
+};
+
+const LANGUAGE_CHOICES: ReadonlyArray<{ value: PreSessionLocale; label: string }> = [
+  { value: 'id', label: 'Bahasa Indonesia' }, // i18n-exempt: a language is always named in itself
+  { value: 'en', label: 'English' }, // i18n-exempt: a language is always named in itself
+];
+
+/** The sign-in language switch: before any organisation is known the page follows the browser, and a tap here is remembered on this device. */
+export const LanguageSwitch: React.FC<{ className?: string }> = ({ className }) => {
+  const current = usePreSessionLocale();
+  const { t } = useTranslation('auth');
+  return (
+    <div role="group" aria-label={t('login.language', 'Language')} className={cn('flex justify-end gap-1', className)}>
+      {LANGUAGE_CHOICES.map(({ value, label }) => (
+        <button
+          key={value}
+          type="button"
+          lang={value}
+          aria-pressed={current === value}
+          onClick={() => setPreSessionLocale(value)}
+          className={cn(
+            'touch-target inline-flex min-h-11 items-center rounded-md px-3 text-control focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+            current === value ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-muted-foreground hover:bg-surface-hover',
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 };

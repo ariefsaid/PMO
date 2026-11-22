@@ -36,6 +36,16 @@ export function useLinePlans(workOrderId: string | undefined, itemIds: string[],
   });
 }
 
+/** The earlier requests behind "already requested" for one item, read only once the person opens the list. */
+export function usePriorRequests(workOrderId: string | undefined, itemId: string | undefined, excludeRequestId: string | null | undefined, enabled: boolean) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'prior', workOrderId, itemId, excludeRequestId ?? null],
+    queryFn: () => repo.priorRequests(workOrderId as string, itemId as string, excludeRequestId),
+    enabled: enabled && Boolean(orgId) && Boolean(workOrderId) && Boolean(itemId),
+  });
+}
+
 export function useApprovalChain() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'chain'], queryFn: () => repo.chain(), enabled: Boolean(orgId) });

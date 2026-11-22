@@ -18,6 +18,8 @@ import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
+import { ApprovalItems } from '@/src/components/dashboard/hub/company/ApprovalItems';
 import { useFinanceHubFigures } from '@/src/hooks/useFinanceHubFigures';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
@@ -62,6 +64,8 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
   // #1988: the Reports and Statements figures arrive from ONE narrow read, not the whole pack + P&L.
   const figures = useFinanceHubFigures(canView);
   const projects = useProjects({ enabled: canView });
+  // fix-waiting item 2: what waits for Finance is the SAME list the home and the inbox show, never a second computation.
+  const waiting = useWaitingForYou();
 
   if (!canView) return <FinanceAccessDenied />;
 
@@ -141,6 +145,26 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
     </KPIRow>
   );
 
+  const waitingForYou = (
+    <Card role="region" aria-labelledby="finance-hub-waiting" data-testid="finance-hub-waiting">
+      <CardHead id="finance-hub-waiting">{t('financeHub:hub.waitingForYou', 'Waiting for your decision')}{waiting.count !== undefined && ` (${waiting.count})`}</CardHead>
+      <CardPad>
+        {waiting.isError ? (
+          <ListState variant="error" title={t('financeHub:hub.waitingError', "Couldn't load what is waiting for you")} onRetry={waiting.refetch} />
+        ) : waiting.isPending ? <ListState variant="loading" rows={2} />
+          : waiting.entries.length === 0 ? (
+            <p className="text-control text-muted-foreground">{t('financeHub:hub.waitingNone', 'Nothing is waiting for your decision.')}</p>
+          ) : (
+            <>
+              <ul className="divide-y divide-border">{<ApprovalItems entries={waiting.entries} limit={5} />}</ul>
+              <Link to="/approvals" className="mt-2 inline-block text-control font-medium text-primary-text hover:underline">
+                {t('financeHub:hub.waitingAll', { count: waiting.entries.length, defaultValue_one: 'All {{count}} approval', defaultValue_other: 'All {{count}} approvals' })}
+              </Link>
+            </>
+          )}
+      </CardPad>
+    </Card>
+  );
   const attention = (
     <Card role="region" aria-labelledby="finance-hub-attention">
       <CardHead id="finance-hub-attention">{realRole === 'Executive' ? t('financeHub:hub.fix.attention.executive', 'Waiting on Finance') : t('financeHub:hub.fix.attention.finance', 'Needs attention')}</CardHead>
@@ -202,6 +226,7 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
         {/* Waiting stays left; company figures, monthly totals and ageing use the wider right column. */}
         <div data-testid="finance-hub-first-row" className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
+            {waitingForYou}
             {attention}
           </div>
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">

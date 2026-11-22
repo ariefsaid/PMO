@@ -316,5 +316,8 @@
   "ui.accessDenied.sub",
   "ui.loadingPage.label",
   "terms.section",
-  "terms.sections"
+  "terms.sections",
+  "fileInput.choose",
+  "fileInput.none",
+  "fileInput.many"
 ]

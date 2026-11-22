@@ -402,7 +402,14 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
     // u-alice (currentUser) is both Finance role AND the requester → SoD blocked
     detailState.data = { ...selfRequestedBase };
     renderPage();
-    expect(within(screen.getByTestId('record-header-actions')).getByText(/waiting for approval/i)).toBeInTheDocument();
+    // fix-waiting item 3: it names who it waits for instead of a bare "Waiting for approval".
+    expect(within(screen.getByTestId('record-header-actions')).getByText(/^waiting for /i)).toBeInTheDocument();
+  });
+
+  it('JOB-WAIT-3: the requester sees the named approver and the kind of approver from the route the database computed', () => {
+    detailState.data = { ...selfRequestedBase, approvalRoute: { procurementId: 'p1', route: 'org', reason: 'exceeds_line', approvers: [{ id: 'u-ani', fullName: 'Ani Wijaya' }], requestAmount: 1, lineBudget: null, lineUsed: null } };
+    renderPage();
+    expect(within(screen.getByTestId('record-header-actions')).getByText('Waiting for Ani Wijaya, senior approver')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-W5-1c: SoD-blocked state has NO Approve/Reject in the header actions or its menu', async () => {

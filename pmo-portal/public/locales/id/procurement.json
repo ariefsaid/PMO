@@ -963,7 +963,7 @@
     "procurementRef": "Referensi pengadaan",
     "vendor": "Pemasok / Vendor",
     "project": "Proyek",
-    "workOrder": "Perintah kerja",
+    "workOrder": "$t(common:terms.clientWorkOrder)",
     "reference": "Nomor referensi",
     "status": "Status",
     "currency": "Mata uang",
@@ -1080,7 +1080,7 @@
   "billHold": {
     "rule": {
       "title": "Tagihan ini tertahan oleh aturan pembelian.",
-      "body": "Organisasi Anda mewajibkan penerimaan barang sebelum tagihan supplier. Catat penerimaan barang dulu. Admin dapat mengubah aturan ini di Administrasi, Akuntansi, Aturan pembelian."
+      "body": "Organisasi Anda mewajibkan penerimaan barang sebelum invoice supplier. Catat penerimaan barang dulu. Admin dapat mengubah aturan ini di Administrasi, Akuntansi, Aturan pembelian."
     },
     "match": {
       "title": "Pembayaran tertahan sampai tagihan ini cocok.",

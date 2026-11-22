@@ -26,9 +26,11 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useEquipment', () => ({
   useEquipmentAssetPages: () => h.assetPages,
   useCreateAsset: () => ({ mutateAsync: h.create, isPending: false }),
+  useCreateRentedAsset: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateAsset: () => ({ mutateAsync: h.update, isPending: false }),
   useDeleteAsset: () => ({ mutateAsync: h.del, isPending: false }),
 }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
 
 import EquipmentAssetsPage from './EquipmentAssets';

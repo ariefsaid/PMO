@@ -1,0 +1,2 @@
+# Client-callable SECURITY DEFINER RPC names (one proname per line).
+dsr_withdraw  # 1620: the report author only, scoped to the caller org, active member; revoked from public and anon, granted to authenticated

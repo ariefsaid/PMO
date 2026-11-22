@@ -512,6 +512,27 @@ describe('FileInput: labelled native selection', () => {
   });
 });
 
+describe('FileInput: the app draws the words, not the browser (fix/walk-people item 11)', () => {
+  it('shows its own button and "no file chosen" line, then the chosen file name', async () => {
+    render(
+      <>
+        <label htmlFor="proof">Proof</label>
+        <FileInput id="proof" />
+      </>,
+    );
+    expect(screen.getByRole('button', { name: 'Choose file' })).toBeInTheDocument();
+    expect(screen.getByText('No file chosen')).toBeInTheDocument();
+    await userEvent.upload(screen.getByLabelText('Proof'), new File(['x'], 'photo.png', { type: 'image/png' }));
+    expect(screen.getByText('photo.png')).toBeInTheDocument();
+    expect(screen.queryByText('No file chosen')).toBeNull();
+  });
+
+  it('puts the app language on native date and time controls so the browser names their parts in it', () => {
+    render(<TextField label="Send time" type="time" value="08:00" onChange={() => {}} />);
+    expect((screen.getByLabelText('Send time') as HTMLInputElement).lang).not.toBe('');
+  });
+});
+
 describe('TextArea: ref forwarding', () => {
   it('forwards the ref to the labelled textarea', () => {
     const ref = React.createRef<HTMLTextAreaElement>();

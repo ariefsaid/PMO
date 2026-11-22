@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import {
   Toolbar,
   SearchMini,
@@ -19,6 +20,11 @@ import { Avatar } from '@/src/components/ui/Avatar';
 import { initialsOf } from './avatar';
 import { useRoleLabels } from './roleLabels';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
+import { useAllCrewMembers } from '@/src/hooks/useCrews';
+import { usePeople } from '@/src/hooks/usePeople';
+import { formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /**
  * The Administration › Users directory (CROSS-65 / XG01-002): the body block — toolbar + search,
@@ -93,6 +99,21 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
   const roleDisplayName = useBuiltInRoleName();
+  const builtInRolesOn = useBuiltInRolesEnabled().data === true;
+  // A Foreman or Field user works through a person record in a crew. When their login is not linked to a person, or the person is
+  // in no crew, they cannot do their day: say so here, with the one action that fixes it. Read only when such a user is listed.
+  const fieldRoleKeys = ['foreman', 'field_user'];
+  const hasFieldUsers = rows.some((u) => u.built_in_role && fieldRoleKeys.includes(u.built_in_role));
+  const peopleForSetup = usePeople('active');
+  const placements = useAllCrewMembers(hasFieldUsers);
+  const todayIso = formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
+  const setupGap = (u: UserDirectoryRow): 'unlinked' | 'noCrew' | null => {
+    if (!hasFieldUsers || !u.built_in_role || !fieldRoleKeys.includes(u.built_in_role) || !peopleForSetup.data || !placements.data) return null;
+    const person = peopleForSetup.data.find((p) => p.profile_id === u.id);
+    if (!person) return 'unlinked';
+    const inCrew = placements.data.some((m) => m.worker_id === person.id && m.valid_from <= todayIso && (!m.valid_to || m.valid_to >= todayIso));
+    return inCrew ? null : 'noCrew';
+  };
   const tableRef = useRef<HTMLDivElement>(null);
   // The input stays local and responsive; the SERVER query is only issued after the person stops
   // typing (300 ms), so one keystroke never becomes one whole-org read.
@@ -158,12 +179,24 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     },
     {
       key: 'role',
-      header: t('admin.users.columns.role', 'Role'),
+      header: t('admin.users.columns.role', 'Access level'),
       cell: (u) => (
         <span>
           <StatusPill variant={roleVariant(u.role)}>{u.built_in_role ? roleDisplayName(u.built_in_role) : roleNames.label(u.role)}</StatusPill>
           {u.built_in_role && <span className="ml-2 text-muted-foreground">{roleNames.label(u.role)}</span>}
           {isSoleAdmin(u) && <span className="ml-2 text-muted-foreground">{t('administration:onlyActiveAdmin', 'The only active Admin cannot be disabled')}</span>}
+          {setupGap(u) === 'unlinked' && (
+            <span className="mt-1 block text-control text-warning-foreground" data-testid={`setup-gap-${u.id}`}>
+              {t('administration:admin.users.setup.unlinked', 'Login not linked to a person, so they cannot be placed in a crew.')}{' '}
+              <Link to="/administration/people" className="underline underline-offset-2">{t('administration:admin.users.setup.linkAction', 'Link them to a person')}</Link>
+            </span>
+          )}
+          {setupGap(u) === 'noCrew' && (
+            <span className="mt-1 block text-control text-warning-foreground" data-testid={`setup-gap-${u.id}`}>
+              {t('administration:admin.users.setup.noCrew', 'Not in any crew, so they have no work to check in to.')}{' '}
+              <Link to="/crews" className="underline underline-offset-2">{t('administration:admin.users.setup.crewAction', 'Add them to a crew')}</Link>
+            </span>
+          )}
         </span>
       ),
     },
@@ -212,7 +245,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     const isSelf = !!currentUserId && currentUserId === u.id;
     if (canManage && !isSelf) {
       items.push(
-        { label: t('admin.users.menu.editRole', 'Edit role'), onClick: () => onEditRole(u) },
+        { label: builtInRolesOn ? t('administration:admin.users.builtIn.menuEdit', 'Change job role') : t('admin.users.menu.editRole', 'Edit access level'), onClick: () => onEditRole(u) },
         { label: t('admin.users.menu.changeManager', 'Change manager'), onClick: () => onChangeManager(u) },
       );
     }

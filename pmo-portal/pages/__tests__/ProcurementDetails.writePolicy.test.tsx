@@ -45,8 +45,8 @@ import { headerActions, openMoreActions } from '@/pages/__tests__/helpers/procur
  *  AC-IXD-WP-003 — a `ConfirmDialog` opens for the CONSEQUENTIAL set
  *    {Approve, Reject, Cancel, Mark-as-Paid} and does NOT open for the ROUTINE
  *    reversible forward steps {Submit Request, Request Vendor Quotes,
- *    Generate Purchase Order, Confirm Receipt, Record supplier invoice} — those
- *    commit on a single click + a quiet toast.
+ *    Confirm Receipt, Record supplier invoice} — those commit on a single click
+ *    + a quiet toast. Record order (Ordered) asks for one confirm since 1580.
  *
  *  AC-IXD-WP-002 (component half) — the kept Approve + Mark-as-Paid confirms
  *    RESTATE the amount + project + requester in the dialog body (confirm
@@ -244,12 +244,17 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     );
   });
 
-  it('AC-IXD-WP-003: Generate Purchase Order (Quote Selected→Ordered) commits on a single click — no dialog', async () => {
-    detailState.data = { ...baseProcurement, status: 'Quote Selected', requested_by_id: 'u-other' };
+  it('AC-IXD-WP-003: Record order (Quote Selected→Ordered) is confirmed once, naming the supplier and amount, then commits', async () => {
+    // 1580 (deliberate UX change): an order is the one forward step that now asks for a confirm, because it needs its supplier
+    // and is not recorded by accident. The goal is unchanged: the purchase moves to Ordered.
+    detailState.data = { ...baseProcurement, status: 'Quote Selected', requested_by_id: 'u-other', vendor_id: 'v-1', vendor: { name: 'Acme Supplies' } };
     renderPage();
     await userEvent.click(headerActions().getByRole('button', { name: 'Record order' }));
 
-    expect(screen.queryByRole('dialog')).toBeNull();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Acme Supplies/)).toBeInTheDocument();
+    expect(mockTransition).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Generate Purchase Order' }));
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Ordered' })),
     );

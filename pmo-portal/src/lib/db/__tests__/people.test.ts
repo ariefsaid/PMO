@@ -7,8 +7,9 @@ for (const op of ['insert', 'update', 'select', 'eq', 'is', 'order']) {
 }
 chain.single = () => Promise.resolve({ data: { id: 'new' }, error: null });
 chain.then = (res: (v: unknown) => unknown) => Promise.resolve(h.result).then(res);
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: () => chain } }));
-import { archivePerson, createPerson, updatePerson } from '../people';
+const rpc = vi.hoisted(() => vi.fn());
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: () => chain, rpc } }));
+import { createPerson, markPersonLeft, updatePerson } from '../people';
 
 describe('people register writes (#2542 follow-up)', () => {
   beforeEach(() => { h.calls = []; h.result = { data: [{ id: 'p1' }], error: null }; });
@@ -29,14 +30,15 @@ describe('people register writes (#2542 follow-up)', () => {
     expect(Object.keys(h.calls.find((c) => c.op === 'update')?.arg as object).sort()).toEqual(['code', 'job_title', 'name', 'profile_id']);
   });
 
-  it('AC-PPL-007 archive sets archived_at only', async () => {
-    await archivePerson('p1');
-    expect(Object.keys(h.calls.find((c) => c.op === 'update')?.arg as object)).toEqual(['archived_at']);
+  it('AC-PPL-007 mark as left sends the person and the leaving day to the database function', async () => {
+    rpc.mockResolvedValue({ error: null });
+    await markPersonLeft('p1', '2026-12-01');
+    expect(rpc).toHaveBeenCalledWith('person_mark_left', { p_person_id: 'p1', p_left_on: '2026-12-01' });
   });
 
-  it('reports a write RLS turned into zero rows', async () => {
-    h.result = { data: [], error: null };
-    await expect(archivePerson('p1')).rejects.toMatchObject({ code: '42501' });
+  it('AC-PPL-007 mark as left keeps the database refusal code', async () => {
+    rpc.mockResolvedValue({ error: { message: 'PPL_FORBIDDEN: only an Admin', code: '42501' } });
+    await expect(markPersonLeft('p1', '2026-12-01')).rejects.toMatchObject({ code: '42501' });
   });
 
   it('AC-PPL-009 preserves the Postgres code and message so the form can name the field', async () => {

@@ -177,6 +177,11 @@
     "helpAges": "Client balances by age count days past due, tax included. Supplier invoice age counts calendar days from the invoice date; invoices without a date have no age.",
     "payablesHelp": "Invoice age is counted from the supplier invoice date.",
     "workInHand": "Work in hand",
+    "waitingForYou": "Waiting for your decision",
+    "waitingError": "Couldn't load what is waiting for you",
+    "waitingNone": "Nothing is waiting for your decision.",
+    "waitingAll_one": "All {{count}} approval",
+    "waitingAll_other": "All {{count}} approvals",
     "claimsBoard": "Claims board: by step and age",
     "newVendorBill": {
       "title": "New vendor bill",
