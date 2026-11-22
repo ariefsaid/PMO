@@ -329,6 +329,31 @@ export async function getLinePlans(workOrderId: string, itemIds: string[], exclu
   return (data ?? []).map((p) => ({ itemId: p.item_id, planQty: Number(p.plan_qty), priorQty: Number(p.prior_qty), planSource: asPlanSource(p.plan_source) }));
 }
 
+/** One earlier request that counts toward "already requested" (pending or approved) for an item on a work order. */
+export interface PriorRequestLine { requestId: string; number: string; status: MaterialRequestStatus; quantity: number; neededBy: string }
+
+/**
+ * The requests behind the "already requested" figure for ONE item on a work order: the pending and approved ones (the same
+ * statuses `mrq_prior_quantity` counts), newest first. Reads are RLS-scoped; the figure also includes stock already sent to the
+ * work order, which is not a request and is not listed here.
+ */
+export async function listPriorRequestLines(workOrderId: string, itemId: string, excludeRequestId?: string | null): Promise<PriorRequestLine[]> {
+  const { data, error } = await (supabase
+    .from('material_request_lines')
+    .select('quantity, material_requests!inner(id, number, status, needed_by, work_order_id, created_at)')
+    .eq('item_id', itemId)
+    .eq('material_requests.work_order_id', workOrderId)
+    .in('material_requests.status', ['pending', 'approved']) as unknown as DbResult<Array<{
+      quantity: number | string;
+      material_requests: { id: string; number: string; status: MaterialRequestStatus; needed_by: string; created_at: string };
+    }>>);
+  if (error) fail(error);
+  return (data ?? [])
+    .filter((l) => l.material_requests.id !== excludeRequestId)
+    .sort((a, b) => b.material_requests.created_at.localeCompare(a.material_requests.created_at))
+    .map((l) => ({ requestId: l.material_requests.id, number: l.material_requests.number, status: l.material_requests.status, quantity: Number(l.quantity), neededBy: l.material_requests.needed_by }));
+}
+
 export async function listApprovalChain(): Promise<ChainStep[]> {
   const { data, error } = await (supabase.from('approval_chain_steps').select('id, position, role, label, only_over_plan')
     .order('position', { ascending: true }).limit(10) as unknown as DbResult<Array<{ id: string; position: number; role: Role; label: string; only_over_plan: boolean }>>);

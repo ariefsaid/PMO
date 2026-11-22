@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   sections: [] as Array<{ id: string; code: string; name: string }>,
   sectionPlans: [] as Array<{ itemId: string; sectionPlanQty: number | null; sectionPriorQty: number | null }>,
   planSource: null as string | null,
+  prior: [] as Array<{ requestId: string; number: string; status: string; quantity: number; neededBy: string }>,
   warehouses: [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }] as unknown[],
   warehouseQuery: { isPending: false, isError: false, refetch: vi.fn() },
   saveDraft: { mutateAsync: vi.fn().mockResolvedValue('r1'), isPending: false },
@@ -20,6 +21,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
     isPending: false, isError: false,
   }),
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
+  usePriorRequests: (_wo: string, _item: string, _ex: unknown, enabled: boolean) => ({ data: enabled ? h.prior : undefined, isPending: false, isError: false }),
   useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4, planSource: h.planSource }], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useWorkOrderSectionMaterials', () => ({
@@ -51,6 +53,20 @@ describe('raise a material request on a section (#2576)', () => {
     await pick(/^project/i, 'Site Alpha');
     await pick(/^work order/i, 'WO-1 · Slab');
     expect(screen.queryByLabelText('Section')).not.toBeInTheDocument();
+  });
+
+  it('JOB-MRQ-PRIOR: tapping "already requested" lists the earlier requests and the stock already sent', async () => {
+    h.prior = [{ requestId: 'r9', number: 'MR-009', status: 'approved', quantity: 3, neededBy: '2026-11-20' }];
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await pick(/^project/i, 'Site Alpha');
+    await pick(/^work order/i, 'WO-1 · Slab');
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    expect(screen.queryByTestId('mrq-prior-list')).toBeNull();
+    await userEvent.click(screen.getByTestId('mrq-prior-toggle'));
+    const list = screen.getByTestId('mrq-prior-list');
+    expect(list).toHaveTextContent('MR-009 · Approved · 3');
+    // 4 already requested, 3 on the request, so 1 is stock already sent to the work order
+    expect(list).toHaveTextContent('Stock already sent to this work order: 1');
   });
 
   it('FR-WOS-015 a line within the work order\'s plan but over its section\'s allocation asks for a reason, and the header carries the section', async () => {

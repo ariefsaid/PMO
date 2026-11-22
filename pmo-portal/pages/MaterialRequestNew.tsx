@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { PriorRequests } from './materialRequests/PriorRequests';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Combobox, DateField, ListState, SelectField, TextArea, TextField, useToast } from '@/src/components/ui';
@@ -188,7 +189,13 @@ const MaterialRequestNewPage: React.FC = () => {
                 {l.itemId && (
                   <p className="text-control text-muted-foreground" data-testid="mrq-plan">
                     {plans.isPending ? '…' : p
-                      ? t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: p.planQty, prior: p.priorQty, total: st?.newTotal })
+                      ? (
+                        <>
+                          {t('form.planLead', 'Plan {{plan}} · ', { plan: p.planQty })}
+                          <PriorRequests workOrderId={workOrderId} itemId={l.itemId} excludeRequestId={requestId} prior={p.priorQty} />
+                          {t('form.planTail', ' · new total {{total}}', { total: st?.newTotal })}
+                        </>
+                      )
                       : t('form.planUnknown', 'Plan figures unavailable')}
                     {p?.planSource && <span className="ml-2" data-testid="mrq-plan-source">{t(`form.planSource.${p.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[p.planSource])}</span>}
                     {st?.overPlan && <strong className="ml-2 text-warning-foreground">{t('form.overPlan', 'Over plan')}</strong>}
