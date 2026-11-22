@@ -3,7 +3,7 @@
 -- Shipped code under test: supabase/migrations/1568_imprest_requester_route.sql.
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(62);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15680000-0000-0000-0000-00000000000a', 'RT Org',       'IDR', 'Asia/Jakarta'),
@@ -36,7 +36,9 @@ insert into projects (id, org_id, name, status, project_manager_id) values
   ('15680000-0000-0000-0000-0000000000c1', '15680000-0000-0000-0000-00000000000a', 'RT Site One',  'Ongoing Project', '15680000-0000-0000-0000-0000000000a4'),
   ('15680000-0000-0000-0000-0000000000c2', '15680000-0000-0000-0000-00000000000a', 'RT Site Two',  'Ongoing Project', '15680000-0000-0000-0000-0000000000a4'),
   ('15680000-0000-0000-0000-0000000000c4', '15680000-0000-0000-0000-00000000000a', 'RT Site Four', 'Ongoing Project', '15680000-0000-0000-0000-0000000000a4'),
-  ('15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-00000000000a', 'RT Site Five', 'Ongoing Project', '15680000-0000-0000-0000-0000000000a4');
+  ('15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-00000000000a', 'RT Site Five', 'Ongoing Project', '15680000-0000-0000-0000-0000000000a4'),
+  -- S3 (plan total over float) gets its own project so the float can be lowered without touching another case.
+  ('15680000-0000-0000-0000-0000000000c7', '15680000-0000-0000-0000-00000000000a', 'RT Site Seven', 'Ongoing Project', '15680000-0000-0000-0000-0000000000a4');
 insert into org_imprest_settings (org_id, procurement_limit, updated_by) values
   ('15680000-0000-0000-0000-00000000000a', 2000000, '15680000-0000-0000-0000-0000000000a1');
 -- The org senior set (project_id null) is the Executive; project approvers are explicit per project.
@@ -52,29 +54,35 @@ insert into spend_approvers (org_id, project_id, profile_id) values
   ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c4', '15680000-0000-0000-0000-0000000000a4'),
   ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c4', '15680000-0000-0000-0000-0000000000a3', 5000000),
   -- P5: only the project approver, so making the senior set ineligible leaves the Admin fallback.
-  ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a8');
+  ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a8'),
+  ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c7', '15680000-0000-0000-0000-0000000000a8');
 insert into budget_versions (id, org_id, project_id, name, version, status) values
   ('15680000-0000-0000-0000-000000000f01', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c1', 'v1', 1, 'Draft'),
   ('15680000-0000-0000-0000-000000000f02', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c2', 'v1', 1, 'Draft'),
   ('15680000-0000-0000-0000-000000000f04', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c4', 'v1', 1, 'Draft'),
-  ('15680000-0000-0000-0000-000000000f05', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', 'v1', 1, 'Draft');
+  ('15680000-0000-0000-0000-000000000f05', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', 'v1', 1, 'Draft'),
+  ('15680000-0000-0000-0000-000000000f07', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c7', 'v1', 1, 'Draft');
 insert into budget_line_items (org_id, budget_version_id, category, budgeted_amount) values
   ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f01', 'Vehicle',   100000000),
   ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f01', 'Materials', 100000000),
   ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f02', 'Vehicle',   100000000),
   ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f04', 'Vehicle',   100000000),
   ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f04', 'Materials', 100000000),
-  ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f05', 'Vehicle',   100000000);
+  ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f05', 'Vehicle',   100000000),
+  ('15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-000000000f07', 'Vehicle',   100000000);
 update budget_versions set status = 'Active'
  where id in ('15680000-0000-0000-0000-000000000f01', '15680000-0000-0000-0000-000000000f02',
-              '15680000-0000-0000-0000-000000000f04', '15680000-0000-0000-0000-000000000f05');
+              '15680000-0000-0000-0000-000000000f04', '15680000-0000-0000-0000-000000000f05',
+              '15680000-0000-0000-0000-000000000f07');
 insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, currency, created_by) values
   ('15680000-0000-0000-0000-0000000000d1', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c1', '15680000-0000-0000-0000-0000000000a2', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
   ('15680000-0000-0000-0000-0000000000d2', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c2', '15680000-0000-0000-0000-0000000000a2', 100000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
   ('15680000-0000-0000-0000-0000000000d4', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c4', '15680000-0000-0000-0000-0000000000a2', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
   ('15680000-0000-0000-0000-0000000000d5', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a2', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
   -- F6: custodian is the organisation's only Admin (S2 custodian-only-Admin regression).
-  ('15680000-0000-0000-0000-0000000000d6', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a1', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1');
+  ('15680000-0000-0000-0000-0000000000d6', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a1', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
+  -- F7: the S3 total-over-float case (lowered after its plan was submitted).
+  ('15680000-0000-0000-0000-0000000000d7', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c7', '15680000-0000-0000-0000-0000000000a2', 200000000, 'IDR', '15680000-0000-0000-0000-0000000000a1');
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -97,7 +105,15 @@ insert into imprest_plans (id, org_id, float_id, month, status, author_id, submi
   -- p9: custodian-only Admin; p10: author-only Admin; p11: named route whose only Admin is the author.
   ('15680000-0000-0000-0000-000000000191', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d6', '2027-01-01', 'Submitted', '15680000-0000-0000-0000-0000000000a8', now()),
   ('15680000-0000-0000-0000-000000000192', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d5', '2027-05-01', 'Submitted', '15680000-0000-0000-0000-0000000000a1', now()),
-  ('15680000-0000-0000-0000-000000000193', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d5', '2027-06-01', 'Submitted', '15680000-0000-0000-0000-0000000000a1', now());
+  ('15680000-0000-0000-0000-000000000193', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d5', '2027-06-01', 'Submitted', '15680000-0000-0000-0000-0000000000a1', now()),
+  -- S3: three Submitted plans whose APPROVAL is blocked by one condition each, while rejection stays legal.
+  -- Months are org-TZ-aware: the ended month is the previous org month; the other two are the current org month.
+  ('15680000-0000-0000-0000-000000000194', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d1',
+   (date_trunc('month', now() at time zone 'Asia/Jakarta') - interval '1 month')::date, 'Submitted', '15680000-0000-0000-0000-0000000000a4', now()),
+  ('15680000-0000-0000-0000-000000000195', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d7',
+   date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'Submitted', '15680000-0000-0000-0000-0000000000a4', now()),
+  ('15680000-0000-0000-0000-000000000196', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d1',
+   date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'Submitted', '15680000-0000-0000-0000-0000000000a4', now());
 insert into imprest_plan_lines (plan_id, budget_category, planned_amount) values
   ('15680000-0000-0000-0000-000000000151', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000152', 'Vehicle', 150000000),
@@ -110,7 +126,14 @@ insert into imprest_plan_lines (plan_id, budget_category, planned_amount) values
   ('15680000-0000-0000-0000-000000000158', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000191', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000192', 'Vehicle', 1000000),
-  ('15680000-0000-0000-0000-000000000193', 'Vehicle', 1000000);
+  ('15680000-0000-0000-0000-000000000193', 'Vehicle', 1000000),
+  ('15680000-0000-0000-0000-000000000194', 'Vehicle', 1000000),
+  ('15680000-0000-0000-0000-000000000195', 'Vehicle', 90000000),
+  ('15680000-0000-0000-0000-000000000196', 'Vehicle', 1000000);
+
+-- S3 (b): the float is lowered after the plan was submitted (lawful: 50,000,000 is above the 0 funded),
+-- so approval now fails the total ceiling while rejection is still a legal decision.
+update imprest_floats set float_amount = 50000000 where id = '15680000-0000-0000-0000-0000000000d7';
 
 -- Float limit changes (one open per float).
 insert into imprest_float_changes (id, org_id, float_id, proposed_amount, status, proposed_by) values
@@ -309,6 +332,56 @@ set local role authenticated;
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000154')->>'route_kind', 'admin',
   'FR-WAIT-006 the same Admin backs the fallback once unbanned');
+
+-- ── S3 (root msg 4946c4b2b24f): approval blocked by one condition, the SAME projected actor may still reject ────
+-- The read names who can DECIDE (approve OR reject); it never promises that approval will pass.
+-- (a) month ended: approval is refused by the ended month; rejection is a legal decision.
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a8');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000194')->>'route_kind', 'named',
+  'FR-WAIT-006 an ended-month Submitted plan still projects its decision route');
+select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000194')),
+  array['RT PM Project'], 'FR-WAIT-006 the projected actor is the routed project approver');
+select throws_ok($$ select public.transition_imprest_plan('15680000-0000-0000-0000-000000000194', 'Approved') $$,
+  'P0001', 'the plan''s month has ended; it can no longer be approved',
+  'FR-WAIT-006 approval of the ended-month plan fails on the month condition, not on setup, SoD, the route or the feature');
+select lives_ok($$ select public.transition_imprest_plan('15680000-0000-0000-0000-000000000194', 'Rejected') $$,
+  'FR-WAIT-006 the same projected actor is authorized to reject the ended-month plan');
+select is((select status from public.imprest_plans where id = '15680000-0000-0000-0000-000000000194'), 'Rejected',
+  'FR-WAIT-006 the ended-month plan reaches Rejected');
+
+-- (b) plan total above the lowered float: approval hits the ceiling; rejection is a legal decision.
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000195')->>'route_kind', 'named',
+  'FR-WAIT-006 an over-float Submitted plan still projects its decision route');
+select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000195')),
+  array['RT PM Project'], 'FR-WAIT-006 the over-float projected actor is the routed project approver');
+select throws_like($$ select public.transition_imprest_plan('15680000-0000-0000-0000-000000000195', 'Approved') $$,
+  'the plan total % is above the float amount %',
+  'FR-WAIT-006 approval of the over-float plan fails on the total ceiling, not on setup, SoD, the route or the month');
+select lives_ok($$ select public.transition_imprest_plan('15680000-0000-0000-0000-000000000195', 'Rejected') $$,
+  'FR-WAIT-006 the same projected actor is authorized to reject the over-float plan');
+select is((select status from public.imprest_plans where id = '15680000-0000-0000-0000-000000000195'), 'Rejected',
+  'FR-WAIT-006 the over-float plan reaches Rejected');
+
+-- (c) imprest feature off: forward approval is gated; rejection is exempt (0534:1138).
+reset role;
+insert into org_features (org_id, feature_key, enabled, updated_by) values
+  ('15680000-0000-0000-0000-00000000000a', 'imprest', false, '15680000-0000-0000-0000-0000000000a1');
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a8');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000196')->>'route_kind', 'named',
+  'FR-WAIT-006 a feature-off Submitted plan still projects its decision route');
+select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000196')),
+  array['RT PM Project'], 'FR-WAIT-006 the feature-off projected actor is the routed project approver');
+select throws_ok($$ select public.transition_imprest_plan('15680000-0000-0000-0000-000000000196', 'Approved') $$,
+  'P0001', 'feature_off',
+  'FR-WAIT-006 approval of the feature-off plan fails on the feature switch, not on setup, SoD, the route or the month');
+select lives_ok($$ select public.transition_imprest_plan('15680000-0000-0000-0000-000000000196', 'Rejected') $$,
+  'FR-WAIT-006 the same projected actor is authorized to reject the feature-off plan');
+select is((select status from public.imprest_plans where id = '15680000-0000-0000-0000-000000000196'), 'Rejected',
+  'FR-WAIT-006 the feature-off plan reaches Rejected');
+reset role;
+delete from org_features where org_id = '15680000-0000-0000-0000-00000000000a' and feature_key = 'imprest';
 
 -- Light account: refused with the 1209 convention.
 reset role;
