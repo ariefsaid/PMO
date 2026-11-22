@@ -23,6 +23,8 @@ export interface AttendanceRowInput {
   hours?: number | null;
   overtime_hours?: number | null;
   reason?: string | null;
+  /** The crew this person followed that day, when it is not their own (no loan arranged). */
+  followed_crew_id?: string | null;
 }
 
 export interface AttendanceDayRow {

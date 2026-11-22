@@ -19,6 +19,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
   }),
   useAttendanceDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useAwaitingAttendance: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useAllCrewMembers: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useCrewWorkers: () => ({ data: [] }),
   useCrewWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-1', title: 'Pipe rack' }], isLoading: false, isError: false, refetch: vi.fn() }),
   useAttendanceMutations: () => ({

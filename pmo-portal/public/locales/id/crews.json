@@ -277,5 +277,11 @@
       "approved": "Dilepas",
       "deferred": "Pelepasan ditunda"
     }
-  }
+  },
+  "addFollower": "Tambah orang dari kru lain",
+  "addFollowerPlaceholder": "Pilih orang",
+  "addFollowerNone": "Tidak ada orang lain yang ditempatkan di kru hari ini.",
+  "addFollowerHint": "Untuk orang yang bergabung dengan kru ini hari ini tanpa peminjaman. Jam kerjanya dicatat di sini.",
+  "followedFrom": "Ikut kru ini, berasal dari {{crew}}",
+  "followedToday": "Ikut kru ini hari ini"
 }

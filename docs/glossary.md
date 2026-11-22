@@ -289,6 +289,8 @@ already submitted or approved never move. A worker has at most one loan on any d
 **Effective crew** — the crew a worker is in on a date: the host crew on a loan day, otherwise the crew they are placed in.
 One database function answers it, so the roster and attendance agree.
 
+**Followed crew** — the crew a worker followed on one day without a loan, recorded on that day's attendance record by the receiving crew's foreman or a crew manager, or by a supervisor approving the worker's phone clock-in request that picked the crew. It then counts as the worker's effective crew for that day only; the home placement never changes.
+
 **Field controller** — the user who records a crew's daily attendance; may not approve the hours they recorded.
 
 **Attendance record** — one person's attendance for one day on one work order (present, absent, leave or off

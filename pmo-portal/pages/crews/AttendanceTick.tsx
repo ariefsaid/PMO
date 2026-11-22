@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, DateField, FieldError, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast, useUrlFilters,
+  Button, Card, CardHead, CardPad, Combobox, DateField, FieldError, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast, useUrlFilters,
 } from '@/src/components/ui';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { usePermission } from '@/src/auth/usePermission';
@@ -10,10 +10,10 @@ import { useReleaseHolds } from '@/src/hooks/useMedicalRelease';
 import type { ReleaseState } from '@/src/lib/repositories/medicalRelease';
 import { useAuth } from '@/src/auth/useAuth';
 import {
-  useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useWorkOrderRoster,
+  useAllCrewMembers, useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useWorkOrderRoster,
 } from '@/src/hooks/useCrews';
-import type { AttendanceDayRow, AttendanceStatus, RosterCrew } from '@/src/lib/repositories/crews';
-import { buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState } from '@/src/lib/attendanceTick';
+import type { AttendanceDayRow, AttendanceStatus, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
+import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState } from '@/src/lib/attendanceTick';
 import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
 import { WorkOrderPicker } from './CrewPickers';
@@ -31,6 +31,8 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const writeError = useCrewErrorText();
   const { toast } = useToast();
   const { record, uploadPhoto, generateWeek } = useAttendanceMutations();
+  const workers = useCrewWorkers();
+  const placements = useAllCrewMembers();
   const [state, setState] = useState<TickState>(() => initialTickState(
     crew.members.map((m) => ({ worker_id: m.worker_id, off_rotation: Boolean(m.off_rotation) })),
     held.filter((h) => crew.members.some((m) => m.worker_id === h.worker_id)),
@@ -55,10 +57,30 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     setState((s) => ({ ...s, people: { ...s.people, [id]: { ...s.people[id], ...patch } } }));
   };
 
+  const names = useMemo(() => new Map((workers.data ?? []).map((w) => [w.id, w.display_name])), [workers.data]);
+  // The crew's own members, then the people added from another crew in this session (not yet saved).
+  const rows = useMemo<RosterMember[]>(() => [
+    ...crew.members,
+    ...state.followers.map((id) => ({ worker_id: id, display_name: names.get(id) ?? '—', standard_role_id: null })),
+  ], [crew.members, state.followers, names]);
+  // Active people placed in a crew that day, other than this crew's own members and anyone already listed or recorded today.
+  const addable = useMemo(() => {
+    const placed = new Set((placements.data ?? [])
+      .filter((m) => m.valid_from <= date && (m.valid_to === null || m.valid_to >= date)).map((m) => m.worker_id));
+    const recorded = new Set(held.map((h) => h.worker_id));
+    return (workers.data ?? []).filter((w) => placed.has(w.id) && !state.people[w.id] && !recorded.has(w.id))
+      .map((w) => ({ value: w.id, label: w.display_name }));
+  }, [workers.data, placements.data, held, state.people, date]);
+  const follow = (id: string) => {
+    if (!id) return;
+    setDirty(true);
+    setState((s) => addFollower(s, id));
+  };
+
   const save = async () => {
     setProblem(null);
     // A person whose medical release is not approved cannot be recorded (the database refuses it): leave them out of the save.
-    const built = buildTickRows({ ...state, order: state.order.filter((id) => !releaseHolds.has(id)) });
+    const built = buildTickRows({ ...state, order: state.order.filter((id) => !releaseHolds.has(id)) }, crew.crew_id);
     setErrors(built.errors);
     if (Object.keys(built.errors).length > 0) return;
     setBusy(true);
@@ -117,7 +139,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
             <th scope="col" className="py-2 font-normal">{t('crews:reason', 'Reason')}</th>
           </tr></thead>
           <tbody>
-            {crew.members.map((m) => {
+            {rows.map((m) => {
               const p = state.people[m.worker_id];
               if (!p) return null;
               const err = errors[m.worker_id];
@@ -133,6 +155,8 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                         <span className="text-xs text-muted-foreground">{t('crews:release.heldReason', 'Cannot be recorded until their direct manager approves the medical release.')}</span>
                       </div>
                     )}
+                    {m.followed && <span className="block text-xs text-muted-foreground">{t('crews:followedFrom', 'Followed from {{crew}}', { crew: m.from_crew_name ?? '—' })}</span>}
+                    {state.followers.includes(m.worker_id) && <span className="block text-xs text-muted-foreground">{t('crews:followedToday', 'Followed this crew today')}</span>}
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td className="py-2 pr-2">
@@ -161,6 +185,16 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
             })}
           </tbody>
         </table>
+        {canRecord && (
+          <div className="mt-4 max-w-sm">
+            <Combobox key={addable.length} id="attendance-add-follower" label={t('crews:addFollower', 'Add someone from another crew')} value={null}
+              loadOptions={async () => addable} onChange={(v) => follow(v)} disabled={busy}
+              statusOverride={workers.isPending || placements.isPending ? 'loading' : undefined}
+              placeholder={t('crews:addFollowerPlaceholder', 'Choose a person')}
+              helper={addable.length === 0 ? t('crews:addFollowerNone', 'Nobody else is placed in a crew today.') : t('crews:addFollowerHint', 'For someone who joined this crew today without a loan. Their hours are recorded here.')}
+              noun={t('crews:personNoun', 'person')} nounPlural={t('crews:personNounPlural', 'people')} />
+          </div>
+        )}
         {canRecord && dirty && <p className="mb-3 text-sm text-muted-foreground">{t('crews:saveBeforeSending', 'Save attendance before sending the week.')}</p>}
         {canRecord && (
           <div className="mt-4 flex flex-wrap gap-2">
