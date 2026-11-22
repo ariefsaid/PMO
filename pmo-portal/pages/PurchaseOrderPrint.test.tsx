@@ -27,6 +27,21 @@ const h = vi.hoisted(() => ({
   },
   orgName: 'PT Global Konstruksi',
   navigate: vi.fn(),
+  // The print page now reads the project's work orders (a line's own work order prints under the
+  // item) and the disciplines picker — both real hooks that require auth + a query client the page
+  // suites do not provide. A narrow per-hook stub keeps the page's own rendering under test.
+  projectOrders: {
+    data: [{ id: 'wo-1', wo_number: 'WO-2026-101', title: 'Main Highway Overpass' }],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
+  lineDisciplines: {
+    data: [{ id: 'disc-1', code: 'CIV', name: 'Civil' }],
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
 }));
 
 vi.mock('react-router', async () => {
@@ -53,6 +68,14 @@ vi.mock('@/src/hooks/useWorkOrderRecord', () => ({
   useWorkOrder: () => ({
     data: { id: 'wo-1', wo_number: 'WO-2026-101', title: 'Main Highway Overpass' },
   }),
+}));
+
+vi.mock('@/src/hooks/useWorkOrders', () => ({
+  useProjectWorkOrders: () => h.projectOrders,
+}));
+
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
+  useCostDisciplines: () => h.lineDisciplines,
 }));
 
 import PurchaseOrderPrintPage from './PurchaseOrderPrint';
@@ -82,6 +105,8 @@ const mockProcurementWithPo = {
       quantity: 10,
       rate: 1500000,
       amount: 15000000,
+      work_order_id: 'wo-1',
+      discipline_id: null,
     },
     {
       id: 'item-2',
@@ -91,6 +116,8 @@ const mockProcurementWithPo = {
       quantity: 100,
       rate: 100000,
       amount: 10000000,
+      work_order_id: null,
+      discipline_id: 'disc-1',
     },
   ],
   purchase_orders: [
@@ -201,6 +228,11 @@ describe('PurchaseOrderPrintPage (#2688)', () => {
     expect(beamRow).toHaveTextContent('1,500,000');
     expect(beamRow).toHaveTextContent('15,000,000');
     expect(screen.getByText('High Strength Bolts M20')).toBeInTheDocument();
+
+    // A line's own work order and discipline print under the item (wo-per-purchase-line).
+    expect(beamRow).toHaveTextContent('Work order WO-2026-101');
+    const boltRow = screen.getByText('High Strength Bolts M20').closest('tr') as HTMLElement;
+    expect(boltRow).toHaveTextContent('Discipline Civil');
 
     // Order total comes from the purchase order's own amount
     const totalLine = screen.getByText(/Order total/i).closest('div') as HTMLElement;

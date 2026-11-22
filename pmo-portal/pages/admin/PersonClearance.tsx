@@ -7,7 +7,7 @@ import {
 } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
-import { useClearanceDue, useClearanceEnabled, useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
+import { useClearanceDue, useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { clearanceDueByItem } from '@/src/lib/checklistDue';
