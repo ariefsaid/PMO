@@ -1,30 +1,28 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { purchaseTypeRepository as repo } from '@/src/lib/repositories/purchaseTypes';
 import type { PurchaseTypeInput, RentalExtensionInput } from '@/src/lib/repositories/purchaseTypes';
 import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Purchase types (#2697) over the repository seam. Keys carry org_id (tenant scope); every write refreshes the whole root. */
 export const PURCHASE_TYPE_QUERY_ROOT = 'purchase-types';
 
 /** FR-PTR-002: whether the organisation turned purchase types on. While loading or off, no type affordance is shown. */
 export function usePurchaseTypesEnabled() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [PURCHASE_TYPE_QUERY_ROOT, orgId, 'enabled'], queryFn: () => repo.enabled(), enabled: Boolean(orgId) });
+  return useOrgQuery([PURCHASE_TYPE_QUERY_ROOT, 'enabled'], () => repo.enabled());
 }
 
 export function usePurchaseTypes() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [PURCHASE_TYPE_QUERY_ROOT, orgId, 'list'], queryFn: () => repo.list(), enabled: Boolean(orgId) });
+  return useOrgQuery([PURCHASE_TYPE_QUERY_ROOT, 'list'], () => repo.list());
 }
 
 /** FR-PTR-013: the rental this purchase extends and the purchases that extend it. */
 export function useRentalLinks(procurementId: string | undefined, extendsId: string | null | undefined, enabled: boolean) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: [PURCHASE_TYPE_QUERY_ROOT, orgId, 'links', procurementId, extendsId ?? null],
-    queryFn: () => repo.links(procurementId as string, extendsId ?? null),
-    enabled: Boolean(orgId) && Boolean(procurementId) && enabled,
-  });
+  return useOrgQuery(
+    [PURCHASE_TYPE_QUERY_ROOT, 'links', procurementId, extendsId ?? null],
+    () => repo.links(procurementId as string, extendsId ?? null),
+    { enabled: Boolean(procurementId) && enabled },
+  );
 }
 
 export function usePurchaseTypeMutations() {

@@ -1,12 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderRevenuePlanRepository as repo } from '@/src/lib/repositories/workOrderRevenuePlan';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** #2671: the organisation's revenue-plan switch (off by default). Keys carry org_id (tenant scope). */
 export function useRevenuePlanSettings() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({ queryKey: ['revenue-plan-settings', orgId], queryFn: () => repo.settings(), enabled: Boolean(orgId) });
+  return useOrgQuery(['revenue-plan-settings'], () => repo.settings());
 }
 
 export function useSetRevenuePlanSettings() {
@@ -19,23 +18,11 @@ export function useSetRevenuePlanSettings() {
 }
 
 export function useWorkOrderRevenuePlan(workOrderId: string, enabled = true) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['revenue-plan', orgId, 'work-order', workOrderId],
-    queryFn: () => repo.forWorkOrder(workOrderId),
-    enabled: enabled && Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useOrgQuery(['revenue-plan', 'work-order', workOrderId], () => repo.forWorkOrder(workOrderId), { enabled: enabled && Boolean(workOrderId) });
 }
 
 export function useProjectRevenuePlan(projectId: string, enabled = true) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['revenue-plan', orgId, 'project', projectId],
-    queryFn: () => repo.forProject(projectId),
-    enabled: enabled && Boolean(orgId) && Boolean(projectId),
-  });
+  return useOrgQuery(['revenue-plan', 'project', projectId], () => repo.forProject(projectId), { enabled: enabled && Boolean(projectId) });
 }
 
 /** Every plan write refreshes both reads (the work-order page and the project roll-up show the same figures, AC-WRP-013). */

@@ -1,15 +1,14 @@
 import { createContext, useContext } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
 import { DEFAULT_EQUIPMENT_TARGETS, type EquipmentTargets } from '@/src/lib/db/equipmentAvailability';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Equipment targets and escalation limit (#2701) over the repository seam (ADR-0017). Key carries org_id (tenant scope). */
 const KEY = 'equipment-availability';
 
 export function useEquipmentTargets() {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: [KEY, orgId, 'targets'], queryFn: () => repositories.equipmentAvailability.getTargets(), enabled: Boolean(orgId) });
+  return useOrgQuery([KEY, 'targets'], () => repositories.equipmentAvailability.getTargets());
 }
 export function useSetEquipmentTargets() {
   const qc = useQueryClient();

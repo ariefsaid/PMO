@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { CandidateInput, ItemPatch, TemplateItemInput, WorkOrderCandidate } from '@/src/lib/db/workOrderCandidates';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** #2595 candidate work orders: keys are org-scoped so a tenant switch never shows another organisation's cache. */
 const root = (orgId: string | undefined) => ['workOrderCandidates', orgId] as const;
@@ -11,18 +12,16 @@ export const candidateKeys = {
   template: (orgId: string | undefined) => [...root(orgId), 'template'] as const,
 };
 
-const useOrg = () => useAuth().currentUser?.org_id;
+const useOrg = useOrgId;
 const repo = () => repositories.workOrderCandidate;
 
 export function useProjectCandidates(projectId: string | undefined) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: candidateKeys.project(orgId, projectId), queryFn: () => repo().list(projectId as string), enabled: Boolean(orgId && projectId) });
+  return useOrgQuery(['workOrderCandidates', 'project', projectId], () => repo().list(projectId as string), { enabled: Boolean(projectId) });
 }
 
 /** The organisation's live checklist template. Empty means the candidate section stays hidden until a candidate exists. */
 export function useCandidateTemplate() {
-  const orgId = useOrg();
-  return useQuery({ queryKey: candidateKeys.template(orgId), queryFn: () => repo().listTemplate(), enabled: Boolean(orgId) });
+  return useOrgQuery(['workOrderCandidates', 'template'], () => repo().listTemplate());
 }
 
 export function useSaveCandidateTemplate() {

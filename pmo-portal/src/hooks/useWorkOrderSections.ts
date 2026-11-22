@@ -1,44 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderSectionRepository as repo, type PlanChange, type Readiness, type SectionInput } from '@/src/lib/repositories/workOrderSections';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** #2576: one work order's sections with their roll-up (one row per section plus the unsectioned remainder). Keys carry org_id. */
 export function useWorkOrderSectionRollup(workOrderId: string | undefined) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-sections', orgId, workOrderId, 'rollup'],
-    queryFn: () => repo.rollup(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useOrgQuery(['work-order-sections', workOrderId, 'rollup'], () => repo.rollup(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
 /** Validated daily-report quantities per section (FR-WOS-016). */
 export function useWorkOrderSectionProgress(workOrderId: string | undefined) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-sections', orgId, workOrderId, 'progress'],
-    queryFn: () => repo.progress(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useOrgQuery(['work-order-sections', workOrderId, 'progress'], () => repo.progress(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
 /** The readiness roll-up (counts per readiness over live sections). */
 export function useWorkOrderSectionReadiness(workOrderId: string | undefined) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-sections', orgId, workOrderId, 'readiness'],
-    queryFn: () => repo.readiness(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useOrgQuery(['work-order-sections', workOrderId, 'readiness'], () => repo.readiness(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
 export function useSectionReadinessEvents(sectionId: string | null) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-sections', orgId, 'events', sectionId],
-    queryFn: () => repo.events(sectionId as string),
-    enabled: Boolean(orgId) && Boolean(sectionId),
-  });
+  return useOrgQuery(['work-order-sections', 'events', sectionId], () => repo.events(sectionId as string), { enabled: Boolean(sectionId) });
 }
 
 function useInvalidate(workOrderId: string, projectId?: string) {

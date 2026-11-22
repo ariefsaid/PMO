@@ -1,21 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { clientRequisitionRepository as repo } from '@/src/lib/repositories/clientRequisitions';
 import type { ClientRequisitionLineInput } from '@/src/lib/repositories/clientRequisitions';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Client material requisitions (#2585) over the repository seam (ADR-0017). Keys carry org_id (tenant scope); every write refreshes the whole root. */
 export const CLIENT_REQUISITION_QUERY_ROOT = 'client-requisitions';
 
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
-
 /** What the work order's "Client material" section shows. An empty `requisitions` list is "none raised yet", never zeros (AC-CSR-003). */
 export function useWorkOrderClientMaterial(workOrderId: string | undefined, enabled = true) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: [CLIENT_REQUISITION_QUERY_ROOT, orgId, 'work-order', workOrderId],
-    queryFn: () => repo.forWorkOrder(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId) && enabled,
-  });
+  return useOrgQuery(
+    [CLIENT_REQUISITION_QUERY_ROOT, 'work-order', workOrderId],
+    () => repo.forWorkOrder(workOrderId as string),
+    { enabled: Boolean(workOrderId) && enabled },
+  );
 }
 
 export function useClientRequisitionMutations() {

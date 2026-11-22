@@ -1,23 +1,18 @@
 import { useContext } from 'react';
-import { QueryClientContext, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClientContext, useMutation, useQueryClient } from '@tanstack/react-query';
 import { equipmentVendorResponseRepository as repo } from '@/src/lib/repositories/equipmentVendorResponse';
 import type { VendorResponseInput } from '@/src/lib/db/equipmentVendorResponse';
 import type { TFunction } from 'i18next';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { splitMinutes } from '@/src/lib/vendorResponse';
-import { useAuth } from '@/src/auth/useAuth';
 import { AuthContext } from '@/src/auth/AuthContext';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Vendor response on breakdowns (#2702) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 const KEY = 'equipment-vendor-response';
 
 export function useBreakdowns(assetIds: string[], from: string, to: string) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: [KEY, orgId, assetIds, from, to],
-    queryFn: () => repo.listBreakdowns(assetIds, from, to),
-    enabled: Boolean(orgId) && assetIds.length > 0,
-  });
+  return useOrgQuery([KEY, assetIds, from, to], () => repo.listBreakdowns(assetIds, from, to), { enabled: assetIds.length > 0 });
 }
 export function useRecordVendorResponse() {
   const qc = useQueryClient();
