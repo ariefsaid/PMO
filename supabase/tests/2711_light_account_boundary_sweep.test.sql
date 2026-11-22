@@ -67,6 +67,7 @@ insert into la_fn_allow values
   ('can_add_inspection_file', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('can_add_qcr_file', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('can_read_meeting', 'helper', 'a capability or audience helper the shell and the policies read'),
+  ('manpower_can_manage', 'helper', 'a capability or audience helper the shell and the policies read: it returns false for a field account and leaks nothing else'),
   ('crew_can_manage', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('crew_tool_can_report', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('crew_tool_is_reporter', 'helper', 'a capability or audience helper the shell and the policies read'),

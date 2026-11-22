@@ -14,7 +14,8 @@ create function public.my_manpower_to_fill()
   select n.id, n.project_id, n.needed_by, p.open_count
     from public.manpower_needs n
     join public.manpower_need_progress() p on p.need_id = n.id
-   where public.manpower_can_manage()                                                                          -- mut:fill_audience
+   where public.assert_not_light()                                                                            -- field account refused by body (2711, 1530)
+     and public.manpower_can_manage()                                                                          -- mut:fill_audience
      and n.org_id = public.auth_org_id() and n.status = 'open' and p.open_count > 0                            -- mut:fill_status
    order by n.needed_by, n.id
 $$;
