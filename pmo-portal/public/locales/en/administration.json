@@ -1137,7 +1137,10 @@
       "archiveBody": "It leaves every checklist and no longer counts toward being cleared. Dates already recorded are kept.",
       "archived": "Item archived",
       "editLabel": "Edit {{name}}",
-      "archiveLabel": "Archive {{name}}"
+      "archiveLabel": "Archive {{name}}",
+      "documentType": "Takes its dates from this document",
+      "noDocumentType": "None: record the date on the checklist",
+      "documentTypeHelp": "Pick the document type, such as a licence. The expiry is then kept once, on the person’s document, and also appears on the expiring list."
     },
     "cancel": "Cancel",
     "people": {
@@ -1186,7 +1189,12 @@
       "removed": "Date removed",
       "link": "Cleared-for-site checklist",
       "editLabel": "{{action}} {{name}}",
-      "removeLabel": "Remove {{name}}"
+      "removeLabel": "Remove {{name}}",
+      "documentLabel": "{{action}} {{name}}",
+      "openDocument": "Open the document",
+      "addDocument": "Add the document",
+      "fromDocument": "From the {{type}} document",
+      "noDocument": "No {{type}} document yet. Add it on the person’s record."
     },
     "state": {
       "done": "Done",

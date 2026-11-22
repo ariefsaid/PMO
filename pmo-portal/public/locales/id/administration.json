@@ -1152,7 +1152,10 @@
       "archiveBody": "Butir ini hilang dari semua daftar periksa dan tidak lagi dihitung untuk status lolos. Tanggal yang sudah dicatat tetap tersimpan.",
       "archived": "Butir diarsipkan",
       "editLabel": "Ubah {{name}}",
-      "archiveLabel": "Arsipkan {{name}}"
+      "archiveLabel": "Arsipkan {{name}}",
+      "documentType": "Ambil tanggal dari dokumen ini",
+      "noDocumentType": "Tidak ada: catat tanggalnya di daftar periksa",
+      "documentTypeHelp": "Pilih jenis dokumen, misalnya SIM atau lisensi. Tanggal kedaluwarsa lalu hanya disimpan sekali, di dokumen orangnya, dan juga muncul di daftar kedaluwarsa."
     },
     "people": {
       "heading": "Siapa yang lolos",
@@ -1187,7 +1190,12 @@
       "removed": "Tanggal dihapus",
       "link": "Daftar periksa izin ke lokasi",
       "editLabel": "{{action}} {{name}}",
-      "removeLabel": "Hapus {{name}}"
+      "removeLabel": "Hapus {{name}}",
+      "documentLabel": "{{action}} {{name}}",
+      "openDocument": "Buka dokumennya",
+      "addDocument": "Tambahkan dokumennya",
+      "fromDocument": "Dari dokumen {{type}}",
+      "noDocument": "Belum ada dokumen {{type}}. Tambahkan di catatan orangnya."
     },
     "state": {
       "done": "Selesai",
