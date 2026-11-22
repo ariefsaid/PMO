@@ -14,9 +14,9 @@ select plan(36);
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('17510000-0000-0000-0000-00000000010a') $$;
 
-insert into organizations (id, name, default_currency) values
-  ('17510000-0000-0000-0000-00000000010a', 'MR Org', 'IDR'),
-  ('17510000-0000-0000-0000-00000000010b', 'MR Other', 'IDR');
+insert into organizations (id, name, default_currency, built_in_roles_enabled) values
+  ('17510000-0000-0000-0000-00000000010a', 'MR Org', 'IDR', true),
+  ('17510000-0000-0000-0000-00000000010b', 'MR Other', 'IDR', false);
 insert into auth.users (id, email) values
   ('17510000-0000-0000-0000-0000000001a1', 'mr-admin@example.com'),
   ('17510000-0000-0000-0000-0000000001a2', 'mr-mgr@example.com'),
