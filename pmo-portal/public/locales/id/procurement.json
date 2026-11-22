@@ -1071,5 +1071,15 @@
     "lineLabel": "Baris {{name}}",
     "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya.",
     "columnEmpty": "—"
+  },
+  "billHold": {
+    "rule": {
+      "title": "Tagihan ini tertahan oleh aturan pembelian.",
+      "body": "Organisasi Anda mewajibkan penerimaan barang sebelum tagihan supplier. Catat penerimaan barang dulu. Admin dapat mengubah aturan ini di Administrasi, Akuntansi, Aturan pembelian."
+    },
+    "match": {
+      "title": "Pembayaran tertahan sampai tagihan ini cocok.",
+      "body": "Tagihan dicocokkan dengan pesanan dan penerimaan barang. Jika tidak cocok, pembayaran tetap tertahan sampai penerimaan dicatat atau Admin atau Finance, selain orang yang mencatat tagihan, menyetujui pengecualian."
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { threeWayMatchHeldMessage } from './threeWayMatchError';
+import { BillHoldNotice } from './BillHoldNotice';
 import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
 import { PaymentCaptureFields } from './PaymentCaptureFields';
 import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
@@ -193,6 +194,8 @@ export interface RecordCaptureFormProps {
   projectId?: string | null;
   /** Where the purchase's cost already goes (chosen at the request); the form starts on it. */
   defaultAttribution?: CostAttribution;
+  /** Whether a receipt exists: a supplier bill form says what can hold the bill. */
+  hasReceipt?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +218,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onDirtyChange,
   projectId = null,
   defaultAttribution,
+  hasReceipt = false,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -614,6 +618,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           <FieldError id={`${formId}-amount-error`}>{amountError}</FieldError>
         </div>
       )}
+
+      {isVendorInvoice && <BillHoldNotice hasReceipt={hasReceipt} />}
 
       <VendorInvoiceCaptureFields formId={formId} capture={vi} isVendorInvoice={isVendorInvoice} />
 

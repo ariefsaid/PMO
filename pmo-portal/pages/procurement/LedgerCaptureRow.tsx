@@ -209,6 +209,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
           currency={currency}
           projectId={projectId}
           defaultAttribution={defaultAttribution}
+          hasReceipt={existingTypes.has('GR')}
           busy={busy}
           onCreate={(input) => onCreate(nextKind, input)}
           onStage={onStage && (nextKind === 'goods_receipt' || nextKind === 'vendor_invoice') ? onStage : undefined}

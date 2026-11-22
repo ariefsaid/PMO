@@ -1071,5 +1071,15 @@
     "lineLabel": "Line {{name}}",
     "saveFailed": "The category and date could not be saved for some lines. Open the request to set them.",
     "columnEmpty": "—"
+  },
+  "billHold": {
+    "rule": {
+      "title": "This bill is held by a purchase rule.",
+      "body": "Your organisation requires a receipt before a supplier bill. Record the receipt first. An Admin can change the rule in Administration, Accounting, Purchase rules."
+    },
+    "match": {
+      "title": "Payment is held until this bill matches.",
+      "body": "The bill is compared with its order and receipts. If it does not match, payment stays held until the receipt is recorded or an Admin or Finance user, other than the person who recorded the bill, approves an exception."
+    }
   }
 }

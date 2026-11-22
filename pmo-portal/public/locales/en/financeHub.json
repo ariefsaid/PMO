@@ -176,7 +176,16 @@
     "netProfit": "Net profit",
     "helpAges": "Client balances by age count days past due, tax included. Supplier invoice age counts calendar days from the invoice date; invoices without a date have no age.",
     "payablesHelp": "Invoice age is counted from the supplier invoice date.",
-    "workInHand": "Work in hand"
+    "workInHand": "Work in hand",
+    "newVendorBill": {
+      "title": "New vendor bill",
+      "continue": "Continue to the bill",
+      "purchase": "Purchase",
+      "purchaseNoun": "purchase",
+      "none": "No purchase is ready for a bill. A purchase takes a bill once it is approved or ordered.",
+      "help": "Choose the purchase this supplier bill is for. The next screen shows whether the order and receipt hold the bill.",
+      "button": "New vendor bill"
+    }
   },
   "nav": {
     "finance": "Finance",
