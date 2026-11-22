@@ -17,7 +17,7 @@ separate commits so the Director can split it.
 | `mrq_set_step_pin` | 1045:38 | 1530 guard line | pin must fill the step |
 | `mrq_set_chain` | 1001:157 | 1530 guard line | accepts `job_role` |
 | `mrq_submit` | 1333 | 1461 guard line | snapshot copies `job_role` |
-| `create_purchase_order` | 0712 | 1530 guard line | `or may_order_purchases(auth.uid())` |
+| `create_purchase_order` | 0712 | 1530 guard line | `or actor_may_order_purchases()` |
 | `transition_procurement` | 1017:13 | 1461 guard line | ordering branch |
 
 Each restated body is copied from the row above **with** the guard line the dynamic rewrite inserted (it is in `pg_get_functiondef`
@@ -31,7 +31,7 @@ the read scopes, checked against 0646's expected-text table).
 1. Red: `supabase/tests/roles_that_decide_function.test.sql` — AC-RTD-001 (28 keys x five people, null/unknown, inactive).
 2. Green: `supabase/migrations/1840_holds_job_role.sql` — `holds_job_role(uuid, text)`; revoke from public/anon; grant authenticated,
    service_role. Rollback `supabase/migrations/rollback/1840_holds_job_role_down.sql` (drop function).
-3. `supabase/tests/2711_light_account_boundary_sweep.test.sql`: add `('holds_job_role','helper', ...)`.
+3. `holds_job_role` is not executable by `authenticated`, so the 2711 sweep does not list it (it only covers callable definers).
 4. Red/green: `pmo-portal/src/auth/builtInRoles.ts` `holdsJobRole` + `pmo-portal/src/auth/builtInRoles.test.ts` AC-RTD-002 (same
    case table as the pgTAP file).
 
@@ -55,11 +55,11 @@ the read scopes, checked against 0646's expected-text table).
 10. Red: `supabase/tests/roles_that_decide_purchasing.test.sql` — AC-RTD-009 (setting half), -011, -012, -013.
 11. Green: `supabase/migrations/1842_purchase_order_job_roles.sql` — `purchase_order_settings.order_job_roles`, catalogue-key check
     (trigger), `po_set_order_job_roles(text[])` (Admin, setting gate, `PO_JOB_ROLE_OFF` / `PO_ORDER_ROLE_INVALID`),
-    `may_order_purchases(uuid)`; restated `create_purchase_order`, `transition_procurement`; altered `purchase_orders_insert` /
+    `actor_may_order_purchases()`; restated `create_purchase_order`, `transition_procurement`; altered `purchase_orders_insert` /
     `_update` (helpers wrapped `(select ...)`). Rollback `rollback/1842_purchase_order_job_roles_down.sql`.
 12. `supabase/migrations/1843_purchasing_read_scope_order_roles.sql` — the 0350 §1-§3 restrictive read scopes gain
-    `or (select public.may_order_purchases(auth.uid()))`; §4 money tables untouched. Rollback restores the 0350 text.
-13. `2711` sweep: add `may_order_purchases`, `po_set_order_job_roles` (or guard it in-body), check `2716` still green.
+    `or (select public.actor_may_order_purchases())`; §4 money tables untouched. Rollback restores the 0350 text.
+13. `2711` sweep: add `actor_may_order_purchases` (helper); `po_set_order_job_roles` carries the in-body guard, check `2716` still green.
 14. FE: `src/lib/db/purchaseOrderSettings.ts`, `src/hooks/usePurchaseOrderSettings.ts`, `pages/admin/PurchaseOrderSettingsSection.tsx`
     (multi-select of job roles, note on Q1 consequence), `src/auth/policy.ts` procurement `view`/`transition` to Ordered for a filler,
     `src/components/shell/Rail.tsx` procurement nav. Tests: the section test, `policy` test, AC-RTD-015. Strings

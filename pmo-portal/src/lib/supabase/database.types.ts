@@ -27383,12 +27383,13 @@ export type Database = {
       actor_bypasses_rls:
         | { Args: never; Returns: boolean }
         | { Args: { p_role: unknown }; Returns: boolean }
+      actor_has_person_documents_access: { Args: never; Returns: boolean }
       actor_has_role_capability: {
         Args: { p_capability: string }
         Returns: boolean
       }
-      actor_holds_built_in_role: { Args: { p_key: string }; Returns: boolean }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_see_medical_documents: { Args: never; Returns: boolean }
       actor_may_see_prices: { Args: never; Returns: boolean }
       actor_may_see_prices_now: { Args: never; Returns: boolean }
       actor_sees_prices: { Args: never; Returns: boolean }
@@ -27995,14 +27996,7 @@ export type Database = {
         Args: { p_key: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      built_in_role_may_approve: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_prepare: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_stand_in: {
-        Args: { p_absent_key: string; p_actor_key: string }
-        Returns: boolean
-      }
       built_in_role_sees_prices: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_tier: { Args: { p_key: string }; Returns: string }
       bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
         Args: {
@@ -30606,6 +30600,10 @@ export type Database = {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
       }
+      holds_job_role: {
+        Args: { p_job_role: string; p_profile: string }
+        Returns: boolean
+      }
       holds_pipeline_value_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
@@ -31890,6 +31888,7 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: boolean
       }
+      may_see_medical_documents: { Args: { p_profile: string }; Returns: boolean }
       merge_external_org_binding_config: {
         Args: { p_external_tier: string; p_org_id: string; p_patch: Json }
         Returns: undefined

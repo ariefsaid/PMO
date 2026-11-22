@@ -2,8 +2,10 @@
 
 Lane gap-material, item roles-that-decide (map #902). Status: draft for Director review (phase 1). Rulings read: OD-SCOPE-2,
 OD-SCOPE-3, ADR-0016, ADR-0019, ADR-0070, `builtin-role-set.spec.md` (§5 names this seam), `material-requests.spec.md`.
-Built on `feat/role-capabilities-one-gate` (merged at ebaf4808): one gate per right, a consumer sweep, no right declared that
-nothing reads.
+Built on `feat/role-capabilities-one-gate`, merged at ebaf4808 (its parent of the tip): the tip commit 411577dc adds a temporary
+mutation migration (`1540_mut_temporary.sql`) that deliberately breaks two gates for a mutation run, so it is not merged; the branch
+removes it in its next commit. Its principles hold here: one gate per right, a consumer sweep, no right declared that nothing reads.
+Phase 1 approved by the Director 2026-11-22 with the recommended answers to §7 Q1-Q4.
 
 **Job story.** When an Admin sets who approves a step, owns a step or may view a document type, I want to pick a job role, and the
 rule to hold in the database.
@@ -55,8 +57,9 @@ True exactly when all hold:
 "Includes" is read from the one existing mapping, `built_in_role_base`: an access level includes every job role built on it, for a
 person who has not been given a job role. A person who holds a job role is judged by it alone, so a Storekeeper does not count as a
 Material Coordinator although both sit on Engineer. Null or unknown key: false. It does not check the organisation; every consumer
-already compares `org_id`. Not granted to `anon`; executable by `authenticated` and `service_role` (the queue, notices and policies
-call it for other people). It is a scalar helper for the field-account sweep (`2711`).
+already compares `org_id`. Because it takes any profile id, it is executable only by `service_role` and by the definer bodies
+that call it (they run as the owner); a signed-in caller never gets a "does this id hold that role" answer about another person.
+Policies reach it through the actor-scoped gate `actor_may_order_purchases()` (§2.3).
 
 Frontend mirror: `holdsJobRole({ builtInRoleKey, role, active }, key)` in `pmo-portal/src/auth/builtInRoles.ts`, same rule, tested
 against the same cases. `can()` reads it; the database is the authority.
@@ -78,14 +81,19 @@ against the same cases. `can()` reads it; the database is the authority.
 
 - `purchase_order_settings.order_job_roles text[] not null default '{}'`: the job roles that may raise and send purchase orders in
   addition to today's levels. Each entry must be a catalogue key. Empty (the default, every existing organisation) = today.
-  Written through the existing Admin-only `po_set_print_settings` path's sibling `po_set_order_job_roles` (Admin only).
-- One gate, `may_order_purchases(p_profile uuid) returns boolean`: true when the person holds one of the organisation's
-  `order_job_roles` by `holds_job_role`. Every channel calls it, ORed with the existing level rule, never replacing it:
+  Written through `po_set_order_job_roles(text[])` (Admin only, beside the existing Admin-only `po_set_print_settings`).
+- One gate, `actor_may_order_purchases() returns boolean`: true when the real signed-in person (never the view-as role) holds
+  one of their organisation's `order_job_roles` by `holds_job_role`. Granted to `authenticated` (the read-scope policies call it,
+  wrapped `(select ...)`); a scalar helper for the field-account sweep (`2711`). Every channel calls it, ORed with the existing level rule, never replacing it:
   `create_purchase_order`, `transition_procurement` for `Approved`/`Vendor Quoted`/`Quote Selected` -> `Ordered` (a job-role orderer
   never skips approval: from `Draft` stays today's levels), `purchase_orders_insert` / `_update`, and the 0350 restrictive read
   scopes for purchases and their order-side records (items, quotations, status events, documents, purchase requests, RFQs, purchase
   orders, and their file rows). Vendor bills, payments and client billing stay with today's four levels.
-- Refusals keep today's wording; a new refusal is only `PO_ORDER_ROLE_INVALID` (a key that is not a job role).
+- Refusals a person can meet: ordering without the right raises `PO_ORDER_FORBIDDEN` (from `create_purchase_order`, and from
+  `transition_procurement` to Ordered for a non-Admin outside the levels and the ordering job roles), ordering an unapproved purchase
+  as a job-role orderer raises `PO_ORDER_NOT_APPROVED`, a step decided by someone without its job role raises `MRQ_NOT_APPROVER` (new
+  sentence naming the job role route), and the settings raise `MRQ_JOB_ROLE_OFF`, `PO_JOB_ROLE_OFF`, `PO_ORDER_ROLE_INVALID`,
+  `PO_ADMIN_ONLY`. Each has an English and a Bahasa Indonesia sentence saying what to do next.
 
 ### 2.4 Consumer (c): billing step owner and document viewers
 
@@ -148,8 +156,8 @@ let a job-role orderer move from Draft (AC-RTD-012); widen the bill or payment r
 ## 5. Existing tests whose steps change
 
 None of the existing journeys change steps: a step with no job role and an empty ordering setting are today's paths. Two standing
-sweeps gain entries because the schema grows: `2711` (the field-account sweep) lists `holds_job_role` and `may_order_purchases` as
-scalar helpers; `2716` needs nothing (no capability is added). The `mrq_waiting_for_me` result type grows a `job_role` column, so its
+sweeps gain entries because the schema grows: `2711` (the field-account sweep) lists `actor_may_order_purchases` as a scalar
+helper (`holds_job_role` is not executable by a signed-in caller, so the sweep does not reach it); `2716` needs nothing (no capability is added). The `mrq_waiting_for_me` result type grows a `job_role` column, so its
 DAL and mocks gain the field.
 
 ## 6. Settings and defaults
