@@ -1,7 +1,5 @@
 # Hide prices from requesters: organisation setting
 
-> Who is hidden was changed by [price-visibility-roles](price-visibility-roles.spec.md): only Foreman and Field user; the requester definition, AC-002, AC-008 and AC-HP-001 below are superseded there.
-
 Ticket #2699 (map #902). Status: Approved by the Director 2026-11-21 (rulings Q1-Q5 applied). Rulings: OD-SCOPE-2 (a setting, no client process), OD-SCOPE-3.
 Not offered in the app in this release; the setting card is held back until the next release.
 Builds on: `builtin-role-set.spec.md` (#2709): `actor_sees_prices()`, `actor_built_in_role()`.

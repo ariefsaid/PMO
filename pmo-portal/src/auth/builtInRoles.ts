@@ -93,18 +93,6 @@ export const ROLE_CAPABILITIES: readonly (readonly [string, RoleCapability])[] =
   ['administrator', 'medical_documents_view'],
   ['hr_manager', 'medical_documents_view'],
   ['hr_officer', 'medical_documents_view'],
-  // 1850: the remaining officer roles hold the price right; only Foreman and Field user do not.
-  ['project_administrator', 'sees_prices'],
-  ['engineer', 'sees_prices'],
-  ['planner', 'sees_prices'],
-  ['quantity_surveyor', 'sees_prices'],
-  ['material_coordinator', 'sees_prices'],
-  ['storekeeper', 'sees_prices'],
-  ['site_supervisor', 'sees_prices'],
-  ['quality_inspector', 'sees_prices'],
-  ['safety_officer', 'sees_prices'],
-  ['equipment_officer', 'sees_prices'],
-  ['hr_officer', 'sees_prices'],
 ];
 
 export const BUILT_IN_ROLE_TIERS: readonly BuiltInRoleTier[] = ['manager', 'officer', 'field'];

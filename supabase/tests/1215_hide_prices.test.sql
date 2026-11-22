@@ -1,8 +1,8 @@
 -- 1215_hide_prices.test.sql — #2699 hide prices from requesters: the setting, the one rule, the masked views, the stock cost seam.
 -- Migrations under test: 1215_hide_prices_setting, 1216_hide_prices_procurement_views, 1217_hide_prices_stock_views.
 -- Mutation notes (break, see the named assertion go red, restore):
---   actor_may_see_prices_now returns true            -> AC-002 Field user row, AC-003 hidden rows
---   make actor_sees_prices() return true             -> AC-002 'Field user hidden'
+--   actor_may_see_prices_now returns true            -> AC-002 legacy Engineer / storekeeper rows, AC-003 hidden rows
+--   drop the legacy-Engineer clause                  -> AC-002 'legacy Engineer hidden'
 --   drop the org_hide_prices_enabled test            -> AC-001 'setting off: Engineer sees', AC-005 org B row
 --   remove the helper from procurement_items_masked  -> AC-003 'hidden item rate/amount'
 --   drop the Admin check in set_hide_prices_enabled  -> AC-006 'Engineer cannot turn on'
@@ -22,14 +22,14 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26990000-0000-0000-0000-0000000000d1','26990000-0000-0000-0000-000000000001','HP Exec','hp-d1@example.com','Executive','active'),
   ('26990000-0000-0000-0000-0000000000e1','26990000-0000-0000-0000-000000000001','HP Engineer legacy','hp-e1@example.com','Engineer','active'),
   ('26990000-0000-0000-0000-0000000000f1','26990000-0000-0000-0000-000000000001','HP Buyer','hp-f1@example.com','Engineer','active'),
-  ('26990000-0000-0000-0000-0000000000a2','26990000-0000-0000-0000-000000000001','HP Field user','hp-a2@example.com','Engineer','active'),
+  ('26990000-0000-0000-0000-0000000000a2','26990000-0000-0000-0000-000000000001','HP Storekeeper','hp-a2@example.com','Engineer','active'),
   ('26990000-0000-0000-0000-0000000000a3','26990000-0000-0000-0000-000000000001','HP Finance Officer','hp-a3@example.com','Finance','active'),
   ('26990000-0000-0000-0000-0000000000a4','26990000-0000-0000-0000-000000000001','HP Inactive','hp-a4@example.com','Engineer','disabled'),
   ('26990000-0000-0000-0000-0000000000b2','26990000-0000-0000-0000-000000000002','HP Engineer B','hp-b2@example.com','Engineer','active');
 -- built-in keys are given by the service path with the #2709 setting on for organization A
 update organizations set built_in_roles_enabled = true where id = '26990000-0000-0000-0000-000000000001';
 update profiles set built_in_role = 'buyer' where id = '26990000-0000-0000-0000-0000000000f1';
-update profiles set built_in_role = 'field_user' where id = '26990000-0000-0000-0000-0000000000a2';
+update profiles set built_in_role = 'storekeeper' where id = '26990000-0000-0000-0000-0000000000a2';
 update profiles set built_in_role = 'finance_officer' where id = '26990000-0000-0000-0000-0000000000a3';
 
 insert into procurements (id, org_id, title, status, requested_by_id) values
@@ -60,7 +60,7 @@ select is((select hide_prices_from_requesters from organizations where id = '269
 create temp table hp_who (id text, expect boolean, label text);
 insert into hp_who values
   ('a1', true,  'Admin sees'), ('b1', true, 'legacy Project Manager sees'), ('c1', true, 'legacy Finance sees'), ('d1', true, 'Executive sees'),
-  ('e1', true, 'legacy Engineer sees'), ('f1', true, 'Buyer sees'), ('a2', false, 'Field user hidden'),
+  ('e1', false, 'legacy Engineer hidden'), ('f1', true, 'Buyer sees'), ('a2', false, 'Storekeeper hidden'),
   ('a3', true, 'Finance Officer sees'), ('a4', false, 'inactive member hidden');
 grant select on hp_who to authenticated;
 do $$ declare r record; got boolean; begin
@@ -71,18 +71,13 @@ do $$ declare r record; got boolean; begin
     execute 'reset role';
     if got is distinct from r.expect then raise exception 'AC-002 % expected % got %', r.label, r.expect, got; end if;
   end loop; end $$;
-select pass('AC-002 the truth table holds for all nine actors (Field user hidden, inactive hidden, the rest see, the legacy Engineer included)');
+select pass('AC-002 the truth table holds for all nine actors (legacy Engineer hidden, Storekeeper hidden, inactive hidden, the rest see)');
 select is((select count(*)::int from hp_who), 9, 'AC-002 nine actors were checked');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26990000-0000-0000-0000-0000000000b2","role":"authenticated"}';
 select is(actor_may_see_prices_now(), true, 'AC-005 organization B legacy Engineer still sees (its setting is off)');
 
--- AC-003 hidden actor: NULL prices, rest intact. The hidden person must be one who can read the case at all (a Field user cannot),
--- so the list is changed as data inside this transaction: the Engineer role loses its price right and the Engineer holds it.
-reset role;
-delete from built_in_role_capabilities where role_key = 'engineer' and capability = 'sees_prices';
-update profiles set built_in_role = 'engineer' where id = '26990000-0000-0000-0000-0000000000e1';
-set local role authenticated;
+-- AC-003 hidden actor: NULL prices, rest intact
 set local request.jwt.claims = '{"sub":"26990000-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select is((select rate from procurement_items_masked where id = '26990000-0000-0000-0000-000000000011'), null, 'AC-003 hidden item rate is NULL');
 select is((select amount from procurement_items_masked where id = '26990000-0000-0000-0000-000000000011'), null, 'AC-003 hidden item amount is NULL');

@@ -7,14 +7,11 @@ import {
 } from './builtInRoles';
 
 const sql = readFileSync(resolve(__dirname, '../../../supabase/migrations/1200_builtin_role_catalogue.sql'), 'utf8');
-const priceRightSql = readFileSync(resolve(__dirname, '../../../supabase/migrations/1850_price_right_office_roles.sql'), 'utf8');
 const sqlRoles = [...sql.matchAll(/^\('([a-z_]+)','([^']+)','(\w+)','(\w+)',(\d+),'([^']+)','([^']+)'\)[,;]$/gm)]
   .map((m) => ({ key: m[1], base: m[2], tier: m[3], functionKey: m[4], sortOrder: Number(m[5]), nameEn: m[6], nameId: m[7] }));
-const capTuples = (text: string) => [...text.matchAll(/^\('([a-z_]+)','([a-z_]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]);
-// 1200 seeds the catalogue; 1850 adds the price-right rows. The union, in migration order, is the frontend mirror.
-const sqlCaps = [...capTuples(sql), ...capTuples(priceRightSql)];
+const sqlCaps = [...sql.matchAll(/^\('([a-z_]+)','([a-z_]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]);
 
-describe('AC-003 built-in roles: frontend table equals the database seed (migrations 1200 and 1850)', () => {
+describe('AC-003 built-in roles: frontend table equals the database seed (migration 1200)', () => {
   it('has the same 28 roles, base levels, tiers, functions and names', () => {
     expect(sqlRoles).toHaveLength(28);
     expect([...BUILT_IN_ROLES]).toEqual(sqlRoles);
@@ -56,12 +53,10 @@ describe('AC-007/008/010 capabilities, prices, tiers', () => {
     expect(roleHasCapability('executive', 'medical_documents_view')).toBe(false);
     expect(roleHasCapability('hr_officer', 'medical_documents_view')).toBe(true);
   });
-  it('prices: every role sees them except Foreman and Field user; no key sees them', () => {
+  it('prices: legacy (no key) sees them, field and non-purchasing officers do not', () => {
     expect(roleSeesPrices(null)).toBe(true);
     expect(roleSeesPrices('buyer')).toBe(true);
-    expect(roleSeesPrices('storekeeper')).toBe(true);
-    expect(roleSeesPrices('foreman')).toBe(false);
-    expect(roleSeesPrices('field_user')).toBe(false);
+    expect(roleSeesPrices('storekeeper')).toBe(false);
     expect(roleSeesPrices('nonsense')).toBe(false);
   });
   it('tiers and stand-in', () => {

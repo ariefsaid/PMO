@@ -51,14 +51,14 @@ select ok(role_has_capability('storekeeper', 'stock_post') and not role_has_capa
 select ok(not role_has_capability(null, 'stock_post') and not role_has_capability('nonsense', 'stock_post'),
   'AC-007 helper: NULL and unknown key hold nothing');
 
--- AC-008 prices: every role except Foreman and Field user holds the price right (1200 + 1850).
+-- AC-008 prices: exactly the 12 managers + Buyer + Finance Officer + Billing Officer.
 select is((select string_agg(k, ',' order by k) from (select key as k from built_in_roles where built_in_role_sees_prices(key)) s),
-  (select string_agg(key, ',' order by key) from built_in_roles where key not in ('foreman','field_user')),
+  'administrator,billing_officer,buyer,construction_manager,deputy_project_manager,equipment_manager,executive,finance_manager,finance_officer,hr_manager,procurement_manager,project_control_manager,project_manager,quality_manager,safety_manager',
   'AC-008 who sees prices');
 select ok(built_in_role_sees_prices(null), 'AC-008 NULL key (existing people) sees prices');
 select ok(not built_in_role_sees_prices('nonsense'), 'AC-008 unknown key fails closed');
-select ok(built_in_role_sees_prices('storekeeper') and built_in_role_sees_prices('quantity_surveyor') and built_in_role_sees_prices('planner')
-  and not built_in_role_sees_prices('field_user') and not built_in_role_sees_prices('foreman'), 'AC-008 office roles see; Foreman and Field user do not');
+select ok(not built_in_role_sees_prices('storekeeper') and not built_in_role_sees_prices('field_user')
+  and not built_in_role_sees_prices('quantity_surveyor'), 'AC-008 officers and field outside purchasing/finance do not');
 
 -- AC-010 tiers and stand-in.
 select ok(built_in_role_may_approve('project_manager') and not built_in_role_may_approve('engineer')
