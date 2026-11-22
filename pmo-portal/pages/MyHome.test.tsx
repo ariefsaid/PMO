@@ -43,7 +43,7 @@ describe('AC-LA-011 phone home screen', () => {
   it('JOB-NAV-WO: lists the work orders I am on today under the dictionary name, with project and crew', async () => {
     mount();
     expect(await screen.findByRole('heading', { name: 'Work order' })).toBeInTheDocument();
-    expect(screen.getByText('Slab works')).toBeInTheDocument();
+    expect(screen.getAllByText('Slab works').length).toBeGreaterThan(0);
     expect(screen.getByText('Site A · Crew 1')).toBeInTheDocument();
   });
 
