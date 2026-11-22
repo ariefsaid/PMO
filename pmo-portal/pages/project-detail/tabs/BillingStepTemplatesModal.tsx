@@ -122,7 +122,18 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
   </EntityFormModal>;
 };
 
-export const BillingStepTemplatesModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+/**
+ * The templates modal opens from inside another modal's form (the project's Billing terms). A React synthetic `submit` bubbles through
+ * a portal to its React ancestors, so saving a template here would submit and close that outer form too. This wrapper stops the event
+ * at the boundary: an inner save or Done never reaches the outer form.
+ */
+const SubmitBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="contents" onSubmit={(e) => e.stopPropagation()}>{children}</div>
+);
+
+export const BillingStepTemplatesModal: React.FC<{ onClose: () => void }> = (props) => <SubmitBoundary><BillingStepTemplatesModalBody {...props} /></SubmitBoundary>;
+
+const BillingStepTemplatesModalBody: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation('project');
   const roles = useRoleOptions();
   const templates = useStepTemplates();
