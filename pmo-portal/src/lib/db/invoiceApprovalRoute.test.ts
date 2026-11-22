@@ -6,7 +6,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 import { AppError } from '@/src/lib/appError';
 import { getInvoiceApprovalRoute, parseInvoiceApprovalRoute } from './invoiceApprovalRoute';
 
-beforeEach(() => h.rpc.mockReset());
+beforeEach(() => { h.rpc.mockReset(); });
 
 const routeBody = {
   approvers: [

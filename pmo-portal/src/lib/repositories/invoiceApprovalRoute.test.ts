@@ -5,7 +5,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
 import { invoiceApprovalRouteRepository } from './invoiceApprovalRoute';
 
-beforeEach(() => h.rpc.mockReset());
+beforeEach(() => { h.rpc.mockReset(); });
 
 describe('invoice approval route repository', () => {
   it('delegates to the DAL and returns the typed route', async () => {
