@@ -37,7 +37,7 @@ test('AC-TST-028 a keeper sends, the receiver counts short on a phone with photo
   await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(item.code);
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByRole('textbox', { name: /^Quantity/ }).fill('10');
-  await page.getByRole('button', { name: 'Send transfer' }).click();
+  await page.getByRole('button', { name: 'Send stock transfer' }).click();
   await expect(page.getByText('In transit').first()).toBeVisible();
   const transferId = page.url().split('/').pop()!;
 

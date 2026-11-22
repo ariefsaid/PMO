@@ -40,7 +40,7 @@ test('JOB-F11 50 issued and 10 returned leaves 10 in the warehouse and 40 used',
   await expect(ownIssue).toHaveCount(1);
   await issueSelect.selectOption((await ownIssue.getAttribute('value')) ?? '');
   await page.getByLabel(/^Quantity/).fill('10');
-  await page.getByRole('button', { name: 'Post return' }).click();
+  await page.getByRole('button', { name: 'Post stock return' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   await expectOnHand(page, site, item.code, '10');

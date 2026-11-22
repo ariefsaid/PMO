@@ -21,24 +21,24 @@ const renderIt = () => render(<QueryClientProvider client={new QueryClient()}><S
 describe('StockTransferSettings (AC-TST-026, AC-TST-033)', () => {
   it('AC-TST-026 the mode switch reads and writes; one-step offers only none and paper per tag, and no quality list', async () => {
     renderIt();
-    await userEvent.click(screen.getByRole('button', { name: 'Transfers, reservations and moves between work orders' }));
-    expect(screen.getByRole('combobox', { name: /How transfers are made/ })).toHaveValue('one_step');
+    await userEvent.click(screen.getByRole('button', { name: 'Stock transfers, reservations and moves between work orders' }));
+    expect(screen.getByRole('combobox', { name: /How stock transfers are made/ })).toHaveValue('one_step');
     expect(screen.queryByText('Items that need a quality check on receipt')).not.toBeInTheDocument();
     const plain = screen.getByRole('combobox', { name: 'Plain' });
     expect(Array.from(plain.querySelectorAll('option')).map((o) => o.value)).toEqual(['none']);            // paper needs a zero-cost tag; confirmation needs two-step
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How transfers are made/ }), 'two_step');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How stock transfers are made/ }), 'two_step');
     await waitFor(() => expect(h.setMode).toHaveBeenCalledWith('two_step'));
   });
   it('AC-TST-033 the proof timing is chosen here', async () => {
     renderIt();
-    await userEvent.click(screen.getByRole('button', { name: 'Transfers, reservations and moves between work orders' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stock transfers, reservations and moves between work orders' }));
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /When proof is demanded/ }), 'may_follow');
     await waitFor(() => expect(h.setTiming).toHaveBeenCalledWith('may_follow'));
   });
   it('AC-TST-026 two-step adds confirmation and either per tag, and the quality-check list writes per item', async () => {
     h.settings = { mode: 'two_step', proofTiming: 'before_posting' };
     renderIt();
-    await userEvent.click(screen.getByRole('button', { name: 'Transfers, reservations and moves between work orders' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stock transfers, reservations and moves between work orders' }));
     const tag = screen.getByRole('combobox', { name: 'Client supplied' });
     expect(Array.from(tag.querySelectorAll('option')).map((o) => o.value)).toEqual(['none', 'paper', 'confirmation', 'either']);
     expect(tag).toHaveValue('paper');                                                                       // a legacy paper_required tag reads as paper
@@ -51,8 +51,8 @@ describe('StockTransferSettings (AC-TST-026, AC-TST-033)', () => {
     h.settings = { mode: 'two_step', proofTiming: 'before_posting' };
     h.sent = [{ id: 'a' }, { id: 'b' }];
     renderIt();
-    await userEvent.click(screen.getByRole('button', { name: 'Transfers, reservations and moves between work orders' }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How transfers are made/ }), 'one_step');
+    await userEvent.click(screen.getByRole('button', { name: 'Stock transfers, reservations and moves between work orders' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How stock transfers are made/ }), 'one_step');
     expect(await screen.findByRole('alert')).toHaveTextContent('2 transfers are in transit');
     expect(h.setMode).not.toHaveBeenCalled();
   });

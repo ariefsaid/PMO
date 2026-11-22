@@ -406,8 +406,8 @@ describe('AC-STK-032 floor: every control on the balance list still works', () =
   it('each movement in the More menu opens its own new-movement route', async () => {
     const movements = [
       ['Issue to project', 'issue'],
-      ['Transfer', 'transfer'],
-      ['Return from project', 'return'],
+      ['Stock transfer', 'transfer'],
+      ['Stock return from project', 'return'],
       ['Stock count', 'count'],
       ['Adjustment', 'adjustment'],
     ] as const;

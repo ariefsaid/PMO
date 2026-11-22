@@ -14,7 +14,7 @@ export async function postTransfer(page: Page, from: { code: string; name: strin
   await page.getByLabel('To warehouse').selectOption({ label: whLabel(to) });
   await chooseItem(page, itemCode);
   await page.getByLabel(/^Quantity/).fill(qty);
-  await page.getByRole('button', { name: 'Post transfer' }).click();
+  await page.getByRole('button', { name: 'Post stock transfer' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 }
 
