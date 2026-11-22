@@ -15,8 +15,8 @@ begin;
 create extension if not exists pgtap;
 select plan(49);
 
-insert into organizations (id, name, default_currency, attendance_backdate_days) values
-  ('17000000-0000-0000-0000-00000000020a', 'PT Org', 'IDR', 60);
+insert into organizations (id, name, default_currency, attendance_backdate_days, built_in_roles_enabled) values
+  ('17000000-0000-0000-0000-00000000020a', 'PT Org', 'IDR', 60, true);
 insert into auth.users (id, email) values
   ('17000000-0000-0000-0000-0000000000a1', 'pt-admin@example.com'),
   ('17000000-0000-0000-0000-0000000000a2', 'pt-fc@example.com'),
