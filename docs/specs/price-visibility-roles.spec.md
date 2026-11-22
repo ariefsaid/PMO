@@ -1,66 +1,66 @@
-# Price visibility: who holds the price right
+# Price visibility: Foreman and Field user read no price
 
-Status: Draft for Director sign-off (phase 1). Rulings it rests on: OD-SCOPE-3 (28 built-in roles), OD-SCOPE-4 (Foreman and Field user are light accounts and see no price), DD-R1215-1 (the hide setting ships off). Builds on `hide-prices.spec.md` (#2699) and `builtin-role-set.spec.md` section 2.
+Status: Draft for Director sign-off. Rulings it rests on: OD-SCOPE-3 (28 built-in roles), OD-SCOPE-4 (Foreman and Field user are light accounts and see no price), DD-R1215-1 (the hide setting ships off). Builds on `hide-prices.spec.md` (#2699) and `builtin-role-set.spec.md` section 2.
 
-**Job story.** When an Admin turns on hiding prices, I want prices hidden from foremen and field users only, so that office roles (planners, buyers, storekeepers, project administrators) keep seeing the figures they work with.
+**Job story.** When an Admin turns on hiding prices, I want prices hidden from foremen and site users, so that only the people who work on site lose figures they never needed.
 
-## 1. Today (verified in code, 2026-11-22)
+## 1. Verified: the base already answers the ask for field roles
 
-- The one deciding function is `actor_may_see_prices_now()` (`supabase/migrations/1215_hide_prices_setting.sql:36-44`; no later migration redefines it). `actor_may_see_prices()` and `get_may_see_prices()` (1215:45-52) only call it. The frontend mirror is `canSeePrices` (`pmo-portal/src/auth/priceVisibility.ts`), which reads `get_may_see_prices` through `pmo-portal/src/lib/db/hidePrices.ts:22`.
-- Setting off (`organizations.hide_prices_from_requesters`, `not null default false`, 1215:7): everyone sees prices.
-- Setting on: an inactive member sees none; otherwise the person sees prices only if `actor_sees_prices()` (`1203_role_capability_actor_helpers.sql:16-22`) AND NOT (no job role AND base level Engineer) (1215:41-42).
-- `actor_sees_prices()` reads `built_in_role_sees_prices(key)` (`1200_builtin_role_catalogue.sql:150-153`): a NULL key (no job role) is true; a job role is true only when `built_in_role_capabilities` holds a `sees_prices` row for it. The list is DATA: 15 rows at `1200_builtin_role_catalogue.sql:80-94` (the 12 managers, Buyer, Finance Officer, Billing Officer). The frontend carries a parity mirror in `pmo-portal/src/auth/builtInRoles.ts` (`ROLE_CAPABILITIES`), checked against migration 1200 by `builtInRoles.test.ts`.
-- So with the setting on, these lose prices today: 11 officer roles (Project Administrator, Engineer, Planner, Quantity Surveyor, Material Coordinator, Storekeeper, Site Supervisor, Quality Inspector, Safety Officer, Equipment Officer, HR Officer), Foreman, Field user, and any active person with no job role at the Engineer base level. The claim in the item is correct.
-- The base does not already answer the ask: the list and the legacy-Engineer clause both have to change.
-- The setting is off everywhere: default false; the only writer is `set_hide_prices_enabled` (Admin); the Administration card is held back by `HIDE_PRICES_SETTING_AVAILABLE = false` (`pmo-portal/src/lib/db/hidePrices.ts:5`, used at `pmo-portal/pages/Administration.tsx:297`; DD-R1215-1). No organisation is using the older behaviour, so this change moves no one's current view.
-- The database gate on the priced base tables is NOT yet on the merged branch: `origin/feat/hide-prices-db-gate` carries the test `2720_hide_prices_base_tables.test.sql` and migration 1530, but the base-table gate migrations that test names (1540-1544) are absent from it. This spec changes only the deciding function and its data, which that gate calls, so it does not depend on them; the orchestrator should know the gate itself is not in the tree.
+Code was read, not assumed (2026-11-22). The item becomes acceptance tests and nothing else; no migration, no setting, no function change.
 
-## 2. Requirements (EARS)
+- A Foreman and a Field user are light accounts (`actor_is_light()`, `1205_light_accounts_helpers.sql:20-24`, true for the two job role keys).
+- Every priced purchase and stock base table carries a restrictive policy refusing a light account's reads: `light_account_deny` (1206, list at lines 17-27) narrowed to `light_account_deny_select` for the select-only tables by 1229 (`purchase_orders`, `procurement_invoices`, `payments` among them). `po_variation_lines` is not on that list; its own read policy joins a parent whose rows a field account cannot read (the 2711 sweep records it as such).
+- The masked views are `security_invoker`, so they read through those same tables: a field account gets no row (1216, 1217).
+- The priced definer reads refuse a light account on their first statement (`assert_not_light`, 1209).
+- The price right itself: `actor_may_see_prices_now()` (`1215_hide_prices_setting.sql:36-44`) answers false for these two roles when hiding is on, because they hold no `sees_prices` row (`1200_builtin_role_catalogue.sql:80-94`).
+- The setting is off everywhere: `organizations.hide_prices_from_requesters` is `not null default false` (1215:7), only an Admin writes it, and its Administration card is held back (`HIDE_PRICES_SETTING_AVAILABLE = false`, `pmo-portal/src/lib/db/hidePrices.ts:5`; DD-R1215-1). No organisation uses the older behaviour.
+- Who else loses prices when hiding is on is unchanged by this item (today: eleven officer roles and any no-job-role person at the Engineer level). That is a separate customer question, not built here.
 
-- **FR-001** While the hide setting is on, the system shall show prices to every active person except one holding the Foreman or Field user job role.
-- **FR-002** While the hide setting is on, the system shall show prices to an active person with no job role at every base level (the legacy-Engineer exception is removed).
-- **FR-003** While the hide setting is off, the system shall show prices to everyone exactly as before.
-- **FR-004** The list of job roles that hold the price right shall be data (`built_in_role_capabilities` rows with capability `sees_prices`), not a function body. The deciding function shall name no role.
-- **FR-005** There shall be one deciding function, `actor_may_see_prices_now()`; no second path, no new per-feature switch, and no new setting. The hide setting keeps its default off.
-- **FR-006** An inactive member shall see no price while the setting is on (unchanged).
-- **FR-007** The frontend `canSeePrices` shall give the same answer as the database for every role, from the same data.
-- **FR-008** A job role not in the catalogue (unknown key) shall fail closed (unchanged).
-- No refusal message is introduced: hidden prices read as NULL through the masked views; no new error a person can meet, so no `refusals.ts` entry is needed.
+## 2. Channels a price can be read through (enumerated from the code)
 
-## 3. Settings and defaults
-
-`organizations.hide_prices_from_requesters` stays default false. Who holds the price right is data in `built_in_role_capabilities` (a role holds the right only if a row says so); nothing else is configurable here. Owner custom-role editing stays Q1 2027 (OD-SCOPE-3).
-
-## 4. Per-role proof (setting on; setting off = everyone sees, no exceptions)
-
-| Role (base level) | Sees prices, setting on |
-|---|---|
-| Executive, Administrator, Project Manager, Deputy Project Manager, Project Control Manager, Construction Manager, Procurement Manager, Finance Manager, Quality Manager, Safety Manager, Equipment Manager, HR Manager (12 managers) | yes |
-| Buyer, Finance Officer, Billing Officer | yes |
-| Project Administrator, Engineer, Planner, Quantity Surveyor, Material Coordinator, Storekeeper, Site Supervisor, Quality Inspector, Safety Officer, Equipment Officer, HR Officer (new: 11 officers) | yes |
-| Foreman, Field user | no |
-| No job role at Engineer / Project Manager / Finance / Executive / Admin | yes (Engineer changes from no) |
-| Inactive member (any) | no |
-
-## 5. Acceptance criteria
-
-| ID | Given / When / Then | Owner |
+| Channel | Where | Price column |
 |---|---|---|
-| AC-PVR-001 | Given the setting on and one active person per each of the 28 job roles, when `actor_may_see_prices_now()` runs, then it is false only for foreman and field_user (the table above, one assertion per role, 28 rows plus the count). | pgTAP |
-| AC-PVR-002 | Given the setting on and an active person with no job role at each of the five base levels, then each sees prices. | pgTAP |
-| AC-PVR-003 | Given the setting off, then all 28 roles, the five no-role levels see prices, and no role loses anything. | pgTAP |
-| AC-PVR-004 | Given the setting on, an inactive member sees none; a person of another organisation whose setting is off is unaffected. | pgTAP |
-| AC-PVR-005 | Given the catalogue, then `sees_prices` rows are exactly the 26 non-field roles, and the deciding function body names no role key (catalogue-driven: adding or deleting a row changes the answer with no function change). | pgTAP |
-| AC-PVR-006 | Given the setting on and a Planner, Buyer, Storekeeper and Project Administrator, then each reads a non-NULL rate through `procurement_items_masked`; a Foreman reads NULL. | pgTAP |
-| AC-PVR-007 | Given the frontend table, then `canSeePrices` equals the database table for all 28 roles, the no-role levels, setting off and inactive; `ROLE_CAPABILITIES` equals the union of the migrations that insert capability rows. | vitest |
-| AC-PVR-MUT | Mutation checks (each turns the named test red, then restore): delete one added `sees_prices` row (AC-PVR-001); restore the legacy-Engineer clause (AC-PVR-002); make the function return true (AC-PVR-001 foreman/field_user); drop the setting test (AC-PVR-003). | pgTAP |
+| Base tables | `procurements`, `procurement_items`, `procurement_invoices`, `purchase_orders`, `purchase_requests`, `payments`, `purchase_order_lines`, `po_variation_lines`, `stock_document_lines`, `stock_ledger`, `stock_balances` | total_value, rate, amount, unit_cost, value_after, value_on_hand |
+| Masked views | the same eleven, suffix `_masked` (1216, 1217) | same |
+| Derived amounts | `procurement_open_commitments_masked`, `project_committed_spend_masked` (1218) and their originals `procurement_open_commitments`, `project_committed_spend` | amount |
+| Stock cost seam | `stock_can_see_cost()` (1217) | boolean |
+| Priced definer reads | `get_stock_on_hand`, `get_stock_ledger`, `get_stock_document_costs`, `get_stock_erp_value`, `work_order_cost_amounts` | cost and value in the returned rows |
+| Price-right answer | `get_may_see_prices`, `actor_may_see_prices`, `actor_may_see_prices_now` | boolean |
 
-## 6. Existing tests whose steps change, and why
+Out of scope, as in the hide-prices spec section 3: budget, BOQ and revenue figures.
 
-- `supabase/tests/1200_builtin_role_catalogue.test.sql` AC-008 (who sees prices list, and the "storekeeper ... do not" assertion): the list is now 26 roles; the check is rewritten to the new ruling.
-- `supabase/tests/1202_profiles_built_in_role.test.sql:133` (Site Supervisor does not see prices): now sees.
-- `supabase/tests/1215_hide_prices.test.sql` truth table (`e1` legacy Engineer hidden, `a2` Storekeeper hidden, plan counts): both now see; the hidden actor becomes a Foreman or Field user.
-- `supabase/tests/2720_hide_prices_base_tables.test.sql` (on the merged branch): `e1` (legacy Engineer) and `a2` (Storekeeper) were hidden actors; the hidden actors become Field user and Foreman, and the visible ones gain Engineer and Storekeeper.
-- `pmo-portal/src/auth/priceVisibility.test.ts` (legacy Engineer, Storekeeper, Site Supervisor rows) and `pmo-portal/src/auth/builtInRoles.test.ts` (parity source, `roleSeesPrices('storekeeper')`).
-- `docs/specs/hide-prices.spec.md` AC-002/AC-008 and the requester definition, `builtin-role-set.spec.md` FR-008/AC-008: reworded to point here.
-- The goal of each test is kept; only the ruling the expectation encodes changed.
+## 3. Requirements (EARS)
+
+- **FR-001** While a person holds the Foreman or Field user job role, the system shall return no priced value through any channel in section 2, with hiding on and with hiding off.
+- **FR-002** While hiding is on, the price-right answer shall be false for a Foreman and for a Field user.
+- **FR-003** The priced definer reads shall refuse (42501) a Foreman and a Field user.
+- **FR-004** A person with an office role who may read the rows shall read the prices (control; proves the channels hold prices).
+- No refusal message is introduced and no setting or default changes.
+
+## 4. Acceptance criteria
+
+Each is owned by `supabase/tests/1850_price_visibility_field_roles.test.sql` (pgTAP, DB-enforced; each assertion covers a Foreman and a Field user, hiding on and off, 4 observations).
+
+| ID | Given / When / Then |
+|---|---|
+| AC-PVF-001 | One assertion per base table (11): the person reads no priced value. |
+| AC-PVF-002 | One assertion per masked view (11): the person reads no priced value. |
+| AC-PVF-003 | `procurement_open_commitments_masked`, `project_committed_spend_masked`, `procurement_open_commitments`, `project_committed_spend`, `stock_can_see_cost`: no amount, no true. |
+| AC-PVF-004 | The five priced definer reads are refused with 42501. |
+| AC-PVF-005 | Hiding on: `get_may_see_prices` and `actor_may_see_prices_now` answer false for each. |
+| AC-PVF-006 | The two actors hold the two job roles. |
+| AC-PVF-007 | Controls: an Admin and a Finance person read prices from every seeded base table and masked view; a Buyer reads a unit price through the masked view; committed spend is non-empty for the Admin. |
+
+Mutation checks are written in the test file header (the orchestrator runs them): drop a deny policy, make `actor_is_light()` false, remove a guard, remove a fixture row.
+
+## 5. Settings and defaults
+
+Unchanged. The hide setting stays default off. Who holds the price right remains data (`built_in_role_capabilities`, capability `sees_prices`), decided by one function.
+
+## 6. Existing tests
+
+None change. The new file does not touch the gate branch's tests; if the base-table gate (`feat/hide-prices-db-gate`, not landed) later restates `actor_may_see_prices_now()`, this file keeps its meaning.
+
+## 7. Question for the customer
+
+"Which other roles should lose prices when hiding is on?" Recommended answer: none beyond Foreman and Field user. Today eleven officer roles (Project Administrator, Engineer, Planner, Quantity Surveyor, Material Coordinator, Storekeeper, Site Supervisor, Quality Inspector, Safety Officer, Equipment Officer, HR Officer) and a no-job-role person at the Engineer level also lose prices when hiding is on, which is wider than the ask. If the customer agrees, a follow-up adds one data row per role and drops the legacy-Engineer clause (two small migrations, built and reverted in this lane's history).
