@@ -1370,3 +1370,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Installed material** (*material terpasang*) — the quantity of an item on a work order that the organisation counts as installed: the material lines of its validated site reports (a correction replaces the version it supersedes), or, by an Admin's setting, the storekeeper's issues to the work order less returns. Requests and transfers are not installed material.
 
 **Usage warning** (*peringatan pemakaian*) — when installed material of an item on a work order reaches the organisation's first usage threshold (percent of plan), one warning is recorded for that work order and item and the responsible person is told to go and check. It never blocks anything; unset means off. The request-time warning at submit (#2686) is separate and unchanged.
+
+**Opening stock history** (*riwayat stok awal*) — the dated in-and-out movements of an item at a location up to the go-live date, loaded once from one template and posted through the stock ledger's own writer, so the balance at go-live equals the sum of the movements. A client-supplied item stays at zero cost throughout. An Admin previews the file, then confirms; nothing posts before the confirm.
+
+**Go-live date** (*tanggal mulai pakai*) — the one date every live opening of an organisation carries; no opening movement is dated after it.

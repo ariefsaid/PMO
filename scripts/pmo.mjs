@@ -134,7 +134,7 @@ export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
  * load_work_order_opening, load_stock_opening, reverse_opening_balance, opening_balance_report: go-live opening
  * balances (#2588, migrations 1046/1047; docs/specs/opening-balances.spec.md).
  */
-export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report']);
+export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report', 'preview_stock_opening_history', 'load_stock_opening_history']);
 
 /** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };

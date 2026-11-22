@@ -1,0 +1,3 @@
+# 1901: an Admin previews and loads opening stock with movement history.
+preview_stock_opening_history
+load_stock_opening_history

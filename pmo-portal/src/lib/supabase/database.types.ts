@@ -12613,6 +12613,7 @@ export type Database = {
           acceptance_id: string | null
           as_of: string
           claimed_amount: number
+          client_request_id: string | null
           currency: string | null
           id: string
           kind: string
@@ -12630,6 +12631,7 @@ export type Database = {
           acceptance_id?: string | null
           as_of: string
           claimed_amount?: number
+          client_request_id?: string | null
           currency?: string | null
           id?: string
           kind: string
@@ -12647,6 +12649,7 @@ export type Database = {
           acceptance_id?: string | null
           as_of?: string
           claimed_amount?: number
+          client_request_id?: string | null
           currency?: string | null
           id?: string
           kind?: string
@@ -20410,8 +20413,10 @@ export type Database = {
           id: string
           item_id: string
           line_no: number
+          occurred_on: string | null
           org_id: string
           quantity: number | null
+          reference: string | null
           source_line_id: string | null
           unit_cost: number | null
         }
@@ -20424,8 +20429,10 @@ export type Database = {
           id?: string
           item_id: string
           line_no: number
+          occurred_on?: string | null
           org_id: string
           quantity?: number | null
+          reference?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }
@@ -20438,8 +20445,10 @@ export type Database = {
           id?: string
           item_id?: string
           line_no?: number
+          occurred_on?: string | null
           org_id?: string
           quantity?: number | null
+          reference?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }
@@ -31567,6 +31576,15 @@ export type Database = {
         }
         Returns: string
       }
+      load_stock_opening_history: {
+        Args: {
+          p_as_of: string
+          p_client_request_id: string
+          p_lines: Json
+          p_note?: string
+        }
+        Returns: string[]
+      }
       load_work_order_opening: {
         Args: {
           p_as_of: string
@@ -32578,9 +32596,41 @@ export type Database = {
           work_order_id: string
         }[]
       }
+      opening_history_plan: {
+        Args: { p_as_of: string; p_lines: Json; p_org: string }
+        Returns: {
+          direction: string
+          item_code: string
+          item_id: string
+          location_code: string
+          message: string
+          occurred_on: string
+          quantity: number
+          reference: string
+          row_no: number
+          run_qty: number
+          run_val: number
+          unit_cost: number
+          verdict: string
+          warehouse_id: string
+          zero_cost: boolean
+        }[]
+      }
       opening_location_has_movement: {
         Args: { p_opening_document: string; p_org: string; p_warehouse: string }
         Returns: boolean
+      }
+      opening_post_location: {
+        Args: {
+          p_as_of: string
+          p_counted: boolean
+          p_note: string
+          p_org: string
+          p_request: string
+          p_rows: Json
+          p_warehouse: string
+        }
+        Returns: string
       }
       opening_work_order_has_activity: {
         Args: { p_opening: string; p_wo: string }
@@ -33101,6 +33151,26 @@ export type Database = {
           entry_count: number
           month: string
           project_id: string
+        }[]
+      }
+      preview_stock_opening_history: {
+        Args: { p_as_of: string; p_lines: Json }
+        Returns: {
+          direction: string
+          item_code: string
+          item_id: string
+          location_code: string
+          message: string
+          occurred_on: string
+          quantity: number
+          reference: string
+          row_no: number
+          run_qty: number
+          run_val: number
+          unit_cost: number
+          verdict: string
+          warehouse_id: string
+          zero_cost: boolean
         }[]
       }
       preview_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
