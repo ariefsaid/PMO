@@ -63,7 +63,7 @@ test('AC-NLL-014 Finance adds a class rate and gives a crew member with no login
   await row.getByRole('button', { name: `End ${personName}` }).click();
   const end = page.getByRole('dialog', { name: 'End this class' });
   await end.getByLabel(/Last day/).fill('2031-12-31');
-  await end.getByRole('button', { name: 'End' }).click();
+  await end.getByRole('button', { name: 'End', exact: true }).click();
   await expect(end).toBeHidden();
   await page.reload();
   await expect(page.getByTestId('labour-class-assignments').getByRole('row').filter({ hasText: personName })).not.toContainText('open');
