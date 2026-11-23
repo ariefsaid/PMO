@@ -242,7 +242,7 @@
     "col": {
       "period": "Period",
       "progress": "Progress",
-      "earned": "Earned",
+      "earned": "Recognised",
       "invoices": "Invoices",
       "doneNotYetBilled": "Done, not yet billed",
       "leftToBill": "Left to bill"
