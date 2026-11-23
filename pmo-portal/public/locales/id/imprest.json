@@ -202,8 +202,7 @@
     "notFunded": "Belum didanai",
     "receiptsWaiting": "Bukti menunggu",
     "topUp": "Tambahan dana {{amount}}",
-    "varianceFlag": "Hitungan berbeda",
-    "limitPending": "{{amount}} menunggu persetujuan"
+    "varianceFlag": "Hitungan berbeda"
   },
   "posting": {
     "pending": "Sedang diposting ke ERP",
@@ -232,7 +231,8 @@
     "number": "Nomor",
     "replenishment": "Tambahan dana",
     "status": "Status",
-    "title": "Tambahan dana"
+    "title": "Tambahan dana",
+    "waitingToPay": "Menunggu {{who}} membayar"
   },
   "status": {
     "approved": "Disetujui",
@@ -242,6 +242,11 @@
     "rejected": "Ditolak",
     "requested": "Diminta",
     "submitted": "Diajukan"
+  },
+  "waiting": {
+    "checking": "Memeriksa siapa yang memutuskan…",
+    "error": "Tidak dapat memeriksa siapa yang memutuskan",
+    "retry": "Coba lagi"
   },
   "toast": {
     "counted": "Hitung kas dicatat",

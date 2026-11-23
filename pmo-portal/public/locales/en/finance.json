@@ -1,4 +1,11 @@
 {
+  "invoice": {
+    "waiting": {
+      "nobody": "No other Finance or Admin can approve this invoice right now.",
+      "missingAuthor": "This invoice has no recorded author, so it cannot be approved yet.",
+      "retry": "Try again"
+    }
+  },
   "area": {
     "finance": "Finance",
     "receivables": "Receivables",

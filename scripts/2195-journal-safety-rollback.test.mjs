@@ -17,8 +17,25 @@ test('AC-ROP-SAFETY-ROLLBACK restores the exact 0858 function body and names edg
 });
 
 test('AC-ROP-SAFETY-ROLLBACK catalog round trip restores body and grants without changing shared schema', () => {
+  // Structural window marker only; it makes no authorization statement. 1530 sits above this
+  // window: it adds one line at the top of this body and its rollback strips no body, so a body read
+  // at head cannot be reproduced by re-applying 0865 alone. The expected forward body is 0865's own
+  // level body - the head definition with that one literal line normalized out (the same
+  // normalization scripts/2195-capture-rollback.test.sql:34-41 uses); nothing else is normalized and
+  // the comparison below stays exact.
+  // The presence check only makes that normalization explicit: it pins the literal line the
+  // normalization removes, matched literally (no regex, no LIKE wildcards) so a line-commented copy
+  // cannot count as present. The normalization removes every identical occurrence of that literal,
+  // and presence here is structural.
   const script = `begin;
-create temp table new_body as select pg_get_functiondef('public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure) body, proacl from pg_proc where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure;
+do $$ begin
+  if not exists (select 1 from pg_proc
+                  where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure
+                    and strpos(prosrc, chr(10) || '  perform public.assert_not_light();') > 0) then
+    raise exception 'head_guard_missing';
+  end if;
+end $$;
+create temp table new_body as select replace(pg_get_functiondef('public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure), E'\\n  perform public.assert_not_light();', '') body, proacl from pg_proc where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure;
 ${down}
 create temp table restored as select pg_get_functiondef('public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure) body, proacl from pg_proc where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure;
 ${up}

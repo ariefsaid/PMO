@@ -9,6 +9,7 @@ import {
   useCreatePlan, useDeletePlanLine, useImprestPlanLines, useImprestPlans, useSavePlanLine, useTransitionPlan,
 } from '@/src/hooks/useImprest';
 import { availablePlanActions, type ImprestAction } from '@/src/lib/imprest/imprestRules';
+import { RequesterRouteNote } from './RequesterRouteNote';
 import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
 import { PlanSeedEditor } from './PlanSeedEditor';
 import type { PlanSeedLine } from '@/src/lib/imprest/planSeed';
@@ -143,6 +144,9 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                     {/* A draft has no number yet; its pill already says Draft. */}
                     {plan.number && <span className="text-muted-foreground">{plan.number}</span>}
                     <StatusPill record="imprest" state={plan.status} />
+                    {plan.status === 'Submitted' && (
+                      <RequesterRouteNote kind="plan" recordId={plan.id} testId="plan-waiting-for" className="text-muted-foreground" expectAction="approve" />
+                    )}
                     {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Approved after the month began')}</span>}
                     {/* The figure carries its noun, so the row reads without a table header. */}
                     <span className="ml-auto tabular-nums"><span className="mr-1 text-muted-foreground">{t('imprest:plan.totalLabel', 'Total')}</span>{formatCurrency(Number(plan.total), currency)}</span>

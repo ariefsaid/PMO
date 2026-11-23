@@ -42,6 +42,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
+import { useOperationalWaitingRoute, operationalWaitingForText } from '@/src/hooks/useOperationalWaitingRoute';
+import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { ProcurementDetailsTab, ProcurementItemsTab, ProcurementQuotesTab } from './procurement/ProcurementDetailTabs';
@@ -133,7 +135,7 @@ const TimelineWithReadableOrders: React.FC<TimelineWithOrdersProps & { records: 
 };
 
 const ProcurementDetails: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'waitingList']);
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
   const tab = tabFromParam(tabParam);
@@ -154,6 +156,11 @@ const ProcurementDetails: React.FC = () => {
   const ownership = useDomainOwnershipMode('procurement');
   const itemEligibility = useProcurementItemEligibility(procurementId, ownership.mode === 'external');
   const detailQuery = useProcurementDetail(procurementId);
+  // An Ordered purchase is ASSIGNED to the people 1560 puts on the receipt list (an Admin, the actual requester while
+  // their role may record a receipt, and this project's own PM) — not every Finance/Executive, not another project's
+  // PM, and no light account (the receipt gate refuses a light caller). Only fetched while Ordered.
+  const receiptWaiting = useOperationalWaitingRoute('delivery_record', procurementId, detailQuery.data?.status === 'Ordered');
+  const { label: roleLabel } = useRoleOptions();
   const linkedErpQuery = useLinkedErpDocuments(procurementId);
   const linkedDocs = linkedErpQuery.data ?? [];
   const gates = useProcurementGates().data;
@@ -420,6 +427,17 @@ const ProcurementDetails: React.FC = () => {
     : null;
   // fix-waiting item 3: who the request waits for, from the route the database already computed (never a bare "Waiting for approval").
   const requestedRoute = p.approvalRoute;
+  // An Ordered purchase is assigned to the actual people the database's receipt list names (the requester while their
+  // role allows it, this project's own manager, an Admin) — not every Finance/Executive. The viewer who can record it
+  // already has that action, so the line is for everyone else. Pending says nothing; a failed read offers a retry.
+  const canReceiveHere = isRequester || RECEIPT_ROLES.has(role);
+  const receiptWaitingNote = p.status === 'Ordered' && !canReceiveHere
+    ? receiptWaiting.isError
+      ? <button type="button" onClick={() => void receiptWaiting.refetch()} className="font-medium text-primary-text hover:underline">
+          {t('ui.listState.retry', 'Retry')}
+        </button>
+      : operationalWaitingForText(receiptWaiting.data, t, { roleLabel, empty: 'none' })
+    : null;
   const waitingNote = p.status === 'Requested' && isRequester
     ? waitingForText({
         names: (requestedRoute?.approvers ?? []).map((approver) => approver.fullName),
@@ -428,9 +446,11 @@ const ProcurementDetails: React.FC = () => {
           : requestedRoute?.route === 'project' ? t('waitingList:waitingFor.roleProject', 'project approver')
           : t('waitingList:waitingFor.roleFlat', 'project manager or Finance'),
       }, t)
-    : p.status === 'Vendor Invoiced' && !actionFor('Paid')
-      ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
-      : null;
+    : p.status === 'Ordered'
+      ? receiptWaitingNote
+      : p.status === 'Vendor Invoiced' && !actionFor('Paid')
+        ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
+        : null;
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -746,7 +766,7 @@ const ProcurementDetails: React.FC = () => {
         meta={meta.length ? <span className="block overflow-hidden"><span data-testid="record-meta" className="flex flex-col gap-y-1 sm:-ml-4 sm:flex-row sm:flex-wrap sm:items-center [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className={i === 0 ? 'sm:whitespace-nowrap sm:pl-4' : 'sm:whitespace-nowrap'}>{i > 0 && <span data-meta-dot aria-hidden="true" className="hidden w-4 text-center text-muted-foreground sm:inline-block">·</span>}{part}</span>)}</span></span> : undefined}
         // Where no action is offered, the slot says who the purchase waits on (#1404).
         actions={waitingNote || !isNarrow ? <>
-          {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
+          {waitingNote && <span data-testid="procurement-waiting" className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
           {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
         </> : undefined}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.

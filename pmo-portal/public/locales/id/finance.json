@@ -1,4 +1,11 @@
 {
+  "invoice": {
+    "waiting": {
+      "nobody": "Saat ini tidak ada Keuangan atau Admin lain yang dapat menyetujui invoice ini.",
+      "missingAuthor": "Invoice ini tidak memiliki pembuat tercatat, sehingga belum dapat disetujui.",
+      "retry": "Coba lagi"
+    }
+  },
   "area": {
     "finance": "Keuangan",
     "receivables": "Piutang",

@@ -41,6 +41,11 @@ export function useTimesheetApprovalRoute(timesheetId: string | null | undefined
     // than reaching the network. `timesheetId` alone decides the one-sheet scope.
     enabled: Boolean(qc && orgId && userId && timesheetId),
     refetchInterval: ELIGIBILITY_REFRESH_MS,
+    // The read's contract is an ERROR STATE, never a render throw: the page turns `isError` into the
+    // plain pending sentence plus its Retry affordance (`pages/Timesheets.tsx`), so a throw here would
+    // be swallowed by any boundary above instead of letting the requester retry. Pinned explicitly
+    // rather than inherited from the client's default.
+    throwOnError: false,
   }, qc ?? IDLE_CLIENT);
 }
 

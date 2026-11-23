@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { signIn } from '../helpers';
 import { cleanupAll, need, ORG_ID, PM_ID, runId, serviceClient } from '../support/jobFixtures';
+import { userClient } from '../support/stockFixture';
 
 test.setTimeout(120_000);
 
@@ -25,7 +26,7 @@ test.afterEach(async () => {
   projectId = ''; templateIds = []; candidateIds = []; workOrderIds = [];
 });
 
-test('AC-CWO-016 a project manager assesses a candidate, accepts it with a reason, and reaches the new Draft work order', async ({ page }) => {
+test('AC-CWO-016 AC-WAIT-074 a project manager assesses a candidate, accepts it with a reason, and reaches the new Draft work order', async ({ page }) => {
   admin = serviceClient('AC-CWO-016');
   const run = runId('CWO');
   projectId = need('project', await admin.from('projects').insert({
@@ -65,4 +66,17 @@ test('AC-CWO-016 a project manager assesses a candidate, accepts it with a reaso
   await card.getByRole('link', { name: 'Open the draft work order' }).click();
   await expect(page).toHaveURL(/\/work-orders\/[0-9a-f-]{36}$/);
   await expect(page.getByText(`${run} pipe repair`).first()).toBeVisible({ timeout: 20_000 });
+
+  // AC-WAIT-074: once another hand prices the new Draft, the detail page names the exact person the issue step is
+  // assigned to — this project's own manager — with their role, not a generic "Waiting" label.
+  const workOrderId = page.url().split('/').pop()!;
+  const adminClient = await userClient('admin@acme.test');
+  const priced = await adminClient.rpc('set_work_order_value', {
+    p_id: workOrderId, p_value: 3000, p_tax_treatment: 'exclusive', p_tax_amount: 0,
+  });
+  expect(priced.error).toBeNull();
+  await page.reload();
+  await expect(page.getByTestId('wo-issue-waiting')).toContainText('Diego Salvatierra', { timeout: 20_000 });
+  await expect(page.getByTestId('wo-issue-waiting')).toContainText('Project Manager');
+  expect(await page.getByTestId('wo-issue-waiting').textContent()).toMatch(/^Waiting for /);
 });

@@ -122,6 +122,17 @@ vi.mock('@/src/hooks/useProcurementFiles', () => ({
 }));
 
 const mockApproveAmount = vi.fn().mockResolvedValue(undefined);
+const receiptWaiting = vi.hoisted(() => ({ data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn(), calls: [] as unknown[][] }));
+vi.mock('@/src/hooks/useOperationalWaitingRoute', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return {
+    ...actual,
+    useOperationalWaitingRoute: (kind: string, recordId: string | undefined, enabled: boolean) => {
+      receiptWaiting.calls.push([kind, recordId, enabled]);
+      return receiptWaiting;
+    },
+  };
+});
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => detailState,
   useProcurementMutations: () => ({
@@ -224,6 +235,11 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 }));
 
 import ProcurementDetails from './ProcurementDetails';
+
+beforeEach(() => {
+  receiptWaiting.data = undefined; receiptWaiting.isPending = false; receiptWaiting.isError = false;
+  receiptWaiting.refetch.mockReset(); receiptWaiting.calls.length = 0;
+});
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -2337,5 +2353,67 @@ describe('Procurement detail restructure fixes', () => {
       await userEvent.click(trigger);
       expect(await screen.findByTestId('print-purchase-order')).toBeInTheDocument();
     });
+  });
+});
+
+// #1122 Waiting 3: an Ordered purchase (the delivery/receipt wait, NOT a BAST) is assigned to the people the database's
+// receipt list names, instead of advertising every Finance/Executive.
+describe('AC-WAIT-071/073: who an Ordered purchase is assigned to', () => {
+  it('reads the receipt route only while the purchase is Ordered', () => {
+    detailState.data = { ...baseProcurement };
+    renderPage();
+    expect(receiptWaiting.calls.at(-1)).toEqual(['delivery_record', 'proc-001', false]);
+
+    detailState.data = { ...orderedProcurement };
+    renderPage();
+    expect(receiptWaiting.calls.at(-1)).toEqual(['delivery_record', 'proc-001', true]);
+  });
+
+  it('renders exactly the people the receipt list names, with their actual roles', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
+    receiptWaiting.data = {
+      approvers: [
+        { id: 'u-admin', name: 'Ada Admin', role: 'Admin' },
+        { id: 'u-req', name: 'Oscar Requester', role: 'Engineer' },
+        { id: 'u-pm', name: 'Pia PM', role: 'Project Manager' },
+      ],
+      routeKind: 'delivery_record',
+    };
+    renderPage();
+    const line = screen.getByText(/^Waiting for Ada Admin/);
+    expect(line.textContent).toBe('Waiting for Ada Admin or Oscar Requester or Pia PM, Admin or Engineer or Project Manager');
+  });
+
+  it('does not repeat the wait for the requester who already has the receipt action', () => {
+    detailState.data = { ...orderedProcurement, requested_by_id: 'u-alice' };
+    receiptWaiting.data = { approvers: [{ id: 'u-alice', name: 'Alice Manager', role: 'Engineer' }], routeKind: 'delivery_record' };
+    renderPage();
+    expect(screen.queryByText(/^Waiting for Alice Manager/)).toBeNull();
+  });
+
+  it('says nothing while the route is still being read', () => {
+    detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
+    receiptWaiting.isPending = true;
+    renderPage();
+    expect(screen.queryByText(/^Waiting for/)).toBeNull();
+  });
+
+  it('says nothing rather than inventing a person when the route names nobody', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
+    receiptWaiting.data = { approvers: [], routeKind: 'delivery_record' };
+    renderPage();
+    expect(screen.queryByText(/^Waiting for/)).toBeNull();
+  });
+
+  it('offers a retry when the route could not be read', async () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
+    receiptWaiting.isError = true;
+    renderPage();
+    const header = screen.getByTestId('record-header-actions');
+    await userEvent.click(within(header).getByRole('button', { name: 'Retry' }));
+    expect(receiptWaiting.refetch).toHaveBeenCalled();
   });
 });
