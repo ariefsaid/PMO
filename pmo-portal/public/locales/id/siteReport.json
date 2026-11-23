@@ -184,6 +184,8 @@
     "chooseSecond": "Catatan kedua: {{figure}}",
     "hoursRange": "Isi jam dari 0 sampai 24.",
     "reasonRequired": "Tulis alasan angka ini yang berlaku.",
+    "chooseRequired": "Pilih angka mana yang dipakai.",
+    "chooseFigure": "Pilih satu angka",
     "cannotDecideRole": "Peran Anda tidak memutuskan jam mana yang berlaku.",
     "cannotDecideMine": "Anda mencatat salah satu angka ini. Orang lain yang memutuskan.",
     "cannotDecideOwn": "Ini hari kerja Anda sendiri. Orang lain yang memutuskan.",

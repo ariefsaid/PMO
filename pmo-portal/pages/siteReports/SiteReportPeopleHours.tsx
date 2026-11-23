@@ -27,14 +27,14 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
   const [hours, setHours] = useState('');
   const [overtime, setOvertime] = useState('');
   const [note, setNote] = useState('');
-  const [stand, setStand] = useState<Standing>('day');
+  const [stand, setStand] = useState<Standing | ''>('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   if (q.isPending || (q.data && !q.data.detail)) return null;
   const close = () => { setDialog(null); setError(null); };
   const open = (next: Dialog) => {
-    setError(null); setStatus('present'); setHours(''); setOvertime(''); setNote(''); setStand('day'); setReason('');
+    setError(null); setStatus('present'); setHours(''); setOvertime(''); setNote(''); setStand(''); setReason('');
     setDialog(next);
   };
   const fail = (e: unknown) => setError(refusal(e));
@@ -51,6 +51,7 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
     });
   };
   const submitDecide = (w: ReportDayWorker) => {
+    if (stand === '') { setError(t('people.chooseRequired', 'Choose which figure stands.')); return; }
     if (reason.trim() === '') { setError(t('people.reasonRequired', 'Say why this figure stands.')); return; }
     m.decide.mutate({ workerId: w.workerId, workOrderId, workDate, stand, reason }, {
       onSuccess: () => { toast(t('people.decidedToast', 'Decision saved'), 'success'); close(); },
@@ -149,7 +150,8 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
           description={(
             <div className="space-y-3">
               <SelectField label={t('people.choose', 'Which figure stands (paid and costed). The other is kept as evidence.')} fullWidth value={stand}
-                onChange={(v) => setStand(v === 'second' ? 'second' : 'day')}
+                onChange={(v) => setStand(v === 'second' ? 'second' : v === 'day' ? 'day' : '')}
+                placeholder={t('people.chooseFigure', 'Choose a figure')}
                 options={[
                   { value: 'day', label: t('people.chooseDay', 'Site report: {{figure}}', { figure: figureText(dialog.worker.day) }) },
                   { value: 'second', label: t('people.chooseSecond', 'Second record: {{figure}}', { figure: figureText(dialog.worker.second) }) },

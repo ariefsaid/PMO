@@ -83,6 +83,16 @@ describe('SiteReportPeopleHours', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(h.decide).toHaveBeenCalledWith({ workerId: 'w1', workOrderId: 'wo1', workDate: '2026-11-03', stand: 'second', reason: 'Survey sheet is signed' }, expect.anything());
   });
+  it('F8-3 no figure is pre-chosen: a reason alone does not decide, the manager must choose which figure stands', async () => {
+    const user = userEvent.setup();
+    view({ mayDecide: true, workers: [worker({ undecided: true, second: { status: 'present', hours: 5, overtimeHours: null, note: null, standing: null, decidedAt: null, decisionReason: null } })] });
+    await user.click(screen.getByRole('button', { name: 'Decide' }));
+    expect(screen.getByRole('combobox', { name: /Which figure stands/ })).toHaveValue('');
+    await user.type(screen.getByLabelText(/Why this figure stands/), 'Because');
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(h.decide).not.toHaveBeenCalled();
+    expect(screen.getByText('Choose which figure stands.')).toBeInTheDocument();
+  });
   it('a surveyor adds a second record with hours', async () => {
     const user = userEvent.setup();
     view({ mayEnter: true, workers: [worker()] });
