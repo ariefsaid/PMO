@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own Ordered purchase (service role) with one priced line and a complete receipt on its own Issued work order, and removes them afterwards.
+// @e2e-isolation: self-isolated — creates its own IDR project, received purchase, Issued work order and complete receipt (service role) and removes them afterwards; reads the seed org, users and supplier only.
 /**
  * JOB-PU22 — the person who received Rp 45 million of goods sees the receipt's value (from the order lines) on the purchase, not a
  * dash; and the work order's cost page, which counts a receipt only once its supplier bill is recorded, says exactly that.
@@ -6,38 +6,72 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
-import { createProcurementFixture, serviceClient, type ProcurementFixture } from './procurement-fixture';
+import { serviceClient, SEED_SUPPLIER_ID } from './procurement-fixture';
 
 test.setTimeout(120_000);
 
-let fixture: ProcurementFixture | undefined;
+/** Seed ids (supabase/seed.sql): the org, the Project Manager who raises the purchase and the Executive who approves it. */
+const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
+const PM_ID = '00000000-0000-0000-0000-0000000000a2';
+const EXEC_ID = '00000000-0000-0000-0000-0000000000a1';
+
+/** Three lines at Rp 15 million: the Rp 45 million the receipt must show, read from the order lines. */
+const QUANTITY = 3;
+const RATE = 15_000_000;
+
+let fixture: { id: string; url: string } | undefined;
+let projectId: string | undefined;
 let workOrderId: string | undefined;
 let woNumber: string | undefined;
 let receiptId: string | undefined;
 
 test.beforeAll(async () => {
-  fixture = await createProcurementFixture({
-    status: 'Received',
-    title: 'JOB-PU22 received',
-    withSupplier: true,
-    quantity: 3,
-    rate: 15_000_000,
-  });
-
   const admin = serviceClient();
-  const { data: proc, error: procFetchError } = await admin
-    .from('procurements')
-    .select('org_id, project_id')
-    .eq('id', fixture.id)
-    .single();
-  if (procFetchError || !proc) throw new Error(`JOB-PU22 procurement lookup: ${procFetchError?.message ?? 'missing row'}`);
+
+  // The seed org's default currency — and so every seeded project — is USD, while this journey's figures are rupiah
+  // through and through. A work order must be denominated like its project (0193 §2 pin), so the fixture brings its own
+  // IDR project rather than re-denominating a shared seed row, and the purchase, the order and its project all agree.
+  const project = await admin.from('projects').insert({
+    org_id: ORG_ID,
+    name: `JOB-PU22 receipt ${Date.now()}`,
+    status: 'Ongoing Project',
+    project_manager_id: PM_ID,
+    currency: 'IDR',
+    contract_value: 75_000_000,
+    tax_treatment: 'exclusive',
+    tax_amount: 0,
+  }).select('id').single();
+  if (project.error || !project.data) throw new Error(`JOB-PU22 project: ${project.error?.message ?? 'no row returned'}`);
+  projectId = project.data.id;
+
+  const procurementId = randomUUID();
+  const code = `E2E-${procurementId.slice(0, 8).toUpperCase()}`;
+  const { error: procurementError } = await admin.from('procurements').insert({
+    id: procurementId,
+    code,
+    title: `JOB-PU22 received ${code}`,
+    project_id: projectId,
+    requested_by_id: PM_ID,
+    status: 'Received',
+    total_value: RATE * QUANTITY,
+    approved_by_id: EXEC_ID,
+    vendor_id: SEED_SUPPLIER_ID,
+    currency: 'IDR',
+  });
+  if (procurementError) throw new Error(`JOB-PU22 procurement: ${procurementError.message}`);
+  fixture = { id: procurementId, url: `/procurement/${procurementId}` };
+
+  const { error: itemError } = await admin.from('procurement_items').insert({
+    procurement_id: procurementId, name: 'Fixture line', description: 'e2e fixture', quantity: QUANTITY, rate: RATE,
+  });
+  if (itemError) throw new Error(`JOB-PU22 procurement item: ${itemError.message}`);
 
   workOrderId = randomUUID();
   woNumber = `WO-PU22-${workOrderId.slice(0, 8).toUpperCase()}`;
   const { error: woError } = await admin.from('work_orders').insert({
     id: workOrderId,
-    org_id: proc.org_id,
-    project_id: proc.project_id,
+    org_id: ORG_ID,
+    project_id: projectId,
     title: `JOB-PU22 work order ${woNumber}`,
     wo_number: woNumber,
     status: 'Issued',
@@ -52,17 +86,17 @@ test.beforeAll(async () => {
   const { error: procUpdateError } = await admin
     .from('procurements')
     .update({ work_order_id: workOrderId })
-    .eq('id', fixture.id);
+    .eq('id', procurementId);
   if (procUpdateError) throw new Error(`JOB-PU22 procurement update: ${procUpdateError.message}`);
 
   receiptId = randomUUID();
   const { error: receiptError } = await admin.from('procurement_receipts').insert({
     id: receiptId,
-    procurement_id: fixture.id,
+    procurement_id: procurementId,
     work_order_id: workOrderId,
     status: 'Complete',
     receipt_date: new Date().toISOString().slice(0, 10),
-    org_id: proc.org_id,
+    org_id: ORG_ID,
   });
   if (receiptError) throw new Error(`JOB-PU22 receipt: ${receiptError.message}`);
 });
@@ -100,6 +134,10 @@ test.afterAll(async () => {
   if (workOrderId) {
     await attempt('delete work order', () => admin.from('work_orders').delete().eq('id', workOrderId!));
   }
+  // The project goes last: the work order and the purchase both point at it, so they are gone by now.
+  if (projectId) {
+    await attempt('delete owned project', () => admin.from('projects').delete().eq('id', projectId!));
+  }
 
   // Verify absence of owned rows to guarantee teardown actually succeeded
   if (receiptId) {
@@ -116,6 +154,11 @@ test.afterAll(async () => {
     const { data, error } = await admin.from('work_orders').select('id').eq('id', workOrderId);
     if (error) failures.push(`verify work order absence: ${error.message}`);
     else if ((data ?? []).length > 0) failures.push('verify work order absence: work order row still exists');
+  }
+  if (projectId) {
+    const { data, error } = await admin.from('projects').select('id').eq('id', projectId);
+    if (error) failures.push(`verify project absence: ${error.message}`);
+    else if ((data ?? []).length > 0) failures.push('verify project absence: project row still exists');
   }
 
   if (failures.length > 0) {
