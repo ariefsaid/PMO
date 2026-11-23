@@ -10,6 +10,14 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
+**2026-11-24 — the fix round and the gap round are on `main`, not on production** (#2803 and #2804 into `dev`, #2808
+into `main`; migrations up to 1937). Reviewed by spec, quality and security readers, findings fixed before merge
+(DD-R1123-1). Left before production: the owner's explicit yes, a read of which modules the on-by-default migration
+leaves on for the live organisation, the role-job re-walk, the client acceptance script. In build on
+`batch/1124-ui`: a work-order dashboard (#2805), the linked folder as a tree in project documents (#2806), task
+groups and nested subtasks (#2807). Open: review minor findings to be filed as tickets; customer questions #2756 to
+#2763, #2801, #2802.
+
 **2026-11-22 (evening) — two rounds are in build on top of that; nothing below is merged to `dev` yet.**
 (1) **Fix round**, target `main` Monday 23 Nov 10:00 WIB: the architecture tickets under #1533 (#2744 to #2754) and
 the fixes from four first-time-person walks of the role jobs (1 of 84 jobs was clean, 33 stopped). One integration
