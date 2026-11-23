@@ -272,6 +272,7 @@
     "requestArea": "Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m"
   },
   "release": {
+    "error": "Couldn't load medical releases",
     "sectionLabel": "Medical releases",
     "heading": "Medical releases ({{count}})",
     "openButton": "Open a release",
@@ -306,6 +307,7 @@
   "followedToday": "Followed this crew today",
   "manpower": {
     "title": "Manpower needs",
+    "readError": "Couldn't load progress or linked people",
     "new": "Record a need",
     "newTitle": "Record a manpower need",
     "save": "Record need",

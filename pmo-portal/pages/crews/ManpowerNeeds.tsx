@@ -17,6 +17,9 @@ const statusVariant = { open: 'open', met: 'won', cancelled: 'lost' } as const;
 interface CardProps {
   need: ManpowerNeedRow;
   progress: ManpowerProgressRow | undefined;
+  /** The progress read or the links read failed: counts are unknown, never zero, and nobody is offered for linking. */
+  readFailed: boolean;
+  onRetry: () => void;
   position: string;
   project: string;
   links: { id: string; personId: string; name: string }[];
@@ -26,7 +29,7 @@ interface CardProps {
 }
 
 /** One need: asked, filled, in progress and open from the database's progress read, the linked people, and the writer's controls. */
-const NeedCard: React.FC<CardProps> = ({ need, progress, position, project, links, peopleOptions, canManage, onProblem }) => {
+const NeedCard: React.FC<CardProps> = ({ need, progress, readFailed, onRetry, position, project, links, peopleOptions, canManage, onProblem }) => {
   const { t } = useTranslation('crews');
   const writeError = useManpowerErrorText();
   const { toast } = useToast();
@@ -39,12 +42,13 @@ const NeedCard: React.FC<CardProps> = ({ need, progress, position, project, link
   const asked = progress?.asked ?? need.headcount;
   // filled and in progress are null where the database does not show this person who is cleared: show a dash, never a made-up zero.
   const hidden = progress !== undefined && (progress.filled === null || progress.in_progress === null);
+  const unknown = readFailed;
   const filled = progress?.filled ?? 0;
   const inProgress = progress?.in_progress ?? 0;
   const open = progress?.open_count ?? need.headcount;
   const linkable = peopleOptions.filter((o) => !links.some((l) => l.personId === o.value));
-  const canLink = canManage && need.status === 'open' && links.length < need.headcount;
-  const readyToClose = need.status === 'open' && !hidden && open === 0 && inProgress === 0;
+  const canLink = canManage && !readFailed && need.status === 'open' && links.length < need.headcount;
+  const readyToClose = need.status === 'open' && !hidden && !unknown && open === 0 && inProgress === 0;
   return (
     <Card data-testid={`manpower-need-${need.id}`}>
       <CardHead actions={<StatusPill variant={statusVariant[need.status]}>{statusLabel(t, need.status)}</StatusPill>}>
@@ -53,19 +57,25 @@ const NeedCard: React.FC<CardProps> = ({ need, progress, position, project, link
       <CardPad>
         <p className="text-sm text-muted-foreground">{t('crews:manpower.neededByOn', 'Needed by {{date}}', { date: formatDay(need.needed_by) })}{need.note ? ` · ${need.note}` : ''}</p>
         <div className="mt-3">
-          {!hidden && (
+          {!hidden && !unknown && (
             <ProgressBar value={asked > 0 ? (filled / asked) * 100 : 0} tone="success"
               aria-label={t('crews:manpower.progressLabel', '{{filled}} of {{asked}} filled', { filled, asked })} />
           )}
           <dl className="mt-2 grid grid-cols-4 gap-2 text-sm">
             {[
-              [t('crews:manpower.asked', 'Asked'), asked], [t('crews:manpower.filled', 'Filled'), hidden ? '—' : filled],
-              [t('crews:manpower.inProgress', 'In progress'), hidden ? '—' : inProgress], [t('crews:manpower.open', 'Open'), open],
+              [t('crews:manpower.asked', 'Asked'), asked], [t('crews:manpower.filled', 'Filled'), hidden || unknown ? '—' : filled],
+              [t('crews:manpower.inProgress', 'In progress'), hidden || unknown ? '—' : inProgress], [t('crews:manpower.open', 'Open'), unknown ? '—' : open],
             ].map(([label, n]) => (
               <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="tabular-nums font-medium">{n}</dd></div>
             ))}
           </dl>
-          {hidden && <p className="mt-1 text-xs text-muted-foreground">{t('crews:manpower.countsHidden', 'Filled and in progress are shown to the people team and to the roles that read the clearance checklist.')}</p>}
+          {unknown && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <span role="alert">{t('crews:manpower.readError', "Couldn't load progress or linked people")}</span>
+              <Button variant="outline" size="sm" onClick={onRetry}>{t('crews:retry', 'Retry')}</Button>
+            </div>
+          )}
+          {hidden && !unknown && <p className="mt-1 text-xs text-muted-foreground">{t('crews:manpower.countsHidden', 'Filled and in progress are shown to the people team and to the roles that read the clearance checklist.')}</p>}
         </div>
         {links.length > 0 && (
           <ul className="mt-3 divide-y divide-border" aria-label={t('crews:manpower.people', 'People linked')}>
@@ -89,7 +99,7 @@ const NeedCard: React.FC<CardProps> = ({ need, progress, position, project, link
               noun={t('crews:personNoun', 'person')} nounPlural={t('crews:personNounPlural', 'people')} />
           </div>
         )}
-        {need.status === 'open' && !canLink && links.length >= need.headcount && (
+        {need.status === 'open' && !canLink && !readFailed && links.length >= need.headcount && (
           <p className="mt-3 text-sm text-muted-foreground">{t('crews:manpower.allLinked', 'All places have a person. Raise the head count to link more.')}</p>
         )}
         {canManage && (
@@ -146,6 +156,8 @@ export const ManpowerNeeds: React.FC = () => {
   const positionName = (id: string) => positions.data?.find((d) => d.id === id)?.name ?? '—';
   const projectName = (id: string) => projects.data?.find((p) => p.id === id)?.name ?? '—';
   const rows = needs.data ?? [];
+  const readFailed = progress.isError || linksQ.isError;
+  const retryReads = () => { if (progress.isError) void progress.refetch(); if (linksQ.isError) void linksQ.refetch(); };
   return (
     <section data-testid="manpower-needs" aria-label={t('crews:manpower.title', 'Manpower needs')}>
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -162,7 +174,7 @@ export const ManpowerNeeds: React.FC = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {rows.map((n) => (
-            <NeedCard key={n.id} need={n} progress={progressBy.get(n.id)} position={positionName(n.discipline_id)} project={projectName(n.project_id)}
+            <NeedCard key={n.id} need={n} progress={progressBy.get(n.id)} readFailed={readFailed} onRetry={retryReads} position={positionName(n.discipline_id)} project={projectName(n.project_id)}
               links={linksBy.get(n.id) ?? []} peopleOptions={peopleOptions} canManage={canManage} onProblem={setProblem} />
           ))}
         </div>

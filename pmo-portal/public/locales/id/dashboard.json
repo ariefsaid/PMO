@@ -937,6 +937,7 @@
     "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran.",
     "approvalMaterial": "Permintaan material, langkah {{n}}: {{label}}",
     "approvalLeave": "{{name}}: cuti {{from}} sampai {{to}}",
+    "approvalMedicalRelease": "{{name}}: pelepasan medis, kembali {{date}}",
     "approvalImprest": "Rencana kas lapangan {{month}}"
   },
   "doneNotYetBilled": {

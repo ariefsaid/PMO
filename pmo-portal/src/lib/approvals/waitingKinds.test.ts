@@ -7,7 +7,7 @@ import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 const EXPECTED = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
   'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
-  'certificate', 'equipment_plan',
+  'certificate', 'equipment_plan', 'medical_release',
 ];
 
 /** The translation stub these assertions read through: the English default with its `{{placeholders}}` filled. */
@@ -39,6 +39,7 @@ describe('the registry of everything a login can decide', () => {
       material: { requestId: 'm1', stepPosition: 1, label: 'Site lead' },
       leave: { id: 'l1', person_name: 'Dewi', start_date: '2026-11-20', end_date: '2026-11-21' },
       imprest: { id: 'r1', float_id: 'f1', number: 'REP-1' },
+      medical_release: { id: 'mr1', person_name: 'Ana', release_date: '2026-11-20', status: 'Pending', can_decide: true },
       work_order_acceptance: { id: 'acc-1', work_order_id: 'wo-7', acceptance_date: '2026-11-20', is_final: true, prepared_at: '2026-11-20T00:00:00Z' },
     };
     for (const kind of WAITING_KINDS) {

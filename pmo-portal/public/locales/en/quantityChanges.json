@@ -27,6 +27,7 @@
     "waiting": "Waiting for approval"
   },
   "approvers": {
+    "error": "Couldn't load the reviewer roles",
     "help": "Admin, Executive and Finance can always approve or return a request. Tick other roles that may too. Whoever raised, edited or submitted a request still cannot approve it.",
     "save": "Save reviewer roles",
     "saved": "Reviewer roles saved",

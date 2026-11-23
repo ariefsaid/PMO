@@ -7,10 +7,10 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string, viewAs: null as string | null, canEnter: false, rows: [] as unknown[],
-  decide: vi.fn(), create: vi.fn(),
+  decide: vi.fn(), create: vi.fn(), state: { isError: false, isPending: false, refetch: vi.fn() },
 }));
 vi.mock('@/src/hooks/useMedicalRelease', () => ({
-  useMedicalReleases: () => ({ data: h.rows }),
+  useMedicalReleases: () => ({ data: h.state.isError || h.state.isPending ? undefined : h.rows, ...h.state }),
   useCanEnterRelease: () => h.canEnter,
   useReleasePeople: () => ({ data: [{ id: 'p1', name: 'Ana' }] }),
   useMedicalReleaseMutations: () => ({
@@ -32,7 +32,7 @@ const page = () => render(<MemoryRouter><ToastProvider><MedicalReleaseSection />
 
 describe('medical release section (AC-MR-009)', () => {
   beforeEach(() => {
-    h.role = 'Project Manager'; h.viewAs = null; h.canEnter = false; h.rows = [];
+    h.role = 'Project Manager'; h.viewAs = null; h.canEnter = false; h.rows = []; h.state = { isError: false, isPending: false, refetch: vi.fn() };
     h.decide = vi.fn().mockResolvedValue(undefined); h.create = vi.fn().mockResolvedValue('r9');
   });
 
@@ -57,6 +57,21 @@ describe('medical release section (AC-MR-009)', () => {
     await user.type(screen.getByRole('textbox'), 'needs a check');
     await user.click(screen.getAllByRole('button', { name: 'Defer' }).at(-1)!);
     expect(h.decide).toHaveBeenCalledWith({ id: 'r1', decision: 'Deferred', note: 'needs a check' });
+  });
+
+  it('a failed read shows an error with Retry instead of vanishing', async () => {
+    h.state = { isError: true, isPending: false, refetch: vi.fn() };
+    page();
+    expect(screen.getByRole('region', { name: 'Medical releases' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.state.refetch).toHaveBeenCalled();
+  });
+
+  it('while the read is loading the section shows the loading state, not nothing', () => {
+    h.state = { isError: false, isPending: true, refetch: vi.fn() };
+    page();
+    expect(screen.getByRole('region', { name: 'Medical releases' })).toBeInTheDocument();
+    expect(screen.queryByText(/No release is waiting/)).toBeNull();
   });
 
   it('anyone else sees the state and who decides, with no buttons', () => {

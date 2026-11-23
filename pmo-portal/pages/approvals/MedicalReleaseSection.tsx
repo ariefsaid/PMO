@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, DateField, EntityFormModal, FormGrid, ReasonDialog, SelectField, StatusPill, TextArea, useToast, type SubmitError,
+  Button, Card, CardHead, DateField, EntityFormModal, FormGrid, ListState, ReasonDialog, SelectField, StatusPill, TextArea, useToast, type SubmitError,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -63,13 +63,15 @@ export const MedicalReleaseSection: React.FC = () => {
   const record = { viewOnly: realRole !== effectiveRole };
   const canEnter = useCanEnterRelease() && may('create', 'medicalRelease', { record });
   const canDecide = may('decide', 'medicalRelease', { record });
-  const { data } = useMedicalReleases();
+  const releases = useMedicalReleases();
+  const { data } = releases;
   const { decide } = useMedicalReleaseMutations();
   const [deferring, setDeferring] = useState<MedicalReleaseRow | null>(null);
   const [opening, setOpening] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const rows = (data ?? []).filter((r) => r.status !== 'Approved');
-  if (rows.length === 0 && !canEnter) return null;
+  const failed = releases.isError && data === undefined;
+  if (rows.length === 0 && !canEnter && !failed && !releases.isPending) return null;
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setProblem(null);
     try { await fn(); toast(done, undefined, 'success'); } catch (err) { setProblem(writeError(err)); }
@@ -86,7 +88,11 @@ export const MedicalReleaseSection: React.FC = () => {
           {canEnter && <Button variant="outline" size="sm" onClick={() => setOpening(true)}>{t('crews:release.openButton', 'Open a release')}</Button>}
         </CardHead>
         {problem && <p role="alert" className="px-4 py-2 text-sm text-destructive-text">{problem}</p>}
-        {rows.length === 0 ? (
+        {failed ? (
+          <ListState variant="error" title={t('crews:release.error', "Couldn't load medical releases")} onRetry={() => void releases.refetch()} retryLabel={t('crews:retry', 'Retry')} />
+        ) : releases.isPending && data === undefined ? (
+          <ListState variant="loading" rows={2} />
+        ) : rows.length === 0 ? (
           <p className="px-4 py-3 text-sm text-muted-foreground">{t('crews:release.none', 'No release is waiting. The people team opens one when a worker is ready to return.')}</p>
         ) : (
           <ul className="divide-y divide-border">

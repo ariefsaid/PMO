@@ -937,6 +937,7 @@
     "marginCurrencyMismatch": "Forecast margin is hidden when a contract currency differs from the budget currency.",
     "approvalMaterial": "Material request, step {{n}}: {{label}}",
     "approvalLeave": "{{name}}: leave {{from}} to {{to}}",
+    "approvalMedicalRelease": "{{name}}: medical release, return {{date}}",
     "approvalImprest": "Site cash plan {{month}}"
   },
   "doneNotYetBilled": {

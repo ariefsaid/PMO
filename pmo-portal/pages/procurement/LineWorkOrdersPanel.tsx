@@ -44,6 +44,14 @@ export const LineWorkOrdersPanel: React.FC<{
 
   if (items.length === 0 || !projectId) return null;
   if (orders.isLoading) return null;
+  if (orders.isError) {
+    return (
+      <div className="flex items-center gap-3" data-testid="line-work-orders-panel">
+        <p role="alert" className="text-control text-destructive-text">{t('lineWorkOrders.loadError', 'Could not load this project’s work orders.')}</p>
+        <Button variant="outline" size="sm" onClick={() => void orders.refetch()}>{t('common.retry', 'Retry')}</Button>
+      </div>
+    );
+  }
 
   const differs = (i: Line) => {
     const v = values[i.id] ?? NO_LINE_ATTRIBUTION;

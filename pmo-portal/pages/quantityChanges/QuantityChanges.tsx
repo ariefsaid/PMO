@@ -181,6 +181,7 @@ const ApproverRolesSection: React.FC = () => {
   const query = useQuantityChangeApproverRoles();
   const { setApproverRoles } = useQuantityChangeMutations();
   const [draft, setDraft] = useState<string[] | null>(null);
+  // Save sends the whole list, so the stored list must be known first: never a partial list over the saved one.
   const selected = draft ?? query.data ?? [];
   const toggle = (key: string, on: boolean) => setDraft(on ? [...selected, key] : selected.filter((k) => k !== key));
   const save = async () => {
@@ -196,16 +197,24 @@ const ApproverRolesSection: React.FC = () => {
   return (
     <RecordSection title={t('approvers.title', 'Who may review requests')} data-testid="qcr-approver-roles">
       <p className="mb-3 text-foreground">{t('approvers.help', 'Admin, Executive and Finance can always approve or return a request. Tick other roles that may too. Whoever raised, edited or submitted a request still cannot approve it.')}</p>
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {BUILT_IN_ROLES.filter((r) => r.tier === 'manager').map((r) => (
-          <li key={r.key}>
-            <Checkbox checked={selected.includes(r.key)} onChange={(on) => toggle(r.key, on)} label={roleName(r.key)}>{roleName(r.key)}</Checkbox>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-3">
-        <Button variant="primary" onClick={() => void save()} loading={setApproverRoles.isPending} disabled={draft === null}>{t('approvers.save', 'Save reviewer roles')}</Button>
-      </div>
+      {query.isError ? (
+        <ListState variant="error" title={t('approvers.error', "Couldn't load the reviewer roles")} onRetry={() => void query.refetch()} />
+      ) : query.data === undefined ? (
+        <ListState variant="loading" rows={2} />
+      ) : (
+        <>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {BUILT_IN_ROLES.filter((r) => r.tier === 'manager').map((r) => (
+              <li key={r.key}>
+                <Checkbox checked={selected.includes(r.key)} onChange={(on) => toggle(r.key, on)} label={roleName(r.key)}>{roleName(r.key)}</Checkbox>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3">
+            <Button variant="primary" onClick={() => void save()} loading={setApproverRoles.isPending} disabled={draft === null}>{t('approvers.save', 'Save reviewer roles')}</Button>
+          </div>
+        </>
+      )}
     </RecordSection>
   );
 };

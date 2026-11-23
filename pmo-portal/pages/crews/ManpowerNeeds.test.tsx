@@ -7,14 +7,15 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   canManage: true,
   needs: { data: undefined as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  progressErr: false, linksErr: false, refetchProgress: vi.fn(), refetchLinks: vi.fn(),
   progress: [{ need_id: 'n1', asked: 3, linked: 2, filled: 1, in_progress: 1, open_count: 1 }] as unknown[],
   links: [{ id: 'l1', need_id: 'n1', person_id: 'p1' }] as unknown[],
   link: vi.fn().mockResolvedValue(undefined), unlink: vi.fn().mockResolvedValue(undefined), update: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/hooks/useManpowerNeeds', () => ({
   useManpowerNeeds: () => h.needs,
-  useManpowerProgress: () => ({ data: h.progress }),
-  useManpowerLinks: () => ({ data: h.links }),
+  useManpowerProgress: () => ({ data: h.progressErr ? undefined : h.progress, isError: h.progressErr, refetch: h.refetchProgress }),
+  useManpowerLinks: () => ({ data: h.linksErr ? undefined : h.links, isError: h.linksErr, refetch: h.refetchLinks }),
   useCanManageManpower: () => ({ data: h.canManage }),
   useManpowerMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: h.update }, link: { mutateAsync: h.link }, unlink: { mutateAsync: h.unlink } }),
 }));
@@ -31,7 +32,7 @@ const view = () => render(<ToastProvider><ManpowerNeeds /></ToastProvider>);
 
 describe('AC-MPN-008 manpower needs', () => {
   beforeEach(() => {
-    h.canManage = true;
+    h.canManage = true; h.progressErr = false; h.linksErr = false; h.refetchProgress.mockClear(); h.refetchLinks.mockClear();
     h.progress = [{ need_id: 'n1', asked: 3, linked: 2, filled: 1, in_progress: 1, open_count: 1 }];
     h.needs = { data: [need()], isPending: false, isError: false, refetch: vi.fn() };
     h.link.mockClear(); h.unlink.mockClear(); h.update.mockClear();
@@ -76,6 +77,25 @@ describe('AC-MPN-008 manpower needs', () => {
     expect([read('Asked'), read('Filled'), read('In progress'), read('Open')]).toEqual(['3', '—', '—', '0']);
     expect(screen.getByText(/shown to the people team and to the roles that read the clearance checklist/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mark as met' })).toBeDisabled();
+  });
+
+  it('a failed progress read shows dashes and Retry, never 0 of N', async () => {
+    h.progressErr = true;
+    view();
+    const card = screen.getByTestId('manpower-need-n1');
+    const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
+    expect([read('Filled'), read('In progress'), read('Open')]).toEqual(['—', '—', '—']);
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.refetchProgress).toHaveBeenCalled();
+  });
+
+  it('a failed links read shows Retry and does not offer the add-person list', async () => {
+    h.linksErr = true;
+    view();
+    expect(screen.queryByText('Link a person')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.refetchLinks).toHaveBeenCalled();
   });
 
   it('a writer unlinks a person and cancels through a confirm; Mark as met is disabled with its reason while places are open', async () => {

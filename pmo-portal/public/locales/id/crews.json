@@ -272,6 +272,7 @@
     "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m"
   },
   "release": {
+    "error": "Pelepasan medis tidak bisa dimuat",
     "sectionLabel": "Pelepasan medis",
     "heading": "Pelepasan medis ({{count}})",
     "openButton": "Buka pelepasan",
@@ -306,6 +307,7 @@
   "followedToday": "Ikut kru ini hari ini",
   "manpower": {
     "title": "Kebutuhan tenaga kerja",
+    "readError": "Progres atau orang yang ditautkan tidak bisa dimuat",
     "new": "Catat kebutuhan",
     "newTitle": "Catat kebutuhan tenaga kerja",
     "save": "Catat kebutuhan",
