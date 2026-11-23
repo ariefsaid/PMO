@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "get_imprest_requester_route(text,text)"
+  ]
+}
