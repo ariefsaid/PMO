@@ -48,9 +48,10 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
 import { chooseAddOption } from './addDocumentMenu';
 import DocumentsTab from '../DocumentsTab';
 
+// These cases are about register rows; a project with a linked folder otherwise opens on the folder tree (#2806).
 const renderTab = () =>
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={['/?documentsView=register']}>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
           <DocumentsTab projectId="p1" projectCode="PRJ-1" />

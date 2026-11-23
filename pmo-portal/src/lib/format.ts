@@ -1198,3 +1198,16 @@ export function formatDecimalString(value: string, locale: string, maxFractionDi
 export function formatWeekdayShort(d: Date): string {
   return dateFormatterFor('weekdayShort', getDateLocale(), { weekday: 'short' }).format(d);
 }
+
+/** "812 B", "284 kB", "8.3 MB": decimal units, at most three significant digits, in the reader's number locale. */
+export function formatFileSize(bytes: number | null | undefined, locale = getNumberLocale()): string {
+  if (bytes == null) return '';
+  if (bytes < 1000) return `${bytes} B`;
+  const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1; }
+  return numberFormatterFor(`fileSize:${units[unit]}`, locale, undefined, {
+    style: 'unit', unit: units[unit], unitDisplay: 'short', maximumSignificantDigits: 3,
+  }).format(value);
+}

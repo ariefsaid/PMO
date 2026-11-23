@@ -16,6 +16,8 @@ export interface GraphItem extends MicrosoftReferenceInput {
   content_tag: string | null;
   /** Microsoft's last-modified instant (lastModifiedDateTime); absent when Microsoft omits it. */
   modified_at?: string | null;
+  /** Bytes (a folder's is the sum of its contents); absent when Microsoft omits it. */
+  size?: number | null;
   sharepoint_ids: { site_url: string; list_id: string; list_item_id: string } | null;
 }
 export interface GraphVersion { id: string; modified_at: string | null }
@@ -97,6 +99,7 @@ function decodeItem(value: unknown): GraphItem | null {
     parent_path: path,
     content_tag: readText(item.cTag),
     modified_at: readText(item.lastModifiedDateTime),
+    size: typeof item.size === 'number' && Number.isFinite(item.size) && item.size >= 0 ? item.size : null,
     sharepoint_ids: siteUrl && listId && listItemId
       ? { site_url: siteUrl, list_id: listId, list_item_id: listItemId }
       : null,
@@ -162,12 +165,14 @@ export function getPersonalDrive(): Promise<GraphDrive> {
   return readGraphObject({ path: '/me/drive' }, (value) => decodeLocation(value) as GraphDrive | null);
 }
 
-export function listChildren(driveId: string, folderId?: string): Promise<GraphPage<GraphItem>> {
+/** One page of a folder's children; pass the previous page's `next` to read the following one. */
+export function listChildren(driveId: string, folderId?: string, next?: GraphReadRequest): Promise<GraphPage<GraphItem>> {
   const drive = segment(driveId);
   const path = folderId
     ? `/drives/${drive}/items/${segment(folderId)}/children`
     : `/drives/${drive}/root/children`;
-  return readGraphPage({ path, query: { '$top': '100' } }, decodeItem);
+  const request = next ?? { path, query: {} };
+  return readGraphPage({ ...request, query: { ...(request.query ?? {}), '$top': '100' } }, decodeItem);
 }
 
 export function searchDrive(driveId: string, term: string): Promise<GraphPage<GraphItem>> {
