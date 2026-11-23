@@ -21,6 +21,8 @@ export type TaskWithRefs = TaskRow & {
 
 /** The fields a create form supplies. org_id is NEVER among them — RLS stamps it. */
 export interface TaskInput {
+  /** Client-chosen id (#2807 createTaskTree: a subtask names its parent before either exists). */
+  id?: string;
   /** Nullable since 0199 (first-class tasks): a meeting-born action item may belong to no
    *  project (DD-TASK-1). null = project-less. */
   project_id: string | null;
@@ -334,7 +336,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
     // resolves it via `external_refs` to a ClickUp `parent` id. An unmapped parent refuses
     // the dispatch (commit-rejected — nothing is created).
     const res = await dispatchTaskCommand('create', {
-      id: crypto.randomUUID(),
+      id: input.id ?? crypto.randomUUID(),
       project_id: input.project_id,
       name: input.name,
       status: input.status,
@@ -352,6 +354,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
   const { data, error } = await supabase
     .from('tasks')
     .insert({
+      ...(input.id ? { id: input.id } : {}),
       project_id: input.project_id,
       name: input.name,
       status: input.status,
@@ -376,6 +379,87 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
     .single();
   if (error) throwWrite(error);
   return data as TaskRow;
+}
+
+/** #2807: one subtask row typed in the task form; `children` nest to any depth. */
+export interface SubtaskDraft {
+  key: string;
+  name: string;
+  assignee_id: string;
+  end_date: string;
+  children: SubtaskDraft[];
+}
+
+/** Thrown when an externally-owned project saved only part of a tree (each row is its own external write). */
+export class PartialTreeError extends AppError {
+  constructor(readonly saved: number, readonly total: number, readonly cause: unknown) {
+    super(`Saved ${saved} of ${total} tasks`, 'TREE_PARTIAL');
+  }
+}
+
+/**
+ * Save a task and its subtasks (#2807), or subtasks under an existing task (`root` null, `parentId` set). Each
+ * subtask takes its parent's phase and group, so a branch never splits across two places. On a project the PMO owns
+ * the rows go in ONE insert (one statement, so all or nothing; parents first, which the parent triggers read). On an
+ * externally-owned project each row is its own external write: they go parent first and a failure reports how many
+ * landed (PartialTreeError) instead of a tree shown as done.
+ */
+export async function createTaskTree(
+  root: TaskInput | null,
+  parentId: string | null,
+  drafts: SubtaskDraft[],
+  place: { project_id: string; milestone_id: string | null; task_group_id?: string | null },
+): Promise<void> {
+  const rows: TaskInput[] = [];
+  const rootId = root ? crypto.randomUUID() : parentId;
+  if (root) rows.push({ ...root, id: rootId! });
+  const walk = (list: SubtaskDraft[], parent: string | null) => {
+    for (const d of list) {
+      const id = crypto.randomUUID();
+      rows.push({
+        id,
+        project_id: place.project_id,
+        name: d.name,
+        status: 'To Do',
+        assignee_id: d.assignee_id || null,
+        start_date: null,
+        end_date: d.end_date || null,
+        milestone_id: place.milestone_id,
+        parent_task_id: parent,
+        ...(place.task_group_id ? { task_group_id: place.task_group_id } : {}),
+      });
+      walk(d.children, id);
+    }
+  };
+  walk(drafts, rootId);
+  if (rows.length === 0) return;
+  if (routeTaskWrite(place.project_id) === 'external') {
+    let saved = 0;
+    try {
+      for (const r of rows) { await createTask(r); saved += 1; }
+    } catch (err) {
+      if (saved === 0) throw err;
+      throw new PartialTreeError(saved, rows.length, err);
+    }
+    return;
+  }
+  const { error } = await supabase.from('tasks').insert(rows.map((r) => ({
+    id: r.id,
+    project_id: r.project_id,
+    name: r.name,
+    status: r.status,
+    assignee_id: r.assignee_id || null,
+    start_date: r.start_date || null,
+    end_date: r.end_date || null,
+    milestone_id: r.milestone_id ?? null,
+    parent_task_id: r.parent_task_id ?? null,
+    description: r.description || null,
+    priority: r.priority ?? null,
+    ...(r.work_order_id ? { work_order_id: r.work_order_id } : {}),
+    ...(r.proof_required ? { proof_required: true } : {}),
+    ...(r.task_group_id ? { task_group_id: r.task_group_id } : {}),
+  })));
+  if (error) throwWrite(error);
 }
 
 /**

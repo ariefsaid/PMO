@@ -6,7 +6,7 @@
  * views share so their behavior tests have one home. Pure module — no React.
  */
 import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
-import { buildTaskRenderOrder } from '@/src/lib/tasks/taskTree';
+import { buildTaskRenderOrder, type TaskRollup } from '@/src/lib/tasks/taskTree';
 
 // ── Status vocabulary ───────────────────────────────────────────────────────
 // The four task_status enum values. The pill variant comes from the single status
@@ -55,3 +55,51 @@ export function orderedTasks(tasks: TaskWithRefs[]): TaskWithRefs[] {
     .sort((a, b) => compareTaskUrgency(a.task, b.task) || a.index - b.index)
     .map(({ task }) => task);
 }
+
+/**
+ * #2807 outline: the visible rows of one list section in tree order. Roots (a task whose parent is not in `tasks`)
+ * and each parent's children are ordered by urgency; a parent ranks by its roll-up (status and latest due date).
+ * A collapsed parent hides its descendants. `depths` covers every task in `tasks`, shown or hidden.
+ */
+export function outlineRows(
+  tasks: TaskWithRefs[],
+  rollups: Map<string, TaskRollup>,
+  collapsed: ReadonlySet<string>,
+): { roots: TaskWithRefs[]; rowsUnder: (root: TaskWithRefs) => TaskWithRefs[]; depths: Map<string, number> } {
+  const present = new Set(tasks.map((t) => t.id));
+  const kids = new Map<string, TaskWithRefs[]>();
+  const roots: TaskWithRefs[] = [];
+  for (const t of tasks) {
+    if (t.parent_task_id && present.has(t.parent_task_id)) kids.set(t.parent_task_id, [...(kids.get(t.parent_task_id) ?? []), t]);
+    else roots.push(t);
+  }
+  const shown = (t: TaskWithRefs): TaskWithRefs => {
+    const r = rollups.get(t.id);
+    return r ? { ...t, status: r.status, end_date: r.end } : t;
+  };
+  const sort = (rows: TaskWithRefs[]) => rows
+    .map((task, index) => ({ task, index, key: shown(task) }))
+    .sort((a, b) => compareTaskUrgency(a.key, b.key) || a.index - b.index)
+    .map(({ task }) => task);
+  const depths = new Map<string, number>();
+  const walk = (t: TaskWithRefs, depth: number, out: TaskWithRefs[] | null, seen: Set<string>) => {
+    if (seen.has(t.id)) return;
+    seen.add(t.id);
+    depths.set(t.id, depth);
+    out?.push(t);
+    const open = out && !collapsed.has(t.id);
+    for (const k of sort(kids.get(t.id) ?? [])) walk(k, depth + 1, open ? out : null, seen);
+  };
+  const sortedRoots = sort(roots);
+  const cache = new Map<string, TaskWithRefs[]>();
+  for (const r of sortedRoots) {
+    const out: TaskWithRefs[] = [];
+    walk(r, 0, out, new Set());
+    cache.set(r.id, out);
+  }
+  return { roots: sortedRoots, rowsUnder: (root) => cache.get(root.id) ?? [root], depths };
+}
+
+/** The status a row shows: a parent's roll-up, else its own. */
+export const shownStatus = (task: TaskWithRefs, rollups: Map<string, TaskRollup>): string =>
+  rollups.get(task.id)?.status ?? task.status;

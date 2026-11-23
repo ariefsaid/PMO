@@ -18,7 +18,12 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { useTaskGroups } from '@/src/hooks/useTaskGroups';
+import { useTaskGroups, useTaskGroupMutations } from '@/src/hooks/useTaskGroups';
+import { useMilestoneMutations } from '@/src/hooks/useMilestones';
+import { buildRollups, collectDescendants, countedTasks } from '@/src/lib/tasks/taskTree';
+import type { SubtaskDraft } from '@/src/lib/db/tasks';
+import MilestoneFormModal from '../MilestoneFormModal';
+import { MoveTaskDialog, TaskGroupFormModal, placePatch } from './TaskOutlineDialogs';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -87,8 +92,10 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     onCountChange?.(isPending || isError || data == null ? null : data.length);
   }, [data, isError, isPending, onCountChange]);
   const { data: assignableProfiles } = useAssignableProfiles();
-  const { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = EMPTY_PENDING_PUSH } =
+  const { create, createTree, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = EMPTY_PENDING_PUSH } =
     useTaskMutations(projectId);
+  const groupMutations = useTaskGroupMutations(projectId);
+  const milestoneMutations = useMilestoneMutations(projectId);
   // #2104: the mutation objects are re-created every render but `mutateAsync` is not, so the write
   // callbacks below depend on the function and keep their identity.
   const updateStatusAsync = updateStatus.mutateAsync;
@@ -152,8 +159,11 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     next.delete('open');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
-  // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
-  const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
+  // defaultMilestoneId / defaultTaskGroupId — pre-populated when clicking "Add task" within a section;
+  // addSubtask opens the task's form with one subtask row ready (#2807).
+  const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null; defaultTaskGroupId?: string | null; addSubtask?: boolean } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<TaskWithRefs | null>(null);
+  const [newGrouping, setNewGrouping] = useState<'group' | 'phase' | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
   const [bulkStatus, setBulkStatus] = useState<TaskStatus | ''>('');
   const [bulkAssignee, setBulkAssignee] = useState('');
@@ -243,6 +253,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     externallyOwned ? classifyExternalError(err) : classifyMutationError(err), [externallyOwned]);
 
   const all = useMemo(() => data ?? [], [data]);
+  // #2807: a parent's figures come from its leaves, over the whole project (a filter never changes them).
+  const rollups = useMemo(() => buildRollups(all), [all]);
   const milestoneList = useMemo(() => milestones ?? [], [milestones]);
 
   // Archived rows stay out of the working list unless the toolbar disclosure is enabled.
@@ -267,6 +279,10 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       return task.name.toLocaleLowerCase().includes(query) || task.id.toLocaleLowerCase().includes(query);
     });
   }, [assigneeFilter, deferredSearchText, scopedTasks, statusFilter, workOrderFilter]);
+  // Each piece of work counts once: a parent is a roll-up (countedTasks), so the status mix and the board read leaves.
+  const countedIds = useMemo(() => new Set(countedTasks(all).map((x) => x.id)), [all]);
+  const countedScoped = useMemo(() => scopedTasks.filter((x) => countedIds.has(x.id) || x.archived_at != null), [countedIds, scopedTasks]);
+  const leafTasks = useMemo(() => filteredTasks.filter((x) => !rollups.has(x.id)), [filteredTasks, rollups]);
   const selectedTaskId = searchParams.get('open');
   const selectedTask = selectedTaskId ? all.find((task) => task.id === selectedTaskId) ?? null : null;
 
@@ -303,7 +319,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     ? 'loading'
     : isError || !data
       ? 'error'
-      : all.length === 0 && milestoneList.length === 0
+      : all.length === 0 && milestoneList.length === 0 && activeTaskGroups.length === 0
         ? 'empty'
         : undefined;
 
@@ -457,6 +473,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         label: t('projectDetail.tasks.action.edit', 'Edit'),
         onClick: () => setFormTarget({ task }),
       });
+    if (canCreate && canEditTask(task) && task.archived_at == null)
+      items.push({
+        label: t('projectDetail.tasks.action.addSubtask', 'Add subtask'),
+        onClick: () => setFormTarget({ task, addSubtask: true }),
+      });
+    if (canEditTask(task) && task.archived_at == null)
+      items.push({
+        label: t('projectDetail.tasks.action.move', 'Move…'),
+        onClick: () => setMoveTarget(task),
+      });
     if (canArchive && !externallyOwned) {
       items.push({
         label:
@@ -473,13 +499,36 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         danger: true,
       });
     return items;
-  }, [canArchive, canDelete, canEditTask, externallyOwned, onArchive, openTask, t]);
+  }, [canArchive, canCreate, canDelete, canEditTask, externallyOwned, onArchive, openTask, t]);
 
   // Stable per-group "Add task" seam (#2104): the grouped table's memo compares this prop.
   const onAddTaskInGroup = useCallback(
-    (milestoneId: string | null) => setFormTarget({ task: null, defaultMilestoneId: milestoneId }),
+    ({ milestoneId, taskGroupId }: { milestoneId: string | null; taskGroupId: string | null }) =>
+      setFormTarget({ task: null, defaultMilestoneId: milestoneId, defaultTaskGroupId: taskGroupId }),
     [],
   );
+
+  /** Saves the subtask rows typed in the form under `parent` (a new or an existing task), in one request. */
+  const saveSubtasks = useCallback(async (root: Parameters<typeof create.mutateAsync>[0] | null, parent: TaskWithRefs | null, drafts: SubtaskDraft[]) => {
+    const place = parent
+      ? { project_id: projectId, milestone_id: parent.milestone_id ?? null, task_group_id: canStructure ? (parent as TaskWithRefs & { task_group_id?: string | null }).task_group_id ?? null : null }
+      : { project_id: projectId, milestone_id: root?.milestone_id ?? null, task_group_id: canStructure ? root?.task_group_id ?? null : null };
+    await createTree.mutateAsync([root, parent?.id ?? null, drafts, place]);
+  }, [canStructure, createTree, projectId]);
+
+  /** Move: the parent on the task; the new place on the task and every subtask, so a branch stays in one group. */
+  const onMove = useCallback(async (task: TaskWithRefs, parentTaskId: string | null, place: string | null) => {
+    const placed = place === null ? null : placePatch(place);
+    if (placed && !canStructure) delete placed.task_group_id; // a group write is a structure edit (database-enforced)
+    await update.mutateAsync({ id: task.id, patch: { ...(parentTaskId !== (task.parent_task_id ?? null) ? { parent_task_id: parentTaskId } : {}), ...(placed ?? {}) } });
+    if (placed) {
+      const results = await Promise.allSettled([...collectDescendants(task.id, all)].map((id) => update.mutateAsync({ id, patch: placed })));
+      const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+      if (failed) throw failed.reason;
+    }
+    toast(t('projectDetail.tasks.toast.moved', 'Task moved'), task.name, 'success');
+    setMoveTarget(null);
+  }, [all, canStructure, t, toast, update]);
 
   return (
     <div>
@@ -495,6 +544,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onManageTaskGroups={may('edit', 'milestone') ? () => setGroupsRequested(true) : undefined}
         canCreate={canCreate}
         onNewTask={() => setFormTarget({ task: null })}
+        onNewGroup={may('edit', 'milestone') ? () => setNewGrouping('group') : undefined}
+        onNewPhase={may('create', 'milestone') ? () => setNewGrouping('phase') : undefined}
         scope={scope}
         setTaskScope={setTaskScope}
         workOrderFilter={workOrderFilter}
@@ -531,7 +582,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       />
 
       {/* Parts of a whole: where the work stands. Blocked is the one accent. */}
-      {state !== 'loading' && state !== 'error' && scopedTasks.length >= 3 && (
+      {state !== 'loading' && state !== 'error' && countedScoped.length >= 3 && (
         <div className="px-[var(--panel-inset)] pb-3">
           <StackedBar
             ariaLabel={t('projectDetail.tasks.statusMix', 'Tasks by status')}
@@ -539,8 +590,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
             segments={(['To Do', 'In Progress', 'Blocked', 'Done'] as const).map((status) => ({
               key: status,
               label: statusLabel('task', status, tStatus),
-              value: scopedTasks.filter((task) => task.status === status).length,
-              display: String(scopedTasks.filter((task) => task.status === status).length),
+              value: countedScoped.filter((task) => task.status === status).length,
+              display: String(countedScoped.filter((task) => task.status === status).length),
               accent: status === 'Blocked',
             }))}
           />
@@ -580,11 +631,13 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); clearSelection(); } }}
       />}
 
-      {state === undefined && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} requested={groupsRequested} />}
+      {state === undefined && groupsRequested && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} requested={groupsRequested} />}
 
-      {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0) && view === 'list' && (
+      {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0 || activeTaskGroups.length > 0) && view === 'list' && (
         <MilestoneGroupedList
           milestones={milestoneList}
+          taskGroups={activeTaskGroups}
+          rollups={rollups}
           tasks={filteredTasks}
           sourceTasks={scopedTasks}
           today={today}
@@ -600,7 +653,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
       {state === undefined && view === 'board' && (
         <TaskBoard
-          tasks={filteredTasks}
+          tasks={leafTasks}
           canSetStatus={canSetStatus}
           onStatusChange={onStatusChange}
           onActivate={openTask}
@@ -617,6 +670,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       {state === undefined && view === 'timeline' && (
         <ProjectGantt
           tasks={filteredTasks}
+          allTasks={all}
+          taskGroups={activeTaskGroups}
           milestones={milestoneList}
           onSwitchView={setTaskView}
           onActivateTask={openTask}
@@ -630,7 +685,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         <React.Suspense fallback={null}>
         <TaskCalendarView
           projectId={projectId}
-          tasks={filteredTasks}
+          tasks={leafTasks}
           milestones={milestoneList}
           canEditTask={canEditTask}
           onMove={(id, patch) => update.mutateAsync({ id, patch })}
@@ -680,6 +735,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           projectId={projectId}
           allTasks={all}
           defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
+          defaultTaskGroupId={formTarget.defaultTaskGroupId ?? null}
+          startWithSubtask={!!formTarget.addSubtask}
           milestones={milestoneList}
           taskGroups={activeTaskGroups}
           workOrders={workOrders ?? []}
@@ -690,13 +747,15 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
               : IDLE_PENDING_PUSH
           }
           onClose={() => setFormTarget(null)}
-          onCreate={async (input) => {
-            await create.mutateAsync(input);
+          onCreate={async (input, subtasks) => {
+            if (subtasks.length) await saveSubtasks(input, null, subtasks);
+            else await create.mutateAsync(input);
             toast(t('projectDetail.tasks.toast.created', 'Task created'), input.name, 'success');
             setFormTarget(null);
           }}
-          onUpdate={async (id, patch, deps) => {
+          onUpdate={async (id, patch, deps, subtasks) => {
             await update.mutateAsync({ id, patch });
+            if (subtasks.length && formTarget.task) await saveSubtasks(null, formTarget.task, subtasks);
             // Reconcile dependency edges (add new, remove dropped).
             for (const d of deps.add) await addDependency.mutateAsync({ taskId: id, dependsOnId: d });
             for (const d of deps.remove)
@@ -710,6 +769,55 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           }}
           onError={(err) => {
             const { headline, detail } = classifyWriteError(err);
+            toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+
+      {moveTarget && canEditTask(moveTarget) && (
+        <MoveTaskDialog
+          task={moveTarget}
+          allTasks={all}
+          milestones={milestoneList}
+          taskGroups={activeTaskGroups}
+          canGroup={canStructure && !externallyOwned}
+          onClose={() => setMoveTarget(null)}
+          onMove={(parentTaskId, place) => onMove(moveTarget, parentTaskId, place)}
+          onError={(err) => {
+            const { headline, detail } = classifyWriteError(err);
+            toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+
+      {newGrouping === 'group' && (
+        <TaskGroupFormModal
+          milestones={milestoneList}
+          onClose={() => setNewGrouping(null)}
+          onCreate={async (input) => {
+            await groupMutations.create.mutateAsync(input);
+            toast(t('projectDetail.tasks.taskGroups.toast.created', 'Task group created'), input.name, 'success');
+            setNewGrouping(null);
+          }}
+          onError={(err) => {
+            const { headline, detail } = classifyMutationError(err);
+            toast(headline, detail, 'warning');
+          }}
+        />
+      )}
+
+      {newGrouping === 'phase' && (
+        <MilestoneFormModal
+          milestone={null}
+          onClose={() => setNewGrouping(null)}
+          onCreate={async (input) => {
+            await milestoneMutations.create.mutateAsync({ input });
+            toast(t('projectDetail.milestones.toast.created', 'Phase created'), input.name, 'success');
+            setNewGrouping(null);
+          }}
+          onUpdate={async () => undefined}
+          onError={(err) => {
+            const { headline, detail } = classifyMutationError(err);
             toast(headline, detail, 'warning');
           }}
         />

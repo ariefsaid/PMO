@@ -31,6 +31,9 @@ const TasksToolbar: React.FC<{
   onManageTaskGroups?: () => void;
   canCreate: boolean;
   onNewTask: () => void;
+  /** #2807: add a task group / a phase without leaving the task view. Omitted when the role may not. */
+  onNewGroup?: () => void;
+  onNewPhase?: () => void;
   scope: TaskScope;
   setTaskScope: (scope: TaskScope) => void;
   workOrderFilter: string;
@@ -75,6 +78,8 @@ const TasksToolbar: React.FC<{
   onManageTaskGroups,
   canCreate,
   onNewTask,
+  onNewGroup,
+  onNewPhase,
   scope,
   setTaskScope,
   workOrderFilter,
@@ -138,6 +143,23 @@ const TasksToolbar: React.FC<{
                 </Menu.Positioner>
               </Menu.Portal>
             </Menu.Root>
+            {(onNewGroup || onNewPhase) && <Menu.Root>
+              <Menu.Trigger render={<Button variant="outline" size="sm" />}>
+                <Icon name="folder" />{t('projectDetail.tasks.addGrouping', 'Add group')}
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
+                  <Menu.Popup className={cn(menuPopupClass, 'min-w-[190px]')} style={menuPopupOrigin}>
+                    {onNewGroup && <Menu.Item onClick={onNewGroup} className={menuItemClass}>
+                      {t('projectDetail.tasks.newTaskGroup', 'Task group')}
+                    </Menu.Item>}
+                    {onNewPhase && <Menu.Item onClick={onNewPhase} className={menuItemClass}>
+                      {t('projectDetail.tasks.newPhase', 'Phase')}
+                    </Menu.Item>}
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>}
             {canCreate && <Button variant="outline" size="sm" onClick={onNewTask}>
               <Icon name="plus" />{t('projectDetail.tasks.newTask', 'New task')}
             </Button>}

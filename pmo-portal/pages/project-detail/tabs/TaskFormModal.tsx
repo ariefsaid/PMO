@@ -28,10 +28,10 @@ import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
-import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
+import { PartialTreeError, type TaskWithRefs, type TaskStatus, type TaskPriority, type TaskInput, type TaskPatch, type SubtaskDraft } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { WithTaskGroup } from '@/src/lib/db/taskGroups';
-import { collectDescendants } from '@/src/lib/tasks/taskTree';
+import { SubtaskDraftsEditor, countDrafts, namedDrafts, newDraft } from './SubtaskDrafts';
 import { STATUS_OPTIONS } from './taskViewModel';
 import { DateField } from '@/src/components/ui/DateField';
 
@@ -74,6 +74,10 @@ interface TaskFormModalProps {
   allTasks: TaskWithRefs[];
   /** Pre-populated milestone id when clicking "Add task" inside a milestone group (AC-DEL-011). */
   defaultMilestoneId?: string | null;
+  /** #2807: pre-populated task group when clicking "Add task" inside a group section. */
+  defaultTaskGroupId?: string | null;
+  /** #2807: open with one empty subtask row focused ("Add subtask" on a row). */
+  startWithSubtask?: boolean;
   /** Available milestones for the milestone select field. */
   milestones?: MilestoneWithProgress[];
   /** #2679: active task groups of the project; the select shows only when there are some and the caller manages. */
@@ -87,8 +91,9 @@ interface TaskFormModalProps {
    *  rejected and the modal stays open). Idle for create + PMO-owned. */
   pendingPushState?: PendingPushState;
   onClose: () => void;
-  onCreate: (input: TaskInput) => Promise<void>;
-  onUpdate: (id: string, patch: TaskPatch, deps: DepDelta) => Promise<void>;
+  /** `subtasks`: the named subtask rows typed in the form, saved with the task in one request (#2807). */
+  onCreate: (input: TaskInput, subtasks: SubtaskDraft[]) => Promise<void>;
+  onUpdate: (id: string, patch: TaskPatch, deps: DepDelta, subtasks: SubtaskDraft[]) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -97,6 +102,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   projectId,
   allTasks,
   defaultMilestoneId = null,
+  defaultTaskGroupId = null,
+  startWithSubtask = false,
   milestones = [],
   taskGroups = [],
   workOrders = [],
@@ -119,10 +126,15 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const initialMilestoneId = task?.milestone_id ?? defaultMilestoneId;
   const [milestoneId, setMilestoneId] = useState<string | null>(initialMilestoneId);
 
-  // OD-INT-9 — parent_task_id is tracked the same way (string | null, not a text field).
-  // Default: the task's current parent when editing, or none (top-level) when creating.
-  const initialParentTaskId = task?.parent_task_id ?? null;
-  const [parentTaskId, setParentTaskId] = useState<string | null>(initialParentTaskId);
+  // #2807: a subtask is made in the Subtasks section below (or moved with the row's Move action), never by
+  // picking a parent here; a new task from this form is a top task.
+  const [drafts, setDrafts] = useState<SubtaskDraft[]>(() => (startWithSubtask ? [newDraft()] : []));
+  const existingSubtasks = useMemo(
+    () => (task ? allTasks.filter((x) => x.parent_task_id === task.id && x.archived_at == null).map((x) => x.name) : []),
+    [allTasks, task],
+  );
+  // A task with subtasks takes its status and dates from them (the counting rule, migration 1970).
+  const isParent = existingSubtasks.length > 0 || namedDrafts(drafts).length > 0;
 
   // #2531 — work-order link and proof-of-completion flag, tracked like milestone_id.
   const initialWorkOrderId = task?.work_order_id ?? null;
@@ -138,10 +150,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const selectedWorkOrder = workOrderOptions.find((o) => o.value === workOrderId) ?? null;
 
   // PGB-025: Track phase and parent changes as part of form dirty state
-  const initialTaskGroupId = (task as (TaskWithRefs & WithTaskGroup) | null)?.task_group_id ?? null;
+  const initialTaskGroupId = task ? (task as TaskWithRefs & WithTaskGroup).task_group_id ?? null : defaultTaskGroupId;
   const [taskGroupId, setTaskGroupId] = useState<string | null>(initialTaskGroupId);
   const phaseDirty = milestoneId !== initialMilestoneId;
-  const parentDirty = parentTaskId !== initialParentTaskId;
+  const draftsDirty = countDrafts(drafts) > (startWithSubtask ? 1 : 0) || drafts.some((d) => d.name.trim());
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -186,21 +198,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     label: m.name,
   }));
   const selectedMilestone = milestoneOptions.find((o) => o.value === milestoneId) ?? null;
-
-  // OD-INT-9 — the parent-task cycle guard: a task must never become its own parent OR the
-  // parent of any of its own descendants (that would create a cycle). `collectDescendants`
-  // (the existing, unit-tested tree helper) walks the FULL descendant set; we exclude the task
-  // itself too, so both are simply unselectable — never presented as options at all.
-  const invalidParentIds = useMemo(() => {
-    if (!task) return new Set<string>(); // creating: nothing exists yet to cycle against
-    const s = collectDescendants(task.id, allTasks);
-    s.add(task.id);
-    return s;
-  }, [task, allTasks]);
-  const parentOptions: ComboboxOption[] = allTasks
-    .filter((t) => !invalidParentIds.has(t.id))
-    .map((t) => ({ value: t.id, label: t.name }));
-  const selectedParent = parentOptions.find((o) => o.value === parentTaskId) ?? null;
 
   // Dependency candidates: other tasks on this project, not already a dependency, not self.
   const depCandidates: ComboboxOption[] = allTasks
@@ -249,28 +246,33 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             {
               ...base,
               milestone_id: milestoneId,
-              ...(parentTaskId !== initialParentTaskId ? { parent_task_id: parentTaskId } : {}),
               ...(canStructure && taskGroupId !== initialTaskGroupId ? { task_group_id: taskGroupId } : {}),
               ...(canStructure && workOrderId !== initialWorkOrderId ? { work_order_id: workOrderId } : {}),
               ...(canStructure && proofRequired !== initialProofRequired ? { proof_required: proofRequired } : {}),
             },
             delta,
+            namedDrafts(drafts),
           );
         } else {
           await onCreate({
             project_id: projectId,
             ...base,
             milestone_id: milestoneId,
-            parent_task_id: parentTaskId,
+            parent_task_id: null,
             ...(canStructure && workOrderId ? { work_order_id: workOrderId } : {}),
             ...(canStructure && proofRequired ? { proof_required: true } : {}),
             ...(canStructure && taskGroupId ? { task_group_id: taskGroupId } : {}),
-          });
+          }, namedDrafts(drafts));
         }
       } catch (err) {
         // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
         // toast and owns the single `save_failed` event (ADR-0067).
-        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+        const { headline, detail } = err instanceof PartialTreeError
+          ? {
+              headline: t('projectDetail.tasks.subtasks.partialTitle', 'Only part of the task was saved'),
+              detail: t('projectDetail.tasks.subtasks.partialDetail', '{{saved}} of {{total}} tasks were saved. Close this form and add the missing subtasks from the task\'s menu.', { saved: err.saved, total: err.total }),
+            }
+          : classifyMutationError(err, undefined, { suppressCapture: true });
         setSaveError({ headline, detail });
         onError(err);
       }
@@ -294,7 +296,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
-      dirty={form.isDirty || depsDirty || phaseDirty || parentDirty || woDirty || taskGroupId !== initialTaskGroupId}
+      dirty={form.isDirty || depsDirty || phaseDirty || draftsDirty || woDirty || taskGroupId !== initialTaskGroupId}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
@@ -332,15 +334,17 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             noun="person"
             emptyMessage={(query) => query ? undefined : t('projectDetail.tasks.form.noAssignees', 'No assignable people are available. Add or activate a user in Administration.')}
           />
+          {!isParent && <>
           <SelectField
-            id={statusField.id}
-            label={t('projectDetail.tasks.form.status', 'Status')}
-            required
-            value={statusField.value}
-            onChange={(v) => statusField.onChange(v as TaskStatus)}
-            onBlur={statusField.onBlur}
-            options={STATUS_OPTIONS}
-          />
+              id={statusField.id}
+              label={t('projectDetail.tasks.form.status', 'Status')}
+              required
+              value={statusField.value}
+              onChange={(v) => statusField.onChange(v as TaskStatus)}
+              onBlur={statusField.onBlur}
+              options={STATUS_OPTIONS}
+            />
+  </>}
           {/* OD-INT-9 — Priority. Nullable column: the leading "No priority" option (value="")
               maps to null and stays selectable so an existing priority can be cleared. */}
           <SelectField
@@ -351,6 +355,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             onBlur={priorityField.onBlur}
             options={priorityOptions(t)}
           />
+          {isParent ? (
+            <p className="col-span-full text-sm text-muted-foreground" data-testid="task-form-rollup-note">
+              {t('projectDetail.tasks.subtasks.rollupNote', 'Status and dates come from its subtasks.')}
+            </p>
+          ) : <>
           <DateField
             id={startField.id}
             label={t('projectDetail.tasks.form.startDate', 'Start date')}
@@ -365,6 +374,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             onChange={endField.onChange}
             onBlur={endField.onBlur}
           />
+          </>}
           {milestones.length > 0 && (
             <Combobox
               label={t('projectDetail.tasks.form.milestone', 'Phase')}
@@ -387,22 +397,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               placeholder={t('projectDetail.tasks.form.noTaskGroup', 'No group')}
               searchPlaceholder={t('projectDetail.tasks.form.searchTaskGroups', 'Search groups…')}
               noun={t('projectDetail.tasks.form.taskGroupNoun', 'group')}
-            />
-          )}
-          {/* OD-INT-9 — the parent-task picker. Options already exclude the task itself and
-              all of its descendants (the cycle guard), so an invalid choice can't be selected
-              at all. Hidden when there's nothing eligible to pick (e.g. the project's only
-              task), mirroring the Milestone field's gating above. */}
-          {parentOptions.length > 0 && (
-            <Combobox
-              label={t('projectDetail.tasks.form.parentTask', 'Parent task')}
-              value={parentTaskId}
-              selectedOption={selectedParent}
-              loadOptions={async () => parentOptions}
-              onChange={(v) => setParentTaskId(v || null)}
-              placeholder={t('projectDetail.tasks.form.noParent', 'No parent (top-level)')}
-              searchPlaceholder={t('projectDetail.tasks.form.searchTasks', 'Search tasks…')}
-              noun="task"
             />
           )}
           {canStructure && (
@@ -447,6 +441,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             )}
           </p>
         )}
+      </FormSection>
+
+      <FormSection legend={t('projectDetail.tasks.subtasks.legend', 'Subtasks')}>
+        <SubtaskDraftsEditor
+          drafts={drafts}
+          onChange={setDrafts}
+          people={assigneeOptions.map((o) => ({ value: o.value, label: o.label }))}
+          existing={existingSubtasks}
+          autoFocusFirst={startWithSubtask}
+        />
       </FormSection>
 
       {/* Dependencies — only when editing an existing task (need its id + the sibling list). */}

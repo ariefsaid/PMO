@@ -32,6 +32,10 @@ import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 interface ProjectGanttProps {
   tasks: TaskWithRefs[];
+  /** #2807: the project's whole task list (parents' roll-ups never follow a filter). Defaults to `tasks`. */
+  allTasks?: TaskWithRefs[];
+  /** #2807: active task groups; a group linked to a phase nests under it. */
+  taskGroups?: { id: string; name: string; milestone_id: string | null }[];
   milestones: MilestoneWithProgress[];
   /** Click / Enter / Space on a bar or a tree row. When omitted, bars and rows stay inert. */
   onActivateTask?: (task: TaskWithRefs) => void;
@@ -62,6 +66,8 @@ const FRAME_CLASS = 'h-[60vh] min-h-[24rem] border-b border-border';
 
 const ProjectGantt: React.FC<ProjectGanttProps> = ({
   tasks,
+  allTasks,
+  taskGroups,
   milestones,
   onActivateTask,
   rowMenu,
@@ -87,10 +93,11 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             `${t('projectDetail.gantt.dependsOn', 'depends on')} ${names.join(', ')}`,
         },
         writable ? canReschedule : undefined,
+        { allTasks, taskGroups },
       ),
-    [tasks, milestones, t, writable, canReschedule],
+    [tasks, milestones, t, writable, canReschedule, allTasks, taskGroups],
   );
-  const taskMap = useMemo(() => new Map(tasks.map((x) => [x.id, x])), [tasks]);
+  const taskMap = useMemo(() => new Map((allTasks ?? tasks).map((x) => [x.id, x])), [allTasks, tasks]);
 
   // Drop an override once the refetched task already carries those dates (or the task is gone).
   useEffect(() => {
@@ -194,7 +201,8 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
         width: 104,
         render: ({ resource }: GanttColumnContext) => {
           const task = taskMap.get(resource.id);
-          return task ? <StatusPill record="task" state={task.status} /> : null;
+          // A parent shows its subtasks' status (#2807), never its own.
+          return task ? <StatusPill record="task" state={model.rollups.get(task.id)?.status ?? task.status} /> : null;
         },
       },
       {
@@ -205,7 +213,8 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
           const task = taskMap.get(resource.id);
           if (!task) return null;
           const fmt = (iso: string | null) => (iso ? formatDay(iso) : '—');
-          return `${fmt(task.start_date)} – ${fmt(task.end_date)}`;
+          const r = model.rollups.get(task.id);
+          return r ? `${fmt(r.start)} – ${fmt(r.end)}` : `${fmt(task.start_date)} – ${fmt(task.end_date)}`;
         },
       },
       ...(rowMenu
@@ -224,7 +233,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
           ]
         : []),
     ],
-    [t, taskMap, rowMenu],
+    [t, taskMap, rowMenu, model.rollups],
   );
 
   const menuItems = useCallback(
@@ -319,6 +328,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             rowCheckboxes={false}
             columns={columns}
             onEventUpdate={onEventUpdate}
+            getSummaryProgress={({ resource }) => model.summaryPct.get(resource.id) ?? null}
             onEventClick={onActivateTask ? (occ) => occ.event.data?.task && activateById(occ.event.id) : undefined}
             onResourceClick={onActivateTask ? ({ resource }) => activateById(resource.id) : undefined}
             renderEventMenu={rowMenu ? ({ occurrence }) => menuItems(occurrence.event.data?.task ?? undefined) : undefined}

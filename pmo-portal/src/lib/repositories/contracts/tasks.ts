@@ -1,5 +1,6 @@
 /** Task repository contract (ADR-0017). */
 import type {
+  SubtaskDraft,
   TaskRow, TaskDueRow, CalendarTask, TaskWithRefs, TaskInput, TaskPatch, TaskStatus, MyTask, TaskLinkedRecord, RecordLinkType,
 } from '@/src/lib/db/tasks';
 
@@ -21,6 +22,13 @@ export interface TaskRepository {
   listByIds(ids: readonly string[]): Promise<TaskWithRefs[]>;
   /** Create a task (org_id stamped by RLS, never sent). */
   create(input: TaskInput): Promise<TaskRow>;
+  /** #2807: a task and its subtasks (or subtasks under `parentId`) in one save; see createTaskTree. */
+  createTree(
+    root: TaskInput | null,
+    parentId: string | null,
+    drafts: SubtaskDraft[],
+    place: { project_id: string; milestone_id: string | null; task_group_id?: string | null },
+  ): Promise<void>;
   /** Update structure fields (name/assignee/dates/status) — managers. */
   update(id: string, patch: TaskPatch, projectId?: string): Promise<void>;
   /** Update ONLY the status column — the assignee (Engineer own-task) path. */
