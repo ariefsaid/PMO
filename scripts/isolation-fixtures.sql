@@ -157,8 +157,9 @@ insert into public.bill_match_exceptions (invoice_id, org_id, approved_by, reaso
 -- The seed org has no expiry registry rows; give A a complete person/document chain for by-id probes.
 insert into public.people (id, org_id, code, name)
 values ('a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-00000000000a', 'iso-person', 'Isolation proof person');
-insert into public.document_types (id, org_id, name, applies_to)
-values ('a6120000-0000-4000-8000-0000000000f2', 'a6120000-0000-4000-8000-00000000000a', 'Isolation proof document', 'person');
+-- 1760 dropped the column default and the defaults trigger does not run under replica mode, so the list is given.
+insert into public.document_types (id, org_id, name, applies_to, notify_roles)
+values ('a6120000-0000-4000-8000-0000000000f2', 'a6120000-0000-4000-8000-00000000000a', 'Isolation proof document', 'person', array['Admin']);
 insert into public.expiry_documents (id, org_id, subject_kind, person_id, type_id, expires_on)
 values ('a6120000-0000-4000-8000-0000000000f3', 'a6120000-0000-4000-8000-00000000000a', 'person',
         'a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-0000000000f2', current_date + 30);
