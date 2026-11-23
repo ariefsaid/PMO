@@ -60,6 +60,10 @@ brief and answered `ONE-LINE-OK` on `deepseek/deepseek-v4.1-flash`):
   that explicitly, otherwise the worker ends its turn silently and the dispatch sits idle. When a
   brief withholds command use, expect no completion report: read the terminal and settle the
   dispatch with `worker-stop` / `worker-release`.
+- **Release a settled dsh worker.** The TUI stays alive after `worker_done` and sits on its idle
+  "awaiting a task" composer, which Orca raises as a false `needs-input` escalation (a person at the
+  terminal, it thinks). On `state=succeeded`, run
+  `orca orchestration worker-release --dispatch <id>` so the terminal closes.
 
 ## Gotchas
 
