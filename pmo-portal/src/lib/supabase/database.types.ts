@@ -1062,6 +1062,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attendance_second_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_second_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "attendance_second_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
             foreignKeyName: "attendance_second_records_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
@@ -1073,6 +1094,13 @@ export type Database = {
             columns: ["worker_id"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_second_records_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people_directory"
             referencedColumns: ["id"]
           },
         ]
@@ -4815,7 +4843,7 @@ export type Database = {
           is_medical?: boolean
           name: string
           notify_person?: boolean
-          notify_roles?: string[]
+          notify_roles: string[]
           org_id?: string
         }
         Update: {
@@ -10008,6 +10036,20 @@ export type Database = {
             foreignKeyName: "headcount_days_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "headcount_days_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "headcount_days_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -11401,6 +11443,13 @@ export type Database = {
             referencedRelation: "people"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "labour_class_assignments_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       labour_cost_classes: {
@@ -11877,6 +11926,13 @@ export type Database = {
             referencedRelation: "people"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "manpower_need_people_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       manpower_needs: {
@@ -11953,6 +12009,101 @@ export type Database = {
           },
           {
             foreignKeyName: "manpower_needs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "manpower_needs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "manpower_needs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_installed_usage_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          installed_qty: number
+          item_id: string
+          kind: string
+          notified_user_id: string | null
+          org_id: string
+          pct: number
+          plan_qty: number
+          resolved_at: string | null
+          source: string
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          installed_qty: number
+          item_id: string
+          kind?: string
+          notified_user_id?: string | null
+          org_id?: string
+          pct: number
+          plan_qty: number
+          resolved_at?: string | null
+          source: string
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          installed_qty?: number
+          item_id?: string
+          kind?: string
+          notified_user_id?: string | null
+          org_id?: string
+          pct?: number
+          plan_qty?: number
+          resolved_at?: string | null
+          source?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_installed_usage_alerts_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_installed_usage_alerts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_installed_usage_alerts_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "material_installed_usage_alerts_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "material_installed_usage_alerts_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
             referencedRelation: "work_orders"
@@ -12206,66 +12357,6 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "material_requests"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      material_installed_usage_alerts: {
-        Row: {
-          created_at: string
-          id: string
-          installed_qty: number
-          item_id: string
-          kind: string
-          notified_user_id: string | null
-          org_id: string
-          pct: number
-          plan_qty: number
-          resolved_at: string | null
-          source: string
-          work_order_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          installed_qty: number
-          item_id: string
-          kind?: string
-          notified_user_id?: string | null
-          org_id?: string
-          pct: number
-          plan_qty: number
-          resolved_at?: string | null
-          source: string
-          work_order_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          installed_qty?: number
-          item_id?: string
-          kind?: string
-          notified_user_id?: string | null
-          org_id?: string
-          pct?: number
-          plan_qty?: number
-          resolved_at?: string | null
-          source?: string
-          work_order_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "material_installed_usage_alerts_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "stock_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "material_installed_usage_alerts_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -12539,6 +12630,27 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "medical_releases_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_releases_decider_id_fkey"
+            columns: ["decider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_releases_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "medical_releases_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -12557,27 +12669,6 @@ export type Database = {
             columns: ["person_id"]
             isOneToOne: false
             referencedRelation: "people_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "medical_releases_entered_by_fkey"
-            columns: ["entered_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "medical_releases_decider_id_fkey"
-            columns: ["decider_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "medical_releases_decided_by_fkey"
-            columns: ["decided_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -14645,6 +14736,59 @@ export type Database = {
           },
         ]
       }
+      person_clearance_overdue_notices: {
+        Row: {
+          id: string
+          item_id: string
+          notified_at: string
+          org_id: string
+          person_id: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          notified_at?: string
+          org_id?: string
+          person_id: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          notified_at?: string
+          org_id?: string
+          person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_clearance_overdue_notices_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "clearance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_clearance_overdue_notices_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_clearance_overdue_notices_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_clearance_overdue_notices_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people_directory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       person_clearances: {
         Row: {
           done_on: string
@@ -14787,6 +14931,13 @@ export type Database = {
             columns: ["attendance_day_id"]
             isOneToOne: false
             referencedRelation: "attendance_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "phone_check_ins_attendance_day_id_fkey"
+            columns: ["attendance_day_id"]
+            isOneToOne: false
+            referencedRelation: "labour_cost_attendance_days"
             referencedColumns: ["id"]
           },
           {
@@ -16050,6 +16201,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "procurement_items_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "procurement_items_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -16064,24 +16222,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "procurement_items_discipline_id_fkey"
-            columns: ["discipline_id"]
+            foreignKeyName: "procurement_items_procurement_id_fkey"
+            columns: ["procurement_id"]
             isOneToOne: false
-            referencedRelation: "cost_disciplines"
+            referencedRelation: "procurements_masked"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "procurement_items_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
-            referencedRelation: "work_orders"
-            referencedColumns: ["id"]
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
           },
           {
-            foreignKeyName: "procurement_items_procurement_id_fkey"
-            columns: ["procurement_id"]
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
             isOneToOne: false
-            referencedRelation: "procurements_masked"
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -23545,6 +23710,20 @@ export type Database = {
             foreignKeyName: "survey_records_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "survey_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "survey_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -25222,6 +25401,20 @@ export type Database = {
             foreignKeyName: "work_order_billing_step_documents_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_step_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_step_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -25330,6 +25523,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
           },
           {
             foreignKeyName: "work_order_billing_steps_work_order_id_fkey"
@@ -26701,6 +26908,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "work_orders_responsible_person_id_fkey"
+            columns: ["responsible_person_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "work_orders_site_warehouse_id_fkey"
             columns: ["site_warehouse_id"]
             isOneToOne: false
@@ -26946,7 +27160,84 @@ export type Database = {
           work_order_id: string | null
           worker_id: string | null
         }
-        Relationships: []
+        Insert: {
+          crew_id?: string | null
+          hours?: never
+          id?: string | null
+          org_id?: string | null
+          project_id?: string | null
+          work_date?: string | null
+          work_order_id?: string | null
+          worker_id?: string | null
+        }
+        Update: {
+          crew_id?: string | null
+          hours?: never
+          id?: string | null
+          org_id?: string | null
+          project_id?: string | null
+          work_date?: string | null
+          work_order_id?: string | null
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_days_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_days_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_days_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_days_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "attendance_days_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "attendance_days_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_days_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_days_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people_directory"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments_masked: {
         Row: {
@@ -27412,6 +27703,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "procurement_items_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "procurement_items_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -27430,6 +27728,27 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements_masked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -28264,7 +28583,43 @@ export type Database = {
           quality_ready_quantity: number | null
           work_order_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "survey_records_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "survey_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "survey_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vendor_withholding_bill_register: {
         Row: {
@@ -28914,7 +29269,10 @@ export type Database = {
       }
       archive_document_category: { Args: { p_id: string }; Returns: undefined }
       archive_equipment_usage: { Args: { p_id: string }; Returns: undefined }
-      archive_labour_class_assignment: { Args: { p_id: string }; Returns: undefined }
+      archive_labour_class_assignment: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       archive_labour_cost_rate: { Args: { p_id: string }; Returns: undefined }
       archive_payment_channel: {
         Args: { p_archived: boolean; p_id: string }
@@ -29033,10 +29391,6 @@ export type Database = {
         Args: { p_document: string; p_item: string }
         Returns: undefined
       }
-      attach_work_order_step_document: {
-        Args: { p_document: string; p_slot: string; p_step: string }
-        Returns: undefined
-      }
       attach_erp_journal_lines: {
         Args: { p_dry_run?: boolean; p_rows: Json }
         Returns: Json
@@ -29045,10 +29399,18 @@ export type Database = {
         Args: { p_document: string; p_id: string }
         Returns: undefined
       }
+      attach_work_order_step_document: {
+        Args: { p_document: string; p_slot: string; p_step: string }
+        Returns: undefined
+      }
       attendance_can_record: { Args: { p_crew_id: string }; Returns: boolean }
       attendance_clear_follow: {
         Args: { p_work_date: string; p_worker_id: string }
         Returns: number
+      }
+      attendance_day_undecided: {
+        Args: { p_date: string; p_work_order_id: string; p_worker_id: string }
+        Returns: boolean
       }
       attendance_decide_week: {
         Args: {
@@ -29755,7 +30117,12 @@ export type Database = {
         Returns: undefined
       }
       claimable_headroom: {
-        Args: { p_accepted: number; p_claimed: number; p_ordered: number; p_surveyed: number }
+        Args: {
+          p_accepted: number
+          p_claimed: number
+          p_ordered: number
+          p_surveyed: number
+        }
         Returns: {
           basis: string
           ceiling: number
@@ -29780,6 +30147,15 @@ export type Database = {
       clear_shared_cost_split: {
         Args: { p_project_id: string }
         Returns: number
+      }
+      clearance_due_on: {
+        Args: {
+          p_person_created: string
+          p_target_days: number
+          p_target_set_at: string
+          p_tz: string
+        }
+        Returns: string
       }
       clickup_sweep_tick: { Args: never; Returns: undefined }
       clickup_webhook_worker_tick: { Args: never; Returns: undefined }
@@ -29810,10 +30186,6 @@ export type Database = {
           p_expected_paired_at: string
           p_pmo_id: string
         }
-        Returns: undefined
-      }
-      complete_work_order_step: {
-        Args: { p_done_on: string; p_step: string }
         Returns: undefined
       }
       complete_billing_stage: {
@@ -29851,6 +30223,10 @@ export type Database = {
           p_snapshot_id: string
         }
         Returns: Json
+      }
+      complete_work_order_step: {
+        Args: { p_done_on: string; p_step: string }
+        Returns: undefined
       }
       confirm_erp_employee_link: {
         Args: { p_erp_employee_id: string; p_profile_id: string }
@@ -30770,6 +31146,7 @@ export type Database = {
           over_commit_ack_at: string | null
           over_commit_ack_by: string | null
           project_id: string
+          responsible_person_id: string | null
           site_warehouse_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["work_order_status"]
@@ -31131,6 +31508,10 @@ export type Database = {
           work_units: number
         }[]
       }
+      equipment_manager_rights: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
       equipment_metrics: {
         Args: {
           p_asset_ids: string[]
@@ -31313,6 +31694,10 @@ export type Database = {
           return_id: string
           state_stamp: string
         }[]
+      }
+      expiry_document_object_is_medical: {
+        Args: { p_name: string }
+        Returns: boolean
       }
       expiry_document_object_readable: {
         Args: { p_name: string }
@@ -31561,10 +31946,7 @@ export type Database = {
         }[]
       }
       get_built_in_roles_enabled: { Args: never; Returns: boolean }
-      get_dsr_validation_route: {
-        Args: { p_report_id: string }
-        Returns: Json
-      }
+      get_dsr_validation_route: { Args: { p_report_id: string }; Returns: Json }
       get_equipment_plan_approval_route: {
         Args: { p_plan_id: string }
         Returns: Json
@@ -31684,10 +32066,7 @@ export type Database = {
         }[]
       }
       get_imprest_requester_route: {
-        Args: {
-          p_kind: string
-          p_record_id: string
-        }
+        Args: { p_kind: string; p_record_id: string }
         Returns: Json
       }
       get_invoice_approval_route: {
@@ -31738,10 +32117,7 @@ export type Database = {
         Returns: Json
       }
       get_operational_waiting_route: {
-        Args: {
-          p_kind: string
-          p_record_id: string
-        }
+        Args: { p_kind: string; p_record_id: string }
         Returns: Json
       }
       get_org_discipline_profit_enabled: { Args: never; Returns: boolean }
@@ -32046,6 +32422,14 @@ export type Database = {
         Returns: boolean
       }
       idle_cost_enabled: { Args: { p_org: string }; Returns: boolean }
+      idle_headcount_days: {
+        Args: { p_org: string; p_project_id: string }
+        Returns: {
+          heads: number
+          work_date: string
+          work_order_id: string
+        }[]
+      }
       import_budget_line_v2: {
         Args: {
           p_batch_id: string
@@ -32974,13 +33358,16 @@ export type Database = {
           done_at: string | null
           done_by: string | null
           done_on: string | null
+          due_on: string | null
           id: string
           name: string
           org_id: string
+          overdue_notified_at: string | null
           position: number
           project_id: string
           required: boolean
           started_on: string | null
+          target_days: number | null
           work_order_id: string
         }
         SetofOptions: {
@@ -33018,6 +33405,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "progress_claims"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      lock_wo_billing_step: {
+        Args: { p_step: string }
+        Returns: {
+          assignee_id: string | null
+          created_at: string
+          done_at: string | null
+          done_by: string | null
+          done_on: string | null
+          hidden_from_role_keys: string[]
+          id: string
+          name: string
+          optional: boolean
+          org_id: string
+          owner_role_key: string | null
+          position: number
+          project_id: string
+          skipped_by: string | null
+          skipped_on: string | null
+          started_on: string | null
+          target_days: number | null
+          work_order_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "work_order_billing_steps"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -33312,8 +33728,8 @@ export type Database = {
         Args: never
         Returns: {
           asked: number
-          filled: number | null
-          in_progress: number | null
+          filled: number
+          in_progress: number
           linked: number
           need_id: string
           open_count: number
@@ -33411,7 +33827,15 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: boolean
       }
-      may_see_medical_documents: { Args: { p_profile: string }; Returns: boolean }
+      may_see_billing_steps: { Args: { p_profile: string }; Returns: boolean }
+      may_see_medical_documents: {
+        Args: { p_profile: string }
+        Returns: boolean
+      }
+      medical_release_blocks: {
+        Args: { p_last_day: string; p_worker: string }
+        Returns: boolean
+      }
       medical_release_can_enter: { Args: never; Returns: boolean }
       medical_release_create: {
         Args: { p_date: string; p_note: string; p_person_id: string }
@@ -33664,6 +34088,15 @@ export type Database = {
           project_id: string
         }[]
       }
+      my_open_ahead_alerts: {
+        Args: never
+        Returns: {
+          item_count: number
+          project_id: string
+          wo_label: string
+          work_order_id: string
+        }[]
+      }
       my_waiting_billing_steps: {
         Args: never
         Returns: {
@@ -33674,15 +34107,6 @@ export type Database = {
           project_name: string
           stage_id: string
           step_name: string
-        }[]
-      }
-      my_open_ahead_alerts: {
-        Args: never
-        Returns: {
-          item_count: number
-          project_id: string
-          wo_label: string
-          work_order_id: string
         }[]
       }
       my_waiting_decisions: {
@@ -33815,6 +34239,24 @@ export type Database = {
       }
       notify_done_not_claimed: { Args: never; Returns: number }
       notify_overdue_billing_stages: { Args: never; Returns: number }
+      notify_overdue_clearance_items: { Args: never; Returns: number }
+      notify_overdue_closeout_items: { Args: never; Returns: number }
+      notify_person: {
+        Args: {
+          p_body: string
+          p_kind: string
+          p_link: string
+          p_person: string
+          p_title: string
+        }
+        Returns: undefined
+      }
+      notify_wo_step_opened: {
+        Args: {
+          p_step: Database["public"]["Tables"]["work_order_billing_steps"]["Row"]
+        }
+        Returns: undefined
+      }
       notify_workflow_user: {
         Args: {
           p_body: string
@@ -34241,10 +34683,6 @@ export type Database = {
       }
       org_pmo_fiscal_start_month: { Args: never; Returns: number }
       org_reads_erp_ledger: { Args: never; Returns: boolean }
-      org_term: {
-        Args: { p_key: string; p_locale: string; p_org: string; p_plural?: boolean }
-        Returns: string
-      }
       org_seat_report: { Args: never; Returns: Json }
       org_seat_usage:
         | { Args: { p_org_id: string }; Returns: number }
@@ -34252,6 +34690,15 @@ export type Database = {
             Args: { p_counted_profile_id: string; p_org_id: string }
             Returns: number
           }
+      org_term: {
+        Args: {
+          p_key: string
+          p_locale: string
+          p_org: string
+          p_plural?: boolean
+        }
+        Returns: string
+      }
       org_usage_summary: {
         Args: never
         Returns: {
@@ -36340,6 +36787,10 @@ export type Database = {
         Args: { p_project: string; p_stages: Json }
         Returns: number
       }
+      set_billing_step_template_roles: {
+        Args: { p_roles: Json; p_template: string }
+        Returns: number
+      }
       set_boq_item_discipline: {
         Args: { p_discipline: string; p_item: string }
         Returns: string
@@ -36371,14 +36822,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      set_billing_step_template_roles: {
-        Args: { p_roles: Json; p_template: string }
-        Returns: number
-      }
-      set_default_billing_step_template: {
-        Args: { p_template: string }
-        Returns: undefined
-      }
       set_closeout_checklist: { Args: { p_items: Json }; Returns: number }
       set_contract_rate_assignee: {
         Args: {
@@ -36401,6 +36844,10 @@ export type Database = {
       }
       set_crew_tool_settings: {
         Args: { p_coordinator: string; p_due_days: number }
+        Returns: undefined
+      }
+      set_default_billing_step_template: {
+        Args: { p_template: string }
         Returns: undefined
       }
       set_desk_journal: { Args: { p_journal_id: string }; Returns: undefined }
@@ -36870,6 +37317,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_usage_installed_source: {
+        Args: { p_source: string }
+        Returns: undefined
+      }
       set_vendor_supply_status: {
         Args: { p_company_id: string; p_reason?: string; p_status: string }
         Returns: {
@@ -36976,7 +37427,6 @@ export type Database = {
         Args: { p_changes: Json; p_project_id: string; p_work_order_id: string }
         Returns: number
       }
-      set_usage_installed_source: { Args: { p_source: string }; Returns: undefined }
       set_work_order_responsible_person: {
         Args: { p_person_id: string; p_work_order_id: string }
         Returns: undefined
@@ -37064,11 +37514,11 @@ export type Database = {
         }
         Returns: Json
       }
-      skip_work_order_step: { Args: { p_step: string }; Returns: undefined }
       skip_billing_stage: {
         Args: { p_reason: string; p_stage: string }
         Returns: undefined
       }
+      skip_work_order_step: { Args: { p_step: string }; Returns: undefined }
       spc_derive: { Args: { p_cert: string }; Returns: Json }
       spc_may_prepare: { Args: { p_project: string }; Returns: boolean }
       spc_may_read: { Args: { p_project: string }; Returns: boolean }
@@ -38031,6 +38481,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      usage_ahead_backfill: { Args: never; Returns: number }
+      usage_ahead_check_safe: {
+        Args: { p_work_order_id: string }
+        Returns: undefined
+      }
+      usage_ahead_check_work_order: {
+        Args: { p_quiet?: boolean; p_work_order_id: string }
+        Returns: undefined
+      }
+      usage_ahead_recipient: {
+        Args: { p_work_order_id: string }
+        Returns: string
+      }
+      usage_check_safe: { Args: { p_work_order: string }; Returns: undefined }
+      usage_check_work_order: {
+        Args: { p_work_order: string }
+        Returns: undefined
+      }
+      usage_installed_qty: {
+        Args: { p_item: string; p_work_order: string }
+        Returns: number
+      }
+      usage_warning_recipient: {
+        Args: { p_work_order: string }
+        Returns: string
+      }
       valid_project_classification_options: {
         Args: { p_options: string[] }
         Returns: boolean
@@ -38187,6 +38663,14 @@ export type Database = {
         Args: { p_assignee: string; p_hidden: string[]; p_owner_key: string }
         Returns: boolean
       }
+      work_order_billed_months_core: {
+        Args: { p_bound: string; p_work_orders: string[] }
+        Returns: {
+          billed: number
+          month: string
+          work_order_id: string
+        }[]
+      }
       work_order_certified_cost: {
         Args: { p_work_order: string }
         Returns: {
@@ -38319,11 +38803,19 @@ export type Database = {
         Returns: number
       }
       work_order_line_claimed_quantity: {
-        Args: { p_boq_item_id: string; p_except_claim?: string; p_work_order_id: string }
+        Args: {
+          p_boq_item_id: string
+          p_except_claim?: string
+          p_work_order_id: string
+        }
         Returns: number
       }
       work_order_line_headroom: {
-        Args: { p_boq_item_id: string; p_except_claim?: string; p_work_order_id: string }
+        Args: {
+          p_boq_item_id: string
+          p_except_claim?: string
+          p_work_order_id: string
+        }
         Returns: {
           basis: string
           ceiling: number
@@ -38353,14 +38845,6 @@ export type Database = {
           requested_qty: number
           section_id: string
           work_order_plan_qty: number
-        }[]
-      }
-      work_order_billed_months_core: {
-        Args: { p_bound: string; p_work_orders: string[] }
-        Returns: {
-          billed: number
-          month: string
-          work_order_id: string
         }[]
       }
       work_order_section_progress: {
@@ -38398,6 +38882,10 @@ export type Database = {
         Returns: number
       }
       worker_effective_crew: {
+        Args: { p_date: string; p_worker_id: string }
+        Returns: string
+      }
+      worker_followed_crew: {
         Args: { p_date: string; p_worker_id: string }
         Returns: string
       }
@@ -38478,6 +38966,7 @@ export type Database = {
           over_commit_ack_at: string | null
           over_commit_ack_by: string | null
           project_id: string
+          responsible_person_id: string | null
           site_warehouse_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["work_order_status"]
