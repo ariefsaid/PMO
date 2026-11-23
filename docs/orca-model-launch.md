@@ -20,6 +20,7 @@ slice one rung up the intelligence ranking after two failed attempts.
 | Claude | `--agent claude --model claude-sonnet-5-5` (or `claude-opus-5-5`) `--effort …` | Sonnet medium/high · Opus medium |
 | Gemini (Flash, Argon) | `--agent antigravity` — takes its model from its own config; a `--model` id needs the effort suffix (`gemini-3.8-flash-medium`; the bare id is rejected; `agy models` lists them) | Argon high; Argon quota is small |
 | GLM-5.3-flash | `--agent pi` (pi's global default is Z.AI `glm-5.3-flash` since 2026-11-04, so nested lane orchestrators can start it); **not** `--agent zcode` | high |
+| DeepSeek V4.1 Flash · DSH (DeepSeek's own harness) | `--agent dsh` — takes its model from the `dsh-tui` profile config; no `--model`. Set up 2026-11-23, see below | max |
 
 **GLM through pi on the Z.AI coding plan** (the working path):
 
@@ -32,6 +33,28 @@ orca orchestration worker-start --run <run> --spec "<brief>" \
 ```
 
 Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28). Smoke test first: `pi --provider zai --model glm-5.3-flash -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
+
+**DSH, DeepSeek's own harness** (`--agent dsh`, set up 2026-11-23 — verified: a real worker received its
+brief and answered `ONE-LINE-OK` on `deepseek/deepseek-v4.1-flash`):
+
+- Orca launches it in **terminal** mode as `dsh-tui .` (it has no structured chat session), so the
+  binary Orca finds must be a TUI. That is `deepseek-harness-cli`, which bootstraps the `dsh-tui`
+  profile on first run. `dsh` alone is not enough (`--profile <name> is required`).
+- Both `dsh` and `dsh-tui` need **Node ≥ 24** (the machine default is 22), so they run through
+  `~/bin/dsh`, `~/bin/dsh-tui` (thin Node-24 wrappers, which also export provider keys from
+  `~/.dsh/.credentials.yaml` via `~/bin/dsh-env.sh`).
+- Orca's hooks must be installed **per profile**, version-matched to the dsh CLI
+  (`pnpm add @deepseek-ai/dsh-hooks-claude-code@0.2.2-rc.5 @deepseek-ai/dsh-hook-protocol@0.2.2-rc.5`
+  in `~/.dsh/profiles/{web,headless,dsh-tui}`); without them a session sends no events and
+  `orca agent hooks status` reports `dsh: partial`.
+- Model route: the shipped `deepseek-official` route has no key and the Bitdeer key has unpaid
+  charges (402, 2026-11-23), so the profiles' `cordis.patch.yml` point at OpenRouter
+  (`deepseek/deepseek-v4.1-flash`) using `OPENROUTER_API_KEY`. Revert by deleting those patch files
+  once a first-party key is live.
+- **Known gap: no `worker_done`.** dsh has no Orca tool and its `Stop` hook only marks activity, so a
+  dispatch sits at `ready`/idle after it answers. A coordinator reads the terminal
+  (`orca orchestration worker-read --dispatch …`) and settles it (`worker-stop`, then
+  `worker-release`). Briefs must not ask a dsh worker to report completion; Orca never sees it.
 
 ## Gotchas
 

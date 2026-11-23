@@ -103,6 +103,14 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 
 **DeepSeek launch:** `--agent opencode --model opencode-go/deepseek-v4.1-flash` (not V4 Pro) on an existing worktree (create it first with `orca worktree create`). The terminal can look like a bare shell while it runs: don't start a second `opencode run` in the same worktree. These run on the owner's opencode Go plan (2026-11-03), whose workspace must be set to the Global region. The free `opencode/deepseek-v4.1-flash-free` id hits its limit after about 40–60 minutes, so don't use it. A 2026-11-02 trial passed the same held-out tests as GLM about six times faster.
 
+**DeepSeek Harness (DSH) launch:** `--agent dsh` runs DeepSeek's own TUI harness as a terminal worker
+(wired 2026-11-23; a real worker answered on `deepseek/deepseek-v4.1-flash`). Setup, gotchas and the
+`worker_done` gap are in [`docs/orca-model-launch.md`](orca-model-launch.md) "DSH". Short form: it
+needs the `dsh-tui` binary (`deepseek-harness-cli`) on PATH on Node ≥ 24, Orca's hook packages
+installed in every dsh profile, and OpenRouter as the model route while the first-party keys are
+unusable. Because it never sends `worker_done`, a coordinator reads the worker's terminal and settles
+the dispatch itself.
+
 Money-path, SoD and auth/token-custody work stays **Director-dispatched per issue** (one worker per
 step, adversarial review, mutation checks) — now through Orca workers instead of pi.
 Screen-by-screen UX/IA/IxD work runs with the `/restructure` skill.
