@@ -3,3 +3,5 @@ medical_release_create  # people team only (Admin level or the people-documents 
 medical_release_decide  # the manager fixed at creation only; never the person or the opener (MR_SOD)
 medical_release_holds  # active member; own organisation; a state word only, no row and no note
 medical_release_can_enter  # active member; boolean about the caller's own standing
+medical_release_withdraw  # people team only (MR_WITHDRAW_RIGHT: Admin level or the people-documents capability); active member; own organisation; never your own release; 1934
+medical_release_reassign  # Admin only (MR_REASSIGN_RIGHT); active member; own organisation; only while the deciding manager is no longer active; 1934
