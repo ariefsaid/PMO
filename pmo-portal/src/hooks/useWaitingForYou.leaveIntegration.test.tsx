@@ -40,6 +40,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useAcceptancesAwaitingConfirmation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useMedicalRelease', () => ({ useMedicalReleases: () => idleRead }));
 vi.mock('@/src/hooks/useWaitingDecisions', () => ({
   useDatabaseWaiting: () => idleRead,
   useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
