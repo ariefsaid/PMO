@@ -1009,6 +1009,20 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
     expect(can('create', 'equipmentAvailability', { realRole: 'Engineer', record: { viewOnly: true } })).toBe(false); // view-as is read-only
   });
 
+  it('AC-EQM-006 rental terms, working hours and targets: the Equipment Manager job role, or a Project Manager with no job role; other job roles are refused', () => {
+    const asPm = (builtInRoleKey: string | null) => ({ realRole: 'Project Manager' as const, builtInRoleKey });
+    for (const action of ['manage', 'configure'] as const) {
+      expect(can(action, 'equipmentAvailability', asPm(null))).toBe(true);
+      expect(can(action, 'equipmentAvailability', asPm('equipment_manager'))).toBe(true);
+      expect(can(action, 'equipmentAvailability', asPm('safety_manager'))).toBe(false);
+      expect(can(action, 'equipmentAvailability', asPm('hr_manager'))).toBe(false);
+      expect(can(action, 'equipmentAvailability', { realRole: 'Admin', builtInRoleKey: 'hr_manager' })).toBe(true);
+      expect(can(action, 'equipmentAvailability', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    }
+    expect(can('manage', 'equipmentAvailability', { realRole: 'Finance' })).toBe(true);
+    expect(can('configure', 'equipmentAvailability', { realRole: 'Finance' })).toBe(false);
+  });
+
   it('AC-EQU-017 only Admin and Finance set what an hour is worth — never a PM or an Executive', () => {
     expect(allowedRoles('manage', 'equipmentCosting')).toEqual(['Admin', 'Finance']);
     expect(can('manage', 'equipmentCosting', { realRole: 'Project Manager' })).toBe(false);

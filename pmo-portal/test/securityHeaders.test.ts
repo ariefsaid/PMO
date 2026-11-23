@@ -50,7 +50,7 @@ describe('security headers (AC-CLI-016)', () => {
   it('AC-SEC-207: app responses carry HSTS, a permissions policy and an opener policy', () => {
     const all = rules(HEADERS).get('/*');
     expect(all?.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains');
-    expect(all?.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=()');
+    expect(all?.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=(self)');
     expect(all?.get('cross-origin-opener-policy')).toBe('same-origin');
   });
 
