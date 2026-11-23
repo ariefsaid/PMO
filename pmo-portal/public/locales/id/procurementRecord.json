@@ -105,7 +105,7 @@
     "record": "catatan",
     "records": "catatan",
     "startedAt": "Dimulai pada {{stage}}",
-    "partialReceipt": "{{received}} dari {{orders}} pesanan diterima",
+    "partlyReceived": "Diterima sebagian",
     "purchaseRequest": "permintaan pembelian",
     "purchaseRequests": "permintaan pembelian",
     "purchaseOrder": "pesanan",
