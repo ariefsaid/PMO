@@ -6,9 +6,10 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { formatDuration, useBreakdowns, useClearVendorResponse, useRecordVendorResponse, useVendorNames, useVendorResponseReady } from '@/src/hooks/useVendorResponse';
 import type { BreakdownRow } from '@/src/lib/db/equipmentVendorResponse';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatIsoDay } from '@/src/lib/format';
+import { formatDay } from '@/src/lib/format';
 import { vendorResponseSummary } from '@/src/lib/vendorResponse';
 import { VendorResponseSummaryTable } from './VendorResponseSummary';
+import { DateTime24Field } from './DateTime24Field';
 
 /** The last 12 months, by breakdown start date (the read is bounded to 400 days). */
 const yearBefore = (today: string): string => {
@@ -46,13 +47,13 @@ const RecordDialog: React.FC<{ assetId: string; row: BreakdownRow; onClose: () =
     } catch (err) { setProblem(classifyMutationError(err).headline); }
   };
   return (
-    <EntityFormModal open title={t('equipment:vendorResponse.recordTitle', 'Vendor response, breakdown from {{date}}', { date: formatIsoDay(row.period_start) })}
+    <EntityFormModal open title={t('equipment:vendorResponse.recordTitle', 'Vendor response, breakdown from {{date}}', { date: formatDay(row.period_start) })}
       submitLabel={t('equipment:vendorResponse.save', 'Save response')} onSubmit={(e) => void submit(e)} onClose={onClose}
       submitDisabled={!responded || record.isPending} loading={record.isPending} dirty
       submitError={problem ? { headline: problem } : null}>
       <div className="grid gap-3">
-        <TextField label={t('equipment:vendorResponse.respondedAt', 'Vendor responded')} type="datetime-local" value={responded} onChange={setResponded} required />
-        <TextField label={t('equipment:vendorResponse.reportedAt', 'Reported (optional, defaults to the start of the first day)')} type="datetime-local" value={reported} onChange={setReported} />
+        <DateTime24Field label={t('equipment:vendorResponse.respondedAt', 'Vendor responded')} value={responded} onChange={setResponded} required />
+        <DateTime24Field label={t('equipment:vendorResponse.reportedAt', 'Reported (optional, defaults to the start of the first day)')} value={reported} onChange={setReported} />
         <TextField label={t('equipment:vendorResponse.note', 'Note (optional)')} value={note} onChange={setNote} />
       </div>
     </EntityFormModal>
@@ -84,7 +85,7 @@ const Panel: React.FC<{ assetId: string; today: string }> = ({ assetId, today })
           {rows.map((r) => (
             <li key={r.period_start} className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span>
-                {formatIsoDay(r.period_start)} · {r.vendor_id ? vendorName(r.vendor_id) : t('equipment:vendorResponse.noVendor', 'No rental vendor')}
+                {formatDay(r.period_start)} · {r.vendor_id ? vendorName(r.vendor_id) : t('equipment:vendorResponse.noVendor', 'No rental vendor')}
               </span>
               <span className="flex items-center gap-2">
                 <span className="tabular-nums">{r.response_minutes == null ? t('equipment:vendorResponse.awaiting', 'Awaiting response') : duration(r.response_minutes)}</span>

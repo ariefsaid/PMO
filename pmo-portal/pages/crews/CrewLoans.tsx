@@ -6,16 +6,19 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useCrewMembers, useCrewWorkers, useCrews } from '@/src/hooks/useCrews';
-import { useCrewLoanMutations, useCrewLoans, useCrewLoansEnabled } from '@/src/hooks/useCrewLoans';
+import { useCrewMembers, useCrewSchedule, useCrewWorkers, useCrews } from '@/src/hooks/useCrews';
+import { useCrewLoanMutations, useCrewLoans } from '@/src/hooks/useCrewLoans';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import type { CrewLoanRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
-import { crewErrorMessage } from './crewErrors';
+import { uncoveredLoanDays } from '@/src/lib/crewLoanCoverage';
+import { useCrewErrorText } from './crewErrors';
 
 /** Lend a worker from their home crew to another crew for a period (FR-LOAN-001/002). */
 const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const { lend } = useCrewLoanMutations();
   const crews = useCrews();
@@ -29,6 +32,16 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     validate: (v) => (v.to && v.from && v.to < v.from ? { to: t('crews:loans.toBeforeFrom', 'The end cannot be before the start') } : {}),
   });
   const members = useCrewMembers(form.values.home || null);
+  const hostSchedule = useCrewSchedule(form.values.host || null);
+  // A lent person shows on a roster only on days the host crew is on a work order: say so before lending.
+  const uncovered = form.values.host && hostSchedule.data
+    ? uncoveredLoanDays(form.values.from, form.values.to, hostSchedule.data) : [];
+  const hostName = crews.data?.find((c) => c.id === form.values.host)?.name ?? '';
+  // The database keeps a lent person on the home crew on a day the host is not scheduled (1630): name that roster.
+  const homeName = crews.data?.find((c) => c.id === form.values.home)?.name ?? '';
+  const spanDays = form.values.from && form.values.to && form.values.to >= form.values.from
+    ? Math.round((Date.parse(form.values.to) - Date.parse(form.values.from)) / 86_400_000) + 1 : 0;
+  const hostNeverScheduled = uncovered.length > 0 && uncovered.length === spanDays;
   const live = (crews.data ?? []).filter((c) => !c.archived_at);
   const crewOptions = (exclude?: string) => [{ value: '', label: t('crews:loans.chooseCrew', 'Choose a crew') },
     ...live.filter((c) => c.id !== exclude).map((c) => ({ value: c.id, label: `${c.code} ${c.name}` }))];
@@ -46,13 +59,13 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         toast(t('crews:loans.lent', 'Worker lent'), undefined, 'success');
         onClose();
       } catch (err) {
-        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: crewErrorMessage(t, err) });
+        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
       }
     });
   };
   return (
     <EntityFormModal open title={t('crews:loans.lendTitle', 'Lend a worker to another crew')} submitLabel={t('crews:loans.lend', 'Lend worker')}
-      onSubmit={submit} onClose={onClose} loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete}
+      onSubmit={submit} onClose={onClose} loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete || hostNeverScheduled}
       submitError={submitError}>
       <FormGrid>
         <SelectField label={t('crews:loans.homeCrew', 'Home crew')} required value={form.values.home}
@@ -63,6 +76,14 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           options={[{ value: '', label: t('crews:loans.choosePerson', 'Choose a person') }, ...people]} />
         <SelectField label={t('crews:loans.hostCrew', 'Host crew')} required value={form.values.host} onChange={(v) => form.setValue('host', v)}
           options={crewOptions(form.values.home)} />
+        {uncovered.length > 0 && (
+          <p role={hostNeverScheduled ? 'alert' : 'status'} data-testid="loan-host-coverage"
+            className={`sm:col-span-2 text-sm ${hostNeverScheduled ? 'text-destructive-text' : 'text-warning-foreground'}`}>
+            {hostNeverScheduled
+              ? t('crews:loans.hostNotScheduled', '{{crew}} is not on any work order on these days, so this person would show on no roster and no hours would count. Schedule {{crew}} on a work order first, or choose another crew.', { crew: hostName })
+              : t('crews:loans.hostPartlyScheduled', '{{crew}} is not on any work order on {{days}}. On those days this person stays on the {{home}} roster.', { crew: hostName, days: uncovered.map((d) => formatDay(d)).join(', '), home: homeName })}
+          </p>
+        )}
         <DateField label={t('crews:from', 'From')} required value={form.values.from} onChange={(v) => form.setValue('from', v)} />
         <DateField label={t('crews:to', 'To')} required value={form.values.to} onChange={(v) => form.setValue('to', v)} min={form.values.from}
           error={form.errors.to} />
@@ -78,11 +99,12 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
  */
 export const CrewLoans: React.FC = () => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const canManage = may('manage', 'crew', { record: { viewOnly: realRole !== effectiveRole } });
-  const enabled = useCrewLoansEnabled();
+  const enabled = useOrgSwitch('crewLoans');
   const on = enabled.data === true;
   const loans = useCrewLoans(on);
   const crews = useCrews();
@@ -103,7 +125,7 @@ export const CrewLoans: React.FC = () => {
     try {
       await endLoan.mutateAsync({ id: l.id, version: l.version, valid_from: l.valid_from, valid_to: today < l.valid_from ? l.valid_from : today });
       toast(t('crews:loans.ended', 'Loan ended'), undefined, 'success');
-    } catch (err) { setProblem(crewErrorMessage(t, err)); }
+    } catch (err) { setProblem(writeError(err)); }
   };
   const columns: Column<CrewLoanRow>[] = [
     { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (l) => workerName(l.worker_id) },
@@ -118,6 +140,11 @@ export const CrewLoans: React.FC = () => {
         {t('crews:loans.title', 'Crew loans')}
       </CardHead>
       <CardPad>
+        {!canManage && (
+          <p className="mb-3 text-sm text-muted-foreground" data-testid="crew-loans-who">
+            {t('crews:loans.whoLends', 'Only people who manage crews (administrator, executive, project manager) can lend a worker. Ask one of them.')}
+          </p>
+        )}
         {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
         {loans.isPending ? <ListState variant="loading" shape="table" rows={3} /> : loans.isError ? (
           <ListState variant="error" title={t('crews:loans.error', "Couldn't load crew loans")} onRetry={() => void loans.refetch()}

@@ -151,13 +151,14 @@ export interface StockDocumentLine {
   id: string; line_no: number; item_id: string;
   quantity: string | null; counted_quantity: string | null; expected_quantity: string | null;
   direction: 'in' | 'out' | null; boq_item_id: string | null; source_line_id: string | null;
-  item: { code: string; name: string; unit: { code: string; whole_only: boolean } } | null;
+  /** `tag` is the organisation's own tag for the item (its word for client-supplied stock); null on an ordinary item. */
+  item: { code: string; name: string; tag?: { name: string } | null; unit: { code: string; whole_only: boolean } } | null;
 }
 export interface StockDocumentDetail extends StockDocumentListRow {
   procurement_id: string | null; reason: string | null; note: string | null; posted_by: string | null; posted_at: string | null; cancelled_at: string | null;
   lines: StockDocumentLine[];
 }
-const LINE_SELECT = 'stock_document_lines(id, line_no, item_id, quantity, counted_quantity, expected_quantity, direction, boq_item_id, source_line_id, item:stock_items(code,name,unit:stock_units(code,whole_only)))';
+const LINE_SELECT = 'stock_document_lines(id, line_no, item_id, quantity, counted_quantity, expected_quantity, direction, boq_item_id, source_line_id, item:stock_items(code,name,tag:stock_tags(name),unit:stock_units(code,whole_only)))';
 const dec = (v: unknown) => (v === null || v === undefined ? null : String(v));
 
 export async function getStockDocument(id: string): Promise<StockDocumentDetail | null> {

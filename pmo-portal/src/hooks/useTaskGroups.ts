@@ -1,17 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { TaskGroupInput, TaskGroupPatch } from '@/src/lib/db/taskGroups';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Org-scoped, per-project task groups over the repository seam (#2679). */
 export function useTaskGroups(projectId: string) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['task-groups', orgId, projectId],
-    queryFn: () => repositories.milestone.listTaskGroups(projectId),
-    enabled: Boolean(orgId) && Boolean(projectId),
-  });
+  return useOrgQuery(['task-groups', projectId], () => repositories.milestone.listTaskGroups(projectId), { enabled: Boolean(projectId) });
 }
 
 /**

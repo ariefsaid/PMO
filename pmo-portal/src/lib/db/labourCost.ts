@@ -75,16 +75,13 @@ export async function setLabourClassArchived(id: string, archived: boolean): Pro
 export async function listLabourRates(): Promise<LabourRate[]> {
   const { data, error } = await supabase.from('labour_cost_rates')
     .select('id, subject_kind, person_id, role_key, class_id, basis, amount::text, overtime_multiplier::text, day_hours::text, month_hours::text, effective_from, effective_to, person:profiles!labour_cost_rates_person_id_fkey(full_name)')
-    .is('archived_at', null).order('effective_from', { ascending: false }).limit(500) as unknown as {
-      data: Array<{ id: string; subject_kind: RateSubject; person_id: string | null; role_key: string | null; class_id: string; basis: RateBasis;
-        amount: string; overtime_multiplier: string; day_hours: string; month_hours: string; effective_from: string; effective_to: string | null;
-        person: { full_name: string } | null }> | null;
-      error: { message: string; code?: string } | null;
-    };
+    .is('archived_at', null).order('effective_from', { ascending: false }).limit(500);
   if (error) throw new AppError(error.message, error.code);
   return (data ?? []).map((r) => ({
-    id: r.id, subjectKind: r.subject_kind, personId: r.person_id, personName: r.person?.full_name ?? null, roleKey: r.role_key,
-    classId: r.class_id, basis: r.basis, amount: String(r.amount), overtimeMultiplier: String(r.overtime_multiplier),
+    // `subject_kind` and `basis` are text columns whose domain the database CHECK owns; the generated type
+    // says `string`, so narrow here rather than leave the mapping unchecked.
+    id: r.id, subjectKind: r.subject_kind as RateSubject, personId: r.person_id, personName: r.person?.full_name ?? null, roleKey: r.role_key,
+    classId: r.class_id, basis: r.basis as RateBasis, amount: String(r.amount), overtimeMultiplier: String(r.overtime_multiplier),
     dayHours: String(r.day_hours), monthHours: String(r.month_hours), effectiveFrom: r.effective_from, effectiveTo: r.effective_to,
   }));
 }

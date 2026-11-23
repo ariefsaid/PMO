@@ -1,0 +1,15 @@
+{
+  "definer_functions": [
+    "report_absence(text,text)"
+  ],
+  "tables": [
+    {
+      "table": "absence_reports",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "n/a: no fixture rows (a report exists only after a worker reports); the blind read proves the denial"
+    }
+  ]
+}

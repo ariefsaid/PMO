@@ -1,7 +1,8 @@
 import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
-import { AuthContext } from '@/src/auth/AuthContext';
 import { leaveRepository, type LeaveRequestInput, type LeaveSettings } from '@/src/lib/repositories/leave';
+import { useOptionalOrgId } from '@/src/hooks/useOrgId';
+import { useModuleOn } from '@/src/hooks/useOrgSwitch';
 
 /** Leave requests (#2708) over the repository seam (ADR-0017). Keys carry org_id. Off means off: every read below the
  *  settings read waits for `enabled`, so an organisation that never switched it on makes no leave call but one. */
@@ -9,35 +10,54 @@ const ROOTS = ['leave-requests', 'leave-on-date'] as const;
 // The leave reads sit on shared chrome (rail, approvals, roster). Outside a query provider or a session they are simply
 // off: no throw, no request, so the shell never depends on this feature being mounted.
 const IDLE_CLIENT = new QueryClient();
-const useOrgId = (): string | undefined => useContext(AuthContext)?.currentUser?.org_id;
 function useLeaveQuery<T>(key: QueryKey, fn: () => Promise<T>, enabled: boolean) {
   const qc = useContext(QueryClientContext);
   return useQuery({ queryKey: key, queryFn: fn, enabled: enabled && Boolean(qc) }, qc ?? IDLE_CLIENT);
 }
 
 export function useLeaveSettings() {
-  const orgId = useOrgId();
+  const orgId = useOptionalOrgId();
   return useLeaveQuery(['leave-settings', orgId], () => leaveRepository.settings(), Boolean(orgId));
+}
+
+function useLeaveAvailability() {
+  const qc = useContext(QueryClientContext);
+  const orgId = useOptionalOrgId();
+  const settings = useLeaveSettings();
+  const moduleOn = useModuleOn('modulePeopleCrews');
+  return {
+    enabled: Boolean(qc && orgId && settings.data?.enabled === true && moduleOn),
+    prerequisitePending: Boolean(qc && orgId && moduleOn && settings.data === undefined && settings.isPending),
+    prerequisiteError: Boolean(qc && orgId && moduleOn && settings.data === undefined && settings.isError),
+    refetchPrerequisite: settings.refetch,
+  };
 }
 
 /** True only when the organisation switched leave requests on. Unknown (loading, failed) is false. */
 export function useLeaveEnabled(): boolean {
-  return useLeaveSettings().data?.enabled === true;
+  return useLeaveAvailability().enabled;
 }
 
 export function useLeaveTypes() {
-  const orgId = useOrgId();
+  const orgId = useOptionalOrgId();
   return useLeaveQuery(['leave-types', orgId], () => leaveRepository.types(), Boolean(orgId));
 }
 
 export function useLeaveRequests() {
-  const orgId = useOrgId();
-  const enabled = useLeaveEnabled();
-  return useLeaveQuery(['leave-requests', orgId], () => leaveRepository.visible(), Boolean(orgId) && enabled);
+  const orgId = useOptionalOrgId();
+  const { refetchPrerequisite, ...availability } = useLeaveAvailability();
+  const query = useLeaveQuery(['leave-requests', orgId], () => leaveRepository.visible(), availability.enabled);
+  return {
+    ...query,
+    ...availability,
+    refetch: () => availability.prerequisitePending || availability.prerequisiteError
+      ? refetchPrerequisite()
+      : query.refetch(),
+  };
 }
 
 export function useLeaveOnDate(date: string | null) {
-  const orgId = useOrgId();
+  const orgId = useOptionalOrgId();
   const enabled = useLeaveEnabled();
   return useLeaveQuery(['leave-on-date', orgId, date], () => leaveRepository.onDate(date as string), Boolean(orgId && date) && enabled);
 }

@@ -14,9 +14,10 @@ import {
   useRecordCount, useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
+import { RequesterRouteNote } from './imprest/RequesterRouteNote';
 import { LIST_LIMIT, type ImprestReplenishmentWithRejecter as ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatMonthYearShort, parseMoneyInputAtScale } from '@/src/lib/format';
 import { PlansSection } from './imprest/PlansSection';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
@@ -122,7 +123,7 @@ const ImprestFloatDetail: React.FC = () => {
     try { await work(); toast(success, flt.project?.name, 'success'); close(); }
     catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setDialogError(detail ? `${headline}. ${detail}` : headline);
+      setDialogError(detail ? joinSentences(headline, detail) : headline);
       toast(headline, detail, 'warning');
     }
   };
@@ -147,7 +148,16 @@ const ImprestFloatDetail: React.FC = () => {
     { key: 'kind', header: t('imprest:rep.kind', 'Type'), cell: (r) => r.kind === 'funding' ? t('imprest:rep.funding', 'Funding') : t('imprest:rep.replenishment', 'Top-up') },
     { key: 'amount', header: t('imprest:rep.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.amount)}</span> },
     { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <div className="flex flex-wrap items-center gap-x-2">
-      <StatusPill record="imprest" state={r.status} />{posting(r.id)}{r.status === 'Rejected' && <ReturnedBanner record="imprest" reason={r.decided_notes} person={r.rejecter?.full_name} at={r.rejected_at} className="mb-0" />}</div> },
+      <StatusPill record="imprest" state={r.status} />
+      {r.status === 'Requested' && (
+        <RequesterRouteNote kind="replenishment" recordId={r.id} testId="rep-waiting-for" expectAction="approve" />
+      )}
+      {r.status === 'Approved' && (
+        <RequesterRouteNote kind="replenishment" recordId={r.id} testId="rep-payer-waiting-for" expectAction="pay" />
+      )}
+      {posting(r.id)}
+      {r.status === 'Rejected' && <ReturnedBanner record="imprest" reason={r.decided_notes} person={r.rejecter?.full_name} at={r.rejected_at} className="mb-0" />}
+    </div> },
     { key: 'actions', header: <span className="sr-only">{t('imprest:rep.actions', 'Actions')}</span>, cell: (r) => {
       const acts = availableReplenishmentActions({ userId, realRole, custodianId: flt.custodian_id, rep: r });
       const btn = (a: ImprestAction, label: string, variant: 'primary' | 'outline' | 'ghost') => acts.includes(a) &&
@@ -212,7 +222,12 @@ const ImprestFloatDetail: React.FC = () => {
             {/* The custodian's one question first: how much cash is in hand. */}
             <Figure id="cash" lead label={t('imprest:position.cash', 'Cash in hand')} value={money(pos.cash_book)} />
             <Figure id="float" label={t('imprest:position.float', 'Limit')} value={money(pos.float_amount)}
-              note={pendingLimit ? t('imprest:position.limitPending', '{{amount}} waiting for approval', { amount: money(pendingLimit.proposed_amount) }) : undefined} />
+              note={pendingLimit ? (
+                <span data-testid="limit-waiting-for">
+                  {money(pendingLimit.proposed_amount)}
+                  <RequesterRouteNote kind="limit_change" recordId={pendingLimit.id} testId="limit-waiting-route" prefix=" · " expectAction="approve" />
+                </span>
+              ) : undefined} />
             <Figure id="advances" label={t('imprest:position.advancesOut', 'Advances given')} value={money(pos.advances_out)} />
             <Figure id="receipts" label={t('imprest:position.receiptsWaiting', 'Receipts waiting')} value={money(pos.receipts_waiting)} />
             <Figure id="in-flight" label={t('imprest:position.inFlight', 'Top-up on its way')} value={money(pos.replenishment_in_flight)} />

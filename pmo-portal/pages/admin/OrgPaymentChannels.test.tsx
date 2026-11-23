@@ -27,14 +27,18 @@ describe('OrgPaymentChannels (#2698)', () => {
     h.setEnabled.mockResolvedValue(undefined); h.save.mockResolvedValue(undefined); h.archive.mockResolvedValue(undefined);
   });
 
-  it('AC-PCH-011 off: only the switch shows, and an Admin turns it on', async () => {
+  it('AC-PCH-011 no switch is offered: payment channels are on for everyone (#2746)', async () => {
+    renderIt();
+    expect(await screen.findByText('Bank transfer')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
+
+  it('AC-PCH-011 while the feature reads off (the module is off, or an Admin set it off) no list shows', async () => {
     h.enabled.mockResolvedValue(false);
     renderIt();
-    const toggle = await screen.findByRole('switch', { name: 'Record a payment channel on purchase requests' });
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await waitFor(() => expect(h.enabled).toHaveBeenCalled());
     expect(screen.queryByRole('list', { name: 'Channels' })).not.toBeInTheDocument();
-    await userEvent.click(toggle);
-    expect(h.setEnabled).toHaveBeenCalledWith(true);
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
   it('AC-PCH-011 on: lists the channels, adds, renames and archives one, restores another', async () => {
@@ -61,7 +65,7 @@ describe('OrgPaymentChannels (#2698)', () => {
     h.canManage = false;
     renderIt();
     expect(await screen.findByText('Bank transfer')).toBeInTheDocument();
-    expect(screen.getByRole('switch')).toBeDisabled();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add channel' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Archive / })).not.toBeInTheDocument();
     expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();

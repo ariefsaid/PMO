@@ -139,7 +139,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                   <Figure
                     testId="drawdown-ceiling"
-                    label={t('projectDetail.drawdown.ceiling', 'Contract ceiling')}
+                    label={t('projectDetail.drawdown.ceiling', 'Contract ceiling · signed contract value')}
                     value={ceiling}
                     currency={currency}
                   />

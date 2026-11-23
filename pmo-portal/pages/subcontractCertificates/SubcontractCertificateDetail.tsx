@@ -13,6 +13,7 @@ import { useProject } from '@/src/hooks/useProjects';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCertificateMutations, useCertificateView, useOpenBackcharges } from '@/src/hooks/useSubcontractCertificates';
 import { formatCurrencyCents, formatDay, formatMonthYearShort } from '@/src/lib/format';
+import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
 import type { CertificateView, ExcludedSource, MeasuredDay } from '@/src/lib/db/subcontractCertificates';
 import { BACKCHARGE_REASON_DEFAULT, REASON_CODES, STATUS_DEFAULT, STATUS_VARIANT } from './certificateUi';
 import { useCertificateErrorText } from './useCertificateErrorText';
@@ -45,7 +46,7 @@ const SubcontractCertificateDetail: React.FC = () => {
 };
 
 const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
-  const { t } = useTranslation('subcontractCertificates');
+  const { t } = useTranslation(['subcontractCertificates', 'status', 'waitingList']);
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -63,13 +64,17 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
   const editable = (c.status === 'draft' || c.status === 'returned') && can('prepare', 'subcontractCertificate', ctx);
   const mayPrepare = can('prepare', 'subcontractCertificate', ctx);
   const mayApprove = c.status === 'submitted' && can('approve', 'subcontractCertificate', ctx);
-  const approverRole = realRole === 'Admin' || realRole === 'Finance' || realRole === 'Executive'; // OD-SPC-9 (owner default 2026-11-21)
-  const mayReturn = c.status === 'submitted' && approverRole && !viewOnly;
+  const mayReturn = c.status === 'submitted' && can('return', 'subcontractCertificate', ctx);
   const mayBill = c.status === 'approved' && can('bill', 'subcontractCertificate', ctx);
-  const sameApprover = c.status === 'submitted' && approverRole && (userId === c.prepared_by || userId === c.submitted_by);
+  const sameApprover = c.status === 'submitted' && can('return', 'subcontractCertificate', { realRole }) && (userId === c.prepared_by || userId === c.submitted_by);
   const vendor = (vendors.data ?? []).find((v) => v.value === c.vendor_company_id)?.label ?? '—';
   const money = (v: number | null | undefined) => (v === null || v === undefined ? '—' : formatCurrencyCents(v, c.currency));
   const itemCode = useMemo(() => new Map(d.lines.map((l) => [l.boq_item_id, l.item_code])), [d.lines]);
+
+  // fix-waiting item 3: who the submitted certificate waits for (1186: Admin, Executive or Finance; preparer/submitter excluded).
+  const waitingLine = c.status === 'submitted'
+    ? waitingForText({ names: [], role: waitingRoleLabel('roleFinanceExecAdmin', t) }, t)
+    : null;
 
   const run = async (work: () => Promise<unknown>, success: string) => {
     try { await work(); toast(success, vendor, 'success'); setDialogError(null); return true; } catch (err) {
@@ -146,7 +151,9 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
             <Button variant="ghost" onClick={() => window.print()}>{t('subcontractCertificates:actions.print', 'Print')}</Button>
           </div>
         )}
-      />
+      >
+        {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="spc-waiting-for">{waitingLine}</p>}
+      </RecordHeader>
       {c.status === 'returned' && c.returned_reason && <ErrBanner title={t('subcontractCertificates:returned', 'Returned for changes')} sub={c.returned_reason} />}
       {c.bill_refusal && <ErrBanner title={t('subcontractCertificates:billRefused', 'The bill was refused')} sub={c.bill_refusal} />}
       {sameApprover && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('subcontractCertificates:errors.needsDifferentApprover', 'A certificate needs a different approver than the person who prepared and submitted it.')}</p>}

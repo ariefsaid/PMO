@@ -9,6 +9,7 @@ import type {
   FinancialStatementSelection,
 } from '@/src/lib/financialStatements';
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 
 export interface FinancialStatementCatalogueOptions {
   projectId?: string;
@@ -126,7 +127,7 @@ export async function getFinancialStatementCatalogue(
   options: FinancialStatementCatalogueOptions = {},
 ): Promise<FinancialStatementCatalogue> {
   const projectId = normalizeCatalogueOptions(options);
-  const { data, error } = await supabase.rpc('get_financial_statement_catalogue', { p_project_id: projectId });
+  const { data, error } = await supabase.rpc('get_financial_statement_catalogue', { p_project_id: nullableArg(projectId) });
   if (error) throw responseError(error);
   return parseCatalogueResponse(data);
 }
@@ -161,7 +162,7 @@ function completeReadBelongsToCatalogue(
 }
 
 async function readCatalogue(projectId: string | null): Promise<FinancialStatementCatalogue> {
-  const { data, error } = await supabase.rpc('get_financial_statement_catalogue', { p_project_id: projectId });
+  const { data, error } = await supabase.rpc('get_financial_statement_catalogue', { p_project_id: nullableArg(projectId) });
   if (error) throw responseError(error);
   return parseCatalogueResponse(data);
 }
@@ -171,7 +172,7 @@ async function readStatement(input: NormalizedSelection): Promise<FinancialState
     p_period_kind: input.periodKind,
     p_period_start: input.periodStart,
     p_statement: input.statement,
-    p_project_id: input.projectId,
+    p_project_id: nullableArg(input.projectId),
     p_view_kind: input.viewKind,
     p_unassigned: false,
   });

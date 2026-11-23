@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, fireEvent, screen, waitFor } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the purchase-type fields mount with the form now, so renders run inside the shared test
+// query client; with no signed-in org the reads stay disabled, as the page itself sees.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 
+const workOrders = vi.hoisted(() => ({ data: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrders.data, isLoading: false, isError: false, refetch: vi.fn() }) }));
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
   createAtomic: vi.fn(),

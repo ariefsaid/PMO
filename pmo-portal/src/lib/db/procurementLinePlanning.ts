@@ -42,7 +42,9 @@ export async function listPurchaseLineCategories(opts: { activeOnly?: boolean } 
 export async function savePurchaseLineCategory(id: string | null, name: string, position: number | null = null): Promise<string> {
   if (id !== null && !UUID.test(id)) throw new Error('Invalid category id');
   const { data, error } = await supabase.rpc('set_purchase_line_category', {
-    p_id: id as unknown as string, p_name: name, p_position: position as unknown as number,
+    // Null means "add a new category" and the SQL parameter is nullable, but the generated argument type is not; the
+    // value is already validated above, so narrow at the call.
+    p_id: id as string, p_name: name, p_position: position as number,
   });
   fail(error);
   if (typeof data !== 'string') throw new Error('The category was not saved');
@@ -61,7 +63,8 @@ export async function setProcurementLinePlanning(itemId: string, categoryId: str
   if (categoryId !== null && !UUID.test(categoryId)) throw new Error('Invalid category id');
   if (neededBy !== null && !ISO_DATE.test(neededBy)) throw new Error('A needed-by date is YYYY-MM-DD');
   const { error } = await supabase.rpc('set_procurement_line_planning', {
-    p_item: itemId, p_category: categoryId as unknown as string, p_needed_by: neededBy as unknown as string,
+    // Nullable SQL parameters with a non-null generated type: null clears the value, which the database expects.
+    p_item: itemId, p_category: categoryId as string, p_needed_by: neededBy as string,
   });
   fail(error);
 }

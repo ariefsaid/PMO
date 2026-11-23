@@ -137,7 +137,21 @@ describe('stock setup floor controls', () => {
     await userEvent.clear(leadTime);
     await userEvent.type(leadTime, '14');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create item' }));
-    await waitFor(() => expect(master.createItem).toHaveBeenCalledWith({ code: 'ANCHOR', name: 'Chemical anchor', description: 'Fixing compound', unitId: 'u1', leadTimeDays: 14, tagId: null }));
+    await waitFor(() => expect(master.createItem).toHaveBeenCalledWith({ code: 'ANCHOR', name: 'Chemical anchor', description: 'Fixing compound', unitId: 'u1', leadTimeDays: 14, tagId: null, consumable: false }));
+  });
+
+  it('JOB-1122-10 an item can be marked as a consumable on its form', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Items' }));
+    await screen.findByText('Cement 50kg');
+    await userEvent.click(screen.getByRole('button', { name: 'New item' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/^Code/), 'ROD');
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), 'Welding rod');
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Unit' }), 'u1');
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /Consumable/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create item' }));
+    await waitFor(() => expect(master.createItem).toHaveBeenCalledWith(expect.objectContaining({ code: 'ROD', consumable: true })));
   });
 
   it('floor: warehouse form sends its kind and default project', async () => {

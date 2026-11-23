@@ -25,6 +25,7 @@ test('JOB-F9 the site keeper confirms 9 of a delivery of 10 and site stock rises
   await page.getByLabel(/^Quantity/).fill('9');
   await page.getByLabel(/^Unit cost/).fill('25');
   await page.getByRole('button', { name: 'Post receipt' }).click();
+  await page.getByRole('dialog', { name: 'Post this receipt?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await page.waitForURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
   await expectOnHand(page, site, item.code, '9');
 });

@@ -153,7 +153,7 @@ describe('AdminUsers — Disable/Re-enable (AC-INV-004)', () => {
       expect(within(row).getByText(/only active admin/i)).toBeInTheDocument();
       await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
       expect(screen.queryByRole('menuitem', { name: /^disable$/i })).not.toBeInTheDocument();
-      expect(screen.getByRole('menuitem', { name: /edit role/i })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: /edit access level/i })).toBeInTheDocument();
     } finally { listState.data = original; }
   });
 

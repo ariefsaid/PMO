@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -106,7 +107,7 @@ export async function listStepTemplates(): Promise<StepTemplate[]> {
 export async function saveStepTemplate(templateId: string | null, name: string, steps: StepInput[]): Promise<string> {
   const { data, error } = await supabase.rpc('save_billing_step_template', {
     // The function has no default for p_template: a new template sends null.
-    p_template: templateId, p_name: name, p_steps: steps.map(stepPayload),
+    p_template: nullableArg(templateId), p_name: name, p_steps: steps.map(stepPayload),
   });
   if (error) fail(error);
   return String(data);

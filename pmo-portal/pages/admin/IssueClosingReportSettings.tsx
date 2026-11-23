@@ -8,7 +8,6 @@ import {
   Icon,
   ListState,
   SelectField,
-  Switch,
   TextField,
   useToast,
 } from '@/src/components/ui';
@@ -39,16 +38,6 @@ export const IssueClosingReportSettings: React.FC = () => {
   const [error, setError] = useState<string>();
 
   if (!canManage) return null;
-
-  const onToggleEnabled = async (enabled: boolean) => {
-    try {
-      await updateSettings.mutateAsync({ enabled });
-      toast(t('issueClosingReport.saved', 'Settings saved'), undefined, 'success');
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-    }
-  };
 
   const onGroupingModeChange = async (grouping_mode: 'type' | 'department_groups') => {
     try {
@@ -122,32 +111,14 @@ export const IssueClosingReportSettings: React.FC = () => {
           {t('issueClosingReport.title', 'Issue closing-time report')}
         </h2>
         <p className="mt-1 max-w-prose text-control text-muted-foreground">
-          {t('issueClosingReport.helper', 'Enable the closing-time report and configure department groupings.')}
+          {t('issueClosingReport.helper', 'Choose how the closing-time report groups issues, and set up department groups.')}
         </p>
       </div>
 
       <Card>
         <CardPad className="space-y-6 p-6">
-          {/* Enable Switch */}
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <span className="block text-sm font-medium text-foreground">
-                {t('issueClosingReport.enableLabel', 'Enable closing-time report')}
-              </span>
-              <span className="block text-control text-muted-foreground">
-                {t('issueClosingReport.enableHelper', 'Makes the closing-time report available on the Incidents register.')}
-              </span>
-            </div>
-            <Switch
-              checked={settings?.enabled ?? false}
-              onChange={(next) => onToggleEnabled(next)}
-              disabled={updateSettings.isPending}
-              data-testid="toggle-closing-report-enabled"
-            />
-          </div>
-
           {/* Grouping Mode */}
-          <div className="border-t border-border pt-4">
+          <div>
             <SelectField
               id="admin-report-grouping-mode"
               label={t('issueClosingReport.groupingMode', 'Default grouping')}

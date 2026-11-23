@@ -36,7 +36,7 @@ describe('the section term', () => {
   it('no string literal or JSX text in the section screens types the word', () => {
     const dir = resolve(__dirname, '../../../../pages/work-order-detail');
     const files = readdirSync(dir).filter((f) => /^Section.*\.tsx$/.test(f) && !f.endsWith('.test.tsx'));
-    files.push('../../src/lib/workOrderSectionRefusal.ts');
+    files.push('useSectionRefusal.ts');
     expect(files.length).toBeGreaterThanOrEqual(4);
     const offenders: string[] = [];
     for (const f of files) {

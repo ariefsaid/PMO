@@ -189,6 +189,15 @@ named product feature. Entitlements are toggled per org by the Operator; a featu
 entitlement row resolves to its environment's default for that feature. A member's access
 follows the org's entitlement on top of their role.
 
+**Organisation setting** — a choice one organisation makes for itself (a value with a default and the roles that
+may change it), owned by its Admin (a few also by Finance or a Project Manager), stored as an `organizations` column
+or a `*_settings` row. Not an entitlement: an entitlement says whether the org may use a feature at all and is the
+Operator's; a setting says how the org uses it. (#2746, ADR-0121.)
+
+**Organisation switch** — an organisation setting that is one on/off value, off by default. The front end reads
+and writes every switch through one module (`useOrgSwitch`, `<OrgSwitchSetting>`); the database keeps each switch's
+own gate and validation. (#2746, ADR-0121.)
+
 **Organization (org)** — the tenant boundary: one paying client **group**, holding all its
 users and data behind one RLS wall. An org is a commercial/contract boundary, not a legal
 entity — a client group with subsidiaries is still **one** org (decided 2026-07-04). Two
@@ -417,7 +426,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
 
-**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
+**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value. **Who confirms:** Finance or an Admin, never the person who prepared it (unless they are the organisation's only active member); the Draft chip reads "Waiting for Finance or an Admin to confirm" (Bahasa: "Menunggu konfirmasi Keuangan atau Admin"). **Delivery record** is the plain-words name for a BAST, and the default document category "Delivery record (BAST)" holds its signed file.
 
 **Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
 
@@ -846,7 +855,7 @@ parts. One per machine per day; separate from what the machine did (usage).
 
 **Physical availability** (*ketersediaan*) — the share of a machine's recorded in-service days on which it was ready or
 standby, shown to one decimal. A day with no status is unrecorded and counts in neither the top nor the bottom of the
-fraction; the screen names how many.
+fraction; the screen names how many. Days before the organisation's first day (its creation, or its earliest recorded status or usage) are not counted as unrecorded.
 
 **Utilisation** (*pemanfaatan*) — approved work hours divided by available days times the organisation's working hours per
 day. Standby is available but not utilised; unapproved usage is left out and named.
@@ -1208,9 +1217,10 @@ the material close-out: joint count, loss report, material completion report). T
 
 **Base access level** — one of today's five levels (Executive, Project Manager, Finance, Engineer, Admin) that every existing rule reads from `profiles.role`. While a person holds a built-in role it is set to that role's base level and moves only with it.
 
-**Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
+**Role tier** — manager, officer or field: catalogue data on each built-in role; field roles are light accounts.
 
-**Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.
+**Role capability** — a narrow addition to the base level held by named built-in roles only (today: seeing prices, reading medical-document status and dates, reading, adding and renewing every person's non-medical documents). Each capability is read by one database gate function that every channel (app rule, email, screen) calls, and the screen reads it only through `can()`. A catalogue entry with no gate yet is listed as held for a ruling in `supabase/tests/2716`.
+
 ## Leave requests (#2708)
 
 **Leave request** — a request by or for a person to be away for an inclusive range of days, of a type from the organisation's own list.
@@ -1356,3 +1366,29 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Idle cost** — the recorded idle hours of validated daily site reports, per idle reason, multiplied by the work order's hourly cost (priced labour amount divided by priced labour hours, a weighted average over its history). A lost-time view of cost already inside direct cost: shown apart, never added to it. OFF until an organisation switch and labour cost in money are both on (#2673).
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
+
+**Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
+
+**Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+**Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
+
+**Hours log** — the weekly grid where hours on a machine are logged per project and day (`/equipment?view=hours`); Equipment itself opens on the machines and today's status.
+
+**Sign-in language** (*bahasa halaman masuk*) — the language of the pages seen before a session exists (sign-in, password reset). No organisation is known there, so the page follows the browser language (Bahasa Indonesia or English), shows a visible switch, and remembers the choice on the device. Once the person's profile loads, the normal order applies again: profile, then organisation, then English.
+
+**Work orders list** — the menu entry and page that lists every work order the reader may see, across projects, with its status. Its name everywhere is the terminology dictionary's term for work order, so one thing has one name on every screen. The project's contract card remains the other way in.
+
+## People, crews and their papers (fix/walk-people)
+
+**Access level** — one of the five levels (Engineer, Project Manager, Finance, Executive, Admin) that drives what a login can see and do. Shown in Bahasa Indonesia as "Tingkat akses". Never called "role" on its own.
+
+**Job role** — a built-in role (storekeeper, foreman, HR manager and the rest of the set) that starts from one access level. Shown as "Job role" / "Jabatan". When built-in roles are on, inviting a user asks the job role and the access level follows from it.
+
+**Crew role** — the position a person fills in a crew (welder, foreman of that crew…), counted against the crew's headcount. Shown as "Crew role" / "Posisi kru". A person placed with no crew role is not counted in the roster's figures and is shown as "Crew role not set".
+
+**Mark as left** — an Admin records the last day a person worked. They become former staff and leave every crew roster from that day; the history stays.
+
+**Waiting list** (*daftar yang menunggu*) — everything one login can be asked to decide right now, in one list: purchase approvals, timesheets, expense claims, customer invoices, material-request steps, leave, site cash, daily reports to validate, work orders to issue, deliveries to confirm, transfers to receive, quantity changes, subcontract certificates and equipment plans. The home "waits for you" list, the Approvals badge, the Finance page and the Approvals inbox are all this one list, so they agree; its headline count is its length. Each kind is a registered entry (`src/lib/approvals/waitingKinds.ts`), so a new kind of decision cannot be added without an inbox entry. The database decides what a login may decide; the list only shows it.
+
+**Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.
+**Reported absent** (*melaporkan tidak masuk*) — a field worker's own statement, from the phone home, that they are not coming in today (sick or other). The roster shows it; it is not attendance and not leave. Written only by `report_absence` (migration 1631).

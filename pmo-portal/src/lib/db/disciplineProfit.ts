@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import type { DisciplineRevenueRow } from '@/src/lib/disciplineProfit';
 
@@ -44,6 +45,6 @@ export async function listDisciplineRevenue(projectId: string): Promise<Discipli
 }
 
 export async function setBoqItemDiscipline(itemId: string, disciplineId: string | null): Promise<void> {
-  const { error } = await supabase.rpc('set_boq_item_discipline', { p_item: itemId, p_discipline: disciplineId });
+  const { error } = await supabase.rpc('set_boq_item_discipline', { p_item: itemId, p_discipline: nullableArg(disciplineId) });
   if (error) throw new AppError(error.message, error.code);
 }

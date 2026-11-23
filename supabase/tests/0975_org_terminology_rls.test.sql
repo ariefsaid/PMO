@@ -26,7 +26,7 @@ delete from org_terminology where term_key = 'materialRequest';
 select is((select org_id from org_terminology limit 1), '09750000-0000-0000-0000-000000000001'::uuid,
   'AC-TERM-001 org_id is stamped to the caller''s org');
 select throws_ok($$insert into org_terminology (term_key, locale, singular, plural) values ('invoice','en','X','Xs')$$,
-  '23514', null, 'AC-TERM-001 only the fixed term set is overridable');
+  '23503', null, 'AC-TERM-001 only the fixed term set is overridable (an unseeded key violates the 1491 foreign key; it was a 23514 check before)');
 
 select lives_ok($$insert into org_terminology (term_key, locale, singular, plural) values ('workOrder','en','Job','Jobs') on conflict (org_id, term_key, locale) do update set singular = excluded.singular, plural = excluded.plural$$,
   'AC-TERM-001 Admin can upsert an existing override');

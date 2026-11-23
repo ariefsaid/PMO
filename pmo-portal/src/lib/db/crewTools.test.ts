@@ -75,11 +75,12 @@ describe('#2581 crew tools DAL', () => {
 
 describe('#2581 crew tools reads and settings', () => {
   it('FR-CTR-004 lists the crew live lines keyset-paged and ordered by name, id', async () => {
-    h.result.queue = [{ data: [{ id: 'l2', name: 'Wrench', usable_qty: 1 }, { id: 'l1', name: 'Hammer', usable_qty: 2 }], error: null }];
-    await expect(tools.listToolLines('c1')).resolves.toEqual([
-      { id: 'l1', name: 'Hammer', usable_qty: 2 },
-      { id: 'l2', name: 'Wrench', usable_qty: 1 },
-    ]);
+    const line = (id: string, name: string, usable: number) => ({
+      id, crew_id: 'c1', name, code: null, serial: null, held_qty: usable, note: null, archived_at: null,
+      damaged_qty: 0, lost_qty: 0, usable_qty: usable,
+    });
+    h.result.queue = [{ data: [line('l2', 'Wrench', 1), line('l1', 'Hammer', 2)], error: null }];
+    await expect(tools.listToolLines('c1')).resolves.toEqual([line('l1', 'Hammer', 2), line('l2', 'Wrench', 1)]);
     expect(h.calls.from).toEqual(['crew_tool_line_summary']);
     expect(h.calls.eq).toContainEqual(['crew_id', 'c1']);
     expect(h.calls.is).toContainEqual(['archived_at', null]);

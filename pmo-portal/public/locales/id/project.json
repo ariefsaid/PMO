@@ -62,14 +62,14 @@
       "removeProof": "Hapus {{name}}",
       "noProof": "Belum ada bukti",
       "attach": "Lampirkan bukti",
-      "title": "Kandidat perintah kerja",
+      "title": "Kandidat $t(common:terms.clientWorkOrder)",
       "new": "Kandidat baru",
       "loadError": "Kandidat tidak dapat dimuat",
-      "empty": "Belum ada kandidat. Buka satu untuk menilai pekerjaan sebelum perintah kerja dibuat.",
+      "empty": "Belum ada kandidat. Buka satu untuk menilai pekerjaan sebelum $t(common:terms.clientWorkOrder) dibuat.",
       "accepted": "Diterima",
       "rejected": "Ditolak",
       "assessing": "Dinilai",
-      "acceptedToast": "Kandidat diterima. Draf perintah kerja telah dibuat.",
+      "acceptedToast": "Kandidat diterima. Draf $t(common:terms.clientWorkOrder) telah dibuat.",
       "rejectedToast": "Kandidat ditolak.",
       "offered": "Ditawarkan {{date}}",
       "ready": "{{ready}} dari {{required}} pemeriksaan wajib siap",
@@ -78,7 +78,7 @@
       "show": "Tampilkan pemeriksaan",
       "acceptedBecause": "Diterima karena",
       "rejectedBecause": "Ditolak karena",
-      "openDraft": "Buka draf perintah kerja",
+      "openDraft": "Buka draf $t(common:terms.clientWorkOrder)",
       "reopen": "Buka kandidat baru untuk tawaran ini",
       "notReady": "Belum siap diterima: {{names}}",
       "reject": "Tolak",
@@ -86,7 +86,7 @@
       "rejectTitle": "Tolak kandidat ini",
       "acceptTitle": "Terima kandidat ini",
       "reasonLabel": "Alasan",
-      "acceptHelp": "Menerima akan membuat draf perintah kerja. Draf itu belum diterbitkan dan belum bernilai.",
+      "acceptHelp": "Menerima akan membuat draf $t(common:terms.clientWorkOrder). Draf itu belum diterbitkan dan belum bernilai.",
       "rejectHelp": "Alasan tetap tercatat.",
       "newFor": "Kandidat baru untuk tawaran ini",
       "create": "Buka kandidat",
@@ -95,16 +95,12 @@
       "titleLabel": "Judul",
       "referenceLabel": "Referensi klien",
       "offeredLabel": "Ditawarkan pada",
-      "descriptionLabel": "Deskripsi",
-      "errNotReady": "Pemeriksaan wajib berikut belum siap: {{names}}",
-      "errDecided": "Kandidat ini sudah diputuskan.",
-      "errReason": "Berikan alasan sepanjang 1 sampai 500 karakter.",
-      "errReplaces": "Hanya kandidat proyek ini yang ditolak yang dapat digantikan."
+      "descriptionLabel": "Deskripsi"
     },
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",
       "title": "Kontrak",
-      "contract": "Nilai kontrak",
+      "contract": "Nilai kontrak · jumlah baris kontrak",
       "source": {
         "contract": "Sumber: baris kontrak berharga (kuantitas × tarif), tidak termasuk pajak.",
         "contractFallback": "Sumber: ringkasan penagihan proyek, tidak termasuk pajak.",
@@ -131,7 +127,7 @@
         "invoiceAmount": "Sumber: jumlah invoice yang disinkronkan dari akuntansi.",
         "invoicePaid": "Dihitung dari jumlah invoice dikurangi saldo terutang menurut akuntansi."
       },
-      "ordered": "Dipesan",
+      "ordered": "Dipesan · pada pesanan pelanggan",
       "delivered": "Terkirim",
       "invoiced": "Ditagih",
       "signedContractInclusive": "Kontrak ditandatangani · termasuk pajak",
@@ -375,10 +371,10 @@
         "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional, tidak pernah membuat invoice.",
         "errors": {
           "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal",
-          "month": "Isi bulan dengan format YYYY-MM"
+          "month": "Pilih bulan"
         },
         "title": "Catat progres",
-        "month": "Bulan (YYYY-MM)",
+        "month": "Bulan",
         "record": "Catat progres",
         "toast": {
           "saved": "Progres tercatat: {{pct}}% selesai"
@@ -422,6 +418,9 @@
         "titleNew": "Tambah baris bill of quantities",
         "legend": "Baris",
         "item": "Item ERP",
+        "itemCode": "Kode item",
+        "existingLine": "Item ini sudah punya baris: {{code}}. Ubah baris itu, jangan tambah baris kedua.",
+        "editExisting": "Ubah baris itu",
         "description": "Deskripsi",
         "titleEdit": "Ubah baris bill of quantities"
       },
@@ -750,7 +749,7 @@
       "contractSourceBoq": "Jumlah kuantitas kontrak dikalikan harga satuan dari daftar kuantitas proyek.",
       "contractSourceRecord": "Nilai kontrak yang disetujui pada catatan proyek.",
       "contractUnavailable": "Nilai kontrak belum tercatat.",
-      "ordered": "Dalam SPK",
+      "ordered": "Dalam $t(common:terms.clientWorkOrder)",
       "orderedSource": "Jumlah alokasi $t(common:terms.clientWorkOrder) yang diterbitkan dikalikan harga satuan daftar kuantitas.",
       "delivered": "Terkirim",
       "deliveredSource": "Jumlah kuantitas yang diterima dikalikan harga satuan daftar kuantitas.",
@@ -1499,7 +1498,8 @@
     "submittal": "Submittal",
     "certificate": "Sertifikat",
     "other": "Lainnya",
-    "reference": "Referensi"
+    "reference": "Referensi",
+    "deliveryRecord": "Berita acara serah terima (BAST)"
   },
   "documentRevision": {
     "title": "Revisi baru",

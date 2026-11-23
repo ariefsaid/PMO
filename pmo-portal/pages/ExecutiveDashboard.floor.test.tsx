@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
+vi.mock('@/src/components/my/MyDeliveries', () => ({ MyDeliveries: () => null }));
 import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { openHiddenReasons, pinHomeLayout } from '@/test/homeLayout';
@@ -65,6 +66,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useLossBreakdown: () => lossState,
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useAllWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => deliveryState, useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-10-27' }));

@@ -51,7 +51,3 @@ export function usePriceVisibilitySync(): void {
 export function useMaySeePrices(): boolean {
   return !useSyncExternalStore(subscribeHidePrices, arePricesHidden, () => false);
 }
-
-export function useHidePricesReadPath(): boolean {
-  return useSyncExternalStore(subscribeHidePrices, isHidePricesActive, () => false);
-}

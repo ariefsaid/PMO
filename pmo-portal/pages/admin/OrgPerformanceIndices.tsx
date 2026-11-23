@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, ListState, TextField, useToast } from '@/src/components/ui';
+import { Button, ListState, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { usePerformanceSettings, useSavePerformanceSettings } from '@/src/hooks/useWorkOrderPerformance';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -15,8 +15,8 @@ function parseBand(raw: string): number | null {
 }
 
 /**
- * Admin control for the cost and schedule performance panels (#2597): the on/off switch (off by default, so every
- * existing screen is unchanged) and the two reading limits (OD-SCOPE-2: limits are settings, not code).
+ * Admin control for the cost and schedule performance panels (#2597): the two reading limits (OD-SCOPE-2: limits are settings, not
+ * code). The panels are on for everyone (#2746) and hidden with the Site day module.
  */
 const OrgPerformanceIndicesCard: React.FC = () => {
   const { t } = useTranslation('administration');
@@ -39,7 +39,7 @@ const OrgPerformanceIndicesCard: React.FC = () => {
   const lowN = parseBand(low);
   const highN = parseBand(high);
   const valid = bandsValid(lowN, highN);
-  const dirty = query.data !== undefined && (enabled !== query.data.enabled || lowN !== Number(query.data.bands.low) || highN !== Number(query.data.bands.high));
+  const dirty = query.data !== undefined && (lowN !== Number(query.data.bands.low) || highN !== Number(query.data.bands.high));
 
   const onSave = async () => {
     if (!valid || lowN === null || highN === null) return;
@@ -57,7 +57,7 @@ const OrgPerformanceIndicesCard: React.FC = () => {
     <section id="org-performance-indices" tabIndex={-1} className="scroll-mt-4" aria-label={title}>
       <h2 className="text-base font-semibold tracking-tight">{title}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        {t('performanceIndices.description', 'Shows the cost and schedule performance indices on projects and work orders. Off until you turn it on.')}
+        {t('performanceIndices.description', 'Sets the limits the cost and schedule performance indices are read against on work orders.')}
       </p>
       <div className="mt-3 max-w-md">
         {query.isError && query.data === undefined ? (
@@ -66,9 +66,6 @@ const OrgPerformanceIndicesCard: React.FC = () => {
           <ListState variant="loading" rows={1} testId="org-performance-indices-loading" />
         ) : canManage ? (
           <div className="space-y-3">
-            <Checkbox checked={enabled} onChange={setEnabled} label={t('performanceIndices.enabled', 'Show performance indices')} disabled={save.isPending}>
-              {t('performanceIndices.enabled', 'Show performance indices')}
-            </Checkbox>
             <TextField id="org-performance-low" label={t('performanceIndices.low', 'Lower limit (below this reads as a problem)')} value={low} onChange={setLow} onBlur={() => undefined}
               error={lowN !== null && !(lowN > 0 && lowN < 1) ? t('performanceIndices.invalid', 'Lower limit must be between 0 and 1, and the upper limit above 1.') : undefined} disabled={save.isPending} />
             <TextField id="org-performance-high" label={t('performanceIndices.high', 'Upper limit (above this reads as ahead)')} value={high} onChange={setHigh} onBlur={() => undefined}

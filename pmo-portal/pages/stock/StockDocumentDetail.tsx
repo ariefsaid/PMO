@@ -18,6 +18,7 @@ import { formatDay } from '@/src/lib/format';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
 import { StockDocumentAttachments } from './StockDocumentAttachments';
+import { StockItemTag } from '@/src/components/stock/StockItemTag';
 
 function StockWorkOrder({ id }: { id: string }) {
   const { t } = useTranslation('stock');
@@ -138,7 +139,7 @@ const StockDocumentDetail: React.FC = () => {
     { key: 'no', header: '#', cell: (l) => <span className="tabular-nums">{l.line_no}</span>, exportValue: (l) => l.line_no },
     {
       key: 'item', header: t('detail.columns.item'), rowHeader: true,
-      cell: (l) => (<div className="min-w-0"><span className="block truncate record-id font-semibold text-foreground">{l.item?.code}</span><span className="block truncate text-sm text-muted-foreground">{l.item?.name}</span></div>),
+      cell: (l) => (<div className="min-w-0"><span className="block truncate record-id font-semibold text-foreground">{l.item?.code}</span><span className="block truncate text-sm text-muted-foreground">{l.item?.name}</span><StockItemTag name={l.item?.tag?.name} /></div>),
       exportValue: (l) => l.item?.code ?? '',
     },
     {

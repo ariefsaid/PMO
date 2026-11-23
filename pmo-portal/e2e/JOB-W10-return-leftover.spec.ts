@@ -29,6 +29,7 @@ test('JOB-W10 returning 4 leftover units puts them back in the warehouse', async
   await source.selectOption(await own.getAttribute('value') ?? '');
   await page.getByLabel(/^Quantity/).fill('4');
   await page.getByRole('button', { name: 'Post return' }).click();
+  await page.getByRole('dialog', { name: 'Post this return?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   await page.goto(`/stock/ledger?item=${item.id}`);

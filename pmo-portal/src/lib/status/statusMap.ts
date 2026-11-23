@@ -174,7 +174,7 @@ export const STATUS_MAP = {
     Cancelled: e('neutral', (t) => t('status:workOrder.cancelled', 'Cancelled')),
   },
   acceptance: {
-    Draft: e('neutral', (t) => t('status:acceptance.draft', 'Draft')),
+    Draft: e('neutral', (t) => t('status:acceptance.draft', 'Waiting for Finance or an Admin to confirm')),
     Confirmed: e('done', (t) => t('status:acceptance.confirmed', 'Confirmed')),
     Withdrawn: e('neutral', (t) => t('status:acceptance.withdrawn', 'Withdrawn')),
   },

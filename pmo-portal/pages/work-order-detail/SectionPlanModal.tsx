@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, TextField, useToast, type SubmitError } from '@/src/components/ui';
-import { useTerms } from '@/src/lib/i18n/terms';
 import { useSaveSectionPlan } from '@/src/hooks/useWorkOrderSections';
 import { PLAN_KINDS, planValueProblem, type PlanKind } from '@/src/lib/workOrderPlanVsActual';
 import type { SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
-import { sectionRefusal } from '@/src/lib/workOrderSectionRefusal';
+import { useSectionRefusal } from './useSectionRefusal';
 
 interface Props { projectId: string; workOrderId: string; currency: string; section: SectionRollupRow; onClose: () => void }
 
@@ -21,7 +20,7 @@ const FIGURE: Record<PlanKind, keyof SectionRollupRow> = {
 export const SectionPlanModal: React.FC<Props> = ({ projectId, workOrderId, currency, section, onClose }) => {
   const { t } = useTranslation('workOrderSections');
   const { t: tp } = useTranslation('workOrderPva');
-  const terms = useTerms();
+  const sectionRefusal = useSectionRefusal();
   const { toast } = useToast();
   const save = useSaveSectionPlan(workOrderId, projectId);
   const initial = Object.fromEntries(PLAN_KINDS.map((k) => [k, (section[FIGURE[k]] as string | null) ?? ''])) as Record<PlanKind, string>;
@@ -49,7 +48,7 @@ export const SectionPlanModal: React.FC<Props> = ({ projectId, workOrderId, curr
       toast(t('saved', 'Saved'), undefined, 'success');
       onClose();
     } catch (err) {
-      setSubmitError(sectionRefusal(err, t, terms));
+      setSubmitError(sectionRefusal(err));
     }
   };
   return (

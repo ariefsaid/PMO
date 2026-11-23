@@ -1,32 +1,22 @@
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseStockError } from '@/src/lib/stockErrors';
-import { formatQuantity } from '@/src/lib/stockFormat';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { parseRefusal, useRefusalText } from '@/src/lib/refusals';
 import { isSetupRefusal } from '@/src/lib/adapterSeam/odoo/stock/refusal';
 
-/** One line of plain words for a failed stock RPC: the stable `STK_*` copy, a connected post's refusal reason, else the shared classifier. */
+/** One line of plain words for a failed stock call: the refusal's sentence, a connected post's refusal reason, else the shared classifier. */
 export function useStockErrorText(): (err: unknown) => string {
   const { t } = useTranslation('stock');
+  const refusal = useRefusalText();
   return (err) => {
-    const s = parseStockError(err);
-    if (!s) {
-      // A connected post refused for a setup condition: the server names the reason, the copy names the step and who does it.
-      if (err instanceof AppError && err.code === 'commit-rejected' && err.details) {
-        const reason = String(err.details);
-        const known = t(`refusal.${reason}`, { defaultValue: '' });
-        const fact = known || t('refusal.other');
-        return !known || isSetupRefusal(reason) ? `${fact} ${t('detail.erp.askAdmin')}` : fact;
-      }
-      return classifyMutationError(err, undefined, { operation: 'create', suppressCapture: true }).headline;
+    // A connected post refused for a setup condition: the server names the reason, the copy names the step and who does it.
+    if (!parseRefusal(err) && err instanceof AppError && err.code === 'commit-rejected' && err.details) {
+      const reason = String(err.details);
+      const known = t(`refusal.${reason}`, { defaultValue: '' });
+      const fact = known || t('refusal.other');
+      return !known || isSetupRefusal(reason) ? `${fact} ${t('detail.erp.askAdmin')}` : fact;
     }
-    if (s.code === 'STK_INSUFFICIENT' && s.numbers.available !== undefined && s.numbers.requested !== undefined) {
-      const loc = getNumberLocale();
-      return t('errors.STK_INSUFFICIENT_DETAIL', { available: formatQuantity(s.numbers.available, loc), requested: formatQuantity(s.numbers.requested, loc) });
-    }
-    return t(`errors.${s.code}`);
+    return refusal(err, { context: { operation: 'create', suppressCapture: true } }).headline;
   };
 }
 

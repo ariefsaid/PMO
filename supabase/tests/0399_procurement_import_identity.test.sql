@@ -29,6 +29,11 @@ select * from jsonb_to_recordset($vectors$
 $vectors$::jsonb) as v(type text,input jsonb,facts jsonb);
 -- SHARED_IDENTITY_VECTORS_END
 grant select on identity_vectors to authenticated, service_role;
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"39900000-0000-0000-0000-000000000011","role":"authenticated"}';
 select has_function('public','start_procurement_import_run',array['uuid'],'run API exists');

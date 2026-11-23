@@ -1,6 +1,6 @@
 -- 1307_stock_handover_confirmations.test.sql — #2690 (spec docs/specs/stock-two-step-transfer.spec.md). Migrations under test: 1307, 1308 (and 1305).
 -- AC-TST-015 account-signed confirmation · 016 guest-signed · 018 proof rule matrix at receive · 022 isolation · 031 proof may follow (late confirmation).
--- Mutation checks: mut:confirm_immutable (015) · mut:guest_name (016) · mut:proof_check (018) · mut:late_actor (031) · mut:self_receive (016).
+-- Mutation checks: mut:confirm_immutable (015) · mut:guest_name (016) · mut:proof_check (018) · mut:late_actor (031) · mut:self_receive (016) · mut:guest_self_receive (016: the guest case on the sender's phone).
 begin;
 create extension if not exists pgtap;
 select * from no_plan();
@@ -144,7 +144,10 @@ reset role;
 select is((select signer_kind || '/' || signer_name || '/' || coalesce(signer_user_id::text, 'none') || '/' || (recorded_by = '26930000-0000-0000-0000-0000000000a3')::text from stock_handover_confirmations where transfer_id = tst_tr('g1')), 'guest/Gate Guard/none/true', 'AC-TST-016 the guest is named, has no user, and the host is recorded');
 select tst_as('26930000-0000-0000-0000-0000000000a2');
 select throws_ok($$ select tst_recv(tst_tr('g2'), 2, 2, '{}', tst_conf(tst_tr('g2'), 'in_app', 'account')) $$, 'P0001', 'STK_SELF_RECEIVE: the person who sent a transfer cannot be the one who receives it', 'AC-TST-016 the sender cannot confirm their own transfer as the receiver');
-select lives_ok($$ select tst_recv(tst_tr('g2'), 2, 2, '{}', tst_conf(tst_tr('g2'), 'in_app', 'guest', 'Site Foreman')) $$, 'AC-TST-016 a different person, a guest on the sender''s phone, may receive');
+select throws_ok($$ select tst_recv(tst_tr('g2'), 2, 2, '{}', tst_conf(tst_tr('g2'), 'in_app', 'guest', 'Site Foreman')) $$, 'P0001', 'STK_SELF_RECEIVE: the person who sent a transfer cannot be the one who receives it', 'AC-TST-016 a guest signing on the sender''s own phone does not let the sender record the count');
+reset role;
+select tst_as('26930000-0000-0000-0000-0000000000a3');
+select lives_ok($$ select tst_recv(tst_tr('g2'), 2, 2, '{}', tst_conf(tst_tr('g2'), 'in_app', 'guest', 'Site Foreman')) $$, 'AC-TST-016 a different person records the count, with a guest signing on their phone');
 reset role;
 
 -- ── AC-TST-018 rule paper / either, and a mixed transfer ────────────────────────────────────────

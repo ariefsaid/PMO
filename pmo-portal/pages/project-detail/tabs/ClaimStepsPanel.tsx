@@ -4,7 +4,6 @@ import { Button } from '@/src/components/ui/Button';
 import { ReasonDialog } from '@/src/components/ui/ReasonDialog';
 import { SelectField, TextField } from '@/src/components/ui/FormFields';
 import { DateField } from '@/src/components/ui/DateField';
-import { QueryClientGate } from '@/src/components/billing/QueryClientGate';
 import { usePermission } from '@/src/auth/usePermission';
 import { useClaimStepMutations, useStepTemplates } from '@/src/hooks/useBillingSteps';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
@@ -138,8 +137,6 @@ const Panel: React.FC<ClaimStepsPanelProps> = ({ claimId, projectId, stages, ope
   </div>;
 };
 
-export const ClaimStepsPanel: React.FC<ClaimStepsPanelProps> = (props) => (
-  <QueryClientGate><Panel {...props} /></QueryClientGate>
-);
+export const ClaimStepsPanel: React.FC<ClaimStepsPanelProps> = (props) => <Panel {...props} />;
 
 export default ClaimStepsPanel;

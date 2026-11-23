@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, FormActions, FormGrid, ListState, PageHeader, SelectField, TextField, MobileActionBar, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, FormActions, FormGrid, ListState, PageHeader, SelectField, TextField, MobileActionBar, useToast } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
@@ -11,6 +11,7 @@ import { useStockKeepers, useStockUnits, useStockItems, useStockWarehouses } fro
 import { useTransferRefresh, useIsTwoStep } from '@/src/hooks/useStockTransfers';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
+import { receiverCandidates } from '@/src/lib/stockReceivers';
 import { stockTransfersRepository } from '@/src/lib/repositories/stockTransfers';
 
 interface LineState { key: number; itemId: string | null; quantity: string }
@@ -40,18 +41,23 @@ const StockTransferSend: React.FC = () => {
   const [error, setError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // FR-SKD-005: one guard before the consequential post, naming the items, their quantities and both locations.
+  const [confirming, setConfirming] = useState(false);
   const isAdmin = realRole === 'Admin';
   const kept = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id)), [keepers.data, me]);
   const sources = useMemo(() => (warehouses.data ?? []).filter((w) => w.kind !== 'transit' && (isAdmin || kept.has(w.id))), [warehouses.data, isAdmin, kept]);
   const destinations = useMemo(() => (warehouses.data ?? []).filter((w) => w.kind !== 'transit' && w.id !== from), [warehouses.data, from]);
   const whole = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
+  // Who may be named: a keeper of the destination or a field account (the delivery addressed to me); never the sender.
+  const candidates = useMemo(() => receiverCandidates(profiles.data ?? [], keepers.data ?? [], to, me ?? ''), [profiles.data, keepers.data, to, me]);
   const setLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   if (!twoStep) return <div className="p-4"><ListState variant="empty" icon="folder" title={t('transfers.off.title')} sub={t('transfers.off.sub')} /></div>;
   if (realRole !== effectiveRole) return <div className="p-4"><ListState variant="empty" icon="folder" title={t('transfers.viewOnly')} /></div>;
 
-  const submit = async () => {
+  /** The form's own validation, unchanged: it runs before the guard opens and again before the post. */
+  const validate = (): Record<string, string> => {
     const next: Record<string, string> = {};
     if (!from) next.from = t('form.errors.warehouse');
     if (!to) next.to = t('form.errors.toWarehouse');
@@ -61,6 +67,27 @@ const StockTransferSend: React.FC = () => {
       const q = normalizeDecimal(l.quantity);
       if (!isPositiveDecimal(q) || (unitWhole && !isWholeQuantity(q))) next[`qty${l.key}`] = t('form.errors.quantity');
     }
+    return next;
+  };
+  /** A valid form asks once; a form with a missing field shows the field errors instead of the guard. */
+  const askToSend = () => {
+    const next = validate();
+    setErrors(next);
+    if (Object.keys(next).length === 0) setConfirming(true);
+  };
+  const placeName = (id: string) => { const w = (warehouses.data ?? []).find((x) => x.id === id); return w ? `${w.code} - ${w.name}` : ''; };
+  const unitCodeOf = (itemId: string | null) => {
+    const item = itemId ? itemById.get(itemId) : undefined;
+    return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
+  };
+  // What the guard names: each line's item with its quantity and unit; the description carries both locations.
+  const summary = lines.map((l) => {
+    const item = l.itemId ? itemById.get(l.itemId) : undefined;
+    return `${item ? `${item.code} - ${item.name}` : ''}: ${normalizeDecimal(l.quantity)} ${unitCodeOf(l.itemId)}`.trim();
+  });
+
+  const submit = async () => {
+    const next = validate();
     setErrors(next);
     if (Object.keys(next).length > 0) return;
     setBusy(true); setError('');
@@ -75,12 +102,12 @@ const StockTransferSend: React.FC = () => {
   return (
     <div>
       <PageHeader title={t('transfers.sendTitle')} />
-      <form className="max-w-3xl space-y-4 pb-24 md:pb-0" onSubmit={(e) => { e.preventDefault(); void submit(); }} noValidate>
+      <form className="max-w-3xl space-y-4 pb-24 md:pb-0" onSubmit={(e) => { e.preventDefault(); askToSend(); }} noValidate>
         <FormErrorStrip>{error || undefined}</FormErrorStrip>
         <FormGrid>
           <SelectField label={t('form.fromWarehouse')} required value={from} onChange={setFrom} options={sources.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.from} />
-          <SelectField label={t('form.toWarehouse')} required value={to} onChange={setTo} options={destinations.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.to} />
-          <SelectField label={t('transfers.receiver')} value={receiver} onChange={setReceiver} options={(profiles.data ?? []).map((p) => ({ value: p.id, label: p.full_name ?? '' }))} placeholder={t('transfers.receiverNone')} helper={t('transfers.receiverHelp')} />
+          <SelectField label={t('form.toWarehouse')} required value={to} onChange={(v) => { setTo(v); setReceiver(''); }} options={destinations.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.to} />
+          <SelectField label={t('transfers.receiver')} value={receiver} onChange={setReceiver} options={candidates.map((p) => ({ value: p.id, label: p.full_name ?? '' }))} placeholder={t('transfers.receiverNone')} helper={t('transfers.receiverHelp')} />
         </FormGrid>
         <ul className="space-y-3">{lines.map((l, i) => (
           <li key={l.key} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
@@ -95,6 +122,19 @@ const StockTransferSend: React.FC = () => {
           <FormActions submitLabel={t('transfers.send')} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/transfers')} loading={busy} />
         </MobileActionBar>
       </form>
+      <ConfirmDialog
+        open={confirming}
+        title={t('transfers.sendConfirm.title', 'Send this transfer?')}
+        description={<>
+          <span className="block">{t('transfers.sendConfirm.where', 'From {{from}} to {{to}}', { from: placeName(from), to: placeName(to) })}</span>
+          <ul className="mt-2 list-disc pl-5">{summary.map((line, i) => <li key={i}>{line}</li>)}</ul>
+          <span className="mt-2 block">{t('transfers.sendConfirm.undo', 'The stock leaves the source now; the receiver counts it on arrival.')}</span>
+        </>}
+        confirmLabel={t('transfers.sendConfirm.confirm', 'Send transfer')}
+        loading={busy}
+        onConfirm={() => { setConfirming(false); void submit(); }}
+        onCancel={() => { if (!busy) setConfirming(false); }}
+      />
     </div>
   );
 };

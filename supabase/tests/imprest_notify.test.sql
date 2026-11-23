@@ -4,7 +4,7 @@
 -- are renamed REP-FIXTURE-* (the server mints REP-<yymmdd>0001 first, as in imprest_replenishment).
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(13);
 
 
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -63,6 +63,11 @@ insert into imprest_plans (id, org_id, float_id, month, author_id) values
    (date_trunc('month', now() at time zone 'Asia/Jakarta') + interval '1 month')::date, '15150000-0000-0000-0000-0000000000a4');
 insert into imprest_plan_lines (org_id, plan_id, budget_category, planned_amount) values
   ('15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-000000000601', 'Vehicle', 1000000);
+insert into imprest_plans (id, org_id, float_id, month, author_id) values
+  ('15150000-0000-0000-0000-000000000604', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d1',
+   (date_trunc('month', now() at time zone 'Asia/Jakarta') + interval '2 month')::date, '15150000-0000-0000-0000-0000000000a4');
+insert into imprest_plan_lines (org_id, plan_id, budget_category, planned_amount) values
+  ('15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-000000000604', 'Vehicle', 500000);
 insert into expense_claims (id, org_id, kind, claimant_id, project_id, budget_category, title, amount, status, imprest_float_id) values
   ('15150000-0000-0000-0000-000000000602', '15150000-0000-0000-0000-00000000000a', 'claim', '15150000-0000-0000-0000-0000000000a6',
    '15150000-0000-0000-0000-0000000000c1', 'Vehicle', 'Out of plan fuel', 0, 'Draft', '15150000-0000-0000-0000-0000000000d1');
@@ -91,6 +96,19 @@ select transition_imprest_plan('15150000-0000-0000-0000-000000000601', 'Approved
 reset role;
 select ok(exists (select 1 from notifications where owner_id = '15150000-0000-0000-0000-0000000000a4'
                     and title = 'Your site cash plan was approved'), 'AC-IMP-062 the plan''s author hears of the decision');
+set local role authenticated;
+
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a4');
+select transition_imprest_plan('15150000-0000-0000-0000-000000000604', 'Submitted');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a7');
+select transition_imprest_plan('15150000-0000-0000-0000-000000000604', 'Rejected', 'Budget cut for next quarter');
+reset role;
+select is((select count(*)::int from notifications where owner_id = '15150000-0000-0000-0000-0000000000a4'
+            and title = 'Your site cash plan was rejected' and metadata->'entity'->>'id' = '15150000-0000-0000-0000-000000000604'), 1,
+  'AC-IMP-062 the plan''s author hears of the rejection decision');
+select is((select body from notifications where owner_id = '15150000-0000-0000-0000-0000000000a4'
+            and title = 'Your site cash plan was rejected' and metadata->'entity'->>'id' = '15150000-0000-0000-0000-000000000604'),
+  'Budget cut for next quarter', 'AC-IMP-062 the rejected plan notification carries the decision notes');
 set local role authenticated;
 
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a6');

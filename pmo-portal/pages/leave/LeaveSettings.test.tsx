@@ -25,10 +25,6 @@ vi.mock('@/src/hooks/useLeave', () => ({
 }));
 
 import LeaveSettingsPage from './LeaveSettings';
-import { leaveErrorMessage } from './leaveErrors';
-
-const t = ((_key: string, fallback?: string, opts?: Record<string, unknown>) =>
-  (fallback ?? '').replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(opts?.[k] ?? ''))) as never;
 
 const view = () => render(<MemoryRouter><ToastProvider><LeaveSettingsPage /></ToastProvider></MemoryRouter>);
 
@@ -50,19 +46,18 @@ describe('LeaveSettings', () => {
     expect(screen.queryByText('Leave types')).not.toBeInTheDocument();
   });
 
-  it('an admin sees the saved switch state and the approver role', () => {
+  it('an admin sees the approver role and no on/off switch (leave is on for everyone, #2746)', () => {
     view();
-    expect(screen.getByRole('switch', { name: 'People can request leave and report sickness' })).toBeChecked();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Who approves')).toHaveValue('Finance');
   });
 
-  it('turning the feature off and saving sends the whole settings record', async () => {
+  it('saving sends the whole settings record, with leave on', async () => {
     const user = userEvent.setup();
     view();
-    await user.click(screen.getByRole('switch', { name: 'People can request leave and report sickness' }));
     await user.selectOptions(screen.getByLabelText('Who approves'), '');
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
-    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith({ enabled: false, approver_role: null }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith({ enabled: true, approver_role: null }));
     expect((await screen.findAllByText('Settings saved')).length).toBeGreaterThan(0);
   });
 
@@ -111,16 +106,5 @@ describe('LeaveSettings', () => {
     await user.type(screen.getByLabelText('New type'), 'Annual leave');
     await user.click(screen.getByRole('button', { name: 'Add type' }));
     expect(await screen.findByText('That leave type already exists.')).toBeInTheDocument();
-  });
-});
-
-describe('leaveErrorMessage mapping', () => {
-  it('maps every LV_ prefix to its sentence', () => {
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_OVERLAP: x' })).toContain('already has a pending or approved request');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_RANGE: x' })).toContain('last day is before the first');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_FORBIDDEN: x' })).toContain('cannot do this');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_DECIDED: x' })).toContain('already been decided');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_NOTE: x' })).toContain('reason when rejecting');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_DISABLED: x' })).toContain('not switched on');
   });
 });

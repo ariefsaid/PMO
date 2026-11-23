@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -6,19 +7,6 @@ import { AppError } from '@/src/lib/appError';
  * overlap, the line-manager or approver-role authority, and that nobody decides their own or an entered request.
  * This module only carries requests. org_id is never sent.
  */
-type Rpc = (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
-type Loose = {
-  rpc: Rpc;
-  from: (table: string) => {
-    select: (cols: string) => {
-      order: (col: string) => { limit: (n: number) => Promise<{ data: unknown; error: { message: string; code?: string } | null }> };
-      maybeSingle: () => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
-    };
-    insert: (row: Record<string, unknown>) => Promise<{ error: { message: string; code?: string } | null }>;
-    update: (row: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<{ error: { message: string; code?: string } | null }> };
-  };
-};
-const db = supabase as unknown as Loose;
 const fail = (error: { message: string; code?: string } | null): void => {
   if (error) throw new AppError(error.message, error.code);
 };
@@ -42,65 +30,80 @@ export interface LeaveRequestRow {
   decision_note: string | null;
   is_mine: boolean;
   can_decide: boolean;
+  /** Who decided it (1611); null while pending. */
+  decided_by_name: string | null;
+  /** The person's line manager, who can decide it; null when none is set (1611). */
+  line_manager_name: string | null;
+  /** The organisation's approver role key; any holder of it can decide (1611). */
+  approver_role: string | null;
 }
 export interface LeaveRequestInput { person_id: string; leave_type_id: string; start_date: string; end_date: string; reason?: string | null }
 
 export async function getLeaveSettings(): Promise<LeaveSettings> {
-  const { data, error } = await db.from('organizations').select('leave_requests_enabled, leave_approver_role').maybeSingle();
+  const { data, error } = await supabase.from('organizations').select('leave_requests_enabled, leave_approver_role').maybeSingle();
   fail(error);
-  const row = (data ?? {}) as { leave_requests_enabled?: boolean; leave_approver_role?: string | null };
-  return { enabled: row.leave_requests_enabled === true, approver_role: row.leave_approver_role ?? null };
+  return { enabled: data?.leave_requests_enabled === true, approver_role: data?.leave_approver_role ?? null };
 }
 
 export async function setLeaveSettings(s: LeaveSettings): Promise<void> {
-  const { error } = await db.rpc('set_leave_settings', { p_enabled: s.enabled, p_approver_role: s.approver_role });
+  const { error } = await supabase.rpc('set_leave_settings', { p_enabled: s.enabled, p_approver_role: nullableArg(s.approver_role) });
   fail(error);
 }
 
 export async function listLeaveTypes(): Promise<LeaveType[]> {
-  const { data, error } = await db.from('leave_types').select('id, name, archived_at').order('name').limit(500);
+  const { data, error } = await supabase.from('leave_types').select('id, name, archived_at').order('name').limit(500);
   fail(error);
-  return (data ?? []) as LeaveType[];
+  return data ?? [];
 }
 
 export async function createLeaveType(name: string): Promise<void> {
-  const { error } = await db.from('leave_types').insert({ name: name.trim() });
+  const { error } = await supabase.from('leave_types').insert({ name: name.trim() });
   fail(error);
 }
 
 export async function archiveLeaveType(id: string): Promise<void> {
-  const { error } = await db.from('leave_types').update({ archived_at: new Date().toISOString() }).eq('id', id);
+  const { error } = await supabase.from('leave_types').update({ archived_at: new Date().toISOString() }).eq('id', id);
   fail(error);
 }
 
 export async function listVisibleLeaveRequests(): Promise<LeaveRequestRow[]> {
-  const { data, error } = await db.rpc('leave_requests_visible');
+  const { data, error } = await supabase.rpc('leave_requests_visible');
   fail(error);
-  return ((data ?? []) as LeaveRequestRow[]).map((r) => ({ ...r, days: Number(r.days) }));
+  // `returns table` states no nullability, so the generated row marks every column NOT NULL; the decision, its note and
+  // the reason are genuinely absent until a request is decided, and the status is bounded by the database's own CHECK.
+  return (data ?? []).map((r) => ({
+    ...r,
+    days: Number(r.days),
+    status: r.status as LeaveStatus,
+    reason: r.reason ?? null,
+    decided_at: r.decided_at ?? null,
+    decision_note: r.decision_note ?? null,
+  }));
 }
 
 export async function submitLeaveRequest(input: LeaveRequestInput): Promise<string> {
-  const { data, error } = await db.rpc('leave_request_submit', {
+  const { data, error } = await supabase.rpc('leave_request_submit', {
     p_person_id: input.person_id, p_type_id: input.leave_type_id, p_start: input.start_date, p_end: input.end_date,
-    p_reason: input.reason ?? null,
+    p_reason: nullableArg(input.reason ?? null),
   });
   fail(error);
+  // The function returns the new request's id or raises; it never resolves null.
   return data as string;
 }
 
 export async function decideLeaveRequest(id: string, decision: 'Approved' | 'Rejected', note: string | null): Promise<void> {
-  const { error } = await db.rpc('leave_request_decide', { p_id: id, p_decision: decision, p_note: note });
+  const { error } = await supabase.rpc('leave_request_decide', { p_id: id, p_decision: decision, p_note: nullableArg(note) });
   fail(error);
 }
 
 export async function cancelLeaveRequest(id: string): Promise<void> {
-  const { error } = await db.rpc('leave_request_cancel', { p_id: id });
+  const { error } = await supabase.rpc('leave_request_cancel', { p_id: id });
   fail(error);
 }
 
 /** Ids of people on approved leave that day: the roster marker. Empty while the feature is off or nobody is on leave. */
 export async function listLeaveOnDate(date: string): Promise<string[]> {
-  const { data, error } = await db.rpc('leave_on_date', { p_date: date });
+  const { data, error } = await supabase.rpc('leave_on_date', { p_date: date });
   fail(error);
-  return (data ?? []) as string[];
+  return data ?? [];
 }

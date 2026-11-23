@@ -1,21 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import type { StepInput, StepPatch } from '@/src/lib/db/billingSteps';
 
 /** Organisation step templates (#2680). Keys carry org_id. */
 export function useStepTemplates(enabled = true) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['billing-step-templates', orgId],
-    queryFn: () => repositories.billingStages.listStepTemplates(),
-    enabled: enabled && Boolean(orgId),
-  });
+  return useOrgQuery(['billing-step-templates'], () => repositories.billingStages.listStepTemplates(), { enabled });
 }
 
 export function useStepTemplateMutations() {
   const qc = useQueryClient();
-  const orgId = useAuth().currentUser?.org_id;
+  const orgId = useOrgId();
   const invalidate = () => { void qc.invalidateQueries({ queryKey: ['billing-step-templates', orgId] }); };
   const save = useMutation({
     mutationFn: ({ templateId, name, steps }: { templateId: string | null; name: string; steps: StepInput[] }) =>
@@ -32,7 +28,7 @@ export function useStepTemplateMutations() {
 /** Loading a template onto a project replaces its list; new claims take it (claims already made do not change). */
 export function useLoadTemplateOntoProject(projectId: string) {
   const qc = useQueryClient();
-  const orgId = useAuth().currentUser?.org_id;
+  const orgId = useOrgId();
   return useMutation({
     mutationFn: (templateId: string) => repositories.billingStages.loadTemplateOntoProject(projectId, templateId),
     // Waits for the fresh list so the terms editor never re-initialises from the list it just replaced.
@@ -43,7 +39,7 @@ export function useLoadTemplateOntoProject(projectId: string) {
 /** Edits to one live claim's step list; every write refreshes the claim's trace, the waiting steps and the claim markers. */
 export function useClaimStepMutations(claimId: string, projectId: string) {
   const qc = useQueryClient();
-  const orgId = useAuth().currentUser?.org_id;
+  const orgId = useOrgId();
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['claim-billing-trace', orgId, claimId] });
     void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
@@ -75,20 +71,10 @@ export function useClaimStepMutations(claimId: string, projectId: string) {
 
 /** The viewer's waiting steps (the needs-you pointer). Derived on read: nothing to clear when a step completes. */
 export function useWaitingSteps(enabled: boolean) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['waiting-billing-steps', orgId],
-    queryFn: () => repositories.billingStages.waitingSteps(),
-    enabled: enabled && Boolean(orgId),
-  });
+  return useOrgQuery(['waiting-billing-steps'], () => repositories.billingStages.waitingSteps(), { enabled });
 }
 
 /** One overdue current step per claim of a project (the claim list marker). */
 export function useOverdueClaimSteps(projectId: string) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['overdue-billing-steps', orgId, projectId],
-    queryFn: () => repositories.billingStages.overdueStepsByClaim(projectId),
-    enabled: Boolean(orgId) && Boolean(projectId),
-  });
+  return useOrgQuery(['overdue-billing-steps', projectId], () => repositories.billingStages.overdueStepsByClaim(projectId), { enabled: Boolean(projectId) });
 }

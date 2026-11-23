@@ -438,3 +438,15 @@ export async function clickOrphanAction(page: Page, row: Locator, action: 'Link 
   await row.getByRole('button', { name: /^Link\b/ }).click();
   await page.getByRole('menuitem', { name: new RegExp(`^${action}`) }).click();
 }
+
+/**
+ * Record the order from the purchase page as a person does: tap "Record order", read the confirmation that names the
+ * supplier and the amount, and confirm it. The purchase must already name its supplier.
+ */
+export async function recordOrderWithConfirm(page: Page, expectSupplier?: string): Promise<void> {
+  await page.getByRole('button', { name: 'Record order' }).first().click();
+  const dialog = page.getByRole('dialog').filter({ hasText: 'Record this order?' });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  if (expectSupplier) await expect(dialog).toContainText(expectSupplier);
+  await dialog.getByRole('button', { name: 'Record order' }).click();
+}

@@ -55,6 +55,7 @@ function profile(role: Role, overrides: Partial<Profile> = {}): Profile {
     locale: null,
     location: null,
     manager_id: null,
+    built_in_role: null,
     number_locale: null,
     skills: [],
     status: 'active',

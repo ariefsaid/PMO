@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely-named project, work order, crew, person and leave type each run; switches leave requests on for the seed org for the run and restores it; reads the seeded users only.
+// @e2e-isolation: self-isolated — creates its own uniquely-named project, work order, crew, person and leave type each run; leave requests are on for every organisation (#2746), so the run leaves them on; reads the seeded users only.
 /**
  * AC-LV-015 — a leave request is approved by the line manager and shows on the roster (#2708). The seeded Engineer
  * requests leave from /leave; the seeded Project Manager (made the Engineer's line manager for the run) approves it from
@@ -49,7 +49,7 @@ test.afterEach(async () => {
   await db.from('crew_members').update({ valid_to: inDays(-1) }).eq('crew_id', crewId);
   if (createdPerson) await db.from('crew_members').delete().eq('worker_id', personId);
   await db.from('profiles').update({ manager_id: previousManager }).eq('id', ENGINEER_ID);
-  await db.from('organizations').update({ leave_requests_enabled: false, leave_approver_role: null }).eq('id', ORG_ID);
+  await db.from('organizations').update({ leave_requests_enabled: true, leave_approver_role: null }).eq('id', ORG_ID);
 });
 
 const shot = async (page: import('@playwright/test').Page, name: string) => {

@@ -18,6 +18,7 @@ import {
   getWorkOrder,
   createWorkOrder,
   updateWorkOrder,
+  listAllWorkOrders,
   setWorkOrderValue,
   transitionWorkOrder,
   getProjectDrawdown,
@@ -37,6 +38,7 @@ import {
   createNativeProgressClaimInvoice,
 } from '@/src/lib/db/progressBilling';
 import {
+  listAcceptancesAwaitingConfirmation,
   listProjectAcceptances,
   listWorkOrderLines,
   listProjectWorkOrderLines,
@@ -75,6 +77,7 @@ export const milestoneRepository: MilestoneRepository = {
 export const workOrderRepository: WorkOrderRepository = {
   claimDocuments: (id) => wrap(() => listWorkOrderClaimDocuments(id)),
   list: (projectId) => wrap(() => listProjectWorkOrders(projectId)),
+  listAll: () => wrap(() => listAllWorkOrders()),
   get: (id) => wrap(() => getWorkOrder(id)),
   create: (projectId, input) => wrap(() => createWorkOrder(projectId, input)),
   update: (id, patch) => wrap(() => updateWorkOrder(id, patch)),
@@ -116,6 +119,7 @@ export const progressBillingRepository: ProgressBillingRepository = {
 /** Contract quantities (ADR-0091): allocations and BAST acceptances. Operational only — never dispatches to an ERP. */
 export const workOrderAcceptanceRepository: WorkOrderAcceptanceRepository = {
   listByProject: (projectId) => wrap(() => listProjectAcceptances(projectId)),
+  listAwaitingConfirmation: () => wrap(() => listAcceptancesAwaitingConfirmation()),
   listLines: (workOrderId) => wrap(() => listWorkOrderLines(workOrderId)),
   listProjectLines: (projectId) => wrap(() => listProjectWorkOrderLines(projectId)),
   createLine: (input) => wrap(() => createWorkOrderLine(input)),

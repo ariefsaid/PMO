@@ -39,6 +39,7 @@ const { projState, tsState, deliverySummaryState, projectMoneyState, budgetPosit
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useWaitingForYou: () => ({ entries: [], count: 0, countFor: () => 0, pendingKinds: [], failedKinds: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isError: false }),

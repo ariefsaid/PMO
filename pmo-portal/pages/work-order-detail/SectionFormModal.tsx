@@ -4,7 +4,7 @@ import { Combobox, EntityFormModal, FormGrid, TextField, useEntityForm, useToast
 import { useTerms } from '@/src/lib/i18n/terms';
 import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
 import { useSaveSection } from '@/src/hooks/useWorkOrderSections';
-import { sectionRefusal } from '@/src/lib/workOrderSectionRefusal';
+import { useSectionRefusal } from './useSectionRefusal';
 import type { SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
 
 interface Values { code: string; name: string; note: string; foreman: string; order: string }
@@ -23,6 +23,7 @@ interface Props {
 export const SectionFormModal: React.FC<Props> = ({ workOrderId, section, nextOrder, foremanNames, onClose }) => {
   const { t } = useTranslation('workOrderSections');
   const terms = useTerms();
+  const sectionRefusal = useSectionRefusal();
   const { toast } = useToast();
   const save = useSaveSection(workOrderId);
   const loadProfiles = useOrgProfilesLoader();
@@ -57,7 +58,7 @@ export const SectionFormModal: React.FC<Props> = ({ workOrderId, section, nextOr
         toast(t('saved', 'Saved'), undefined, 'success');
         onClose();
       } catch (err) {
-        setSubmitError(sectionRefusal(err, t, terms));
+        setSubmitError(sectionRefusal(err));
       }
     });
   };

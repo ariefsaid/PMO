@@ -15,58 +15,67 @@ import { ORG_ROLE_NAMES_KEY, useOrgRoleNames } from '@/src/hooks/useOrgRoleNames
  */
 const LOCALE_NAME: Record<RoleNameLocale, string> = { en: 'English', id: 'Bahasa Indonesia' };
 
-const RoleNameRow: React.FC<{ role: BuiltInRole; locale: RoleNameLocale; current?: string }> = ({ role, locale, current }) => {
+/** One role, both languages, ONE save: it saves whichever languages were changed (a blanked language goes back to its default
+ *  name) and Reset returns both. */
+const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleNameLocale, string>> }> = ({ role, current }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const canEdit = usePermission()('edit', 'user');
   const qc = useQueryClient();
-  const fallback = locale === 'id' ? role.nameId : role.nameEn;
-  const [name, setName] = useState(current ?? '');
-  useEffect(() => setName(current ?? ''), [current]);
+  const [names, setNames] = useState<Record<RoleNameLocale, string>>({ en: current?.en ?? '', id: current?.id ?? '' });
+  useEffect(() => setNames({ en: current?.en ?? '', id: current?.id ?? '' }), [current?.en, current?.id]);
   const refresh = () => qc.invalidateQueries({ queryKey: ORG_ROLE_NAMES_KEY });
   const save = useMutation({
-    mutationFn: () => saveOrgRoleName({ roleKey: role.key, locale, name }),
+    mutationFn: async () => {
+      for (const locale of ROLE_NAME_LOCALES) {
+        if (names[locale] === (current?.[locale] ?? '')) continue;
+        if (names[locale].trim() === '') { if (current?.[locale] !== undefined) await resetOrgRoleName(role.key, locale); continue; }
+        await saveOrgRoleName({ roleKey: role.key, locale, name: names[locale] });
+      }
+    },
     onSuccess: () => {
-      toast(t('administration:roleNames.saved', 'Role name saved'), 'success');
+      toast(t('administration:roleNames.saved', 'Role name saved'), undefined, 'success');
       return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, 'error'),
+    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
   });
   const reset = useMutation({
-    mutationFn: () => resetOrgRoleName(role.key, locale),
+    mutationFn: async () => { for (const locale of ROLE_NAME_LOCALES) if (current?.[locale] !== undefined) await resetOrgRoleName(role.key, locale); },
     onSuccess: () => {
-      toast(t('administration:roleNames.resetDone', 'Back to the default name'), 'success');
+      toast(t('administration:roleNames.resetDone', 'Back to the default name'), undefined, 'success');
       return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, 'error'),
+    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
   });
-  const invalid = name.trim() !== '' && validateRoleName({ roleKey: role.key, locale, name }) !== null;
-  const dirty = name !== (current ?? '');
+  const dirty = ROLE_NAME_LOCALES.some((l) => names[l] !== (current?.[l] ?? ''));
+  const invalid = ROLE_NAME_LOCALES.some((l) => names[l].trim() !== '' && validateRoleName({ roleKey: role.key, locale: l, name: names[l] }) !== null);
+  const hasOverride = ROLE_NAME_LOCALES.some((l) => current?.[l] !== undefined);
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_1fr_auto] sm:items-end" data-testid={`role-name-row-${role.key}-${locale}`}>
-      <div className="text-sm text-text-secondary">
-        {LOCALE_NAME[locale]} · {t('administration:terminology.default', 'Default')}: {fallback}
-      </div>
-      <TextField
-        label={t('administration:roleNames.name', 'Name')}
-        disabled={!canEdit}
-        value={name}
-        placeholder={fallback}
-        maxLength={ROLE_NAME_MAX}
-        onChange={setName}
-        fullWidth
-      />
+    <Card className="space-y-3 p-4" data-testid={`role-name-card-${role.key}`}>
+      <h3 className="text-base font-semibold">{role.nameEn}</h3>
+      {ROLE_NAME_LOCALES.map((locale) => {
+        const fallback = locale === 'id' ? role.nameId : role.nameEn;
+        return (
+          <div key={locale} className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_1fr] sm:items-end" data-testid={`role-name-row-${role.key}-${locale}`}>
+            <div className="text-sm text-text-secondary">
+              {LOCALE_NAME[locale]} · {t('administration:terminology.default', 'Default')}: {fallback}
+            </div>
+            <TextField label={t('administration:roleNames.name', 'Name')} disabled={!canEdit} value={names[locale]} placeholder={fallback}
+              maxLength={ROLE_NAME_MAX} onChange={(v) => setNames((n) => ({ ...n, [locale]: v }))} fullWidth />
+          </div>
+        );
+      })}
       {canEdit && (
         <div className="flex gap-2">
-          <Button variant="primary" disabled={!dirty || name.trim() === '' || invalid || save.isPending} onClick={() => save.mutate()}>
+          <Button variant="primary" disabled={!dirty || invalid || save.isPending} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
           </Button>
-          <Button variant="outline" disabled={current === undefined || reset.isPending} onClick={() => reset.mutate()}>
+          <Button variant="outline" disabled={!hasOverride || reset.isPending} onClick={() => reset.mutate()}>
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -83,12 +92,7 @@ const AdministrationRoleNames: React.FC = () => {
       {isError ? <ListState variant="error" onRetry={() => void refetch()} /> : null}
       {!isLoading && !isError
         ? BUILT_IN_ROLES.map((role) => (
-            <Card key={role.key} className="space-y-3 p-4" data-testid={`role-name-card-${role.key}`}>
-              <h3 className="text-base font-semibold">{role.nameEn}</h3>
-              {ROLE_NAME_LOCALES.map((locale) => (
-                <RoleNameRow key={locale} role={role} locale={locale} current={data?.[locale]?.[role.key]} />
-              ))}
-            </Card>
+            <RoleNameCard key={role.key} role={role} current={{ en: data?.en?.[role.key], id: data?.id?.[role.key] }} />
           ))
         : null}
     </section>

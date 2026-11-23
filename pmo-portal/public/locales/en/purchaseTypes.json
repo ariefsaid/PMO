@@ -57,15 +57,5 @@
     "retired": "Retired",
     "loadError": "Couldn't load purchase types",
     "adminOnly": "Only an Admin can change purchase types."
-  },
-  "refusal": {
-    "ADMIN_ONLY": "Only an Admin can change purchase types.",
-    "OFF": "Purchase types are not turned on.",
-    "UNAVAILABLE": "That type is not available.",
-    "PERIOD_REQUIRED": "A rental purchase needs a rental period.",
-    "PERIOD_NOT_ALLOWED": "Only a rental purchase has a rental period.",
-    "IN_USE": "Purchases use this type. Retire it and add a new one instead.",
-    "INVALID": "Check the name: 1 to 60 characters.",
-    "FIXED": "The type and rental period are set when the purchase is created."
   }
 }

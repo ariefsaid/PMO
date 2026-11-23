@@ -5,7 +5,6 @@ import { Button } from '@/src/components/ui/Button';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { SelectField, TextArea, TextField, FieldError } from '@/src/components/ui/FormFields';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { QueryClientGate } from '@/src/components/billing/QueryClientGate';
 import { useLoadTemplateOntoProject, useStepTemplates } from '@/src/hooks/useBillingSteps';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { BillingStepTemplatesModal } from './BillingStepTemplatesModal';
@@ -109,7 +108,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
     {query.isError && <p className="text-sm text-muted-foreground" role="status">{t('projectDetail.billing.terms.loadError', 'The billing terms could not be loaded.')}</p>}
     <h3 className="text-group font-semibold">{t('projectDetail.billing.terms.stagesTitle', 'Billing stages')}</h3>
     <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.billing.terms.stagesHelp', 'Each new progress claim must complete these stages, in order, before its invoice can be raised.')}</p>
-    <QueryClientGate><TemplateTools projectId={projectId} onLoaded={() => { setRows(null); setDirty(false); }} /></QueryClientGate>
+    <TemplateTools projectId={projectId} onLoaded={() => { setRows(null); setDirty(false); }} />
     <ol className="mt-3 space-y-4">
       {(rows ?? []).map((row, index) => (
         <li key={row.key}>

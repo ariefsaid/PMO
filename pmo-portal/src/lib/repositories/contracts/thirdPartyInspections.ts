@@ -1,12 +1,12 @@
 /** Third-party inspection repository contract (#2580). */
 import type {
-  InspectionRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionGate,
+  InspectionRow, InspectionListRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionGate,
   InspectionCostRow, InspectionPrerequisites,
 } from '@/src/lib/db/thirdPartyInspections';
 
 export interface ThirdPartyInspectionRepository {
   /** The inspections of one work order, oldest first (bounded). */
-  listForWorkOrder(workOrderId: string): Promise<InspectionRow[]>;
+  listForWorkOrder(workOrderId: string): Promise<InspectionListRow[]>;
   /** Committed and billed per inspection per currency; null amounts for a caller outside the money roles (server-side). */
   costs(workOrderId: string): Promise<InspectionCostRow[]>;
   /** The blocking inspections and the single `complete` boolean for one gate. */

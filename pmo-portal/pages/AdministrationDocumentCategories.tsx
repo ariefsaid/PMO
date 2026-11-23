@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, Checkbox, ConfirmDialog, ListState, TextField, useToast } from '@/src/components/ui';
+import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { categoryDisplay } from '@/src/lib/documentCategories';
@@ -35,7 +36,7 @@ const RoleBoxes: React.FC<{
               checked={roles.has(role)}
               onChange={(next) => onToggle(role, next)}
               label={`${legend}: ${label(role)}`}
-              disabled={disabled || role === 'Admin'}
+              disabled={disabled || !can('toggleRole', 'documentCategory', { realRole: 'Admin', record: { role } })}
             >
               {label(role)}
             </Checkbox>

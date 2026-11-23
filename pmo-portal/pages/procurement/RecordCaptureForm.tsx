@@ -1,4 +1,6 @@
 import { threeWayMatchHeldMessage } from './threeWayMatchError';
+import { BillHoldNotice } from './BillHoldNotice';
+import { parseRefusal, useRefusalText } from '@/src/lib/refusals';
 import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
 import { PaymentCaptureFields } from './PaymentCaptureFields';
 import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
@@ -39,7 +41,7 @@ import type { VendorInvoiceContext } from '@/src/components/procurement/vendorIn
 import { SubcontractBillLines } from './SubcontractBillLines';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { AttributionRefusedError, NO_ATTRIBUTION, hasAttribution, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 import { type RecordKind, STATUS_OPTIONS, GROUP_REF_KINDS, localizedRecordKindLabel, statusOptionLabel, kindConfig } from './recordCaptureConfig';
@@ -191,6 +193,10 @@ export interface RecordCaptureFormProps {
   onDirtyChange?: (dirty: boolean) => void;
   /** #2517: the purchase's project — its work orders are the ones a request, order, receipt or bill can go on. */
   projectId?: string | null;
+  /** Where the purchase's cost already goes (chosen at the request); the form starts on it. */
+  defaultAttribution?: CostAttribution;
+  /** Whether a receipt exists: a supplier bill form says what can hold the bill. */
+  hasReceipt?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,9 +218,13 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   subcontractPoId,
   onDirtyChange,
   projectId = null,
+  defaultAttribution,
+  hasReceipt = false,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
+  const refusal = useRefusalText();
+  const attributionError = useAttributionErrorText();
   const cfg = kindConfig(kind, t);
   // #910 (DD-VPAY-8): the payment capture NEVER asks for a status — the form's `{Pending, Processed,
   // Cleared}` options are illegal against the `payments.status ('Scheduled','Paid')` CHECK (0035), so
@@ -229,7 +239,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const paymentBillRequired = isPayment && !groupRefIsPmoAuthored();
   const [billError, setBillError] = useState<string | undefined>(undefined);
   const [referenceNumber, setReferenceNumber] = useState('');
-  const [attribution, setAttribution] = useState<CostAttribution>(NO_ATTRIBUTION);
+  const [attribution, setAttribution] = useState<CostAttribution>(defaultAttribution ?? NO_ATTRIBUTION);
   // #2517: the four purchase records that are costs can go on a work order and a discipline.
   const offersAttribution = kind === 'purchase_request' || kind === 'purchase_order' || kind === 'goods_receipt' || kind === 'vendor_invoice';
   const attributionField = offersAttribution && hasAttribution(attribution) ? { attribution } : {};
@@ -414,7 +424,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       // #2517: the record was saved; only its work order / discipline was refused. Close the form (a retry would
       // create the record again) and say what to fix.
       if (err instanceof AttributionRefusedError) {
-        const d = describeAttributionError(err.refusal, t);
+        const d = attributionError(err.refusal);
         toast(d.headline, d.detail, 'warning');
         setFormDirty(false);
         onDirtyChange?.(false);
@@ -430,7 +440,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             ),
           }
         : null;
-      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
+      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? (parseRefusal(err)?.code === 'ORDER_NEEDS_SUPPLIER' ? refusal(err) : null) ?? paymentConflict ?? threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
       setCaptureError({ headline, detail });
       toast(headline, detail, 'warning');
     } finally {
@@ -611,6 +621,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           <FieldError id={`${formId}-amount-error`}>{amountError}</FieldError>
         </div>
       )}
+
+      {isVendorInvoice && <BillHoldNotice hasReceipt={hasReceipt} />}
 
       <VendorInvoiceCaptureFields formId={formId} capture={vi} isVendorInvoice={isVendorInvoice} />
 

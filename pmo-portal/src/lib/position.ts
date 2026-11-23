@@ -1,5 +1,5 @@
 /**
- * Reading the phone's position, ONCE (#2705). The only caller of the browser geolocation API is the clock-in section: it reads on a
+ * Reading the phone's position, ONCE (#2705). The only callers of the browser geolocation API are the clock-in section and the check-in area form: each reads on a
  * tap, never watches, never stores the permission state. Position is used by the database to decide inside / outside the work-order area.
  */
 export interface Fix { lat: number; lng: number; accuracy: number }
@@ -34,12 +34,12 @@ export function documentAllowsGeolocation(doc: Document = document): boolean {
 
 const RESUME_KEY = 'pmo.clockin.resumed';
 /** Where to go to get a document that allows geolocation, at most once per work order per tab (no loop). */
-export function hardNavigateForGeolocation(workOrderId: string, nav: { assign: (url: string) => void } = window.location): boolean {
+export function hardNavigateForGeolocation(workOrderId: string, nav: { assign: (url: string) => void } = window.location, url = `/my?clockin=${encodeURIComponent(workOrderId)}`): boolean {
   try {
     if (window.sessionStorage.getItem(RESUME_KEY) === workOrderId) return false;
     window.sessionStorage.setItem(RESUME_KEY, workOrderId);
   } catch { return false; }
-  nav.assign(`/my?clockin=${encodeURIComponent(workOrderId)}`);
+  nav.assign(url);
   return true;
 }
 export function clearResumeGuard(): void { try { window.sessionStorage.removeItem(RESUME_KEY); } catch { /* storage unavailable */ } }

@@ -33,6 +33,8 @@ const EXEMPT: Record<string, string> = {
     'Same as ProjectIntegrationsCard — setCompanyError already drives a persistent in-dialog errorSummary.',
   'src/components/NewRevisionModal.tsx':
     'Presentational — the parent owns both the mutation and its rejection, and passes the outcome down.',
+  'pages/finance/NewVendorBillDialog.tsx':
+    'A picker only: Continue navigates to the purchase page, which owns the bill form and its save errors; this dialog writes nothing.',
   'src/components/builder/PanelEditorForm.tsx':
     'Local editor state only; saving is the parent panel builder’s concern and does not reject here.',
 };

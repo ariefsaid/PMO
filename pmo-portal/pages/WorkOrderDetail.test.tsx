@@ -5,8 +5,20 @@ import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import i18n from '@/src/lib/i18n';
+import { ToastProvider } from '@/src/components/ui';
 
 const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPending: false, isError: false, refetch: vi.fn(), ...over });
+const issueWaiting = vi.hoisted(() => ({ data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn(), calls: [] as unknown[][] }));
+vi.mock('@/src/hooks/useOperationalWaitingRoute', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return {
+    ...actual,
+    useOperationalWaitingRoute: (kind: string, recordId: string | undefined, enabled: boolean) => {
+      issueWaiting.calls.push([kind, recordId, enabled]);
+      return issueWaiting;
+    },
+  };
+});
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
@@ -15,7 +27,8 @@ vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, use
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
-vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance' } }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
@@ -48,10 +61,11 @@ const CurrentLocation: React.FC = () => {
 
 const WO = { id: 'w1', project_id: 'p1', wo_number: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', order_value: 1500000, client_po_number: 'PO-9' };
 const ln = (source: string, id: string, disciplineId: string | null) => ({ source, recordId: id, projectId: 'p1', workOrderId: 'w1', disciplineId, occurredOn: '2026-02-01', reference: id, quantity: null, quantityUnit: null });
-const renderPage = () => render(<MemoryRouter initialEntries={['/work-orders/w1']}><Routes><Route path="/work-orders/:id" element={<WorkOrderDetail />} /></Routes></MemoryRouter>);
+const renderPage = () => render(<ToastProvider><MemoryRouter initialEntries={['/work-orders/w1']}><Routes><Route path="/work-orders/:id" element={<WorkOrderDetail />} /></Routes></MemoryRouter></ToastProvider>);
 
 beforeEach(async () => {
   await i18n.changeLanguage('en');
+  issueWaiting.data = undefined; issueWaiting.isPending = false; issueWaiting.isError = false; issueWaiting.refetch.mockReset(); issueWaiting.calls.length = 0;
   h.canBilling = true;
   h.stock = false;
   h.pva = { data: undefined, isPending: true, isError: false, refetch: () => undefined };
@@ -286,10 +300,10 @@ describe('WorkOrderDetail', () => {
 
   it('FR-WORP-025 lets the user open a task from the work order', async () => {
     h.tasks = q([{ id: 't1', project_id: 'p1', name: 'Torque the bolts', assignee: null, end_date: null }]);
-    render(<MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
+    render(<ToastProvider><MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
       <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
       <Route path="/projects/:projectId/tasks" element={<><p>Project tasks route</p><CurrentLocation /></>} />
-    </Routes></MemoryRouter>);
+    </Routes></MemoryRouter></ToastProvider>);
 
     await userEvent.setup().click(screen.getByRole('link', { name: 'Torque the bolts' }));
 
@@ -329,5 +343,51 @@ describe('WorkOrderDetail', () => {
     h.issuesOn = false;
     renderPage();
     expect(screen.queryByText('Issues')).toBeNull();
+  });
+
+  // #1122 Waiting 3: a Draft work order names the people it is assigned to for the issue step, not a static role list.
+  describe('who a Draft is assigned to (AC-WAIT-070/073)', () => {
+    it('reads the issue route only while the work order is a priced Draft with a recorded author', () => {
+      renderPage();
+      expect(issueWaiting.calls.at(-1)).toEqual(['work_order_issue', 'w1', false]);
+      h.wo = q({ ...WO, status: 'Draft', order_value_set_by: 'u-price' });
+      renderPage();
+      expect(issueWaiting.calls.at(-1)).toEqual(['work_order_issue', 'w1', true]);
+      h.wo = q({ ...WO, status: 'Draft', order_value: 0, order_value_set_by: 'u-price' });
+      renderPage();
+      expect(issueWaiting.calls.at(-1)).toEqual(['work_order_issue', 'w1', false]);
+      h.wo = q({ ...WO, status: 'Draft', order_value_set_by: null });
+      renderPage();
+      expect(issueWaiting.calls.at(-1)).toEqual(['work_order_issue', 'w1', false]);
+    });
+
+    it('names the actual people and their actual roles', () => {
+      h.wo = q({ ...WO, status: 'Draft', order_value_set_by: 'u-price' });
+      issueWaiting.data = {
+        approvers: [{ id: 'u-fin', name: 'Ani Finance', role: 'Finance' }, { id: 'u-pm', name: 'Budi PM', role: 'Project Manager' }],
+        routeKind: 'work_order_issue',
+      };
+      renderPage();
+      expect(screen.getByTestId('wo-issue-waiting').textContent).toBe('Waiting for Ani Finance or Budi PM, Finance or Project Manager');
+    });
+
+    it('says nothing rather than inventing a name when the database names nobody', () => {
+      h.wo = q({ ...WO, status: 'Draft', order_value_set_by: 'u-price' });
+      issueWaiting.data = { approvers: [], routeKind: 'work_order_issue' };
+      renderPage();
+      expect(screen.queryByTestId('wo-issue-waiting')).toBeNull();
+    });
+
+    it('offers a retry when the route could not be read, and adds nothing while it is pending', async () => {
+      h.wo = q({ ...WO, status: 'Draft', order_value_set_by: 'u-price' });
+      issueWaiting.isPending = true;
+      const view = renderPage();
+      expect(screen.queryByTestId('wo-issue-waiting')).toBeNull();
+      view.unmount();
+      issueWaiting.isPending = false; issueWaiting.isError = true;
+      renderPage();
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+      expect(issueWaiting.refetch).toHaveBeenCalled();
+    });
   });
 });

@@ -4,6 +4,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { AppError } from '@/src/lib/appError';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 import type { ClaimBillingTrace } from '@/src/lib/db/billingStages';
 
 const h = vi.hoisted(() => ({
@@ -13,6 +14,11 @@ const h = vi.hoisted(() => ({
   docs: [] as unknown[],
   attach: vi.fn(),
   complete: vi.fn(),
+  stepUpdate: vi.fn(),
+  stepAdd: vi.fn(),
+  stepRemove: vi.fn(),
+  stepMove: vi.fn(),
+  stepLoad: vi.fn(),
 }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
@@ -24,6 +30,16 @@ vi.mock('@/src/hooks/useBillingStages', () => ({
     attachDocument: { mutateAsync: h.attach, isPending: false },
     completeStage: { mutateAsync: h.complete, isPending: false },
   }),
+}));
+vi.mock('@/src/hooks/useBillingSteps', () => ({
+  useClaimStepMutations: () => ({
+    update: { mutateAsync: h.stepUpdate, isPending: false },
+    add: { mutateAsync: h.stepAdd, isPending: false },
+    remove: { mutateAsync: h.stepRemove, isPending: false },
+    move: { mutateAsync: h.stepMove, isPending: false },
+    loadTemplate: { mutateAsync: h.stepLoad, isPending: false },
+  }),
+  useStepTemplates: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 
@@ -48,7 +64,7 @@ function trace(): ClaimBillingTrace {
 }
 
 function renderIt(props: Partial<React.ComponentProps<typeof ClaimBillingStages>> = {}) {
-  render(<MemoryRouter><ClaimBillingStages claimId="c1" projectId="p1" currency="IDR" invoiced={false} withdrawn={false} today="2026-03-20" {...props} /></MemoryRouter>);
+  render(<MemoryRouter><QueryClientTestProvider><ClaimBillingStages claimId="c1" projectId="p1" currency="IDR" invoiced={false} withdrawn={false} today="2026-03-20" {...props} /></QueryClientTestProvider></MemoryRouter>);
   return userEvent.setup();
 }
 
@@ -59,9 +75,20 @@ beforeEach(() => {
   h.docs = [doc('d1', 'Measurement sheet March'), doc('d2', 'Joint survey minutes'), doc('d3', 'Draft note', 'Draft'), doc('d4', 'No file yet', 'Approved', null)];
   h.attach.mockReset().mockResolvedValue(undefined);
   h.complete.mockReset().mockResolvedValue(undefined);
+  h.stepUpdate.mockReset().mockResolvedValue(undefined);
+  h.stepAdd.mockReset().mockResolvedValue(undefined);
+  h.stepRemove.mockReset().mockResolvedValue(undefined);
+  h.stepMove.mockReset().mockResolvedValue(undefined);
+  h.stepLoad.mockReset().mockResolvedValue(undefined);
 });
 
 describe('ClaimBillingStages', () => {
+  it('AC-CBS-014 Finance sees the step editor on a claim with stages (#2680)', () => {
+    h.role = 'Finance';
+    renderIt();
+    expect(screen.getByRole('button', { name: 'Edit steps' })).toBeInTheDocument();
+  });
+
   it('AC-TRACE-001 shows each stage in order with its age, its documents, the deadline and the retention held', () => {
     renderIt();
     const items = within(screen.getByRole('list', { name: 'Billing stages' })).getAllByRole('listitem', { name: /./ });

@@ -153,8 +153,12 @@ type BudgetArchiveMirrorTarget = Omit<BudgetArchiveLiveTarget, 'archive_cancella
  * `reason` is a safe code the surface may explain generically. The browser never re-derives eligibility.
  */
 type BudgetArchiveTargetRpcRow = Database['public']['Functions']['get_budget_archive_targets']['Returns'][number];
-export type BudgetArchiveTarget = Omit<BudgetArchiveTargetRpcRow, 'page_key' | 'source_kind'> & {
+export type BudgetArchiveTarget = Omit<BudgetArchiveTargetRpcRow, 'page_key' | 'source_kind' | 'to_fiscal_year' | 'erp_docstatus'> & {
   source_kind: 'account' | 'legacy';
+  /** The generated row type says not-null; the server sends null when there is no range / no ERP document, and the
+   * reader below keeps that null rather than inventing a value. */
+  to_fiscal_year: string | null;
+  erp_docstatus: number | null;
 };
 
 export interface NewLineItem {

@@ -3,7 +3,7 @@
 -- Hand calculation: C 1000 (v1), R 1100: version 2 = 1100, allocation 600 -> 700, value change (1100-1000) x 50000 = 5,000,000.00.
 begin;
 create extension if not exists pgtap;
-select plan(68);
+select plan(70);
 
 -- ── fixtures (as the table owner) ───────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -99,6 +99,13 @@ select lives_ok($$select qcr_return((select v from ids where k = 'r1'), 'Please 
 select is((select status || ':' || return_reason from quantity_change_requests where id = (select v from ids where k = 'r1')), 'returned:Please justify the quantity',
   'AC-QCR-014 the request is returned and the reason is kept');
 set local request.jwt.claims = '{"sub":"25780000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select is((select count(*)::int from notifications where title = 'Quantity change request returned'
+            and metadata->'entity'->>'id' = (select v from ids where k = 'r1')::text), 1,
+  'AC-QCR-014 the author is notified that the quantity change request was returned');
+select is((select body from notifications where title = 'Quantity change request returned'
+            and metadata->'entity'->>'id' = (select v from ids where k = 'r1')::text),
+  'Your quantity change request was returned: Please justify the quantity',
+  'AC-QCR-014 the return notification carries the reason');
 select lives_ok($$select qcr_update_draft((select v from ids where k = 'r1'), null, 'Justified: rock')$$, 'AC-QCR-014 the author edits the returned request');
 select is((select status from quantity_change_requests where id = (select v from ids where k = 'r1')), 'draft', 'a returned request reopens as a draft');
 select lives_ok($$select qcr_submit((select v from ids where k = 'r1'))$$, 'the author resubmits');

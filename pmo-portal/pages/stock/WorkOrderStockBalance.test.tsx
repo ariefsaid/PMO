@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 
-const h = vi.hoisted(() => ({ data: [] as unknown[], isLoading: false, isError: false, ownership: 'pmo', synced: true }));
+const h = vi.hoisted(() => ({ data: [] as unknown[], isLoading: false, isError: false, ownership: 'pmo', synced: true, wo: false }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.wo }) }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useWorkOrderStockBalance: () => ({ data: h.data, isLoading: h.isLoading, isError: h.isError, refetch: vi.fn() }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: () => h.ownership, isOwnershipCacheSynced: () => h.synced, subscribeOwnershipCache: () => () => {} }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'en' } }) }));
@@ -90,5 +92,12 @@ describe('WorkOrderStockBalance', () => {
     h.data = [row()];
     render(<WorkOrderStockBalance workOrderId="wo1" currency="IDR" />);
     expect(screen.queryByText('siteWork.balance.value')).toBeNull();
+  });
+
+  it('JOB-1122-6 with transfers between work orders on, the work order stock offers a visible start for the move', () => {
+    h.data = [row()]; h.wo = true;
+    render(<MemoryRouter><WorkOrderStockBalance workOrderId="wo1" currency="IDR" /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'workOrderTransfer.entry' })).toHaveAttribute('href', '/stock/work-order-transfer');
+    h.wo = false; h.data = [];
   });
 });

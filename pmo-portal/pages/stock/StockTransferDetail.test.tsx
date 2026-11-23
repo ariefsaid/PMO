@@ -9,9 +9,20 @@ import stockEn from '@/public/locales/en/stock.json';
 import stockId from '@/public/locales/id/stock.json';
 
 const h = vi.hoisted(() => ({
-  transfer: null as unknown, tags: [] as unknown[], items: [] as unknown[], timing: 'before_posting',
+  dn: true, transfer: null as unknown, tags: [] as unknown[], items: [] as unknown[], timing: 'before_posting',
   receive: vi.fn(), upload: vi.fn(), resolve: vi.fn(), recall: vi.fn(), record: vi.fn(),
+  waiting: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn(), calls: [] as unknown[][] },
 }));
+vi.mock('@/src/hooks/useOperationalWaitingRoute', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return {
+    ...actual,
+    useOperationalWaitingRoute: (kind: string, recordId: string | undefined, enabled: boolean) => {
+      h.waiting.calls.push([kind, recordId, enabled]);
+      return h.waiting;
+    },
+  };
+});
 vi.mock('@/src/hooks/useStockTransfers', () => ({
   useStockTransfer: () => ({ isPending: false, isError: false, data: h.transfer, refetch: vi.fn() }),
   useTransferConfirmations: () => ({ data: [] }),
@@ -19,6 +30,7 @@ vi.mock('@/src/hooks/useStockTransfers', () => ({
   useTransferSettings: () => ({ data: { mode: 'two_step', proofTiming: h.timing } }),
   useTransferRefresh: () => async () => [],
 }));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useDeliveryNoteSettings: () => ({ data: { enabled: h.dn, signatureBlocks: [] } }) }));
 vi.mock('@/src/hooks/useStock', () => ({ useStockItems: () => ({ data: h.items }), useStockWarehouses: () => ({ data: [{ id: 'w1', name: 'Central store' }, { id: 'w2', name: 'Site one' }] }) }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useStockTags: () => ({ data: h.tags }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [{ id: 'me', full_name: 'Dest Keeper' }] }) }));
@@ -36,7 +48,8 @@ const transfer = (extra: Record<string, unknown> = {}) => ({ id: 't1', number: '
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 beforeEach(() => {
   vi.clearAllMocks();
-  h.transfer = transfer(); h.tags = []; h.timing = 'before_posting';
+  h.waiting.data = undefined; h.waiting.isPending = false; h.waiting.isError = false; h.waiting.refetch.mockReset(); h.waiting.calls.length = 0;
+  h.transfer = transfer(); h.tags = []; h.timing = 'before_posting'; h.dn = true;
   h.items = [{ id: 'i1', code: 'PIPE', name: 'Pipe', tag_id: null, needs_quality_check: false }];
   h.receive.mockResolvedValue(undefined);
   h.upload.mockImplementation(async (_o: string, _t: string, _c: string, kind: string) => `org-1/t1/c1/${kind}.jpg`);
@@ -132,5 +145,105 @@ describe('StockTransferDetail receive (AC-TST-024)', () => {
     expect(stockId.transfers.receiveAction).toBe('Konfirmasi penerimaan');
     expect(stockId.handover.guestToggle).toBe('Penanda tangan tidak punya akun');
     expect(stockId.proof.outstanding).toBe('Bukti belum lengkap');
+  });
+});
+
+describe('StockTransferDetail print (#1122 item 7)', () => {
+  it('JOB-1122-7 a transfer offers "Print delivery note" when delivery notes are on, and not when they are off', async () => {
+    const view = renderPage();
+    expect(await screen.findByRole('link', { name: 'Print delivery note' })).toHaveAttribute('href', '/stock/transfers/t1/print');
+    view.unmount();
+    h.dn = false;
+    renderPage();
+    await screen.findByText(/TST-1/);
+    expect(screen.queryByRole('link', { name: 'Print delivery note' })).not.toBeInTheDocument();
+  });
+});
+
+describe('StockTransferDetail sender (#1122 item 1)', () => {
+  it('JOB-1122-1 the sender is not shown the receive form for their own shipment; they are told someone else counts it', async () => {
+    h.transfer = transfer({ sentBy: 'me' });
+    renderPage();
+    expect(await screen.findByText(/someone else counts it on arrival/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Counted/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirm receipt' })).not.toBeInTheDocument();
+  });
+
+  it('JOB-1122-1 the named receiver (not a keeper, not the sender) is shown the receive form', async () => {
+    h.transfer = transfer({ toUserId: 'me', sentBy: 'someone' });
+    renderPage();
+    expect(await screen.findByLabelText(/^Counted/)).toBeInTheDocument();
+  });
+});
+
+describe('StockTransferDetail who it is assigned to (#1122 Waiting 3, AC-WAIT-072/073)', () => {
+  it('reads the receipt route only while the transfer is Sent', () => {
+    renderPage();
+    expect(h.waiting.calls.at(-1)).toEqual(['transfer_receipt', 't1', true]);
+    h.transfer = transfer({ status: 'Received', receivedBy: 'me', receivedAt: '2026-11-20T10:00:00Z' });
+    renderPage();
+    expect(h.waiting.calls.at(-1)).toEqual(['transfer_receipt', 't1', false]);
+  });
+
+  it('an unassigned transfer names the destination keeper with their actual role, never every senior role', async () => {
+    h.transfer = transfer({ sentBy: 'someone', toUserId: null });
+    h.waiting.data = { approvers: [{ id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' }], routeKind: 'transfer_receipt' };
+    renderPage();
+    const line = await screen.findByTestId('transfer-waiting');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim, Engineer');
+    expect(line.textContent).not.toMatch(/Admin|Finance|Executive/);
+  });
+
+  it('uses every actual role when the assigned people hold different ones', async () => {
+    h.transfer = transfer({ sentBy: 'someone', toUserId: null });
+    h.waiting.data = {
+      approvers: [
+        { id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' },
+        { id: 'other', name: 'Tono Store', role: 'Finance' },
+      ],
+      routeKind: 'transfer_receipt',
+    };
+    renderPage();
+    const line = await screen.findByTestId('transfer-waiting');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim or Tono Store, Engineer or Finance');
+  });
+
+  it('never repeats the addressed receiver: the summary already names them', async () => {
+    h.transfer = transfer({ sentBy: 'someone', toUserId: 'me' });
+    h.waiting.data = { approvers: [{ id: 'me', name: 'Dest Keeper', role: 'Engineer' }], routeKind: 'transfer_receipt' };
+    renderPage();
+    expect(await screen.findByText(/Addressed to Dest Keeper/)).toBeInTheDocument();
+    expect(screen.queryByTestId('transfer-waiting')).toBeNull();
+  });
+
+  it('renders exactly the people the server named; the sender is excluded by the route, not re-filtered here', async () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: null });
+    h.waiting.data = { approvers: [{ id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' }], routeKind: 'transfer_receipt' };
+    renderPage();
+    const line = await screen.findByTestId('transfer-waiting');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim, Engineer');
+    expect(line.textContent).not.toContain('me');
+  });
+
+  it('says nothing when nobody is assigned and no keeper is known', () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: null });
+    h.waiting.data = { approvers: [], routeKind: 'transfer_receipt' };
+    renderPage();
+    expect(screen.queryByTestId('transfer-waiting')).toBeNull();
+  });
+
+  it('says nothing while the route is still being read', () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: null });
+    h.waiting.isPending = true;
+    renderPage();
+    expect(screen.queryByTestId('transfer-waiting')).toBeNull();
+  });
+
+  it('offers a retry when the route could not be read, even when a receiver is addressed', async () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: 'me' });
+    h.waiting.isError = true;
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(h.waiting.refetch).toHaveBeenCalled();
   });
 });

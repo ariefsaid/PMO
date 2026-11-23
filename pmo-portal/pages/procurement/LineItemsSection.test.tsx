@@ -23,6 +23,7 @@ const items: ProcurementItemRow[] = [
     erp_docstatus: null,
     erp_line_amount: null,
     erp_modified: null,
+    category_id: null, needed_by: null,
   },
 ];
 
@@ -72,6 +73,7 @@ function renderAddFlow(createFormLayout: boolean) {
               name: input.name, description: input.description ?? null,
               quantity: input.quantity, rate: input.rate, amount: input.quantity * input.rate,
               erp_docstatus: null, erp_line_amount: null, erp_modified: null,
+              category_id: null, needed_by: null,
             }]);
           }}
           onUpdate={vi.fn().mockResolvedValue(undefined)}

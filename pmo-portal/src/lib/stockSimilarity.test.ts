@@ -5,7 +5,6 @@ import {
   indexStockItems,
   normalizeStockName,
   typoAllowance,
-  withinDistance,
   type StockNameItem,
 } from './stockSimilarity';
 
@@ -44,18 +43,8 @@ describe('typoAllowance', () => {
   });
 });
 
-describe('withinDistance', () => {
-  it('AC-NDI-002 counts an adjacent transposition as one typo', () => {
-    expect(withinDistance('cement', 'cemnet', 1)).toBe(true);
-    expect(withinDistance('cement50kg', 'cemnet05kg', 2)).toBe(true);
-  });
-
-  it('AC-NDI-002 rejects a difference beyond the allowance and stops early on length', () => {
-    expect(withinDistance('cement', 'concrete', 1)).toBe(false);
-    expect(withinDistance('cement', 'cemen', 1)).toBe(true);
-    expect(withinDistance('cat', 'car', 0)).toBe(false);
-  });
-});
+  // the within-allowance question (`withinDistance`) is answered where the distance is needed (the duplicate finder
+  // sorts by it), so there is no boolean wrapper to test here (#2753); the transposition case is pinned below.
 
 describe('indexStockItems', () => {
   it('AC-NDI-003 indexes active items only, with the normalised key', () => {

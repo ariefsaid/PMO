@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -179,7 +181,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    expect(screen.getByRole('menuitem', { name: /Edit role/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Edit access level/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Change manager/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Disable/i })).toBeInTheDocument();
   });
@@ -234,12 +236,12 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
     // change role PM -> Executive and submit
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     // High-impact: a confirm appears FIRST; the mutation has NOT fired yet.
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText(/Change Desmond Achebe's role to Executive\?/i)).toBeInTheDocument();
@@ -255,10 +257,10 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Admin');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Admin');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
     const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
@@ -305,13 +307,14 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(/email/i), 'new.person@example.com');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/role/i), 'Finance');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/access level/i), 'Finance');
     await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
     await waitFor(() =>
       expect(mutations.invite.mutateAsync).toHaveBeenCalledWith({
         email: 'new.person@example.com',
         role: 'Finance',
         pOrgId: null,
+        builtInRole: null,
       }),
     );
     // It does not call an unrelated mutation.
@@ -328,6 +331,65 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
     const toast = await findToastAnnouncement('alert', /already in your workspace/i);
     expect(toast).toHaveTextContent(/already in your workspace/i);
+  });
+
+  it('fix1122 defect 2: an invitation whose outcome the transport lost says it cannot be confirmed, never the transport text, and keeps what was typed', async () => {
+    mutations.invite.mutateAsync.mockRejectedValue(new AppError('Edge Function returned a non-2xx status code'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'someone@example.com');
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
+    const toast = await findToastAnnouncement('alert', /could not confirm the invitation/i);
+    expect(toast).toHaveTextContent(/could not confirm whether the invitation email went out/i);
+    // The safe next action is offered: a retry is idempotent — a repeat whose invite already
+    // landed answers already_invited instead of sending a second email.
+    expect(toast).toHaveTextContent(/invite the same person again/i);
+    expect(toast).toHaveTextContent(/already invited/i);
+    // No false certainty: an unconfirmed outcome may not claim the invite was not sent.
+    expect(toast).not.toHaveTextContent(/invitation was not sent/i);
+    expect(toast).not.toHaveTextContent(/nothing was saved/i);
+    expect(screen.queryByText(/non-2xx/i)).toBeNull();
+    expect(within(screen.getByRole('dialog')).getByLabelText(/email/i)).toHaveValue('someone@example.com');
+  });
+
+  it('fix1122 defect 2: PROFILE_CREATE_FAILED — emitted after the auth invite went out — says the email was sent and the setup is incomplete, never "not sent"', async () => {
+    // admin-invite-user issues the auth invite BEFORE inserting the profile; on a profile failure
+    // it returns { error: 'PROFILE_CREATE_FAILED' } (its own test: "A failed profile write retains
+    // the pending account"). inviteUser's adapter decodes that body into an AppError carrying the
+    // emitted code, which is exactly the rejection this test binds through that boundary.
+    mutations.invite.mutateAsync.mockRejectedValue(new AppError('PROFILE_CREATE_FAILED', 'PROFILE_CREATE_FAILED'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'pending@example.com');
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
+    const toast = await findToastAnnouncement('alert', /invitation email sent, account setup incomplete/i);
+    expect(toast).toHaveTextContent(/pending@example\.com/);
+    expect(toast).toHaveTextContent(/member record was not created/i);
+    // The repair per source: an unconfirmed invitee is re-invited, not refused, so inviting the
+    // same address again is the safe operator action; escalation is named for a repeat failure.
+    expect(toast).toHaveTextContent(/invite the same address again/i);
+    expect(toast).toHaveTextContent(/tell your operator/i);
+    expect(toast).not.toHaveTextContent(/PROFILE_CREATE_FAILED/);
+    expect(toast).not.toHaveTextContent(/invitation was not sent/i);
+    // The invitation is out; the dialog closes like the role-not-set case.
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('fix1122 defect 2: a server-named refusal the screen does not know still means the invite was not sent, so that copy stays', async () => {
+    // INVITE_FAILED is emitted by admin-invite-user when authorization crashes — before any
+    // invite email is issued — so "not sent" remains accurate for a typed unknown code.
+    mutations.invite.mutateAsync.mockRejectedValue(new AppError('INVITE_FAILED', 'INVITE_FAILED'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'someone@example.com');
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
+    const toast = await findToastAnnouncement('alert', /the invitation was not sent/i);
+    expect(toast).toHaveTextContent(/nothing was saved/i);
+    expect(toast).not.toHaveTextContent(/INVITE_FAILED/);
+    expect(within(screen.getByRole('dialog')).getByLabelText(/email/i)).toHaveValue('someone@example.com');
   });
 
   it('an address that cannot be added (INVITE_NOT_ADDABLE) gets the one neutral message, not a generic failure', async () => {
@@ -405,6 +467,39 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
   });
 });
 
+describe('Admin Users — invitation outcome copy exists in both real catalogs (fix1122 defect 2)', () => {
+  const readInviteError = (lang: 'en' | 'id') =>
+    (JSON.parse(readFileSync(join(process.cwd(), 'public/locales', lang, 'administration.json'), 'utf8')) as {
+      admin: { users: { inviteError: Record<string, string> } };
+    }).admin.users.inviteError;
+  const catalogs = { en: readInviteError('en'), id: readInviteError('id') };
+
+  it.each([
+    ['en', catalogs.en, catalogs.id],
+    ['id', catalogs.id, catalogs.en],
+  ] as const)('the %s catalog carries the post-send and unconfirmed-outcome invite copy', (lang, node, other) => {
+    // The post-send typed code the edge fn emits (PROFILE_CREATE_FAILED) has truthful copy: the
+    // email went out, the member record did not, and the same address can be invited again.
+    expect(node.profileCreateFailed).toBeTruthy();
+    expect(node.profileCreateFailedDetail).toContain('{{email}}');
+    expect(node.profileCreateFailedDetail).toMatch(/invite the same address|Undang kembali alamat/i);
+    expect(node.profileCreateFailedDetail).not.toMatch(/PROFILE_CREATE_FAILED/);
+    // The ambiguous transport failure says the outcome cannot be confirmed, in both languages.
+    expect(node.unconfirmed).toBeTruthy();
+    expect(node.unconfirmedDetail).toMatch(/not confirm|tidak dapat memastikan/i);
+    // A real translation per language, not an English copy-paste.
+    expect(node.profileCreateFailed).not.toBe(other.profileCreateFailed);
+    expect(node.profileCreateFailedDetail).not.toBe(other.profileCreateFailedDetail);
+    expect(node.unconfirmed).not.toBe(other.unconfirmed);
+    // The known pre-send copies the screen already owns remain present.
+    expect(node.notSent).toBeTruthy();
+    expect(node.notSentDetail).toBeTruthy();
+    expect(node.rateLimited).toBeTruthy();
+    expect(node.roleNotSet).toBeTruthy();
+    expect(node.roleNotSetDetail).toBeTruthy();
+  });
+});
+
 describe('Admin Users — dialog error scoping (role confirm retry, no stale submit errors)', () => {
   it('a failed role confirm stays open so the staged change can be retried or cancelled', async () => {
     mutations.updateRole.mutateAsync.mockRejectedValue(new AppError('row violates RLS', '42501'));
@@ -412,10 +507,10 @@ describe('Admin Users — dialog error scoping (role confirm retry, no stale sub
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
     await findToastAnnouncement('alert', /don't have permission/i);
     // The confirmation itself survives the failure — the staged change is still on screen.
@@ -428,10 +523,10 @@ describe('Admin Users — dialog error scoping (role confirm retry, no stale sub
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
     await findToastAnnouncement('alert', /don't have permission/i);
     await userEvent.click(screen.getByRole('button', { name: /Cancel/i }));
@@ -439,7 +534,7 @@ describe('Admin Users — dialog error scoping (role confirm retry, no stale sub
     await userEvent.click(
       within(screen.getByText('Priya Venkatesh').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const nextDialog = screen.getByRole('dialog');
     expect(within(nextDialog).queryByText(/don't have permission/i)).not.toBeInTheDocument();
   });

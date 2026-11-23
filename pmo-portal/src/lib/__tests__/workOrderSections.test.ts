@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocationFits, allocationHeadroom, fromUnits, quantitiesByUnit, readinessRollup, rollupBySection, toUnits } from '../workOrderSections';
+import { allocationHeadroom, quantitiesByUnit, readinessRollup, rollupBySection } from '../workOrderSections';
 
 describe('rollupBySection (AC-WOS-002: the roll-up invariant)', () => {
   it('direct budget: A 400.00 + B 350.00 + remainder 250.00 = 1,000.00 exactly', () => {
@@ -50,15 +50,6 @@ describe('rollupBySection (AC-WOS-002: the roll-up invariant)', () => {
   });
 });
 
-describe('units', () => {
-  it('round-trips and rejects finer-than-scale input', () => {
-    expect(fromUnits(toUnits('12.5', 2) as bigint, 2)).toBe('12.50');
-    expect(fromUnits(toUnits('-0.05', 2) as bigint, 2)).toBe('-0.05');
-    expect(toUnits('1.001', 2)).toBeNull();
-    expect(toUnits('1.000', 2)).toBe(100n);
-  });
-});
-
 describe('readinessRollup (AC-WOS-014: the render of the server counts)', () => {
   it('ready, ready, blocked: counts 2/0/1 and all ready is false', () => {
     const r = readinessRollup({ live_sections: 3, ready: 2, not_ready: 0, blocked: 1, all_ready: false });
@@ -95,10 +86,8 @@ describe('allocationHeadroom (AC-WOS-008)', () => {
   it('allocations 60 and 30 against a plan of 100 leave 10', () => {
     expect(allocationHeadroom('100.000', ['60.000', '30.000'])).toEqual({ allocated: '90.000', remaining: '10.000', overAllocated: false });
   });
-  it('raising B to 50 does not fit; 40 does', () => {
-    expect(allocationFits('100.000', ['60.000'], '50.000')).toBe(false);
-    expect(allocationFits('100.000', ['60.000'], '40.000')).toBe(true);
-  });
+  // AC-WOS-008 (a proposed allocation must fit the plan) is enforced by the server on write; the modal shows the
+  // headroom words, so there is no client fits-rule to test here (#2753).
   it('a plan that later drops to 80 flags the item and rewrites nothing', () => {
     const r = allocationHeadroom('80.000', ['60.000', '30.000']);
     expect(r).toEqual({ allocated: '90.000', remaining: '-10.000', overAllocated: true });

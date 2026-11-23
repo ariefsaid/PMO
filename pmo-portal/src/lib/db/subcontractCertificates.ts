@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import type { Json } from '@/src/lib/supabase/database.types';
 
@@ -136,13 +137,16 @@ export async function listCertificates(filters: CertificateFilters = {}): Promis
     .order('period_start', { ascending: false }).order('id', { ascending: false })
     .range(offset, offset + CERTIFICATE_PAGE_SIZE);
   if (error) throwRpc(error);
-  const rows = (data ?? []) as unknown as CertificateRow[];
+  // `status` is a text column whose domain the database CHECK owns; the generated type says `string`.
+  const rows = (data ?? []).map((r) => ({ ...r, status: r.status as CertificateStatus }));
   return { rows: rows.slice(0, CERTIFICATE_PAGE_SIZE), hasMore: rows.length > CERTIFICATE_PAGE_SIZE };
 }
 
 export async function getCertificateView(id: string): Promise<CertificateView> {
   const { data, error } = await supabase.rpc('subcontract_certificate_view', { p_certificate: id });
   if (error) throwRpc(error);
+  // `subcontract_certificate_view` is declared `returns jsonb`, so the generated type is `Json` and this shape is
+  // stated here, not by the compiler (see scripts/check-typed-dals.mjs).
   return data as unknown as CertificateView;
 }
 
@@ -179,6 +183,7 @@ export async function billCertificate(input: BillCertificateInput): Promise<Bill
     ...(input.referenceNumber ? { p_reference_number: input.referenceNumber } : {}),
   });
   if (error) throwRpc(error);
+  // `bill_subcontract_certificate` is declared `returns jsonb` (same reason as the certificate view above).
   return data as unknown as BillResult;
 }
 
@@ -204,7 +209,9 @@ export interface RecordBackchargeInput {
 export async function recordBackcharge(input: RecordBackchargeInput): Promise<string> {
   const { data, error } = await supabase.rpc('record_subcontract_backcharge', {
     p_vendor: input.vendorId, p_project: input.projectId, p_amount: input.amount, p_currency: input.currency, p_reason_code: input.reasonCode,
-    ...(input.workOrderId ? { p_work_order: input.workOrderId } : {}), ...(input.reasonText ? { p_reason_text: input.reasonText } : {}),
+    // `p_work_order` has no DEFAULT, so it is always sent; null is the database's own "not tied to a work order"
+    // (the definer tests `p_work_order is null`). `p_reason_text` keeps its DEFAULT null, so it is sent only when given.
+    p_work_order: nullableArg(input.workOrderId ?? null), ...(input.reasonText ? { p_reason_text: input.reasonText } : {}),
   });
   if (error) throwRpc(error);
   return String(data);
@@ -221,7 +228,7 @@ export async function listOpenBackcharges(vendorId: string, projectId: string): 
     .select('id, vendor_company_id, project_id, work_order_id, currency, amount, reason_code, reason_text, claimed_by_certificate_id, archived_at')
     .eq('vendor_company_id', vendorId).eq('project_id', projectId).is('archived_at', null).order('created_at', { ascending: false }).limit(200);
   if (error) throwRpc(error);
-  return (data ?? []) as unknown as BackchargeRow[];
+  return data ?? [];
 }
 
 /** The rate card (FR-SPC-001/003): RLS decides which vendors a role sees. */
@@ -231,7 +238,7 @@ export async function listRateLines(vendorId?: string): Promise<RateLineRow[]> {
   if (vendorId) query = query.eq('vendor_company_id', vendorId);
   const { data, error } = await query.order('vendor_company_id').order('boq_item_id').order('version', { ascending: false }).limit(500);
   if (error) throwRpc(error);
-  return (data ?? []) as unknown as RateLineRow[];
+  return data ?? [];
 }
 
 export interface SetRateInput { vendorId: string; boqItemId: string; unit: string; rate: number; currency: string; effectiveFrom: string; effectiveTo?: string | null }
@@ -250,8 +257,7 @@ export async function listSubcontractPos(): Promise<SubcontractPoOption[]> {
     .select('id, po_number, work_order_id, currency, procurements!purchase_orders_procurement_id_fkey!inner(title, project_id, vendor_id, is_subcontract)')
     .eq('procurements.is_subcontract', true).order('created_at', { ascending: false }).limit(200);
   if (error) throwRpc(error);
-  type Raw = { id: string; po_number: string | null; work_order_id: string | null; currency: string; procurements: { title: string; project_id: string | null; vendor_id: string | null } | Array<{ title: string; project_id: string | null; vendor_id: string | null }> };
-  return ((data ?? []) as unknown as Raw[]).map((r) => {
+  return (data ?? []).map((r) => {
     const p = Array.isArray(r.procurements) ? r.procurements[0] : r.procurements;
     return { po_id: r.id, po_number: r.po_number, title: p?.title ?? '', project_id: p?.project_id ?? null, vendor_id: p?.vendor_id ?? null, work_order_id: r.work_order_id, currency: r.currency };
   });

@@ -1,20 +1,20 @@
-import React, { useId, useState } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { Button, ConfirmDialog, FieldError, ListState, Switch, TextField } from '@/src/components/ui';
-import { cn } from '@/src/components/ui/cn';
+import { Button, ConfirmDialog, FieldError, ListState, TextField } from '@/src/components/ui';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import {
-  archivePurchaseLineCategory, getPurchaseLinePlanning, listPurchaseLineCategories, savePurchaseLineCategory, setPurchaseLinePlanning,
+  archivePurchaseLineCategory, getPurchaseLinePlanning, listPurchaseLineCategories, savePurchaseLineCategory,
   type PurchaseLineCategory,
 } from '@/src/lib/db/procurementLinePlanning';
 import { LINE_CATEGORIES_KEY, LINE_PLANNING_KEY } from '@/src/hooks/usePurchaseLinePlanning';
 
 /**
- * #2696 (FR-PLP-003/004) — Administration: turn line planning on and keep the organisation's list of line categories.
+ * #2696 (FR-PLP-003/004) — Administration: keep the organisation's list of line categories. Line planning is on for everyone (#2746) and
+ * hidden with the Purchasing extras module.
  * Anyone who can open Administration sees it; only an Admin changes it. UX gate only — the RPCs are the authority.
  */
 export default function OrgPurchaseLines() {
@@ -22,7 +22,6 @@ export default function OrgPurchaseLines() {
   const orgId = useAuth().currentUser?.org_id;
   const canManage = usePermission()('manage', 'orgAccounting');
   const qc = useQueryClient();
-  const switchLabelId = useId();
   const [newName, setNewName] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [retiring, setRetiring] = useState<PurchaseLineCategory | null>(null);
@@ -32,10 +31,6 @@ export default function OrgPurchaseLines() {
   const planning = useQuery({ queryKey: planningKey, queryFn: getPurchaseLinePlanning, enabled: Boolean(orgId), ...SESSION_QUERY_OPTIONS });
   const categories = useQuery({ queryKey: categoriesKey, queryFn: () => listPurchaseLineCategories(), enabled: Boolean(orgId) && planning.data === true, ...SESSION_QUERY_OPTIONS });
 
-  const toggle = useMutation({
-    mutationFn: (next: boolean) => setPurchaseLinePlanning(next),
-    onSuccess: (next) => { qc.setQueryData(planningKey, next); void qc.invalidateQueries({ queryKey: categoriesKey }); },
-  });
   const save = useMutation({
     mutationFn: (v: { id: string | null; name: string }) => savePurchaseLineCategory(v.id, v.name),
     onSuccess: () => { setNewName(''); setRenaming(null); void qc.invalidateQueries({ queryKey: categoriesKey }); },
@@ -44,9 +39,9 @@ export default function OrgPurchaseLines() {
     mutationFn: (id: string) => archivePurchaseLineCategory(id),
     onSuccess: () => { setRetiring(null); void qc.invalidateQueries({ queryKey: categoriesKey }); },
   });
-  const failure = [toggle, save, retire].find((m) => m.isError);
+  const failure = [save, retire].find((m) => m.isError);
   const error = failure ? classifyMutationError(failure.error) : null;
-  const busy = toggle.isPending || save.isPending || retire.isPending;
+  const busy = save.isPending || retire.isPending;
   const active = (categories.data ?? []).filter((c) => !c.archived_at);
 
   return (
@@ -58,10 +53,6 @@ export default function OrgPurchaseLines() {
           : (
             <>
               <p className="text-control text-muted-foreground">{t('linePlanning.intro', 'Each request line can carry a category and the date it is needed.')}</p>
-              <label className={cn('flex min-h-11 items-start gap-3 py-1.5 text-control', canManage ? 'cursor-pointer' : 'cursor-default')}>
-                <Switch checked={planning.data === true} onChange={(next) => { toggle.reset(); toggle.mutate(next); }} labelledBy={switchLabelId} disabled={!canManage || busy} className="mt-0.5" />
-                <span id={switchLabelId} className="block min-w-0 font-medium">{t('linePlanning.enable', 'Show a category and a needed-by date on each request line')}</span>
-              </label>
               {planning.data === true && (
                 <div className="space-y-2" data-testid="line-category-list">
                   <h3 className="text-control font-semibold">{t('linePlanning.categories', 'Categories')}</h3>

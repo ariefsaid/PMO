@@ -10,6 +10,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+import { expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
+import { acceptancesAwaitingConfirmationKey } from '@/src/hooks/useWorkOrderAcceptances';
+import { waitingDecisionsKey, decisionStandingKey } from '@/src/hooks/useWaitingDecisions';
+import { orgSwitchKey } from '@/src/hooks/useOrgSwitch';
 
 const h = vi.hoisted(() => ({
   procurements: [] as unknown[],
@@ -29,6 +34,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
 }));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: h.procurements, isPending: false, isError: false, refetch: () => Promise.resolve() }),
 }));
@@ -61,6 +67,29 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectNumbers: () => ({ data: { p1: 'PRJ-26-0001' }, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/lib/db/waitingDecisions', () => ({
+  listWaitingDecisions: () => Promise.resolve([]),
+  hasDecisionStanding: () => Promise.resolve(false),
+}));
+// test/setup.ts holds the two database reads behind the shared waiting list idle, but its partial mock
+// omits the real cache-key factories — and this file seeds the canonical cache with them. Keep the real
+// exports and re-hold only the two reads idle, so the aggregator still runs against a still shared list.
+vi.mock('@/src/hooks/useWaitingDecisions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useWaitingDecisions')>()),
+  useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
+  useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
+}));
+vi.mock('@/src/lib/repositories/leave', () => ({
+  leaveRepository: {
+    settings: () => Promise.resolve({ enabled: false, approver_role: null }),
+    visible: () => Promise.resolve([]),
+  },
+}));
+vi.mock('@/src/lib/repositories/phoneCheckIn', () => ({
+  phoneCheckInRepository: {
+    requests: () => Promise.resolve([]),
+  },
+}));
 vi.mock('@/src/lib/repositories', async () => {
   const dash = await import('@/src/lib/db/dashboard');
   return {
@@ -83,6 +112,9 @@ vi.mock('@/src/lib/repositories', async () => {
         },
       }),
     },
+    imprest: { listAwaitingImprest: () => Promise.resolve({ plans: [], replenishments: [] }) },
+    billingStages: { waitingSteps: () => Promise.resolve([]) },
+    workOrderAcceptance: { listAwaitingConfirmation: () => Promise.resolve([]) },
   },
 };
 });
@@ -91,9 +123,23 @@ import { PMDashboard } from '../PMDashboard';
 
 const renderDashboard = () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(waitingDecisionsKey('org-1', 'pm-1'), []);
+  client.setQueryData(decisionStandingKey('org-1', 'pm-1'), false);
+  client.setQueryData(['leave-settings', 'org-1'], { enabled: false, approver_role: null });
+  client.setQueryData(orgSwitchKey('org-1', 'modulePeopleCrews'), true);
+  client.setQueryData(acceptancesAwaitingConfirmationKey('org-1', 'pm-1'), []);
+  client.setQueryData(['imprest-awaiting', 'org-1'], { plans: [], replenishments: [] });
+  client.setQueryData(expenseClaimsAwaitingKey('org-1'), []);
+  client.setQueryData(['waiting-billing-steps', 'org-1'], []);
+
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><PMDashboard /></MemoryRouter>
+      <AuthContext.Provider value={{
+        currentUser: { id: 'pm-1', org_id: 'org-1' },
+        role: 'Project Manager',
+      } as AuthContextValue}>
+        <MemoryRouter><PMDashboard /></MemoryRouter>
+      </AuthContext.Provider>
     </QueryClientProvider>,
   );
 };

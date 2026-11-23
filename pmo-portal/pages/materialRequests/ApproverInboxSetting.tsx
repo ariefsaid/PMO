@@ -20,7 +20,7 @@ const Editor: React.FC = () => {
   };
   return (
     <RecordSection title={t('settings.approverInbox', 'Approvals inbox and notifications')}
-      subline={t('settings.approverInboxSub', 'When on, each approver is notified when a request step becomes theirs, and the step is listed on the Approvals page. Off by default.')}>
+      subline={t('settings.approverInboxSub', 'When on, each approver is also notified in the app when a request step becomes theirs. The step is always listed on the Approvals page, whatever this says. Off by default.')}>
       {setting.isError && <ListState variant="error" title={t('settings.approverInboxError', "Couldn't load this setting")} onRetry={() => void setting.refetch()} />}
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       {!setting.isError && (

@@ -2,7 +2,9 @@
 -- AC-CHG-011: every registry table carries the capture trigger (AFTER INSERT OR UPDATE, FOR EACH ROW); no
 -- capture trigger exists off-registry; every column of a tracked table is classified exactly once (captured /
 -- flag / omit) and nothing is classified that does not exist; every captured kind is a known kind; every
--- captured column is SELECT-able by authenticated; every registry entity has a record_history_visible arm.
+-- captured column is SELECT-able by authenticated; every registry entity's row resolves to a readable table
+-- (since 1490 the registry row IS the record_history_visible arm, so the check is "the arm works", not "the
+-- function lists it").
 -- The gate names its offenders, and a planted-defect self-test proves each check can turn red.
 -- This is the 0074 lesson's missing half: a trigger attached by list silently misses what is added later.
 -- Migration under test: 0260_record_change_history.sql.
@@ -55,7 +57,8 @@ union all
 select trg.rel || '.' || trg.tgname || ' is not AFTER INSERT OR UPDATE FOR EACH ROW'
   from trg where trg.tgtype <> (1 | 4 | 16);   -- ROW | INSERT | UPDATE, not BEFORE, no DELETE
 
--- record_history_visible arm per registry entity: an entity without an arm raises.
+-- record_history_visible arm per registry entity: every registered row must resolve to a readable table (since
+-- 1490 the row is the arm), so this names a registration whose table is gone rather than a missing case arm.
 create function pg_temp.chg_arm_gaps() returns text language plpgsql as $$
 declare r record; v_out text;
 begin
@@ -73,7 +76,7 @@ end $$;
 select is((select string_agg(gap, '; ' order by gap) from chg_gate_gaps), null,
   'AC-CHG-011 registry, triggers, classification and column privileges agree (offenders named)');
 select is(pg_temp.chg_arm_gaps(), null,
-  'AC-CHG-011 every registry entity has a record_history_visible arm');
+  'AC-CHG-011 every registry entity resolves to a readable table (its visibility arm)');
 select is((select count(*)::int from public.record_history_config), 21,
   'AC-CHG-011 21 registered record types including PMO and ERP invoice mirrors, the two vendor-withholding-slip tables, pipeline stage entries, usage standards, third-party inspections, crew tool lines and safety days');
 
@@ -110,12 +113,10 @@ select is((select string_agg(gap, '; ' order by gap) from chg_gate_gaps),
   'AC-CHG-011 self-test: a captured column whose SELECT is revoked is named');
 rollback to savepoint plant;
 
-insert into public.record_history_config (entity_type, table_name, captured, omit_cols)
-  select 'zz_planted_entity', 'incident_reports', '{}'::jsonb,
-         array_agg(attname::text) from pg_attribute
-   where attrelid = 'public.incident_reports'::regclass and attnum > 0 and not attisdropped;
+insert into public.record_history_config (entity_type, table_name, captured)
+  values ('zz_planted_entity', 'zz_planted_missing_table', '{}'::jsonb);
 select is(pg_temp.chg_arm_gaps(), 'zz_planted_entity',
-  'AC-CHG-011 self-test: a registry entity with no visibility arm is named');
+  'AC-CHG-011 self-test: a registry row whose table cannot be read is named (the row is the arm since 1490)');
 rollback to savepoint plant;
 
 -- ── restored ────────────────────────────────────────────────────────────────────────────────────

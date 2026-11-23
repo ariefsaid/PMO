@@ -15,7 +15,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { USER_DIRECTORY_PAGE_SIZE } from '@/src/lib/db/adminUsers';
 import type { UserDirectoryRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
-import { useBuiltInRolesEnabled, useBuiltInRoleMutation } from '@/src/hooks/useBuiltInRoles';
+import { useBuiltInRoleMutation } from '@/src/hooks/useBuiltInRoles';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { baseLevelOf } from '@/src/auth/builtInRoles';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useTranslation } from 'react-i18next';
@@ -57,7 +58,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
   const updateBuiltInRole = useBuiltInRoleMutation();
   // #2709: the built-in role picker is offered only once the organization has turned the set on (default off = screen unchanged).
-  const builtInRolesEnabled = useBuiltInRolesEnabled().data === true;
+  const builtInRolesEnabled = useOrgSwitch('builtInRoles').data === true;
   const { currentUser } = useAuth();
   // AC-JR-W3B-E1 manager jump: { userId, name, fromPage, fromSearch } while we are showing someone
   // else's page for a manager click; `null` when the directory is where the user left it. The
@@ -301,12 +302,13 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     void confirmSetStatus(pendingStatus.user, pendingStatus.status);
   };
 
+  const KNOWN_INVITE_CODES = new Set(['DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG', 'INVITE_NOT_ADDABLE', 'INVITE_RETRY', 'SEAT_LIMIT_REACHED']);
   // ── Invite (FR-INV-004/005): admin-invite-user edge fn — Admin-in-org OR Operator. ──
-  const submitInvite = async (email: string, role: UserRole, pOrgId: string | null) => {
+  const submitInvite = async (email: string, role: UserRole, pOrgId: string | null, builtIn: string | null) => {
     // A fresh attempt starts clean — an earlier failure never resurfaces in a new dialog.
     setInviteError(null);
     try {
-      const outcome = await invite.mutateAsync({ email, role, pOrgId });
+      const outcome = await invite.mutateAsync({ email, role, pOrgId, builtInRole: builtIn });
       // #2252: an identical repeat says whether a fresh link went out.
       if (outcome === 'already_invited') {
         toast(
@@ -332,13 +334,69 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           t('admin.users.toast.inviteSentDetail', {
             defaultValue: '{{email}} has been invited as {{role}}.',
             email,
-            role: roleNames.label(role),
+            role: builtIn ? roleDisplayName(builtIn) : roleNames.label(role),
           }),
           'success',
         );
       }
       setInviteOpen(false);
     } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      // The invitation went out; only the job role did not save. Close the dialog and say what to do.
+      if (code === 'INVITE_ROLE_NOT_SET') {
+        setInviteOpen(false);
+        toast(
+          t('administration:admin.users.inviteError.roleNotSet', 'Invitation sent, job role not saved'),
+          t('administration:admin.users.inviteError.roleNotSetDetail', '{{email}} was invited. Open their row and choose Change job role to set it.', { email }),
+          'warning',
+        );
+        return;
+      }
+      // The email went out BEFORE the member record failed — admin-invite-user issues the auth
+      // invite first, then inserts the profile, so PROFILE_CREATE_FAILED means the invitation
+      // email is out but the account setup did not finish (the edge fn keeps the pending
+      // account). "Not sent" would be false. An unconfirmed invitee is re-invited rather than
+      // refused, so inviting the same address again is the repair; escalation is named for a
+      // repeat failure. The dialog closes like the role-not-set case.
+      if (code === 'PROFILE_CREATE_FAILED') {
+        setInviteOpen(false);
+        toast(
+          t('administration:admin.users.inviteError.profileCreateFailed', 'Invitation email sent, account setup incomplete'),
+          t(
+            'administration:admin.users.inviteError.profileCreateFailedDetail',
+            '{{email}} received the invitation email, but their member record was not created, so they are not in the member list yet. Invite the same address again: the pending invitation link is re-sent and the member record is attempted once more. If it fails the same way, tell your Operator.',
+            { email },
+          ),
+          'warning',
+        );
+        return;
+      }
+      // The server named no code (a timeout, a lost response, a blocked call): the outcome cannot
+      // be confirmed — the email may already be out, so the screen may not claim "not sent".
+      // What was typed stays in the dialog (#2252 keeps it open); the safe move is to invite the
+      // same address again — a repeat whose invite already landed answers already_invited
+      // instead of sending a second email.
+      if (!code) {
+        const headline = t('administration:admin.users.inviteError.unconfirmed', 'Could not confirm the invitation');
+        const detail = t(
+          'administration:admin.users.inviteError.unconfirmedDetail',
+          'We could not confirm whether the invitation email went out — no answer came back from the server. What you typed is still here: check the address, then invite the same person again. If the first invite landed, you will be told it is already invited instead of getting a second email. If it keeps failing, tell your Operator.',
+        );
+        setInviteError({ headline, detail });
+        toast(headline, detail, 'warning');
+        return;
+      }
+      // A typed refusal the screen does not know is still a server answer: the request reached
+      // the backend and was refused before issuance, so "not sent" stays accurate for it.
+      if (!KNOWN_INVITE_CODES.has(code)) {
+        const headline = t('administration:admin.users.inviteError.notSent', 'The invitation was not sent');
+        const detail = code === 'RATE_LIMITED'
+          ? t('administration:admin.users.inviteError.rateLimited', 'Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.')
+          : t('administration:admin.users.inviteError.notSentDetail', 'The email could not be sent, so nothing was saved. What you typed is still here: check the address and try again. If it keeps failing, tell your Operator that invitation emails are not going out.');
+        setInviteError({ headline, detail });
+        toast(headline, detail, 'warning');
+        return;
+      }
       const { headline, detail } = classifyMutationError(err, {
         DUPLICATE_EMAIL: t('admin.users.inviteError.duplicateEmail', 'That person is already in your workspace.'),
         INVITE_UNAUTHORIZED: t('admin.users.inviteError.unauthorized', "You don't have permission to invite users."),
@@ -502,6 +560,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           submitError={inviteError}
           onClose={() => setInviteOpen(false)}
           onSubmit={submitInvite}
+          builtInEnabled={builtInRolesEnabled}
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, RecordSection, useToast } from '@/src/components/ui';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { EXPENSE_QUERY_ROOTS } from '@/src/hooks/useExpenseClaims';
@@ -17,6 +17,7 @@ interface Props {
 /** The claim's work order and discipline (#2732): shown on every claim of a project, correctable by a permitted person. */
 export const ExpenseAttributionCard: React.FC<Props> = ({ claim, canEdit }) => {
   const { t } = useTranslation('workOrderCost');
+  const attributionError = useAttributionErrorText();
   const { toast } = useToast();
   const qc = useQueryClient();
   const workOrders = useProjectWorkOrders(claim.project_id ?? '');
@@ -33,7 +34,7 @@ export const ExpenseAttributionCard: React.FC<Props> = ({ claim, canEdit }) => {
       setEditing(false);
       toast(t('workOrderCost:expenseClaim.saved', 'Work order and discipline saved'), undefined, 'success');
     },
-    onError: (err: unknown) => { const d = describeAttributionError(err, t); toast(d.headline, d.detail, 'warning'); },
+    onError: (err: unknown) => { const d = attributionError(err); toast(d.headline, d.detail, 'warning'); },
   });
   if (claim.kind !== 'claim' || !claim.project_id) return null;
 

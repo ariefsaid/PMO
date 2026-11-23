@@ -16,13 +16,18 @@ import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
 } from '@/src/hooks/useDailySiteReports';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { dsrReportRevenue } from '@/src/lib/dsrRevenue';
+import { waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
+import { dsrWaitingForText, useDsrValidationRoute } from '@/src/hooks/useDsrValidationRoute';
+import { useRoleLabels } from '../admin-users/roleLabels';
+import type { UserRole } from '@/src/lib/db/adminUsers';
 import type { DsrReportDetail } from '@/src/lib/db/dailySiteReports';
 import {
   siteReportDraftInput, siteReportFormFromDetail, validateSiteReportForm, workingMinutes, type SiteReportForm,
 } from './siteReportForm';
+import { missingPartsFrom } from './emptyReport';
 import { SiteReportPhotos } from './SiteReportPhotos';
 import { SiteCheckpoints } from './SiteCheckpoints';
 import { SiteReportStock } from './SiteReportStock';
@@ -50,20 +55,50 @@ const SiteReportDetail: React.FC = () => {
 };
 
 const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => {
-  const { t } = useTranslation(['siteReport', 'status']);
+  const { t } = useTranslation(['siteReport', 'status', 'waitingList']);
   const navigate = useNavigate();
   const { toast } = useToast();
   const narrow = useIsNarrow();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
+  const roleLabels = useRoleLabels();
   const { report } = detail;
   const project = useProject(report.project_id).data ?? null;
   const ctx = { realRole, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
   const editable = (report.status === 'draft' || report.status === 'returned')
     && (report.author_id === userId || can('create', 'dailySiteReport', ctx));
+  const mayWithdraw = report.status === 'submitted' && report.author_id === userId;
   const mayValidate = report.status === 'submitted' && can('approve', 'dailySiteReport', ctx);
   const mayCorrect = report.status === 'validated' && !report.superseded_at && can('revise', 'dailySiteReport', ctx);
   const seeRevenue = can('view', 'dailySiteReportRevenue', ctx);
+
+  // fix-waiting item 3: who the submitted report waits for, from the server's own route. The route is
+  // SECURITY INVOKER over the existing report/project/profile policies and binds ONE visible Submitted
+  // report; a draft/returned/validated report pays no read. While it loads, no name is claimed; a failed
+  // read says so (with a retry); a proven empty route says nobody active can validate — a project with no
+  // (eligible) PM never invents a project approver. The named person is spoken with the database's own
+  // role word ("Project Manager") through the shared role-label seam.
+  const route = useDsrValidationRoute(report.status === 'submitted' ? report.id : null);
+  const waitingLabels = {
+    role: (role: string) => roleLabels.label(role as UserRole),
+    financeAdmin: waitingRoleLabel('roleFinanceAdmin', t),
+    nobody: t('detail.nobodyCanValidate', 'Nobody active can validate this report right now.'),
+    unavailable: t('common:uxs32.routeUnavailable', "Couldn't verify who can approve right now."),
+  };
+  // A known POSITIVE route (a named PM, or at least one eligible Admin/Finance) is still worth saying
+  // while a background refresh fails. A known 'nobody' is NOT: it is a definitive statement that the
+  // failed refresh may already have falsified, so the screen states the uncertainty instead.
+  const knownRoute = route.data ?? null;
+  const keepKnownRoute = knownRoute !== null
+    && knownRoute.routeKind !== 'nobody'
+    && knownRoute.routeKind !== 'unavailable';
+  const waitingLine = report.status !== 'submitted'
+    ? null
+    : route.isError
+      ? (keepKnownRoute && knownRoute ? dsrWaitingForText(knownRoute, t, waitingLabels) : waitingLabels.unavailable)
+      : knownRoute
+        ? dsrWaitingForText(knownRoute, t, waitingLabels)
+        : null;
 
   const lookups = useDsrLookups(report.work_order_id, report.id);
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
@@ -96,9 +131,19 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
 
   const run = async (work: () => Promise<unknown>, success: string) => {
     try { await work(); toast(success, detail.workOrder?.label ?? '', 'success'); return true; } catch (err) {
+      const missing = missingPartsFrom(err);
+      if (missing) {
+        const words = { progress: t('empty.progress', 'progress'), hours: t('empty.hours', 'start and end time'), photo: t('empty.photo', 'a photo') };
+        const list = missing.map((part) => words[part]).join(', ');
+        const headline = t('empty.headline', 'This report is empty');
+        const d = t('empty.detail', { defaultValue: 'Add at least one of: {{list}}.', list });
+        toast(headline, d, 'warning');
+        setDialogError(joinSentences(headline, d));
+        return false;
+      }
       const { headline, detail: d } = classifyMutationError(err);
       toast(headline, d, 'warning');
-      setDialogError(d ? `${headline}. ${d}` : headline);
+      setDialogError(d ? joinSentences(headline, d) : headline);
       return false;
     }
   };
@@ -109,7 +154,15 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
     if (ok) setDirty(false);
     return ok;
   };
-  const submit = async () => { if (await save()) await run(() => m.submit.mutateAsync(report.id), t('toast.submitted', 'Sent for validation')); };
+  const submit = async () => {
+    if (!(await save())) return;
+    // The author is told at send what the validator will still need (the rule is the validator's, shown to both).
+    const missingPhoto = !detail.photos.some((p) => p.kind === 'paper_form');
+    await run(() => m.submit.mutateAsync(report.id), missingPhoto
+      ? t('toast.submittedNeedsPhoto', 'Sent for validation. The validator needs a photo of the paper form: add it.')
+      : t('toast.submitted', 'Sent for validation'));
+  };
+  const withdraw = () => run(() => m.withdraw.mutateAsync(report.id), t('toast.withdrawn', 'Report taken back. You can edit it again.'));
   const validate = () => run(() => m.validate.mutateAsync(report.id), t('toast.validated', 'Report validated'));
   const hasPaperForm = detail.photos.some((p) => p.kind === 'paper_form');
 
@@ -118,6 +171,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
       { key: 'save', label: t('actions.save', 'Save draft'), variant: 'outline' as const, onSelect: () => void save(), loading: m.save.isPending },
       { key: 'submit', label: t('actions.submit', 'Submit'), onSelect: () => void submit(), loading: m.submit.isPending },
     ] : []),
+    ...(mayWithdraw ? [{ key: 'withdraw', label: t('actions.withdraw', 'Withdraw'), variant: 'outline' as const, onSelect: () => void withdraw(), loading: m.withdraw.isPending }] : []),
     ...(mayValidate ? [
       { key: 'return', label: t('actions.return', 'Return'), variant: 'outline' as const, onSelect: () => { setDialogError(null); setDialog('return'); } },
       { key: 'validate', label: t('actions.validate', 'Validate'), onSelect: () => void validate(), loading: m.validate.isPending, disabled: !hasPaperForm },
@@ -157,6 +211,11 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           </div>
         )}
       >
+        {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="dsr-waiting-for">{waitingLine}</p>}
+        {report.status === 'submitted' && route.isError && (
+          <Button variant="outline" size="sm" onClick={() => void route.refetch()}>{t('common:ui.listState.retry', 'Retry')}</Button>
+        )}
+        {editable && !hasPaperForm && <p className="text-foreground" role="status" data-testid="dsr-author-needs-photo">{t('detail.needsPhotoAuthor', 'Add a photo of the paper form before you send. The validator cannot accept the report without it.')}</p>}
         {mayValidate && !hasPaperForm && <p className="text-foreground">{t('detail.needsPhoto', 'A photo of the paper form is needed to validate')}</p>}
         {report.superseded_at && <p className="text-foreground">{t('detail.superseded', 'Replaced by a correction')}</p>}
         {report.correction_reason && <p className="text-foreground">{t('detail.correction', { defaultValue: 'Correction: {{reason}}', reason: report.correction_reason })}</p>}
@@ -175,6 +234,13 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             <p className="text-foreground">{t('progress.unrated', { defaultValue: '{{count}} lines without a rate', count: lineRevenue.unratedCount })}</p>
           )}
           {form.progress.length === 0 && !editable && <p className="text-muted-foreground">{t('progress.none', 'No progress recorded')}</p>}
+          {editable && itemsData !== undefined && items.length === 0 && (
+            <p className="text-foreground" data-testid="dsr-no-items">
+              {project?.pm?.full_name
+                ? t('progress.noItemsAsk', { defaultValue: 'This work order has no items yet. Ask {{name}}.', name: project.pm.full_name })
+                : t('progress.noItems', 'This work order has no items yet. Ask the project manager.')}
+            </p>
+          )}
           {form.progress.length > 0 && <ul className="space-y-3">
             {form.progress.map((line, i) => {
               const saved = detail.progress[i];
@@ -266,7 +332,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           )}
         </RecordSection>}
 
-        {report.status === 'validated' && <SiteReportStock reportId={report.id} enabled={stockOn} />}
+        {report.status === 'validated' && <SiteReportStock reportId={report.id} workOrderId={report.work_order_id} enabled={stockOn} />}
 
         <RecordSection title={t('equipment.title', 'Equipment hours')} data-testid="dsr-equipment"
           actions={editable ? <Link to="/equipment" className="text-primary-text hover:underline">{t('equipment.add', 'Add usage')}</Link> : undefined}>
@@ -333,7 +399,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             navigate(`/site-reports/${id}`);
           } catch (err) {
             const { headline, detail: d } = classifyMutationError(err);
-            setDialogError(d ? `${headline}. ${d}` : headline);
+            setDialogError(d ? joinSentences(headline, d) : headline);
           }
         })()}
       />
