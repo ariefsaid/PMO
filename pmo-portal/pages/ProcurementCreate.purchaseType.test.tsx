@@ -153,6 +153,23 @@ describe('purchase type on the new purchase form (#2697)', () => {
     expect(header).not.toHaveProperty('purchaseTypeId');
     expect(header).not.toHaveProperty('rentalFrom');
   });
+
+  it('the buyer marks a new purchase as subcontract work, so its certificates can be reached (#2584)', async () => {
+    await renderAt('/procurement/new?have=need');
+    fireEvent.change(screen.getByLabelText(/^title/i), { target: { value: 'Piling works' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /subcontract work/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalled());
+    expect(mocks.createAtomic.mock.calls[0][0].header).toMatchObject({ isSubcontract: true });
+  });
+
+  it('a purchase left unmarked is not a subcontract', async () => {
+    await renderAt('/procurement/new?have=need');
+    fireEvent.change(screen.getByLabelText(/^title/i), { target: { value: 'Pipes' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save draft$/i }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalled());
+    expect(mocks.createAtomic.mock.calls[0][0].header).not.toHaveProperty('isSubcontract');
+  });
 });
 
 afterEach(() => { cleanup(); });
