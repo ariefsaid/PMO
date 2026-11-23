@@ -35,6 +35,12 @@ describe('buildDashboardRows (#2805)', () => {
     expect(a.late).toBe(0);
   });
 
+  it('AC-CTD-010 close-out items past their due day count as late on their work order; none means no late mark', () => {
+    const rows = buildDashboardRows({ workOrders: [wo('a'), wo('b')], closeoutOverdue: new Map([['a', 2]]), today: '2026-11-20' });
+    expect(rows.find((r) => r.id === 'a')?.late).toBe(2);
+    expect(rows.find((r) => r.id === 'b')?.late).toBe(0);
+  });
+
   it('AC-WOD-002 an unread figure is null, never zero', () => {
     const [row] = buildDashboardRows({ workOrders: [wo('a')], today: '2026-11-20' });
     expect(row.progress).toBeNull();

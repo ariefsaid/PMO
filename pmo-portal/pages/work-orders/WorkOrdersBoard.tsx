@@ -26,7 +26,7 @@ const FILTER_KEYS = ['q', 'status', 'project', 'discipline'] as const;
 const TwoLine: React.FC<{ value: React.ReactNode; sub: React.ReactNode; testId: string }> = ({ value, sub, testId }) => (
   <span className="block text-right" data-testid={testId}>
     <span className="block tabular-nums">{value}</span>
-    {sub && <span className="block whitespace-nowrap tabular-nums text-muted-foreground">{sub}</span>}
+    {sub && <span className="block tabular-nums text-muted-foreground">{sub}</span>}
   </span>
 );
 
@@ -69,12 +69,12 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   const pendingMark = all.figuresPending ? '…' : '—';
   const columns = useMemo<Column<DashboardRow>[]>(() => [
     { key: 'number', header: t('all.col.workOrder', 'Work order'), kind: 'primary', rowHeader: true,
-      cell: (r) => r.wo_number ?? t('notNumbered', 'Not yet numbered'), secondaryCell: (r) => r.title, size: 264,
+      cell: (r) => r.wo_number ?? t('notNumbered', 'Not yet numbered'), secondaryCell: (r) => r.title, size: 240,
       primaryTitle: (r) => `${r.wo_number ?? ''} ${r.title}`.trim(), exportValue: (r) => r.wo_number ?? '' },
-    ...(projectId ? [] : [{ key: 'project', header: t('project', 'Project'), size: 152, cell: (r: DashboardRow) => r.project_name ?? '—', exportValue: (r: DashboardRow) => r.project_name ?? '' }]),
-    { key: 'status', header: t('all.col.status', 'Status'), kind: 'status', size: 112, cell: (r) => <StatusPill record="workOrder" state={r.status} />,
+    ...(projectId ? [] : [{ key: 'project', header: t('project', 'Project'), size: 144, cell: (r: DashboardRow) => r.project_name ?? '—', exportValue: (r: DashboardRow) => r.project_name ?? '' }]),
+    { key: 'status', header: t('all.col.status', 'Status'), kind: 'status', size: 132, cell: (r) => <StatusPill record="workOrder" state={r.status} />,
       exportValue: (r) => statusLabel('workOrder', r.status, ts) },
-    { key: 'progress', header: t('all.col.progress', 'Progress'), kind: 'percent', size: 120, keepWhenBlank: true,
+    { key: 'progress', header: t('all.col.progress', 'Progress'), kind: 'percent', size: 112, keepWhenBlank: true,
       cell: (r) => r.progress === null ? pendingMark : (
         <span className="inline-flex items-center justify-end gap-2" data-testid={`wo-progress-${r.id}`}>
           <ProgressBar value={r.progress} tone="primary" compact widthless className="w-14" aria-label={t('all.col.progress', 'Progress')} />
@@ -99,15 +99,14 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         : <TwoLine testId={`wo-billed-${r.id}`} value={formatTableMoney(r.billing.invoiced, r.billing.currency)}
             sub={t('all.ofOrder', 'of {{amount}}', { amount: formatTableMoney(r.billing.orderNet, r.billing.currency) })} />),
       exportValue: (r: DashboardRow) => (r.billing?.complete ? r.billing.invoiced : ''), exportType: 'number' as const }] : []),
-    { key: 'missing', header: t('all.col.missing', 'Missing'), align: 'num', size: 112, keepWhenBlank: true,
+    { key: 'missing', header: t('all.col.missing', 'Missing'), align: 'num', size: 120, keepWhenBlank: true,
       cell: (r) => (r.openSteps === 0 && r.late === 0 ? '—' : (
-        <span className="whitespace-nowrap tabular-nums" data-testid={`wo-missing-${r.id}`}>
-          {r.openSteps > 0 && t('all.openSteps', '{{count}} open', { count: r.openSteps })}
-          {r.openSteps > 0 && r.late > 0 && ' · '}
-          {r.late > 0 && <span className="font-medium text-warning-foreground">{t('all.late', '{{count}} late', { count: r.late })}</span>}
+        <span className="block text-right tabular-nums" data-testid={`wo-missing-${r.id}`}>
+          {r.openSteps > 0 && <span className="block whitespace-nowrap">{t('all.openSteps', '{{count}} open', { count: r.openSteps })}</span>}
+          {r.late > 0 && <span className="block whitespace-nowrap font-medium text-warning-foreground">{t('all.late', '{{count}} late', { count: r.late })}</span>}
         </span>
       )) },
-    { key: 'end', header: t('all.col.end', 'Due'), kind: 'date', size: 88, cell: (r) => (r.end_date ? <span className="whitespace-nowrap">{formatDay(r.end_date)}</span> : '—'),
+    { key: 'end', header: t('all.col.end', 'End'), kind: 'date', align: 'num', size: 96, cell: (r) => (r.end_date ? <span className="whitespace-nowrap">{formatDay(r.end_date)}</span> : '—'),
       exportValue: (r) => r.end_date ?? '', exportType: 'date' },
   ], [t, ts, projectId, costState, canBilling, pendingMark]);
 

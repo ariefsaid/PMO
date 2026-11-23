@@ -358,7 +358,7 @@
       "cost": "Direct cost",
       "billed": "Billed",
       "missing": "Missing",
-      "end": "Due"
+      "end": "End"
     },
     "costOver": "Over budget by {{amount}}",
     "costBudget": "Budget {{amount}}",

@@ -358,7 +358,7 @@
       "cost": "Biaya langsung",
       "billed": "Ditagih",
       "missing": "Kurang",
-      "end": "Jatuh tempo"
+      "end": "Selesai"
     },
     "costOver": "Melebihi anggaran {{amount}}",
     "costBudget": "Anggaran {{amount}}",
