@@ -12,7 +12,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import MilestoneFormModal from '../MilestoneFormModal';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { TaskGroupRow, WithTaskGroup } from '@/src/lib/db/taskGroups';
-import type { TaskPatch, TaskWithRefs } from '@/src/lib/db/tasks';
+import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import { collectDescendants } from '@/src/lib/tasks/taskTree';
 
 export function TaskGroupFormModal({ milestones, onClose, onCreate, onError }: {
@@ -57,16 +57,6 @@ const groupOf = (task: TaskWithRefs) => (task as TaskWithRefs & WithTaskGroup).t
 
 /** One place value for the group picker: `m:<phase>`, `g:<group>` or '' (ungrouped). */
 const placeOf = (task: TaskWithRefs) => groupOf(task) ? `g:${groupOf(task)}` : task.milestone_id ? `m:${task.milestone_id}` : '';
-
-/**
- * The patch that puts a task in a place. A group carries its own phase link (#2679), so a task in a group has no
- * phase of its own (it would otherwise count toward two phases); a task in a phase leaves its group.
- */
-export function placePatch(place: string): TaskPatch {
-  if (place.startsWith('g:')) return { task_group_id: place.slice(2), milestone_id: null };
-  if (place.startsWith('m:')) return { task_group_id: null, milestone_id: place.slice(2) };
-  return { task_group_id: null, milestone_id: null };
-}
 
 export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGroup, onClose, onMove, onError }: {
   task: TaskWithRefs;

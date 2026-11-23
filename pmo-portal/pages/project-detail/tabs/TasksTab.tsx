@@ -20,8 +20,9 @@ import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/u
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useTaskGroups } from '@/src/hooks/useTaskGroups';
 import { buildRollups, collectDescendants, countedTasks } from '@/src/lib/tasks/taskTree';
-import type { SubtaskDraft } from '@/src/lib/db/tasks';
-import { MoveTaskDialog, NewGroupingDialog, placePatch } from './TaskOutlineDialogs';
+import type { SubtaskDraft, TaskInput } from '@/src/lib/db/tasks';
+import { MoveTaskDialog, NewGroupingDialog } from './TaskOutlineDialogs';
+import { placePatch } from './taskViewModel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -505,7 +506,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   );
 
   /** Saves the subtask rows typed in the form under `parent` (a new or an existing task), in one request. */
-  const saveSubtasks = useCallback(async (root: Parameters<typeof create.mutateAsync>[0] | null, parent: TaskWithRefs | null, drafts: SubtaskDraft[]) => {
+  const saveSubtasks = useCallback(async (root: TaskInput | null, parent: TaskWithRefs | null, drafts: SubtaskDraft[]) => {
     const place = parent
       ? { project_id: projectId, milestone_id: parent.milestone_id ?? null, task_group_id: canStructure ? (parent as TaskWithRefs & { task_group_id?: string | null }).task_group_id ?? null : null }
       : { project_id: projectId, milestone_id: root?.milestone_id ?? null, task_group_id: canStructure ? root?.task_group_id ?? null : null };

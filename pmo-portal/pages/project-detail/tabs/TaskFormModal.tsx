@@ -31,7 +31,8 @@ import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/
 import { PartialTreeError, type TaskWithRefs, type TaskStatus, type TaskPriority, type TaskInput, type TaskPatch, type SubtaskDraft } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { WithTaskGroup } from '@/src/lib/db/taskGroups';
-import { SubtaskDraftsEditor, countDrafts, namedDrafts, newDraft } from './SubtaskDrafts';
+import { SubtaskDraftsEditor } from './SubtaskDrafts';
+import { countDrafts, namedDrafts, newDraft } from './subtaskDraftModel';
 import { STATUS_OPTIONS } from './taskViewModel';
 import { DateField } from '@/src/components/ui/DateField';
 

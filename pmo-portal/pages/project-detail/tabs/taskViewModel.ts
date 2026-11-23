@@ -5,7 +5,7 @@
  * selection and mutation callbacks (ADR-0016/0056); this module only localizes what those
  * views share so their behavior tests have one home. Pure module — no React.
  */
-import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
 import { buildTaskRenderOrder, type TaskRollup } from '@/src/lib/tasks/taskTree';
 
 // ── Status vocabulary ───────────────────────────────────────────────────────
@@ -103,3 +103,13 @@ export function outlineRows(
 /** The status a row shows: a parent's roll-up, else its own. */
 export const shownStatus = (task: TaskWithRefs, rollups: Map<string, TaskRollup>): string =>
   rollups.get(task.id)?.status ?? task.status;
+
+/**
+ * The patch that puts a task in a place. A group carries its own phase link (#2679), so a task in a group has no
+ * phase of its own (it would otherwise count toward two phases); a task in a phase leaves its group.
+ */
+export function placePatch(place: string): TaskPatch {
+  if (place.startsWith('g:')) return { task_group_id: place.slice(2), milestone_id: null };
+  if (place.startsWith('m:')) return { task_group_id: null, milestone_id: place.slice(2) };
+  return { task_group_id: null, milestone_id: null };
+}

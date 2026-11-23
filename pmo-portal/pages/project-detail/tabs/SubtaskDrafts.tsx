@@ -8,18 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Icon, SelectField, TextField } from '@/src/components/ui';
 import { DateField } from '@/src/components/ui/DateField';
 import type { SubtaskDraft } from '@/src/lib/db/tasks';
-
-let seq = 0;
-export const newDraft = (): SubtaskDraft => ({ key: `d${++seq}`, name: '', assigneeId: '', due: '', children: [] });
-
-/** Named rows only, at every depth: an empty row is a row the person did not fill, never a nameless task. */
-export function namedDrafts(drafts: SubtaskDraft[]): SubtaskDraft[] {
-  return drafts.filter((d) => d.name.trim()).map((d) => ({ ...d, name: d.name.trim(), children: namedDrafts(d.children) }));
-}
-
-export function countDrafts(drafts: SubtaskDraft[]): number {
-  return drafts.reduce((n, d) => n + 1 + countDrafts(d.children), 0);
-}
+import { newDraft } from './subtaskDraftModel';
 
 const update = (drafts: SubtaskDraft[], key: string, fn: (d: SubtaskDraft) => SubtaskDraft | null): SubtaskDraft[] =>
   drafts.flatMap((d) => {
