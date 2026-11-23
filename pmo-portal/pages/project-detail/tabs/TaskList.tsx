@@ -74,7 +74,7 @@ function buildTaskColumns(
             className="touch-target -my-1 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             <Icon name="chev" className={`size-3.5 transition-transform${open ? ' rotate-90' : ''}`} />
-          </button> : depth > 0 || rollups.size > 0 ? <span aria-hidden className="inline-block size-6 shrink-0" /> : null}
+          </button> : depth > 0 || rollups.size > 0 ? <span aria-hidden className="inline-block size-6 shrink-0 max-md:hidden" /> : null}
           <span
             id={`task-${task.id}`}
             className={`block min-w-0 whitespace-normal break-words ${rollup ? 'font-semibold' : depth > 0 ? 'font-normal' : 'font-semibold'}${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}

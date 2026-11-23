@@ -63,7 +63,7 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
           onChange={(name) => onChange(update(drafts, d.key, (x) => ({ ...x, name })))}
           placeholder={t('projectDetail.tasks.subtasks.namePlaceholder', 'Subtask name')}
           maxLength={500}
-          fullWidth
+          wrapperClassName="min-w-0"
         />
         <div className="flex items-center gap-1">
           <Button
