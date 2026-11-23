@@ -79,7 +79,7 @@ describe('StockTransferSend (AC-TST-023)', () => {
   it('FR-SKD-005 cancelling the guard sends nothing and keeps the filled form', async () => {
     renderPage();
     await fillValidTransfer();
-    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send stock transfer' }));
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(h.send).not.toHaveBeenCalled();

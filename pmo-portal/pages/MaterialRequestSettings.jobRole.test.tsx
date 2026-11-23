@@ -22,7 +22,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
     setStandIn: { mutateAsync: vi.fn(), isPending: false }, revokeStandIn: { mutateAsync: vi.fn() },
   }),
 }));
-vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.builtInOn }) }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.builtInOn }), useModuleOn: () => true }));
 vi.mock('@/src/hooks/useUsageThresholds', () => ({ useUsageThresholds: () => ({ thresholds: { pct1: null, pct2: null }, reload: vi.fn() }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1', role: 'Admin' } }) }));
