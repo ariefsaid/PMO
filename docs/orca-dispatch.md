@@ -43,6 +43,11 @@ Every new heavy allocation must name the evidence gap it closes and check the ta
 Handoffs distinguish source-ready, runtime-proven and CI-accepted; no outer proof loop is added
 merely because the coordinator changed. Independent hosts can run independent batches within
 their actual memory and DB constraints; filling idle capacity is not a reason to repeat a check.
+On every completion or blocker, reconcile the critical path, ready independent work and available
+resources. Admit the next useful authorized task without waiting for an owner status prompt.
+If capacity stays idle, record the concrete dependency, memory constraint, scope boundary or lack
+of useful work; a ready label is not execution evidence. Keep launch receipts and observed running
+state distinct, and resolve a stalled launch before reporting it as progress.
 
 ## Mechanics
 
