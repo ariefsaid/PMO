@@ -41,4 +41,4 @@ for marker, source in [
     text=text.replace(marker, Path(source).read_text())
 out.write_text(text)
 PY
-supabase test db "$test_file"
+supabase test db --local "$test_file"
