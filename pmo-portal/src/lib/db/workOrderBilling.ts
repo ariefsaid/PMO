@@ -112,8 +112,8 @@ export async function listWorkOrderBilling(projectId: string): Promise<WorkOrder
  * dashboard): one request per thousand rows, never one per project or per row. RLS scopes the rows.
  */
 export async function listAllWorkOrderBilling(): Promise<WorkOrderBillingRow[]> {
-  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
-    supabase.from('work_order_billing').select(COLS).order('work_order_id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string; code?: string } | null }>);
+  const rows = await fetchAllPages((from, to) =>
+    supabase.from('work_order_billing').select(COLS).order('work_order_id', { ascending: true }).range(from, to));
   return parseBillingRows(rows);
 }
 

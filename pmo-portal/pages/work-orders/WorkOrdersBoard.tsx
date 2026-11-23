@@ -76,13 +76,13 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
       exportValue: (r) => statusLabel('workOrder', r.status, ts) },
     { key: 'progress', header: t('all.col.progress', 'Progress'), kind: 'percent', size: 112, keepWhenBlank: true,
       cell: (r) => r.progress === null ? pendingMark : (
-        <span className="inline-flex items-center justify-end gap-2" data-testid={`wo-progress-${r.id}`}>
+        <span className="flex items-center justify-end gap-2" data-testid={`wo-progress-${r.id}`}>
           <ProgressBar value={r.progress} tone="primary" compact widthless className="w-14" aria-label={t('all.col.progress', 'Progress')} />
-          <span className="w-10 tabular-nums">{Math.round(r.progress)}%</span>
+          <span className="w-10 text-right tabular-nums">{Math.round(r.progress)}%</span>
         </span>
       ),
       exportValue: (r) => (r.progress === null ? '' : Math.round(r.progress)), exportType: 'number' },
-    ...(costState === 'shown' ? [{ key: 'cost', header: t('all.col.cost', 'Direct cost'), kind: 'money' as const, size: 160, keepWhenBlank: true,
+    ...(costState === 'shown' ? [{ key: 'cost', header: t('all.col.cost', 'Direct cost'), kind: 'money' as const, size: 152, keepWhenBlank: true,
       cell: (r: DashboardRow) => {
         if (!r.cost || r.cost.direct === null) return pendingMark;
         const v = planVariance(r.cost.plan, r.cost.direct);
@@ -94,23 +94,24 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         );
       },
       exportValue: (r: DashboardRow) => r.cost?.direct ?? '', exportType: 'number' as const }] : []),
-    ...(canBilling ? [{ key: 'billed', header: t('all.col.billed', 'Billed'), kind: 'money' as const, size: 160, keepWhenBlank: true,
+    ...(canBilling ? [{ key: 'billed', header: t('all.col.billed', 'Billed'), kind: 'money' as const, size: 152, keepWhenBlank: true,
       cell: (r: DashboardRow) => (!r.billing ? pendingMark : !r.billing.complete ? t('all.cannotTotal', "Can't total")
         : <TwoLine testId={`wo-billed-${r.id}`} value={formatTableMoney(r.billing.invoiced, r.billing.currency)}
             sub={t('all.ofOrder', 'of {{amount}}', { amount: formatTableMoney(r.billing.orderNet, r.billing.currency) })} />),
       exportValue: (r: DashboardRow) => (r.billing?.complete ? r.billing.invoiced : ''), exportType: 'number' as const }] : []),
-    { key: 'missing', header: t('all.col.missing', 'Missing'), align: 'num', size: 120, keepWhenBlank: true,
+    { key: 'missing', header: t('all.col.missing', 'Missing'), align: 'num', size: 120,
       cell: (r) => (r.openSteps === 0 && r.late === 0 ? '—' : (
         <span className="block text-right tabular-nums" data-testid={`wo-missing-${r.id}`}>
           {r.openSteps > 0 && <span className="block whitespace-nowrap">{t('all.openSteps', '{{count}} open', { count: r.openSteps })}</span>}
           {r.late > 0 && <span className="block whitespace-nowrap font-medium text-warning-foreground">{t('all.late', '{{count}} late', { count: r.late })}</span>}
         </span>
       )) },
-    { key: 'end', header: t('all.col.end', 'End'), kind: 'date', align: 'num', size: 96, cell: (r) => (r.end_date ? <span className="whitespace-nowrap">{formatDay(r.end_date)}</span> : '—'),
+    { key: 'end', header: t('all.col.end', 'End'), kind: 'date', align: 'num', size: 112, cell: (r) => (r.end_date ? <span className="whitespace-nowrap">{formatDay(r.end_date)}</span> : '—'),
       exportValue: (r) => r.end_date ?? '', exportType: 'date' },
   ], [t, ts, projectId, costState, canBilling, pendingMark]);
 
-  // The strip sums the rows in view, one currency only: a second currency would need a second line per figure.
+  // The strip sums the rows in view, one currency only: a second currency would need a second line per figure. Not on the
+  // project tab: the project header already carries the project's money facts.
   const tiles = useMemo<StatTile[] | null>(() => {
     const billed = filtered.map((r) => r.billing).filter((b): b is NonNullable<DashboardRow['billing']> => Boolean(b?.complete));
     const currency = billed[0]?.currency;
@@ -158,7 +159,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
       <div className="flex flex-col gap-4">
       {/* The wrapper gives StatTiles' own container query an ancestor to measure (its @container sits on the grid itself).
           On a phone the list comes first and the summary follows it (screen rules, Phone). */}
-      {tiles && filtered.length > 0 && <div className="@container order-last md:order-none"><StatTiles tiles={tiles} columns={3} /></div>}
+      {tiles && !projectId && filtered.length > 0 && <div className="@container order-last md:order-none"><StatTiles tiles={tiles} columns={3} /></div>}
       <DataTable<DashboardRow>
         rows={filtered}
         columns={columns}

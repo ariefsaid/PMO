@@ -463,7 +463,11 @@
     "/administration/terminology@390@admin@acme.test": 0,
     "/administration/terminology@1440@admin@acme.test": 0,
     "/quantity-changes@390@exec@acme.test": 0,
-    "/quantity-changes@1440@exec@acme.test": 0
+    "/quantity-changes@1440@exec@acme.test": 0,
+    "/work-orders@390@exec@acme.test": 0,
+    "/work-orders@1440@exec@acme.test": 0,
+    "/projects/:id/orders@390@exec@acme.test": 0,
+    "/projects/:id/orders@1440@exec@acme.test": 0
   },
   "/procurement/00000000-0000-0000-0000-000000000002@390@exec@acme.test": 32,
   "/procurement/00000000-0000-0000-0000-000000000002@390@pm@acme.test": 32,
@@ -554,5 +558,9 @@
   "/administration/terminology@390@admin@acme.test": 50,
   "/administration/terminology@1440@admin@acme.test": 52,
   "/quantity-changes@390@exec@acme.test": 42,
-  "/quantity-changes@1440@exec@acme.test": 42
+  "/quantity-changes@1440@exec@acme.test": 42,
+  "/work-orders@390@exec@acme.test": 17,
+  "/work-orders@1440@exec@acme.test": 23,
+  "/projects/:id/orders@390@exec@acme.test": 36,
+  "/projects/:id/orders@1440@exec@acme.test": 45
 }
