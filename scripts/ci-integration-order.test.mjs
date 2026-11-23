@@ -145,6 +145,46 @@ test('AC-BSH-003 release lanes run beside three balanced Chromium shards and a r
   assert.ok(diagnostics.includes('name: browser-chromium-playwright-${{ matrix.shard }}'));
 });
 
+test('AC-BSH-003 lanes publish env and browsers after a successful reset even when an earlier step failed', () => {
+  const lanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration-full:'));
+  // The reset is the only prerequisite these two steps really have: the env step publishes the live
+  // stack's URL/keys and writes pmo-portal/.env.local, the install step puts Chromium on the runner.
+  const reset = lanes.slice(lanes.indexOf('- name: Reset DB (migrations + seed)'));
+  assert.match(reset, /^\s+id: reset_db$/m, 'integration-lanes must expose the reset step as reset_db');
+  assert.match(reset, /^\s+run: supabase db reset --yes$/m, 'reset_db must be the migrations + seed reset');
+  // A red DB harness above them used to skip both (the default success() condition), which starved
+  // the always() lanes of env and browsers: they started and died in global setup, so their reports
+  // were empty and every skip-allowlist entry read as stale. They must run after a failure — but only
+  // after a reset that actually succeeded, so a half-migrated stack can never publish evidence.
+  const dependency = "if: ${{ always() && !cancelled() && steps.reset_db.outcome == 'success' }}";
+  for (const name of [
+    'Write .env.local for Vite / Playwright',
+    'Install Playwright (browsers on cache miss; system deps always)',
+  ]) {
+    const at = lanes.indexOf(`- name: ${name}`);
+    assert.notEqual(at, -1, `${name} must run in integration-lanes`);
+    const next = lanes.indexOf('\n      - name:', at + 1);
+    const step = lanes.slice(at, next === -1 ? lanes.length : next);
+    assert.ok(step.includes(dependency), `${name} must depend on the reset outcome, not on an unrelated step's success`);
+    assert.doesNotMatch(step, /if: \$\{\{\s*success\(\)/, `${name} must not fall back to the default success() condition`);
+    assert.doesNotMatch(step, /secrets\./, `${name} must still publish the live stack's own env, never a repository secret`);
+    assert.doesNotMatch(step, /^\s+continue-on-error:/m, `${name} must not hide its own failure`);
+  }
+  // The gate stays fail-closed: the harness step that precedes them still has no continue-on-error,
+  // and the required aggregate still reads the job result (not only the three lane step outcomes).
+  const harnessAt = lanes.indexOf('- name: Financial statement nightly-intent race');
+  assert.notEqual(harnessAt, -1, 'integration-lanes must run the journal-safety harness');
+  const harnessNext = lanes.indexOf('\n      - name:', harnessAt + 1);
+  const harness = lanes.slice(harnessAt, harnessNext === -1 ? lanes.length : harnessNext);
+  assert.doesNotMatch(harness, /^\s+continue-on-error:/m, 'the DB harness must keep failing the release job');
+  const full = workflow.slice(workflow.indexOf('\n  integration-full:'), workflow.indexOf('\n  integration:'));
+  const gate = full.slice(full.indexOf('- name: Required integration result requires all browser evidence and audits'));
+  assert.ok(gate.includes('needs.integration-lanes.result'), 'the aggregate must still fail on the lane job result');
+  for (const lane of ['serial_e2e', 'consent_e2e', 'serve_adapter_dispatch']) {
+    assert.ok(gate.includes(`needs.integration-lanes.outputs.${lane}`), `the aggregate must still read the ${lane} outcome`);
+  }
+});
+
 test('AC-BSH-001 inventory guard self-test rejects incomplete shard coverage', () => {
   const result = spawnSync(process.execPath, ['scripts/check-browser-shard-inventory.mjs', '--self-test'], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr || result.stdout);
