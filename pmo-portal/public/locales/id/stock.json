@@ -969,6 +969,7 @@
       "expiresHelp": "Setelah tanggal ini stok bebas kembali.",
       "note": "Catatan (opsional)",
       "errWorkOrder": "Pilih $t(common:terms.clientWorkOrder) yang memerlukan stok ini",
+      "free": "{{qty}} {{unit}} bebas di sini",
       "errQuantity": "Isi jumlah di atas nol, maksimal tiga desimal",
       "saved": "Stok dicadangkan"
     },

@@ -332,7 +332,8 @@ const StockOnHand: React.FC = () => {
       )}
       {reserving && (
         <ReservationForm itemId={reserving.itemId} itemLabel={`${reserving.itemCode} - ${reserving.itemName}`} warehouseId={reserving.warehouseId}
-          warehouseLabel={reserving.warehouseName} onClose={() => setReserving(null)} />
+          warehouseLabel={reserving.warehouseName}
+          freeQty={figureOf.get(`${reserving.itemId}:${reserving.warehouseId}`)?.freeQty} unitCode={reserving.unitCode} onClose={() => setReserving(null)} />
       )}
     </ListPage>
   );

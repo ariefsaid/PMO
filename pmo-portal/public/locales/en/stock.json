@@ -969,6 +969,7 @@
       "expiresHelp": "After this date the stock is free again.",
       "note": "Note (optional)",
       "errWorkOrder": "Choose the work order the stock is for",
+      "free": "{{qty}} {{unit}} free here",
       "errQuantity": "Enter a quantity above zero, with up to three decimals",
       "saved": "Stock reserved"
     },
