@@ -73,12 +73,13 @@ test(
 
     // ── Step 2: AC-AU-003 — change Dave's role to Finance (high-impact confirm) ──
     await openRowMenu(page, daveRow);
-    await page.getByRole('menuitem', { name: /edit role/i }).click();
+    await page.getByRole('menuitem', { name: /change job role/i }).click();
 
     const roleDialog = page.getByRole('dialog');
     await expect(roleDialog).toBeVisible({ timeout: 8_000 });
-    await roleDialog.getByLabel(/role/i).selectOption('Finance');
-    await roleDialog.getByRole('button', { name: /save role/i }).click();
+    // Job role stays "No job role", so the access level itself is chosen here.
+    await roleDialog.getByRole('combobox', { name: 'Access level' }).selectOption('Finance');
+    await roleDialog.getByRole('button', { name: /save job role/i }).click();
 
     // High-impact: a confirm appears naming the change before the write commits.
     const roleConfirm = page.getByRole('dialog');
@@ -106,10 +107,10 @@ test(
 
     // ── Restore Tomas's role to Engineer so the seed stays reusable ──
     await openRowMenu(page, userRow(page, engineerEmail));
-    await page.getByRole('menuitem', { name: /edit role/i }).click();
+    await page.getByRole('menuitem', { name: /change job role/i }).click();
     const restoreDialog = page.getByRole('dialog');
-    await restoreDialog.getByLabel(/role/i).selectOption('Engineer');
-    await restoreDialog.getByRole('button', { name: /save role/i }).click();
+    await restoreDialog.getByRole('combobox', { name: 'Access level' }).selectOption('Engineer');
+    await restoreDialog.getByRole('button', { name: /save job role/i }).click();
     await page.getByRole('dialog').getByRole('button', { name: /change role/i }).click();
     await expect(
       userRow(page, engineerEmail).getByRole('cell', { name: 'Engineer', exact: true }),

@@ -47,7 +47,7 @@ test('AC-TERM-006: renamed labels reach two screens and the export without chang
     const row = page.getByTestId('term-row-project-en');
     await row.getByLabel('Singular').fill('engagement');
     await row.getByLabel('Plural').fill('engagements');
-    await row.getByRole('button', { name: 'Save' }).click();
+    await page.getByTestId('term-card-project').getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Terminology saved').first()).toBeVisible();
 
     await page.goto('/projects');

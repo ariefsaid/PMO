@@ -207,8 +207,11 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
     await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
 
     // Inside the area on a fresh day records straight away (the records are cleared to stand in for the next day).
-    await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
-    await admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId);
+    // Check-ins first: an approved one points at its attendance day, so that day cannot go while it stands.
+    for (const table of ['phone_check_ins', 'attendance_days'] as const) {
+      const cleared = await admin.from(table).delete().eq('work_order_id', workOrderId);
+      if (cleared.error) throw new Error(`AC-PCI-E2E reset ${table}: ${cleared.error.message}`);
+    }
     await worker.setGeolocation({ latitude: -6.2, longitude: 106.8, accuracy: 10 });
     await page.goto('/my');
     await mine(page).getByRole('button', { name: 'Clock in' }).click();

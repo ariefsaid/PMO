@@ -25,19 +25,22 @@ test('AC-TX-010: an Admin renames a new term and a role; both persist and reset 
     const term = page.getByTestId('term-row-deliveryNote-en');
     await term.getByLabel('Singular').fill('waybill');
     await term.getByLabel('Plural').fill('waybills');
-    await term.getByRole('button', { name: 'Save' }).click();
+    await page.getByTestId('term-card-deliveryNote').getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Terminology saved').first()).toBeVisible();
 
+    // Role names are one switch away from the terms (the page opens on Terms).
+    await page.getByRole('button', { name: 'Role names' }).click();
     const role = page.getByTestId('role-name-row-storekeeper-en');
     await role.getByLabel('Name').fill('Yard Lead');
-    await role.getByRole('button', { name: 'Save' }).click();
+    await page.getByTestId('role-name-card-storekeeper').getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Role name saved').first()).toBeVisible();
 
     await page.reload();
     await expect(page.getByTestId('term-row-deliveryNote-en').getByLabel('Singular')).toHaveValue('waybill');
+    await page.getByRole('button', { name: 'Role names' }).click();
     await expect(page.getByTestId('role-name-row-storekeeper-en').getByLabel('Name')).toHaveValue('Yard Lead');
 
-    await page.getByTestId('role-name-row-storekeeper-en').getByRole('button', { name: 'Reset' }).click();
+    await page.getByTestId('role-name-card-storekeeper').getByRole('button', { name: 'Reset' }).click();
     await expect(page.getByText('Back to the default name').first()).toBeVisible();
     await expect(page.getByTestId('role-name-row-storekeeper-en').getByLabel('Name')).toHaveValue('');
   } finally {

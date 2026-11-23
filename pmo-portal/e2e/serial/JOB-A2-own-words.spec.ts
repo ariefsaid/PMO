@@ -36,7 +36,7 @@ test('JOB-A2 a renamed work order term shows on the work order page for any user
   const row = page.getByTestId('term-row-workOrder-en');
   await row.getByLabel('Singular').fill('task order');
   await row.getByLabel('Plural').fill('task orders');
-  await row.getByRole('button', { name: 'Save' }).click();
+  await page.getByTestId('term-card-workOrder').getByRole('button', { name: 'Save' }).click();
   await expect(visibleToast(page, 'Terminology saved')).toBeVisible({ timeout: 15_000 });
 
   await signIn(page, 'pm@acme.test');

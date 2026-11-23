@@ -24,9 +24,9 @@ test('AC-MRI-018: an approver is told and sees the request in the approvals inbo
     ] });
     if (chain.error) throw new Error('chain: ' + chain.error.message);
 
-    // An Admin switches the setting on from the settings screen.
+    // An Admin switches the setting on under Administration › Modules (Stock).
     await signIn(page, 'admin@acme.test');
-    await page.goto('/material-requests/settings');
+    await page.goto('/administration/modules');
     const toggle = page.getByRole('checkbox', { name: /Show material request approvals in the approvals inbox/ });
     await expect(toggle).toBeEnabled({ timeout: 15_000 });
     if (!(await toggle.isChecked())) await toggle.click();
