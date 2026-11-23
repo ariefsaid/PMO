@@ -139,13 +139,21 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
       // selected back, so an empty selection reports the write applied 0 rows (a concurrent applier
       // already stored newer state). The pre-read guard in `applyInboundChange` cannot see this race:
       // two appliers can read the same stored timestamp before either write lands.
-      const { data, error } = await serviceClient
+      const write = (fields: Record<string, unknown>) => serviceClient
         .from('tasks')
-        .update({ ...presentMirrorFields(canonical), source_updated_at: iso })
+        .update({ ...fields, source_updated_at: iso })
         .eq('org_id', orgId)
         .eq('id', pmoRecordId)
         .or(`source_updated_at.is.null,source_updated_at.lte.${iso}`)
         .select('id');
+      const fields = presentMirrorFields(canonical);
+      let { data, error } = await write(fields);
+      // #2807: a move the task tool reports out of order can be refused as a cycle (the parent is still this
+      // task's own subtask in PMO). Land it flat, the unresolved-parent rule (inboundRecord: flat until it
+      // converges), so one refused move never stalls the whole sweep; the next change nests it again.
+      if (error && error.code === '23514' && error.message.includes('TASK_TREE_CYCLE') && fields.parent_task_id) {
+        ({ data, error } = await write({ ...fields, parent_task_id: null }));
+      }
       if (error) throw new AppError(error.message, error.code);
       return Array.isArray(data) && data.length > 0;
     },
