@@ -262,7 +262,7 @@
     "saved": "Draft saved",
     "submitted": "Sent for validation",
     "validated": "Report validated",
-    "submittedNeedsPhoto": "Sent for validation. The validator needs a photo of the paper form: add it.",
+    "needsPhotoFirst": "Not sent: add a photo of the paper form first",
     "withdrawn": "Report taken back. You can edit it again."
   },
   "empty": {

@@ -186,6 +186,16 @@ describe('site report record', () => {
     expect(screen.queryByTestId('dsr-author-needs-photo')).toBeNull();
   });
 
+  it('F1-2 sending without the paper-form photo is stopped: a sent report cannot take a photo, so nothing is sent and the author is told to add it', async () => {
+    h.detail = { ...make('draft'), photos: [] };
+    h.m.save.mutateAsync.mockResolvedValue('r1'); h.m.submit.mutateAsync.mockResolvedValue(undefined);
+    h.m.submit.mutateAsync.mockClear();
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    expect(h.m.submit.mutateAsync).not.toHaveBeenCalled();
+    expect(await screen.findByText('Not sent: add a photo of the paper form first')).toBeInTheDocument();
+  });
+
   it('AC-DSR-005 the author is never offered Validate, even as Admin', () => {
     h.detail = make('submitted'); h.realRole = 'Admin';
     renderPage();

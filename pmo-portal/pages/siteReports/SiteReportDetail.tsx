@@ -156,12 +156,13 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
     return ok;
   };
   const submit = async () => {
+    // A sent report is locked, photos included, so a report without the paper-form photo is not sent: the author adds it first.
+    if (!detail.photos.some((p) => p.kind === 'paper_form')) {
+      toast(t('toast.needsPhotoFirst', 'Not sent: add a photo of the paper form first'), t('detail.needsPhotoAuthor', 'Add a photo of the paper form before you send. The validator cannot accept the report without it.'), 'warning');
+      return;
+    }
     if (!(await save())) return;
-    // The author is told at send what the validator will still need (the rule is the validator's, shown to both).
-    const missingPhoto = !detail.photos.some((p) => p.kind === 'paper_form');
-    await run(() => m.submit.mutateAsync(report.id), missingPhoto
-      ? t('toast.submittedNeedsPhoto', 'Sent for validation. The validator needs a photo of the paper form: add it.')
-      : t('toast.submitted', 'Sent for validation'));
+    await run(() => m.submit.mutateAsync(report.id), t('toast.submitted', 'Sent for validation'));
   };
   const withdraw = () => run(() => m.withdraw.mutateAsync(report.id), t('toast.withdrawn', 'Report taken back. You can edit it again.'));
   const validate = () => run(() => m.validate.mutateAsync(report.id), t('toast.validated', 'Report validated'));
