@@ -130,9 +130,10 @@ describe('#1568 requester who-next', () => {
   it('AC-IMP-083 reads one record route under the org key and stays idle without a record', async () => {
     imprest.getRequesterRoute.mockResolvedValue({ route_kind: 'named', approvers: [], action: 'approve', admin_breakglass: false });
     const client = fresh();
+    const initialProps: { id: string | null } = { id: 'pl1' };
     const { result, rerender } = renderHook(
       ({ id }: { id: string | null }) => useImprestRequesterRoute('plan', id),
-      { wrapper: wrap(client), initialProps: { id: 'pl1' } },
+      { wrapper: wrap(client), initialProps },
     );
     await waitFor(() => expect(result.current.data?.route_kind).toBe('named'));
     expect(imprest.getRequesterRoute).toHaveBeenCalledWith('plan', 'pl1');
@@ -152,9 +153,10 @@ describe('#1568 requester who-next', () => {
         admin_breakglass: false,
       });
     const client = fresh();
+    const initialProps: { action: 'approve' | 'pay' } = { action: 'approve' };
     const { result, rerender } = renderHook(
       ({ action }: { action: 'approve' | 'pay' }) => useImprestRequesterRoute('replenishment', 'r1', action),
-      { wrapper: wrap(client), initialProps: { action: 'approve' as const } },
+      { wrapper: wrap(client), initialProps },
     );
     await waitFor(() => expect(result.current.data?.action).toBe('approve'));
     // The record transitions Requested -> Approved: the same record id must not serve the cached approval answer.
