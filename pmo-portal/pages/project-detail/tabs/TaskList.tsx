@@ -107,7 +107,7 @@ function buildTaskColumns(
       header: t('projectDetail.tasks.column.due', 'Due'),
       kind: 'date',
       size: 260,
-      cell: (task) => rollups.has(task.id) ? <RollupDates rollup={rollups.get(task.id)!} t={t} /> : task.end_date ? <Tooltip content={t(
+      cell: (task) => rollups.has(task.id) ? <RollupDates rollup={rollups.get(task.id)!} /> : task.end_date ? <Tooltip content={t(
         'projectDetail.tasks.dueTooltip',
         'Due date from the task record. Late days compare the due date with today in the organization timezone.',
       )}>
@@ -122,7 +122,7 @@ function buildTaskColumns(
     {
       key: 'status',
       header: t('projectDetail.tasks.column.status', 'Status'),
-      cell: (task) => rollups.has(task.id) ? <RollupProgress rollup={rollups.get(task.id)!} t={t} /> : (
+      cell: (task) => rollups.has(task.id) ? <RollupProgress rollup={rollups.get(task.id)!} /> : (
         <TaskStatusCell
           task={task}
           editable={canSetStatus(task)}

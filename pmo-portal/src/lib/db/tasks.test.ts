@@ -614,7 +614,7 @@ describe('createTaskTree', () => {
 
   it('AC-TREE-U05: an externally-owned project writes parent first and reports how many landed when one fails', async () => {
     ext.route = 'external';
-    ext.dispatch.mockResolvedValueOnce({ externalRecordId: 'x', canonical: {} }).mockRejectedValueOnce(new AppError('boom', '500'));
+    ext.dispatch.mockResolvedValueOnce({ externalRecordId: 'x', canonical: { id: 'x', name: 'A', status: 'To Do' } }).mockRejectedValueOnce(new AppError('boom', '500'));
     const err = await createTaskTree(null, 'parent-1', [d('A'), d('B')], place).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(PartialTreeError);
     expect(err).toMatchObject({ saved: 1, total: 2 });
