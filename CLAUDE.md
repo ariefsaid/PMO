@@ -92,6 +92,13 @@ stays intact in-repo, flip the mode to revert):
 
 ### Execution continuity (owner directive, 2026-10-17)
 
+**Batch rounds (owner, 2026-11-23):** before dispatch, takeover or allocating proof, read
+[`docs/orca-dispatch.md` § Batch integration](docs/orca-dispatch.md#batch-integration-owner-2026-11-23).
+Carry its execution table into every coordinator brief/handoff: parallel bounded builds, one
+integration writer, shared batch proofs, one owner per check, and CI as the merge gate. This
+supersedes per-branch heavy-proof/PR queues for signed rounds; required acceptance and explicit
+safety/production gates remain intact.
+
 A status question steers the active task; answer briefly in commentary, then immediately execute
 its next step in the same turn. Keep working through the authorized queue, including while CI or
 workers run, using independent work where dependencies allow. Check the actual worker/CI state;

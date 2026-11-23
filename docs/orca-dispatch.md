@@ -5,6 +5,45 @@ launches any harness with any model, gives each worker its own worktree, and rep
 finishes. It replaces pi-delegation and the SSSF ADW as the default executor. The gates, checkpoints and ceilings in `CLAUDE.md` are unchanged; only *who
 runs the work* changed.
 
+## Batch integration (owner, 2026-11-23)
+
+Before starting or taking over a round, every Director and lane orchestrator reads this section.
+This is the execution model for signed multi-issue rounds on every harness and host; it replaces
+per-branch heavy-proof queues and per-branch PR queues. Acceptance requirements remain unchanged.
+
+1. **Build independently, integrate continuously.** Builders own bounded paths, write the owning
+   tests, run guards/typecheck/touched lint/unit checks, and push source-reviewed work with its
+   actual proof status. The integration writer merges ready work with `--no-ff` into one branch
+   per round. Source-ready is not runtime acceptance. Routine in-scope fixes and composition
+   proceed under the signed brief without another root approval round.
+2. **Prove the batch.** Group roughly five ready slices (or one coherent dependency group) for
+   the shared DB/browser proof. One named executor owns each heavy resource. Reset only for
+   changed migrations/seed; reset and tests share one DB lock hold. Builders write DB/browser
+   tests rather than queueing separate runs ahead of the batch. Required security mutation and
+   rendered proofs remain explicit batch obligations, not additional coordinator re-verification.
+3. **Give each check one execution owner.** Record candidate SHA, exact scope, runner and result.
+   Once CI runs an equivalent check on that candidate, CI owns it: do not duplicate it in Cloud
+   or locally. A repeat needs a changed input, a concrete failure diagnosis, or missing evidence.
+   Reuse unaffected proof only with checked source/test/config identity and stated limits.
+4. **Repair from evidence.** Capture each failed test's actual output/trace, state the cause, and
+   assign one owner. Fix independent failures in parallel, compose their fixes, run only needed
+   diagnostic checks, then update the batch PR once. Same failure twice means re-diagnose.
+   Preserve assertions and goals; an incorrect test requires an explicit evidence-backed ruling.
+5. **Keep integration on the critical path.** Open the batch draft PR when reviewable; do not
+   wait for speculative checks or new proof infrastructure. CI is the target-specific merge gate.
+   Continue independent authorized work while it runs. Reviews read existing evidence and rerun
+   only a check they concretely doubt. Use shipped runners before building a custom harness.
+6. **Escalate exceptions, not routine progress.** Scope changes, new privileges, destructive or
+   production actions, conflicting resource ownership and explicit safety stops retain their
+   gates. This workflow does not override an existing pause or authorize retrying a blocked action.
+
+Every coordinator brief and takeover includes this section's path and a compact execution table:
+`batch/ref | sole writer | ready slices | check + runner + executor | evidence/result | next action`.
+Every new heavy allocation must name the evidence gap it closes and check the table for overlap.
+Handoffs distinguish source-ready, runtime-proven and CI-accepted; no outer proof loop is added
+merely because the coordinator changed. Independent hosts can run independent batches within
+their actual memory and DB constraints; filling idle capacity is not a reason to repeat a check.
+
 ## Mechanics
 
 Load the `orchestration` skill (supervised workers, tasks, waits) and `orca-cli` (worktrees,
@@ -120,9 +159,6 @@ Heavy local processes (the Supabase stack, vitest, browsers) are the Mac's real 
 - **Message a running session:** `claude -p "<message>" --cloud session_<id> < /dev/null`. The
   Director sends mid-run changes itself; never ask the owner to paste.
 - **Watch:** done refs (`git ls-remote origin 'refs/heads/cloud/done/*'`) and pushed branches.
-- **One database per sandbox.** Builders inside a session share it, so per-ticket database or
-  browser runs queue behind each other (30–47 minutes a turn with five builders, 2026-11-21).
-  Builders run the static gates and their touched test files only, and write the pgTAP and e2e
-  without running them. The session's orchestrator accepts on a code read, merges each wave of
-  about five tickets into one lane branch and runs reset, pgTAP and e2e once per wave.
+- **One database per sandbox.** Apply [Batch integration](#batch-integration-owner-2026-11-23):
+  builders share the database, so the lane executor owns its batch proof.
 - Rules every cloud session follows: `docs/cloud-session-rules.md`.

@@ -133,12 +133,11 @@ exploit a window of abundant Claude weekly quota). When parallel, the wave model
   serialize, and **batch per wave** every owner-interactive gate (grill-with-docs, spec sign-off, mockup
   approval) **before** fan-out. Parallel agents consume only **locked** decisions; an agent that hits an
   unresolved owner question **STOPS and escalates** — never asks the owner mid-run.
-- **Build in parallel, verify on CI, merge serially.** N worktrees build independent features; each pushes a
-  PR; **CI runs each PR's isolated Postgres + pgTAP + e2e in parallel** (public repo ⇒ unlimited Actions; see
-  `docs/environments.md` "CI is the isolated-DB-per-PR pool"). Verify from CI + light local; merge one PR at a time.
-- **Executor:** per the routing table above — **ADW first**. `pi` is the Director's own dispatch surface for
-  the money/auth tier (`docs/archive/pi-delegation.md`); Claude `Task` subagents are a last resort for a parallel
-  burst when both substrates are saturated. Neither replaces the ADW for a bounded slice.
+- **Build in parallel, prove the batch, merge serially.** Follow
+  [`docs/orca-dispatch.md` § Batch integration](orca-dispatch.md#batch-integration-owner-2026-11-23)
+  for every signed round and takeover. One integration writer composes source-reviewed branches;
+  batch proof and target-specific CI own acceptance, without duplicate per-branch heavy runs.
+- **Executor:** Orca supervised workers per `docs/orca-dispatch.md`, including the money/auth tier.
 - **Ceiling = Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Beyond that the Director
   starts trusting instead of verifying — the failure the 3-reviewer battery exists to prevent.
 
