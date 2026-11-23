@@ -2827,8 +2827,6 @@
         "name": "Nama tugas",
         "namePlaceholder": "mis. Survei lokasi",
         "noDependencies": "Belum ada dependensi. Tambahkan tugas yang harus selesai lebih dulu.",
-        "noParent": "Tanpa induk (level atas)",
-        "parentTask": "Tugas induk",
         "peopleLoadFailed": "Gagal memuat daftar orang; Anda tetap dapat menyimpan dan menugaskan nanti.",
         "priority": "Prioritas",
         "removeDependency": "Hapus dependensi",

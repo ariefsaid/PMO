@@ -12,12 +12,18 @@ let projectId = '';
 test.beforeEach(async () => { projectId = await ownProject(admin, `JOB-T1 project ${uniq()}`); });
 test.afterEach(async () => { await dropProject(admin, projectId, ['task_dependencies', 'tasks']); });
 
-async function newTask(page: Page, name: string, opts: { parent?: RegExp; assignee?: RegExp } = {}) {
+async function newTask(page: Page, name: string, opts: { assignee?: RegExp; subtask?: { name: string; assignee: string } } = {}) {
   await page.getByRole('button', { name: /new task/i }).first().click();
   const dialog = page.getByRole('dialog', { name: /new task/i });
   await dialog.getByLabel(/task name/i).fill(name);
   if (opts.assignee) await pickComboboxOption(dialog, page, /assignee/i, opts.assignee);
-  if (opts.parent) await pickComboboxOption(dialog, page, /parent task/i, opts.parent);
+  // #2807: a subtask is typed in its parent's form and saved with it.
+  if (opts.subtask) {
+    const subtasks = dialog.getByRole('group', { name: 'Subtasks' });
+    await subtasks.getByRole('button', { name: 'Add subtask', exact: true }).click();
+    await subtasks.getByRole('textbox', { name: 'Subtask name' }).fill(opts.subtask.name);
+    await subtasks.getByRole('combobox', { name: 'Assignee' }).selectOption({ label: opts.subtask.assignee });
+  }
   await dialog.getByRole('button', { name: /create task/i }).click();
   await expect(dialog).toBeHidden({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: `Open task ${name}`, exact: true })).toBeVisible({ timeout: 15_000 });
@@ -31,8 +37,7 @@ test('JOB-T1 a project manager adds a task, a subtask with another assignee, and
   await page.goto(`/projects/${projectId}/tasks`);
   await expect(page.getByRole('button', { name: /new task/i }).first()).toBeVisible({ timeout: 20_000 });
 
-  await newTask(page, parent);
-  await newTask(page, child, { parent: new RegExp(parent), assignee: /Tomas Beck/ });
+  await newTask(page, parent, { subtask: { name: child, assignee: 'Tomas Beck' } });
   await newTask(page, after);
 
   // The subtask sits under its parent (one level in) and carries its own assignee.

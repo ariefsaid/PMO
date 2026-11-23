@@ -481,5 +481,6 @@
   "MR_DECIDER_ACTIVE": "Atasan yang memutuskan pelepasan ini masih aktif. Minta beliau memutuskannya.",
   "MR_REASSIGN_NO_MANAGER": "Orang ini tidak punya atasan langsung yang aktif. Atur atasan di data orangnya, lalu pindahkan pelepasannya.",
   "MR_REASSIGN_SOD": "Atasan orang ini saat ini yang membuka pelepasan ini, atau orang itu sendiri. Atur atasan langsung lain lebih dulu, lalu pindahkan.",
-  "LCM_HAS_LOGIN": "Orang ini masuk ke aplikasi, jadi jamnya dihitung biayanya di lembar waktunya. Kelas hanya untuk orang tanpa akun."
+  "LCM_HAS_LOGIN": "Orang ini masuk ke aplikasi, jadi jamnya dihitung biayanya di lembar waktunya. Kelas hanya untuk orang tanpa akun.",
+  "TASK_TREE_CYCLE": "Tugas tidak bisa ditempatkan di bawah salah satu subtugasnya sendiri."
 }

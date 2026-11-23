@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTaskRenderOrder, collectDescendants } from './taskTree';
+import { buildRollups, buildTaskRenderOrder, collectDescendants, countedTasks } from './taskTree';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 
 /**
@@ -104,5 +104,37 @@ describe('OD-INT-9 subtask tree helpers', () => {
     const tasks = [t('a'), t('b')];
     expect(collectDescendants('nope', tasks).size).toBe(0);
     expect(collectDescendants('a', tasks).size).toBe(0);
+  });
+});
+
+// #2807: the one counting rule (SQL twin task_counts_toward_progress, migration 1970) and the parent roll-up.
+describe('countedTasks / buildRollups (#2807)', () => {
+  const row = (id: string, parent: string | null, o: Record<string, unknown> = {}) =>
+    ({ id, parent_task_id: parent, archived_at: null, status: 'To Do', start_date: null, end_date: null, ...o });
+
+  it('AC-TREE-U01: leaves count, parents never; an archived child does not make a parent; archived tasks never count', () => {
+    const tasks = [row('p', null), row('a', 'p'), row('b', 'p'), row('q', null), row('q1', 'q', { archived_at: 'x' }), row('z', null, { archived_at: 'x' })];
+    expect(countedTasks(tasks).map((x) => x.id).sort()).toEqual(['a', 'b', 'q']);
+  });
+
+  it('AC-TREE-U02: regrouping the same leaves under new parents (two levels) counts exactly the same tasks', () => {
+    const flat = [row('a', null), row('b', null), row('c', null)];
+    const grouped = [row('g', null), row('g2', 'g'), { ...flat[0], parent_task_id: 'g' }, { ...flat[1], parent_task_id: 'g2' }, { ...flat[2], parent_task_id: 'g2' }];
+    expect(countedTasks(grouped).map((x) => x.id).sort()).toEqual(countedTasks(flat).map((x) => x.id).sort());
+  });
+
+  it('AC-TREE-U03: a parent rolls up its leaves at any depth: progress, dates and status', () => {
+    const tasks = [
+      row('p', null, { status: 'Done', start_date: '2020-01-01' }),
+      row('c', 'p'),
+      row('l1', 'c', { status: 'Done', start_date: '2026-01-05', end_date: '2026-01-09' }),
+      row('l2', 'c', { status: 'Blocked', end_date: '2026-02-01' }),
+      row('l3', 'p', { status: 'To Do', start_date: '2026-01-02', end_date: '2026-01-03' }),
+    ];
+    const r = buildRollups(tasks);
+    expect(r.get('p')).toEqual({ leafCount: 3, doneCount: 1, pct: 100 / 3, start: '2026-01-02', end: '2026-02-01', status: 'Blocked' });
+    expect(r.get('c')?.leafCount).toBe(2);
+    expect(r.has('l1')).toBe(false);
+    expect(buildRollups([row('d', null), row('d1', 'd', { status: 'Done' })]).get('d')?.status).toBe('Done');
   });
 });

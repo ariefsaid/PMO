@@ -8,7 +8,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import {
-  BudgetTab, BillingTab, ContractCascade, DocumentsTab, MaterialsTab,
+  BudgetTab, BillingTab, ContractCascade, DocumentsTab, MaterialsTab, OrdersTab,
   ProcurementTab, ProjectSCurve, TasksTab, WorkOrdersTab, preloadProjectTab,
 } from './lazyProjectChunks';
 import { ProjectAttention } from './ProjectAttention';
@@ -21,6 +21,7 @@ import { CandidateWorkOrders } from './tabs/CandidateWorkOrders';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
 
 import { AREAS, type Area } from './projectDetailAreas';
+import { useTerms } from '@/src/lib/i18n/terms';
 
 type Lens = 'money' | 'delivery';
 
@@ -152,6 +153,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
 /** One area's working surface, identical in every layout. */
 const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'overview'>; onCountChange?: (count: number | null) => void }> = ({ project, area, onCountChange }) => {
   switch (area) {
+    case 'orders': return <OrdersTab projectId={project.id} />;
     case 'budget': return <BudgetTab projectId={project.id} />;
     case 'procurement': return <ProcurementTab projectId={project.id} onCountChange={onCountChange} />;
     case 'tasks': return <TasksTab projectId={project.id} projectName={project.name} onCountChange={onCountChange} />;
@@ -180,8 +182,10 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
 
 function useAreaLabels(): Record<Area, string> {
   const { t } = useTranslation('project');
+  const terms = useTerms();
   return {
     overview: t('projectDetail.tabs.overview', 'Overview'),
+    orders: terms.clientWorkOrder,
     budget: t('projectDetail.tabs.budget', 'Budget'),
     procurement: t('projectDetail.tabs.procurement', 'Procurement'),
     tasks: t('projectDetail.tabs.tasks', 'Tasks'),
@@ -198,6 +202,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
   return AREAS.filter((a) => {
     // A deal not yet won has no orders, billing or purchases (brief addendum, #1402).
     if (a === 'contract') return !isPipeline && lens !== 'delivery' && may('view', 'workOrder');
+    if (a === 'orders') return !isPipeline && may('view', 'workOrder');
     if (a === 'procurement' || a === 'materials') return !isPipeline;
     if (a === 'budget') return lens !== 'delivery';
     return true;

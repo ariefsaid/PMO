@@ -36,9 +36,9 @@ function milestone(overrides: Partial<MilestoneWithProgress> & { id: string; nam
 }
 
 const tasks: SCurveTask[] = [
-  { milestone_id: 'm1', parent_task_id: null, status: 'Done', completed_at: '2026-01-10T00:00:00Z', end_date: '2026-01-10' },
-  { milestone_id: 'm1', parent_task_id: null, status: 'Done', completed_at: '2026-01-20T00:00:00Z', end_date: '2026-01-20' },
-  { milestone_id: 'm1', parent_task_id: null, status: 'In Progress', completed_at: null, end_date: '2026-01-30' },
+  { id: 't1', milestone_id: 'm1', parent_task_id: null, status: 'Done', completed_at: '2026-01-10T00:00:00Z', end_date: '2026-01-10' },
+  { id: 't2', milestone_id: 'm1', parent_task_id: null, status: 'Done', completed_at: '2026-01-20T00:00:00Z', end_date: '2026-01-20' },
+  { id: 't3', milestone_id: 'm1', parent_task_id: null, status: 'In Progress', completed_at: null, end_date: '2026-01-30' },
 ];
 
 /** The actual-series points (the Done-task contributions) — the part of the model driven by `tasks`. */
@@ -65,6 +65,7 @@ describe('AC-CUA-072 rollup is ownership-agnostic over mirrored tasks (reads the
     // The third task is now Done and tombstoned (excluded by listTasks) — the consumer sees only the
     // first two. Construct that "after delete" input by passing just the two Done tasks.
     const doneThird: SCurveTask = {
+      id: 't3',
       milestone_id: 'm1',
       parent_task_id: null,
       status: 'Done',

@@ -8,6 +8,7 @@
 import type { TaskPatch, TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { GanttEvent, GanttResource } from '@/src/components/reui/gantt/gantt-types';
+import { buildRollups, type TaskRollup } from '@/src/lib/tasks/taskTree';
 
 export const DAY_MS = 86_400_000;
 
@@ -20,6 +21,10 @@ export interface ReuiGanttModel {
   events: GanttEvent<GanttTaskData>[];
   /** Tasks with neither date: listed in a footer, never plotted. */
   undated: { id: string; name: string }[];
+  /** Roll-up of every task with a live child (#2807): the tree columns show it for parent rows. */
+  rollups: Map<string, TaskRollup>;
+  /** Summary-bar progress per parent row (a phase's own %, else done subtasks over subtasks). */
+  summaryPct: Map<string, number>;
   /** Bars drawn (tasks only, not milestone diamonds). */
   barCount: number;
   edgeCount: number;
@@ -37,17 +42,34 @@ const STATUS_COLOR: Record<string, string> = {
 const parseDay = (iso: string): Date => new Date(`${iso}T00:00:00Z`);
 const toDay = (d: Date): string => d.toISOString().slice(0, 10);
 
+/**
+ * #2807: tasks nest to any depth. A task with subtasks is a parent row with no bar of its own: the gantt draws its
+ * summary bar over its subtasks' bars (parentScheduling off), and its progress is done subtasks over subtasks.
+ * Leaves carry the bars. Rows sit under their top task's place: a task group linked to a phase nests under that
+ * phase, an unlinked group and each phase are top rows, then Ungrouped. Undated leaves (and parents with no dated
+ * leaf) are listed in the footer, never plotted.
+ */
 export function buildReuiGanttModel(
   tasks: TaskWithRefs[],
   milestones: MilestoneWithProgress[],
   labels: { ungrouped: string; milestoneTarget: string; dependsOn: (names: string[]) => string },
   canReschedule: (task: TaskWithRefs) => boolean = () => false,
+  opts: { allTasks?: TaskWithRefs[]; taskGroups?: { id: string; name: string; milestone_id: string | null }[] } = {},
 ): ReuiGanttModel {
-  // OD-INT-9: subtasks nest under their parent in the list view and never get a bar.
-  const topLevel = tasks.filter((t) => t.parent_task_id == null && t.archived_at == null);
-  const dated = topLevel.filter((t) => t.start_date || t.end_date);
-  const undated = topLevel.filter((t) => !t.start_date && !t.end_date).map((t) => ({ id: t.id, name: t.name }));
+  const visible = tasks.filter((t) => t.archived_at == null);
+  const rollups = buildRollups(opts.allTasks ?? tasks);
+  const present = new Set(visible.map((t) => t.id));
+  const kids = new Map<string, TaskWithRefs[]>();
+  const roots: TaskWithRefs[] = [];
+  for (const t of visible) {
+    if (t.parent_task_id && present.has(t.parent_task_id)) kids.set(t.parent_task_id, [...(kids.get(t.parent_task_id) ?? []), t]);
+    else roots.push(t);
+  }
+  const isLeaf = (t: TaskWithRefs) => !kids.has(t.id) && !rollups.has(t.id);
+  const dated = visible.filter((t) => isLeaf(t) && (t.start_date || t.end_date));
   const drawn = new Map(dated.map((t) => [t.id, t.name]));
+  const undated: { id: string; name: string }[] = [];
+  const summaryPct = new Map<string, number>();
 
   let edgeCount = 0;
   let hiddenEdgeCount = 0;
@@ -84,13 +106,41 @@ export function buildReuiGanttModel(
     };
   });
 
-  const groups: GanttResource[] = [];
+  // One row per task: a dated leaf, or a parent with at least one plotted row under it.
+  const node = (t: TaskWithRefs, seen: Set<string>): GanttResource | null => {
+    if (seen.has(t.id)) return null; // defensive: a cycle in old data
+    seen.add(t.id);
+    if (kids.has(t.id)) {
+      const children = (kids.get(t.id) ?? []).map((k) => node(k, seen)).filter((x): x is GanttResource => !!x);
+      if (!children.length) { undated.push({ id: t.id, name: t.name }); return null; }
+      const r = rollups.get(t.id);
+      if (r) summaryPct.set(t.id, r.pct);
+      return { id: t.id, title: t.name, scheduleMode: 'single', children };
+    }
+    if (!drawn.has(t.id)) { undated.push({ id: t.id, name: t.name }); return null; }
+    return { id: t.id, title: t.name, scheduleMode: 'single' };
+  };
+
+  const groups = opts.taskGroups ?? [];
+  const groupIds = new Set(groups.map((g) => g.id));
   const sorted = [...milestones].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-  const byMilestone = new Map<string | null, TaskWithRefs[]>();
-  for (const t of dated) {
-    const key = t.milestone_id != null && sorted.some((m) => m.id === t.milestone_id) ? t.milestone_id : null;
-    byMilestone.set(key, [...(byMilestone.get(key) ?? []), t]);
+  const milestoneIds = new Set(sorted.map((m) => m.id));
+  const placeOf = (t: TaskWithRefs): string => {
+    const g = (t as TaskWithRefs & { task_group_id?: string | null }).task_group_id;
+    if (g && groupIds.has(g)) return `group:${g}`;
+    return t.milestone_id && milestoneIds.has(t.milestone_id) ? `milestone:${t.milestone_id}` : 'milestone:none';
+  };
+  const byPlace = new Map<string, GanttResource[]>();
+  for (const r of roots) {
+    const n = node(r, new Set());
+    if (n) byPlace.set(placeOf(r), [...(byPlace.get(placeOf(r)) ?? []), n]);
   }
+  const groupRow = (g: { id: string; name: string }): GanttResource | null => {
+    const children = byPlace.get(`group:${g.id}`) ?? [];
+    return children.length ? { id: `group:${g.id}`, title: g.name, children } : null;
+  };
+
+  const resources: GanttResource[] = [];
   for (const m of sorted) {
     const children: GanttResource[] = [];
     if (m.target_date) {
@@ -109,22 +159,23 @@ export function buildReuiGanttModel(
         data: { task: null },
       });
     }
-    for (const t of byMilestone.get(m.id) ?? []) children.push({ id: t.id, title: t.name, scheduleMode: 'single' });
-    if (children.length) groups.push({ id: `milestone:${m.id}`, title: m.name, children });
+    for (const g of groups) if (g.milestone_id === m.id) { const row = groupRow(g); if (row) children.push(row); }
+    children.push(...(byPlace.get(`milestone:${m.id}`) ?? []));
+    if (children.length) {
+      summaryPct.set(`milestone:${m.id}`, m.effective_pct);
+      resources.push({ id: `milestone:${m.id}`, title: m.name, children });
+    }
   }
-  const ungrouped = byMilestone.get(null) ?? [];
-  if (ungrouped.length) {
-    groups.push({
-      id: 'milestone:none',
-      title: labels.ungrouped,
-      children: ungrouped.map((t) => ({ id: t.id, title: t.name, scheduleMode: 'single' as const })),
-    });
-  }
+  for (const g of groups) if (!g.milestone_id || !milestoneIds.has(g.milestone_id)) { const row = groupRow(g); if (row) resources.push(row); }
+  const ungrouped = byPlace.get('milestone:none') ?? [];
+  if (ungrouped.length) resources.push({ id: 'milestone:none', title: labels.ungrouped, children: ungrouped });
 
   return {
-    resources: groups,
+    resources,
     events,
     undated,
+    rollups,
+    summaryPct,
     barCount: dated.length,
     edgeCount,
     hiddenEdgeCount,

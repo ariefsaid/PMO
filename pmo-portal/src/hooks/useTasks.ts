@@ -95,6 +95,13 @@ export function useTaskMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
+  // #2807: a task with its subtasks, or subtasks under an existing task, in one save.
+  const createTree = useMutation({
+    mutationFn: (args: Parameters<typeof repositories.task.createTree>) => repositories.task.createTree(...args),
+    // A partial external save still landed rows: refresh either way.
+    onSettled: invalidate,
+  });
+
   const update = useMutation({
     mutationFn: ({ id, patch }: UpdateTaskArgs) => repositories.task.update(id, patch, projectId),
     onMutate: ({ id }) => {
@@ -186,5 +193,5 @@ export function useTaskMutations(projectId: string) {
     [],
   );
 
-  return { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask };
+  return { create, createTree, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask };
 }

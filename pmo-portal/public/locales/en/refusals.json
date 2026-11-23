@@ -479,5 +479,6 @@
   "MR_DECIDER_ACTIVE": "The manager who decides this release is still active. Ask them to decide it.",
   "MR_REASSIGN_NO_MANAGER": "This person has no active direct manager. Set one on their person record, then move the release.",
   "MR_REASSIGN_SOD": "The person's current manager opened this release, or is the person. Set another direct manager first, then move it.",
-  "LCM_HAS_LOGIN": "This person signs in, so their hours are costed on their timesheet. A class is only for people with no login."
+  "LCM_HAS_LOGIN": "This person signs in, so their hours are costed on their timesheet. A class is only for people with no login.",
+  "TASK_TREE_CYCLE": "A task cannot sit under one of its own subtasks."
 }

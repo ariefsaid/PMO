@@ -41,7 +41,7 @@ function makeTask(overrides: Partial<TaskWithRefs> & { id: string; name: string 
 }
 
 describe('ProjectGantt task-table date rendering follows the configured date locale', () => {
-  it('OE07-004: renders the compact range in the active locale (id: "1 Jan 2020 – 11 Jan 2020")', () => {
+  it('OE07-004: renders the compact range in the active locale (id: "1 Jan – 11 Jan 2020")', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
     render(
       <ProjectGantt
@@ -52,7 +52,7 @@ describe('ProjectGantt task-table date rendering follows the configured date loc
     );
     const grid = document.querySelector('[data-gantt-row-id="a"][data-slot="gantt-row-group"]') as HTMLElement;
     // A past year keeps the year on (formatDay's rule), in the reader's locale order.
-    expect(within(grid).getByText('1 Jan 2020 – 11 Jan 2020')).toBeInTheDocument();
+    expect(within(grid).getByText('1 Jan – 11 Jan 2020')).toBeInTheDocument();
   });
 
   /**
@@ -70,7 +70,7 @@ describe('ProjectGantt task-table date rendering follows the configured date loc
       />,
     );
     const grid = document.querySelector('[data-gantt-row-id="y"][data-slot="gantt-row-group"]') as HTMLElement;
-    expect(within(grid).getByText('4 May 2020 – 19 Jun 2020')).toBeInTheDocument();
+    expect(within(grid).getByText('4 May – 19 Jun 2020')).toBeInTheDocument();
   });
 
   it('OE07-004: keeps the null handling — a missing date renders the em-dash placeholder', () => {

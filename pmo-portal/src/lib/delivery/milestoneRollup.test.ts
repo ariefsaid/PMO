@@ -15,9 +15,14 @@ const direct = [task('d1', 'Done', { milestone_id: 'M1' }), task('d2', 'To Do', 
 // A phase's own percentage is the database's (get_project_milestones, migration 1396); the screen computes only a
 // group's progress here, so this file pins groupProgress (#2753).
 describe('groupProgress (#2679)', () => {
-  it('counts only the group\'s live top-level tasks', () => {
+  it('counts each piece of work once: a subtask takes its parent\'s place, an archived task never counts (#2807)', () => {
     const noise = [task('s', 'Done', { task_group_id: 'G1', parent_task_id: 'g1' }), task('a', 'Done', { task_group_id: 'G1', archived_at: 'x' })];
     expect(groupProgress('G1', [...grouped, ...noise, ...direct])).toEqual({ taskCount: 3, doneCount: 2, calculatedPct: (2 * 100) / 3 });
     expect(groupProgress('G9', grouped).calculatedPct).toBeNull();
+  });
+
+  it('#2807: regrouping the same leaves under a new parent leaves the group\'s progress identical', () => {
+    const regrouped = [task('p', 'To Do', { task_group_id: 'G1' }), ...grouped.map((x) => ({ ...x, parent_task_id: 'p' }))];
+    expect(groupProgress('G1', regrouped)).toEqual(groupProgress('G1', grouped));
   });
 });

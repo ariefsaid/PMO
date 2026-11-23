@@ -3,8 +3,10 @@
  * The database is the authority (get_project_milestones / get_projects_delivery, migration 1396): a phase's own
  * percentage comes from that read, and the screen computes only a group's progress here (#2753).
  *
- * groupProgress counts a group's top-level, non-archived tasks. Calculated % is Done / counted, null when none.
+ * groupProgress counts a group's counted tasks (countedTasks: live, no live child). Calculated % is Done / counted, null when none.
  */
+
+import { countedTasks } from '@/src/lib/tasks/taskTree';
 
 export interface RollupTask {
   id: string;
@@ -28,7 +30,6 @@ export interface Progress {
   calculatedPct: number | null;
 }
 
-const isLive = (t: RollupTask): boolean => t.parent_task_id === null && t.archived_at === null;
 
 function progressOf(tasks: RollupTask[]): Progress {
   const doneCount = tasks.filter((t) => t.status === 'Done').length;
@@ -39,7 +40,7 @@ function progressOf(tasks: RollupTask[]): Progress {
   };
 }
 
-/** Progress of one group itself: its top-level, non-archived tasks. */
+/** Progress of one group itself: its counted tasks. */
 export function groupProgress(groupId: string, tasks: RollupTask[]): Progress {
-  return progressOf(tasks.filter((t) => isLive(t) && t.task_group_id === groupId));
+  return progressOf(countedTasks(tasks).filter((t) => t.task_group_id === groupId));
 }

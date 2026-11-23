@@ -67,12 +67,13 @@ update tasks set task_group_id = :'G1' where id = '13950000-0000-0001-0000-00000
 select is((select task_count from get_project_milestones('13950000-0000-0000-0000-000000000021') where id = '13950000-0000-0000-0000-000000000031'), 5,
   'AC-TGM-003: a task both direct and in the linked group counts once');
 
--- Subtasks and archived tasks of the group never count.
+-- #2807: a subtask replaces its parent in the count (each piece of work once); archived tasks never count.
 insert into tasks (id, org_id, project_id, name, status, task_group_id, parent_task_id, archived_at) values
   ('13950000-0000-0001-0000-000000000021',:'A',:'P1','sub','Done',:'G1','13950000-0000-0001-0000-000000000011',null),
   ('13950000-0000-0001-0000-000000000022',:'A',:'P1','arch','Done',:'G1',null,now());
-select is((select task_count from get_project_milestones('13950000-0000-0000-0000-000000000021') where id = '13950000-0000-0000-0000-000000000031'), 5,
-  'AC-TGM-004: subtasks and archived tasks of the group never count');
+select results_eq($$ select task_count, calculated_pct::numeric(6,2) from get_project_milestones('13950000-0000-0000-0000-000000000021') where id = '13950000-0000-0000-0000-000000000031' $$,
+  $$ values (5, 60.00) $$,
+  'AC-TGM-004: a subtask takes its parent''s place (each piece once, #2807) and archived tasks never count (5 tasks, 60%)');
 
 -- AC-TGM-004: archived group, then unlinked group -> back to the direct tasks.
 update task_groups set archived_at = now() where id = :'G1';
