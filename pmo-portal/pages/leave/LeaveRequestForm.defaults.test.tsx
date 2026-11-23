@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 
 /** fix/walk-people item 5: "request leave or report sick" never starts on someone; with a choice to make, the person is picked. */
-const h = vi.hoisted(() => ({ people: [] as Array<{ id: string; name: string; is_self: boolean }>, submit: vi.fn() }));
+const h = vi.hoisted(() => ({ people: [] as Array<{ id: string; name: string; is_self: boolean }>, submit: vi.fn(), pending: false }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1', id: 'u1', role: 'Project Manager' } }) }));
 vi.mock('@/src/hooks/useLeave', () => ({
   useLeaveSettings: () => ({ data: { enabled: true, approver_role: null } }),
@@ -14,7 +14,7 @@ vi.mock('@/src/hooks/useLeave', () => ({
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: vi.fn() } }));
 vi.mock('@tanstack/react-query', async (orig) => {
   const m = await orig<typeof import('@tanstack/react-query')>();
-  return { ...m, useQuery: () => ({ data: h.people, isPending: false }) };
+  return { ...m, useQuery: () => ({ data: h.people, isPending: h.pending }) };
 });
 import { LeaveRequestForm } from './LeaveRequestForm';
 
@@ -40,6 +40,21 @@ describe('LeaveRequestForm person default', () => {
     await user.selectOptions(person, 'p1');
     await user.click(screen.getByRole('button', { name: 'Send request' }));
     expect(h.submit).toHaveBeenCalledWith(expect.objectContaining({ person_id: 'p1', leave_type_id: 't1' }));
+  });
+
+  it('a login that can file leave for no one says so, instead of a form that cannot be sent', () => {
+    h.people = []; h.pending = false;
+    mount();
+    expect(screen.getByText(/You can file leave only for yourself and the people you manage/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Type/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Send request' })).toBeDisabled();
+  });
+
+  it('says nothing about who can be filed for while the list is still loading', () => {
+    h.people = []; h.pending = true;
+    mount();
+    expect(screen.queryByText(/You can file leave only/)).toBeNull();
+    h.pending = false;
   });
 
   it('a person who can request only for themselves needs no pick', async () => {
