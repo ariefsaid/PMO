@@ -30,7 +30,7 @@ function approverWho(approvers: readonly ImprestRequesterApprover[], roleLabel: 
  * fabricated Admin). `unavailable` and an empty named set render nothing. A payment step is worded as waiting to pay,
  * so it cannot read as still awaiting approval.
  */
-export function requesterRouteText(
+function requesterRouteText(
   route: ImprestRequesterRoute,
   t: TFunction,
   roleLabel: (role: string) => string,
