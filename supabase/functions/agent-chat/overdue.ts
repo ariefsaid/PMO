@@ -83,7 +83,10 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
     readRows<TaskRow>(
       scope(
         sb.from('tasks').select('id, name, end_date, project_id, assignee_id')
-          .in('status', OPEN_TASK_STATUSES).lt('end_date', asOf).is('tombstoned_at', null).is('archived_at', null),
+          .in('status', OPEN_TASK_STATUSES).lt('end_date', asOf).is('tombstoned_at', null).is('archived_at', null)
+          // #2807: leaves only. A parent's own status and due date feed no figure; the database's one leaf test
+          // (task_counts_toward_progress, read as a computed field) decides, as on the dashboard and report.
+          .is('task_counts_toward_progress', true),
       ).order('end_date', { ascending: true }).limit(OVERDUE_TASK_CAP + 1),
     );
 

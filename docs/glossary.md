@@ -15,7 +15,7 @@ target date, and a weight. Created free-form per project — there is no org-lev
 taxonomy. Progress is held in two columns: a *calculated* percent (derived from its top-level
 tasks' completion; empty when it has no tasks) and an *input* percent (typed by the PM, optional).
 The effective percent is the input value when present, otherwise the calculated one, or zero
-when neither exists. Calculated progress excludes subtasks and archived tasks. Both values are
+when neither exists. Calculated progress counts leaves only: non-archived tasks with no live subtask. Both values are
 shown side by side, so any divergence between the PM's figure and task-derived progress is
 self-evident. A project's overall delivery progress is the weight-weighted rollup of its
 milestones' effective percent; it is unavailable (null) when no milestone has a progress signal.
@@ -26,10 +26,12 @@ progresses*, not a zero-duration checkpoint event.
 **Task** — the smallest unit of tracked work. It may belong to a project or to no project at all
 (a meeting action item can be a task); it may optionally be grouped under exactly one milestone
 (shown to users as **Phase**) and may nest under a parent task as a **subtask** (OD-INT-9,
-2026-07-20 — this superseded the earlier two-level-only hierarchy). Only top-level, non-archived
-tasks count toward milestone and delivery progress; subtasks render nested under their parent and
-never move a percentage on their own. A subtask has no independent project identity — it follows
-its parent between projects (OD-TASK-2).
+2026-07-20 — this superseded the earlier two-level-only hierarchy), to any depth. Progress counts
+each piece of work once (#2807): a **leaf** — a non-archived task with no live subtask — counts toward
+milestone, delivery and overdue figures; a **parent** is a display-only roll-up of its leaves (its own
+status and dates feed no figure). A subtask sits in its parent's phase and group, and a task can never
+sit under its own subtask. A subtask has no independent project identity — it follows its parent
+between projects (OD-TASK-2).
 
 **Document** — a controlled file record in a project's document register (drawing,
 specification, report, contract …). Carries a category, a revision mark, and a lifecycle

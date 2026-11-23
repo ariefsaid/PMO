@@ -6,7 +6,8 @@
 //   • a ClickUp parent resolves to its mirrored PMO id;
 //   • an explicit ClickUp `parent: null` un-nests the mirror;
 //   • an adopted subtask is minted with its resolved parent, claim-first;
-//   • the invocation's read deadline reaches the reader.
+//   • the invocation's read deadline reaches the reader;
+//   • a move the database refuses as a cycle lands flat and the sweep carries on (#2807).
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { buildSweepDepsLive } = await import('./index.ts');
 import { runMultiListSweep } from '../../../pmo-portal/src/lib/adapterSeam/clickup/multiListSweep.ts';
@@ -42,10 +43,17 @@ function fakeDb(seed: { refs: Row[]; tasks: Row[] }) {
         then: (resolve: (v: unknown) => unknown) => {
           if (op === 'update') {
             const hit = rows().filter(match);
+            // The database's cycle trigger (1970): a task may never sit under one of its own subtasks.
+            const parent = payload.parent_task_id as string | null | undefined;
+            for (let up = parent; up; up = rows().find((r) => r.id === up)?.parent_task_id as string | undefined) {
+              if (hit.some((r) => r.id === up)) {
+                return resolve({ data: null, error: { code: '23514', message: 'TASK_TREE_CYCLE: a task cannot sit under one of its own subtasks' } });
+              }
+            }
             hit.forEach((r) => Object.assign(r, payload));
             return resolve({ data: hit.map((r) => ({ id: r.id })), error: null });
           }
-          if (op === 'insert') rows().push({ ...payload });
+          if (op === 'insert' || op === 'upsert') rows().push({ ...payload });
           return resolve({ data: null, error: null });
         },
       };
@@ -117,4 +125,18 @@ Deno.test('live sweep: the invocation read deadline reaches the reader (a passed
   const result = await sweep(db, [clickUpTask('cu-1', { name: 'Renamed' })], false, Date.now() - 1);
   assert(db.tables.tasks[0].name === 'old', 'nothing was read, so nothing applied');
   assert(result.perList[0].incomplete === true, 'the List is reported incomplete');
+});
+
+Deno.test('live sweep: a move refused as a cycle lands flat and the sweep carries on to the next task and the watermark (#2807)', async () => {
+  // PMO still has B under A (B's un-nesting was missed); the tool now reports A under B.
+  const db = fakeDb({
+    refs: [ref('cu-a', 'pmo-a'), ref('cu-b', 'pmo-b'), ref('cu-c', 'pmo-c')],
+    tasks: [mirror('pmo-a'), mirror('pmo-b', { parent_task_id: 'pmo-a' }), mirror('pmo-c')],
+  });
+  await sweep(db, [clickUpTask('cu-a', { parent: 'cu-b', date_updated: '9000' }), clickUpTask('cu-c', { name: 'Renamed', date_updated: '9100' })]);
+  const a = db.tables.tasks.find((t) => t.id === 'pmo-a')!;
+  assert(a.parent_task_id === null, 'the refused move lands flat until the tree converges');
+  assert(a.name === 'Task cu-a', 'the rest of the refused task\'s change still applies');
+  assert(db.tables.tasks.find((t) => t.id === 'pmo-c')!.name === 'Renamed', 'the next task in the sweep still applies');
+  assert(db.tables.external_sync_watermarks.length === 1, 'the watermark advances, so the next run does not replay the same window');
 });
