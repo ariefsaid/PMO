@@ -5,7 +5,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Combobox, EntityFormModal, FormGrid, SelectField, TextField, useToast, type ComboboxOption } from '@/src/components/ui';
+import { Combobox, EntityFormModal, FormGrid, SelectField, TextField, useToast, type ComboboxOption, type SubmitError } from '@/src/components/ui';
 import { useTaskGroupMutations } from '@/src/hooks/useTaskGroups';
 import { useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -14,6 +14,13 @@ import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { TaskGroupRow, WithTaskGroup } from '@/src/lib/db/taskGroups';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import { collectDescendants } from '@/src/lib/tasks/taskTree';
+
+// The page's own `onError` toasts and owns the single save_failed event; this keeps the reason on screen too.
+const keepError = (set: (e: SubmitError) => void, onError: (err: unknown) => void) => (err: unknown) => {
+  const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+  set({ headline, detail });
+  onError(err);
+};
 
 export function TaskGroupFormModal({ milestones, onClose, onCreate, onError }: {
   milestones: MilestoneWithProgress[];
@@ -25,19 +32,22 @@ export function TaskGroupFormModal({ milestones, onClose, onCreate, onError }: {
   const [name, setName] = useState('');
   const [phase, setPhase] = useState('');
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+  const fail = keepError(setSaveError, onError);
   return <EntityFormModal
     open
     title={t('projectDetail.tasks.groupForm.title', 'New task group')}
     submitLabel={t('projectDetail.tasks.groupForm.create', 'Create group')}
     onClose={onClose}
     loading={busy}
+    submitError={saveError}
     dirty={!!name.trim() || !!phase}
     submitDisabled={!name.trim()}
     onSubmit={(e) => {
       e.preventDefault();
       if (!name.trim()) return;
       setBusy(true);
-      onCreate({ name: name.trim(), milestone_id: phase || null }).catch(onError).finally(() => setBusy(false));
+      onCreate({ name: name.trim(), milestone_id: phase || null }).catch(fail).finally(() => setBusy(false));
     }}
   >
     <FormGrid>
@@ -74,6 +84,7 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
   const [parent, setParent] = useState<string | null>(task.parent_task_id ?? null);
   const [place, setPlace] = useState(placeOf(task));
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const blocked = useMemo(() => new Set([task.id, ...collectDescendants(task.id, allTasks)]), [allTasks, task.id]);
   const parentOptions: ComboboxOption[] = useMemo(() => allTasks
     .filter((x) => !blocked.has(x.id) && x.archived_at == null)
@@ -86,18 +97,20 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
     ...(canGroup ? taskGroups.map((g) => ({ value: `g:${g.id}`, label: g.name })) : []),
   ];
   const dirty = parent !== (task.parent_task_id ?? null) || shownPlace !== placeOf(task);
+  const fail = keepError(setSaveError, onError);
   return <EntityFormModal
     open
     title={t('projectDetail.tasks.move.title', 'Move {{name}}', { name: task.name })}
     submitLabel={t('projectDetail.tasks.move.submit', 'Move')}
     onClose={onClose}
     loading={busy}
+    submitError={saveError}
     dirty={dirty}
     submitDisabled={!dirty}
     onSubmit={(e) => {
       e.preventDefault();
       setBusy(true);
-      onMove(parent, shownPlace !== placeOf(task) ? shownPlace : null).catch(onError).finally(() => setBusy(false));
+      onMove(parent, shownPlace !== placeOf(task) ? shownPlace : null).catch(fail).finally(() => setBusy(false));
     }}
   >
     <FormGrid>
