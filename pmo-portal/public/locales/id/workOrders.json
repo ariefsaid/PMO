@@ -37,7 +37,7 @@
       "expense_claim": "Klaim biaya"
     },
     "unavailable": "Jumlah tidak tersedia",
-    "notCosted": "Biaya belum dihitung",
+    "amountNotShown": "Nilai baris tidak ditampilkan",
     "timesheetLabel": "{{person}}, minggu {{week}}",
     "timesheetFallback": "Lembar waktu",
     "commitment": {

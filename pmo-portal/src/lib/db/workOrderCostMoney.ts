@@ -14,6 +14,7 @@ const TABLE: Partial<Record<CostSource, 'purchase_requests' | 'purchase_orders' 
   vendor_bill: 'procurement_invoices',
 };
 const CHUNK = 200;
+const PRICED_BY_PROJECT_READ: readonly CostSource[] = ['equipment_usage', 'stock_document', 'timesheet_entry', 'attendance_day'];
 
 export async function listWorkOrderCostMoney(lines: readonly WorkOrderCostLine[]): Promise<MoneyBySource> {
   const out: MoneyBySource = {};
@@ -31,46 +32,45 @@ export async function listWorkOrderCostMoney(lines: readonly WorkOrderCostLine[]
     out[source] = readableCount < new Set(ids).size ? null : found;
   }
 
-  const equipmentLines = lines.filter((line) => line.source === 'equipment_usage');
-  if (equipmentLines.length > 0) {
-    const found: Record<string, { amount: number; currency: string }> = {};
-    const foundIds = new Set<string>();
-    const projects = new Map<string, Set<string>>();
-    for (const line of equipmentLines) {
-      if (!line.projectId) {
-        out.equipment_usage = null;
+  // The project cost read prices equipment hire, posted stock issues and returns, and labour per record. It refuses a caller who
+  // may not read money (42501). A Project Manager reads labour in groups with no record id, so no per-record amount comes back.
+  const priced = lines.filter((line) => PRICED_BY_PROJECT_READ.includes(line.source));
+  if (priced.length === 0) return out;
+  const wanted = new Map<CostSource, Set<string>>();
+  const projects = new Set<string>();
+  for (const line of priced) {
+    if (!line.projectId) {
+      if (line.source === 'equipment_usage') { out.equipment_usage = null; return out; }
+      continue;
+    }
+    projects.add(line.projectId);
+    wanted.set(line.source, (wanted.get(line.source) ?? new Set<string>()).add(line.recordId));
+  }
+  const found: Partial<Record<CostSource, Record<string, { amount: number; currency: string }>>> = {};
+  const foundIds = new Set<string>();
+  for (const projectId of projects) {
+    const { data, error } = await supabase.rpc('work_order_cost_amounts', { p_project_id: projectId }) as unknown as {
+      data: { source: string; record_id: string | null; currency: string | null; amount: string | null }[] | null;
+      error: { message: string; code?: string } | null;
+    };
+    if (error) {
+      if (error.code === '42501') {
+        if (wanted.has('equipment_usage')) out.equipment_usage = null;
         return out;
       }
-      const ids = projects.get(line.projectId) ?? new Set<string>();
-      ids.add(line.recordId);
-      projects.set(line.projectId, ids);
+      throw new AppError(error.message, error.code);
     }
-
-    for (const [projectId, ids] of projects) {
-      const { data, error } = await supabase.rpc('work_order_cost_amounts', { p_project_id: projectId }) as unknown as {
-        data: { source: string; record_id: string; currency: string | null; amount: string | null }[] | null;
-        error: { message: string; code?: string } | null;
-      };
-      if (error) {
-        if (error.code === '42501') {
-          out.equipment_usage = null;
-          return out;
-        }
-        throw new AppError(error.message, error.code);
-      }
-
-      for (const row of data ?? []) {
-        if (row.source !== 'equipment_usage' || !ids.has(row.record_id)) continue;
-        foundIds.add(row.record_id);
-        const amount = row.amount == null ? null : Number(row.amount);
-        if (row.currency && amount != null && Number.isFinite(amount)) {
-          found[row.record_id] = { amount, currency: row.currency };
-        }
-      }
+    for (const row of data ?? []) {
+      const source = row.source as CostSource;
+      if (!row.record_id || !wanted.get(source)?.has(row.record_id)) continue;
+      const amount = row.amount == null ? null : Number(row.amount);
+      if (source === 'equipment_usage') foundIds.add(row.record_id);
+      if (row.currency && amount != null && Number.isFinite(amount)) (found[source] ??= {})[row.record_id] = { amount, currency: row.currency };
     }
-
-    out.equipment_usage = foundIds.size === new Set(equipmentLines.map((line) => line.recordId)).size ? found : null;
   }
+  if (wanted.has('equipment_usage')) out.equipment_usage = foundIds.size === wanted.get('equipment_usage')!.size ? found.equipment_usage ?? {} : null;
+  // A line the read did not price (a receipt, a day with no rate, a group row) shows no amount; it is never read as zero or as restricted.
+  for (const source of ['stock_document', 'timesheet_entry', 'attendance_day'] as const) if (found[source]) out[source] = found[source];
   return out;
 }
 

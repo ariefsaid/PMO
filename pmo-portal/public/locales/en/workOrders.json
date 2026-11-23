@@ -37,7 +37,7 @@
       "expense_claim": "Expense claims"
     },
     "unavailable": "Amount unavailable",
-    "notCosted": "Not yet costed",
+    "amountNotShown": "Line amount not shown",
     "timesheetLabel": "{{person}}, week of {{week}}",
     "timesheetFallback": "Timesheet",
     "commitment": {
