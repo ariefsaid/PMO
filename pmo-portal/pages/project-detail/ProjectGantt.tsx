@@ -13,6 +13,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, Button, StatusPill, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { Gantt } from '@/src/components/reui/gantt/gantt';
 import { GanttNav, GanttNavNext, GanttNavPrev, GanttNavToday, GanttScaleSwitcher, GanttTitle } from '@/src/components/reui/gantt/gantt-nav';
 import { GanttView } from '@/src/components/reui/gantt/gantt-view';
@@ -24,7 +25,7 @@ import { ContextMenuItem } from '@/src/components/shadcn/context-menu';
 import { TooltipProvider } from '@/src/components/shadcn/tooltip';
 import { buildReuiGanttModel, taskPatchFromRange, type GanttTaskData } from '@/src/lib/gantt/reuiModel';
 import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
-import { formatDay } from '@/src/lib/format';
+import { formatDay, formatDayRangeShort } from '@/src/lib/format';
 import type { TaskPatch, TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
@@ -32,6 +33,10 @@ import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
 interface ProjectGanttProps {
   tasks: TaskWithRefs[];
+  /** #2807: the project's whole task list (parents' roll-ups never follow a filter). Defaults to `tasks`. */
+  allTasks?: TaskWithRefs[];
+  /** #2807: active task groups; a group linked to a phase nests under it. */
+  taskGroups?: { id: string; name: string; milestone_id: string | null }[];
   milestones: MilestoneWithProgress[];
   /** Click / Enter / Space on a bar or a tree row. When omitted, bars and rows stay inert. */
   onActivateTask?: (task: TaskWithRefs) => void;
@@ -57,11 +62,41 @@ const UTC = 'UTC';
 const DAY_MINUTES = 1440;
 // The gantt needs a bounded box to scroll in; the tree panel and the track share it.
 const FRAME_CLASS = 'h-[60vh] min-h-[24rem] border-b border-border';
+/** Tree pane columns (#2807). Wide screens: the name column holds about 28 characters at the deepest level the
+ *  outline usually reaches and a date range reads on one line; below 1280px the timeline keeps its room. */
+const PANE = { wide: { name: 280, status: 152, dates: 168 }, compact: { name: 208, status: 104, dates: 140 } };
+/** The model's id prefix for a phase's target-date row (reuiModel). */
+const TARGET_ROW = 'milestone-target:';
+
+/**
+ * A parent's or group's summary bar (#2807): the familiar roll-up silhouette, darker and thicker than a leaf
+ * bar, with end caps pointing down, spanning its first child's start to its last child's end. The roll-up %
+ * sits on the bar when there is room, beside it when there is not.
+ */
+const SummaryBar: React.FC<{ pct: number | null }> = ({ pct }) => (
+  <div data-testid="gantt-summary-bar" className="@container relative w-full">
+    <div className="relative h-2 overflow-hidden bg-foreground/45">
+      {pct !== null && <div className="absolute inset-y-0 start-0 bg-foreground/90" style={{ width: `${pct}%` }} />}
+    </div>
+    <span aria-hidden className="absolute start-0 top-0 h-3.5 w-1.5 bg-foreground/90 [clip-path:polygon(0_0,100%_0,0_100%)]" />
+    <span aria-hidden className="absolute end-0 top-0 h-3.5 w-1.5 bg-foreground/90 [clip-path:polygon(0_0,100%_0,100%_100%)]" />
+    {pct !== null && (
+      // Wide bar: the % rides on it and sticks to the visible edge while the timeline scrolls. Narrow: beside it.
+      <div className="absolute start-full top-1/2 ms-2 flex -translate-y-1/2 items-center @min-[6rem]:inset-x-3 @min-[6rem]:ms-0">
+        <span className="sticky start-3 whitespace-nowrap text-xs font-medium tabular text-foreground @min-[6rem]:rounded-sm @min-[6rem]:border @min-[6rem]:border-border @min-[6rem]:bg-card @min-[6rem]:px-1 @min-[6rem]:leading-4">
+          {Math.round(pct)}%
+        </span>
+      </div>
+    )}
+  </div>
+);
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 const ProjectGantt: React.FC<ProjectGanttProps> = ({
   tasks,
+  allTasks,
+  taskGroups,
   milestones,
   onActivateTask,
   rowMenu,
@@ -71,6 +106,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
 }) => {
   const { t } = useTranslation('project');
   const isNarrow = useIsNarrow();
+  const pane = PANE[useIsDesktop(1280) ? 'wide' : 'compact'];
   const [scale, setScale] = useState<GanttScale>('month');
   const [overrides, setOverrides] = useState<Map<string, Override>>(new Map());
 
@@ -87,10 +123,11 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             `${t('projectDetail.gantt.dependsOn', 'depends on')} ${names.join(', ')}`,
         },
         writable ? canReschedule : undefined,
+        { allTasks, taskGroups },
       ),
-    [tasks, milestones, t, writable, canReschedule],
+    [tasks, milestones, t, writable, canReschedule, allTasks, taskGroups],
   );
-  const taskMap = useMemo(() => new Map(tasks.map((x) => [x.id, x])), [tasks]);
+  const taskMap = useMemo(() => new Map((allTasks ?? tasks).map((x) => [x.id, x])), [allTasks, tasks]);
 
   // Drop an override once the refetched task already carries those dates (or the task is gone).
   useEffect(() => {
@@ -191,21 +228,28 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
       {
         id: 'status',
         title: t('projectDetail.gantt.statusColumn', 'Status'),
-        width: 104,
+        width: pane.status,
         render: ({ resource }: GanttColumnContext) => {
           const task = taskMap.get(resource.id);
-          return task ? <StatusPill record="task" state={task.status} /> : null;
+          // A parent shows its subtasks' status (#2807), never its own.
+          return task ? <StatusPill record="task" state={model.rollups.get(task.id)?.status ?? task.status} /> : null;
         },
       },
       {
         id: 'dates',
         title: t('projectDetail.gantt.datesColumn', 'Dates'),
-        width: 128,
+        width: pane.dates,
         render: ({ resource }: GanttColumnContext) => {
+          // A phase's target row says its date, so it never reads blank while the diamond is off-screen.
+          if (resource.id.startsWith(TARGET_ROW)) {
+            const target = milestones.find((m) => `${TARGET_ROW}${m.id}` === resource.id)?.target_date;
+            return target ? formatDay(target) : null;
+          }
           const task = taskMap.get(resource.id);
           if (!task) return null;
-          const fmt = (iso: string | null) => (iso ? formatDay(iso) : '—');
-          return `${fmt(task.start_date)} – ${fmt(task.end_date)}`;
+          const r = model.rollups.get(task.id);
+          const [from, to] = r ? [r.start, r.end] : [task.start_date, task.end_date];
+          return from && to ? formatDayRangeShort(from, to) : `${from ? formatDay(from) : '—'} – ${to ? formatDay(to) : '—'}`;
         },
       },
       ...(rowMenu
@@ -224,7 +268,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
           ]
         : []),
     ],
-    [t, taskMap, rowMenu],
+    [t, taskMap, rowMenu, model.rollups, milestones, pane],
   );
 
   const menuItems = useCallback(
@@ -308,7 +352,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             events={events}
             resources={model.resources}
             defaultDate={defaultDate}
-            treePanel={{ width: rowMenu ? 480 : 440, nameColumnWidth: 208 }}
+            treePanel={{ width: pane.name + pane.status + pane.dates + (rowMenu ? 40 : 0), nameColumnWidth: pane.name, maxWidth: 760 }}
             scale={scale}
             onScaleChange={setScale}
             interactions={{ drag: writable, resize: writable, selectSlot: false }}
@@ -319,6 +363,8 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({
             rowCheckboxes={false}
             columns={columns}
             onEventUpdate={onEventUpdate}
+            getSummaryProgress={({ resource }) => model.summaryPct.get(resource.id) ?? null}
+            renderSummary={({ progress }) => <SummaryBar pct={progress} />}
             onEventClick={onActivateTask ? (occ) => occ.event.data?.task && activateById(occ.event.id) : undefined}
             onResourceClick={onActivateTask ? ({ resource }) => activateById(resource.id) : undefined}
             renderEventMenu={rowMenu ? ({ occurrence }) => menuItems(occurrence.event.data?.task ?? undefined) : undefined}

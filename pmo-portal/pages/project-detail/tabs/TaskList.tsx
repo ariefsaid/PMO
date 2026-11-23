@@ -8,7 +8,9 @@ import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Tooltip, type Column } from '@/src/components/ui';
+import { Tooltip, Icon, type Column } from '@/src/components/ui';
+import { RollupDates, RollupProgress } from './TaskRollupCells';
+import type { TaskRollup } from '@/src/lib/tasks/taskTree';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
@@ -33,29 +35,58 @@ export interface TaskColumnDeps {
   pendingPushByTask: Record<string, PendingPushState>;
 }
 
+/** The outline the grouped list hands the columns (#2807): depth, which rows are parents, and their roll-up. */
+export interface TaskTreeView {
+  depths: Map<string, number>;
+  /** Roll-up of every task with a live child (buildRollups over the whole project). */
+  rollups: Map<string, TaskRollup>;
+  collapsed: ReadonlySet<string>;
+  onToggle: (taskId: string) => void;
+}
+
 function buildTaskColumns(
   t: TFunction,
   deps: TaskColumnDeps,
-  depths: Map<string, number>,
+  tree: TaskTreeView,
 ): Column<TaskWithRefs>[] {
   const { today, highlightedTaskId, canSetStatus, statusBusy, onStatusChange, pendingPushByTask } = deps;
+  const { depths, rollups, collapsed, onToggle } = tree;
   return [
     {
       key: 'name',
       header: t('projectDetail.tasks.column.task', 'Task'),
       kind: 'primary',
       primaryTitle: (task) => task.name,
+      // The indent and the fold toggle sit before the open-task button, never inside it (nested-interactive).
+      lead: (task) => {
+        const depth = depths.get(task.id) ?? 0;
+        const open = !collapsed.has(task.id);
+        if (!rollups.has(task.id) && depth === 0 && rollups.size === 0) return null;
+        return <span className="flex shrink-0" style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}>
+          {rollups.has(task.id) ? <button
+            type="button"
+            aria-expanded={open}
+            aria-label={open
+              ? t('projectDetail.tasks.tree.collapse', 'Hide subtasks of {{name}}', { name: task.name })
+              : t('projectDetail.tasks.tree.expand', 'Show subtasks of {{name}}', { name: task.name })}
+            onClick={(e) => { e.stopPropagation(); onToggle(task.id); }}
+            className="touch-target -my-1 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Icon name="chev" className={`size-3.5 transition-transform${open ? ' rotate-90' : ''}`} />
+          </button> : <span aria-hidden className="inline-block size-6 shrink-0 max-md:hidden" />}
+        </span>;
+      },
       cell: (task) => {
         const depth = depths.get(task.id) ?? 0;
+        const rollup = rollups.get(task.id);
         return <span
-          id={`task-${task.id}`}
-          className={`block whitespace-normal break-words font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
-          style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
-          title={task.name}
-        >
-          {depth > 0 && <span className="sr-only">{`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}</span>}
-          {task.name}
-        </span>;
+            id={`task-${task.id}`}
+            className={`block min-w-0 whitespace-normal break-words ${rollup ? 'font-semibold' : depth > 0 ? 'font-normal' : 'font-semibold'}${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+            title={task.name}
+          >
+            {depth > 0 && <span className="sr-only">{`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}</span>}
+            {task.name}
+          </span>;
       },
       secondaryCell: (task) => task.priority ? (
         <span className="text-sm font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
@@ -78,7 +109,7 @@ function buildTaskColumns(
       header: t('projectDetail.tasks.column.due', 'Due'),
       kind: 'date',
       size: 260,
-      cell: (task) => task.end_date ? <Tooltip content={t(
+      cell: (task) => rollups.has(task.id) ? <RollupDates rollup={rollups.get(task.id)!} /> : task.end_date ? <Tooltip content={t(
         'projectDetail.tasks.dueTooltip',
         'Due date from the task record. Late days compare the due date with today in the organization timezone.',
       )}>
@@ -93,7 +124,7 @@ function buildTaskColumns(
     {
       key: 'status',
       header: t('projectDetail.tasks.column.status', 'Status'),
-      cell: (task) => (
+      cell: (task) => rollups.has(task.id) ? <RollupProgress rollup={rollups.get(task.id)!} /> : (
         <TaskStatusCell
           task={task}
           editable={canSetStatus(task)}
@@ -109,13 +140,13 @@ function buildTaskColumns(
 /**
  * The workspace's column factory. Binds the `project` namespace here (the cells' t() calls
  * live in THIS file, so the i18n completeness gate resolves their catalogue here too) and
- * hands TasksTab a stable-shaped `buildColumns(depths)` factory. The factory's identity follows
+ * hands TasksTab a stable-shaped `buildColumns(tree)` factory. The factory's identity follows
  * `deps` — TasksTab memoises that object (#2104), so an unrelated re-render no longer rebuilds
  * the columns and the memoised tables keep bailing out.
  */
 export function useProjectTaskColumns(
   deps: TaskColumnDeps,
-): (depths: Map<string, number>) => Column<TaskWithRefs>[] {
+): (tree: TaskTreeView) => Column<TaskWithRefs>[] {
   const { t } = useTranslation('project');
-  return useCallback((depths) => buildTaskColumns(t, deps, depths), [t, deps]);
+  return useCallback((tree) => buildTaskColumns(t, deps, tree), [t, deps]);
 }

@@ -1329,7 +1329,58 @@
           "deleted": "Task group deleted"
         },
         "menu": "Task groups"
-      }
+      },
+      "tree": {
+        "collapse": "Hide subtasks of {{name}}",
+        "expand": "Show subtasks of {{name}}",
+        "datesTip": "From the earliest start to the latest due date of its subtasks.",
+        "progressTip": "{{done}} of {{total}} subtasks done. A task with subtasks takes its status from them.",
+        "progress": "Subtask progress"
+      },
+      "groupProgressTooltip": "{{done}} of {{total}} tasks in this group done.",
+      "groupProgress": "Group progress",
+      "groupForm": {
+        "title": "New task group",
+        "create": "Create group",
+        "name": "Group name",
+        "phase": "In phase",
+        "noPhase": "No phase"
+      },
+      "move": {
+        "title": "Move {{name}}",
+        "submit": "Move",
+        "parent": "Under task",
+        "noParent": "None (a top task)",
+        "taskNoun": "task",
+        "place": "Group",
+        "followsParent": "A subtask stays in its parent task's group."
+      },
+      "subtasks": {
+        "name": "Subtask name",
+        "namePlaceholder": "Subtask name",
+        "addUnder": "Add a subtask under {{name}}",
+        "thisRow": "this row",
+        "remove": "Remove {{name}}",
+        "add": "Add subtask",
+        "partialTitle": "Only part of the task was saved",
+        "partialDetail": "{{saved}} of {{total}} tasks were saved. Close this form and add the missing subtasks from the task's menu.",
+        "rollupNote": "Status and dates come from its subtasks.",
+        "legend": "Subtasks",
+        "addUnderTip": "Add subtask under this",
+        "removeTip": "Remove",
+        "assigneePlaceholder": "Assignee",
+        "duePlaceholder": "Due date"
+      },
+      "action": {
+        "addSubtask": "Add subtask",
+        "move": "Move…"
+      },
+      "toast": {
+        "moved": "Task moved"
+      },
+      "addGrouping": "Add group",
+      "newTaskGroup": "Task group",
+      "newPhase": "Phase"
     },
     "workOrders": {
       "acceptanceAge": "Days since acceptance, not invoiced: {{days}}",

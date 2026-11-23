@@ -621,6 +621,18 @@ export function formatDayRange(from: DayInput, to: DayInput, now: Date = new Dat
   return `${formatDay(from, now)} – ${formatDay(to, now)}`;
 }
 
+/** A range for a narrow column: one year at the end when both days share it ("4 Jan – 15 Feb 2027"), none in the current year. */
+export function formatDayRangeShort(from: DayInput, to: DayInput, now: Date = new Date()): string {
+  const start = dayFrame(from);
+  const end = dayFrame(to);
+  if (!start || !end) return formatDayRange(from, to, now);
+  const s = dayPart(start, 'day');
+  const e = dayPart(end, 'day');
+  if (s.year !== e.year) return formatDayRange(from, to, now);
+  const currentYear = dayPart({ date: now, timeZone: getActiveLocale().timezone }, 'day').year;
+  return `${s.day} ${s.month} – ${e.day} ${e.month}${e.year === currentYear ? '' : ` ${e.year}`}`;
+}
+
 /** "Nov 2026" — a month, never "Nov 26" (which reads as a day). */
 export function formatMonthYearShort(input: DayInput): string {
   const frame = dayFrame(input);

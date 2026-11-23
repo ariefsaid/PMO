@@ -2827,8 +2827,6 @@
         "name": "Task name",
         "namePlaceholder": "e.g. Survey the site",
         "noDependencies": "No dependencies. Add a task that must finish first.",
-        "noParent": "No parent (top-level)",
-        "parentTask": "Parent task",
         "peopleLoadFailed": "People could not be loaded; you can still save and assign later.",
         "priority": "Priority",
         "removeDependency": "Remove dependency",

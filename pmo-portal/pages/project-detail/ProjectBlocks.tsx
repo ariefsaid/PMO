@@ -1,5 +1,5 @@
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, FigureHiddenLine, Icon, ListState, ProgressBar, RecordSection, TaxBasisLabel, Tooltip, useFigureReport, type HiddenFigure } from '@/src/components/ui';
@@ -25,6 +25,7 @@ import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
 import { settlementFromFinanceBuckets, settlementIn } from '@/src/lib/invoiceSettlement';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
+import { countedTasks } from '@/src/lib/tasks/taskTree';
 
 /** Full whole-unit amount with its currency, right-aligned and tabular where it sits in a column (screen rules, Numbers). */
 const moneyIn = (currency: string) => (value: number) => formatTableMoney(value, currency) ?? String(value);
@@ -469,6 +470,8 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
   const tasks = useTasks(projectId);
+  // #2807: a phase's task count reads each piece of work once (a parent is a roll-up of its subtasks).
+  const countedProjectTasks = useMemo(() => countedTasks(tasks.data ?? []), [tasks.data]);
   const manage = may('edit', 'project') && (
     <BlockAction onClick={() => setManaging((m) => !m)} expanded={managing}>
       {managing ? t('projectDetail.delivery.doneManaging', 'Done') : t('projectDetail.delivery.manage', 'Update phases')}
@@ -530,7 +533,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
             <span role="columnheader">{t('projectDetail.delivery.colProgress', 'Progress')}</span>
           </div>
           {all.map((milestone) => {
-            const phaseTasks = (tasks.data ?? []).filter((task) => task.milestone_id === milestone.id && !task.parent_task_id);
+            const phaseTasks = countedProjectTasks.filter((task) => task.milestone_id === milestone.id);
             const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;
             const blockingTasks = phaseTasks.filter((task) => task.status === 'Blocked');
             const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : 0;

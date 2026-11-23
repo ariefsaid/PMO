@@ -1,6 +1,7 @@
 import { parseISO } from 'date-fns/parseISO';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { formatUtcDayMonthYear } from '../format';
+import { countedTasks } from '../tasks/taskTree';
 
 /**
  * Pure S-curve math for the project Delivery lens (FR-SC-002/003, FR-SCA-008..011).
@@ -47,12 +48,9 @@ export interface SCurveModel {
  * (FR-SCA-007/008: completed_at is the trigger-stamped instant; end_date is the proxy.)
  */
 export interface SCurveTask {
+  id: string;
   milestone_id: string | null;
-  /**
-   * OD-INT-9 subtask rollup rule: a non-null parent_task_id marks this row a SUBTASK. Subtasks
-   * never contribute to the actual series (only top-level tasks move a percentage). Kept on the
-   * narrow view so buildSCurve can filter without callers pre-stripping subtasks.
-   */
+  /** #2807 counting rule (countedTasks): a task with a live child is a roll-up and never moves the series. */
   parent_task_id: string | null;
   /** Nullable archive timestamp; archived tasks never contribute to delivery. */
   archived_at?: string | null;
@@ -295,12 +293,9 @@ export function buildSCurve(
   // Final point forced to asOf valued actualToDate anchors endpoint to the gauge (NFR-SCA-001).
   if (tasks !== undefined) {
     const tasksByMilestone = new Map<string | null, SCurveTask[]>();
-    for (const t of tasks) {
-      // OD-INT-9 subtask rollup rule: subtasks (parent_task_id != null) never move a percentage.
-      // Excluding them here keeps them out of BOTH the per-milestone Done/total denominator AND
-      // the contribution series, so the gauge (driven by the milestone RPC's effective_pct) and
-      // the trajectory agree on "top-level tasks only".
-      if (t.parent_task_id !== null || t.archived_at != null) continue;
+    // #2807: only counted tasks (live, no live child) enter the per-milestone denominator AND the contribution
+    // series, so the gauge (the milestone RPC's effective_pct) and the trajectory agree.
+    for (const t of countedTasks(tasks)) {
       const key = t.milestone_id;
       if (!tasksByMilestone.has(key)) tasksByMilestone.set(key, []);
       tasksByMilestone.get(key)!.push(t);

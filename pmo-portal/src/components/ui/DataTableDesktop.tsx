@@ -16,7 +16,7 @@ import type {
   Column,
   DataTableSelection,
 } from './DataTable';
-import { PrimaryCell } from './DataTableShared';
+import { LeadSlot, PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
 import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
 
@@ -314,6 +314,7 @@ function DataTableRowInner<Row>({
               col.colClassName
             )}
           >
+            <LeadSlot lead={colIndex === 0 ? col.lead?.(row) : undefined}>
             {colIndex === 0 && canActivate && onActivate ? (
               <RowOpenControl href={rowHref} label={accessibleRowLabel(row) ?? ''} onActivate={() => onActivate(row)}>
                 {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
@@ -321,6 +322,7 @@ function DataTableRowInner<Row>({
             ) : (
               col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
             )}
+            </LeadSlot>
           </CellTag>
         );
       })}

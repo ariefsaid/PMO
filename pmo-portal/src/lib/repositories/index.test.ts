@@ -74,6 +74,7 @@ vi.mock('@/src/lib/db/tasks', () => ({
   listMyTasks: vi.fn(),
   getTask: vi.fn(),
   createTask: vi.fn(),
+  createTaskTree: vi.fn(),
   updateTask: vi.fn(),
   updateTaskStatus: vi.fn(),
   deleteTask: vi.fn(),
@@ -357,7 +358,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // one per block). 'findOpenForRecord' and 'linkedRecords' added deliberately with #2587 (record-linked tasks:
       // create-from-record opens the open task, and one batched read gives a page its linked status). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'findOpenForRecord', 'get', 'linkedRecords', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'listOpenByWorkOrder', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'createTree', 'delete', 'findOpenForRecord', 'get', 'linkedRecords', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'listOpenByWorkOrder', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is

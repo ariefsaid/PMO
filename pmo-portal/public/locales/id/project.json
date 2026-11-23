@@ -1329,7 +1329,58 @@
           "deleted": "Grup tugas dihapus"
         },
         "menu": "Grup tugas"
-      }
+      },
+      "tree": {
+        "collapse": "Sembunyikan subtugas {{name}}",
+        "expand": "Tampilkan subtugas {{name}}",
+        "datesTip": "Dari tanggal mulai paling awal sampai tenggat paling akhir subtugasnya.",
+        "progressTip": "{{done}} dari {{total}} subtugas selesai. Tugas yang punya subtugas mengambil statusnya dari subtugas itu.",
+        "progress": "Progres subtugas"
+      },
+      "groupProgressTooltip": "{{done}} dari {{total}} tugas di grup ini selesai.",
+      "groupProgress": "Progres grup",
+      "groupForm": {
+        "title": "Grup tugas baru",
+        "create": "Buat grup",
+        "name": "Nama grup",
+        "phase": "Dalam fase",
+        "noPhase": "Tanpa fase"
+      },
+      "move": {
+        "title": "Pindahkan {{name}}",
+        "submit": "Pindahkan",
+        "parent": "Di bawah tugas",
+        "noParent": "Tidak ada (tugas utama)",
+        "taskNoun": "tugas",
+        "place": "Grup",
+        "followsParent": "Subtugas tetap di grup tugas induknya."
+      },
+      "subtasks": {
+        "name": "Nama subtugas",
+        "namePlaceholder": "Nama subtugas",
+        "addUnder": "Tambah subtugas di bawah {{name}}",
+        "thisRow": "baris ini",
+        "remove": "Hapus {{name}}",
+        "add": "Tambah subtugas",
+        "partialTitle": "Hanya sebagian tugas yang tersimpan",
+        "partialDetail": "{{saved}} dari {{total}} tugas tersimpan. Tutup formulir ini lalu tambahkan subtugas yang belum ada dari menu tugas.",
+        "rollupNote": "Status dan tanggal diambil dari subtugasnya.",
+        "legend": "Subtugas",
+        "addUnderTip": "Tambah subtugas di bawah ini",
+        "removeTip": "Hapus",
+        "assigneePlaceholder": "Penanggung jawab",
+        "duePlaceholder": "Tenggat"
+      },
+      "action": {
+        "addSubtask": "Tambah subtugas",
+        "move": "Pindahkan…"
+      },
+      "toast": {
+        "moved": "Tugas dipindahkan"
+      },
+      "addGrouping": "Tambah grup",
+      "newTaskGroup": "Grup tugas",
+      "newPhase": "Fase"
     },
     "workOrders": {
       "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",
