@@ -187,7 +187,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
     await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
     // First decision: refuse with a reason; the worker sees the reason and can try again.
     await request.getByRole('button', { name: 'Reject' }).click();
-    const reason = adminPage.getByRole('dialog');
+    const reason = adminPage.getByRole('alertdialog', { name: 'Reject check-in', exact: true });
     await reason.getByRole('textbox').fill('too far from the gate');
     await reason.getByRole('button', { name: /^reject$/i }).click();
     await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in rejected')).toBeVisible();
