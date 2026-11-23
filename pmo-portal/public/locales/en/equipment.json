@@ -168,6 +168,7 @@
     "targetsSaved": "Targets saved",
     "targetNote": "(target {{target}}%)",
     "belowTarget": "Below target",
+    "daysOf": "{{available}} of {{inService}} days",
     "effect": {
       "ready": "Counts as available. Plan it for work.",
       "standby": "Counts as available, not working. Plan it as spare.",

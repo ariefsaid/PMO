@@ -67,7 +67,8 @@ const EquipmentAvailabilityScreen: React.FC = () => {
     { key: 'availability', align: 'num',
       header: <span>{t('equipment:availability.availability', 'Availability')}{availabilityTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: availabilityTarget })}</span>}</span>,
       cell: (m) => <span className="whitespace-nowrap">{m.availability_pct != null ? `${m.availability_pct}%` : '—'}
-        {belowTarget(m.availability_pct, availabilityTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}</span> },
+        {belowTarget(m.availability_pct, availabilityTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}
+        {m.in_service_days > 0 && <span className="block text-muted-foreground">{t('equipment:availability.daysOf', '{{available}} of {{inService}} days', { available: m.available_days, inService: m.in_service_days })}</span>}</span> },
     { key: 'utilisation', align: 'num',
       header: <span>{t('equipment:availability.utilisation', 'Utilisation')}{utilisationTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: utilisationTarget })}</span>}</span>,
       cell: (m) => <span>{m.utilisation_pct != null ? `${m.utilisation_pct}%` : '—'}
