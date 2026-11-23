@@ -313,8 +313,6 @@ const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
 const EQUIPMENT_STATUS_WRITE: Role[] = ['Admin', 'Project Manager', 'Engineer'];
 /** #2526: rental terms and the invoice check are money — mirrors equipment_can_edit_terms / equipment_rental_check. */
 const EQUIPMENT_RENTAL_MONEY: Role[] = ['Admin', 'Finance'];
-/** 1600: the equipment manager writes rental terms and reads the invoice check; stating a reason to include unproven days stays EQUIPMENT_RENTAL_MONEY. */
-const EQUIPMENT_RENTAL_TERMS: Role[] = ['Admin', 'Finance', 'Project Manager'];
 const EQUIPMENT_REGISTER_WRITE: Role[] = ['Admin', 'Project Manager'];
 /** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
  *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
@@ -330,6 +328,10 @@ const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 // the author, an editor or the submitter (the SoD below mirrors qcr_assert_approver); the limit is Admin-only (FR-QCR-021).
 const QCR_AUTHOR: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
 const QCR_APPROVER: Role[] = ['Admin', 'Executive', 'Finance'];
+
+/** Mirrors equipment_manager_rights (1690): Admin, the Equipment Manager job role, or a Project Manager holding no job role. */
+const equipmentManagerRights = (role: Role | null, ctx: PolicyContext): boolean =>
+  role === 'Admin' || ctx.builtInRoleKey === 'equipment_manager' || (!ctx.builtInRoleKey && role === 'Project Manager');
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -1204,15 +1206,15 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`) are the authority.
    *   view   ← every active member reads status (the bulk screen); metrics need the approval audience (`equipment_metrics`).
    *   create ← set status / attach proof: Admin, PM, Engineer (the field controller). Not Finance or Executive.
-   *   manage ← rental terms and reading the invoice check: Admin, Finance and the equipment manager (Project Manager, 1600). A field controller never edits rates.
-   *   configure ← working hours per day, availability and use targets, the escalation limit: Admin and the equipment manager (1600).
+   *   manage ← rental terms and reading the invoice check: Admin, Finance, the Equipment Manager job role, and a Project Manager holding no job role (1690). Other manager-level job roles never edit rates.
+   *   configure ← working hours per day, availability and use targets, the escalation limit: Admin, the Equipment Manager job role, and a Project Manager holding no job role (1690).
    *   approve ← stating a reason to include unproven days in the invoice check (a stored, audited record): Admin, Finance.
      */
   equipmentAvailability: {
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
-    manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_TERMS),
-    configure: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
+    manage: (role, ctx) => ctx.record?.viewOnly !== true && (role === 'Finance' || equipmentManagerRights(role, ctx)),
+    configure: (role, ctx) => ctx.record?.viewOnly !== true && equipmentManagerRights(role, ctx),
     approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
   },
   /**
