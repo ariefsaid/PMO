@@ -30148,6 +30148,10 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: number
       }
+      clearance_document_done: {
+        Args: { p_person: string; p_type: string }
+        Returns: boolean
+      }
       clearance_due_on: {
         Args: {
           p_person_created: string
