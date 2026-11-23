@@ -153,7 +153,11 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
   // The supervisor's context is only opened mid-journey, so it stays nullable: a failure before it opens — or the failure to
   // open it — must still tear down the worker context that was opened first.
   let supervisor: BrowserContext | undefined;
-  let journeyComplete = false;
+  // Both contexts are this test's own and are closed whatever the outcome — a failed assertion, a timeout, or the
+  // failure to open the supervisor's context at all. A close failure is collected here, never thrown from the
+  // teardown itself: a failed journey must propagate as itself, so a collected failure is surfaced after a
+  // successful journey instead.
+  const closeFailures: string[] = [];
   try {
     const page = await worker.newPage();
     await signInAs(page, email, password);
@@ -183,7 +187,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
     await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
     // First decision: refuse with a reason; the worker sees the reason and can try again.
     await request.getByRole('button', { name: 'Reject' }).click();
-    const reason = adminPage.getByRole('dialog');
+    const reason = adminPage.getByRole('alertdialog', { name: 'Reject check-in', exact: true });
     await reason.getByRole('textbox').fill('too far from the gate');
     await reason.getByRole('button', { name: /^reject$/i }).click();
     await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in rejected')).toBeVisible();
@@ -210,12 +214,10 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
     await mine(page).getByRole('button', { name: 'Clock in' }).click();
     await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
     await expect.poll(async () => ((await admin.from('attendance_days').select('source').eq('work_order_id', workOrderId)).data ?? []).map((r) => r.source)).toEqual(['phone_check_in']);
-    journeyComplete = true;
   } finally {
-    // Both contexts are this test's own and are closed whatever the outcome — a failed assertion, a timeout, or the failure
-    // to open the supervisor's context at all. A close failure is collected, and only surfaced when the journey itself
-    // completed: an early failure must propagate as itself, never be replaced by its teardown.
-    const closeFailures: string[] = [];
+    // Teardown never throws: a throw here would mask the journey's own failure (and ESLint rejects it). Each context
+    // that fails to close is recorded as an occurrence in the list, which is read by count, so a falsy thrown value is
+    // still a failure — an error occurrence is never confused with truthiness.
     for (const [name, context] of [['worker', worker], ['supervisor', supervisor]] as const) {
       if (!context) continue;
       try {
@@ -224,8 +226,11 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
         closeFailures.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-    if (journeyComplete && closeFailures.length > 0) {
-      throw new Error(`AC-PCI-E2E context close failed: ${closeFailures.join('; ')}`);
-    }
+  }
+
+  // Reached only when the journey itself succeeded: a journey failure has already propagated untouched from the try
+  // above. The collected close failure is surfaced here, after the teardown, instead of being thrown from inside it.
+  if (closeFailures.length > 0) {
+    throw new Error(`AC-PCI-E2E context close failed: ${closeFailures.join('; ')}`);
   }
 });

@@ -22,6 +22,7 @@ test('JOB-PU21 the request starts on the project\'s only open work order and the
   let disciplineId: string | null = null;
   let procurementId: string | null = null;
   let journeyError: unknown = null;
+  let journeyFailed = false;
 
   try {
     const project = need('JOB-PU21 project', await admin.from('projects').insert({
@@ -104,11 +105,15 @@ test('JOB-PU21 the request starts on the project\'s only open work order and the
     }, { timeout: 10_000 }).toEqual({ wo: workOrderId, disc: disciplineId });
   } catch (err) {
     journeyError = err;
+    journeyFailed = true;
   }
 
   // Teardown runs after the journey, never in `finally`: a throw inside `finally` is unsafe (it can mask
   // the journey's own failure) and ESLint rightly rejects it. Carry both outcomes out to Playwright instead.
+  // Each outcome is tracked by an occurrence flag, not by the thrown value's truthiness: a journey that throws
+  // `undefined` still failed and must not be swallowed.
   let cleanupError: unknown = null;
+  let cleanupFailed = false;
   try {
     if (!procurementId && projectId) {
       const fallback = await admin.from('procurements').select('id').eq('project_id', projectId).eq('title', tag).maybeSingle();
@@ -127,15 +132,16 @@ test('JOB-PU21 the request starts on the project\'s only open work order and the
     ]);
   } catch (err) {
     cleanupError = err;
+    cleanupFailed = true;
   }
 
-  if (journeyError && cleanupError) {
+  if (journeyFailed && cleanupFailed) {
     const jMsg = journeyError instanceof Error ? journeyError.message : String(journeyError);
     const cMsg = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
     const combined = new Error(`${jMsg} (cleanup also failed: ${cMsg})`);
     combined.stack = journeyError instanceof Error ? journeyError.stack : undefined;
     throw combined;
   }
-  if (journeyError) throw journeyError;
-  if (cleanupError) throw cleanupError;
+  if (journeyFailed) throw journeyError;
+  if (cleanupFailed) throw cleanupError;
 });
