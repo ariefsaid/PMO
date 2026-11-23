@@ -10,7 +10,7 @@ import { DateField } from '@/src/components/ui/DateField';
 import type { SubtaskDraft } from '@/src/lib/db/tasks';
 
 let seq = 0;
-export const newDraft = (): SubtaskDraft => ({ key: `d${++seq}`, name: '', assignee_id: '', end_date: '', children: [] });
+export const newDraft = (): SubtaskDraft => ({ key: `d${++seq}`, name: '', assigneeId: '', due: '', children: [] });
 
 /** Named rows only, at every depth: an empty row is a row the person did not fill, never a nameless task. */
 export function namedDrafts(drafts: SubtaskDraft[]): SubtaskDraft[] {
@@ -91,16 +91,16 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
           <SelectField
             label={t('projectDetail.tasks.form.assignee', 'Assignee')}
             hideLabel
-            value={d.assignee_id}
-            onChange={(assignee_id) => onChange(update(drafts, d.key, (x) => ({ ...x, assignee_id })))}
+            value={d.assigneeId}
+            onChange={(assigneeId) => onChange(update(drafts, d.key, (x) => ({ ...x, assigneeId })))}
             options={people}
             placeholder={t('projectDetail.tasks.unassigned', 'Unassigned')}
           />
           <DateField
             label={t('projectDetail.tasks.form.dueDate', 'Due date')}
             hideLabel
-            value={d.end_date}
-            onChange={(end_date) => onChange(update(drafts, d.key, (x) => ({ ...x, end_date })))}
+            value={d.due}
+            onChange={(due) => onChange(update(drafts, d.key, (x) => ({ ...x, due })))}
           />
         </div>
       </div>

@@ -385,8 +385,10 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
 export interface SubtaskDraft {
   key: string;
   name: string;
-  assignee_id: string;
-  end_date: string;
+  /** '' = unassigned. */
+  assigneeId: string;
+  /** ISO day, '' = none. */
+  due: string;
   children: SubtaskDraft[];
 }
 
@@ -421,9 +423,9 @@ export async function createTaskTree(
         project_id: place.project_id,
         name: d.name,
         status: 'To Do',
-        assignee_id: d.assignee_id || null,
+        assignee_id: d.assigneeId || null,
         start_date: null,
-        end_date: d.end_date || null,
+        end_date: d.due || null,
         milestone_id: place.milestone_id,
         parent_task_id: parent,
         ...(place.task_group_id ? { task_group_id: place.task_group_id } : {}),

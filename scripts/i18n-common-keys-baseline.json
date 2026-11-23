@@ -2890,8 +2890,6 @@
   "projectDetail.tasks.form.namePlaceholder",
   "projectDetail.tasks.form.newSubtitle",
   "projectDetail.tasks.form.noDependencies",
-  "projectDetail.tasks.form.noParent",
-  "projectDetail.tasks.form.parentTask",
   "projectDetail.tasks.form.peopleLoadFailed",
   "projectDetail.tasks.form.priority",
   "projectDetail.tasks.form.removeDependency",
