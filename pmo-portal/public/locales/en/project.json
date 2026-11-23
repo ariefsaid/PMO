@@ -1189,7 +1189,8 @@
       "view": {
         "register": "Register",
         "grouped": "Grouped",
-        "ariaLabel": "Document register view"
+        "ariaLabel": "Document register view",
+        "folders": "Folders"
       },
       "field": {
         "microsoft": "Microsoft 365 item"
@@ -1198,7 +1199,10 @@
         "upload": "Upload a document",
         "folderPending": "Creating folder…"
       },
-      "filters": "Filters"
+      "filters": "Filters",
+      "folders": {
+        "none": "No Microsoft folder is linked to this project."
+      }
     },
     "procurement": {
       "erpCard": {

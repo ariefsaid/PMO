@@ -49,5 +49,14 @@
   },
   "notice": {
     "expiredFolder": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melihat file folder ini."
+  },
+  "folderTree": {
+    "label": "Folder proyek",
+    "name": "Nama",
+    "modified": "Diubah",
+    "size": "Ukuran",
+    "empty": "Folder kosong",
+    "more": "Tampilkan lebih banyak",
+    "openNamed": "Buka {{name}} di SharePoint"
   }
 }

@@ -49,5 +49,14 @@
   },
   "notice": {
     "expiredFolder": "The Microsoft 365 connection expired. Reconnect to see this folder’s files."
+  },
+  "folderTree": {
+    "label": "Project folder",
+    "name": "Name",
+    "modified": "Modified",
+    "size": "Size",
+    "empty": "Empty folder",
+    "more": "Show more",
+    "openNamed": "Open {{name}} in SharePoint"
   }
 }

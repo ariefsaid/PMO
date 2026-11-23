@@ -1189,7 +1189,8 @@
       "view": {
         "register": "Daftar",
         "grouped": "Dikelompokkan",
-        "ariaLabel": "Tampilan daftar dokumen"
+        "ariaLabel": "Tampilan daftar dokumen",
+        "folders": "Folder"
       },
       "field": {
         "microsoft": "Item Microsoft 365"
@@ -1198,7 +1199,10 @@
         "upload": "Unggah dokumen",
         "folderPending": "Membuat folder…"
       },
-      "filters": "Filter"
+      "filters": "Filter",
+      "folders": {
+        "none": "Belum ada folder Microsoft yang ditautkan ke proyek ini."
+      }
     },
     "procurement": {
       "erpCard": {
