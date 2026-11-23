@@ -17,7 +17,7 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve, join, relative } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REGISTRY = 'pmo-portal/src/lib/i18n/terms.registry.json';

@@ -66,7 +66,7 @@ describe('BillingSection: billed per month (AC-BPM-005..007)', () => {
     render(<I18nextProvider i18n={i18n}><BillingSection billing={billing()} perMonth={perMonth(months())} {...base} /></I18nextProvider>);
     const t = screen.getByTestId('billed-per-month-block').textContent ?? '';
     expect(t).toContain('Ditagih per bulan');
-    expect(t).toContain('faktur yang sudah diajukan');
+    expect(t).toContain('invoice yang sudah diajukan');
     expect(t).toContain('sampai hari ini');
     expect(t).not.toMatch(/submitted invoices/);
   });
