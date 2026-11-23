@@ -35,7 +35,7 @@ export const ROLES = {
 };
 
 export function parseArgs(argv) {
-  const o = { users: 100, ramp: 120, duration: 600, thinkScale: 1, out: null, url: 'http://127.0.0.1:54321', allowRemote: false };
+  const o = { users: 100, ramp: 120, duration: 600, thinkScale: 1, maxInflight: 256, out: null, url: 'http://127.0.0.1:54321', allowRemote: false };
   const num = (k, v) => { const n = Number(v); if (!Number.isFinite(n) || n <= 0) throw new Error(`--${k} needs a positive number`); return n; };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -43,6 +43,7 @@ export function parseArgs(argv) {
     else if (a === '--ramp') o.ramp = num('ramp', argv[++i]);
     else if (a === '--duration') o.duration = num('duration', argv[++i]);
     else if (a === '--think-scale') o.thinkScale = num('think-scale', argv[++i]);
+    else if (a === '--max-inflight') o.maxInflight = num('max-inflight', argv[++i]);
     else if (a === '--out') o.out = argv[++i];
     else if (a === '--url') o.url = argv[++i];
     else if (a === '--allow-remote') o.allowRemote = true;
@@ -136,9 +137,17 @@ async function main() {
   const add = (m, k, ms, ok, status) => { const e = (m[k] ??= { ms: [], n: 0, err: 0, codes: {} }); e.n++; if (ok) e.ms.push(ms); else { e.err++; e.codes[status] = (e.codes[status] || 0) + 1; } };
   const lag = monitorEventLoopDelay({ resolution: 20 });
 
+  // Requests in flight across all users at most --max-inflight (default 256): the edge in front of the API holds the
+  // phones' connections and keeps a bounded pool upstream; the local gateway alone has 512 worker connections. Time
+  // spent waiting for a slot counts in the latency, as a proxy queue would.
+  let inflight = 0;
+  const waiters = [];
+  const acquire = () => (inflight < o.maxInflight ? (inflight++, Promise.resolve()) : new Promise((r) => waiters.push(r)));
+  const release = () => { const next = waiters.shift(); if (next) next(); else inflight--; };
   const call = async (vu, c, screen) => {
     const t = performance.now();
     let status;
+    await acquire();
     try {
       const r = await fetch(`${o.url}${fill(c.path, vu.vars)}`, { method: c.method, headers: { ...c.headers, apikey: anon, authorization: `Bearer ${vu.token}` }, body: c.body ? fill(c.body, vu.vars) : undefined });
       const body = await r.text();
@@ -149,7 +158,7 @@ async function main() {
       status = `net:${e.cause?.code ?? e.message}`;
       if (inSteady() && screen) add(calls, `${screen} ${endpoint(c)}`, 0, false, status);
       return { ok: false, status, body: '' };
-    }
+    } finally { release(); }
   };
   const loadScreen = async (vu, key, cold) => {
     const cs = fixture[key].calls.filter((c) => cold || !shell[fixture[key].email].has(sig(c)));
@@ -159,7 +168,7 @@ async function main() {
     let next = 0;
     await Promise.all(Array.from({ length: Math.min(6, cs.length) }, async () => { while (next < cs.length) res.push(await call(vu, cs[next++], key)); }));
     const bad = res.filter((r) => !r.ok);
-    if (inSteady()) add(pages, cold ? `${key} (cold)` : key, performance.now() - t, bad.length === 0, bad.map((b) => b.status).join('|'));
+    if (inSteady()) add(pages, cold ? `${key} (cold)` : key, performance.now() - t, bad.length === 0, [...new Set(bad.map((b) => b.status))].join('|'));
   };
   const rpc = async (vu, name, args) => call(vu, { method: 'POST', path: `/rest/v1/rpc/${name}`, headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) });
   const write = async (vu, name, fn) => {
@@ -242,6 +251,7 @@ async function main() {
   lag.disable();
   sampling = false;
   await sampler;
+  const [busyMs, stmtCalls] = (await psql("select round(sum(total_exec_time))::bigint, sum(calls)::bigint from pg_stat_statements where query not ilike '%pg_stat_statements%'")).split('\t').map(Number);
   const top = await psql("select calls, round(total_exec_time)::int, round(mean_exec_time::numeric,1), round(max_exec_time::numeric)::int, left(regexp_replace(query, '\\s+', ' ', 'g'), 220) from pg_stat_statements where query not ilike '%pg_stat_statements%' order by total_exec_time desc limit 25");
 
   // ── report ──
@@ -255,7 +265,8 @@ async function main() {
   const mix = Object.entries(vus.reduce((m, v) => ({ ...m, [v.role]: (m[v.role] || 0) + 1 }), {})).map(([r, n]) => `${r} ${n}`).join(', ');
   const md = [
     `# Load mix: ${o.users} users`, '',
-    `Ramp ${o.ramp} s, steady ${o.duration} s (only steady state is measured), think scale ${o.thinkScale}. Mix: ${mix}.`,
+    `Ramp ${o.ramp} s, steady ${o.duration} s (only steady state is measured), think scale ${o.thinkScale}, at most ${o.maxInflight} requests in flight. Mix: ${mix}.`,
+    `Calls failed: ${Object.values(calls).reduce((s, e) => s + e.err, 0)} of ${totalCalls} (${Object.entries(Object.values(calls).reduce((m, e) => { for (const [c, x] of Object.entries(e.codes)) m[c] = (m[c] || 0) + x; return m; }, {})).map(([c, x]) => `${c} x${x}`).join(', ') || 'none'}).`,
     `Steady state: ${totalPages} screens (${(totalPages / o.duration).toFixed(1)}/s), ${totalCalls} API calls (${(totalCalls / o.duration).toFixed(1)}/s).`,
     `Load generator event-loop delay p99 ${f(lag.percentile(99) / 1e6)} ms (a high value means the generator, not the server, was saturated).`, '',
     '## Screens (whole screen: every call in parallel, first to last)', '', head('Screen'),
@@ -265,13 +276,14 @@ async function main() {
     ...Object.entries(calls).sort((a, b) => percentile(b[1].ms, 95) - percentile(a[1].ms, 95)).slice(0, 25).map(([k, e]) => row(k, e)), '',
     '## Database and host (sampled every 5 s in steady state)', '',
     `Client connections: avg ${avg((s) => s.total).toFixed(0)}, max ${max((s) => s.total)} of max_connections ${samples.find((s) => s.maxConn)?.maxConn}; PostgREST (authenticator) avg ${avg((s) => s.rest).toFixed(1)}, max ${max((s) => s.rest)}, active avg ${avg((s) => s.restActive).toFixed(1)}, max ${max((s) => s.restActive)}.`,
+    `Statement time: ${f(busyMs / 1000)} s over ${o.duration} s of steady state = ${(busyMs / 1000 / o.duration).toFixed(1)} statements executing on average (connections the pool must hold busy), ${stmtCalls} statements.`,
     `Backends waiting on a lock: avg ${avg((s) => s.lockWait).toFixed(2)}, max ${max((s) => s.lockWait)}.`,
     `CPU % (100 = one core): db avg ${avg((s) => s.cpu.db).toFixed(0)} max ${f(max((s) => s.cpu.db))}; rest avg ${avg((s) => s.cpu.rest).toFixed(0)} max ${f(max((s) => s.cpu.rest))}; kong avg ${avg((s) => s.cpu.kong).toFixed(0)}; auth avg ${avg((s) => s.cpu.auth).toFixed(0)}. Load average max ${max((s) => Number(s.load))}.`, '',
     '## Top statements by total time (pg_stat_statements, steady state)', '', '| Calls | Total ms | Mean ms | Max ms | Query |', '|---|---|---|---|---|',
     ...top.split('\n').filter(Boolean).map((l) => `| ${l.split('\t').map((x) => x.replaceAll('|', '/')).join(' | ')} |`), '',
   ].join('\n');
   fs.writeFileSync(path.join(out, 'summary.md'), md);
-  fs.writeFileSync(path.join(out, 'raw.json'), JSON.stringify({ options: o, mix, samples, pages: strip(pages), writes: strip(writes), calls: strip(calls), top }, null, 1));
+  fs.writeFileSync(path.join(out, 'raw.json'), JSON.stringify({ options: o, mix, busyMs, stmtCalls, samples, pages: strip(pages), writes: strip(writes), calls: strip(calls), top }, null, 1));
   console.log(md);
 }
 const strip = (m) => Object.fromEntries(Object.entries(m).map(([k, e]) => [k, { n: e.n, err: e.err, codes: e.codes, p50: percentile(e.ms, 50), p95: percentile(e.ms, 95), p99: percentile(e.ms, 99), max: Math.max(...e.ms, 0) }]));
