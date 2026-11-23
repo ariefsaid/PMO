@@ -293,7 +293,8 @@ update email_event_settings set extra_roles = '{Engineer,"Project Manager"}' whe
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('17700000-0000-0000-0000-000000000038', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS email', 'Draft', 10000, 'exclusive', 0);
 update work_orders set status = 'Issued', issued_at = now() where id = '17700000-0000-0000-0000-000000000038';
-select is((select string_agg(o.recipient_id::text, ',' order by o.recipient_id::text) from email_outbox o join notifications n on n.id = o.notification_id
+-- Distinct recipients: with two owners told (1936) each notice carries its own extra-role copies, so a manager gets one per notice.
+select is((select string_agg(distinct o.recipient_id::text, ',' order by o.recipient_id::text) from email_outbox o join notifications n on n.id = o.notification_id
             where n.metadata->'entity'->>'id' = '17700000-0000-0000-0000-000000000038' and o.event_key = 'billing_step'),
   '17700000-0000-0000-0000-0000000000b3,17700000-0000-0000-0000-0000000000b4,17700000-0000-0000-0000-0000000000b9,17700000-0000-0000-0000-0000000000bb,17700000-0000-0000-0000-0000000000bc',
   'AC-WBS-008 the owners (the role holder and the Engineer with no job role, 1936) and the managers who may see the step are emailed; the hidden role, engineers without the right and the field account are not');
