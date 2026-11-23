@@ -814,7 +814,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 
   it('AC-DOC-M365: linked folder contents remain expandable and the footer opens SharePoint', async () => {
     listState.data = [linkedFolder];
-    renderTab('Admin', 'admin-1');
+    renderTab('Admin', 'admin-1', '/?documentsView=register');
     await userEvent.click(screen.getByRole('button', { name: 'View Reference set' }));
     const preview = screen.getByRole('dialog');
     expect(within(preview).getByRole('button', { name: 'Show files' })).toBeInTheDocument();
@@ -1505,11 +1505,11 @@ describe('DocumentsTab — Folders view (#2806 AC-DOCTREE-001)', () => {
     }] });
   });
 
-  it('AC-DOCTREE-001: Folders lists the linked folder as a tree, keeps the view in the address, and steps the register filters aside', async () => {
+  it('AC-DOCTREE-001: a project with a linked folder opens on the folder tree, with the register filters stepped aside', async () => {
     listState.data = [linkedFolder, ...seed];
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Folders' }));
-    expect(screen.getByTestId('route-search')).toHaveTextContent('documentsView=folders');
+    expect(screen.getByRole('button', { name: 'Folders' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('heading', { name: 'Project folders' })).toBeInTheDocument();
     const tree = within(screen.getByTestId('documents-folder-tree'));
     expect(tree.getByRole('button', { name: 'Reference set' })).toHaveAttribute('aria-expanded', 'true');
     expect(await tree.findByRole('link', { name: 'Open Survey.pdf in SharePoint' })).toHaveAttribute('target', '_blank');
@@ -1517,6 +1517,15 @@ describe('DocumentsTab — Folders view (#2806 AC-DOCTREE-001)', () => {
     expect(screen.queryByRole('combobox', { name: 'Filter by category' })).not.toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Register' }));
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Document register' })).toBeInTheDocument();
+    // The choice is kept in the address, so a reload or a shared link stays on the register.
+    expect(screen.getByTestId('route-search')).toHaveTextContent('documentsView=register');
+  });
+
+  it('AC-DOCTREE-001: a project without a linked folder still opens on the register', () => {
+    renderTab();
+    expect(screen.getByRole('button', { name: 'Register' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
 

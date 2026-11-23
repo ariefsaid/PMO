@@ -1,14 +1,14 @@
 // @e2e-isolation: read-only — a synthetic linked-folder row is added to this page's project-documents read and the Microsoft connection and folder listings are page.route-mocked; nothing is written to the database or to Microsoft.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
-import { openDocumentsTab, PROJECT_ID } from './document-file-upload.helpers';
+import { PROJECT_ID } from './document-file-upload.helpers';
 
 /**
  * AC-DOCTREE-001 (#2806) — when a project's documents live in a linked SharePoint folder, a Project
  * Manager browses its folders and files in the Documents tab without opening the folder link or a
  * details drawer.
  *
- * Goal oracle: in the Documents tab's Folders view the linked folder is open with its contents
+ * Goal oracle: on opening the Documents tab the linked folder is shown, open, with its contents
  * listed; opening a subfolder lists that level; the file is a link that opens SharePoint in a new tab.
  * Microsoft is mocked at the custody edge-function boundary (read-only listings).
  */
@@ -68,9 +68,12 @@ async function mockFolder(page: Page) {
 test('AC-DOCTREE-001: a PM browses the linked SharePoint folder as a tree in the Documents tab — goal oracle: subfolder contents listed, a file opens SharePoint in a new tab', async ({ page }) => {
   await mockFolder(page);
   await login(page, 'pm@acme.test');
-  await openDocumentsTab(page);
+  await page.goto(`/projects/${PROJECT_ID}`);
+  await page.getByRole('tab', { name: 'Documents' }).click();
 
-  await page.getByRole('button', { name: 'Folders', exact: true }).click();
+  // The project has a linked folder, so the tab opens on it: no toggle, no drawer, no folder link.
+  await expect(page.getByRole('button', { name: 'Folders', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: 'Project folders', exact: true })).toBeVisible();
   const tree = page.getByRole('list', { name: 'Project folder' });
   await expect(tree.getByRole('button', { name: FOLDER_TITLE })).toHaveAttribute('aria-expanded', 'true');
   await expect(tree.getByRole('link', { name: 'Open Baseline schedule.xlsx in SharePoint' })).toBeVisible({ timeout: 15_000 });
@@ -83,6 +86,9 @@ test('AC-DOCTREE-001: a PM browses the linked SharePoint folder as a tree in the
   await expect(file).toHaveAttribute('href', web('General arrangement GA-001.pdf'));
   await expect(file).toHaveAttribute('target', '_blank');
 
-  // The view is kept in the address, so a reload or a shared link returns to the tree.
-  await expect(page).toHaveURL(/documentsView=folders/);
+  // Choosing the register is kept in the address, so a reload returns to the register.
+  await page.getByRole('button', { name: 'Register', exact: true }).click();
+  await expect(page).toHaveURL(/documentsView=register/);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Document register', exact: true })).toBeVisible({ timeout: 20_000 });
 });

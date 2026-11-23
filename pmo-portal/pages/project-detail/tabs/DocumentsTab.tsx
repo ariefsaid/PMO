@@ -216,8 +216,18 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   // revisions stay listed (never hidden), but each sits under its latest so the latest is read first.
   const isEarlierRevision = useCallback((doc: ProjectDocumentRow) => childDocumentsByParentId.has(doc.id), [childDocumentsByParentId]);
 
+  // The tree's tops: every linked Microsoft folder in the register, by its stored reference.
+  const folderRoots = useMemo<FolderTreeRoot[]>(() => all.flatMap((doc) => {
+    const reference = isMicrosoftFolder(doc) ? projectReference(doc) : null;
+    return reference ? [{ key: doc.id, title: doc.title, drive_id: reference.drive_id, item_id: reference.item_id, web_url: reference.web_url }] : [];
+  }), [all]);
+
   const viewParam = searchParams.get('documentsView');
-  const documentsView: DocumentsView = viewParam === 'grouped' || viewParam === 'folders' ? viewParam : 'register';
+  // A project whose files live in a linked folder opens on that folder (#2806: seeing the files must
+  // not need another click); a chosen view, kept in the address, always wins.
+  const documentsView: DocumentsView = viewParam === 'register' || viewParam === 'grouped' || viewParam === 'folders'
+    ? viewParam
+    : folderRoots.length > 0 ? 'folders' : 'register';
   const setDocumentsView = (view: DocumentsView) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
@@ -268,12 +278,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       : all.length === 0
         ? 'empty'
         : undefined;
-
-  // The tree's tops: every linked Microsoft folder in the register, by its stored reference.
-  const folderRoots = useMemo<FolderTreeRoot[]>(() => all.flatMap((doc) => {
-    const reference = isMicrosoftFolder(doc) ? projectReference(doc) : null;
-    return reference ? [{ key: doc.id, title: doc.title, drive_id: reference.drive_id, item_id: reference.item_id, web_url: reference.web_url }] : [];
-  }), [all]);
 
   const selectedDocuments = all.filter((doc) => selectedIds.has(doc.id));
   const documentSelection: DataTableSelection<ProjectDocumentRow> = {

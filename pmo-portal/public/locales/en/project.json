@@ -1202,7 +1202,8 @@
       "filters": "Filters",
       "folders": {
         "none": "No Microsoft folder is linked to this project."
-      }
+      },
+      "headingFolders": "Project folders"
     },
     "procurement": {
       "erpCard": {

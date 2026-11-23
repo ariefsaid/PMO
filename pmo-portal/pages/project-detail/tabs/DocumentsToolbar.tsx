@@ -98,7 +98,9 @@ const DocumentsToolbar: React.FC<{
     >
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
         <h2 className="mr-2 text-[16px] font-bold tracking-[-0.01em] max-sm:w-full">
-          {t('projectDetail.documents.heading', 'Document register')}
+          {documentsView === 'folders'
+            ? t('projectDetail.documents.headingFolders', 'Project folders')
+            : t('projectDetail.documents.heading', 'Document register')}
         </h2>
         {/* One field finds a document by its name, number, category, status or revision. */}
         {finding && <SearchMini

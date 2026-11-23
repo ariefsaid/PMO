@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — unique document title (Date.now()), admin creates/edits/issues; PM approves (SoD); no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
+import { showRegister } from './document-file-upload.helpers';
 
 /**
  * AC-DOC-001  Project document register CRUD + status workflow — real user journey
@@ -36,6 +37,7 @@ async function openDocumentsTab(page: Page) {
   await page.getByRole('tab', { name: 'Documents' }).click();
   // The register's loading skeleton (ListState variant="loading") must clear.
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
+  await showRegister(page);
 }
 
 /** Locate the register row whose Document cell contains `title`. */
