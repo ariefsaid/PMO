@@ -1,8 +1,9 @@
 -- 1768_attendance_followed_crew.sql -- the day record can say "followed crew X on this day" (no advance loan).
--- worker_effective_crew and work_order_roster are restated whole from the database at head (1246, 1247); the changes are the
+-- worker_effective_crew and work_order_roster are restated whole from their latest bodies (1630 and 1631: the loan-day test and the
+-- reported-absence field are kept); the changes are the
 -- followed-crew step in the effective crew and a followed arm in the roster. Spec docs/specs/crew-followed.spec.md.
 -- Rollback supabase/migrations/rollback/1768_attendance_followed_crew_down.sql
--- drops: nothing removed in effect; work_order_roster's placed-candidate select lists gain the followed and from_crew_name columns, so three select lines are rewritten.
+-- drops: worker_effective_crew gains the followed step and its caller-organisation filters, and becomes a definer, so its header lines are rewritten; work_order_roster's placed-candidate select lists gain the followed and from_crew_name columns, so three select lines are rewritten. Neither loses a 1630 or 1631 line.
 
 alter table public.attendance_days add column followed_crew_id uuid references public.crews(id);
 alter table public.attendance_days add constraint attendance_days_followed_is_crew
@@ -35,6 +36,9 @@ AS $function$
   select coalesce(
     (select l.host_crew_id from public.crew_loans l
       where l.worker_id = p_worker_id and l.org_id = public.auth_org_id() and p_date between l.valid_from and l.valid_to
+        and exists (select 1 from public.work_order_crews r      -- 1630: a loan moves the worker only on days the host crew is on a work order
+                     where r.crew_id = l.host_crew_id
+                       and p_date between r.valid_from and coalesce(r.valid_to, 'infinity'::date))
       limit 1),
     public.worker_followed_crew(p_worker_id, p_date),
     (select m.crew_id from public.crew_members m
@@ -97,6 +101,9 @@ AS $function$
                                                           where o.worker_id = p.worker_id and p_date between o.off_from and o.off_to))
                                     || case when p.on_loan then jsonb_build_object('on_loan', true) else '{}'::jsonb end
                                     || case when p.followed then jsonb_build_object('followed', true, 'from_crew_name', p.from_crew_name) else '{}'::jsonb end
+                                    || coalesce((select jsonb_build_object('reported_absent', jsonb_build_object('reason', a.reason, 'note', a.note))   -- 1631
+                                                   from public.absence_reports a
+                                                  where a.person_id = p.worker_id and a.work_date = p_date), '{}'::jsonb)
                                     order by p.display_name, p.worker_id)
                      from placed p where p.crew_id = r.id), '[]'::jsonb),
          coalesce((select jsonb_agg(jsonb_build_object('standard_role_id', rc.id, 'name', rc.name,

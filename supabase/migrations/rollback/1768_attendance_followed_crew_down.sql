@@ -1,9 +1,12 @@
--- Rollback of 1768: restore 1246/1247 bodies, drop the helpers, index, check and column (followed marks are lost).
+-- Rollback of 1768: restore the 1630 / 1631 bodies, drop the helpers, index, check and column (followed marks are lost).
 create or replace function public.worker_effective_crew(p_worker_id uuid, p_date date)
   returns uuid language sql stable security invoker set search_path = public, pg_temp as $$
   select coalesce(
     (select l.host_crew_id from public.crew_loans l
       where l.worker_id = p_worker_id and p_date between l.valid_from and l.valid_to
+        and exists (select 1 from public.work_order_crews r
+                     where r.crew_id = l.host_crew_id
+                       and p_date between r.valid_from and coalesce(r.valid_to, 'infinity'::date))
       limit 1),
     (select m.crew_id from public.crew_members m
       where m.worker_id = p_worker_id
@@ -54,6 +57,9 @@ create or replace function public.work_order_roster(p_work_order_id uuid, p_date
                                                          select 1 from public.crew_worker_rotation_off o
                                                           where o.worker_id = p.worker_id and p_date between o.off_from and o.off_to))
                                     || case when p.on_loan then jsonb_build_object('on_loan', true) else '{}'::jsonb end
+                                    || coalesce((select jsonb_build_object('reported_absent', jsonb_build_object('reason', a.reason, 'note', a.note))
+                                                   from public.absence_reports a
+                                                  where a.person_id = p.worker_id and a.work_date = p_date), '{}'::jsonb)
                                     order by p.display_name, p.worker_id)
                      from placed p where p.crew_id = r.id), '[]'::jsonb),
          coalesce((select jsonb_agg(jsonb_build_object('standard_role_id', rc.id, 'name', rc.name,

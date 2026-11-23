@@ -1,6 +1,6 @@
 -- Reverses 1841_mrq_job_role_steps.sql: restores the bodies it replaced, each from its source migration with the guard line
 -- the 1209/1461/1530 rewrite had inserted, then drops the job_role columns and mrq_fills_step. Run before rollback/1840.
--- Sources: mrq_step_authority 1045 · mrq_pinned_to 1120 · mrq_decide_step 1045+1461 · mrq_waiting_for_me 1045+1209 ·
+-- Sources: mrq_step_authority 1045 · mrq_pinned_to 1120 · mrq_decide_step 1640 (1045+1461) · mrq_waiting_for_me 1045+1209 ·
 -- mrq_step_recipients 1336 · mrq_set_step_pin 1045+1530 · mrq_set_chain 1001+1530 · mrq_submit 1333+1461.
 drop function public.mrq_waiting_for_me();
 drop function public.mrq_step_authority(uuid, uuid, public.user_role, text, uuid, uuid);
@@ -96,12 +96,12 @@ begin
        where request_id = r.id and round = r.round and position = v_next;
       perform public.mrq_log(r, 'approved_step', 'pending', 'pending', s.position, v_uid, v_for, v_reason);
     else
-      -- Final step: approve and create the transfer draft in this one transaction (FR-MRQ-011). Any failure in
-      -- the transfer path raises and rolls the whole decision back, leaving the step open.
+      -- Final step: approve; when a source warehouse is named, create the transfer draft in this one transaction
+      -- (FR-MRQ-011). Any failure in the transfer path raises and rolls the whole decision back, leaving the step open.
       update public.material_requests set status = 'approved', decided_at = now(), updated_at = now() where id = r.id;
       perform public.mrq_log(r, 'approved_step', 'pending', 'pending', s.position, v_uid, v_for, v_reason);
       perform public.mrq_log(r, 'approved', 'pending', 'approved', s.position, v_uid, v_for, null);
-      perform public.mrq_create_transfer_core(r.id, p_source_warehouse_id);
+      if p_source_warehouse_id is not null then perform public.mrq_create_transfer_core(r.id, p_source_warehouse_id); end if;   -- 1640 the keeper makes it later, via mrq_retry_transfer
     end if;
   else
     update public.material_request_steps

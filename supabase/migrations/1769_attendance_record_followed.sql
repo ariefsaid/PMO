@@ -92,13 +92,19 @@ begin
       end if;
       if exists (select 1 from public.crew_loans l
                   where l.worker_id = r.worker_id and p_work_date between l.valid_from and l.valid_to
-                    and l.host_crew_id <> r.followed_crew_id) then
+                    and l.host_crew_id <> r.followed_crew_id
+                    and exists (select 1 from public.work_order_crews hr   -- 1630: a loan counts only on a day the host crew is on a work order
+                                 where hr.crew_id = l.host_crew_id
+                                   and p_work_date between hr.valid_from and coalesce(hr.valid_to, 'infinity'::date))) then
         raise exception 'ATT_FOLLOW_LOAN: this person is on loan to another crew that day; change the loan instead'
           using errcode = '23514';
       end if;
       if not exists (select 1 from public.crew_loans l
                       where l.worker_id = r.worker_id and p_work_date between l.valid_from and l.valid_to
-                        and l.host_crew_id = r.followed_crew_id) then
+                        and l.host_crew_id = r.followed_crew_id
+                        and exists (select 1 from public.work_order_crews hr   -- 1630: a loan counts only on a day the host crew is on a work order
+                                     where hr.crew_id = l.host_crew_id
+                                       and p_work_date between hr.valid_from and coalesce(hr.valid_to, 'infinity'::date))) then
         -- no loan to that crew: this is a real follow. It must name a crew other than where the person is, unless the
         -- same follow is already recorded for the day (a repeat, or the same crew on another work order).
         if v_eff = r.followed_crew_id and v_fol is distinct from r.followed_crew_id then

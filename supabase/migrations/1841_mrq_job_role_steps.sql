@@ -12,11 +12,15 @@
 -- The borrowing step (1318) still names a level; it is not in this change.
 --
 -- Restated bodies, each from its latest definition at head, with the guard line the 1209/1461/1530 rewrite inserted:
---   mrq_step_authority 1045 (new p_job_role argument) · mrq_pinned_to 1120 (new p_job_role argument) · mrq_decide_step 1045 + 1461 ·
+--   mrq_step_authority 1045 (new p_job_role argument) · mrq_pinned_to 1120 (new p_job_role argument) · mrq_decide_step 1640 (itself 1045 + 1461; the final approval makes the transfer only when a warehouse is named) ·
 --   mrq_waiting_for_me 1045 + 1209 (returns job_role) · mrq_step_recipients 1336 · mrq_set_step_pin 1045 + 1530 ·
 --   mrq_set_chain 1001 + 1530 · mrq_submit 1333 + 1461.
--- drops: the level-only holder comparisons (p.role = p_role, d.role = p_role, who.role = pin.role, p.role = v_role) and the
---        three-part step identity (position, role, label) — each replaced by its job-role-aware line beside it.
+-- drops: only lines this change rewrites to carry the job role, each replaced by its job-role-aware line beside it: the level-only holder
+--        comparisons (p.role = p_role, d.role = p_role, who.role = pin.role, p.role = v_role); the three-part step identity
+--        (position, role, label); the calls of mrq_step_authority and mrq_pinned_to, which gain the job_role argument; the select and
+--        insert lists of the step rows (material_request_steps, approval_chain_steps, mrq_waiting_for_me), which gain the job_role
+--        column; and mrq_set_chain's declare line, which gains the job-role variable. mrq_decide_step keeps 1640's rule that the final
+--        approval makes the transfer only when a warehouse is named; no other rule is removed.
 
 -- ── columns ───────────────────────────────────────────────────────────────────────────────────────────────────
 alter table public.approval_chain_steps   add column job_role text references public.built_in_roles(key);
@@ -137,12 +141,12 @@ begin
        where request_id = r.id and round = r.round and position = v_next;
       perform public.mrq_log(r, 'approved_step', 'pending', 'pending', s.position, v_uid, v_for, v_reason);
     else
-      -- Final step: approve and create the transfer draft in this one transaction (FR-MRQ-011). Any failure in
-      -- the transfer path raises and rolls the whole decision back, leaving the step open.
+      -- Final step: approve; when a source warehouse is named, create the transfer draft in this one transaction
+      -- (FR-MRQ-011). Any failure in the transfer path raises and rolls the whole decision back, leaving the step open.
       update public.material_requests set status = 'approved', decided_at = now(), updated_at = now() where id = r.id;
       perform public.mrq_log(r, 'approved_step', 'pending', 'pending', s.position, v_uid, v_for, v_reason);
       perform public.mrq_log(r, 'approved', 'pending', 'approved', s.position, v_uid, v_for, null);
-      perform public.mrq_create_transfer_core(r.id, p_source_warehouse_id);
+      if p_source_warehouse_id is not null then perform public.mrq_create_transfer_core(r.id, p_source_warehouse_id); end if;   -- 1640 the keeper makes it later, via mrq_retry_transfer
     end if;
   else
     update public.material_request_steps
