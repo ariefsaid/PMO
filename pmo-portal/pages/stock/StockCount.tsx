@@ -189,6 +189,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   const canAuthor = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
   const variances = lines.map(varianceOf);
   // FR-STK-062: a count whose every line is known and zero may be posted by its author; anything else goes to another person.
+  const hasDifference = kind === 'count' && variances.some((v) => v !== undefined && v !== '0');
   const selfPostable = kind === 'count' && variances.every((v) => v === '0');
   const busy = m.create.isPending || m.saveDraft.isPending || m.post.isPending;
   const heading = draft ? draft.number : t(`kinds.${kind}`);
@@ -200,7 +201,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   function validate(): StockDocumentInput | null {
     const e: Record<string, string> = {};
     if (!warehouseId) e.warehouse = t('form.errors.warehouse');
-    if (kind === 'adjustment' && !reason.trim()) e.reason = t('count.errors.reason');
+    if ((kind === 'adjustment' || hasDifference) && !reason.trim()) e.reason = t('count.errors.reason');
     const seen = new Set<string>();
     const out: StockLineInput[] = lines.map((l) => {
       if (!l.itemId) e[`item${l.key}`] = t('form.errors.item');
@@ -226,7 +227,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
     if (Object.keys(e).length) return null;
     return {
       kind, warehouseId,
-      ...(kind === 'adjustment' ? { reason: reason.trim() } : {}),
+      ...(kind === 'adjustment' || hasDifference ? { reason: reason.trim() } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
       lines: out,
     };
@@ -290,7 +291,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
             <FormGrid>
               <SelectField label={t('form.warehouse')} required value={warehouseId} onChange={setWarehouseId}
                 options={usable.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.warehouse} />
-              {kind === 'adjustment' && (
+              {(kind === 'adjustment' || hasDifference) && (
                 <TextField label={t('count.reason')} required value={reason} onChange={setReason} helper={t('count.reasonHelp')} error={errors.reason} />
               )}
             </FormGrid>
