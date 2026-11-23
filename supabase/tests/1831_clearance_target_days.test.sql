@@ -292,7 +292,8 @@ select is((select overdue from person_clearance_due() where person_id = '2831000
 select is((select count(*)::int from expiry_documents where id = '28310000-0000-0000-0000-000000000f02'), 0,
   'AC-CTD-008 the manager still reads no medical document');
 reset role;
-select pg_temp.as_user('b61');
+-- b04: an Engineer of the same organisation who neither manages nor is this person, so cannot read them.
+select pg_temp.as_user('b04');
 select is(public.clearance_document_done('28310000-0000-0000-0000-000000000e07', '28310000-0000-0000-0000-000000000d02'), false,
   'AC-CTD-008 the helper answers no about a person the caller cannot read');
 reset role;
