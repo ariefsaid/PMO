@@ -78,3 +78,54 @@ export function useWaitingSteps(enabled: boolean) {
 export function useOverdueClaimSteps(projectId: string) {
   return useOrgQuery(['overdue-billing-steps', projectId], () => repositories.billingStages.overdueStepsByClaim(projectId), { enabled: Boolean(projectId) });
 }
+
+/** A work order's billing step list (advisory), and the rights-checked writes on it. Every write refreshes the list and the waiting steps. */
+export function useWorkOrderSteps(workOrderId: string | undefined) {
+  return useOrgQuery(['work-order-billing-steps', workOrderId ?? ''], () => repositories.billingStages.workOrderSteps(workOrderId ?? ''), { enabled: Boolean(workOrderId) });
+}
+
+/** The rows of every issued work order the viewer may see, optionally one project (the billing board). */
+export function useBoardWorkOrderSteps(projectId?: string) {
+  return useOrgQuery(['work-order-billing-steps', 'board', projectId ?? 'all'], () => repositories.billingStages.boardWorkOrderSteps(projectId));
+}
+
+/** The viewer's waiting work-order steps (the shared needs-you list). Derived on read: nothing to clear when a step is done. */
+export function useWaitingWorkOrderSteps(enabled: boolean) {
+  return useOrgQuery(['waiting-work-order-steps'], () => repositories.billingStages.waitingWorkOrderSteps(), { enabled });
+}
+
+export function useWorkOrderStepMutations() {
+  const qc = useQueryClient();
+  const orgId = useOrgId();
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['work-order-billing-steps', orgId] });
+    void qc.invalidateQueries({ queryKey: ['waiting-work-order-steps', orgId] });
+  };
+  const complete = useMutation({
+    mutationFn: ({ stepId, doneOn }: { stepId: string; doneOn: string }) => repositories.billingStages.completeWorkOrderStep(stepId, doneOn),
+    onSuccess: invalidate,
+  });
+  const skip = useMutation({ mutationFn: (stepId: string) => repositories.billingStages.skipWorkOrderStep(stepId), onSuccess: invalidate });
+  const assign = useMutation({
+    mutationFn: ({ stepId, personId }: { stepId: string; personId: string | null }) => repositories.billingStages.assignWorkOrderStep(stepId, personId),
+    onSuccess: invalidate,
+  });
+  const attach = useMutation({
+    mutationFn: ({ stepId, slotId, documentId }: { stepId: string; slotId: string | null; documentId: string }) =>
+      repositories.billingStages.attachWorkOrderStepDocument(stepId, slotId, documentId),
+    onSuccess: invalidate,
+  });
+  return { complete, skip, assign, attach };
+}
+
+/** The organisation's default billing step template (none = no work order gets a list). */
+export function useDefaultStepTemplate(enabled = true) {
+  const qc = useQueryClient();
+  const orgId = useOrgId();
+  const query = useOrgQuery(['default-step-template'], () => repositories.billingStages.defaultStepTemplateId(), { enabled });
+  const set = useMutation({
+    mutationFn: (templateId: string | null) => repositories.billingStages.setDefaultStepTemplate(templateId),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['default-step-template', orgId] }); },
+  });
+  return { query, set };
+}

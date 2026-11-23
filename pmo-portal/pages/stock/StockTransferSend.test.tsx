@@ -33,8 +33,8 @@ describe('StockTransferSend (AC-TST-023)', () => {
   it('AC-TST-023 a one-step organisation sees that two-step transfers are off, not a form', () => {
     h.twoStep = false;
     renderPage();
-    expect(screen.getByText('Two-step transfers are off')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Send transfer' })).not.toBeInTheDocument();
+    expect(screen.getByText('Two-step stock transfers are off')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send stock transfer' })).not.toBeInTheDocument();
   });
 
   it('AC-TST-023 the pickers list the kept source and every real destination, never an in-transit location', async () => {
@@ -59,11 +59,11 @@ describe('StockTransferSend (AC-TST-023)', () => {
 
   it('AC-TST-023 sending refuses a blank form without asking, then confirms once and sends the lines with a named receiver and one request id', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send stock transfer' }));
     expect(h.send).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();          // a missing field is a field error, not a confirmation
     await fillValidTransfer();
-    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send stock transfer' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Send this transfer?')).toBeInTheDocument();
     expect(within(dialog).getByText('From CEN - Central to SITE1 - Site one')).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe('StockTransferSend (AC-TST-023)', () => {
   it('FR-SKD-005 cancelling the guard sends nothing and keeps the filled form', async () => {
     renderPage();
     await fillValidTransfer();
-    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send stock transfer' }));
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(h.send).not.toHaveBeenCalled();

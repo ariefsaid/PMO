@@ -14,6 +14,7 @@ import { ProcurementBulkConfirm, ProcurementBulkSelect, ProcurementBulkToolbar }
 import { useProcurementBulkApprove } from './approvals/useProcurementBulkApprove';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
 import { LeaveApprovalSection } from './approvals/LeaveApprovalSection';
+import { MedicalReleaseSection } from './approvals/MedicalReleaseSection';
 import { ImprestApprovalSection } from './approvals/ImprestApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
 import { PushAttentionSection } from './approvals/PushAttentionSection';
@@ -539,6 +540,8 @@ const ApprovalsPage: React.FC = () => {
       {activeScope === 'all' && <LeaveApprovalSection />}
       {activeScope === 'all' && <WorkOrderAcceptanceSection entries={allPopulation} />}
       {activeScope === 'all' && DATABASE_LISTED_KINDS.map((kind) => <WaitingDecisionSection key={kind} kind={kind} entries={allPopulation} />)}
+      {/* Renders nothing while no release is open and the viewer cannot open one. */}
+      {activeScope === 'all' && <MedicalReleaseSection />}
       {hasTimesheetRole && <PushAttentionSection />}
       {hasTimesheetRole && <EmployeeLinkConfirmSection />}
       {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}

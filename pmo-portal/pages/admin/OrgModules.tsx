@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import { TransferModeSettings } from '@/src/components/stock/TransferModeSettings';
 import { DoneNotClaimedReminder } from '@/src/components/finance/DoneNotClaimedReminder';
+import IdleCostScopeField from './IdleCostScopeField';
 import { ApproverInboxSetting } from '../materialRequests/ApproverInboxSetting';
 import type { OrgModuleKey } from '@/src/lib/repositories/orgSwitches';
 
@@ -41,6 +42,7 @@ export default function OrgModules() {
         <div className="mt-3 space-y-4 border-t border-border pt-3">
           <h3 className="text-control font-semibold">{t('admin.modules.billingExtras.noticesHeading', 'Notices (off until you choose)')}</h3>
           <DoneNotClaimedReminder />
+          <IdleCostScopeField />
         </div>)}
     </div>
   );

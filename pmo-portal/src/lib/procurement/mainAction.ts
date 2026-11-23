@@ -43,6 +43,8 @@ export function allowedActions(
   hasPaymentRecord: boolean,
   /** D2 review C3: Mark as Paid needs something to pay — a line item or a recorded amount. */
   hasValue: boolean,
+  /** roles-that-decide FR-RTD-009: the viewer fills a built-in role the organisation lets order (the database gate's answer). */
+  mayOrderByRole = false,
 ): ProcurementAction[] {
   const actions: ProcurementAction[] = [];
 
@@ -78,7 +80,7 @@ export function allowedActions(
   if (legal('Vendor Quoted') && canSource(role)) {
     actions.push({ to: 'Vendor Quoted', label: t('procurementRecord:action.requestQuotes', 'Request quotations'), variant: 'primary' });
   }
-  if (legal('Ordered') && canSource(role) && status === 'Approved') {
+  if (legal('Ordered') && (canSource(role) || mayOrderByRole) && status === 'Approved') {
     // outline (not primary) — see D7 note above
     actions.push({ to: 'Ordered', label: t('procurementRecord:action.recordOrder', 'Record order'), variant: 'outline' });
   }
@@ -90,7 +92,7 @@ export function allowedActions(
 
   // Quote Selected → Ordered: PM/Finance/Admin. status is exactly one value, so
   // legal('Ordered') holds for at most one of these branches — they cannot collide.
-  if (legal('Ordered') && canSource(role) && status === 'Quote Selected') {
+  if (legal('Ordered') && (canSource(role) || mayOrderByRole) && status === 'Quote Selected') {
     actions.push({ to: 'Ordered', label: t('procurementRecord:action.recordOrder', 'Record order'), variant: 'primary' });
   }
 

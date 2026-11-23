@@ -96,4 +96,27 @@ describe('disciplineProfit', () => {
     const r = rollup([line({ workOrderId: 'A', disciplineId: 'civil', amount: '0.10' }), line({ workOrderId: 'A', disciplineId: 'civil', amount: '0.20' })]);
     expect(disciplineProfit(r, [rev('civil', '0.30')]).currencies[0].total.marginBefore.amount).toBe('0.00');
   });
+
+  it('AC-DPC-001 shared people and equipment cost reaches disciplines by direct share and the margins reconcile to the project', () => {
+    // A: civil 300 + elec 100; B: civil 200. Shared: priced timesheet 30 + equipment 60 = 90, split 400:200 -> A 60, B 30.
+    const r = rollup([
+      line({ workOrderId: 'A', disciplineId: 'civil', amount: '300.00' }),
+      line({ workOrderId: 'A', disciplineId: 'elec', amount: '100.00' }),
+      line({ workOrderId: 'B', disciplineId: 'civil', amount: '200.00' }),
+      line({ source: 'timesheet_entry', workOrderId: null, amount: '30.00' }),
+      line({ source: 'equipment_usage', workOrderId: null, amount: '60.00' }),
+    ], [wo('A'), wo('B')]);
+    const p = disciplineProfit(r, [rev('civil', '700.00'), rev('elec', '150.00')]);
+    const [c] = p.currencies;
+    const civil = c.rows.find((x) => x.disciplineId === 'civil')!;
+    const elec = c.rows.find((x) => x.disciplineId === 'elec')!;
+    expect([civil.direct, civil.allocated, civil.marginAfter.amount]).toEqual(['500.00', '75.00', '125.00']);
+    expect([elec.direct, elec.allocated, elec.marginAfter.amount]).toEqual(['100.00', '15.00', '35.00']);
+    const cents = (v: string | null) => BigInt(Math.round(Number(v) * 100));
+    const rowsSum = c.rows.filter((x) => x.kind !== 'total').reduce((t, x) => t + cents(x.marginAfter.amount), 0n);
+    const projectCost = cents(r.totals.find((t) => t.currency === 'USD')!.total);
+    expect(projectCost).toBe(69000n);
+    expect(rowsSum).toBe(85000n - projectCost);
+    expect(c.total.marginAfter.amount).toBe('160.00');
+  });
 });

@@ -37,6 +37,9 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentFiles: () => evidenceState,
 }));
 vi.mock('@/src/hooks/useIncidentLinkedTask', () => ({ useIncidentLinkedTask: () => linkedTaskState }));
+vi.mock('@/src/hooks/useIncidentTypes', () => ({
+  useIncidentTypes: () => ({ data: [{ id: 't1', label: 'Near Miss', archived_at: null }, { id: 't2', label: 'Spill', archived_at: null }] }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
 
@@ -199,8 +202,7 @@ describe('IncidentDetail', () => {
     const dialog = await screen.findByRole('dialog', { name: /edit incident/i });
     // The form is pre-filled; change the type then save.
     const typeField = within(dialog).getByLabelText(/^type/i);
-    await userEvent.clear(typeField);
-    await userEvent.type(typeField, 'Spill');
+    await userEvent.selectOptions(typeField, 'Spill');
     await userEvent.click(within(dialog).getByRole('button', { name: /save incident/i }));
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith({
       id: 'i1',

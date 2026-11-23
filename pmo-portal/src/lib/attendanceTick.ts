@@ -19,6 +19,8 @@ export interface TickState {
   order: string[];
   offRotation: Record<string, boolean>;
   people: Record<string, TickPerson>;
+  /** People added from another crew for the day (#crew-followed): saved as following this crew. */
+  followers: string[];
 }
 
 export type TickError = 'hoursRequired' | 'hoursRange' | 'overtimeRange' | 'reasonRequired';
@@ -52,7 +54,19 @@ export function initialTickState(members: TickMember[], existing: TickExisting[]
       ? { status: e.status, hours: asText(e.hours), overtime: asText(e.overtime_hours), reason: e.reason ?? '' }
       : { status: m.off_rotation ? 'off_rotation' : m.reported_absent ? 'absent' : 'present', hours: '', overtime: '', reason: '' };
   }
-  return { defaultHours: '8', order: members.map((m) => m.worker_id), offRotation, people };
+  return { defaultHours: '8', order: members.map((m) => m.worker_id), offRotation, people, followers: [] };
+}
+
+/** Add a person from another crew to today's tick. A person already listed leaves the state as it was. */
+export function addFollower(state: TickState, workerId: string): TickState {
+  if (state.people[workerId]) return state;
+  return {
+    ...state,
+    order: [...state.order, workerId],
+    offRotation: { ...state.offRotation, [workerId]: false },
+    people: { ...state.people, [workerId]: { status: 'present', hours: '', overtime: '', reason: '' } },
+    followers: [...state.followers, workerId],
+  };
 }
 
 function parseHours(text: string): number | null | 'bad' {
@@ -64,7 +78,7 @@ function parseHours(text: string): number | null | 'bad' {
 }
 
 /** The rows to send, or per-person errors. Any error means nothing is sent. */
-export function buildTickRows(state: TickState): { rows: AttendanceRowInput[]; errors: Record<string, TickError> } {
+export function buildTickRows(state: TickState, followedCrewId?: string): { rows: AttendanceRowInput[]; errors: Record<string, TickError> } {
   const errors: Record<string, TickError> = {};
   const rows: AttendanceRowInput[] = [];
   const crewDefault = parseHours(state.defaultHours);
@@ -73,7 +87,8 @@ export function buildTickRows(state: TickState): { rows: AttendanceRowInput[]; e
     if (!p) continue;
     const reason = p.reason.trim() || null;
     if (p.status !== 'present') {
-      rows.push({ worker_id: id, status: p.status, hours: null, overtime_hours: null, reason });
+      rows.push({ worker_id: id, status: p.status, hours: null, overtime_hours: null, reason,
+        ...(followedCrewId && state.followers.includes(id) ? { followed_crew_id: followedCrewId } : {}) });
       continue;
     }
     const own = parseHours(p.hours);
@@ -83,7 +98,8 @@ export function buildTickRows(state: TickState): { rows: AttendanceRowInput[]; e
     if (hours === null) { errors[id] = crewDefault === 'bad' ? 'hoursRange' : 'hoursRequired'; continue; }
     if (overtime === 'bad') { errors[id] = 'overtimeRange'; continue; }
     if (state.offRotation[id] && !reason) { errors[id] = 'reasonRequired'; continue; }
-    rows.push({ worker_id: id, status: 'present', hours, overtime_hours: overtime, reason });
+    rows.push({ worker_id: id, status: 'present', hours, overtime_hours: overtime, reason,
+      ...(followedCrewId && state.followers.includes(id) ? { followed_crew_id: followedCrewId } : {}) });
   }
   return Object.keys(errors).length > 0 ? { rows: [], errors } : { rows, errors };
 }

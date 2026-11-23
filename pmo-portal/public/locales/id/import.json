@@ -17,7 +17,9 @@
     "people": "orang",
     "person": "orang",
     "clientTakeoff": "baris take-off",
-    "clientTakeoffLine": "baris take-off"
+    "clientTakeoffLine": "baris take-off",
+    "personDocuments": "dokumen personel",
+    "personDocument": "dokumen personel"
   },
   "wizard": {
     "title": "Impor {{entity}}",
@@ -64,7 +66,10 @@
     "invalidCount": "{{n}} tidak valid",
     "totalCount": "{{n}} total",
     "rowNumber": "Baris {{n}}",
-    "alreadyCount": "{{n}} sudah ada"
+    "alreadyCount": "{{n}} sudah ada",
+    "willUpdate": "Akan diperbarui",
+    "new": "Baru",
+    "noChange": "Tidak berubah"
   },
   "committing": {
     "progress": "Mengimpor {{done}} / {{total}}…"
@@ -83,7 +88,8 @@
     "reasonColumn": "Alasan tidak diimpor",
     "failedSheet": "Tidak diimpor",
     "alreadyThereSheet": "Sudah ada",
-    "rowInFile": "Baris di berkas Anda"
+    "rowInFile": "Baris di berkas Anda",
+    "updated": "{{n}} diperbarui"
   },
   "paste": {
     "label": "Atau tempel baris yang disalin dari spreadsheet",
@@ -292,14 +298,25 @@
     "code": "Kode karyawan",
     "name": "Nama tampilan",
     "exampleName": "Contoh Karyawan",
-    "codeHint": "Kode Anda sendiri untuk orang tersebut. Setiap kode dipakai sekali.",
+    "codeHint": "Kode Anda sendiri untuk orang tersebut. Kode yang sudah ada di daftar memperbarui orang itu; kode baru menambahkan.",
     "alreadyThere": "Kode karyawan ini sudah ada.",
     "error": {
       "code": "Kode karyawan wajib diisi.",
       "codeLong": "Kode karyawan terlalu panjang.",
       "name": "Nama tampilan wajib diisi.",
-      "nameLong": "Nama tampilan terlalu panjang."
-    }
+      "nameLong": "Nama tampilan terlalu panjang.",
+      "jobTitleLong": "Jabatan terlalu panjang.",
+      "repeat": "Kode karyawan ini sudah muncul di baris {n}.",
+      "managerRight": "Hanya Admin atau tim SDM yang dapat mengatur atasan langsung seseorang. Kosongkan email manajer.",
+      "managerSelf": "Hanya Admin yang dapat menjadikan dirinya atasan langsung seseorang. Sebutkan manajer lain."
+    },
+    "job_title": "Jabatan",
+    "manager_id": "Email manajer",
+    "jobTitleHint": "Opsional. Kosong membiarkan jabatan tersimpan apa adanya.",
+    "managerHint": "Opsional. Email masuk manajer; harus pengguna aktif. Kosong membiarkan manajer tersimpan apa adanya.",
+    "noChange": "Sudah ada di daftar dengan nilai ini.",
+    "unavailable": "Daftar personel tidak dapat dibaca, sehingga perubahan tidak dapat dipratinjau. Coba lagi.",
+    "nothingToDo": "Tidak ada yang ditambah atau diubah: setiap baris sama dengan daftar."
   },
   "clientTakeoff": {
     "itemCode": "Kode item",
@@ -313,6 +330,68 @@
       "itemUnknown": "Kode item tidak ditemukan di antara item pasokan klien.",
       "whole": "Item ini dihitung dalam satuan utuh.",
       "repeat": "Item ini sudah muncul di baris {n}."
+    }
+  },
+  "match": {
+    "addAndUpdate": "Tambah {{added}} dan perbarui {{updated}}",
+    "updateOnly_one": "Perbarui {{count}}",
+    "updateOnly_other": "Perbarui {{count}}",
+    "addOnly_one": "Tambah {{count}}",
+    "addOnly_other": "Tambah {{count}}",
+    "summary": "{{added}} ditambah, {{updated}} diperbarui",
+    "noChangeCount": "{{n}} tidak berubah",
+    "change": "{{field}}: {{from}} → {{to}}",
+    "retry": "Coba lagi"
+  },
+  "personDocument": {
+    "person_code": "Kode personel",
+    "document_type": "Jenis dokumen",
+    "number": "Nomor",
+    "issued_on": "Tanggal terbit",
+    "expires_on": "Tanggal kedaluwarsa",
+    "personHint": "Kode orang di daftar personel.",
+    "typeHint": "Jenis dokumen dari Administrasi, menurut nama.",
+    "numberHint": "Opsional. Kosong membiarkan nomor tersimpan apa adanya.",
+    "issuedHint": "Opsional. Tahun-bulan-hari. Kosong membiarkan tanggal tersimpan apa adanya.",
+    "expiryHint": "Tahun-bulan-hari.",
+    "noChange": "Dokumen ini sudah memiliki nilai ini.",
+    "unavailable": "Dokumen yang ada tidak dapat dibaca, sehingga perubahan tidak dapat dipratinjau. Coba lagi.",
+    "nothingToDo": "Tidak ada yang ditambah atau diubah: setiap baris sama dengan dokumen yang ada.",
+    "error": {
+      "date": "Tanggal ditulis tahun-bulan-hari, mis. 2026-01-31.",
+      "person": "Kode personel wajib diisi.",
+      "type": "Jenis dokumen wajib diisi.",
+      "medical": "Jenis dokumen \"{type}\" adalah jenis medis. Dokumen medis dicatat di halaman personel, tidak diimpor.",
+      "numberLong": "Nomor terlalu panjang.",
+      "expiry": "Tanggal kedaluwarsa wajib diisi.",
+      "issuedAfter": "Tanggal terbit setelah tanggal kedaluwarsa.",
+      "repeat": "Orang ini sudah memiliki jenis dokumen ini di baris {n}."
+    }
+  },
+  "stockMovement": {
+    "date": "Tanggal",
+    "location": "Lokasi",
+    "item": "Barang",
+    "direction": "Arah",
+    "quantity": "Jumlah",
+    "unitCost": "Biaya satuan",
+    "reference": "Referensi",
+    "dateHint": "Hari stok bergerak. Tidak setelah tanggal mulai pakai.",
+    "locationHint": "Kode lokasi stok yang sudah ada.",
+    "itemHint": "Kode barang stok yang sudah ada.",
+    "directionHint": "in: diterima, dikembalikan atau ditemukan. out: dikeluarkan, dipakai atau dikembalikan ke pemasok.",
+    "quantityHint": "Bilangan bulat saja untuk barang dengan satuan utuh.",
+    "unitCostHint": "Pada baris in. Kosongkan untuk barang dipasok klien (selalu tanpa biaya). Tidak dipakai pada baris out.",
+    "referenceHint": "Nomor surat jalan, laporan lapangan atau dokumen lain.",
+    "error": {
+      "date": "Tulis hari sebagai TTTT-BB-HH, misalnya 2026-01-15.",
+      "location": "Tulis kode lokasi stok.",
+      "item": "Tulis kode barang stok.",
+      "codeLong": "Kode ini terlalu panjang.",
+      "direction": "Tulis in (stok masuk) atau out (stok keluar).",
+      "quantity": "Jumlah harus di atas 0, paling banyak 3 desimal.",
+      "unitCost": "Biaya satuan harus 0 atau lebih, paling banyak 4 desimal.",
+      "reference": "Referensi terlalu panjang (paling banyak 100 karakter)."
     }
   }
 }

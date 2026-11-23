@@ -204,3 +204,119 @@ describe('AC-CQ-014 ProgressClaimModal lump-sum percent (DD-CQ-1)', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+describe('ProgressClaimModal over-claim warning (survey-cap-warn)', () => {
+  const facts = (accepted: number | null) => [lineFacts('b1', []), lineFacts('b2', [allocFacts('wo-1', 'b2', 5, 1, accepted)])];
+  const pickScope = async (user: ReturnType<typeof userEvent.setup>) => user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+
+  it('AC-SCW-005 warns past accepted minus claimed, shows the headroom, and still lets the claim be raised', async () => {
+    const { onSave, user } = renderModal({ contractLines: facts(3) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '3');
+    const warning = screen.getByTestId('claim-overclaim-b2');
+    expect(warning).toHaveTextContent('more than the 2 unit still claimable (accepted 3, already claimed 1)');
+    expect(warning).toHaveTextContent('You can still raise the claim');
+    await user.click(screen.getByRole('button', { name: 'Create claim' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ workOrderId: 'wo-1', lines: [{ boqItemId: 'b2', quantity: 3 }] }));
+  });
+
+  it('AC-SCW-005 no warning exactly at the headroom', async () => {
+    const { user } = renderModal({ contractLines: facts(3) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    expect(screen.queryByTestId('claim-overclaim-b2')).toBeNull();
+  });
+
+  it('AC-SCW-006 with nothing accepted the warning is measured against ordered minus claimed', async () => {
+    const { user } = renderModal({ contractLines: facts(null) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '5');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('more than the 4 unit still claimable (ordered 5, already claimed 1, nothing accepted yet)');
+  });
+});
+
+describe('ProgressClaimModal survey ceiling and quality-ready warning (survey-cap-record)', () => {
+  const surveyed = (surveyedQuantity: number | null, qualityReadyQuantity: number | null, accepted: number | null = null) =>
+    [lineFacts('b1', []), lineFacts('b2', [{ ...allocFacts('wo-1', 'b2', 5, 1, accepted), surveyedQuantity, qualityReadyQuantity }])];
+  const pickScope = async (user: ReturnType<typeof userEvent.setup>) => user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+
+  it('AC-SCR-012 shows surveyed and quality-ready beside the line, and uses surveyed as the ceiling over accepted', async () => {
+    const { user } = renderModal({ contractLines: surveyed(4, 2, 5) });
+    await pickScope(user);
+    expect(screen.getByTestId('claim-survey-b2')).toHaveTextContent('Surveyed 4 unit, of which quality-ready 2');
+    await user.type(screen.getByLabelText(/STATION/), '4');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('more than the 3 unit still claimable (surveyed 4, already claimed 1)');
+  });
+
+  it('AC-SCR-012 warns, without blocking, when the claim passes quality-ready but not surveyed', async () => {
+    const { onSave, user } = renderModal({ contractLines: surveyed(4, 2) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('only 2 unit has quality documents');
+    await user.click(screen.getByRole('button', { name: 'Create claim' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b2', quantity: 2 }] }));
+  });
+
+  it('AC-SCR-012 no warning at or below quality-ready, and nothing extra when nothing is surveyed', async () => {
+    const { user } = renderModal({ contractLines: surveyed(4, 2) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '1');
+    expect(screen.queryByTestId('claim-overclaim-b2')).toBeNull();
+  });
+
+  it('AC-SCR-012 on block, a quantity over the surveyed ceiling reads "will be refused", and passing only quality-ready stays a warning', async () => {
+    const { user } = renderModal({ contractLines: surveyed(4, 2), overCapMode: 'block' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '4');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('Will be refused: this is more than the 3 unit still claimable (surveyed 4');
+    await user.clear(screen.getByLabelText(/STATION/));
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('Warning: with this claim');
+  });
+
+  it('AC-SCR-012 without a survey the form behaves as before and shows no survey figures', async () => {
+    const { user } = renderModal({ contractLines: surveyed(null, null) });
+    await pickScope(user);
+    expect(screen.queryByTestId('claim-survey-b2')).toBeNull();
+    await user.type(screen.getByLabelText(/STATION/), '5');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('ordered 5, already claimed 1');
+  });
+});
+
+describe('ProgressClaimModal over-claim on a refusing organisation (survey-cap-stop)', () => {
+  const facts = (accepted: number | null) => [lineFacts('b1', []), lineFacts('b2', [allocFacts('wo-1', 'b2', 5, 1, accepted)])];
+  const pickScope = async (user: ReturnType<typeof userEvent.setup>) => user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+
+  it('AC-SCS-010 on block the line says it will be refused, with the headroom and the next step, not the warning', async () => {
+    const { user } = renderModal({ contractLines: facts(3), overCapMode: 'block' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '3');
+    const note = screen.getByTestId('claim-overclaim-b2');
+    expect(note).toHaveTextContent('Will be refused');
+    expect(note).toHaveTextContent('more than the 2 unit still claimable (accepted 3, already claimed 1)');
+    expect(note).toHaveTextContent('Lower it to 2, or confirm the next BAST first');
+    expect(note).not.toHaveTextContent('Warning');
+    expect(note).not.toHaveTextContent('You can still raise the claim');
+  });
+
+  it('AC-SCS-010 on block with nothing accepted the ordered wording is used', async () => {
+    const { user } = renderModal({ contractLines: facts(null), overCapMode: 'block' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '5');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('Will be refused: this is more than the 4 unit still claimable (ordered 5, already claimed 1, nothing accepted yet)');
+  });
+
+  it('AC-SCS-010 on block there is nothing at exactly the headroom, and on warn the old warning is unchanged', async () => {
+    const { user } = renderModal({ contractLines: facts(3), overCapMode: 'block' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    expect(screen.queryByTestId('claim-overclaim-b2')).toBeNull();
+  });
+
+  it('AC-SCS-010 on warn the part A warning still shows', async () => {
+    const { user } = renderModal({ contractLines: facts(3), overCapMode: 'warn' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '3');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('Warning: this is more than the 2 unit');
+  });
+});

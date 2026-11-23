@@ -194,3 +194,29 @@ export async function getIssueClosingTimeReport(
     overdue_issues: Number(row.overdue_issues ?? 0),
   }));
 }
+
+/** One validated site day of a work order: the report's site day, its stopped time, and the difference, in minutes. */
+export interface WorkOrderEffectiveHoursRow {
+  work_date: string;
+  /** Null when the report has no start/end time; never shown as 0. */
+  worked_minutes: number | null;
+  stopped_minutes: number;
+  effective_minutes: number | null;
+  has_times: boolean;
+}
+
+/**
+ * Effective working hours of a work order per day (migration 1823): worked (the validated daily site report's site day) minus
+ * stopped (its idle periods), from reports already captured. A security-invoker read, so the caller's own row security applies.
+ */
+export async function getWorkOrderEffectiveHours(workOrderId: string, from: string, to: string): Promise<WorkOrderEffectiveHoursRow[]> {
+  const { data, error } = await supabase.rpc('get_work_order_effective_hours', { p_work_order: workOrderId, p_from: from, p_to: to });
+  if (error) throwWrite(error);
+  return (data ?? []).map((r) => ({
+    work_date: r.work_date,
+    worked_minutes: r.has_times ? r.worked_minutes : null,
+    stopped_minutes: r.stopped_minutes,
+    effective_minutes: r.has_times ? r.effective_minutes : null,
+    has_times: r.has_times,
+  }));
+}

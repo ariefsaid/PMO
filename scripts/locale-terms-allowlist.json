@@ -1,0 +1,16 @@
+[
+  {
+    "file": "pmo-portal/public/locales/en",
+    "key": "serviceRequest",
+    "rule": "R2",
+    "term": "serviceRequest",
+    "reason": "No screen names a service request yet and no such screen exists, so there is nothing to align; the key stays pre-seeded per #2799 Q2 and this entry is removed when a screen shows the concept (a stale entry fails)."
+  },
+  {
+    "file": "pmo-portal/public/locales/id",
+    "key": "serviceRequest",
+    "rule": "R2",
+    "term": "serviceRequest",
+    "reason": "No screen names a service request yet and no such screen exists, so there is nothing to align; the key stays pre-seeded per #2799 Q2 and this entry is removed when a screen shows the concept (a stale entry fails)."
+  }
+]

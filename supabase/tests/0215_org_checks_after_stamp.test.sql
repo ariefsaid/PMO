@@ -31,6 +31,8 @@ select is((select coalesce(string_agg(t.tgname, ', ' order by t.tgname),'')
   'AC-BUD-122: the budget archive guard fires after the outbox org stamp');
 
 insert into organizations (id, name) values ('cccccccc-0000-0000-0000-00000000000c','Org C (non-seed)');
+-- issue-closing-measure: an issue's type is picked from the organisation's kept list (1820/1821); this test's own types are on it.
+insert into incident_types (org_id, label) values ('cccccccc-0000-0000-0000-00000000000c', 'Near miss') on conflict do nothing;
 insert into auth.users (id, email) values ('c0000000-0000-0000-0000-0000000000c1','c@example.com');
 insert into profiles (id, org_id, full_name, email, role) values
   ('c0000000-0000-0000-0000-0000000000c1','cccccccc-0000-0000-0000-00000000000c','PM C','c@example.com','Project Manager');

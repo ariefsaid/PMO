@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { login, pickComboboxOption } from './helpers';
-import { cleanSiteIssue } from './siteIssueFixture';
+import { addIssueType, cleanSiteIssue } from './siteIssueFixture';
 
 /**
  * AC-SIL-014  Raised → assigned → late → escalated → closed with proof (docs/specs/site-issue-log.spec.md).
@@ -20,11 +20,12 @@ function sql(statement: string): string {
 
 test('AC-SIL-014: an issue is raised, assigned, goes late, is escalated, and closes with a close photo', async ({ page }) => {
   const type = issueType = `E2E-Lifecycle-${crypto.randomUUID()}`;
+  await addIssueType(type);
   await login(page, 'pm@acme.test');
   await page.goto('/incidents');
   await page.getByRole('button', { name: /file incident/i }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/^type/i).fill(type);
+  await dialog.getByLabel(/^type/i).selectOption({ label: type });
   await dialog.getByLabel(/severity/i).selectOption('High');
   await pickComboboxOption(dialog, page, /person in charge/i);
   await dialog.getByRole('button', { name: /^file incident$/i }).click();

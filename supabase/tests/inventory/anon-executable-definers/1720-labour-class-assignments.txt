@@ -1,0 +1,6 @@
+# Labour cost for crew members with no login (1720): the three class-assignment actions the Labour cost section calls.
+# Each refuses unless the caller is an active Admin or Finance of the org (labour_cost_gate); proven by
+# supabase/tests/1720_labour_class_rates.test.sql (AC-NLL-010, AC-NLL-011).
+save_labour_class_assignment
+end_labour_class_assignment
+archive_labour_class_assignment

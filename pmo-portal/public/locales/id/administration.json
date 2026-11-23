@@ -671,12 +671,6 @@
       "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
-      "setup": {
-        "unlinked": "Login belum ditautkan ke seorang personel, jadi belum bisa dimasukkan ke kru.",
-        "linkAction": "Tautkan ke personel",
-        "noCrew": "Belum masuk kru mana pun, jadi belum ada pekerjaan untuk absen.",
-        "crewAction": "Masukkan ke kru"
-      },
       "builtIn": {
         "tier": {
           "manager": "Manajer",
@@ -749,6 +743,12 @@
         "alreadyInvitedDetail": "{{email}} sudah memiliki undangan yang masih berlaku. Tidak ada email baru yang dikirim.",
         "inviteResent": "Undangan dikirim ulang",
         "inviteResentDetail": "Tautan sebelumnya untuk {{email}} sudah kedaluwarsa. Tautan baru sedang dikirim."
+      },
+      "setup": {
+        "unlinked": "Login belum ditautkan ke seorang personel, jadi belum bisa dimasukkan ke kru.",
+        "linkAction": "Tautkan ke personel",
+        "noCrew": "Belum masuk kru mana pun, jadi belum ada pekerjaan untuk absen.",
+        "crewAction": "Masukkan ke kru"
       }
     },
     "spendApprovers": {
@@ -790,6 +790,24 @@
         "start": "Hanya satu titik pemeriksaan yang boleh menandai mulai kerja"
       }
     },
+    "issueTypes": {
+      "title": "Jenis isu",
+      "helper": "Jenis yang dipilih orang saat mengajukan isu, dan pengelompokan yang dipakai laporan waktu penyelesaian. Mengganti nama jenis akan mengganti namanya di setiap isu yang memakainya. Mengarsipkan menyembunyikan jenis dari isu baru; isu yang sudah memakainya tetap menyimpannya.",
+      "empty": "Belum ada jenis isu, jadi belum ada yang bisa mengajukan isu. Tambahkan jenis milik organisasi Anda di bawah.",
+      "nearEmpty": "Hanya satu jenis yang terdaftar. Tambahkan jenis milik organisasi Anda di bawah agar isu bisa dikelompokkan dan diukur waktunya per jenis.",
+      "add": "Tambah",
+      "addLabel": "Jenis isu baru",
+      "rename": "Ganti nama",
+      "renameFor": "Nama untuk {{name}}",
+      "save": "Simpan",
+      "cancel": "Batal",
+      "archive": "Arsipkan",
+      "restore": "Pulihkan",
+      "archived": "Diarsipkan",
+      "loadError": "Tidak dapat memuat jenis isu",
+      "saved": "Jenis isu disimpan",
+      "duplicate": "Jenis itu sudah ada di daftar"
+    },
     "siteReportLists": {
       "title": "Daftar laporan lapangan",
       "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",
@@ -820,6 +838,17 @@
       "turnOn": "Sembunyikan harga dari peminta",
       "turnOff": "Tampilkan lagi harga kepada peminta"
     },
+    "claimOverCap": {
+      "title": "Klaim melebihi kuantitas yang dapat ditagih",
+      "loadError": "Pengaturan kuantitas klaim tidak dapat dimuat",
+      "saved": "Pengaturan kuantitas klaim disimpan",
+      "helper": "Setiap baris klaim diukur terhadap kuantitas yang masih dapat ditagih pada baris work order-nya: kuantitas hasil survei bila ada, jika tidak kuantitas yang diterima (BAST), jika tidak kuantitas yang dipesan, dikurangi yang sudah diambil klaim aktif. Hanya peringatan meloloskan klaim dengan peringatan di formulir. Tolak menghentikan klaim sampai kuantitas diturunkan atau penerimaan berikutnya dikonfirmasi.",
+      "warn": "Hanya peringatan",
+      "block": "Tolak",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "turnOn": "Tolak klaim yang melebihi kuantitas yang dapat ditagih",
+      "turnOff": "Hanya beri peringatan pada klaim yang melebihi kuantitas yang dapat ditagih"
+    },
     "fiscalYear": {
       "title": "Tahun fiskal",
       "label": "Tahun fiskal dimulai pada",
@@ -843,6 +872,18 @@
       "saved": "Target kehadiran disimpan",
       "title": "Target kehadiran",
       "turnOff": "Matikan"
+    },
+    "attendanceRoles": {
+      "title": "Catatan waktu",
+      "intro": "Tentukan siapa yang boleh membuat catatan kedua untuk hari kerja seseorang (juru ukur atau pencatat waktu) dan siapa yang memutuskan jam mana yang berlaku bila dua catatan berbeda. Catatan kedua tidak mengubah jam yang dibayar dengan sendirinya.",
+      "secondLabel": "Boleh membuat catatan kedua",
+      "secondHelper": "Admin, Eksekutif, atau Manajer Proyek selalu boleh.",
+      "deciderLabel": "Memutuskan jam mana yang berlaku",
+      "deciderHelper": "Kosongkan untuk memakai penyetuju yang berlaku sekarang (Admin, Eksekutif, Manajer Proyek). Tidak ada yang memutuskan jam yang ia catat sendiri.",
+      "save": "Simpan",
+      "saved": "Peran catatan waktu disimpan",
+      "loadError": "Peran catatan waktu tidak dapat dimuat",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini."
     }
   },
   "exchangeRates": {
@@ -911,6 +952,8 @@
   },
   "people": {
     "add": "Tambah personel",
+    "importDocuments": "Impor dokumen",
+    "importPeople": "Impor personel",
     "addTitle": "Tambah personel",
     "editTitle": "Ubah personel",
     "save": "Simpan personel",
@@ -941,6 +984,11 @@
     "retry": "Coba lagi",
     "empty": "Belum ada personel. Tambahkan personel pertama untuk mencatat dokumennya.",
     "navLabel": "Personel",
+    "manager": "Atasan langsung (opsional)",
+    "managerPlaceholder": "Atasan belum ditetapkan",
+    "managerSearch": "Cari pengguna",
+    "managerHelp": "Atasan diperingatkan lebih dulu saat dokumen personel ini hampir kedaluwarsa, dan mencatat perpanjangannya.",
+    "managerReadOnly": "Hanya Admin atau tim SDM yang dapat mengubah atasan langsung.",
     "markLeft": "Tandai sudah keluar",
     "markLeftLabel": "Tandai {{name}} sudah keluar",
     "leftTitle": "Tandai {{name}} sudah keluar",
@@ -1010,11 +1058,15 @@
     "appliesTo": "Berlaku untuk",
     "person": "Personel",
     "equipment": "Peralatan",
-    "medical": "Dokumen medis (hanya status dan tanggal, hanya terlihat oleh Admin dan SDM)",
+    "medical": "Dokumen medis (hanya status dan tanggal, hanya terlihat oleh Admin)",
     "medicalCol": "Medis",
     "yes": "Ya",
     "roles": "Peran yang diberi tahu",
-    "rolesHelp": "Atasan personel selalu diberi tahu. Kosongkan untuk memakai bawaan jenis ini.",
+    "rolesHelp": "Centang peran yang diperingatkan sebelum dokumen jenis ini kedaluwarsa. Atasan langsung personel selalu ikut diperingatkan.",
+    "notifyPerson": "Beri tahu juga personelnya",
+    "thePerson": "Personel yang bersangkutan",
+    "manager": "Atasan langsung",
+    "noOne": "Tidak ada yang diperingatkan",
     "actions": "Tindakan",
     "edit": "Ubah",
     "archive": "Arsipkan",
@@ -1043,7 +1095,7 @@
     "switch": "Hitung jam yang disetujui sebagai biaya dalam uang",
     "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan biaya tenaga kerja.",
     "locked": "Ini akan mengubah jam yang sudah dihitung pada lembar waktu yang disetujui. Mulai tarif baru setelah hari terakhir yang sudah dihitung.",
-    "duplicate": "Tarif untuk orang atau peran ini sudah dimulai pada tanggal itu.",
+    "duplicate": "Tarif untuk orang, peran, atau kelas ini sudah dimulai pada tanggal itu.",
     "classes": "Kelas tenaga kerja",
     "addClass": "Tambah kelas",
     "archived": "diarsipkan",
@@ -1077,6 +1129,27 @@
     "saveRate": "Simpan tarif",
     "subjectRole": "Satu peran",
     "subjectPerson": "Satu orang",
+    "subjectClass": "Kelas tenaga kerja (orang tanpa akun)",
+    "subjectClassCell": "Orang tanpa akun di kelas ini",
+    "assignments": {
+      "title": "Kelas anggota kru",
+      "add": "Tetapkan kelas",
+      "intro": "Orang tanpa akun dihitung biayanya menurut kelasnya: tarif kelas menghargai kehadiran mereka yang disetujui.",
+      "empty": "Belum ada anggota kru yang punya kelas tenaga kerja. Admin atau Finance menambahkannya di sini; sampai saat itu jam mereka yang disetujui tidak bertarif.",
+      "person": "Orang",
+      "personNoun": "orang",
+      "personNounPlural": "orang",
+      "personHelp": "Orang di daftar personel yang tidak punya akun.",
+      "noPeople": "Semua orang di daftar personel sudah punya akun. Tambahkan anggota kru di Personel terlebih dahulu.",
+      "endLabel": "Akhiri {{name}}",
+      "archiveLabel": "Arsipkan {{name}}",
+      "saved": "Kelas ditetapkan",
+      "endTitle": "Akhiri kelas ini",
+      "lastDay": "Hari terakhir di kelas ini",
+      "archiveTitle": "Arsipkan kelas ini?",
+      "archiveDescription": "Kelas berhenti berlaku. Kelas yang sudah menghitung biaya hari yang disetujui tidak bisa diarsipkan: akhiri saja.",
+      "archiveConfirm": "Arsipkan kelas"
+    },
     "person": "Orang",
     "choosePerson": "Pilih orang",
     "role": "Peran",
@@ -1115,6 +1188,13 @@
     "loadError": "Tidak dapat memuat pengaturan kinerja",
     "on": "Aktif",
     "off": "Nonaktif"
+  },
+  "idleCost": {
+    "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan ini.",
+    "scope": "Biaya waktu menganggur mencakup",
+    "scopeHelper": "Tenaga kerja: jam menganggur dikali kru yang hadir setiap hari. Peralatan: biaya siaga peralatan sewa pada hari yang ada waktu menganggurnya. Keduanya tidak ditambahkan ke biaya langsung.",
+    "scopeLabour": "Jam menganggur dengan biaya per jam rata-rata",
+    "scopePeopleEquipment": "Kru yang hadir dan peralatan sewa yang siaga"
   },
   "issueClosingReport": {
     "title": "Laporan waktu penyelesaian isu",
@@ -1157,6 +1237,10 @@
       "addTitle": "Tambah butir",
       "save": "Simpan butir",
       "name": "Nama butir",
+      "target": "Target (hari)",
+      "targetHelp": "Opsional. Dihitung dari hari orangnya ditambahkan. Kosongkan bila tanpa target.",
+      "targetValue": "{{count}} hari",
+      "errTarget": "Gunakan bilangan bulat 1 sampai 365 hari, atau kosongkan.",
       "required": "Wajib agar dinyatakan lolos",
       "heading": "Butir daftar periksa",
       "add": "Tambah butir",
@@ -1181,7 +1265,8 @@
       "loadError": "Daftar orang tidak dapat dimuat",
       "emptyTitle": "Belum ada orang di daftar",
       "emptySub": "Tambahkan orang di bagian Orang terlebih dahulu; daftar periksanya lalu muncul di sini.",
-      "progress": "{{done}} dari {{total}} wajib"
+      "progress": "{{done}} dari {{total}} wajib",
+      "overdue": "Terlambat: {{count}}"
     },
     "person": {
       "errDone": "Isi tanggal selesai",
@@ -1201,6 +1286,8 @@
       "emptySub": "Admin mendaftar kebutuhan seseorang di bagian Izin ke lokasi; butirnya lalu muncul di sini.",
       "doneLine": "Selesai {{date}}",
       "expiresLine": "Kedaluwarsa {{date}}",
+      "due": "Jatuh tempo {{date}}",
+      "overdue": "Terlambat · jatuh tempo {{date}}",
       "edit": "Ubah",
       "record": "Catat",
       "remove": "Hapus",

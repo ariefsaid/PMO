@@ -19,6 +19,10 @@ const day = (s: string): string => { const d = DATE.exec(s)?.[0]; return d ? for
 const qty = (s: string | undefined): string => (s === undefined ? '' : formatQuantity(s, getNumberLocale()));
 const first = (re: RegExp, s: string): string[] => re.exec(s)?.slice(1) ?? [];
 
+/** The opening-stock load names the file row it refused: `OPN_OVER_ISSUE: row 7`. No row in the text, no figure. */
+const rowFigure = (s: string): Record<string, string> => { const n = first(/row (\d+)/, s)[0]; return n ? { row: n } : {}; };
+const OPENING_STOCK_CODES = ['OPN_ROW_INVALID', 'OPN_UNKNOWN_ITEM', 'OPN_UNKNOWN_LOCATION', 'OPN_COST_NEEDED', 'OPN_OVER_ISSUE', 'OPN_DATE_AFTER_GO_LIVE', 'OPN_LOCATION_MOVED', 'OPN_ALREADY_LOADED', 'STK_ZERO_COST'];
+
 /**
  * Figures a migration writes into the sentence and no `details`. Each reads one wording; a code absent here carries none.
  * ponytail: remove an entry when its migration moves the figure into `details` (stock already does).
@@ -27,10 +31,13 @@ const FIGURES: Record<string, (text: string) => Record<string, string>> = {
   ATT_DAY_CEILING: (s) => { const [hours = '', workOrder = ''] = first(/already has ([\d.]+) hours on (.+) that day/, s); return { hours, workOrder }; },
   ATT_DATE_WINDOW: (s) => ({ date: day(s) }),
   ATT_TS_MANUAL_ENTRY: (s) => ({ date: day(s) }),
+  ATT_UNDECIDED: (s) => ({ date: day(s) }),
+  HC_DATE_OLD: (s) => ({ date: day(s) }),
   LOAN_HOURS_LOCKED: (s) => ({ date: day(s) }),
   PTYPE_EXT_ORDER: (s) => ({ date: day(s) }),
   CTR_QTY_EXCEEDS_USABLE: (s) => ({ usable: first(/only (\d+) usable/, s)[0] ?? '0' }),
   CWO_NOT_READY: (s) => ({ names: s.split('not ready:')[1]?.trim() ?? '' }),
+  CLM_OVER_CAP: (s) => ({ headroom: qty(first(/only ([\d.]+) .*still claimable/, s)[0]) }),
   WOS_ALLOCATION_CAP: (s) => { const [total = '', plan = ''] = first(/would be ([\d.]+) against a work-order plan of ([\d.]+)/, s); return { total, plan }; },
   WOS_ARCHIVE_BLOCKED: (s) => ({ reason: s }),
   WPVA_SPLIT_SUM: (s) => ({ sum: first(/add up to ([\d.]+)/, s)[0] ?? '' }),
@@ -40,6 +47,7 @@ const FIGURES: Record<string, (text: string) => Record<string, string>> = {
   CSR_OVER_REQUESTED: (s) => ({ n: qty(first(/by ([\d.]+)$/, s)[0]) }),
   CSR_OVER_COLLECT: (s) => ({ n: qty(first(/only ([\d.]+) is still/, s)[0]) }),
   CSR_RELEASE_BELOW_COLLECTED: (s) => ({ n: qty(first(/below the ([\d.]+) already/, s)[0]) }),
+  ...Object.fromEntries(OPENING_STOCK_CODES.map((code) => [code, rowFigure])),
 };
 
 function detailsValues(details: unknown): Record<string, string> {

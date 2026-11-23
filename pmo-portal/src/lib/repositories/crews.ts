@@ -48,6 +48,7 @@ export const attendanceRepository = {
   record: (workOrderId: string, date: string, source: attendance.AttendanceSource, rows: attendance.AttendanceRowInput[]) =>
     wrap(() => attendance.recordAttendance(workOrderId, date, source, rows)),
   day: (workOrderId: string, date: string) => wrap(() => attendance.listAttendanceDay(workOrderId, date)),
+  clearFollow: (workerId: string, date: string) => wrap(() => attendance.clearFollow(workerId, date)),
   generateWeek: (workerId: string, weekStart: string) => wrap(() => attendance.generateAttendanceWeek(workerId, weekStart)),
   decideWeek: (workerId: string, weekStart: string, decision: 'approve' | 'reject', reason: string | null) =>
     wrap(() => attendance.decideAttendanceWeek(workerId, weekStart, decision, reason)),

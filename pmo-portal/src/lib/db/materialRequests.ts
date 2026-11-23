@@ -67,6 +67,8 @@ export interface MaterialRequestStep {
   round: number;
   position: number;
   role: Role;
+  /** roles-that-decide FR-RTD-006: the step's built-in job role, snapshotted at submit; null = the step decides by `role`. */
+  jobRole: string | null;
   label: string;
   status: StepStatus;
   decidedBy: string | null;
@@ -97,6 +99,8 @@ export interface WaitingStep {
   requestId: string;
   stepPosition: number;
   role: Role;
+  /** The job role that decides the step (roles-that-decide); null = the step decides by its access level. */
+  jobRole: string | null;
   label: string;
   /** The person this caller stands in for on this step; null when the caller holds the role. */
   actingFor: string | null;
@@ -105,6 +109,8 @@ export interface WaitingStep {
 
 export interface ChainStepInput {
   role: Role;
+  /** A job role key (roles-that-decide FR-RTD-004); null = the step decides by `role` as before. With a job role, `role` is its base level. */
+  jobRole: string | null;
   label: string;
   onlyOverPlan: boolean;
 }
@@ -132,6 +138,7 @@ const asPlanSource = (v: unknown): PlanSource | null => (typeof v === 'string' &
 export interface StepPin {
   position: number;
   role: Role;
+  jobRole: string | null;
   approverId: string;
 }
 
@@ -208,11 +215,11 @@ export function draftLineErrors(
 export type MaterialRequestRefusal =
   | 'sodAuthor' | 'sodTwice' | 'outOfOrder' | 'notApprover' | 'reasonRequired' | 'overPlanReason' | 'cutoff'
   | 'neededBy' | 'noChain' | 'sourceRequired' | 'noDestination' | 'notKeeper' | 'notPending' | 'notDraft'
-  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'notPinned' | 'pinForbidden' | 'pinInvalid' | 'invalid' | 'notFound' | 'destination' | 'manyDestinations' | 'section' | 'sectionLocked' | 'unknown';
+  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'notPinned' | 'pinForbidden' | 'pinInvalid' | 'notJobRole' | 'jobRoleOff' | 'jobRoleUnknown' | 'invalid' | 'notFound' | 'destination' | 'manyDestinations' | 'section' | 'sectionLocked' | 'unknown';
 
 const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_SOD_AUTHOR', 'sodAuthor'], ['MRQ_SOD_TWICE', 'sodTwice'], ['MRQ_OUT_OF_ORDER', 'outOfOrder'],
-  ['MRQ_NOT_APPROVER', 'notApprover'], ['MRQ_REASON_REQUIRED', 'reasonRequired'], ['MRQ_OVER_PLAN_REASON', 'overPlanReason'],
+  ['MRQ_NOT_APPROVER', 'notApprover'], ['MRQ_NOT_JOB_ROLE', 'notJobRole'], ['MRQ_JOB_ROLE_OFF', 'jobRoleOff'], ['MRQ_JOB_ROLE_UNKNOWN', 'jobRoleUnknown'], ['MRQ_REASON_REQUIRED', 'reasonRequired'], ['MRQ_OVER_PLAN_REASON', 'overPlanReason'],
   ['MRQ_CUTOFF', 'cutoff'], ['MRQ_NEEDED_BY', 'neededBy'], ['MRQ_NO_CHAIN', 'noChain'], ['MRQ_SOURCE_REQUIRED', 'sourceRequired'],
   ['MRQ_NO_DESTINATION', 'noDestination'], ['MRQ_MANY_DESTINATIONS', 'manyDestinations'], ['STK_NOT_KEEPER', 'notKeeper'], ['MRQ_NOT_PENDING', 'notPending'],
   ['MRQ_NOT_DRAFT', 'notDraft'], ['MRQ_NOT_AUTHOR', 'notAuthor'], ['MRQ_WORK_ORDER', 'workOrder'], ['MRQ_STAND_IN', 'standIn'],
@@ -280,7 +287,7 @@ export async function getMaterialRequest(id: string): Promise<MaterialRequestDet
     supabase.from('material_requests').select(REQUEST_COLUMNS).eq('id', id).limit(1) as unknown as DbResult<RequestDbRow[]>,
     supabase.from('material_request_lines').select('id, line_no, item_id, quantity, plan_qty, plan_source, prior_qty, over_plan_reason')
       .eq('request_id', id).order('line_no', { ascending: true }).limit(200) as unknown as DbResult<Array<Record<string, unknown>>>,
-    supabase.from('material_request_steps').select('id, round, position, role, label, status, decided_by, acted_for, decided_at, reason')
+    supabase.from('material_request_steps').select('id, round, position, role, job_role, label, status, decided_by, acted_for, decided_at, reason')
       .eq('request_id', id).order('round', { ascending: true }).order('position', { ascending: true }).limit(500) as unknown as DbResult<Array<Record<string, unknown>>>,
     supabase.from('material_request_events').select('id, action, from_status, to_status, step_position, actor_id, acted_for, reason, created_at')
       .eq('request_id', id).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1000) as unknown as DbResult<Array<Record<string, unknown>>>,
@@ -296,7 +303,7 @@ export async function getMaterialRequest(id: string): Promise<MaterialRequestDet
       overPlanReason: (l.over_plan_reason as string | null) ?? null,
     })),
     steps: (steps.data ?? []).map((s) => ({
-      id: String(s.id), round: Number(s.round), position: Number(s.position), role: s.role as Role, label: String(s.label),
+      id: String(s.id), round: Number(s.round), position: Number(s.position), role: s.role as Role, jobRole: (s.job_role as string | null) ?? null, label: String(s.label),
       status: s.status as StepStatus, decidedBy: (s.decided_by as string | null) ?? null, actedFor: (s.acted_for as string | null) ?? null,
       decidedAt: (s.decided_at as string | null) ?? null, reason: (s.reason as string | null) ?? null,
     })),
@@ -314,7 +321,7 @@ export async function listWaitingForMe(): Promise<WaitingStep[]> {
   if (error) fail(error);
   return (data ?? [])
     .map((w) => ({
-      requestId: w.request_id, stepPosition: w.step_position, role: w.role as Role, label: w.label,
+      requestId: w.request_id, stepPosition: w.step_position, role: w.role as Role, jobRole: w.job_role ?? null, label: w.label,
       actingFor: w.acting_for, submittedAt: w.submitted_at,
     }))
     .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt) || a.requestId.localeCompare(b.requestId));
@@ -357,10 +364,10 @@ export async function listPriorRequestLines(workOrderId: string, itemId: string,
 }
 
 export async function listApprovalChain(): Promise<ChainStep[]> {
-  const { data, error } = await (supabase.from('approval_chain_steps').select('id, position, role, label, only_over_plan')
-    .order('position', { ascending: true }).limit(10) as unknown as DbResult<Array<{ id: string; position: number; role: Role; label: string; only_over_plan: boolean }>>);
+  const { data, error } = await supabase.from('approval_chain_steps').select('id, position, role, job_role, label, only_over_plan')
+    .order('position', { ascending: true }).limit(10);
   if (error) fail(error);
-  return (data ?? []).map((s) => ({ id: s.id, position: s.position, role: s.role, label: s.label, onlyOverPlan: s.only_over_plan }));
+  return (data ?? []).map((s) => ({ id: s.id, position: s.position, role: s.role, jobRole: s.job_role ?? null, label: s.label, onlyOverPlan: s.only_over_plan }));
 }
 
 export async function getMaterialRequestCutoff(): Promise<string | null> {
@@ -407,10 +414,10 @@ export async function listStandIns(): Promise<StandIn[]> {
 
 /** #2598: the pins set on one project, by chain position. */
 export async function listStepPins(projectId: string): Promise<StepPin[]> {
-  const { data, error } = await (supabase.from('approval_step_pins').select('position, role, approver_id').eq('project_id', projectId)
-    .order('position', { ascending: true }).limit(10) as unknown as DbResult<Array<{ position: number; role: Role; approver_id: string }>>);
+  const { data, error } = await supabase.from('approval_step_pins').select('position, role, job_role, approver_id').eq('project_id', projectId)
+    .order('position', { ascending: true }).limit(10);
   if (error) fail(error);
-  return (data ?? []).map((p) => ({ position: p.position, role: p.role, approverId: p.approver_id }));
+  return (data ?? []).map((p) => ({ position: p.position, role: p.role, jobRole: p.job_role ?? null, approverId: p.approver_id }));
 }
 
 // ── writes (one RPC each) ─────────────────────────────────────────────────────────────────────────────────────
@@ -458,7 +465,9 @@ export async function retryMaterialRequestTransfer(id: string, sourceWarehouseId
 
 export async function setApprovalChain(steps: ChainStepInput[]): Promise<void> {
   const { error } = await supabase.rpc('mrq_set_chain', {
-    p_steps: steps.map((s) => ({ role: s.role, label: s.label, only_over_plan: s.onlyOverPlan })),
+    p_steps: steps.map((s) => (s.jobRole
+      ? { job_role: s.jobRole, label: s.label, only_over_plan: s.onlyOverPlan }
+      : { role: s.role, label: s.label, only_over_plan: s.onlyOverPlan })),
   });
   if (error) fail(error);
 }
@@ -512,4 +521,28 @@ export async function setStepPin(projectId: string, position: number, approverId
     p_project_id: projectId, p_position: position, p_approver_id: approverId as string,
   });
   if (error) fail(error);
+}
+
+/** What counts as installed for the usage warning (1861): validated site reports, or storekeeper issues to the work order. */
+export type UsageInstalledSource = 'site_reports' | 'stock_issues';
+export async function getUsageInstalledSource(): Promise<UsageInstalledSource> {
+  const { data, error } = await supabase.from('material_request_settings').select('usage_installed_source').limit(1);
+  if (error) fail(error);
+  return data?.[0]?.usage_installed_source === 'stock_issues' ? 'stock_issues' : 'site_reports';
+}
+export async function setUsageInstalledSource(source: UsageInstalledSource): Promise<void> {
+  const { error } = await supabase.rpc('set_usage_installed_source', { p_source: source });
+  if (error) fail(error);
+}
+
+/** The installed-material warnings recorded on a work order, for its card (spec FR-UW-006). */
+export interface InstalledUsageWarning { itemId: string; itemName: string; unit: string; installedQty: number; planQty: number; threshold: number }
+export async function listInstalledUsageWarnings(workOrderId: string): Promise<InstalledUsageWarning[]> {
+  const { data, error } = await supabase.from('material_installed_usage_alerts')
+    .select('item_id, installed_qty, plan_qty, pct, stock_items(name, stock_units(code))').eq('work_order_id', workOrderId).eq('kind', 'installed_usage').order('created_at', { ascending: true }).limit(200);
+  if (error) fail(error);
+  return (data ?? []).map((r) => ({
+    itemId: r.item_id, itemName: r.stock_items?.name ?? '', unit: r.stock_items?.stock_units?.code ?? '',
+    installedQty: Number(r.installed_qty), planQty: Number(r.plan_qty), threshold: Number(r.pct),
+  }));
 }

@@ -12,9 +12,10 @@ import { CrewLoans } from './CrewLoans';
 import { CheckInRequests } from './CheckInRequests';
 import { CheckInSettings } from './CheckInSettings';
 import { CrewTools } from './CrewTools';
+import { ManpowerNeeds } from './ManpowerNeeds';
 import AttendanceRate from './AttendanceRate';
 
-type View = 'crews' | 'roster' | 'attendance' | 'tools' | 'rate';
+type View = 'crews' | 'roster' | 'attendance' | 'tools' | 'manpower' | 'rate';
 
 /**
  * Crews (#2528): the crew master, the roster per work order and the daily attendance tick, as three views of one page.
@@ -31,7 +32,7 @@ const CrewsPage: React.FC = () => {
   const target = useAttendanceTarget();
   const rateOffered = maySeeRate && target.data !== null && target.data !== undefined;
   const { values, setFilter } = useUrlFilters(['view']);
-  const view: View = values.view === 'roster' || values.view === 'attendance' || values.view === 'tools' || (values.view === 'rate' && rateOffered)
+  const view: View = values.view === 'roster' || values.view === 'attendance' || values.view === 'tools' || values.view === 'manpower' || (values.view === 'rate' && rateOffered)
     ? values.view as View
     : 'crews';
   const [creating, setCreating] = useState(false);
@@ -40,6 +41,7 @@ const CrewsPage: React.FC = () => {
     { value: 'roster' as View, label: t('crews:tabs.roster', 'Roster') },
     { value: 'attendance' as View, label: t('crews:tabs.attendance', 'Attendance') },
     { value: 'tools' as View, label: t('crews:tabs.tools', 'Tools') },
+    { value: 'manpower' as View, label: t('crews:tabs.manpower', 'Manpower') },
     ...(rateOffered ? [{ value: 'rate' as View, label: t('crews:tabs.rate', 'Rate') }] : []),
   ];
   return (
@@ -59,6 +61,7 @@ const CrewsPage: React.FC = () => {
         {view === 'roster' && <><WorkOrderRoster /><CheckInSettings /></>}
         {view === 'attendance' && <AttendanceTick />}
         {view === 'tools' && <CrewTools />}
+        {view === 'manpower' && <ManpowerNeeds />}
         {view === 'rate' && <AttendanceRate />}
       </div>
     </ListPage>

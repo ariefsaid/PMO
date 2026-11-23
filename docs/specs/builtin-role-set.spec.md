@@ -73,6 +73,8 @@ approval rights) is Engineer base. Deputy Project Manager is a manager (stands i
   every person's non-medical documents and reads the person list); `medical_documents_view` HR Manager, HR Officer, Administrator
   (reads medical-document status and dates, in the app and in the expiry email; writes stay Admin only). `daily_report_enter`
   Quantity Surveyor and `daily_report_validate` Site Supervisor and Project Control Manager are held in the catalogue for a ruling.
+  `billing_steps_view` and `billing_steps_run` (migration 1771, `billing-steps.spec.md` §3) decide who reads and who acts on a work order's
+  billing steps; neither is held by a field role.
   Held by no other role. Each read capability is read by one database gate function that every channel calls (`supabase/tests/2716`).
 - **FR-008** The system shall expose `built_in_role_sees_prices(key)` and `actor_sees_prices()`: true for every manager, Buyer,
   Finance Officer and Billing Officer; false for every other officer and field role; true for a NULL key (legacy people).
@@ -124,6 +126,8 @@ to #2712. Which role sees which document category stays the client's setting.
 (spend-approver routes name people; document categories and viewer roles are not on `dev` yet), so nothing is retrofitted. The seam is
 `actor_has_role_capability(capability)` (SQL, called by one gate function per capability) and `roleHasCapability` / the stable role keys
 (frontend); a later config table can store a role key with an FK to `built_in_roles(key)`.
+Built since: `docs/specs/roles-that-decide.spec.md` stores a role key with that FK on material-request approval steps and in the
+purchase-order ordering setting, and decides "fills the role" through one function, `holds_job_role(profile, key)`.
 
 ## 6. Not in this ticket
 

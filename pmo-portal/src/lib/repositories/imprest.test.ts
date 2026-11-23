@@ -15,6 +15,7 @@ describe('imprestRepository', () => {
     ['floatChoices', 'floatChoices', ['p1', 'Vehicle']],
     ['listPlans', 'listPlans', ['f1']],
     ['listPlanLines', 'listPlanLines', ['pl1']],
+    ['getOpenRequests', 'getOpenRequests', ['f1']],
     ['listReplenishments', 'listReplenishments', ['f1']],
     ['listFloatChanges', 'listFloatChanges', ['f1']],
     ['getRequesterRoute', 'getImprestRequesterRoute', ['plan', 'pl1']],

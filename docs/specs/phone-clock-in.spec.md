@@ -22,7 +22,7 @@ path) or rejects with a reason. Position is kept in `phone_check_ins`, readable 
 Searched decisions, ADRs, migrations, hooks, issues (`scripts/prior-art.sh`: geolocation, Permissions-Policy, phone_check_in, work order area,
 field_controller). Found: `attendance_record` (1036/1110, source `phone_check_in`, requires roster + own profile), `crews.field_controller_id`,
 `attendance_can_record(crew)`, the #2710 seam. Not found: any location on work orders, any check-in request table, any geolocation use in code.
-The only geolocation restriction is `pmo-portal/public/_headers` (`Permissions-Policy: camera=(), microphone=(), geolocation=()` on `/*`).
+The only geolocation restriction is `pmo-portal/public/_headers` (on `/*`; it now reads `Permissions-Policy: camera=(), microphone=(), geolocation=(self)`, see section 5).
 
 ## 3. Requirements (EARS)
 
@@ -72,12 +72,7 @@ add `assert_not_light()` to `phone_check_in` (AC-PCI-008 red); skip the all-or-n
 
 ## 5. The geolocation block and how it is scoped
 
-The only place is `pmo-portal/public/_headers`, `/*`: `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Existing test AC-SEC-207
-pins the `/*` rule, so it stays. Cloudflare Pages merges matching rules and cannot override a header's value, but a rule may detach one with `! Name`. Plan:
-a `/my` rule that detaches the header and sets `camera=(), microphone=(), geolocation=(self)`. The clock-in section lives on `/my` only, so the policy
-is lifted for that route and stays blocked on every other route. The browser API is called only from `ClockInSection`.
-Residual: a Permissions-Policy is per response; in-app navigation from `/my` to another route is client-side (same document), so the document policy
-stays the one loaded. The browser API is therefore called from the clock-in screen only, by code, not by header, on a full page load of another route.
+The only place is `pmo-portal/public/_headers`, `/*`: `Permissions-Policy: camera=(), microphone=(), geolocation=(self)`. A browser keeps the policy of the first page it loaded, so a per-route rule does not hold after in-app navigation; geolocation is therefore allowed for this site's own origin on every route, with camera and microphone blocked. The browser still asks the person each time, and the browser API is called only from `ClockInSection` and the check-in area form, on a tap. Proof: `test/phoneClockInHeaders.test.ts`, `test/securityHeaders.test.ts` (AC-SEC-207).
 
 ## 6. Settings
 

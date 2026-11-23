@@ -28,7 +28,8 @@ export function makeRefLookup(
 ): RefLookup {
   const byName = new Map<string, string[]>();
   for (const rec of records) {
-    const key = rec.name.trim().toLowerCase();
+    // A record with no name (a member row without an email, say) cannot be looked up by name: leave it out, never crash.
+    const key = (rec.name ?? '').trim().toLowerCase();
     if (!key) continue;
     const hits = byName.get(key);
     if (hits) hits.push(rec.id);

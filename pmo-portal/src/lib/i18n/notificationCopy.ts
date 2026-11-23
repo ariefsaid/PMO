@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 import { matchNotificationTitle } from './notificationTitles';
 import type { Json } from '@/src/lib/supabase/database.types';
 import { formatIsoDay } from '@/src/lib/format';
+import { withEnglishOrgTerms } from './orgTerms';
 
 type NotificationCopy = {
   body: string | null;
@@ -10,6 +11,19 @@ type NotificationCopy = {
   title?: string | null;
   metadata?: Json | null;
 };
+
+/** Titles whose body carries a person's words (a comment, a return or refusal reason, a task note): never rewritten. */
+const PERSON_TEXT_TITLE = /^(mentioned|taskAssigned)$|(Returned|Rejected|Refused)$/;
+
+/** A body the database wrote itself (its title is one of the fixed system titles) names terms in shipped English. A person's
+ *  words and a title nobody recognises are never rewritten. */
+function isSystemBody(row: NotificationCopy): boolean {
+  const title = row.title;
+  if (!title || row.message_key !== null && row.message_key !== 'literal') return false;
+  const key = NOTIFICATION_TITLE_KEYS[title];
+  if (key) return !PERSON_TEXT_TITLE.test(key);
+  return matchNotificationTitle(title) !== null;
+}
 
 function getMetadataEntityType(metadata: Json | null | undefined): string | null {
   if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
@@ -71,7 +85,12 @@ function localizeApprovalNotificationBody(row: NotificationCopy, body: string, t
 }
 
 /** Old and unrecognised records keep their original body. Parameters are always user text. */
-export function notificationBody(row: NotificationCopy, t: TFunction): string | null {
+export function notificationBody(row: NotificationCopy, t: TFunction, locale?: string): string | null {
+  const body = notificationBodyText(row, t);
+  return body !== null && locale && isSystemBody(row) ? withEnglishOrgTerms(body, locale) : body;
+}
+
+function notificationBodyText(row: NotificationCopy, t: TFunction): string | null {
   const params = row.message_params && typeof row.message_params === 'object' && !Array.isArray(row.message_params) ? row.message_params : {};
   const text = (key: string, fallback: string) => typeof params[key] === 'string' ? params[key] : fallback;
   switch (row.message_key) {

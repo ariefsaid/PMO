@@ -143,6 +143,10 @@
         "name": "Rencana penagihan",
         "summary": "Menetapkan target penagihan bulanan, mata uangnya, dan pengingat untuk pekerjaan selesai yang belum ditagih."
       },
+      "billingSteps": {
+        "name": "Langkah penagihan",
+        "summary": "Memilih daftar langkah penagihan bawaan untuk perintah kerja dan siapa pemilik tiap langkah."
+      },
       "labourCost": {
         "name": "Biaya tenaga kerja",
         "summary": "Menghitung biaya jam kerja dengan tarif kelas tenaga kerja Anda."

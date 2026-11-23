@@ -41,7 +41,7 @@ describe('crew errors', () => {
   });
   it('a phone clock-in for a crew the person is not in says so, not "refresh"', () => {
     const text = crew({ code: '23514', message: 'PCI_CREW: you are not in that crew today' });
-    expect(text).toMatch(/not in that crew today/);
+    expect(text).toMatch(/That crew is not on this work order today/);
     expect(text).not.toMatch(/refresh|PCI_/i);
   });
 });

@@ -1,4 +1,4 @@
-import { milli, type ContractLineFacts } from '@/src/lib/progressBilling';
+import { claimableHeadroom, milli, type ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
  * Claim quantity suggestions per work order (ADR-0091 DD-CQ-6, AC-CQ-013). A pre-fill, never a rule: the person
@@ -30,7 +30,7 @@ export function prefillForWorkOrder(
     if (!allocation) continue;
     let suggested: number;
     if (allocation.acceptedQuantity !== null) {
-      suggested = milli(allocation.acceptedQuantity) - milli(allocation.claimedQuantity);
+      suggested = Math.round(claimableHeadroom({ ordered: allocation.quantity, claimed: allocation.claimedQuantity, accepted: allocation.acceptedQuantity }).signedHeadroom * 1000);
       if (suggested > 0) fromBast = true;
     } else {
       if (assessed[id] === undefined) continue;

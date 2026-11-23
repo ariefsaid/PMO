@@ -1,0 +1,2 @@
+# 1730: save_idle_cost_scope refuses unless the caller is an active Admin or Finance of the org and not a field account (labour_cost_gate, assert_not_light). Proven by supabase/tests/1730_idle_cost_scope.test.sql.
+save_idle_cost_scope

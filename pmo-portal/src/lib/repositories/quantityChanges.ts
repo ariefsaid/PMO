@@ -19,6 +19,8 @@ export const quantityChangeRepository: QuantityChangeRepository = {
   recordForecast: dal.recordForecast,
   getLimit: dal.getLimit,
   setLimit: dal.setLimit,
+  getApproverRoles: dal.getApproverRoles,
+  setApproverRoles: dal.setApproverRoles,
   uploadFile: dal.uploadFile,
   archiveFile: dal.archiveFile,
   fileUrl: dal.fileUrl,

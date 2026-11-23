@@ -24,6 +24,14 @@ export function useWorkOrderCloseoutItems(workOrderId: string | undefined) {
   return useOrgQuery(['work-order-closeout', workOrderId], () => repositories.closeoutChecklist.listItems(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
+/**
+ * Open, targeted close-out items across the reader's Issued work orders — ONE batch read for the work-orders list's
+ * per-work-order overdue count (#2800). No per-row read, no organisation id from the client.
+ */
+export function useOpenCloseoutDue() {
+  return useOrgQuery(['closeout-due'], () => repositories.closeoutChecklist.listOpenDue());
+}
+
 /** Who closed a work order and when; read only once it is Closed. */
 export function useWorkOrderCloser(workOrderId: string | undefined, enabled: boolean) {
   return useOrgQuery(['work-order-closer', workOrderId], () => repositories.closeoutChecklist.getCloser(workOrderId as string), { enabled: enabled && Boolean(workOrderId) });

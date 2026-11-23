@@ -12,6 +12,15 @@ export function useClearanceItems() {
 export function useClearanceSummary() {
   return useOrgQuery([KEY, 'summary'], () => clearanceRepository.summary());
 }
+
+/**
+ * Per-(person, item) due day and the database's overdue answer, from ONE batch read (#2800). Both the people list's
+ * count and the person's own checklist read this same key, so opening a person adds no second read. Gated like the
+ * checklist read: while the organisation's switch is off nothing is fetched.
+ */
+export function useClearanceDue(on = true) {
+  return useOrgQuery([KEY, 'due'], () => clearanceRepository.due(), { enabled: on });
+}
 /** `on` is the organisation switch: while it is off nothing is fetched. */
 export function usePersonChecklist(personId: string, on = true) {
   return useOrgQuery([KEY, 'checklist', personId], () => clearanceRepository.checklist(personId), { enabled: Boolean(personId && on) });

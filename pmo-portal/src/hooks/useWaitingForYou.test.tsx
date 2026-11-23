@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   imprest: { data: { plans: [], replenishments: [] } as unknown, isPending: false, isError: false, enabled: true, refetch: () => undefined } as Record<string, unknown>,
   bast: { data: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
   database: { data: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
+  release: { data: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }) }));
@@ -27,6 +28,7 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({ useTimesheetsAwaitingApprov
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => h.expenses }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => h.invoices }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => h.material }));
+vi.mock('@/src/hooks/useMedicalRelease', () => ({ useMedicalReleases: () => h.release }));
 vi.mock('@/src/hooks/useLeave', () => ({ useLeaveRequests: () => h.leave }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => h.imprest }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useAcceptancesAwaitingConfirmation: () => h.bast }));
@@ -47,6 +49,7 @@ beforeEach(() => {
   h.leave = { data: [{ id: 'l1', can_decide: true, start_date: '2026-11-04' }, { id: 'l2', can_decide: false, start_date: '2026-11-05' }], isPending: false, isError: false, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined };
   h.imprest = { data: { plans: [], replenishments: [] }, isPending: false, isError: false, enabled: true, refetch: () => undefined };
   h.bast = { data: [], isPending: false, isError: false, refetch: () => undefined };
+  h.release = { data: [], isPending: false, isError: false, refetch: () => undefined };
   h.database = { data: [dbRow('daily_report', 'd1', '2026-11-06T00:00:00Z'), dbRow('work_order_issue', 'w1', '2026-11-07T00:00:00Z'), dbRow('delivery_record', 'x1', '2026-11-08T00:00:00Z')], isPending: false, isError: false, refetch: () => undefined };
 });
 
@@ -209,5 +212,20 @@ describe('useWaitingForYou', () => {
     rerender();
     expect(result.current.countFor('work_order_acceptance')).toBe(0);
     expect(result.current.count).toBe(result.current.entries.length);
+  });
+
+  it('a medical release waiting for this manager is counted; one they cannot decide or already decided is not; a failed read withholds the total', () => {
+    h.release = { data: [
+      { id: 'r1', status: 'Pending', can_decide: true, release_date: '2026-11-09', person_name: 'Ana' },
+      { id: 'r2', status: 'Pending', can_decide: false, release_date: '2026-11-09', person_name: 'Budi' },
+      { id: 'r3', status: 'Approved', can_decide: true, release_date: '2026-11-09', person_name: 'Citra' },
+    ], isPending: false, isError: false, refetch: () => undefined };
+    const { result, rerender } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.countFor('medical_release')).toBe(1);
+    expect(result.current.entries.map((e) => e.key)).toContain('medical_release:r1');
+    h.release = { data: undefined, isPending: false, isError: true, refetch: () => undefined };
+    rerender();
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.failedKinds).toContain('medical_release');
   });
 });

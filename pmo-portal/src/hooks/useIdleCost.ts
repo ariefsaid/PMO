@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOrgId } from '@/src/hooks/useOrgId';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
+import type { IdleCostScope } from '@/src/lib/db/idleCost';
 import { idleCostRepository } from '@/src/lib/repositories/idleCost';
 import { useOffWhenModuleOff } from '@/src/hooks/moduleGate';
 
@@ -26,6 +27,20 @@ export function useSetIdleCostEnabled() {
   const orgId = useOrgId();
   return useMutation({
     mutationFn: (on: boolean) => idleCostRepository.setEnabled(on),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['idle-cost', orgId] }),
+  });
+}
+
+/** What idle cost covers (1730); the default is labour_average. */
+export function useIdleCostScope(enabled = true) {
+  return useOrgQuery(['idle-cost', 'scope'], idleCostRepository.scope, { enabled, staleness: 'live' });
+}
+
+export function useSetIdleCostScope() {
+  const qc = useQueryClient();
+  const orgId = useOrgId();
+  return useMutation({
+    mutationFn: (scope: IdleCostScope) => idleCostRepository.setScope(scope),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['idle-cost', orgId] }),
   });
 }

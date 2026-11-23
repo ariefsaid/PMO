@@ -1,5 +1,19 @@
 import React from 'react';
 import { cn } from '@/src/components/ui';
+import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+
+/** A signature line naming a built-in role (by key or by its shipped name in either language) shows the org's role name. */
+function useSignatureTitle(): (title: string) => string {
+  const roleName = useBuiltInRoleName();
+  return (title) => {
+    const probe = title.trim().toLowerCase();
+    const role = BUILT_IN_ROLES.find(
+      (r) => r.key === probe || r.nameEn.toLowerCase() === probe || r.nameId.toLowerCase() === probe,
+    );
+    return role ? roleName(role.key) : title;
+  };
+}
 
 export interface SignatureBlockItem {
   title: string;
@@ -29,13 +43,14 @@ export const PrintSignatureBlocks: React.FC<PrintSignatureBlocksProps> = ({
   signLabel = 'Signature',
   className,
 }) => {
+  const signatureTitle = useSignatureTitle();
   if (!blocks || blocks.length === 0) return null;
 
   const normalized: SignatureBlockItem[] = blocks.map((b) =>
     typeof b === 'string'
-      ? { title: b, nameLabel, dateLabel, signLabel }
+      ? { title: signatureTitle(b), nameLabel, dateLabel, signLabel }
       : {
-          title: b.title,
+          title: signatureTitle(b.title),
           nameLabel: b.nameLabel ?? nameLabel,
           dateLabel: b.dateLabel ?? dateLabel,
           signLabel: b.signLabel ?? signLabel,

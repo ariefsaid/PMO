@@ -25,3 +25,36 @@ describe('needs-you billing step pointer (AC-CBS-012)', () => {
     expect(buildNeedsItems('Engineer', { waitingBillingSteps: fact }, translate, 'IDR')).toEqual([]);
   });
 });
+
+describe('needs-you work-order billing step pointer (AC-WBS-009)', () => {
+  const fact = { count: 2, overdue: 1, href: '/work-orders' };
+
+  it('shows one pointer for every role, with the overdue count, linking to the work order or list', () => {
+    for (const role of ['Engineer', 'Finance', 'Project Manager'] as const) {
+      const item = buildNeedsItems(role, { waitingWorkOrderSteps: fact }, translate, 'IDR').find((i) => i.id === 'work-order-steps-waiting');
+      expect(item).toMatchObject({ count: 2, label: 'work-order billing steps waiting for you', detail: '1 past target', href: '/work-orders', tone: 'lost' });
+    }
+  });
+
+  it('adds no item when nothing waits', () => {
+    expect(buildNeedsItems('Finance', {}, translate, 'IDR').some((i) => i.id === 'work-order-steps-waiting')).toBe(false);
+  });
+});
+
+describe('needs-you ahead-of-progress pointer (AC-MVP-012)', () => {
+  it('shows one pointer with the count and a link to the project\'s work orders', () => {
+    const items = buildNeedsItems('Project Manager', { waitingMaterialAlerts: { count: 2, href: '/projects/p1/work-orders' } }, translate, 'IDR');
+    expect(items).toEqual([expect.objectContaining({
+      id: 'material-ahead-of-progress', count: 2, label: 'work orders with material ahead of progress', href: '/projects/p1/work-orders', tone: 'warn',
+    })]);
+  });
+
+  it('is singular for one work order, and any role listed as a recipient sees it (an Engineer too)', () => {
+    const [item] = buildNeedsItems('Engineer', { waitingMaterialAlerts: { count: 1, href: '/projects' } }, translate, 'IDR');
+    expect(item).toMatchObject({ id: 'material-ahead-of-progress', count: 1, label: 'work order with material ahead of progress' });
+  });
+
+  it('adds nothing when there are none, or the read is unread or failed', () => {
+    expect(buildNeedsItems('Project Manager', {}, translate, 'IDR').some((i) => i.id === 'material-ahead-of-progress')).toBe(false);
+  });
+});

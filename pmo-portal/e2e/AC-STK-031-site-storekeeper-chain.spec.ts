@@ -48,8 +48,8 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(item.code);
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('20');
-  await page.getByRole('button', { name: 'Post transfer' }).click();
-  await page.getByRole('dialog', { name: 'Post this transfer?' }).getByRole('button', { name: 'Post', exact: true }).click();
+  await page.getByRole('button', { name: 'Post stock transfer' }).click();
+  await page.getByRole('dialog', { name: 'Post this stock transfer?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   // The Engineer issues 8 from the site to the work item.

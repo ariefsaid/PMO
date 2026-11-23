@@ -40,6 +40,8 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into incident_reports (id, org_id, incident_date, type, severity, status, reported_by) values
   ('00520000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001',
    '2026-06-01','Near Miss','Low','Open','00520000-0000-0000-0000-0000000000a2');
+-- issue-closing-measure: an issue's type is picked from the organisation's kept list (1820/1821); this test's own types are on it.
+insert into incident_types (org_id, label) values ('00000000-0000-0000-0000-000000000001', 'Spill'), ('00520000-0000-0000-0000-000000000002', 'Cross Incident') on conflict do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-IN-101/105: ANY member (an Engineer) CAN file an incident.

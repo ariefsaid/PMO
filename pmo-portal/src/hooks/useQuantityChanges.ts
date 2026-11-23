@@ -42,6 +42,10 @@ export function useQuantityChangeLimit(enabled = true) {
   const orgId = useOrg();
   return useOrgQuery(['quantity-changes', 'limit'], () => repo().getLimit(orgId as string), { enabled });
 }
+export function useQuantityChangeApproverRoles(enabled = true) {
+  const orgId = useOrg();
+  return useOrgQuery(['quantity-changes', 'approver-roles'], () => repo().getApproverRoles(orgId as string), { enabled });
+}
 
 export function useQuantityChangeMutations() {
   const orgId = useOrg();
@@ -62,6 +66,7 @@ export function useQuantityChangeMutations() {
     }),
     recordForecast: useMutation({ mutationFn: (v: { boqItemId: string; quantity: string; note?: string | null }) => repo().recordForecast(v.boqItemId, v.quantity, v.note), ...opts }),
     setLimit: useMutation({ mutationFn: (limit: number | null) => repo().setLimit(orgId as string, limit), ...opts }),
+    setApproverRoles: useMutation({ mutationFn: (roles: string[]) => repo().setApproverRoles(orgId as string, roles), ...opts }),
     uploadFile: useMutation({
       mutationFn: (v: { request: Pick<QcrRequest, 'id' | 'org_id'>; kind: QcrFileKind; file: File }) => repo().uploadFile(v.request, v.kind, v.file),
       ...opts,

@@ -21,6 +21,8 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Customer invoice awaiting your approval': 'customerInvoiceApproval',
   'Inspection overdue': 'inspectionOverdue',
   'Material usage threshold reached': 'materialUsageThreshold',
+  'Installed material usage reached': 'installedUsageReached',
+  'Material issued ahead of progress': 'materialAheadOfProgress',
   'Material request awaiting your approval': 'materialRequestApproval',
   'Out-of-plan site cash item awaiting your approval': 'outOfPlanSiteCash',
   'Procurement awaiting your approval': 'procurementApproval',
@@ -43,6 +45,10 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Supplier marked at risk': 'supplierAtRisk',
   'Supplier marked inactive': 'supplierInactive',
   'Billing step is overdue': 'billingStepOverdue',
+  'A billing step is waiting for you': 'billingStepWaiting',
+  // #2800: the one daily runner's two checklist scans (migration 1832).
+  'Close-out item is overdue': 'closeoutItemOverdue',
+  'Clearance item is overdue': 'clearanceItemOverdue',
   'Work is done but not yet claimed': 'doneNotClaimed',
   'Action required': 'actionRequired',
 };

@@ -11,6 +11,8 @@ import {
 import { availablePlanActions, type ImprestAction } from '@/src/lib/imprest/imprestRules';
 import { RequesterRouteNote } from './RequesterRouteNote';
 import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
+import { PlanSeedEditor } from './PlanSeedEditor';
+import type { PlanSeedLine } from '@/src/lib/imprest/planSeed';
 import { cn } from '@/src/components/ui/cn';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -76,7 +78,9 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
   /** This month's approved-plan usage (the table, or the one-line empty state), shown at the top of the panel. */
   usage?: React.ReactNode;
   /** The usage block already says there is no plan: do not say it twice below it. */
-  usageEmpty?: boolean }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false }) => {
+  usageEmpty?: boolean;
+  /** Lines to start a new plan from (the open purchase requests); the editor opens above the list until it is created or discarded. */
+  seed?: PlanSeedLine[] | null; onSeedDone?: () => void }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false, seed = null, onSeedDone }) => {
   const { t } = useTranslation();
   // Phone: three buttons fill the row's line in Bahasa (the group then starts near the text edge), so Cancel moves into the row's ⋯ menu.
   const isNarrow = useIsNarrow();
@@ -117,6 +121,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
         </CanWrite>
       }
     >
+      {seed && <PlanSeedEditor floatId={floatId} month={month} seed={seed} onDone={(planId) => { if (planId) setOpen(planId); onSeedDone?.(); }} />}
       {usage != null && <div className={listHidden ? 'pb-[var(--panel-inset)]' : undefined}>{usage}</div>}
       {!listHidden && <div className={cn('px-[var(--panel-inset)] pb-2', usage != null && 'border-t border-border')}>
         {plans.isPending && <ListState variant="loading" rows={2} />}

@@ -14,7 +14,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db/adminUsers';
 import { useRoleLabels } from './roleLabels';
-import { BUILT_IN_ROLES, BUILT_IN_ROLE_TIERS, baseLevelOf } from '@/src/auth/builtInRoles';
+import { BUILT_IN_ROLES, baseLevelOf } from '@/src/auth/builtInRoles';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { FieldLoginFlag } from './FieldLoginFlag';
 import { isLightRoleKey } from '@/src/auth/lightAccount';
@@ -34,7 +35,7 @@ const LEVEL_ORDER: UserRole[] = ['Admin', 'Executive', 'Project Manager', 'Finan
 
 /** The built-in (job) roles for the invite picker, grouped by the access level each starts from (shown as the second line, and
  *  searchable by it), then in the set's own order. */
-function useJobRoleOptions(levelLabel: (role: UserRole) => string, roleName: (key: string) => string): ComboboxOption[] {
+function useInviteJobRoleOptions(levelLabel: (role: UserRole) => string, roleName: (key: string) => string): ComboboxOption[] {
   return useMemo(() => [...BUILT_IN_ROLES]
     .sort((a, b) => LEVEL_ORDER.indexOf(a.base) - LEVEL_ORDER.indexOf(b.base) || a.sortOrder - b.sortOrder)
     .map((role) => ({ value: role.key, label: roleName(role.key), sub: levelLabel(role.base), searchTerms: [levelLabel(role.base), role.nameEn, role.nameId] })),
@@ -85,7 +86,7 @@ export const InviteFormModal: React.FC<{
   const emailField = form.fieldProps('email');
   const roleField = form.fieldProps('role');
   const builtInField = form.fieldProps('builtIn');
-  const jobRoleOptions = useJobRoleOptions(roleNames.label, roleDisplayName);
+  const jobRoleOptions = useInviteJobRoleOptions(roleNames.label, roleDisplayName);
   const loadJobRoles = useMemo(() => () => Promise.resolve(jobRoleOptions), [jobRoleOptions]);
   const chosenBase = baseLevelOf(builtInField.value || null);
 
@@ -190,7 +191,6 @@ export const RoleFormModal: React.FC<{
 }> = ({ user, submitError, onClose, onSubmit, builtInEnabled = false, onSubmitBuiltIn }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
-  const roleDisplayName = useBuiltInRoleName();
   const form = useEntityForm<RoleFormValues>({
     initialValues: { role: user.role, builtIn: user.built_in_role ?? '' },
     idPrefix: 'role-form',
@@ -200,23 +200,7 @@ export const RoleFormModal: React.FC<{
   const builtInField = form.fieldProps('builtIn');
   const heldKey = user.built_in_role ?? '';
 
-  const builtInOptions = useMemo(() => {
-    const tierLabel = {
-      manager: t('administration:admin.users.builtIn.tier.manager', 'Managers'),
-      officer: t('administration:admin.users.builtIn.tier.officer', 'Officers'),
-      field: t('administration:admin.users.builtIn.tier.field', 'Field'),
-    } as const;
-    return [
-      { value: '', label: t('administration:admin.users.builtIn.none', 'No job role (access level only)') },
-      ...BUILT_IN_ROLE_TIERS.flatMap((tier) => [
-        { value: `__${tier}`, label: tierLabel[tier], disabled: true },
-        ...BUILT_IN_ROLES.filter((role) => role.tier === tier).map((role) => ({
-          value: role.key,
-          label: roleDisplayName(role.key),
-        })),
-      ]),
-    ];
-  }, [t, roleDisplayName]);
+  const builtInOptions = useJobRoleOptions(t('administration:admin.users.builtIn.none', 'No job role (access level only)'));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

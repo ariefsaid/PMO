@@ -1,11 +1,13 @@
 -- 1535: who may see medical-document status and dates is decided by one rule, read by the in-app policy and the expiry email.
 -- drops: enqueue_notification_email replaces its inline medical-document role checks with the shared may_see_medical_documents predicate.
 -- Rollback: supabase/migrations/rollback/1535_medical_documents_capability_gate_down.sql
+-- drops: enqueue_notification_email no longer spells the Admin-or-capability test inline (the three lines naming p.role = 'Admin' and the capability table); it calls may_see_medical_documents(p.id), the same rule in its one gate.
 -- may_see_medical_documents(profile) = an active person holding the Admin access level or the medical_documents_view capability
 -- (HR Manager, HR Officer, Administrator). It is not executable by signed-in callers (an is-this-person-X oracle, as
 -- is_active_member(uuid)); the signed-in adapter below and the email function, a definer, call it.
 -- Bodies restated: expiry_documents_select from 0970 (the only migration that defines it);
 -- enqueue_notification_email from 1466 (the latest migration that defines it; 1221 is the older one).
+-- drops: enqueue_notification_email's inline Admin-or-capability-table test (or p.role = 'Admin' / the built_in_role_capabilities read), now one call to may_see_medical_documents.
 
 create function public.may_see_medical_documents(p_profile uuid) returns boolean
   language sql stable security definer set search_path = pg_catalog, public as $$

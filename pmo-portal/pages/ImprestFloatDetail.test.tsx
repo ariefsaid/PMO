@@ -28,6 +28,7 @@ const h = vi.hoisted(() => ({
   warmed: [] as string[],
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+vi.mock('./imprest/OpenRequestsSection', () => ({ OpenRequestsSection: () => null })); // proven by its own test
 vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null })); // proven by its own test
 vi.mock('./imprest/CashAccountSection', () => ({ CashAccountSection: ({ account }: { account: string | null }) => <div data-testid="cash-account">{account ?? 'unset'}</div> }));
 vi.mock('@/src/hooks/useImprest', () => ({

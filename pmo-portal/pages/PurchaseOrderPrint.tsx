@@ -1,3 +1,5 @@
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
+import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -43,6 +45,9 @@ const PurchaseOrderPrintPage: React.FC = () => {
   const po = procurement?.purchase_orders?.find((order) => order.id === orderId);
 
   const woQuery = useWorkOrder(po?.work_order_id ?? undefined);
+  // A line's own work order and discipline (wo-per-purchase-line) print under the item, so the paper says what each line is for.
+  const projectOrders = useProjectWorkOrders(procurement?.project_id ?? '');
+  const lineDisciplines = useCostDisciplines();
   const wo = woQuery.data;
 
   const backToRecord = () =>
@@ -154,6 +159,15 @@ const PurchaseOrderPrintPage: React.FC = () => {
           {item.description ? (
             <div className="text-xs text-muted-foreground mt-0.5">{item.description}</div>
           ) : null}
+          {(() => {
+            const order = item.work_order_id ? projectOrders.data?.find((w) => w.id === item.work_order_id) : undefined;
+            const discipline = item.discipline_id ? lineDisciplines.data?.find((d) => d.id === item.discipline_id) : undefined;
+            const parts = [
+              order ? `${t('purchaseOrderPrint.workOrder', 'Work order')} ${order.wo_number ?? order.title}` : null,
+              discipline ? `${t('purchaseOrderPrint.discipline', 'Discipline')} ${discipline.name}` : null,
+            ].filter(Boolean);
+            return parts.length > 0 ? <div className="text-xs text-muted-foreground mt-0.5" data-testid="po-line-attribution">{parts.join(' · ')}</div> : null;
+          })()}
         </div>
       ),
     },

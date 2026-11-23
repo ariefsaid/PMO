@@ -7,6 +7,7 @@ import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
 import type { LeaveRequestRow } from '@/src/lib/db/leave';
+import type { MedicalReleaseRow } from '@/src/lib/db/medicalRelease';
 import type { WaitingDecisionRow } from '@/src/lib/db/waitingDecisions';
 import type { AcceptanceAwaitingConfirmationRow } from '@/src/lib/db/workOrderAcceptances';
 import { isDatabaseListedKind, scopeLabelText, WAITING_KIND_META } from '@/src/lib/approvals/waitingKinds';
@@ -44,6 +45,10 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
     case 'leave': {
       const row = entry.row as LeaveRequestRow;
       return { key: entry.key, what: t('home.approvalLeave', '{{name}}: leave {{from}} to {{to}}', { name: row.person_name, from: formatDay(row.start_date), to: formatDay(row.end_date) }), who: null, amount: null, days, href: '/approvals?scope=leave' };
+    }
+    case 'medical_release': {
+      const row = entry.row as MedicalReleaseRow;
+      return { key: entry.key, what: t('home.approvalMedicalRelease', '{{name}}: medical release, return {{date}}', { name: row.person_name, date: formatDay(row.release_date) }), who: null, amount: null, days, href: '/approvals' };
     }
     case 'work_order_acceptance': {
       // Client acceptance (BAST): the acceptance is decided on its WORK ORDER, so the link carries the real

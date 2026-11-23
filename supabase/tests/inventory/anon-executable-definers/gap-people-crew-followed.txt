@@ -1,0 +1,2 @@
+# crew-followed: a crew manager undoes a follow; writer definer called through PostgREST, re-asserts membership, crew manager and not-light in its body.
+attendance_clear_follow

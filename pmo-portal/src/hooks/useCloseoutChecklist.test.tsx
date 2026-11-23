@@ -5,12 +5,12 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   getTemplate: vi.fn(), setTemplate: vi.fn(), listItems: vi.fn(), getCloser: vi.fn(),
-  attachDocument: vi.fn(), completeItem: vi.fn(),
+  attachDocument: vi.fn(), completeItem: vi.fn(), listOpenDue: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { closeoutChecklist: h } }));
 import {
-  useCloseoutItemMutations, useCloseoutTemplate, useSaveCloseoutTemplate, useWorkOrderCloseoutItems, useWorkOrderCloser,
+  useCloseoutItemMutations, useCloseoutTemplate, useOpenCloseoutDue, useSaveCloseoutTemplate, useWorkOrderCloseoutItems, useWorkOrderCloser,
 } from './useCloseoutChecklist';
 
 const wrapper = () => {
@@ -65,4 +65,11 @@ it('checklist item writes forward their payloads', async () => {
   h.completeItem.mockResolvedValue(undefined);
   await act(async () => { await r2.current.completeItem.mutateAsync({ itemId: 'i1', doneOn: '2026-03-10' }); });
   expect(h.completeItem).toHaveBeenCalledWith('i1', '2026-03-10');
+});
+
+it('FR-CTD-009 the overdue counts read once through the batch repository call (#2800)', async () => {
+  h.listOpenDue.mockResolvedValue([{ workOrderId: 'wo1', dueOn: '2026-11-01', doneOn: null }]);
+  const { result } = renderHook(() => useOpenCloseoutDue(), { wrapper: wrapper() });
+  await waitFor(() => expect(result.current.data).toEqual([{ workOrderId: 'wo1', dueOn: '2026-11-01', doneOn: null }]));
+  expect(h.listOpenDue).toHaveBeenCalledOnce();
 });

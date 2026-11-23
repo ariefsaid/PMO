@@ -20,6 +20,7 @@ const detailRead = { isError: false, refetch: vi.fn() };
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const { authorityFrom } = vi.hoisted(() => ({ authorityFrom: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: authorityFrom } }));

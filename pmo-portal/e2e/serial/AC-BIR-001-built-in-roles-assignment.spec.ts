@@ -46,29 +46,29 @@ test('AC-BIR-001: the Edit role form offers 28 roles; a role is given and shown'
     await page.goto('/administration/users');
     const menu = (await engineerRow(page)).getByRole('button', { name: 'Row actions' });
     await menu.click();
-    await page.getByRole('menuitem', { name: 'Edit role' }).click();
-    const picker = page.getByLabel('Built-in role');
+    await page.getByRole('menuitem', { name: 'Change job role' }).click();
+    const picker = page.getByRole('combobox', { name: 'Job role' });
     await expect(picker).toBeVisible();
     await expect(picker.locator('option:not([disabled])')).toHaveCount(29); // none + 28
     await picker.selectOption('billing_officer');
-    await expect(page.getByText('Access level: Finance (set by the built-in role)')).toBeVisible();
+    await expect(page.getByText('Access level: Finance (set by the job role)')).toBeVisible();
     await shoot(page, 'edit-role-picker');
-    await page.getByRole('button', { name: 'Save role' }).click();
+    await page.getByRole('button', { name: 'Save job role' }).click();
     await page.getByRole('button', { name: 'Change role' }).click();
     await expect((await engineerRow(page)).getByText('Billing Officer')).toBeVisible();
 
     // Clear it. Clearing keeps the access level the role had set (Finance); the plain form then puts the seeded Engineer back.
     await (await engineerRow(page)).getByRole('button', { name: 'Row actions' }).click();
-    await page.getByRole('menuitem', { name: 'Edit role' }).click();
-    await page.getByLabel('Built-in role').selectOption('');
-    await page.getByRole('button', { name: 'Save role' }).click();
+    await page.getByRole('menuitem', { name: 'Change job role' }).click();
+    await page.getByRole('combobox', { name: 'Job role' }).selectOption('');
+    await page.getByRole('button', { name: 'Save job role' }).click();
     await page.getByRole('button', { name: 'Change role' }).click();
     await expect((await engineerRow(page)).getByText('Billing Officer')).toHaveCount(0); // the toast also names it, so look only in the row
     await expect((await engineerRow(page)).getByText('Finance')).toBeVisible();
     await (await engineerRow(page)).getByRole('button', { name: 'Row actions' }).click();
-    await page.getByRole('menuitem', { name: 'Edit role' }).click();
-    await page.getByRole('combobox', { name: /^Role/ }).selectOption('Engineer');
-    await page.getByRole('button', { name: 'Save role' }).click();
+    await page.getByRole('menuitem', { name: 'Change job role' }).click();
+    await page.getByRole('combobox', { name: 'Access level' }).selectOption('Engineer');
+    await page.getByRole('button', { name: 'Save job role' }).click();
     await page.getByRole('button', { name: 'Change role' }).click();
     await expect((await engineerRow(page)).getByText('Engineer', { exact: true })).toBeVisible();
   } finally {

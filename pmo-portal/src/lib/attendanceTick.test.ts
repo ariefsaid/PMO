@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTickRows, initialTickState, isoWeekStart, type TickState } from './attendanceTick';
+import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickState } from './attendanceTick';
 
 const members = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'].map((id) => ({ worker_id: id, off_rotation: false }));
 
@@ -54,5 +54,21 @@ describe('attendance tick (#2528)', () => {
     expect(isoWeekStart('2026-11-19')).toBe('2026-11-16');
     expect(isoWeekStart('2026-11-16')).toBe('2026-11-16');
     expect(isoWeekStart('2026-11-22')).toBe('2026-11-16');
+  });
+
+  it('AC-FOL-008 a person added from another crew is sent with the followed crew; the crew\'s own members are not', () => {
+    const state = addFollower({ ...initialTickState(members.slice(0, 1), []), defaultHours: '8' }, 'w9');
+    expect(state.order).toEqual(['w1', 'w9']);
+    expect(buildTickRows(state, 'c-recv').rows).toEqual([
+      { worker_id: 'w1', status: 'present', hours: 8, overtime_hours: null, reason: null },
+      { worker_id: 'w9', status: 'present', hours: 8, overtime_hours: null, reason: null, followed_crew_id: 'c-recv' },
+    ]);
+  });
+
+  it('AC-FOL-008 adding the same person twice, or a member already listed, changes nothing', () => {
+    const base = initialTickState(members.slice(0, 1), []);
+    const once = addFollower(base, 'w9');
+    expect(addFollower(once, 'w9')).toBe(once);
+    expect(addFollower(base, 'w1')).toBe(base);
   });
 });

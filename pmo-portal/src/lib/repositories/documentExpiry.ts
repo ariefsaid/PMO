@@ -5,6 +5,7 @@ import type { DocumentExpiryRepository } from './contracts/documentExpiry';
 
 export const documentExpiryRepository: DocumentExpiryRepository = {
   listExpiring: (days) => wrap(() => dal.listExpiringDocuments(days)),
+  listPersonDocuments: () => wrap(() => dal.listPersonDocuments()),
   listForSubject: (kind, id) => wrap(() => dal.listSubjectDocuments(kind, id)),
   listTypes: (kind) => wrap(() => dal.listDocumentTypes(kind)),
   getPerson: (id) => wrap(() => dal.getPerson(id)),
@@ -20,4 +21,5 @@ export const documentExpiryRepository: DocumentExpiryRepository = {
   archiveType: (id) => wrap(() => dal.archiveDocumentType(id)),
   getWarningDays: () => wrap(() => dal.getDocumentWarningDays()),
   setWarningDays: (days) => wrap(() => dal.setDocumentWarningDays(days)),
+  recordRenewal: (id, on) => wrap(() => dal.recordDocumentRenewal(id, on)),
 };

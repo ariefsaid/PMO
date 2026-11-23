@@ -38,16 +38,20 @@ import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import OrgClaimOverCap from './admin/OrgClaimOverCap';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
+import OrderJobRolesSection from './admin/OrderJobRolesSection';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
 import SiteReportLists from './admin/SiteReportLists';
+import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
+import OrgAttendanceTimeRoles from './admin/OrgAttendanceTimeRoles';
 import OrgModules from './admin/OrgModules';
 import { ModuleGate } from '@/src/components/admin/ModuleGate';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
@@ -288,6 +292,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
           <People />
+          <OrgAttendanceTimeRoles />
           <DocumentTypes />
           <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
         </div>
@@ -327,8 +332,9 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
+            <OrgClaimOverCap />
             <OrgProcurementGates />
-            <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /></ModuleGate>
+            <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /><OrderJobRolesSection /></ModuleGate>
             <OrgThreeWayMatch />
             <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
             <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
@@ -352,6 +358,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <OrgIssueTypes />
             <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
             <NonWorkingDatesCard />
             <SiteCheckpointTemplate />

@@ -153,13 +153,14 @@
       "empty": "No active members to assign.",
       "toggleLabel": "Keeper",
       "close": "Done"
-    }
+    },
+    "openingLink": "Opening stock"
   },
   "kinds": {
     "receive": "Receive",
-    "transfer": "Transfer",
+    "transfer": "Stock transfer",
     "issue": "Issue to project",
-    "return": "Return from project",
+    "return": "Stock return from project",
     "adjustment": "Adjustment",
     "count": "Stock count",
     "opening": "Opening balance"
@@ -189,7 +190,7 @@
     "reorder": "Reorder",
     "usageStandards": "Usage standards",
     "atRisk": "At risk",
-    "transfers": "Transfers"
+    "transfers": "Stock transfers"
   },
   "onHand": {
     "atVendor": "At vendor",
@@ -379,12 +380,12 @@
     "saveDraft": "Save draft",
     "draftSaved": "Draft saved",
     "unknownKind": "Unknown document kind",
-    "unknownKindSub": "Use Receive, Transfer, Issue, Return, Stock count or Adjustment from the Stock page.",
+    "unknownKindSub": "Use Receive, Stock transfer, Issue, Stock return, Stock count or Adjustment from the Stock page.",
     "submit": {
       "receive": "Post receipt",
-      "transfer": "Post transfer",
+      "transfer": "Post stock transfer",
       "issue": "Post issue",
-      "return": "Post return"
+      "return": "Post stock return"
     },
     "sections": {
       "where": "Where",
@@ -439,9 +440,9 @@
     "confirmPost": {
       "title": {
         "receive": "Post this receipt?",
-        "transfer": "Post this transfer?",
+        "transfer": "Post this stock transfer?",
         "issue": "Post this issue?",
-        "return": "Post this return?"
+        "return": "Post this stock return?"
       },
       "where": {
         "receive": "Into {{from}}",
@@ -654,6 +655,11 @@
   },
   "siteWork": {
     "materialProgress": {
+      "alert": {
+        "badge_one": "{{count}} item ahead of progress",
+        "badge_other": "{{count}} items ahead of progress",
+        "badgeHint": "Open the stock for this work order to see which items."
+      },
       "banner": {
         "title": "Items issued ahead of progress: {{count}}",
         "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",
@@ -739,15 +745,15 @@
     }
   },
   "transfers": {
-    "title": "Transfers",
-    "send": "Send transfer",
-    "sendTitle": "Send a transfer",
+    "title": "Stock transfers",
+    "send": "Send stock transfer",
+    "sendTitle": "Send a stock transfer",
     "off": {
-      "title": "Two-step transfers are off",
+      "title": "Two-step stock transfers are off",
       "sub": "An administrator can turn them on in Stock setup."
     },
     "empty": {
-      "title": "No transfers yet",
+      "title": "No stock transfers yet",
       "sub": "Send material from one location to another; the receiver counts it on arrival."
     },
     "groups": {
@@ -763,7 +769,7 @@
     },
     "shortOpen_one": "{{count}} shortfall open",
     "shortOpen_other": "{{count}} shortfalls open",
-    "sentToast": "Transfer sent",
+    "sentToast": "Stock transfer sent",
     "sendConfirm": {
       "title": "Send this transfer?",
       "where": "From {{from}} to {{to}}",
@@ -774,9 +780,9 @@
     "receiverNone": "Anyone who keeps the destination",
     "receiverHelp": "Name the person who will count it on arrival: a keeper of the destination, or a field account. You cannot name yourself.",
     "viewOnly": "You are viewing as another role, so nothing can be sent.",
-    "notFound": "Transfer not found",
-    "detailTitle": "Transfer",
-    "back": "Back to transfers",
+    "notFound": "Stock transfer not found",
+    "detailTitle": "Stock transfer",
+    "back": "Back to stock transfers",
     "summary": "Summary",
     "sentBy": "Sent by {{name}} on {{at}}",
     "addressedTo": "Addressed to {{name}}",
@@ -811,18 +817,18 @@
       "written_off": "Write off"
     },
     "resolvedToast": "Shortfall resolved",
-    "recallTitle": "Recall this transfer",
+    "recallTitle": "Recall this stock transfer",
     "recallReason": "Reason for recalling",
     "recallAction": "Recall",
-    "recalledToast": "Transfer recalled",
+    "recalledToast": "Stock transfer recalled",
     "receivedToast": "Receipt recorded",
     "proofAddedToast": "Proof recorded",
-    "senderWaits": "You sent this transfer, so someone else counts it on arrival. It is waiting for the receiver.",
+    "senderWaits": "You sent this stock transfer, so someone else counts it on arrival. It is waiting for the receiver.",
     "print": {
       "action": "Print delivery note",
       "title": "Delivery note",
       "off": "Delivery notes are switched off for this organisation. An Admin turns them on under material request settings.",
-      "back": "Back to transfer",
+      "back": "Back to stock transfer",
       "print": "Print",
       "code": "Item code",
       "description": "Description",
@@ -869,7 +875,7 @@
       "mixed": "Several rules"
     },
     "requiredNow": "Proof needed before receiving: {{rules}}.",
-    "mayFollow": "Proof may follow: the transfer stays proof outstanding until it is added.",
+    "mayFollow": "Proof may follow: the stock transfer stays proof outstanding until it is added.",
     "addTitle": "Add the missing proof",
     "addAction": "Record proof",
     "chase": {
@@ -884,8 +890,8 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfers and proof",
-    "mode": "How transfers are made",
+    "manage": "Stock transfers and proof",
+    "mode": "How stock transfers are made",
     "oneStep": "One step: post at once",
     "twoStep": "Two steps: send, then receive with a count",
     "modeHelp": "Two steps keep the goods in transit until the receiver counts them. Senders name a receiver; the sender never counts their own shipment.",
@@ -895,8 +901,8 @@
     "timingHelp": "Applies to tags that require proof.",
     "proofPerTag": "Proof that counts, per tag",
     "qualityItems": "Items that need a quality check on receipt",
-    "inTransit_one": "{{count}} transfer is in transit. Switch back to one step after it is received or recalled.",
-    "inTransit_other": "{{count}} transfers are in transit. Switch back to one step after they are received or recalled."
+    "inTransit_one": "{{count}} stock transfer is in transit. Switch back to one step after it is received or recalled.",
+    "inTransit_other": "{{count}} stock transfers are in transit. Switch back to one step after they are received or recalled."
   },
   "workOrderTransfer": {
     "title": "Move leftover between work orders",
@@ -987,5 +993,69 @@
     "itemsAll": "Every item on a material line",
     "itemsConsumables": "Only items marked as consumables",
     "flagList": "Items counted as consumables"
+  },
+  "opening": {
+    "title": "Opening stock",
+    "backToSetup": "Back to set-up",
+    "asOf": "Go-live date",
+    "notAdmin": {
+      "title": "An Admin loads opening stock",
+      "sub": "Ask an Admin to load it here."
+    },
+    "template": {
+      "title": "Template",
+      "column": "Column",
+      "required": "Required",
+      "holds": "What it holds",
+      "yes": "Yes",
+      "no": "No",
+      "download": "Download template"
+    },
+    "file": {
+      "title": "File",
+      "choose": "Choose file",
+      "change": "Choose another file",
+      "rows": "{{count}} rows"
+    },
+    "preview": {
+      "title": "Preview",
+      "row": "Row",
+      "rowN": "Row {{n}}",
+      "column": "Column",
+      "date": "Date",
+      "location": "Location",
+      "item": "Item",
+      "direction": "Direction",
+      "in": "In",
+      "out": "Out",
+      "quantity": "Quantity",
+      "status": "Status",
+      "accepted": "Accepted",
+      "summary": "{{accepted}} accepted, {{refused}} refused. Nothing is posted until you confirm."
+    },
+    "closing": {
+      "title": "Closing balance",
+      "value": "Value",
+      "clientSupplied": "Client-supplied"
+    },
+    "confirm": {
+      "button": "Confirm opening stock",
+      "noFile": "Choose the file first.",
+      "noDate": "Choose the go-live date first.",
+      "fixFile": "Fix the rows listed in your file, then choose it again.",
+      "checking": "Checking the file.",
+      "checkFailed": "The check failed. Choose the file again.",
+      "refused": "Fix the {{count}} refused rows in your file, then choose it again."
+    },
+    "done": {
+      "title": "Opening stock loaded",
+      "sub": "{{count}} locations now start from this history.",
+      "openLedger": "Open the stock ledger"
+    },
+    "errors": {
+      "file": "This file could not be read. Use the template, saved as .xlsx.",
+      "missingColumn": "The file has no {{column}} column. Use the template.",
+      "tooMany": "A file holds 1 to {{max}} rows. Split it by location."
+    }
   }
 }

@@ -978,7 +978,8 @@
     "signature": "Tanda tangan",
     "signatureDate": "Tanggal",
     "section": "Pesanan pembelian",
-    "off": "Cetak pesanan pembelian belum aktif. Admin mengaktifkannya di Administrasi, Akuntansi, Cetak pesanan pembelian."
+    "off": "Cetak pesanan pembelian belum aktif. Admin mengaktifkannya di Administrasi, Akuntansi, Cetak pesanan pembelian.",
+    "discipline": "Disiplin"
   },
   "poSettings": {
     "heading": "Pencetakan pesanan pembelian",
@@ -1084,5 +1085,42 @@
       "title": "Pembayaran tertahan sampai tagihan ini cocok.",
       "body": "Tagihan dicocokkan dengan pesanan dan penerimaan barang. Jika tidak cocok, pembayaran tetap tertahan sampai penerimaan dicatat atau Admin atau Finance, selain orang yang mencatat tagihan, menyetujui pengecualian."
     }
+  },
+  "lineWorkOrders": {
+    "loadError": "Work order proyek ini tidak bisa dimuat.",
+    "section": "Work order per baris",
+    "intro": "Sebutkan work order dan disiplin untuk tiap baris. Jika semua baris menyebut work order yang sama, permintaan memakainya.",
+    "field": "Work order untuk {{line}}",
+    "disciplineField": "Disiplin untuk {{line}}",
+    "noDiscipline": "Tanpa disiplin",
+    "unknownDiscipline": "Disiplin yang sudah tidak dipakai",
+    "sameAsRequest": "Sama dengan permintaan",
+    "sameAsRequestNamed": "Sama dengan permintaan ({{workOrder}})",
+    "unknownWorkOrder": "Work order yang tidak dapat Anda buka",
+    "cancelled": "dibatalkan",
+    "noProject": "Pilih proyek dulu: work order milik sebuah proyek, setelah itu tiap baris bisa diberi work order.",
+    "noWorkOrders": "Proyek ini belum punya work order, jadi baris belum bisa diberi work order. Manajer proyek menambahkannya di tab Work order proyek.",
+    "differs": "Permintaan berada di {{workOrder}}; baris ini untuk work order yang berbeda.",
+    "save": "Simpan",
+    "saved": "Tersimpan",
+    "nothingToSave": "Ubah work order atau disiplin sebuah baris untuk menyimpan.",
+    "saveFailed": "Permintaan sudah tersimpan, tetapi work order beberapa baris belum terpasang.",
+    "saveFailedNext": "Buka permintaan lalu atur di tab Item."
+  },
+  "orderRoles": {
+    "heading": "Siapa yang dapat memesan pembelian",
+    "subline": "Admin, Eksekutif, Manajer Proyek dan Keuangan selalu dapat memesan. Cantumkan peran bawaan yang pemegangnya juga dapat membuat dan mengirim purchase order, hanya untuk pembelian yang sudah disetujui.",
+    "loadError": "Tidak dapat memuat siapa yang dapat memesan pembelian",
+    "none": "Belum ada peran bawaan yang dicantumkan, jadi hanya tingkat akses di atas yang dapat memesan.",
+    "remove": "Hapus",
+    "removeNamed": "Hapus {{role}}",
+    "heldOnlyNote": "Hanya orang yang memegang peran bawaan yang dicantumkan yang dapat memesan. Tingkat akses saja tidak cukup, meskipun peran itu dibangun di atasnya.",
+    "add": "Tambah peran bawaan",
+    "choose": "Pilih peran bawaan",
+    "addButton": "Tambah",
+    "save": "Simpan",
+    "saved": "Siapa yang dapat memesan pembelian tersimpan",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "turnOn": "Aktifkan peran bawaan di Administrasi > Orang > Peran bawaan untuk mencantumkan peran yang dapat memesan."
   }
 }

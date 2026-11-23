@@ -18,6 +18,7 @@ export type ImprestCountRow = Tables<'imprest_cash_counts'>;
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
 export type ImprestPosition = Database['public']['Functions']['get_imprest_position']['Returns'][number];
 export type ImprestPlanUsageRow = Database['public']['Functions']['get_imprest_plan_usage']['Returns'][number];
+export type ImprestOpenRequestRow = Database['public']['Functions']['get_imprest_open_requests']['Returns'][number];
 export type ImprestFloatChoice = Database['public']['Functions']['imprest_float_choices']['Returns'][number];
 
 export const LIST_LIMIT = 200;
@@ -82,6 +83,14 @@ export async function listPlanLines(planId: string): Promise<ImprestPlanLineRow[
   const { data, error } = await supabase.from('imprest_plan_lines').select('*').eq('plan_id', planId).order('budget_category');
   fail(error);
   return data ?? [];
+}
+/** The open purchase requests of the float's project (read-only suggestion for a plan; RLS-scoped like the purchase list). The read is bounded at 501 rows: `truncated` says there are more. */
+export const OPEN_REQUEST_LIMIT = 500;
+export async function getOpenRequests(floatId: string): Promise<Bounded<ImprestOpenRequestRow>> {
+  const { data, error } = await supabase.rpc('get_imprest_open_requests', { p_float: floatId });
+  fail(error);
+  const rows = data ?? [];
+  return { rows: rows.slice(0, OPEN_REQUEST_LIMIT), truncated: rows.length > OPEN_REQUEST_LIMIT };
 }
 export type ImprestReplenishmentWithRejecter = ImprestReplenishmentRow & { rejecter: { full_name: string } | null };
 export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentWithRejecter>> {

@@ -6,7 +6,7 @@ import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Site imprest (#1515) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
-export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
+export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-open-requests', 'imprest-plans',
   'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states', 'imprest-requester-route'] as const;
 
 
@@ -75,6 +75,15 @@ export function useImprestPlanLines(planId: string | undefined) {
     queryKey: ['imprest-plans', orgId, 'lines', planId],
     queryFn: () => repositories.imprest.listPlanLines(planId as string),
     enabled: Boolean(orgId) && Boolean(planId),
+  });
+}
+/** The open purchase requests of the float's project: a read-only suggestion beside the plan. */
+export function useImprestOpenRequests(floatId: string | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['imprest-open-requests', orgId, floatId],
+    queryFn: () => repositories.imprest.getOpenRequests(floatId as string),
+    enabled: Boolean(orgId) && Boolean(floatId),
   });
 }
 export function useImprestReplenishments(floatId: string | undefined) {

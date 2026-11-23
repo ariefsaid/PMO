@@ -21,10 +21,10 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('14910000-0000-0000-0000-0000000000a1', '14910000-0000-0000-0000-000000000001', 'OTK A Admin', 'otk-a-admin@example.com', 'Admin', 'active');
 
 -- ── the seed is the accepted set ─────────────────────────────────────────────────────────────────
-select is((select count(*)::int from public.org_term_keys), 16,
-  'AC-TX-002 the key table carries exactly the 16 nameable terms');
+select is((select count(*)::int from public.org_term_keys where term_key = any(array['workOrder','project','clientSuppliedStock','purchaseRequest','discipline','materialRequest','billOfQuantities','contractItem','dailyRevenue','acceptedQuantity','costVariation','deliveryNote','stockCount','imprest','standIn','progressClaim'])), 16,
+  'AC-TX-002 the key table carries the 16 original nameable terms (1903 adds more)');
 select is(
-  (select string_agg(term_key, ',' order by term_key) from public.org_term_keys),
+  (select string_agg(term_key, ',' order by term_key) from public.org_term_keys where term_key = any(array['workOrder','project','clientSuppliedStock','purchaseRequest','discipline','materialRequest','billOfQuantities','contractItem','dailyRevenue','acceptedQuantity','costVariation','deliveryNote','stockCount','imprest','standIn','progressClaim'])),
   'acceptedQuantity,billOfQuantities,clientSuppliedStock,contractItem,costVariation,dailyRevenue,deliveryNote,discipline,imprest,materialRequest,progressClaim,project,purchaseRequest,standIn,stockCount,workOrder',
   'AC-TX-002 and they are the same 16 the CHECK accepted (offenders are named by the diff)');
 select is(
@@ -66,8 +66,8 @@ reset role;
 set local request.jwt.claims = '';
 rollback to savepoint plant;
 
-select is((select count(*)::int from public.org_term_keys), 16,
-  'AC-TX-002 (control) the seed is back to 16 after the planted key is rolled back');
+select is((select count(*)::int from public.org_term_keys where term_key = 'progressAssessment'), 0,
+  'AC-TX-002 (control) the planted key is gone after the rollback');
 
 select * from finish();
 rollback;

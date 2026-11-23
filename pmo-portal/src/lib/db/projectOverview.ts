@@ -5,7 +5,7 @@ import { toRow, type ExternalDomainOwnershipRow } from './externalDomainOwnershi
 import { toFxContext } from './fxRates';
 import { mapMilestoneRows, type MilestoneRpcRow, type MilestoneWithProgress } from './milestones';
 import { parseCommittedSpend, type ProjectCommittedSpend } from './procurements';
-import { parseProjectBilling, type BoqItemRow } from './progressBilling';
+import { parseProjectBilling, withSurveyFigures, type BoqItemRow } from './progressBilling';
 import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
 import { parseProjectFinances } from './revenue';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
@@ -57,7 +57,7 @@ export async function getProjectOverviewRead(projectId: string, flags: ProjectOv
   };
   if (flags.money) {
     out.finances = parseProjectFinances(row.finances, projectId);
-    out.billing = parseProjectBilling(row.billing);
+    out.billing = await withSurveyFigures(parseProjectBilling(row.billing));
     out.boqItems = array(row.boq_items, 'BoQ') as BoqItemRow[];
   }
   if (flags.budget) {

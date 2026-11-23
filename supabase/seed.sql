@@ -1624,6 +1624,13 @@ on conflict (id) do nothing;
 -- §N  incident_reports
 -- ============================================================
 
+-- issue-closing-measure: each distinct type the seeded issues use is on the organisation's kept list (migration 1820/1821).
+insert into incident_types (org_id, label) values
+  ('00000000-0000-0000-0000-000000000001', 'Incident'),
+  ('00000000-0000-0000-0000-000000000001', 'Near Miss'),
+  ('00000000-0000-0000-0000-000000000001', 'Unsafe Condition')
+on conflict do nothing;
+
 insert into incident_reports (id, incident_date, type, severity, location, description, status, reported_by) values
   ('d5000000-0000-0000-0000-000000000001',
    current_date-interval '10 days',

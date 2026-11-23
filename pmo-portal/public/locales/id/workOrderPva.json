@@ -118,7 +118,10 @@
     "purchase_request": "Permintaan pembelian",
     "stock_document": "Pergerakan stok",
     "timesheet_entry": "Lembar waktu",
-    "vendor_bill": "Invoice supplier"
+    "vendor_bill": "Invoice supplier",
+    "attendance_day": "Kehadiran",
+    "headcount_day": "Jumlah orang",
+    "expense_claim": "Klaim biaya"
   },
   "split": {
     "clear": "Pakai pembagian bawaan",
@@ -143,6 +146,7 @@
     "hours": "Jam",
     "cost": "Biaya",
     "unknownClass": "Kelas lain",
+    "allClasses": "Kru dan jumlah orang, semua kelas",
     "note": "Bagian dari biaya langsung di atas, dari jam yang disetujui dengan tarif biaya tiap orang."
   },
   "performance": {
@@ -231,6 +235,9 @@
     "cost": "Biaya",
     "total": "Total menganggur",
     "noRate": "Tanpa tarif",
-    "note": "Ditampilkan terpisah: waktu ini sudah dibayar, jadi sudah termasuk dalam biaya langsung di atas dan tidak ditambahkan lagi. Dihitung dengan biaya per jam rata-rata pekerjaan."
+    "note": "Ditampilkan terpisah: waktu ini sudah dibayar, jadi sudah termasuk dalam biaya langsung di atas dan tidak ditambahkan lagi. Dihitung dengan biaya per jam rata-rata pekerjaan.",
+    "people": "Tenaga kerja",
+    "equipment": "Peralatan",
+    "noteFull": "Ditampilkan terpisah: jam tenaga kerja sudah termasuk dalam biaya tenaga kerja dan biaya siaga sudah termasuk dalam biaya peralatan, sehingga tidak ditambahkan lagi. Tenaga kerja dihitung dari kru yang hadir setiap hari dengan biaya per jam rata-rata perintah kerja."
   }
 }

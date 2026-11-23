@@ -12,19 +12,31 @@ const h = vi.hoisted(() => ({
   roster: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   day: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   awaiting: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  record: vi.fn(), upload: vi.fn(), generate: vi.fn(), decide: vi.fn(),
+  record: vi.fn(), upload: vi.fn(), generate: vi.fn(), decide: vi.fn(), clear: vi.fn(),
 }));
 vi.mock('@/src/hooks/useCrews', () => ({
   useWorkOrderRoster: () => h.roster,
   useAttendanceDay: () => h.day,
   useAwaitingAttendance: () => h.awaiting,
-  useCrewWorkers: () => ({ data: [{ id: 'v1', display_name: 'Vendor One' }] }),
+  useCrewWorkers: () => ({ data: [
+    { id: 'v1', display_name: 'Vendor One' }, { id: 'v2', display_name: 'Ended Placement' }, { id: 'v3', display_name: 'No Placement' }, { id: 'w2', display_name: 'Budi' },
+  ], isPending: false }),
+  useAllCrewMembers: () => ({ data: [
+    { id: 'm1', crew_id: 'c9', worker_id: 'v1', valid_from: '2026-01-01', valid_to: null },
+    { id: 'm2', crew_id: 'c9', worker_id: 'v2', valid_from: '2026-01-01', valid_to: '2026-11-01' },
+    { id: 'm3', crew_id: 'c1', worker_id: 'w2', valid_from: '2026-01-01', valid_to: null },
+  ], isPending: false }),
   useCrewWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-1', title: 'Pipe rack' }], isLoading: false, isError: false, refetch: vi.fn() }),
   useAttendanceMutations: () => ({
     record: { mutateAsync: h.record }, uploadPhoto: { mutateAsync: h.upload },
-    generateWeek: { mutateAsync: h.generate }, decideWeek: { mutateAsync: h.decide },
+    generateWeek: { mutateAsync: h.generate }, decideWeek: { mutateAsync: h.decide }, clearFollow: { mutateAsync: h.clear },
   }),
 }));
+vi.mock('@/src/hooks/useHeadcount', () => ({
+  useHeadcountDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useHeadcountMutations: () => ({ record: { mutateAsync: vi.fn() }, approve: { mutateAsync: vi.fn() }, clear: { mutateAsync: vi.fn() } }),
+}));
+vi.mock('@/src/hooks/useLabourCost', () => ({ useLabourClasses: () => ({ data: [] }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.uid, org_id: 'org1' } }) }));
 
@@ -51,6 +63,7 @@ describe('attendance tick screen (#2528)', () => {
     h.upload = vi.fn().mockResolvedValue(undefined);
     h.generate = vi.fn().mockResolvedValue({ mode: 'timesheet', timesheet_id: 't', changed: true });
     h.decide = vi.fn().mockResolvedValue(5);
+    h.clear = vi.fn().mockResolvedValue(1);
   });
 
   it('AC-CRW-005 the field controller marks a 6-person crew present for 8 hours, overrides one to 6 and attaches the group photo', async () => {
@@ -161,6 +174,13 @@ describe('attendance tick screen (#2528)', () => {
     expect(screen.getByRole('textbox', { name: 'Hours for the crew' })).toBeDisabled();
   });
 
+  it('AC-HC-011 the crew\'s day carries a head-count section under the roster, counting the named people ticked present', () => {
+    (h.day.data as unknown[]) = [{ id: 'd1', worker_id: 'w1', status: 'present', hours: 8, overtime_hours: null }, { id: 'd2', worker_id: 'w2', status: 'absent', hours: null, overtime_hours: null }];
+    renderAt();
+    expect(screen.getByRole('heading', { name: 'Head count' })).toBeInTheDocument();
+    expect(screen.getByText(/^1 named people are ticked present on this crew today/)).toBeInTheDocument();
+  });
+
   it('AC-WCI-050 the crew\'s Foreman gets no such sentence and can tick', () => {
     renderAt();
     expect(screen.queryByText("Only this crew's Foreman or a crew manager ticks this roster.")).not.toBeInTheDocument();
@@ -222,5 +242,100 @@ describe('attendance tick screen (#2528)', () => {
     expect(within(row).getByText('Bridge repair')).toBeInTheDocument();
     await user.click(within(row).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.decide).toHaveBeenCalledWith({ workerId: 'v1', weekStart: '2026-11-16', decision: 'approve', reason: null }));
+  });
+
+  it('AC-FOL-008 the foreman adds someone from another crew, who is saved as following this crew', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await user.click(screen.getByRole('combobox', { name: /Add someone from another crew/ }));
+    const listed = within(await screen.findByRole('listbox')).getAllByRole('option').map((o) => o.textContent ?? '');
+    expect(listed.some((n) => n.includes('Vendor One'))).toBe(true);
+    // Searchable lists hold only people placed that day who are not already on this crew: no ended placement, no unplaced, no member.
+    expect(listed.some((n) => /Ended Placement|No Placement|Budi/.test(n))).toBe(false);
+    await user.click(await screen.findByRole('option', { name: /Vendor One/ }));
+    const row = screen.getByRole('row', { name: /Vendor One/ });
+    expect(within(row).getByText('Followed this crew today')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    const { rows } = h.record.mock.calls[0][0];
+    expect(rows).toHaveLength(7);
+    expect(rows[6]).toMatchObject({ worker_id: 'v1', status: 'present', hours: 8, followed_crew_id: 'c1' });
+    expect(rows.slice(0, 6).some((r: Record<string, unknown>) => 'followed_crew_id' in r)).toBe(false);
+  });
+
+  it('AC-FOL-008 a recorded follow shows where the person came from and is not sent as a new follow', async () => {
+    const user = userEvent.setup();
+    h.roster = { ...h.roster, data: [{
+      crew_id: 'c1', crew_code: 'CR-1', crew_name: 'Crew one', field_controller_id: 'fc1', roles: [], shortfall: 0,
+      members: [{ worker_id: 'w1', display_name: 'Ana', standard_role_id: null, off_rotation: false, followed: true, from_crew_name: 'Home crew' }],
+    }] };
+    renderAt();
+    expect(within(screen.getByRole('row', { name: /Ana/ })).getByText('Followed from Home crew')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    expect('followed_crew_id' in h.record.mock.calls[0][0].rows[0]).toBe(false);
+  });
+
+  it('AC-FOL-008 someone who may not tick this crew is not offered the add control', () => {
+    h.uid = 'someone-else';
+    renderAt();
+    expect(screen.queryByRole('combobox', { name: /Add someone from another crew/ })).toBeNull();
+  });
+
+  it('AC-FOL-008 someone already recorded today on this work order is not offered again', async () => {
+    const user = userEvent.setup();
+    h.day = { ...h.day, data: [{ id: 'd1', worker_id: 'v1', status: 'present', hours: 8, overtime_hours: null, reason: null }] };
+    renderAt();
+    await user.click(screen.getByRole('combobox', { name: /Add someone from another crew/ }));
+    await screen.findByRole('listbox');
+    expect(screen.queryByRole('option', { name: /Vendor One/ })).toBeNull();
+  });
+
+  const followedRoster = () => ({
+    data: [{
+      crew_id: 'c1', crew_code: 'CR-1', crew_name: 'Crew one', field_controller_id: 'fc1', roles: [], shortfall: 0,
+      members: [{ worker_id: 'w1', display_name: 'Ana', standard_role_id: null, off_rotation: false, followed: true, from_crew_name: 'Home crew' }],
+    }],
+    isPending: false, isError: false, refetch: vi.fn(),
+  });
+
+  it('AC-FOL-014 a crew manager undoes a recorded follow after confirming, and a foreman who is not a manager has no such control', async () => {
+    const user = userEvent.setup();
+    h.role = 'Project Manager'; h.uid = 'pm1';
+    h.roster = followedRoster();
+    renderAt();
+    await user.click(within(screen.getByRole('row', { name: /Ana/ })).getByRole('button', { name: /Undo follow/ }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Undo follow' }));
+    await waitFor(() => expect(h.clear).toHaveBeenCalledWith({ workerId: 'w1', date: '2026-11-18' }));
+  });
+
+  it('AC-FOL-014 a foreman who is not a crew manager is not offered Undo follow', () => {
+    h.roster = followedRoster();
+    renderAt();
+    expect(screen.queryByRole('button', { name: /Undo follow/ })).toBeNull();
+  });
+
+  it('AC-PAY-006 Approve is disabled on a week the viewer recorded, and says why', () => {
+    h.role = 'Project Manager';
+    h.uid = 'pm1';
+    h.awaiting = { data: [{ worker_id: 'v1', work_date: '2026-11-17', hours: 8, overtime_hours: null, work_order_title: 'Bridge repair', recorded_by_ids: ['ctl', 'pm1'] }], isPending: false, isError: false, refetch: vi.fn() };
+    renderAt();
+    const row = screen.getByRole('row', { name: /Vendor One/ });
+    const approve = within(row).getByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(approve).toHaveAccessibleDescription('You recorded these hours, so someone else approves them.');
+    const ret = within(row).getByRole('button', { name: 'Return' });
+    expect(ret).toBeDisabled();
+    expect(ret).toHaveAccessibleDescription('You recorded these hours, so someone else approves them.');
+  });
+
+  it('AC-PAY-006 Approve stays enabled for a manager who recorded none of the days', () => {
+    h.role = 'Project Manager';
+    h.uid = 'pm2';
+    h.awaiting = { data: [{ worker_id: 'v1', work_date: '2026-11-17', hours: 8, overtime_hours: null, work_order_title: 'Bridge repair', recorded_by_ids: ['ctl', 'pm1'] }], isPending: false, isError: false, refetch: vi.fn() };
+    renderAt();
+    const row = screen.getByRole('row', { name: /Vendor One/ });
+    expect(within(row).getByRole('button', { name: 'Approve' })).toBeEnabled();
+    expect(within(row).getByRole('button', { name: 'Return' })).toBeEnabled();
   });
 });

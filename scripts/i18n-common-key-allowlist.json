@@ -385,6 +385,8 @@
   "allSettings.item.procurementGates.summary",
   "allSettings.item.billingPlan.name",
   "allSettings.item.billingPlan.summary",
+  "allSettings.item.billingSteps.name",
+  "allSettings.item.billingSteps.summary",
   "allSettings.item.labourCost.name",
   "allSettings.item.labourCost.summary",
   "allSettings.item.idleCost.name",

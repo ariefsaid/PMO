@@ -9,7 +9,6 @@ import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgName } from '@/src/hooks/useOrgName';
 import { formatDay } from '@/src/lib/format';
-import { withOrgTerms } from '@/src/lib/i18n/orgTerms';
 import {
   PrintDocument,
   PrintActionBar,
@@ -27,7 +26,7 @@ import type { MaterialRequestLine } from '@/src/lib/repositories/materialRequest
  * The document title automatically follows organisation terminology overrides.
  */
 const DeliveryNotePrintPage: React.FC = () => {
-  const { t, i18n } = useTranslation('materialRequests');
+  const { t } = useTranslation('materialRequests');
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
 
@@ -80,7 +79,7 @@ const DeliveryNotePrintPage: React.FC = () => {
     );
   }
 
-  const documentTitle = withOrgTerms(t('deliveryNote.title', 'Delivery note'), i18n.language ?? 'en');
+  const documentTitle = t('deliveryNote.title', 'Delivery note');
   const signatureBlocks = settingsQuery.data?.signatureBlocks?.length
     ? settingsQuery.data.signatureBlocks
     : ['Dispatched by', 'Delivered by', 'Received by'];

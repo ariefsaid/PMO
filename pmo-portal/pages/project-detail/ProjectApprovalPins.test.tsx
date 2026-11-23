@@ -112,3 +112,18 @@ it('no chain set: nothing to pin, the panel stays out of the way', () => {
   const { container } = mount();
   expect(container.firstChild).toBeNull();
 });
+
+it('AC-RTD-007 a step naming a built-in role offers only the people who fill it, and keeps a pin recorded for that role', () => {
+  h.chain.data = [{ id: 's2', position: 2, role: 'Project Manager', jobRole: 'construction_manager', label: 'Site check' }];
+  h.users.data = [
+    { id: 'c1', full_name: 'Con One', role: 'Project Manager', built_in_role: 'construction_manager', status: 'active' },
+    { id: 'c2', full_name: 'Proj One', role: 'Project Manager', built_in_role: 'project_manager', status: 'active' },
+    { id: 'c3', full_name: 'Plain PM', role: 'Project Manager', built_in_role: null, status: 'active' },
+    { id: 'c4', full_name: 'Con Gone', role: 'Project Manager', built_in_role: 'construction_manager', status: 'disabled' },
+  ];
+  h.pins.data = [{ position: 2, role: 'Project Manager', jobRole: 'construction_manager', approverId: 'c1' }];
+  mount();
+  const select = screen.getByLabelText('Step 2: Site check') as HTMLSelectElement;
+  expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'c1', 'c3']);
+  expect(select.value).toBe('c1');
+});

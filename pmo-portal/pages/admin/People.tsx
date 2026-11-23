@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,21 +10,26 @@ import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { usePeople, usePeopleMutations } from '@/src/hooks/usePeople';
 import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
+import { PersonDocumentImport } from './PersonDocumentImport';
 import { ImportButton } from '@/src/components/import';
-import { makePeopleImportDescriptor } from '@/src/lib/import';
+import { makePeopleImportDescriptor, type ManagerChoice } from '@/src/lib/import';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { MarkLeftDialog } from './MarkLeftDialog';
 import type { PersonListRow, PeopleListStatus } from '@/src/lib/db/people';
 
-interface FormValues { name: string; code: string; job_title: string; profile_id: string }
+interface FormValues { name: string; code: string; job_title: string; profile_id: string; manager_id: string }
 
-const initial = (p?: PersonListRow): FormValues => ({ name: p?.name ?? '', code: p?.code ?? '', job_title: p?.job_title ?? '', profile_id: p?.profile_id ?? '' });
+const initial = (p?: PersonListRow): FormValues => ({ name: p?.name ?? '', code: p?.code ?? '', job_title: p?.job_title ?? '', profile_id: p?.profile_id ?? '', manager_id: p?.manager_id ?? '' });
 
 /** Add or edit one person. A blank code on add is assigned by the database (P-0001, …); on edit the code is required. */
-const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, string>; onClose: () => void }> = ({ person, profileNames, onClose }) => {
+/** Who may set the manager link (1930, the database decides): `any` (an Admin), `others` (the people team: never themselves), `none`. */
+type ManagerMode = { kind: 'any' } | { kind: 'others'; self: string | null } | { kind: 'none' };
+
+const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, string>; managerMode: ManagerMode; onClose: () => void }> = ({ person, profileNames, managerMode, onClose }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { create, update } = usePeopleMutations();
@@ -40,12 +45,15 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
     },
   });
   const loadOptions = useMemo(() => async () => (await loadProfiles()).map((p) => ({ value: p.id, label: p.full_name })), [loadProfiles]);
+  // The manager is chosen from active members only: a manager who has left would be warned into nothing.
+  const self = managerMode.kind === 'others' ? managerMode.self : null;
+  const loadManagers = useMemo(() => async () => (await loadProfiles()).filter((p) => p.status === 'active' && p.id !== self).map((p) => ({ value: p.id, label: p.full_name })), [loadProfiles, self]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
     void form.handleSubmit(async (v) => {
-      const base = { name: v.name.trim(), job_title: v.job_title.trim() || null, profile_id: v.profile_id || null };
+      const base = { name: v.name.trim(), job_title: v.job_title.trim() || null, profile_id: v.profile_id || null, manager_id: v.manager_id || null };
       try {
         if (person) await update.mutateAsync({ id: person.id, input: { ...base, code: v.code.trim() } });
         else await create.mutateAsync({ ...base, code: v.code.trim() || null });
@@ -76,6 +84,14 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
           loadOptions={loadOptions} placeholder={t('administration:people.userPlaceholder', 'Not an app user')}
           searchPlaceholder={t('administration:people.userSearch', 'Search users')}
           onChange={(value) => form.setValue('profile_id', value)} />
+        <Combobox label={t('administration:people.manager', 'Direct manager (optional)')} value={form.values.manager_id || null} clearable
+          selectedOption={form.values.manager_id ? { value: form.values.manager_id, label: profileNames.get(form.values.manager_id) ?? form.values.manager_id } : null}
+          loadOptions={loadManagers} placeholder={t('administration:people.managerPlaceholder', 'No manager set')}
+          searchPlaceholder={t('administration:people.managerSearch', 'Search users')}
+          disabled={managerMode.kind === 'none'}
+          helper={managerMode.kind === 'none' ? t('administration:people.managerReadOnly', 'Only an Admin or the people team (HR) can change the direct manager.') : undefined}
+          onChange={(value) => form.setValue('manager_id', value)} />
+        <p className="col-span-full text-control text-muted-foreground">{t('administration:people.managerHelp', "The manager is warned first when this person's documents are about to expire, and records the renewal.")}</p>
       </FormGrid>
     </EntityFormModal>
   );
@@ -98,14 +114,23 @@ const People: React.FC = () => {
   const loadProfiles = useOrgProfilesLoader();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
   const rows = q.data ?? [];
-  const importDescriptor = useMemo(() => makePeopleImportDescriptor(async () => (await repositories.people.list()).map((p) => p.code), t), [t]);
+  const [managerChoices, setManagerChoices] = useState<ManagerChoice[]>([]);
+  const me = useContext(AuthContext)?.currentUser?.id ?? null;
+  const mayManager = may('setManager', 'person', ctx);
+  const mayNameSelf = may('setSelfAsManager', 'person', ctx);
+  const managerMode: ManagerMode = !mayManager ? { kind: 'none' } : mayNameSelf ? { kind: 'any' } : { kind: 'others', self: me };
+  const importDescriptor = useMemo(
+    () => makePeopleImportDescriptor({ people: () => repositories.people.list(), managers: managerChoices,
+      managerRule: { may: mayManager, maySelf: mayNameSelf, self: me } }, t),
+    [t, managerChoices, mayManager, mayNameSelf, me],
+  );
   const canEdit = may('edit', 'person', ctx);
   const canLeave = may('archive', 'person', ctx);
   const setStaffView = (next: typeof staffView) => setFilter('staff', next === 'active' ? '' : next);
 
   React.useEffect(() => {
     let live = true;
-    void loadProfiles().then((ps) => { if (live) setProfileNames(new Map(ps.map((p) => [p.id, p.full_name]))); }).catch(() => undefined);
+    void loadProfiles().then((ps) => { if (live) { setProfileNames(new Map(ps.map((p) => [p.id, p.full_name]))); setManagerChoices(ps.filter((p) => p.status === 'active' && p.email).map((p) => ({ id: p.id, email: p.email }))); } }).catch(() => undefined);
     return () => { live = false; };
   }, [loadProfiles]);
 
@@ -142,12 +167,13 @@ const People: React.FC = () => {
               { value: 'all', label: t('administration:people.all', 'All') },
             ]} />
         </div>
-        <CanWrite entity="person" action="create" ctx={ctx}>
-          <div className="flex flex-wrap items-center gap-[var(--space-group)]">
-            <ImportButton entity="person" descriptor={importDescriptor} onImported={() => void q.refetch()} />
+        <div className="flex flex-wrap items-center gap-[var(--space-group)]">
+          <PersonDocumentImport onImported={() => void q.refetch()} />
+          <CanWrite entity="person" action="create" ctx={ctx}>
+            <ImportButton entity="person" label={t('administration:people.importPeople', 'Import people')} descriptor={importDescriptor} onImported={() => void q.refetch()} />
             <Button variant="primary" onClick={() => setEditing('new')}><Icon name="plus" />{t('administration:people.add', 'Add person')}</Button>
-          </div>
-        </CanWrite>
+          </CanWrite>
+        </div>
       </div>
       {q.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!q.isPending && q.isError && <ListState variant="error" title={t('administration:people.error', "Couldn't load people")}
@@ -159,7 +185,7 @@ const People: React.FC = () => {
               : t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
             action={staffView === 'active' && canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
         : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" />)}
-      {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} onClose={() => setEditing(null)} />}
+      {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} managerMode={managerMode} onClose={() => setEditing(null)} />}
       <MarkLeftDialog person={leaving} onClose={() => setLeaving(null)} />
     </div>
   );

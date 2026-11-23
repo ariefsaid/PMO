@@ -82,6 +82,12 @@ export async function listSubjectDocuments(kind: SubjectKind, subjectId: string)
   return (data ?? []) as ExpiryDocumentRow[];
 }
 
+/** Every live person document the caller may read (RLS decides): the people document import's match source. */
+export async function listPersonDocuments(): Promise<ExpiryDocumentRow[]> {
+  return fetchAllPages<ExpiryDocumentRow>((from, to) => table('expiry_documents').select(DOC_COLUMNS)
+    .eq('subject_kind', 'person').is('archived_at', null).order('expires_on', { ascending: false }).order('id', { ascending: true }).range(from, to));
+}
+
 export async function listDocumentTypes(kind: SubjectKind): Promise<DocumentTypeRow[]> {
   const { data, error } = await table('document_types').select('id, name, applies_to, is_medical')
     .eq('applies_to', kind).is('archived_at', null).order('name', { ascending: true });
@@ -152,16 +158,18 @@ export async function archiveExpiryDocument(id: string): Promise<void> {
 }
 
 // ── Administration: document types and warning days (#2614) ─────────────────────────────────────────────────────
-// The 0970 grants let an Admin insert (name, applies_to, is_medical, notify_roles) and update (name, notify_roles, archived_at);
+// The 0970 grants let an Admin insert (name, applies_to, is_medical, notify_roles, notify_person) and update (name, notify_roles, notify_person, archived_at);
 // applies_to and is_medical are fixed once a type exists. The warning days are written by set_document_warning_days (0972).
 export const NOTIFY_ROLES = ['Admin', 'Project Manager', 'Finance', 'Executive', 'Engineer'] as const;
 export type NotifyRole = (typeof NOTIFY_ROLES)[number];
-export interface AdminDocumentTypeRow extends DocumentTypeRow { notify_roles: NotifyRole[] }
-export interface DocumentTypeInput { name: string; notify_roles: NotifyRole[] }
+export interface AdminDocumentTypeRow extends DocumentTypeRow { notify_roles: NotifyRole[]; notify_person: boolean }
+export interface DocumentTypeInput { name: string; notify_roles: NotifyRole[]; notify_person: boolean }
+// What the database fills when a type is created with no list; the form pre-ticks the same roles so an empty list can mean "manager only".
+export const DEFAULT_NOTIFY_ROLES: Record<SubjectKind, NotifyRole[]> = { person: ['Admin'], equipment: ['Admin', 'Project Manager'] };
 export interface CreateDocumentTypeInput extends DocumentTypeInput { applies_to: SubjectKind; is_medical: boolean }
 export const DEFAULT_WARNING_DAYS = [30, 14, 7];
 
-const TYPE_ADMIN_COLUMNS = 'id, name, applies_to, is_medical, notify_roles';
+const TYPE_ADMIN_COLUMNS = 'id, name, applies_to, is_medical, notify_roles, notify_person';
 
 export async function listAdminDocumentTypes(): Promise<AdminDocumentTypeRow[]> {
   const { data, error } = await table('document_types').select(TYPE_ADMIN_COLUMNS)
@@ -177,7 +185,7 @@ export async function createDocumentType(input: CreateDocumentTypeInput): Promis
 }
 
 export async function updateDocumentType(id: string, input: DocumentTypeInput): Promise<void> {
-  const { data, error } = await table('document_types').update({ name: input.name.trim(), notify_roles: input.notify_roles }).eq('id', id).select('id');
+  const { data, error } = await table('document_types').update({ name: input.name.trim(), notify_roles: input.notify_roles, notify_person: input.notify_person }).eq('id', id).select('id');
   if (error) fail(error);
   assertWriteLanded(data, 'Document type not found, or you may not change it.');
 }
@@ -202,6 +210,12 @@ export async function setDocumentWarningDays(days: number[]): Promise<void> {
   }
   const rpc = supabase.rpc as unknown as (fn: string, args: { p_days: number[] }) => PromiseLike<{ error: { message: string; code?: string } | null }>;
   const { error } = await rpc.call(supabase, 'set_document_warning_days', { p_days: days });
+  if (error) fail(error);
+}
+
+/** The direct manager (or an Admin) records a renewal: only `expires_on` changes, and the worker is told. The RPC enforces who may. */
+export async function recordDocumentRenewal(documentId: string, expiresOn: string): Promise<void> {
+  const { error } = await supabase.rpc('record_document_renewal', { p_document: documentId, p_expires_on: expiresOn });
   if (error) fail(error);
 }
 

@@ -1,0 +1,6 @@
+{
+  "tables": [
+    {"table":"person_clearance_overdue_notices","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": ["notify_overdue_closeout_items()", "notify_overdue_clearance_items()"]
+}

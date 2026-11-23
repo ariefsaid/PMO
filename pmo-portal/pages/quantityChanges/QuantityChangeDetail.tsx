@@ -52,16 +52,16 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
   const project = useProject(request.project_id).data ?? null;
   const m = useQuantityChangeMutations();
   const errorWords = useRequestedQuantityErrorText();
+  const approval = useQuantityChangeApproval(request.id, request.status === 'pending_approval');
   const ctx = {
     realRole, currentUserId: userId,
-    record: { author_id: request.author_id, editor_ids: request.editor_ids, submitted_by: request.submitted_by, project_manager_id: project?.project_manager_id ?? null },
+    record: { reviewer_listed: approval.data?.can_approve === true, author_id: request.author_id, editor_ids: request.editor_ids, submitted_by: request.submitted_by, project_manager_id: project?.project_manager_id ?? null },
   };
   const status = request.status;
   const mayEdit = (status === 'draft' || status === 'returned') && can('create', 'quantityChange', ctx);
   const maySubmit = status === 'draft' && can('act', 'quantityChange', ctx);
   const mayWithdraw = (status === 'draft' || status === 'returned' || status === 'approved') && can('withdraw', 'quantityChange', ctx);
   const mayDecide = can('decide', 'quantityChange', ctx);
-  const approval = useQuantityChangeApproval(request.id, status === 'pending_approval');
   const mayApproveRole = status === 'pending_approval' && can('approve', 'quantityChange', ctx);
 
   // fix-waiting item 3: who the pending request waits for (1177: Admin, Executive or Finance; author/editor/

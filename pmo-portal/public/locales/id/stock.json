@@ -153,13 +153,14 @@
       "empty": "Tidak ada anggota aktif untuk ditetapkan.",
       "toggleLabel": "Penjaga",
       "close": "Selesai"
-    }
+    },
+    "openingLink": "Stok awal"
   },
   "kinds": {
     "receive": "Penerimaan",
-    "transfer": "Transfer",
+    "transfer": "Transfer stok",
     "issue": "Pengeluaran ke proyek",
-    "return": "Pengembalian dari proyek",
+    "return": "Pengembalian stok dari proyek",
     "adjustment": "Penyesuaian",
     "count": "Stok opname",
     "opening": "Stok awal"
@@ -189,7 +190,7 @@
     "reorder": "Pemesanan ulang",
     "usageStandards": "Standar pemakaian",
     "atRisk": "Risiko",
-    "transfers": "Transfer"
+    "transfers": "Transfer stok"
   },
   "onHand": {
     "atVendor": "Di vendor",
@@ -379,12 +380,12 @@
     "saveDraft": "Simpan draf",
     "draftSaved": "Draf disimpan",
     "unknownKind": "Jenis dokumen tidak dikenal",
-    "unknownKindSub": "Gunakan Terima, Transfer, Keluarkan, Kembalikan, Hitung stok, atau Penyesuaian dari halaman Stok.",
+    "unknownKindSub": "Gunakan Terima, Transfer stok, Keluarkan, Pengembalian stok, Hitung stok, atau Penyesuaian dari halaman Stok.",
     "submit": {
       "receive": "Posting penerimaan",
-      "transfer": "Posting transfer",
+      "transfer": "Posting transfer stok",
       "issue": "Posting pengeluaran",
-      "return": "Posting pengembalian"
+      "return": "Posting pengembalian stok"
     },
     "sections": {
       "where": "Lokasi",
@@ -439,9 +440,9 @@
     "confirmPost": {
       "title": {
         "receive": "Posting penerimaan ini?",
-        "transfer": "Posting transfer ini?",
+        "transfer": "Posting transfer stok ini?",
         "issue": "Posting pengeluaran ini?",
-        "return": "Posting pengembalian ini?"
+        "return": "Posting pengembalian stok ini?"
       },
       "where": {
         "receive": "Masuk ke {{from}}",
@@ -654,6 +655,11 @@
   },
   "siteWork": {
     "materialProgress": {
+      "alert": {
+        "badge_one": "{{count}} barang melebihi progres",
+        "badge_other": "{{count}} barang melebihi progres",
+        "badgeHint": "Buka stok $t(common:terms.clientWorkOrder) ini untuk melihat barangnya."
+      },
       "banner": {
         "title": "Barang dikeluarkan melebihi progres: {{count}}",
         "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres $t(common:terms.clientWorkOrder) ({{progress}}%). Ini hanya peringatan.",
@@ -739,15 +745,15 @@
     }
   },
   "transfers": {
-    "title": "Transfer",
-    "send": "Kirim transfer",
-    "sendTitle": "Kirim transfer",
+    "title": "Transfer stok",
+    "send": "Kirim transfer stok",
+    "sendTitle": "Kirim transfer stok",
     "off": {
-      "title": "Transfer dua langkah belum aktif",
+      "title": "Transfer stok dua langkah belum aktif",
       "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
     },
     "empty": {
-      "title": "Belum ada transfer",
+      "title": "Belum ada transfer stok",
       "sub": "Kirim material dari satu lokasi ke lokasi lain; penerima menghitungnya saat tiba."
     },
     "groups": {
@@ -763,7 +769,7 @@
     },
     "shortOpen_one": "{{count}} selisih terbuka",
     "shortOpen_other": "{{count}} selisih terbuka",
-    "sentToast": "Transfer terkirim",
+    "sentToast": "Transfer stok terkirim",
     "sendConfirm": {
       "title": "Kirim transfer ini?",
       "where": "Dari {{from}} ke {{to}}",
@@ -774,9 +780,9 @@
     "receiverNone": "Siapa pun penjaga tujuan",
     "receiverHelp": "Pilih orang yang akan menghitung barang saat tiba: penjaga gudang tujuan atau akun lapangan. Anda tidak bisa memilih diri sendiri.",
     "viewOnly": "Anda melihat sebagai peran lain, jadi tidak ada yang bisa dikirim.",
-    "notFound": "Transfer tidak ditemukan",
-    "detailTitle": "Transfer",
-    "back": "Kembali ke transfer",
+    "notFound": "Transfer stok tidak ditemukan",
+    "detailTitle": "Transfer stok",
+    "back": "Kembali ke transfer stok",
     "summary": "Ringkasan",
     "sentBy": "Dikirim oleh {{name}} pada {{at}}",
     "addressedTo": "Ditujukan kepada {{name}}",
@@ -811,18 +817,18 @@
       "written_off": "Hapuskan"
     },
     "resolvedToast": "Selisih diselesaikan",
-    "recallTitle": "Tarik kembali transfer ini",
+    "recallTitle": "Tarik kembali transfer stok ini",
     "recallReason": "Alasan penarikan",
     "recallAction": "Tarik kembali",
-    "recalledToast": "Transfer ditarik kembali",
+    "recalledToast": "Transfer stok ditarik kembali",
     "receivedToast": "Penerimaan dicatat",
     "proofAddedToast": "Bukti dicatat",
-    "senderWaits": "Anda yang mengirim transfer ini, jadi orang lain yang menghitungnya saat tiba. Transfer menunggu penerima.",
+    "senderWaits": "Anda yang mengirim transfer stok ini, jadi orang lain yang menghitungnya saat tiba. Transfer stok menunggu penerima.",
     "print": {
       "action": "Cetak surat jalan",
       "title": "Surat jalan",
       "off": "Surat jalan dimatikan untuk organisasi ini. Admin dapat menyalakannya di pengaturan permintaan material.",
-      "back": "Kembali ke transfer",
+      "back": "Kembali ke transfer stok",
       "print": "Cetak",
       "code": "Kode barang",
       "description": "Uraian",
@@ -869,7 +875,7 @@
       "mixed": "Beberapa aturan"
     },
     "requiredNow": "Bukti dibutuhkan sebelum menerima: {{rules}}.",
-    "mayFollow": "Bukti boleh menyusul: transfer tetap berstatus bukti belum lengkap sampai ditambahkan.",
+    "mayFollow": "Bukti boleh menyusul: transfer stok tetap berstatus bukti belum lengkap sampai ditambahkan.",
     "addTitle": "Tambahkan bukti yang kurang",
     "addAction": "Catat bukti",
     "chase": {
@@ -884,8 +890,8 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfer dan bukti",
-    "mode": "Cara transfer dilakukan",
+    "manage": "Transfer stok dan bukti",
+    "mode": "Cara transfer stok dilakukan",
     "oneStep": "Satu langkah: langsung diposting",
     "twoStep": "Dua langkah: kirim, lalu terima dengan penghitungan",
     "modeHelp": "Dua langkah menjaga barang tetap dalam perjalanan sampai penerima menghitungnya. Pengirim menunjuk penerima; pengirim tidak menghitung kirimannya sendiri.",
@@ -895,8 +901,8 @@
     "timingHelp": "Berlaku untuk tag yang mewajibkan bukti.",
     "proofPerTag": "Bukti yang berlaku, per tag",
     "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima",
-    "inTransit_one": "{{count}} transfer sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik.",
-    "inTransit_other": "{{count}} transfer sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik."
+    "inTransit_one": "{{count}} transfer stok sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik.",
+    "inTransit_other": "{{count}} transfer stok sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik."
   },
   "workOrderTransfer": {
     "title": "Pindahkan sisa material antar $t(common:terms.clientWorkOrder)",
@@ -987,5 +993,69 @@
     "itemsAll": "Semua barang pada baris material",
     "itemsConsumables": "Hanya barang bertanda habis pakai",
     "flagList": "Barang yang dihitung habis pakai"
+  },
+  "opening": {
+    "title": "Stok awal",
+    "backToSetup": "Kembali ke pengaturan",
+    "asOf": "Tanggal mulai pakai",
+    "notAdmin": {
+      "title": "Admin yang memuat stok awal",
+      "sub": "Minta Admin memuatnya di sini."
+    },
+    "template": {
+      "title": "Templat",
+      "column": "Kolom",
+      "required": "Wajib",
+      "holds": "Isinya",
+      "yes": "Ya",
+      "no": "Tidak",
+      "download": "Unduh templat"
+    },
+    "file": {
+      "title": "Berkas",
+      "choose": "Pilih berkas",
+      "change": "Pilih berkas lain",
+      "rows": "{{count}} baris"
+    },
+    "preview": {
+      "title": "Pratinjau",
+      "row": "Baris",
+      "rowN": "Baris {{n}}",
+      "column": "Kolom",
+      "date": "Tanggal",
+      "location": "Lokasi",
+      "item": "Barang",
+      "direction": "Arah",
+      "in": "Masuk",
+      "out": "Keluar",
+      "quantity": "Jumlah",
+      "status": "Status",
+      "accepted": "Diterima",
+      "summary": "{{accepted}} diterima, {{refused}} ditolak. Tidak ada yang dicatat sebelum Anda mengonfirmasi."
+    },
+    "closing": {
+      "title": "Sisa akhir",
+      "value": "Nilai",
+      "clientSupplied": "Dipasok klien"
+    },
+    "confirm": {
+      "button": "Konfirmasi stok awal",
+      "noFile": "Pilih berkas terlebih dahulu.",
+      "noDate": "Pilih tanggal mulai pakai terlebih dahulu.",
+      "fixFile": "Perbaiki baris yang tercantum di berkas Anda, lalu pilih berkas itu lagi.",
+      "checking": "Memeriksa berkas.",
+      "checkFailed": "Pemeriksaan gagal. Pilih berkas lagi.",
+      "refused": "Perbaiki {{count}} baris yang ditolak di berkas Anda, lalu pilih berkas itu lagi."
+    },
+    "done": {
+      "title": "Stok awal dimuat",
+      "sub": "{{count}} lokasi kini dimulai dari riwayat ini.",
+      "openLedger": "Buka buku besar stok"
+    },
+    "errors": {
+      "file": "Berkas ini tidak dapat dibaca. Gunakan templat, disimpan sebagai .xlsx.",
+      "missingColumn": "Berkas tidak memiliki kolom {{column}}. Gunakan templat.",
+      "tooMany": "Satu berkas berisi 1 sampai {{max}} baris. Bagi per lokasi."
+    }
   }
 }

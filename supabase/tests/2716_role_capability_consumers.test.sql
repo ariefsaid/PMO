@@ -71,7 +71,7 @@ select is((select coalesce(string_agg(h.cap, ', ' order by h.cap), '') from cap_
 select is((select count(*)::int from cap_held), 2, 'AC-RCG-004 the held list is exactly the two capabilities awaiting a ruling');
 
 select is((select string_agg(cap, ',' order by cap) from cap_catalogue),
-  'daily_report_enter,daily_report_validate,medical_documents_view,people_documents_view,sees_prices',
+  'billing_steps_run,billing_steps_view,daily_report_enter,daily_report_validate,medical_documents_view,people_documents_view,sees_prices',
   'AC-RCG-005 the catalogue lists exactly the read capabilities and the two held ones');
 
 select * from finish();

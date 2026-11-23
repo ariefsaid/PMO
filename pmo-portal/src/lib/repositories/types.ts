@@ -1,3 +1,4 @@
+import type { StockOpeningRepository } from './stockOpening';
 import type { TaskProofRepository } from './taskProofs';
 import type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
 /**
@@ -84,6 +85,7 @@ import type {
   IncidentRepository,
 } from './contracts/incidents';
 import type { IssueClosingReportRepository } from './contracts/issueClosingReport';
+import type { IncidentTypeRepository } from './contracts/incidentTypes';
 import type { CommentRepository } from './contracts/comments';
 import type {
   IntegrationsRepository,
@@ -124,6 +126,7 @@ import type {
 } from './contracts/workOrders';
 import type { BillingStagesRepository } from './contracts/billingStages';
 import type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
+import type { SurveyRecordRepository } from './contracts/surveyRecords';
 import type { WorkInHandRepository } from './contracts/workInHand';
 import type { SupplyRiskRepository } from './contracts/supplyRisk';
 
@@ -158,14 +161,17 @@ export interface Repositories {
   thirdPartyInspection: ThirdPartyInspectionRepository;
   incident: IncidentRepository;
   issueClosingReport: IssueClosingReportRepository;
+  incidentType: IncidentTypeRepository;
   comment: CommentRepository;
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
   billingStages: BillingStagesRepository;
   closeoutChecklist: CloseoutChecklistRepository;
+  surveyRecord: SurveyRecordRepository;
   workInHand: WorkInHandRepository;
   stock: StockRepository;
+  stockOpening: StockOpeningRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
@@ -225,13 +231,16 @@ export type { RevenueRepository } from './contracts/revenue';
 export type { TimesheetRepository } from './contracts/timesheets';
 export type { BudgetRepository } from './contracts/budget';
 export type { StockMasterRepository, StockRepository } from './contracts/stock';
+export type { StockOpeningRepository } from './stockOpening';
 export type { IncidentRepository } from './contracts/incidents';
 export type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
 export type { IssueClosingReportRepository } from './contracts/issueClosingReport';
+export type { IncidentTypeRepository } from './contracts/incidentTypes';
 export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { BillingStagesRepository } from './contracts/billingStages';
 export type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
+export type { SurveyRecordRepository } from './contracts/surveyRecords';
 export type { WorkInHandRepository } from './contracts/workInHand';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';

@@ -151,7 +151,50 @@
     "title": "Note"
   },
   "people": {
-    "title": "People hours"
+    "title": "People hours",
+    "byPerson": "Hours by person",
+    "intro": "The standing figure is the one paid and costed. A second record is kept beside it as evidence.",
+    "empty": "No one is rostered on this work order for this day. Roster a crew on the Crews page.",
+    "noHours": "No hours recorded",
+    "standing": "Stands",
+    "second": "Second record",
+    "hours": "{{hours}} h",
+    "absent": "Absent",
+    "present": "Present",
+    "source": {
+      "roster_tick": "Site report",
+      "phone_check_in": "Clock-in",
+      "manual_correction": "Office correction"
+    },
+    "decided": {
+      "day": "Site report figure stands",
+      "second": "Second record stands"
+    },
+    "needsDecision": "The two records differ. Decide which hours stand.",
+    "addSecond": "Add second record",
+    "addSecondFor": "Second record for {{name}}",
+    "saveSecond": "Save second record",
+    "savedSecond": "Second record saved",
+    "decide": "Decide",
+    "decideFor": "Which hours stand for {{name}}",
+    "confirmDecide": "Confirm",
+    "decidedToast": "Decision saved",
+    "choose": "Which figure stands (paid and costed). The other is kept as evidence.",
+    "chooseDay": "Site report: {{figure}}",
+    "chooseSecond": "Second record: {{figure}}",
+    "hoursRange": "Enter hours from 0 to 24.",
+    "reasonRequired": "Say why this figure stands.",
+    "cannotDecideRole": "Your role does not decide which hours stand.",
+    "cannotDecideMine": "You recorded one of these figures. Someone else decides.",
+    "cannotDecideOwn": "This is your own working day. Someone else decides.",
+    "cannotDecideNoDay": "The site report figure for this day is not recorded yet.",
+    "field": {
+      "status": "Was this person present?",
+      "hours": "Hours",
+      "overtime": "Overtime hours",
+      "note": "Note (optional)",
+      "reason": "Why this figure stands"
+    }
   },
   "photos": {
     "addForm": "Photo of paper form",

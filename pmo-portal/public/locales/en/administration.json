@@ -671,12 +671,6 @@
       "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
-      "setup": {
-        "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
-        "linkAction": "Link them to a person",
-        "noCrew": "Not in any crew, so they have no work to check in to.",
-        "crewAction": "Add them to a crew"
-      },
       "builtIn": {
         "tier": {
           "manager": "Managers",
@@ -749,6 +743,12 @@
         "alreadyInvitedDetail": "{{email}} already has a valid invite. No new email was sent.",
         "inviteResent": "Invite sent again",
         "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
+      },
+      "setup": {
+        "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
+        "linkAction": "Link them to a person",
+        "noCrew": "Not in any crew, so they have no work to check in to.",
+        "crewAction": "Add them to a crew"
       }
     },
     "spendApprovers": {
@@ -765,31 +765,49 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
-      "siteCheckpoints": {
-        "title": "Day checkpoints",
-        "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
-        "loadError": "Couldn't load the checkpoints",
-        "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
-        "name": "Name",
-        "time": "Due time",
-        "grace": "Grace (minutes)",
-        "photo": "Photo required",
-        "photoLabel": "Photo required for {{name}}",
-        "start": "Marks the start of work",
-        "startLabel": "Marks the start of work for {{name}}",
-        "up": "Move up",
-        "down": "Move down",
-        "remove": "Remove",
-        "add": "Add checkpoint",
-        "save": "Save checkpoints",
-        "saved": "Checkpoints saved",
-        "invalid": {
-          "name": "Every checkpoint needs a name of up to 120 characters",
-          "time": "Every checkpoint needs a due time",
-          "grace": "Grace is a whole number from 0 to 120 minutes",
-          "start": "Only one checkpoint can mark the start of work"
-        }
-      },
+    "siteCheckpoints": {
+      "title": "Day checkpoints",
+      "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
+      "loadError": "Couldn't load the checkpoints",
+      "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
+      "name": "Name",
+      "time": "Due time",
+      "grace": "Grace (minutes)",
+      "photo": "Photo required",
+      "photoLabel": "Photo required for {{name}}",
+      "start": "Marks the start of work",
+      "startLabel": "Marks the start of work for {{name}}",
+      "up": "Move up",
+      "down": "Move down",
+      "remove": "Remove",
+      "add": "Add checkpoint",
+      "save": "Save checkpoints",
+      "saved": "Checkpoints saved",
+      "invalid": {
+        "name": "Every checkpoint needs a name of up to 120 characters",
+        "time": "Every checkpoint needs a due time",
+        "grace": "Grace is a whole number from 0 to 120 minutes",
+        "start": "Only one checkpoint can mark the start of work"
+      }
+    },
+    "issueTypes": {
+      "title": "Issue types",
+      "helper": "The types people choose when they raise an issue, and the groups the closing-time report uses. Renaming a type renames it on every issue that has it. Archiving hides a type from new issues; issues that already have it keep it.",
+      "empty": "No issue types yet, so nobody can raise an issue. Add your organisation's types below.",
+      "nearEmpty": "Only one type is listed. Add your organisation's own types below so issues can be grouped and timed by type.",
+      "add": "Add",
+      "addLabel": "New issue type",
+      "rename": "Rename",
+      "renameFor": "Name for {{name}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived": "Archived",
+      "loadError": "Couldn't load the issue types",
+      "saved": "Issue types saved",
+      "duplicate": "That type is already in the list"
+    },
     "siteReportLists": {
       "title": "Site report lists",
       "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
@@ -820,6 +838,17 @@
       "turnOn": "Hide prices from requesters",
       "turnOff": "Show prices to requesters again"
     },
+    "claimOverCap": {
+      "title": "Claims over the claimable quantity",
+      "loadError": "Couldn't load the claim quantity setting",
+      "saved": "Claim quantity setting saved",
+      "helper": "A claim line is measured against the quantity still claimable on its work order line: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity, otherwise the ordered quantity, less what live claims already took. Warn only lets the claim through with a warning on the form. Refuse stops the claim until the quantity is lowered or the next acceptance is confirmed.",
+      "warn": "Warn only",
+      "block": "Refuse",
+      "adminOnly": "Only an Admin can change this.",
+      "turnOn": "Refuse claims over the claimable quantity",
+      "turnOff": "Only warn on claims over the claimable quantity"
+    },
     "fiscalYear": {
       "title": "Fiscal year",
       "label": "Fiscal year starts in",
@@ -843,7 +872,19 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
-      }
+    },
+    "attendanceRoles": {
+      "title": "Time records",
+      "intro": "Name who may enter a second record of a worker's day (a surveyor or timekeeper) and who decides which hours stand when two records differ. A second record never changes paid hours on its own.",
+      "secondLabel": "May enter a second record",
+      "secondHelper": "An Admin, Executive or Project Manager always may.",
+      "deciderLabel": "Decides which hours stand",
+      "deciderHelper": "Leave empty to use today's approvers (Admin, Executive, Project Manager). Nobody decides hours they recorded.",
+      "save": "Save",
+      "saved": "Time record roles saved",
+      "loadError": "Couldn't load the time record roles",
+      "adminOnly": "Only an Admin can change this."
+    }
   },
   "exchangeRates": {
     "displayOnly": "Display equivalents only",
@@ -931,6 +972,8 @@
     "editLabel": "Edit {{name}}",
     "edit": "Edit",
     "add": "Add person",
+    "importDocuments": "Import documents",
+    "importPeople": "Import people",
     "error": "Couldn't load people",
     "errorSub": "The request failed. Check your connection and try again.",
     "retry": "Retry",
@@ -941,6 +984,11 @@
     "all": "All",
     "formerEmpty": "No former staff. People you mark as left appear here.",
     "navLabel": "People",
+    "manager": "Direct manager (optional)",
+    "managerPlaceholder": "No manager set",
+    "managerSearch": "Search users",
+    "managerHelp": "The manager is warned first when this person's documents are about to expire, and records the renewal.",
+    "managerReadOnly": "Only an Admin or the people team (HR) can change the direct manager.",
     "markLeft": "Mark as left",
     "markLeftLabel": "Mark {{name}} as left",
     "leftTitle": "Mark {{name}} as left",
@@ -1010,11 +1058,15 @@
     "appliesTo": "Applies to",
     "person": "Person",
     "equipment": "Equipment",
-    "medical": "Medical document (status and date only, visible to Admin and HR)",
+    "medical": "Medical document (status and date only, visible to Admin only)",
     "medicalCol": "Medical",
     "yes": "Yes",
     "roles": "Roles notified",
-    "rolesHelp": "The person's manager is always notified. Leave empty to use the default for this kind.",
+    "rolesHelp": "Tick the roles to warn before a document of this type expires. A person's direct manager is always warned too.",
+    "notifyPerson": "Also tell the person",
+    "thePerson": "The person",
+    "manager": "Direct manager",
+    "noOne": "No one is warned",
     "actions": "Actions",
     "edit": "Edit",
     "archive": "Archive",
@@ -1043,7 +1095,7 @@
     "switch": "Cost approved hours in money",
     "adminOnly": "Only an Admin or Finance can change labour cost settings.",
     "locked": "This would change hours already priced on approved timesheets. Start the new rate after the last priced day.",
-    "duplicate": "A rate for this person or role already starts on that date.",
+    "duplicate": "A rate for this person, role or class already starts on that date.",
     "classes": "Labour classes",
     "addClass": "Add class",
     "archived": "archived",
@@ -1077,6 +1129,27 @@
     "saveRate": "Save rate",
     "subjectRole": "A role",
     "subjectPerson": "One person",
+    "subjectClass": "A labour class (people with no login)",
+    "subjectClassCell": "People with no login in this class",
+    "assignments": {
+      "title": "Crew member classes",
+      "add": "Assign a class",
+      "intro": "People with no login are costed by their class: a class rate prices their approved attendance.",
+      "empty": "No crew member has a labour class yet. Admin or Finance adds one here; until then their approved hours carry no rate.",
+      "person": "Person",
+      "personNoun": "person",
+      "personNounPlural": "people",
+      "personHelp": "People in the register with no login.",
+      "noPeople": "Everyone in the people register has a login. Add the crew member under People first.",
+      "endLabel": "End {{name}}",
+      "archiveLabel": "Archive {{name}}",
+      "saved": "Class assigned",
+      "endTitle": "End this class",
+      "lastDay": "Last day in this class",
+      "archiveTitle": "Archive this class?",
+      "archiveDescription": "It stops applying. A class that already costs approved days cannot be archived: end it instead.",
+      "archiveConfirm": "Archive class"
+    },
     "person": "Person",
     "choosePerson": "Choose a person",
     "role": "Role",
@@ -1116,6 +1189,13 @@
     "on": "On",
     "off": "Off"
   },
+  "idleCost": {
+    "adminOnly": "Only an Admin or Finance can change this setting.",
+    "scope": "Idle cost covers",
+    "scopeHelper": "People: idle hours times the crew present each day. Equipment: standby cost of rented equipment on days with idle time. Neither is added to direct cost.",
+    "scopeLabour": "Idle hours at the average hourly cost",
+    "scopePeopleEquipment": "People present and rented equipment on standby"
+  },
   "issueClosingReport": {
     "title": "Issue closing-time report",
     "helper": "Choose how the closing-time report groups issues, and set up department groups.",
@@ -1136,7 +1216,7 @@
     "saved": "Settings saved",
     "groupSaved": "Department group saved",
     "groupDeleted": "Department group deleted"
-    },
+  },
   "clearance": {
     "items": {
       "errName": "Enter the item name",
@@ -1146,6 +1226,10 @@
       "addTitle": "Add item",
       "save": "Save item",
       "name": "Item name",
+      "target": "Target (days)",
+      "targetHelp": "Optional. Counted from the day a person is added. Leave blank for no target.",
+      "targetValue": "{{count}} days",
+      "errTarget": "Use a whole number of days from 1 to 365, or leave it blank.",
       "required": "Required to be cleared",
       "heading": "Checklist items",
       "add": "Add item",
@@ -1171,7 +1255,8 @@
       "loadError": "Couldn’t load the people",
       "emptyTitle": "No people in the register",
       "emptySub": "Add people under People first; then their checklist appears here.",
-      "progress": "{{done}} of {{total}} required"
+      "progress": "{{done}} of {{total}} required",
+      "overdue": "Overdue: {{count}}"
     },
     "cleared": "Cleared",
     "notCleared": "Not cleared",
@@ -1200,6 +1285,8 @@
       "emptySub": "An Admin lists what a person needs under Clearance; the items then appear here.",
       "doneLine": "Done {{date}}",
       "expiresLine": "Expires {{date}}",
+      "due": "Due {{date}}",
+      "overdue": "Overdue · due {{date}}",
       "edit": "Edit",
       "record": "Record",
       "remove": "Remove",

@@ -1,0 +1,7 @@
+{
+  "definer_functions": [
+    "work_order_line_accepted_quantity(uuid,uuid)",
+    "work_order_line_claimed_quantity(uuid,uuid,uuid)",
+    "work_order_line_headroom(uuid,uuid,uuid)"
+  ]
+}

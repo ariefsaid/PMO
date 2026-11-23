@@ -32,7 +32,9 @@
       "vendor_bill": "Vendor bills",
       "timesheet_entry": "Timesheets",
       "stock_document": "Stock movements",
-      "equipment_usage": "Equipment usage"
+      "equipment_usage": "Equipment usage",
+      "attendance_day": "Attendance (people with no login)",
+      "expense_claim": "Expense claims"
     },
     "unavailable": "Amount unavailable",
     "notCosted": "Not yet costed",
@@ -42,7 +44,8 @@
       "purchase_request": "Not counted as direct cost yet: a request counts once its supplier bill is recorded.",
       "purchase_order": "Not counted as direct cost yet: an order counts once its supplier bill is recorded.",
       "goods_receipt": "Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded."
-    }
+    },
+    "attendanceLabel": "Attendance"
   },
   "billing": {
     "title": "Billing and acceptances",
@@ -66,7 +69,16 @@
     "confirmFinalTitle": "Confirm the final BAST?",
     "confirmBody": "The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.",
     "confirmFinalBody": "Confirming a final BAST closes the work order at the accepted quantities. This cannot be undone.",
-    "confirmedToast": "BAST confirmed"
+    "confirmedToast": "BAST confirmed",
+    "perMonth": {
+      "title": "Billed per month",
+      "error": "Couldn't load the billed months",
+      "empty": "No submitted invoice yet.",
+      "basis": "Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.",
+      "incomplete": "Some invoices could not be totalled in this work order's currency, so no monthly figures are shown.",
+      "toDate": "to date",
+      "total": "Total billed"
+    }
   },
   "documents": {
     "title": "Documents",
@@ -97,6 +109,13 @@
     "error": "Couldn't save the site location",
     "saved": "Site location saved. The next validated report issues its material from here.",
     "cleared": "Site location cleared"
+  },
+  "responsible": {
+    "title": "Responsible person",
+    "label": "Site engineer for this work order",
+    "none": "Not set",
+    "noneReadOnly": "Not set. Ask a project manager to name the site engineer.",
+    "help": "Material usage warnings for this work order go to this person. While it is not set they go to the project manager."
   },
   "inspections": {
     "title": "Third-party inspections",
@@ -285,10 +304,43 @@
     },
     "importTakeoff": "Import take-off"
   },
+  "missing": {
+    "title": "Still missing",
+    "export": "Export CSV",
+    "fileStem": "Missing",
+    "error": "Couldn't load what this work order still lacks",
+    "empty": "Nothing is missing: no open steps, and every reported quantity is accepted and claimed.",
+    "closed": "This work order is closed or cancelled, so nothing is waiting on it.",
+    "whoAdds": "Who adds it: {{who}}",
+    "kind": {
+      "step": "Step",
+      "step-attachment": "Step attachment",
+      "quantity-accept": "Quantity to accept",
+      "quantity-claim": "Quantity to claim"
+    },
+    "col": {
+      "item": "Item",
+      "kind": "Kind",
+      "reason": "Why",
+      "who": "Who adds it"
+    },
+    "who": {
+      "role": "{{role}}",
+      "finance": "Finance or an Admin",
+      "team": "The project team"
+    },
+    "reason": {
+      "stepOpen": "This step is not done yet.",
+      "stepAttachment": "Nothing is attached yet for step \"{{step}}\".",
+      "quantityAccept": "{{quantity}} {{unit}} reported but not yet accepted. Record the acceptance.",
+      "quantityClaim": "{{quantity}} {{unit}} accepted but not yet claimed."
+    }
+  },
   "all": {
     "empty": "You have no work orders yet",
     "error": "Couldn't load your work orders",
     "noMatch": "No work order matches your search",
+    "overdueCount": "Overdue: {{count}}",
     "search": "Search by number, title or project",
     "seeAll": "See all",
     "tileEmpty": "No open work orders",

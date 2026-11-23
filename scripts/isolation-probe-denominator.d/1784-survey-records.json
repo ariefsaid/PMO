@@ -1,0 +1,16 @@
+{
+  "tables": [
+    {"table": "survey_records", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "survey_participants", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "survey_record_documents", "has_org": true, "pk": "record_id", "columns": "*", "b_read": "own-org-only", "by_id": "n/a: composite key (record_id, document_id), not a row uuid; the blind read covers the declared B visibility"}
+  ],
+  "definer_functions": [
+    "archive_survey_draft(uuid)",
+    "attach_survey_document(uuid,uuid)",
+    "confirm_survey(uuid)",
+    "record_survey(uuid,uuid,date,numeric,numeric,jsonb,uuid,text)",
+    "survey_lock_draft(uuid)",
+    "survey_lock_work_order(uuid)",
+    "survey_quantity_for_line(uuid,uuid)"
+  ]
+}

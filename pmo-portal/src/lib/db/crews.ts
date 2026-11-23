@@ -64,6 +64,9 @@ export interface RosterMember {
   standard_role_id: string | null;
   /** Off rotation that day (FR-CRW-010): the tick screen defaults them to off rotation. */
   off_rotation?: boolean;
+  /** Recorded on the day as following this crew without a loan; `from_crew_name` is where they are placed. */
+  followed?: boolean;
+  from_crew_name?: string | null;
   /** The person told the crew leader they are not coming in that day (1631); the roster shows it, it is not attendance. */
   reported_absent?: { reason: 'sick' | 'other'; note: string | null };
 }

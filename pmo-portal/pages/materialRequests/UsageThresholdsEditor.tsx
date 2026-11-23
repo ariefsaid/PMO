@@ -33,7 +33,7 @@ export const UsageThresholdsEditor: React.FC = () => {
   const rangeError = dirty && !parsed.ok && parsed.error === 'range' ? t('usage.invalidRange', 'Enter a percentage from 1 to 1000.') : undefined;
   const orderError = dirty && !parsed.ok && parsed.error === 'order' ? t('usage.invalidOrder', 'The second warning must be higher than the first.') : undefined;
   return (
-    <RecordSection title={t('usage.title', 'Usage warnings')} subline={t('usage.sub', "Warn when a work order's material use reaches these percentages of plan. Leave a field empty to switch that warning off. Warnings never block a request.")}>
+    <RecordSection title={t('usage.title', 'Usage warnings')} subline={t('usage.sub', "Warn when a work order's material use reaches these percentages of plan. Leave a field empty to switch that warning off. Warnings never block a request. The first warning also tells the work order's site engineer when installed material reaches it.")}>
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       <div className="flex flex-wrap items-end gap-2">
         <TextField label={t('usage.first', 'First warning (% of plan)')} inputMode="decimal" value={a} onChange={setFirst} error={rangeError} />

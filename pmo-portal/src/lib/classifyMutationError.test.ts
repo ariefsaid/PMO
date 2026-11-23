@@ -321,7 +321,7 @@ describe('a database refusal reads as its own sentence, never its code (#2745)',
   it('a rule with no mapper of its own shows the catalogue sentence instead of the generic "refresh"', () => {
     const e = Object.assign(new Error('PCI_CREW: you are not in that crew today'), { code: '23514' });
     const c = classifyMutationError(e, undefined, { suppressCapture: true });
-    expect(c.detail).toMatch(/not in that crew today/);
+    expect(c.detail).toMatch(/not on this work order today/);
     expect(c.detail).not.toMatch(/refresh|PCI_/i);
   });
   it('a code with no sentence still drops its prefix', () => {

@@ -185,6 +185,7 @@ const StockWorkOrderTransferPage = lazyWithPreload(() => import('./pages/stock/S
 const StockWorkOrderTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransferDetail'));
 const UsageStandardsPage = lazyWithPreload(() => import('./pages/stock/UsageStandards'));
 const StockAtRiskPage = lazyWithPreload(() => import('./pages/stock/StockAtRisk'));
+const StockOpeningHistoryPage = lazyWithPreload(() => import('./pages/stock/StockOpeningHistory'));
 
 // ── Route-entry + nav-link preloads (#1834) ──────────────────────────────────
 /** Anything with the lazyWithPreload preload() handle (structural — the rules
@@ -289,7 +290,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
   { path: '/work-orders', chunks: [WorkOrdersPage], namespaces: ['workOrders', 'status'] },
-  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety'] },
+  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety', 'billingSteps', 'refusals'] },
   { path: '/safety-days/:dayId', chunks: [SafetyDayFormPage], namespaces: ['safety', 'status'] },
   { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
@@ -316,7 +317,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/receivables', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
-  { path: '/finance/billing-board', chunks: [BillingBoardPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/billing-board', chunks: [BillingBoardPage], namespaces: ['finance', 'financeHub', 'billingSteps'] },
   { path: '/finance/billing-plan', chunks: [BillingPlanPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
@@ -352,6 +353,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/work-order-transfer', chunks: [StockWorkOrderTransferPage], namespaces: ['stock'] },
   { path: '/stock/usage-standards', chunks: [UsageStandardsPage], namespaces: ['stock', 'usageStandards'] },
   { path: '/stock/at-risk', chunks: [StockAtRiskPage], namespaces: ['stock'] },
+  { path: '/stock/opening', chunks: [StockOpeningHistoryPage], namespaces: ['stock', 'import'] },
   { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
   { path: '/stock', chunks: [StockOnHandPage], namespaces: ['stock'] },
   { path: '*', chunks: [NotFoundPage] },
@@ -630,6 +632,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/work-order-transfer/:transferId', element: gated('stock', <StockWorkOrderTransferDetailPage />) },
   { path: '/stock/usage-standards', element: gated('stock', <UsageStandardsPage />) },
   { path: '/stock/at-risk', element: gated('stock', <StockAtRiskPage />) },
+  { path: '/stock/opening', element: gated('stock', <StockOpeningHistoryPage />) },
   { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },
   { path: '*', element: <NotFoundPage /> },
 ];

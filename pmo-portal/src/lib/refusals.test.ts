@@ -23,6 +23,14 @@ const t = ((key: string, opts?: Record<string, unknown>) => {
   return raw.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(opts?.[k] ?? ''));
 }) as unknown as TFunction;
 
+describe('AC-CHR-008 the change-request refusals', () => {
+  it('has an English sentence for every new code', () => {
+    for (const code of ['QCR_NOT_APPROVER', 'QCR_SOD_AUTHOR', 'QCR_APPROVER_ROLE_UNKNOWN', 'QCR_APPROVER_ROLE_LIGHT', 'QCR_APPROVER_ROLE_CANNOT_READ']) {
+      expect(refusalText({ code: '42501', message: `${code}: x` }, tReal).known).toBe(true);
+    }
+  });
+});
+
 describe('parseRefusal', () => {
   it('reads family, code and sentence from FAMILY_CODE: text', () => {
     expect(parseRefusal({ code: '23514', message: 'PCI_CREW: you are not in that crew today' }))
@@ -39,6 +47,12 @@ describe('parseRefusal', () => {
   it('reads a figure out of the sentence for the codes whose migration writes no details', () => {
     expect(parseRefusal({ message: 'ATT_DAY_CEILING: Ana already has 20 hours on WO-1 that day' })?.values)
       .toEqual({ hours: '20', workOrder: 'WO-1' });
+  });
+  it('AC-SCS-012 reads the claimable headroom out of the claim-cap refusal', () => {
+    expect(parseRefusal({ message: 'CLM_OVER_CAP: only 2 unit still claimable on this work-order line (accepted 3, already claimed 1); lower the quantity or confirm the next acceptance' })?.values)
+      .toEqual({ headroom: '2' });
+    expect(parseRefusal({ message: 'CLM_OVER_CAP: only 0 unit still claimable on this work-order line (ordered 10, already claimed 10); lower the quantity' })?.values)
+      .toEqual({ headroom: '0' });
   });
   it('is null for anything that is not a refusal', () => {
     expect(parseRefusal({ code: '42501', message: 'permission denied for table x' })).toBeNull();

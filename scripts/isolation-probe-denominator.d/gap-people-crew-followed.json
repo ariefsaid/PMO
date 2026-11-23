@@ -1,0 +1,7 @@
+{
+  "definer_functions": [
+    "attendance_clear_follow(uuid,date)",
+    "worker_effective_crew(uuid,date)",
+    "worker_followed_crew(uuid,date)"
+  ]
+}

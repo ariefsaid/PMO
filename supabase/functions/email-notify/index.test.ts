@@ -139,3 +139,54 @@ Deno.test('AC-SCH-009: the scheduled_report template renders in both languages a
   assert(renderEmail('scheduled_report', 'id', 't', null).text.includes('laporan terjadwal'), 'Bahasa Indonesia text');
   assert(!/pmo-|acme|org /i.test(en.text.replace(/PMO/g, '')), 'no organisation name in the template');
 });
+
+const NAMING = {
+  terms: { en: { workOrder: { singular: 'job', plural: 'jobs' }, project: { singular: 'site', plural: 'sites' } }, id: { workOrder: { singular: 'pekerjaan', plural: 'pekerjaan' } } },
+  roles: { en: { project_manager: 'Site Lead', storekeeper: 'Yard Keeper', buyer: 'Buyer' }, id: { project_manager: 'Kepala Lokasi' } },
+  role_defaults: { en: { project_manager: 'Project Manager', storekeeper: 'Storekeeper', buyer: 'Buyer' } },
+};
+
+Deno.test('AC-TR-007: renderEmail renames a term and a role in subject, text and html, and keeps the locale lead line', () => {
+  const m = renderEmail('approval_request', 'en', 'Work order awaiting the Project Manager', 'Work orders for the project need the Storekeeper.', NAMING);
+  assertEquals(m.subject, 'Job awaiting the Site Lead');
+  assert(m.text.includes('Jobs for the site need the Yard Keeper.'), 'text is renamed');
+  assert(m.html.includes('Jobs for the site need the Yard Keeper.') && m.html.includes('Job awaiting the Site Lead'), 'html is renamed');
+  assert(m.text.includes('waiting for your approval'), 'English lead line');
+  const id = renderEmail('approval_request', 'id', 'Work order awaiting the Project Manager', null, NAMING);
+  assertEquals(id.subject, 'pekerjaan awaiting the Kepala Lokasi'.replace('pekerjaan', 'Pekerjaan'));
+  assert(id.text.includes('menunggu persetujuan'), 'Bahasa lead line');
+  const plain = renderEmail('approval_request', 'en', 'Work order awaiting the Project Manager', null);
+  assertEquals(plain.subject, 'Work order awaiting the Project Manager');
+});
+
+Deno.test('AC-TR-007: the shipped handler reads org_naming once per organisation and sends the renamed text', async () => {
+  setEnv(BASE_ENV);
+  const prior = globalThis.fetch;
+  const calls: string[] = [];
+  const sent: any[] = [];
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const r = input instanceof Request ? input : undefined;
+    const url = new URL(r?.url ?? String(input));
+    calls.push(url.pathname);
+    if (url.hostname === 'api.resend.com') { sent.push(JSON.parse(String(init?.body))); return j({ id: 'x' }); }
+    if (url.pathname === '/rest/v1/rpc/claim_email_outbox') {
+      return j([
+        { ...ROW, id: 'o1', org_id: 'org-a', title: 'Work order awaiting your approval' },
+        { ...ROW, id: 'o2', org_id: 'org-a', title: 'Work order awaiting your approval' },
+        { ...ROW, id: 'o3', org_id: 'org-b', title: 'Work order awaiting your approval' },
+      ]);
+    }
+    if (url.pathname === '/rest/v1/rpc/org_naming') {
+      const body = JSON.parse(String(init?.body ?? (r ? await r.clone().text() : '{}')));
+      return j(body.p_org === 'org-a' ? NAMING : { terms: {}, roles: {} });
+    }
+    if (url.pathname === '/rest/v1/rpc/complete_email_outbox') return new Response(null, { status: 204 });
+    throw new Error(`Unexpected fetch ${url.href}`);
+  };
+  try {
+    const res = await handleEmailNotifyRequest(req());
+    assertEquals(res.status, 200);
+    assertEquals(calls.filter((p) => p.endsWith('org_naming')).length, 2);
+    assertEquals(sent.map((s) => s.subject), ['Job awaiting your approval', 'Job awaiting your approval', 'Work order awaiting your approval']);
+  } finally { globalThis.fetch = prior; }
+});

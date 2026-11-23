@@ -29,7 +29,7 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance' } }) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: () => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
   useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs, useWorkOrderTimesheetLabels: () => h.labels,
@@ -38,6 +38,9 @@ vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual:
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 // #2578: the quantity-changes section has its own test (QuantityChangesSection.test.tsx); this file pins the existing sections.
 vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
+vi.mock('./work-order-detail/MissingSection', () => ({ MissingSection: () => null }));
+vi.mock('@/src/hooks/useBillingSteps', () => ({ useWorkOrderSteps: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));
 // The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
 vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
 vi.mock('./work-order-detail/ConsumablePlanSection', () => ({
@@ -180,6 +183,15 @@ describe('WorkOrderDetail', () => {
     renderPage();
     expect(screen.getByTestId('cost-line-hour1').textContent).toContain('Timesheet');
     expect(screen.getByTestId('cost-line-hour1').textContent).not.toContain('hour1');
+  });
+  it('names an approved no-login attendance day as attendance, never by its id, and does not call its amount unavailable', () => {
+    h.lines = q({ attendance_day: [{ ...ln('attendance_day', 'att1', null), reference: null, quantity: 8, quantityUnit: 'hours' }] });
+    h.money = q({});
+    renderPage();
+    const line = screen.getByTestId('cost-line-att1');
+    expect(line.textContent).toContain('Attendance');
+    expect(line.textContent).not.toContain('att1');
+    expect(within(screen.getByTestId('cost-group-attendance_day')).queryByText('Amount unavailable')).toBeNull();
   });
   it('explains when costs have no available amount', () => {
     h.lines = q({ timesheet_entry: [ln('timesheet_entry', 'hour1', null)] });

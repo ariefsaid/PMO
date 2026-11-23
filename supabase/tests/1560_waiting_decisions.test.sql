@@ -2,7 +2,7 @@
 -- Migration under test: 1560_waiting_decisions.sql. Each case asserts what the SAME gate as the deciding function lets the caller decide.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(27);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15600000-0000-0000-0000-00000000000a', 'Wait Org', 'IDR', 'Asia/Jakarta'), ('15600000-0000-0000-0000-00000000000b', 'Wait Other Org', 'IDR', 'Asia/Jakarta');
@@ -160,6 +160,29 @@ set local role authenticated;
 select pg_temp._as('15600000-0000-0000-0000-0000000000a4');
 select throws_ok($$select * from public.my_waiting_decisions()$$, '42501', 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this', 'AC-WAIT-019 a light account is refused the waiting list');
 
+-- The check-in supervisor role: the person who holds the role the organisation names has standing; another role, or none, does not.
+reset role;
+select set_config('request.jwt.claims', '', true);
+update organizations set phone_check_in_supervisor_role = 'site_supervisor' where id = '15600000-0000-0000-0000-00000000000a';
+update profiles set manager_id = null where id = '15600000-0000-0000-0000-0000000000a2';
+update profiles set built_in_role = 'storekeeper' where id = '15600000-0000-0000-0000-0000000000a2';
+set local role authenticated;
+select pg_temp._as('15600000-0000-0000-0000-0000000000a2');
+select is(public.my_decision_standing(), false, 'AC-WAIT-020 a person holding another job role than the named check-in supervisor role has no standing');
+reset role;
+select set_config('request.jwt.claims', '', true);
+update profiles set built_in_role = 'site_supervisor' where id = '15600000-0000-0000-0000-0000000000a2';
+set local role authenticated;
+select pg_temp._as('15600000-0000-0000-0000-0000000000a2');
+select is(public.my_decision_standing(), true, 'AC-WAIT-021 the person holding the named check-in supervisor role has standing');
+reset role;
+select set_config('request.jwt.claims', '', true);
+update organizations set phone_check_in_supervisor_role = null where id = '15600000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select pg_temp._as('15600000-0000-0000-0000-0000000000a2');
+select is(public.my_decision_standing(), false, 'AC-WAIT-022 with no check-in supervisor role named, holding that job role gives no standing');
+
+reset role;
 -- Access: no anonymous reach, and the enumeration of kinds is closed.
 reset role;
 select is(has_function_privilege('anon', 'public.my_waiting_decisions()', 'execute'), false, 'AC-WAIT-015 anon cannot run the list');

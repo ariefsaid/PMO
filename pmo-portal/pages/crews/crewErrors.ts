@@ -52,3 +52,9 @@ export function useLeaveErrorText(): (err: unknown) => string {
     ? t('crews:leave.errors.duplicateType', 'That leave type already exists.')
     : refusalLine(refusal(err)));
 }
+
+/** One sentence for a refused medical-release write: a refusal sentence saying what to do next. */
+export function useReleaseErrorText(): (err: unknown) => string {
+  const refusal = useRefusalText();
+  return (err) => refusalLine(refusal(err));
+}

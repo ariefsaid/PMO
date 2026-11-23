@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — unique incident type (Date.now()), Engineer files+opens own detail; feature-flagged skip.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
+import { addIssueType } from './siteIssueFixture';
 
 /**
  * AC-INC-001  Incident detail page — the dead-end is gone (CW-4a, coherence-wave §4).
@@ -33,6 +34,7 @@ test.skip(
   async ({ page }) => {
     const runId = Date.now();
     const inType = `E2E-Detail-${runId}`;
+    await addIssueType(inType);
 
     await login(page, 'engineer@acme.test');
     await page.goto('/incidents');
@@ -43,7 +45,7 @@ test.skip(
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
     await dialog.getByLabel(/date/i).fill('2026-06-08');
-    await dialog.getByLabel(/^type/i).fill(inType);
+    await dialog.getByLabel(/^type/i).selectOption({ label: inType });
     await dialog.locator('select').first().selectOption('High');
     await dialog.getByLabel(/location/i).fill('Regional Site B');
     await dialog.getByLabel(/description/i).fill('E2E incident for the detail-page journey');

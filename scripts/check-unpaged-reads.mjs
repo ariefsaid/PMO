@@ -82,6 +82,7 @@ export function compare(offenders, allowKeys) {
 /** key -> one-line reason. */
 const ALLOWLIST = {
   'pmo-portal/src/lib/db/companies.ts :: companies #1': 'bounded: .in(id) chunked by BY_IDS_CHUNK',
+  'pmo-portal/src/lib/db/adminUsers.ts :: profiles #1': 'bounded: .in(id) of the managers of one directory page, at most one per row of that page',
   'pmo-portal/src/lib/db/externalDomainOwnership.ts :: external_domain_ownership #1': 'bounded: one row per (tier, domain), fixed set',
   'pmo-portal/src/lib/db/fxRates.ts :: fx_rates #1': 'bounded: .in(rate_date, dates), one row per date, caller-bounded',
   'pmo-portal/src/lib/db/imprest.ts :: imprest_plan_lines #1': 'bounded: lines of one plan, one per budget category',

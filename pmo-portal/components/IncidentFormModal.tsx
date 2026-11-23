@@ -18,6 +18,7 @@ import { FileInput } from '@/src/components/ui/FormFields';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useAssigneeOptions, useIncidentEvidenceMutations } from '@/src/hooks/useIncidents';
+import { useIncidentTypes } from '@/src/hooks/useIncidentTypes';
 import type { IncidentRow, IncidentSeverity, IncidentInput } from '@/src/lib/db/incidents';
 import { DateField } from '@/src/components/ui/DateField';
 import { severityLabel } from '@/src/lib/incidents/transitions';
@@ -138,6 +139,16 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   const actionField = form.fieldProps('action');
   const dueField = form.fieldProps('due_date');
 
+  // The kept list of issue types (migration 1820): live types, plus the issue's own current type so editing an issue whose
+  // type was archived since still shows it (an unchanged type is never refused).
+  const typeList = useIncidentTypes();
+  const typeOptions = useMemo(() => {
+    const labels = (typeList.data ?? []).filter((x) => !x.archived_at).map((x) => x.label);
+    const current = incident?.type?.trim();
+    if (current && !labels.some((l) => l.toLowerCase() === current.toLowerCase())) labels.push(current);
+    return labels.map((label) => ({ value: label, label }));
+  }, [typeList.data, incident?.type]);
+
   // Work orders of the chosen project (the database re-checks the pairing); assignees = active members.
   const workOrders = useProjectWorkOrders(form.values.project_id ?? '');
   const workOrderOptions = useMemo<ComboboxOption[]>(
@@ -247,7 +258,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
             onBlur={severityField.onBlur}
             options={SEVERITIES.map((s) => ({ value: s, label: severityLabel(t, s) }))}
           />
-          <TextField
+          <SelectField
             id={typeField.id}
             label={t('form.type', 'Type')}
             required
@@ -255,7 +266,9 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
             onChange={typeField.onChange}
             onBlur={typeField.onBlur}
             error={typeField.error}
-            placeholder={t('form.typePlaceholder', 'e.g. Near Miss, Equipment Damage, Spill')}
+            placeholder={t('form.typePlaceholder', 'Choose a type')}
+            options={typeOptions}
+            helper={typeList.data && typeOptions.length === 0 ? t('form.typeEmpty', 'No issue types yet. An Admin adds them in Administration.') : undefined}
             fullWidth
           />
           <TextField

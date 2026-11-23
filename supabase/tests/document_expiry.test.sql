@@ -27,10 +27,10 @@ insert into people (id, org_id, code, name, manager_id, profile_id) values
   ('25270000-0000-0000-0000-0000000000e9', '25270000-0000-0000-0000-00000000000b', 'P-X', 'Foreign Person', null, null);
 insert into equipment_assets (id, org_id, code, name) values
   ('25270000-0000-0000-0000-0000000000d1', '25270000-0000-0000-0000-00000000000a', 'EQ-1', 'Crane One');
-insert into document_types (id, org_id, name, applies_to, is_medical, notify_roles) values
-  ('25270000-0000-0000-0000-0000000000f1', '25270000-0000-0000-0000-00000000000a', 'Work permit', 'person', false, '{}'),
-  ('25270000-0000-0000-0000-0000000000f2', '25270000-0000-0000-0000-00000000000a', 'Medical check', 'person', true, '{}'),
-  ('25270000-0000-0000-0000-0000000000f3', '25270000-0000-0000-0000-00000000000a', 'Equipment certificate', 'equipment', false, '{}');
+insert into document_types (id, org_id, name, applies_to, is_medical) values
+  ('25270000-0000-0000-0000-0000000000f1', '25270000-0000-0000-0000-00000000000a', 'Work permit', 'person', false),
+  ('25270000-0000-0000-0000-0000000000f2', '25270000-0000-0000-0000-00000000000a', 'Medical check', 'person', true),
+  ('25270000-0000-0000-0000-0000000000f3', '25270000-0000-0000-0000-00000000000a', 'Equipment certificate', 'equipment', false);
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -63,14 +63,14 @@ select throws_ok($$insert into people (org_id, code, name, manager_id) values ('
 -- time-controlled runner. Warning days default {30,14,7}.
 select is(public.run_document_expiry_warnings('2026-11-04'), 0, 'AC-DEX-003 nothing is sent before the first threshold (earliest doc is 31 days out)');
 -- 2026-11-20: equipment cert (12-05) is 15 days out -> threshold 30; permit (12-20) is 30 days -> threshold 30; medical 12-10 is 20 -> 30
-select is(public.run_document_expiry_warnings('2026-11-20'), 6, 'AC-DEX-003 30-day wave: permit→manager+admin, medical→manager+admin, certificate→admin+PM');
+select is(public.run_document_expiry_warnings('2026-11-20'), 5, 'AC-DEX-003 30-day wave: permit→manager+admin, medical→admin only (a manager without the medical right gets none, 1931), certificate→admin+PM');
 select is(public.run_document_expiry_warnings('2026-11-20'), 0, 'AC-DEX-004 re-running the same day sends nothing (idempotent)');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a1' and body like '%Work permit%'), 1,
   'AC-DEX-003 permit notice reached HR (Admin) at 30 days') ;
-select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a3'), 2, 'AC-DEX-003 the person''s manager is notified for both person documents');
+select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a3'), 1, 'AC-DEX-003 the person''s manager is notified for the non-medical person document only (1931)');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a4'), 0, 'AC-DEX-003 an unrelated Engineer is never notified');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2'), 1, 'AC-DEX-003 equipment notice reaches the PM role only for equipment');
-select is(public.run_document_expiry_warnings('2026-12-01'), 4, 'AC-DEX-004 next crossings only: certificate to 7 days (2), medical to 14 days (2); permit stays at 30');
+select is(public.run_document_expiry_warnings('2026-12-01'), 3, 'AC-DEX-004 next crossings only: certificate to 7 days (2), medical to 14 days (1, admin only); permit stays at 30');
 select is((select severity from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2' and body like '%Crane One%' and title like '%expires in 4 days%'), 'critical', 'AC-DEX-004 the 7-day warning is critical');
 select is((select count(*)::int from notifications where body ilike '%fit%' or body ilike '%unfit%'), 0, 'AC-DEX-002 no notification discloses a medical status');
 

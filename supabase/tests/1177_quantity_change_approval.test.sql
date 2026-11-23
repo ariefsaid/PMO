@@ -72,20 +72,20 @@ select lives_ok($$select qcr_submit((select v from ids where k = 'r1'))$$, 'the 
 select is((select cardinality(editor_ids) from quantity_change_requests where id = (select v from ids where k = 'r1')), 3, 'the editor set holds all three people');
 
 select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42501',
-  'separation of duties: the author cannot approve this request', 'AC-QCR-011 the submitter and last editor cannot approve');
+  'QCR_SOD_AUTHOR: separation of duties: the person who raised, edited or submitted a request cannot approve it; ask another reviewer', 'AC-QCR-011 the submitter and last editor cannot approve');
 set local request.jwt.claims = '{"sub":"25780000-0000-0000-0000-0000000000b1","role":"authenticated"}';
-select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42501', 'not authorized to approve quantity change requests',
+select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42501', 'QCR_NOT_APPROVER: your role cannot approve or return quantity change requests; ask an approver, or an Admin to add your role to the reviewer list',
   'AC-QCR-011 the author (a Project Manager) holds no approve role at all');
 set local request.jwt.claims = '{"sub":"25780000-0000-0000-0000-0000000000b2","role":"authenticated"}';
 select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42501',
-  'separation of duties: the author cannot approve this request', 'AC-QCR-011 an EARLIER editor, replaced as last editor, still cannot approve');
+  'QCR_SOD_AUTHOR: separation of duties: the person who raised, edited or submitted a request cannot approve it; ask another reviewer', 'AC-QCR-011 an EARLIER editor, replaced as last editor, still cannot approve');
 select throws_ok($$select qcr_return((select v from ids where k = 'r1'), 'no')$$, '42501',
-  'separation of duties: the author cannot approve this request', 'AC-QCR-011 an editor cannot return it either');
+  'QCR_SOD_AUTHOR: separation of duties: the person who raised, edited or submitted a request cannot approve it; ask another reviewer', 'AC-QCR-011 an editor cannot return it either');
 select is((select can_approve || ':' || reason from qcr_approval_state((select v from ids where k = 'r1'))), 'false:editor',
   'AC-QCR-027 the server tells the screen why an editor cannot approve');
 -- ── AC-QCR-012 roles and tenancy ────────────────────────────────────────────────────────────────────
 set local request.jwt.claims = '{"sub":"25780000-0000-0000-0000-0000000000b6","role":"authenticated"}';
-select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42501', 'not authorized to approve quantity change requests',
+select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42501', 'QCR_NOT_APPROVER: your role cannot approve or return quantity change requests; ask an approver, or an Admin to add your role to the reviewer list',
   'AC-QCR-012 a role without the approve permission is refused');
 set local request.jwt.claims = '{"sub":"25780000-0000-0000-0000-0000000000b7","role":"authenticated"}';
 select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, 'P0002', 'request not found',
@@ -129,7 +129,7 @@ reset role;
 update profiles set status = 'disabled' where id in ('25780000-0000-0000-0000-0000000000b2', '25780000-0000-0000-0000-0000000000b3', '25780000-0000-0000-0000-0000000000b5');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"25780000-0000-0000-0000-0000000000b4","role":"authenticated"}';
-select throws_ok($$select qcr_approve((select v from ids where k = 'r2'))$$, '42501', 'separation of duties: the author cannot approve this request',
+select throws_ok($$select qcr_approve((select v from ids where k = 'r2'))$$, '42501', 'QCR_SOD_AUTHOR: separation of duties: the person who raised, edited or submitted a request cannot approve it; ask another reviewer',
   'AC-QCR-013 the sole eligible user, who is also the author, cannot approve');
 select is((select status from quantity_change_requests where id = (select v from ids where k = 'r2')), 'pending_approval', 'AC-QCR-013 the request stays pending approval');
 select is((select eligible_approver_exists from qcr_approval_state((select v from ids where k = 'r2'))), false,
@@ -144,7 +144,7 @@ reset role;
 update quantity_change_requests set submitted_by = '25780000-0000-0000-0000-0000000000b5' where id = (select v from ids where k = 'r2');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"25780000-0000-0000-0000-0000000000b5","role":"authenticated"}';
-select throws_ok($$select qcr_approve((select v from ids where k = 'r2'))$$, '42501', 'separation of duties: the author cannot approve this request',
+select throws_ok($$select qcr_approve((select v from ids where k = 'r2'))$$, '42501', 'QCR_SOD_AUTHOR: separation of duties: the person who raised, edited or submitted a request cannot approve it; ask another reviewer',
   'AC-QCR-011 whoever submitted the request cannot approve it');
 
 -- ── AC-QCR-015 the client record ────────────────────────────────────────────────────────────────────

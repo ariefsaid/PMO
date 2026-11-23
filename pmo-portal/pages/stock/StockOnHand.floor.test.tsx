@@ -145,8 +145,8 @@ describe('stock on hand floor controls', () => {
 
   it.each([
     ['Issue to project', 'issue'],
-    ['Transfer', 'transfer'],
-    ['Return from project', 'return'],
+    ['Stock transfer', 'transfer'],
+    ['Stock return from project', 'return'],
     ['Stock count', 'count'],
     ['Adjustment', 'adjustment'],
   ])('floor: More menu %s opens its movement form', async (label, kind) => {

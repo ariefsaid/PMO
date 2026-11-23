@@ -24,7 +24,7 @@ export function useCrews() {
 }
 
 /** Every placement with its dates, for "who is in a crew now". Read only when asked for (`enabled`). */
-export function useAllCrewMembers(enabled: boolean) {
+export function useAllCrewMembers(enabled = true) {
   return useOrgQuery(['crew-members', 'all'], () => crewRepository.allMembers(), { enabled });
 }
 
@@ -105,6 +105,7 @@ export function useAttendanceMutations() {
       ...after,
     }),
     uploadPhoto: useMutation({ mutationFn: attendanceRepository.uploadPhoto, ...after }),
+    clearFollow: useMutation({ mutationFn: (v: { workerId: string; date: string }) => attendanceRepository.clearFollow(v.workerId, v.date), ...after }),
     generateWeek: useMutation({ mutationFn: (v: { workerId: string; weekStart: string }) => attendanceRepository.generateWeek(v.workerId, v.weekStart), ...after }),
     decideWeek: useMutation({
       mutationFn: (v: { workerId: string; weekStart: string; decision: 'approve' | 'reject'; reason: string | null }) =>

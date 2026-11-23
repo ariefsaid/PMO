@@ -4,14 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, ListPage, ListState, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useSubjectDocuments } from '@/src/hooks/useDocumentExpiry';
+import { useExpiringDocuments, useSubjectDocuments } from '@/src/hooks/useDocumentExpiry';
 import { formatDay } from '@/src/lib/format';
 import { ExpiryDocumentForm } from './ExpiryDocumentsCard';
-import { useExpiringDocuments } from '@/src/hooks/useDocumentExpiry';
 import type { ExpiringDocumentRow } from '@/src/lib/db/documentExpiry';
+import RecordRenewalAction from './RecordRenewalAction';
 
-/** Expiring documents (#2527): everything for people and equipment that expires in the next 30 days, plus what already has.
- *  Read-only; RLS decides the rows (medical status is Admin-only and carries a status, never results). */
 /** Loads the whole record of the expiring document, then opens the renew form on it. */
 const RenewDocument: React.FC<{ row: ExpiringDocumentRow; onClose: () => void }> = ({ row, onClose }) => {
   const docs = useSubjectDocuments(row.subject_kind, row.subject_id);
@@ -20,10 +18,14 @@ const RenewDocument: React.FC<{ row: ExpiringDocumentRow; onClose: () => void }>
   return <ExpiryDocumentForm kind={row.subject_kind} subjectId={row.subject_id} doc={doc} renew onClose={onClose} />;
 };
 
+/** Expiring documents (#2527): everything for people and equipment that expires in the next 30 days, plus what already has.
+ *  RLS decides the rows (medical status is Admin-only and carries a status, never results). Someone who may edit renews on the
+ *  full form; a person's direct manager (who may not edit) records a renewal date from the row, and the database decides who may. */
 const ExpiringDocumentsPage: React.FC = () => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
+  const mayRenew = (d: ExpiringDocumentRow) => may('edit', 'expiryDocument', { record: { kind: d.subject_kind, viewOnly: realRole !== effectiveRole } });
   const [renewing, setRenewing] = useState<ExpiringDocumentRow | null>(null);
   const { data, isPending, isError, refetch } = useExpiringDocuments();
   const rows = data ?? [];
@@ -47,8 +49,11 @@ const ExpiringDocumentsPage: React.FC = () => {
         <span className="flex flex-wrap gap-1">
           <Link className="touch-target inline-flex items-center text-primary-text underline" to={d.subject_kind === 'person' ? `/equipment/people/${d.subject_id}` : `/equipment/assets/${d.subject_id}`}
             aria-label={t('equipment:expiry.openRecord', 'Open the record of {{name}}', { name: d.subject_name })}>{t('equipment:expiry.open', 'Open')}</Link>
-          {may('edit', 'expiryDocument', { record: { kind: d.subject_kind, viewOnly: realRole !== effectiveRole } }) &&
-            <Button variant="outline" size="sm" aria-label={t('equipment:expiry.renewLabel', 'Renew {{type}} of {{name}}', { type: d.type_name, name: d.subject_name })} onClick={() => setRenewing(d)}>{t('equipment:expiryEdit.renew', 'Renew')}</Button>}
+          {mayRenew(d)
+            ? <Button variant="outline" size="sm" aria-label={t('equipment:expiry.renewLabel', 'Renew {{type}} of {{name}}', { type: d.type_name, name: d.subject_name })} onClick={() => setRenewing(d)}>{t('equipment:expiryEdit.renew', 'Renew')}</Button>
+            : d.subject_kind === 'person' && !d.is_medical
+              ? <RecordRenewalAction doc={{ id: d.id, subject_name: d.subject_name, type_name: d.type_name, expires_on: d.expires_on }} />
+              : null}
         </span>) },
   ];
 

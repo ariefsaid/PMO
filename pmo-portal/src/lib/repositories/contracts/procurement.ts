@@ -198,6 +198,12 @@ export interface ProcurementRepository {
   purchaseOrderSettings(): Promise<PurchaseOrderSettings>;
   /** Save purchase order print settings (#2688) */
   setPurchaseOrderSettings(enabled: boolean, signatureBlocks: string[], collectors: string[]): Promise<void>;
+  /** roles-that-decide FR-RTD-009: the built-in roles that may also raise and send purchase orders (empty = today). */
+  orderJobRoles(): Promise<string[]>;
+  /** Admin only; the database refuses a field role, an unknown key, or any key while built-in roles are off. */
+  setOrderJobRoles(keys: string[]): Promise<string[]>;
+  /** Whether the signed-in person fills one of those roles (the database gate). */
+  mayOrderPurchases(): Promise<boolean>;
 }
 
 export interface ProcurementFileRepository {
