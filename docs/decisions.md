@@ -3948,6 +3948,14 @@ Managers sit at Project Manager rank or above (Finance Manager at Finance, Execu
 - **DD-R1215-5 (#2706) An unrecorded member-day counts against the attendance rate in every proof.** This restates OD-ATR-2 for tests: the journey expects 1 present of 3 expected = 33.33 %, not 1 of 2 recorded.
 - **DD-R1215-6 One integration branch per round, proven as a batch.** A round's branches merge with `--no-ff` onto one branch; database, unit and one browser run prove the batch; a failure ledger is written before any fix worker starts. After a browser run the serial lane's own log is read, because the lane's job can report success while journeys fail (#2742).
 
+## Batch execution for current and future orchestrators (2026-11-23)
+
+- **OD-R1123-1 Batch integration is the standing execution model.** The owner reaffirmed the
+  parallel-build, batch-proof workflow for current and future orchestrators. The authoritative
+  procedure and required brief/handoff table are in
+  [Orca dispatch — Batch integration](orca-dispatch.md#batch-integration-owner-2026-11-23).
+  Existing acceptance, explicit safety stops and production approval requirements remain intact.
+
 ## Decisions from the 22 November fix round and gap round (2026-11-22)
 
 Owner rulings (changing one needs the owner):
