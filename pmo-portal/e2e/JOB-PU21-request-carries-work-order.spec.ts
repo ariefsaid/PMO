@@ -45,11 +45,11 @@ test('JOB-PU21 the request starts on the project\'s only open work order and the
     await page.goto(`/procurement/new?have=need&project=${projectId}&title=${encodeURIComponent(tag)}&lineName=Pipe&lineQty=3&lineRate=15000000`);
 
     // The work order is already chosen: no "project level" default. Combobox role avoids ambiguity with the adjacent clear button.
-    const picker = page.getByRole('combobox', { name: 'Work order' });
+    const picker = page.getByRole('combobox', { name: 'Work order', exact: true });
     await expect(picker).toContainText(`${tag} pump house`, { timeout: 20_000 });
 
     // Pick the discipline on the request form so cost attribution carries through.
-    await page.getByRole('combobox', { name: 'Discipline' }).click();
+    await page.getByRole('combobox', { name: 'Discipline', exact: true }).click();
     await page.locator('div[role="option"]', { hasText: `${tag} Piping` }).click();
     await page.getByRole('button', { name: 'Save draft' }).click();
     await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 20_000 });
@@ -83,8 +83,8 @@ test('JOB-PU21 the request starts on the project\'s only open work order and the
     await page.getByRole('button', { name: 'Record receipt' }).first().click();
     const receiptForm = page.getByTestId('form-create-gr');
     await expect(receiptForm).toBeVisible({ timeout: 10_000 });
-    await expect(receiptForm.getByRole('combobox', { name: 'Work order' })).toContainText(`${tag} pump house`);
-    await expect(receiptForm.getByRole('combobox', { name: 'Discipline' })).toContainText(`${tag} Piping`);
+    await expect(receiptForm.getByRole('combobox', { name: 'Work order', exact: true })).toContainText(`${tag} pump house`);
+    await expect(receiptForm.getByRole('combobox', { name: 'Discipline', exact: true })).toContainText(`${tag} Piping`);
 
     // Finish actual receipt save and confirm, proving the stored row carries work order and discipline.
     await receiptForm.getByTestId('btn-save-gr').click();

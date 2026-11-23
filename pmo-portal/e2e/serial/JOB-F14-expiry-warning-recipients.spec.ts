@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely-named person, document type and badge, runs the warning job for that data and deletes the rows and their notices afterwards; reads the seeded Project Manager and Engineer only.
+// @e2e-isolation: serial - each journey gives the seeded Engineer login a live person (one live person per login), so the two journeys, and any other journey that does the same, cannot run side by side; each creates its own uniquely-named document type and badge and deletes them, the person and the notices afterwards.
 /**
  * JOB-F14 — expiry warnings go to the right people (#2527). A worker's badge expires in 14 days; the person's manager is
  * the construction-manager role holder, and the document type names no extra roles.
@@ -7,8 +7,8 @@
  * Second journey (expiry-to-manager): the manager records the renewal from the warning's list and the worker is told.
  */
 import { test, expect } from '@playwright/test';
-import { signIn, visibleToast } from './helpers';
-import { ENGINEER_ID, inDays, need, ORG_ID, PM_ID, serviceClient, sql } from './support/jobJourney';
+import { signIn, visibleToast } from '../helpers';
+import { ENGINEER_ID, inDays, need, ORG_ID, PM_ID, serviceClient, sql } from '../support/jobJourney';
 
 test.setTimeout(120_000);
 const must = need('JOB-F14');

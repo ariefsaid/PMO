@@ -48,6 +48,7 @@ test.afterEach(async () => {
   await db.from('work_order_crews').update({ valid_to: inDays(-1) }).eq('crew_id', crewId);
   await db.from('crew_members').update({ valid_to: inDays(-1) }).eq('crew_id', crewId);
   if (createdPerson) await db.from('crew_members').delete().eq('worker_id', personId);
+  if (createdPerson) await db.from('people').update({ archived_at: new Date().toISOString() }).eq('id', personId); // a live person left on the Engineer login blocks every journey that gives that login its own
   await db.from('profiles').update({ manager_id: previousManager }).eq('id', ENGINEER_ID);
   await db.from('organizations').update({ leave_requests_enabled: true, leave_approver_role: null }).eq('id', ORG_ID);
 });

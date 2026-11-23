@@ -42,10 +42,10 @@ test('AC-RTD-017: an Admin sets a step to a built-in role and its holder approve
     await page.goto('/material-requests/settings');
     const step1 = page.getByTestId('chain-step').first();
     await step1.getByLabel('Built-in role that decides').selectOption('material_coordinator');
-    await expect(step1.getByLabel('Role')).toBeDisabled();
+    await expect(step1.getByLabel('Role', { exact: true })).toBeDisabled();
     await expect(step1.getByText('Set by the built-in role.')).toBeVisible();
     await page.getByRole('button', { name: 'Save chain' }).click();
-    await expect(page.getByText('Approval chain saved')).toBeVisible();
+    await expect(page.getByText('Approval chain saved', { exact: true })).toBeVisible();
 
     // A Project Manager raises a request; the Material Coordinator approves step 1, then the Admin step 2.
     const requestId = await submittedRequest('pm@acme.test', wo.id, item.id);

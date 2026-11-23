@@ -55,7 +55,7 @@ test.beforeEach(async () => {
   }).select('id').single()).id;
   need('roster', await admin.from('work_order_crews')
     .insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: iso(from) }).select('id').single());
-  classId = need('class', await admin.from('labour_cost_classes').insert({ org_id: ORG_ID, code: run.toLowerCase().slice(-20), name: className }).select('id').single()).id;
+  classId = need('class', await admin.from('labour_cost_classes').insert({ org_id: ORG_ID, code: run.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(-20), name: className }).select('id').single()).id;
   need('class rate', await admin.from('labour_cost_rates').insert({
     org_id: ORG_ID, subject_kind: 'class', class_id: classId, basis: 'daily', amount: 150000, overtime_multiplier: 1, day_hours: 8, month_hours: 173, effective_from: '2020-01-01',
   }).select('id').single());
