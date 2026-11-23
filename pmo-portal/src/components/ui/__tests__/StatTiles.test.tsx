@@ -75,10 +75,12 @@ describe('StatTiles', () => {
   it('respects the columns prop for the wide-container grid layout (@3xl:grid-cols-4 class)', () => {
     const { container } = render(<StatTiles tiles={tiles} columns={4} />);
     const strip = container.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
-    // The @3xl:grid-cols-4 container class drives the equal-width grid once the strip's own
-    // container fits four tiles (tidy sweep: container queries, not viewport sm:)
+    // The @3xl:grid-cols-4 container class drives the equal-width grid once the strip's frame fits four tiles.
+    // A container query never applies to the element that declares @container, so the frame must be the grid's
+    // PARENT: on the grid itself the N-column layout never switched on (#2805).
     expect(strip.className).toContain('@3xl:grid-cols-4');
-    expect(strip.className).toContain('@container');
+    expect(strip.className).not.toContain('@container');
+    expect(strip.parentElement!.className).toContain('@container');
   });
 
   it('renders a tile sub-text when provided', () => {

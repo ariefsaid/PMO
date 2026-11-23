@@ -349,14 +349,14 @@
       "late": "Late",
       "project": "Project",
       "discipline": "Discipline",
-      "status": "Filter by status"
+      "status": "Filter by status",
+      "over": "Over budget"
     },
     "col": {
       "workOrder": "Work order",
       "progress": "Progress",
       "cost": "Direct cost",
       "billed": "Billed",
-      "missing": "Missing",
       "end": "End"
     },
     "costOver": "Over budget by {{amount}}",
@@ -368,10 +368,12 @@
     "tile": {
       "orderValue": "Order value",
       "billed": "Billed",
-      "toBill": "Left to bill"
+      "toBill": "Left to bill",
+      "late": "Late",
+      "over": "Over budget",
+      "lateShow": "Show late work orders ({{count}})",
+      "overShow": "Show work orders over budget ({{count}})"
     },
-    "findingLate_one": "{{count}} work order late",
-    "findingLate_other": "{{count}} work orders late",
     "openRow": "Open {{label}}",
     "costTooMany": "Direct cost shows for up to {{count}} projects. Choose a project.",
     "figuresError": "Some figures couldn't load.",

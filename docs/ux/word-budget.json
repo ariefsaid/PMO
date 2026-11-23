@@ -256,7 +256,8 @@
     "/finance": "Chart minimum 3 (exec): 4 was measured on test-leftover IDR rows; base and branch both draw 3 on the clean seed (2026-11-12).",
     "/finance/reports": "Chart minimum 1 (exec): 2 was measured on test-leftover IDR rows (second-currency group); head draws 1 on the clean seed, dev draws 0 (chart sweep, 2026-11-12).",
     "_rebaseline-2026-11-12": "54 word keys re-baselined to the head count: each measured equal (within one word) on the morning build 8d98d2772 and head b2ed4f10e on the same clean DB, so the rise came from data, not code (words proof, 2026-11-12). Home keys unchanged here (ruled content). /@390@pm set 55 -> 58: unchanged since the morning build, so data.",
-    "/expenses": "Engineer budget 8 -> 12 @1440 and 6 -> 10 @390 (2026-11-16, compose-03 r3): Showing x of y is the list rule (server paging, #2364); the pager line sits once at the table foot. Measured by measure-screens on ui/compose-03-claims; other roles' /expenses keys re-measure on their next run."
+    "/expenses": "Engineer budget 8 -> 12 @1440 and 6 -> 10 @390 (2026-11-16, compose-03 r3): Showing x of y is the list rule (server paging, #2364); the pager line sits once at the table foot. Measured by measure-screens on ui/compose-03-claims; other roles' /expenses keys re-measure on their next run.",
+    "/projects/:id/orders": "Summary strip scoped to the project (order value, billed, left to bill, late, over budget), the work-order dashboard's head, added on review 2026-11-24: 48/40 en at 1440/390, was 45/36 without it."
   },
   "charts": {
     "/@390@exec@acme.test": 2,
@@ -559,8 +560,8 @@
   "/administration/terminology@1440@admin@acme.test": 52,
   "/quantity-changes@390@exec@acme.test": 42,
   "/quantity-changes@1440@exec@acme.test": 42,
-  "/work-orders@390@exec@acme.test": 17,
-  "/work-orders@1440@exec@acme.test": 23,
-  "/projects/:id/orders@390@exec@acme.test": 36,
-  "/projects/:id/orders@1440@exec@acme.test": 45
+  "/work-orders@390@exec@acme.test": 10,
+  "/work-orders@1440@exec@acme.test": 16,
+  "/projects/:id/orders@390@exec@acme.test": 40,
+  "/projects/:id/orders@1440@exec@acme.test": 48
 }

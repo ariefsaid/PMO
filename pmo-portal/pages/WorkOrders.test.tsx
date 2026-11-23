@@ -49,15 +49,36 @@ describe('Work orders dashboard', () => {
     expect(screen.queryByRole('columnheader', { name: 'Billed' })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: 'Direct cost' })).toBeNull();
     expect(screen.queryByText(/\$/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show late work orders (0)' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /over budget/ })).toBeNull();
+  });
+
+  it('AC-WOD-009 the over-budget tile counts and filters to work orders whose direct cost passed their budget', async () => {
+    h.state = { ...h.state, rows: [row({}), row({ id: 'w2', wo_number: 'WO-2', title: 'Fencing', cost: { currency: 'USD', direct: '100.00', plan: '800.00' } })] };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Show work orders over budget (1)' }));
+    expect(rowFor('WO-1')).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /WO-2/ })).toBeNull();
+  });
+
+  it('AC-WOD-010 a work order without a number leads with its title', () => {
+    h.state = { ...h.state, rows: [row({ wo_number: null, title: 'Unnumbered fencing' })] };
+    renderPage();
+    const first = rowFor('Unnumbered fencing');
+    expect(within(first).getByRole('link', { name: 'Open Unnumbered fencing' })).toBeInTheDocument();
+    expect(within(first).queryByText(/not numbered/i)).toBeNull();
   });
 
   it('AC-WOD-005 searches, filters to late and clears back to the All view', async () => {
     h.state = { ...h.state, rows: [row({ late: 1 }), row({ id: 'w2', wo_number: 'WO-2', title: 'Fencing', project_name: 'Yard' })] };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^1 work orders? late$/ }));
+    const lateTile = screen.getByRole('button', { name: 'Show late work orders (1)' });
+    await userEvent.click(lateTile);
+    expect(lateTile).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByRole('row', { name: /WO-2/ })).toBeNull();
     expect(rowFor('WO-1')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('tab', { name: 'All' }));
+    await userEvent.click(lateTile);
+    expect(rowFor('WO-2')).toBeInTheDocument();
     await userEvent.type(screen.getByRole('searchbox'), 'yard');
     expect(screen.queryByRole('row', { name: /WO-1/ })).toBeNull();
     expect(rowFor('WO-2')).toBeInTheDocument();

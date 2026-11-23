@@ -349,14 +349,14 @@
       "late": "Terlambat",
       "project": "Proyek",
       "discipline": "Disiplin",
-      "status": "Filter berdasarkan status"
+      "status": "Filter berdasarkan status",
+      "over": "Melebihi anggaran"
     },
     "col": {
       "workOrder": "$t(common:terms.clientWorkOrder)",
       "progress": "Progres",
       "cost": "Biaya langsung",
       "billed": "Ditagih",
-      "missing": "Kurang",
       "end": "Selesai"
     },
     "costOver": "Melebihi anggaran {{amount}}",
@@ -368,10 +368,12 @@
     "tile": {
       "orderValue": "Nilai order",
       "billed": "Ditagih",
-      "toBill": "Sisa ditagih"
+      "toBill": "Sisa ditagih",
+      "late": "Terlambat",
+      "over": "Melebihi anggaran",
+      "lateShow": "Tampilkan $t(common:terms.clientWorkOrder) yang terlambat ({{count}})",
+      "overShow": "Tampilkan $t(common:terms.clientWorkOrder) yang melebihi anggaran ({{count}})"
     },
-    "findingLate_one": "{{count}} $t(common:terms.clientWorkOrder) terlambat",
-    "findingLate_other": "{{count}} $t(common:terms.clientWorkOrder) terlambat",
     "openRow": "Buka {{label}}",
     "costTooMany": "Biaya langsung tampil untuk paling banyak {{count}} proyek. Pilih proyek.",
     "figuresError": "Sebagian angka gagal dimuat.",
