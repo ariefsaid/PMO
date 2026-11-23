@@ -492,11 +492,23 @@ test(
   },
 );
 
-// Engineer: role cannot approve either → AccessDenied surface.
+// The seeded Engineer keeps a warehouse, which is standing: the inbox opens (caught up), not the denied surface.
 test(
-  'AC-IXD-PROC-W5-3-role: Engineer at /approvals is denied (AccessDenied surface rendered)',
+  'AC-IXD-PROC-W5-3-role: an Engineer who keeps a warehouse is let in to /approvals (nothing waiting, not denied)',
   async ({ page }) => {
     await login(page, 'engineer@acme.test');
+    await page.goto('/approvals');
+    await expect(page.getByText(/you.re all caught up/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/you don.t have access to approvals/i)).toHaveCount(0);
+  },
+);
+
+// An Engineer with no standing to decide anything (keeps no warehouse, no approval step, no stand-in, no reports) → AccessDenied surface.
+// (Standing, not the role, opens the inbox: the seeded Engineer who keeps a warehouse decides, so is let in — the test above.)
+test(
+  'AC-IXD-PROC-W5-3-role: an Engineer with nothing to decide at /approvals is denied (AccessDenied surface rendered)',
+  async ({ page }) => {
+    await login(page, 'ts-colocated-eng@acme.test');
     await page.goto('/approvals');
 
     // Goal: the AccessDenied surface is shown (not just an empty inbox).

@@ -38,6 +38,10 @@ test('AC-TST-028 AC-WAIT-076 a keeper sends, the receiver counts short on a phon
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByRole('textbox', { name: /^Quantity/ }).fill('10');
   await page.getByRole('button', { name: 'Send transfer' }).click();
+  // Sending is a deliberate confirm: the page submit only opens the guard; the keeper confirms it.
+  const sendConfirm = page.getByRole('dialog', { name: 'Send this transfer?' });
+  await expect(sendConfirm).toBeVisible();
+  await sendConfirm.getByRole('button', { name: 'Send transfer', exact: true }).click();
   await expect(page.getByText('In transit').first()).toBeVisible();
   const transferId = page.url().split('/').pop()!;
 
