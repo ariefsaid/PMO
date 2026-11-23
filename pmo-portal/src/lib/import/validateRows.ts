@@ -64,18 +64,20 @@ export function rowToCells<Input>(
 /**
  * Classify the otherwise-valid rows against the records already on the target (`matchExisting`): no match → `new`;
  * a match that changes something → `update` with its changes; a match that changes nothing → no change (not valid,
- * `already`). Rows with errors pass through untouched. Pure, ZERO writes.
+ * `already`); a row `refuse` names is invalid with its sentence. Rows with errors pass through untouched. Pure, ZERO writes.
  */
 export function applyMatches(
   rows: RowValidation[],
   cellsByRow: Record<string, string>[],
-  match: Pick<MatchExisting, 'keyOf' | 'changes'>,
+  match: Pick<MatchExisting, 'keyOf' | 'changes' | 'refuse'>,
   records: ReadonlyMap<string, unknown>,
 ): RowValidation[] {
   return rows.map((v) => {
     if (!v.valid) return v;
     const cells = cellsByRow[v.index];
     const record = records.get(match.keyOf(cells));
+    const refused = match.refuse?.(record, cells);
+    if (refused) return { ...v, valid: false, errors: { ...v.errors, ...refused } };
     if (record === undefined) return { ...v, action: 'new' as const };
     const changes = match.changes(record, cells);
     return changes.length === 0 ? { ...v, valid: false, already: true } : { ...v, action: 'update' as const, changes };

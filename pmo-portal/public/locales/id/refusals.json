@@ -468,5 +468,18 @@
   "STK_ZERO_COST_figures": "Baris {{row}}: barang ini dipasok klien, jadi diterima tanpa biaya. Kosongkan biaya satuan atau tulis 0, lalu pilih berkas lagi.",
   "ABS_NOTE": "Catatan terlalu panjang. Persingkat lalu kirim lagi.",
   "ABS_PERSON": "Akun ini belum ditautkan ke seseorang di sebuah kru, jadi ketidakhadiran tidak dapat dilaporkan. Tanyakan kepada supervisor Anda.",
-  "ABS_REASON": "Pilih sakit atau lainnya."
+  "ABS_REASON": "Pilih sakit atau lainnya.",
+  "PPL_MANAGER_RIGHT": "Hanya Admin atau tim SDM yang dapat mengatur atau mengubah atasan langsung seseorang.",
+  "PPL_MANAGER_SELF": "Hanya Admin yang dapat menjadikan dirinya atasan langsung seseorang. Pilih atasan lain, atau minta bantuan Admin.",
+  "ATT_SECOND_SELF": "Ini hari kerja Anda sendiri. Minta orang lain yang mencatat catatan kedua untuk menambahkannya.",
+  "ATT_DECIDE_SELF": "Ini hari kerja Anda sendiri. Orang lain yang ditunjuk organisasi Anda, atau Admin, yang memutuskan jam mana yang berlaku.",
+  "MR_SOD_DECIDER": "Anda atasan langsung orang ini, jadi Anda tidak akan pernah bisa memutuskan pelepasan yang Anda buka. Minta Admin membukanya, atau atur atasan langsung lain lebih dulu.",
+  "MR_WITHDRAW_RIGHT": "Hanya Admin atau tim SDM yang dapat menarik pelepasan.",
+  "MR_WITHDRAW_SELF": "Anda tidak dapat menarik pelepasan Anda sendiri. Minta Admin atau anggota tim SDM lainnya.",
+  "MR_WITHDRAW_REASON": "Tulis alasan pelepasan ditarik, paling banyak 500 karakter.",
+  "MR_REASSIGN_RIGHT": "Hanya Admin yang dapat memindahkan pelepasan ke atasan lain.",
+  "MR_DECIDER_ACTIVE": "Atasan yang memutuskan pelepasan ini masih aktif. Minta beliau memutuskannya.",
+  "MR_REASSIGN_NO_MANAGER": "Orang ini tidak punya atasan langsung yang aktif. Atur atasan di data orangnya, lalu pindahkan pelepasannya.",
+  "MR_REASSIGN_SOD": "Atasan orang ini saat ini yang membuka pelepasan ini, atau orang itu sendiri. Atur atasan langsung lain lebih dulu, lalu pindahkan.",
+  "LCM_HAS_LOGIN": "Orang ini masuk ke aplikasi, jadi jamnya dihitung biayanya di lembar waktunya. Kelas hanya untuk orang tanpa akun."
 }

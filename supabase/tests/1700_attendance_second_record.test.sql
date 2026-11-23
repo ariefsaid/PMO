@@ -3,7 +3,7 @@
 -- AC-PAY-001 a second record is stored apart and changes no figure · AC-PAY-002 who may enter, and the submitted-week fence ·
 -- AC-PAY-003 an undecided day cannot be submitted, a correction does not clear it · AC-PAY-004 a decision puts the chosen figure on the
 -- day, the other stays as evidence · AC-PAY-005 whole ledger: one worker, one day, two records, counted once ·
--- AC-PAY-006 separation · AC-PAY-007 the organisation names the decider (Admin-only setting) · AC-PAY-008 within tolerance nothing to decide.
+-- AC-PAY-006 separation (AC-PAY-009: never on one's own working day, 1932) · AC-PAY-007 the organisation names the decider (Admin-only setting) · AC-PAY-008 within tolerance nothing to decide.
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
 --   drop the recorder test in attendance_second_record_decide ........... 'AC-PAY-006 the foreman who ticked cannot decide'
 --   drop the may_decide test in the decide RPC .......................... 'AC-PAY-007 ... not the named role'
@@ -12,9 +12,11 @@
 --   drop the merge of the second record's authors into recorded_by_ids (1701) ... 'AC-PAY-006 the manager who entered the standing second record cannot approve ...'
 --   decide 'second' by inserting a second attendance row / keep both ..... 'AC-PAY-005 ...'
 --   change the tolerance comparison to >= 0 ............................. 'AC-PAY-008 ...'
+--   (1932) drop the own-day test in attendance_second_record (mut:enter_self) .. 'AC-PAY-009 nobody enters a second record for their own day'
+--   (1932) drop the own-day test in the decide RPC (mut:decide_self) ............ 'AC-PAY-009 nobody decides the hours of their own day'
 begin;
 create extension if not exists pgtap;
-select plan(53);
+select plan(58);
 
 insert into organizations (id, name, default_currency, attendance_backdate_days, built_in_roles_enabled) values
   ('17000000-0000-0000-0000-00000000020a', 'PT Org', 'IDR', 60, true);
@@ -290,6 +292,38 @@ select throws_ok($$ select transition_timesheet((select t.id from timesheets t w
                                                   and t.week_start_date = pg_temp.week() - 14), 'Approved') $$,
   '42501', 'separation of duties: the attendance recorder cannot approve these hours',
   'AC-PAY-006 nor the login worker''s timesheet');
+
+-- AC-PAY-009 (1932) nobody enters a second record for, or decides the hours of, their own working day.
+reset role;
+insert into people (id, org_id, kind, name, profile_id) values
+  ('17000000-0000-0000-0000-000000000f06', '17000000-0000-0000-0000-00000000020a', 'own', 'Login Six PM2', '17000000-0000-0000-0000-0000000000a5');
+insert into crew_members (org_id, crew_id, worker_id, valid_from) values
+  ('17000000-0000-0000-0000-00000000020a', '17000000-0000-0000-0000-000000000c01', '17000000-0000-0000-0000-000000000f06', current_date - 50);
+insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date, author_id) values
+  ('17000000-0000-0000-0000-0000000005a2', '17000000-0000-0000-0000-00000000020a', '17000000-0000-0000-0000-0000000000d1',
+   '17000000-0000-0000-0000-000000000401', (select d from pt where k = 'week') - 20, '17000000-0000-0000-0000-0000000000a2');
+set local role authenticated;
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a2');
+select attendance_record('17000000-0000-0000-0000-000000000401', pg_temp.week() - 20, 'roster_tick',
+  '[{"worker_id":"17000000-0000-0000-0000-000000000f06","status":"present","hours":8}]');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a5');
+select throws_ok($$ select attendance_second_record('17000000-0000-0000-0000-000000000401', pg_temp.week() - 20,
+  '[{"worker_id":"17000000-0000-0000-0000-000000000f06","status":"present","hours":11}]') $$,
+  '42501', 'ATT_SECOND_SELF: this is your own working day; a second record comes from someone else',
+  'AC-PAY-009 nobody enters a second record for their own day');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a4');
+select is(attendance_second_record('17000000-0000-0000-0000-000000000401', pg_temp.week() - 20,
+  '[{"worker_id":"17000000-0000-0000-0000-000000000f06","status":"present","hours":11}]'), 1,
+  'AC-PAY-009 another manager still enters the second record for that person');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a5');
+select is((select (w ->> 'own')::boolean from jsonb_array_elements(attendance_report_day_hours('17000000-0000-0000-0000-0000000005a2') -> 'workers') w
+            where w ->> 'worker_id' = '17000000-0000-0000-0000-000000000f06'), true, 'AC-PAY-009 the report marks the caller''s own day');
+select throws_ok($$ select attendance_second_record_decide('17000000-0000-0000-0000-000000000f06', '17000000-0000-0000-0000-000000000401',
+  pg_temp.week() - 20, 'second', 'my own hours') $$, '42501', 'ATT_DECIDE_SELF: this is your own working day; someone else decides which hours stand',
+  'AC-PAY-009 nobody decides the hours of their own day');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a1');
+select lives_ok($$ select attendance_second_record_decide('17000000-0000-0000-0000-000000000f06', '17000000-0000-0000-0000-000000000401',
+  pg_temp.week() - 20, 'day', 'site report') $$, 'AC-PAY-009 a decider whose day it is not decides it');
 
 select * from finish();
 rollback;

@@ -45,5 +45,13 @@ export function useMedicalReleaseMutations() {
       mutationFn: (v: { id: string; decision: 'Approved' | 'Deferred'; note: string | null }) => medicalReleaseRepository.decide(v.id, v.decision, v.note),
       onSuccess: refresh,
     }, qc),
+    withdraw: useMutation({
+      mutationFn: (v: { id: string; reason: string }) => medicalReleaseRepository.withdraw(v.id, v.reason),
+      onSuccess: refresh,
+    }, qc),
+    reassign: useMutation({
+      mutationFn: (id: string) => medicalReleaseRepository.reassign(id),
+      onSuccess: refresh,
+    }, qc),
   };
 }

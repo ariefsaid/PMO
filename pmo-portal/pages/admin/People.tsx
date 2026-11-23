@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,6 +10,7 @@ import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { usePeople, usePeopleMutations } from '@/src/hooks/usePeople';
 import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
 import { PersonDocumentImport } from './PersonDocumentImport';
@@ -25,7 +26,10 @@ interface FormValues { name: string; code: string; job_title: string; profile_id
 const initial = (p?: PersonListRow): FormValues => ({ name: p?.name ?? '', code: p?.code ?? '', job_title: p?.job_title ?? '', profile_id: p?.profile_id ?? '', manager_id: p?.manager_id ?? '' });
 
 /** Add or edit one person. A blank code on add is assigned by the database (P-0001, …); on edit the code is required. */
-const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, string>; onClose: () => void }> = ({ person, profileNames, onClose }) => {
+/** Who may set the manager link (1930, the database decides): `any` (an Admin), `others` (the people team: never themselves), `none`. */
+type ManagerMode = { kind: 'any' } | { kind: 'others'; self: string | null } | { kind: 'none' };
+
+const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, string>; managerMode: ManagerMode; onClose: () => void }> = ({ person, profileNames, managerMode, onClose }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { create, update } = usePeopleMutations();
@@ -42,7 +46,8 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
   });
   const loadOptions = useMemo(() => async () => (await loadProfiles()).map((p) => ({ value: p.id, label: p.full_name })), [loadProfiles]);
   // The manager is chosen from active members only: a manager who has left would be warned into nothing.
-  const loadManagers = useMemo(() => async () => (await loadProfiles()).filter((p) => p.status === 'active').map((p) => ({ value: p.id, label: p.full_name })), [loadProfiles]);
+  const self = managerMode.kind === 'others' ? managerMode.self : null;
+  const loadManagers = useMemo(() => async () => (await loadProfiles()).filter((p) => p.status === 'active' && p.id !== self).map((p) => ({ value: p.id, label: p.full_name })), [loadProfiles, self]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +88,8 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
           selectedOption={form.values.manager_id ? { value: form.values.manager_id, label: profileNames.get(form.values.manager_id) ?? form.values.manager_id } : null}
           loadOptions={loadManagers} placeholder={t('administration:people.managerPlaceholder', 'No manager set')}
           searchPlaceholder={t('administration:people.managerSearch', 'Search users')}
+          disabled={managerMode.kind === 'none'}
+          helper={managerMode.kind === 'none' ? t('administration:people.managerReadOnly', 'Only an Admin or the people team (HR) can change the direct manager.') : undefined}
           onChange={(value) => form.setValue('manager_id', value)} />
         <p className="col-span-full text-control text-muted-foreground">{t('administration:people.managerHelp', "The manager is warned first when this person's documents are about to expire, and records the renewal.")}</p>
       </FormGrid>
@@ -108,9 +115,14 @@ const People: React.FC = () => {
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
   const rows = q.data ?? [];
   const [managerChoices, setManagerChoices] = useState<ManagerChoice[]>([]);
+  const me = useContext(AuthContext)?.currentUser?.id ?? null;
+  const mayManager = may('setManager', 'person', ctx);
+  const mayNameSelf = may('setSelfAsManager', 'person', ctx);
+  const managerMode: ManagerMode = !mayManager ? { kind: 'none' } : mayNameSelf ? { kind: 'any' } : { kind: 'others', self: me };
   const importDescriptor = useMemo(
-    () => makePeopleImportDescriptor({ people: () => repositories.people.list(), managers: managerChoices }, t),
-    [t, managerChoices],
+    () => makePeopleImportDescriptor({ people: () => repositories.people.list(), managers: managerChoices,
+      managerRule: { may: mayManager, maySelf: mayNameSelf, self: me } }, t),
+    [t, managerChoices, mayManager, mayNameSelf, me],
   );
   const canEdit = may('edit', 'person', ctx);
   const canLeave = may('archive', 'person', ctx);
@@ -173,7 +185,7 @@ const People: React.FC = () => {
               : t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
             action={staffView === 'active' && canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
         : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" />)}
-      {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} onClose={() => setEditing(null)} />}
+      {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} managerMode={managerMode} onClose={() => setEditing(null)} />}
       <MarkLeftDialog person={leaving} onClose={() => setLeaving(null)} />
     </div>
   );

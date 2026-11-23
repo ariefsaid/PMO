@@ -186,6 +186,7 @@
     "reasonRequired": "Tulis alasan angka ini yang berlaku.",
     "cannotDecideRole": "Peran Anda tidak memutuskan jam mana yang berlaku.",
     "cannotDecideMine": "Anda mencatat salah satu angka ini. Orang lain yang memutuskan.",
+    "cannotDecideOwn": "Ini hari kerja Anda sendiri. Orang lain yang memutuskan.",
     "cannotDecideNoDay": "Angka laporan lapangan untuk hari ini belum dicatat.",
     "field": {
       "status": "Apakah orang ini hadir?",

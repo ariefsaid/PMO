@@ -988,6 +988,7 @@
     "managerPlaceholder": "No manager set",
     "managerSearch": "Search users",
     "managerHelp": "The manager is warned first when this person's documents are about to expire, and records the renewal.",
+    "managerReadOnly": "Only an Admin or the people team (HR) can change the direct manager.",
     "markLeft": "Mark as left",
     "markLeftLabel": "Mark {{name}} as left",
     "leftTitle": "Mark {{name}} as left",

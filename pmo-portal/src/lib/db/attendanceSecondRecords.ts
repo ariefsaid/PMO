@@ -38,6 +38,8 @@ export interface ReportDayWorker {
   undecided: boolean;
   /** The viewer recorded one of the figures (so may not decide). */
   mine: boolean;
+  /** The day is the viewer's own (1932): they neither enter a second record for it nor decide it. */
+  own: boolean;
 }
 export interface ReportDayHours { detail: boolean; mayEnter: boolean; mayDecide: boolean; workers: ReportDayWorker[] }
 export interface AttendanceTimeRoles { secondRecordRoles: string[]; deciderRoles: string[] }
@@ -67,7 +69,7 @@ function parseWorker(v: Json | undefined): ReportDayWorker | null {
         decisionReason: str(v.second.decision_reason),
       }
     : null;
-  return { workerId: str(v.worker_id) ?? '', name: str(v.name) ?? '', day, second, undecided: v.undecided === true, mine: v.mine === true };
+  return { workerId: str(v.worker_id) ?? '', name: str(v.name) ?? '', day, second, undecided: v.undecided === true, mine: v.mine === true, own: v.own === true };
 }
 
 /** Total hours of a figure (hours plus overtime); an absence or no record counts as nothing. */

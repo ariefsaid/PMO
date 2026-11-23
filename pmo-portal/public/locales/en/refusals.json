@@ -466,5 +466,18 @@
   "STK_ZERO_COST_figures": "Row {{row}}: this item is client-supplied, so it is received at zero cost. Leave the unit cost blank or write 0, then choose the file again.",
   "ABS_NOTE": "The note is too long. Shorten it and send again.",
   "ABS_PERSON": "This account is not linked to a person on a crew, so absence cannot be reported. Ask your supervisor.",
-  "ABS_REASON": "Choose sick or other."
+  "ABS_REASON": "Choose sick or other.",
+  "PPL_MANAGER_RIGHT": "Only an Admin or the people team (HR) can set or change a person's direct manager.",
+  "PPL_MANAGER_SELF": "Only an Admin can make themselves a person's direct manager. Choose another manager, or ask an Admin.",
+  "ATT_SECOND_SELF": "This is your own working day. Ask another person who enters second records to add one.",
+  "ATT_DECIDE_SELF": "This is your own working day. Another person your organisation named, or an Admin, decides which hours stand.",
+  "MR_SOD_DECIDER": "You are this person's direct manager, so you could never decide a release you open. Ask an Admin to open it, or set another direct manager first.",
+  "MR_WITHDRAW_RIGHT": "Only an Admin or the people team (HR) can withdraw a release.",
+  "MR_WITHDRAW_SELF": "You cannot withdraw your own release. Ask an Admin or someone else in the people team.",
+  "MR_WITHDRAW_REASON": "Say why the release is withdrawn, in up to 500 characters.",
+  "MR_REASSIGN_RIGHT": "Only an Admin can move a release to another manager.",
+  "MR_DECIDER_ACTIVE": "The manager who decides this release is still active. Ask them to decide it.",
+  "MR_REASSIGN_NO_MANAGER": "This person has no active direct manager. Set one on their person record, then move the release.",
+  "MR_REASSIGN_SOD": "The person's current manager opened this release, or is the person. Set another direct manager first, then move it.",
+  "LCM_HAS_LOGIN": "This person signs in, so their hours are costed on their timesheet. A class is only for people with no login."
 }

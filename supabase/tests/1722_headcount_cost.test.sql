@@ -7,11 +7,12 @@
 --   1722: replace `h.head_count *` with `1 *` in the amount ............................ 'AC-HC-002 ...'
 --   1722: replace `h.head_count * r.day_hours` with `h.head_count` ..................... 'AC-HC-002 ... person-hours'
 --   work_order_cost_amounts: `where not v_pm or l.amount is null` -> `where true` ..... 'AC-HC-004 ...'
+--   1933: put `sum(l.quantity)` and `l.class_id` back in the PM class-line select (mut:pm_mask) 'AC-HC-004 a Project Manager''s head-count row carries no class and no quantity'
 --   1723: replace the head-count arm of labour_class_locked with `false` ............... 'AC-HC-008 ...'
 --   1724: delete the head-count arm of the added-span check ............................ 'AC-HC-008 moving the end later ...'
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(33);
 
 insert into organizations (id, name, default_currency) values ('17220000-0000-0000-0000-00000000000a', 'Head Count Cost Org', 'IDR');
 insert into auth.users (id, email) values
@@ -106,8 +107,11 @@ select pg_temp.act_as('17220000-0000-0000-0000-0000000000a3');
 create temp table pm_rows as select * from public.work_order_cost_amounts('17220000-0000-0000-0000-0000000000d1');
 select is((select count(*)::int from pm_rows where source = 'headcount_day' and reason = 'counted' and (record_id is not null or occurred_on is not null or person_id is not null)), 0, 'AC-HC-004 a Project Manager reads head-count money with no record, no date and no person');
 select is((select sum(amount::numeric)::text from pm_rows where source = 'headcount_day' and reason = 'counted'), '3520000.00', 'AC-HC-004 the aggregate equals what Finance sees per row');
-select is((select count(*)::int from pm_rows where source = 'headcount_day' and reason = 'counted'), 4, 'AC-HC-004 one aggregate row per class');
-select is((select sum(quantity)::text from pm_rows where source = 'headcount_day' and reason = 'counted'), '88.00', 'AC-HC-004 the aggregate quantity is person-hours (24 + 16 + 40 + 8)');
+select is((select count(*)::int from pm_rows where source = 'headcount_day' and reason = 'counted'), 1, 'AC-HC-004 one aggregate row per work order and discipline, never one per class (1933)');
+select is((select count(*)::int from pm_rows where source = 'headcount_day' and reason = 'counted' and (labour_class_id is not null or quantity is not null)), 0,
+  'AC-HC-004 a Project Manager''s head-count row carries no class and no quantity, so no class rate can be read from it (1933)');
+select is((select sum(amount::numeric)::text from pm_rows where reason = 'counted'), (select sum(amount::numeric)::text from fin_rows where reason = 'counted'),
+  'AC-HC-004 the Project Manager''s counted total equals the per-row total Finance reads (1933)');
 select is((select count(*)::int from pm_rows where source = 'headcount_day' and person_id is not null), 0, 'AC-HC-004 no head-count row names a person, priced or not');
 select is((select count(*)::int from public.labour_cost_rates where subject_kind = 'class'), 0, 'AC-HC-004 a Project Manager reads no class rate');
 select pg_temp.act_as('17220000-0000-0000-0000-0000000000a4');

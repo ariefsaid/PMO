@@ -2,10 +2,12 @@
 -- Migrations under test: 1720 (class rates, class assignments, the costed-day view), 1721 (the reader).
 -- AC-NLL-001 switch off = identical · 002-005 pricing · 006 whole-read once · 007 privacy · 008 idle cost.
 -- Mutation checks (plan "Mutation checks"): M1 (a)/(b) turn AC-NLL-006 red, M2 turns AC-NLL-001 red, M3 (a) turns
--- AC-NLL-007 red.
+-- AC-NLL-007 red. 1933: put `sum(l.quantity)` and `l.class_id` back in the Project Manager class-line select (mut:pm_mask) ->
+-- 'AC-NLL-007 a Project Manager''s attendance money carries no class and no quantity' goes red; and read the idle cost's wo_cost
+-- from work_order_cost_amounts alone again -> 'AC-NLL-008 a Project Manager sees the idle amount' goes red (the hours are gone).
 begin;
 create extension if not exists pgtap;
-select plan(34);
+select plan(36);
 
 insert into organizations (id, name, default_currency) values ('17210000-0000-0000-0000-00000000000a', 'No Login Cost Org', 'IDR');
 insert into auth.users (id, email) values
@@ -205,6 +207,10 @@ select is((select count(*)::int from pm_rows where source = 'attendance_day' and
 select is((select sum(amount::numeric)::text from pm_rows where source = 'attendance_day' and reason = 'counted'),
   (select sum(amount::numeric)::text from fin_rows where source = 'attendance_day' and reason = 'counted'),
   'AC-NLL-007 and the aggregate equals what Finance sees');
+select is((select count(*)::int from pm_rows where source = 'attendance_day' and reason = 'counted' and (labour_class_id is not null or quantity is not null)), 0,
+  'AC-NLL-007 a Project Manager''s attendance money carries no class and no quantity, so no class rate can be read from it (1933)');
+select is((select sum(amount::numeric)::text from pm_rows where reason = 'counted'), (select sum(amount::numeric)::text from fin_rows where reason = 'counted'),
+  'AC-NLL-007 the Project Manager''s counted total equals the per-row total Finance reads (1933)');
 select is((select count(*)::int from pm_rows where source = 'attendance_day' and person_id is not null), 0,
   'AC-NLL-007 no attendance row names a person for a Project Manager, priced or not');
 select is((select count(*)::int from public.labour_cost_rates where subject_kind = 'class'), 0,

@@ -293,6 +293,13 @@
     "deferLabel": "Reason for deferring",
     "deferHelp": "The people team sees this. Do not write medical detail.",
     "heldReason": "Cannot be recorded until their direct manager approves the medical release.",
+    "withdraw": "Withdraw",
+    "withdrawTitle": "Withdraw the release",
+    "withdrawLabel": "Reason for withdrawing",
+    "withdrawHelp": "Kept in the audit log. The person can be rostered again. Do not write medical detail.",
+    "withdrawn": "Release withdrawn",
+    "reassign": "Move to current manager",
+    "reassigned": "Release moved to their current manager",
     "status": {
       "pending": "Release pending",
       "approved": "Released",

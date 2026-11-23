@@ -13,7 +13,9 @@ import type { LabourFigure } from '@/src/lib/workOrderPlanVsActual';
 export const LabourByClass: React.FC<{ labour: readonly LabourFigure[]; currency: string; testId: string }> = ({ labour, currency, testId }) => {
   const { t } = useTranslation('workOrderPva');
   const classes = useLabourClasses();
-  const nameOf = (id: string) => classes.data?.find((c) => c.id === id)?.name ?? t('labour.unknownClass', 'Other class');
+  const nameOf = (id: string | null) => (id === null
+    ? t('labour.allClasses', 'Crew and head count, all classes')
+    : classes.data?.find((c) => c.id === id)?.name ?? t('labour.unknownClass', 'Other class'));
   return (
     <div className="mt-4 overflow-x-auto" data-testid={testId}>
       <table className="w-full text-control">
@@ -24,9 +26,9 @@ export const LabourByClass: React.FC<{ labour: readonly LabourFigure[]; currency
           <th scope="col" className="py-1 font-normal">{t('labour.cost', 'Cost')}</th>
         </tr></thead>
         <tbody>{labour.map((l) => (
-          <tr key={l.classId} className="border-t border-border" data-testid={`${testId}-${l.classId}`}>
+          <tr key={l.classId ?? 'all'} className="border-t border-border" data-testid={`${testId}-${l.classId ?? 'all'}`}>
             <th scope="row" className="py-1 pr-4 text-left font-normal">{nameOf(l.classId)}</th>
-            <td className="py-1 pr-4 text-right tabular-nums">{formatNumberExact(l.hours)}</td>
+            <td className="py-1 pr-4 text-right tabular-nums">{l.hours === null ? '—' : formatNumberExact(l.hours)}</td>
             <td className="py-1 text-right tabular-nums">{formatExactMoney(l.amount, currency, getNumberLocale()) ?? l.amount}</td>
           </tr>
         ))}</tbody>
