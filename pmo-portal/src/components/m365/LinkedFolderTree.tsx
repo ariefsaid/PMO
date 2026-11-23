@@ -139,7 +139,7 @@ function FolderChildren({ item, level }: { item: NodeItem; level: number }) {
       <ul className="min-w-0">
         <StateRow level={level} role="status">
           <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <span aria-hidden className="h-2.5 w-40 max-w-full animate-pulse rounded bg-muted" />
+            <span aria-hidden className="skel skel-line block w-48 max-w-full" />
             <span className="sr-only">{t('folderFiles.loading', 'Loading files…')}</span>
           </span>
         </StateRow>
