@@ -31,6 +31,7 @@ begin
   return new;
 end; $$;
 revoke all on function public.check_task_tree_no_cycle() from public, anon, authenticated;
+alter trigger tasks_zz_check_tree_no_cycle on public.tasks rename to tasks_check_tree_no_cycle;
 
 create or replace function get_project_milestones(p_project_id uuid)
   returns table (

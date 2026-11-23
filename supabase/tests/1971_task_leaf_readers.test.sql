@@ -39,10 +39,13 @@ insert into tasks (id, org_id, project_id, milestone_id, name, status, end_date)
   ('19710000-0000-0000-0002-000000000004', :'ORG', :'R', :'RM', 'late leaf', 'In Progress', (now() at time zone 'UTC')::date - 3),
   (:'TT', :'ORG', :'R', :'RN', 'tombstone parent', 'Done', null),
   ('19710000-0000-0000-0002-000000000020', :'ORG', :'R', :'RN', 'archive parent', 'To Do', null);
--- (the children sit in no phase: the readers still count a deleted leaf itself, a separate, older question)
+-- (the children sit in no phase: the readers still count a deleted leaf itself, a separate, older question;
+-- written as a signed-in write so the sync's place rule (1972) leaves them unplaced)
+select set_config('request.jwt.claims', json_build_object('sub', :'EXE', 'role', 'authenticated')::text, true);
 insert into tasks (id, org_id, project_id, milestone_id, name, status, parent_task_id, tombstoned_at, archived_at) values
   ('19710000-0000-0000-0002-000000000011', :'ORG', :'R', null, 'deleted in the tool', 'To Do', :'TT', now(), null),
   ('19710000-0000-0000-0002-000000000021', :'ORG', :'R', null, 'archived child', 'To Do', '19710000-0000-0000-0002-000000000020', null, now());
+select set_config('request.jwt.claims', '', true);
 
 -- AC-TREE-101: the helper (kept for callers) and the inline test the readers use agree row for row.
 select set_eq(

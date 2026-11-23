@@ -24,7 +24,8 @@ begin
 end; $$;
 revoke all on function public.inherit_parent_task_place() from public, anon, authenticated;
 
-create trigger tasks_inherit_parent_place
+-- zz: after the org stamp, as every trigger that reads org_id (0215).
+create trigger tasks_zz_inherit_parent_place
   before insert or update of parent_task_id on public.tasks
   for each row execute function public.inherit_parent_task_place();
 

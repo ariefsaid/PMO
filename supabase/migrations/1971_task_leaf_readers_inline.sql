@@ -6,7 +6,8 @@
 -- 2. A parent's own status and due date feed no figure: the dashboard overdue count and the scheduled
 --    report's overdue list now count leaves only, like the assistant's overdue reader.
 -- 3. A child deleted in the task tool no longer makes its parent a parent (the app never sees deleted rows).
--- 4. The cycle trigger skips its lock and walk when an update does not move the parent.
+-- 4. The cycle trigger skips its lock and walk when an update does not move the parent, and is renamed to
+--    fire after the org stamp.
 --
 -- Bodies restated from head: helper, trigger function and the three readers from 1970; scheduled_report_content
 -- from 1226. The leaf test, everywhere: archived_at is null and no child with archived_at and tombstoned_at null.
@@ -48,6 +49,8 @@ begin
   return new;
 end; $$;
 revoke all on function public.check_task_tree_no_cycle() from public, anon, authenticated;
+-- It reads org_id and can refuse, so it must fire after the org stamp (0215: no org check before the stamp).
+alter trigger tasks_check_tree_no_cycle on public.tasks rename to tasks_zz_check_tree_no_cycle;
 
 -- §3 readers
 create or replace function get_project_milestones(p_project_id uuid)
