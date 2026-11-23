@@ -72,6 +72,11 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     };
   },
 }));
+// fix-waiting: the entry for a role off the Approvals list is offered by `useApprovalsEntryOffered`; these cases drive it with the timesheet-work signal they were written for.
+vi.mock('@/src/hooks/useWaitingForYou', async () => {
+  const { useHasTimesheetApprovalWork } = await import('@/src/hooks/useTimesheetApproval');
+  return { useApprovalsEntryOffered: () => { const work = useHasTimesheetApprovalWork(); return Boolean(work.data || work.isPending || work.isError); } };
+});
 vi.mock('./ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 
@@ -203,5 +208,19 @@ it('lets a Project Manager open the People register from the rail', () => {
   const auth = { currentUser: { id: 'me', org_id: 'org-1' }, role: 'Project Manager' } as AuthContextValue;
   render(<AuthContext.Provider value={auth}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>);
   expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/administration/people');
+  roleState.role = 'Admin';
+});
+
+it('lets an Engineer who holds the people-documents capability open the People register, and no other Engineer', () => {
+  roleState.role = 'Engineer';
+  const mount = (key: string | null) => render(
+    <AuthContext.Provider value={{ currentUser: { id: 'me', org_id: 'org-1', built_in_role: key }, role: 'Engineer' } as AuthContextValue}>
+      <MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter>
+    </AuthContext.Provider>);
+  const holder = mount('hr_officer');
+  expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/administration/people');
+  holder.unmount();
+  mount('planner');
+  expect(screen.queryByRole('link', { name: 'Administration' })).toBeNull();
   roleState.role = 'Admin';
 });

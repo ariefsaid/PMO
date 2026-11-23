@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOverContract, useQuantityChangeMutations, useWorkOrderRequestBudget } from '@/src/hooks/useQuantityChanges';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { limitReached, validateRequestedQuantity, type RequestedQuantityError } from '@/src/lib/quantityChangeRules';
 import { useRequestedQuantityErrorText } from './requestedQuantityError';
@@ -92,7 +92,7 @@ export const RaiseQuantityChangeDialog: React.FC<{
       onCreated(id);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setError(detail ? `${headline}. ${detail}` : headline);
+      setError(detail ? joinSentences(headline, detail) : headline);
     }
   };
 

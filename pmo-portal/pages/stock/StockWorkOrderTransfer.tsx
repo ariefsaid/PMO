@@ -7,7 +7,8 @@ import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useIssuableProjects, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
-import { useProjectWorkOrdersForStock, useReturnable, useWoTransferRefresh, useWoTransfersEnabled } from '@/src/hooks/useStockWorkOrderTransfer';
+import { useProjectWorkOrdersForStock, useReturnable, useWoTransferRefresh } from '@/src/hooks/useStockWorkOrderTransfer';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { formatQuantity, isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { stockWorkOrderTransferRepository } from '@/src/lib/repositories/stockWorkOrderTransfer';
@@ -23,7 +24,7 @@ const StockWorkOrderTransfer: React.FC = () => {
   const { toast } = useToast();
   const errorText = useStockErrorText();
   const refresh = useWoTransferRefresh();
-  const enabled = useWoTransfersEnabled();
+  const enabled = useOrgSwitch('stockWoTransfers').data === true;
   const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser?.id;
   const projects = useIssuableProjects();

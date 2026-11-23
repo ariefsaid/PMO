@@ -22,12 +22,12 @@ path) or rejects with a reason. Position is kept in `phone_check_ins`, readable 
 Searched decisions, ADRs, migrations, hooks, issues (`scripts/prior-art.sh`: geolocation, Permissions-Policy, phone_check_in, work order area,
 field_controller). Found: `attendance_record` (1036/1110, source `phone_check_in`, requires roster + own profile), `crews.field_controller_id`,
 `attendance_can_record(crew)`, the #2710 seam. Not found: any location on work orders, any check-in request table, any geolocation use in code.
-The only geolocation restriction is `pmo-portal/public/_headers` (`Permissions-Policy: camera=(), microphone=(), geolocation=()` on `/*`).
+The only geolocation restriction is `pmo-portal/public/_headers` (on `/*`; it now reads `Permissions-Policy: camera=(), microphone=(), geolocation=(self)`, see section 5).
 
 ## 3. Requirements (EARS)
 
 - **FR-001** The work order shall carry an optional area: `area_lat` (-90..90), `area_lng` (-180..180), `area_radius_m` (1..50000), all set or all NULL.
-- **FR-002** Who may set the area shall be exactly who may update a work order today (existing RLS); no new write path.
+- **FR-002** Who may set the area shall be exactly who may update a work order today (Admin, Executive, Project Manager, Finance), through the role-gated `set_work_order_check_in_area` RPC (1550); never a field account, never a direct table write.
 - **FR-003** While a work order has no area, `phone_check_in` shall record attendance through `attendance_record` without reading or storing a position, and the phone shall not ask for location.
 - **FR-004** When `phone_check_in` is called for a work order with an area, the database shall compute the distance from the point by haversine, from the position it received, and shall never accept a client "inside" flag. A missing/non-finite position, or accuracy <= 0, is refused (22023).
 - **FR-005** When the person is rostered on that work order that day, within the area, `phone_check_in` shall record attendance via `attendance_record` (source `phone_check_in`, the crew chosen) and store lat/lng/accuracy/time/distance in `phone_check_ins` with status `recorded`.
@@ -72,12 +72,7 @@ add `assert_not_light()` to `phone_check_in` (AC-PCI-008 red); skip the all-or-n
 
 ## 5. The geolocation block and how it is scoped
 
-The only place is `pmo-portal/public/_headers`, `/*`: `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Existing test AC-SEC-207
-pins the `/*` rule, so it stays. Cloudflare Pages merges matching rules and cannot override a header's value, but a rule may detach one with `! Name`. Plan:
-a `/my` rule that detaches the header and sets `camera=(), microphone=(), geolocation=(self)`. The clock-in section lives on `/my` only, so the policy
-is lifted for that route and stays blocked on every other route. The browser API is called only from `ClockInSection`.
-Residual: a Permissions-Policy is per response; in-app navigation from `/my` to another route is client-side (same document), so the document policy
-stays the one loaded. The browser API is therefore called from the clock-in screen only, by code, not by header, on a full page load of another route.
+The only place is `pmo-portal/public/_headers`, `/*`: `Permissions-Policy: camera=(), microphone=(), geolocation=(self)`. A browser keeps the policy of the first page it loaded, so a per-route rule does not hold after in-app navigation; geolocation is therefore allowed for this site's own origin on every route, with camera and microphone blocked. The browser still asks the person each time, and the browser API is called only from `ClockInSection` and the check-in area form, on a tap. Proof: `test/phoneClockInHeaders.test.ts`, `test/securityHeaders.test.ts` (AC-SEC-207).
 
 ## 6. Settings
 
@@ -95,3 +90,11 @@ Offline check-in (Q1 2027). Continuous tracking, geofence alerts, retention/cons
 4. Crew is optional on off-roster or no-position requests; deciders as in FR-009.
 5. Stored lat/lng rounded to 5 decimals in the database (FR-016).
 6. (Builder) 1214 re-creates `my_home()` as a copy of 1207 with the `has_area` key only (FR-018); a work order with no area keeps the existing clock-in path (existing tests untouched). Position protocol: with an area and no position yet, `phone_check_in` returns `needs_position` and writes nothing; the phone then reads its position once and calls again. A denied/unavailable fix calls it with `p_no_position = true`.
+
+## 9. Phone clock-in fixes (15 December walk)
+
+- **FR-019** A crew's Foreman clocks in himself on a work order his crew is rostered on and chooses the crew when he leads more than one (1551). The first clock-in enters him in the workforce register when he is not there yet.
+- **FR-020** `my_home()` carries, per work order, today's clock-in state: clocked in (with the time), waiting (with who decides), or refused (with the reason) (1552). The card shows it, survives a reload and offers no second tap while clocked in or waiting.
+- **FR-021** A check-in waiting for a decision appears in the home "needs you" list of the person who may decide, one tap from Approve and Reject; each request shows the area it is judged against (1553).
+- **FR-022** The check-in area form has latitude, longitude, radius in metres and "use my current location"; anyone who opens the Roster view sees the area read-only. A roster the person may not tick says who ticks it.
+- Proof: `supabase/tests/1550_walk_checkin.test.sql` (AC-WCI-001..022, with in-file mutation checks), vitest AC-WCI-030..060, journeys AC-PCI-E2E and AC-LA-E2E.

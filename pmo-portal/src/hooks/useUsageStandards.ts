@@ -1,20 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usageStandardRepository as repo } from '@/src/lib/repositories/usageStandards';
 import type { UsageStandardFilter, UsageStandardInput } from '@/src/lib/repositories/usageStandards';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { MATERIAL_REQUEST_QUERY_ROOT } from '@/src/hooks/useMaterialRequests';
 
 /** Usage standards and the consumable plan (#2577) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 export const USAGE_STANDARD_QUERY_ROOT = 'usage-standards';
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
 export function useUsageStandards(filter: UsageStandardFilter) {
   const orgId = useOrgId();
   return useQuery({ queryKey: [USAGE_STANDARD_QUERY_ROOT, orgId, 'list', filter], queryFn: () => repo.list(filter), enabled: Boolean(orgId), placeholderData: (prev) => prev });
 }
+
 export function useStandardMatchCounts() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [USAGE_STANDARD_QUERY_ROOT, orgId, 'match-counts'], queryFn: () => repo.matchCounts(), enabled: Boolean(orgId) });
+  return useOrgQuery([USAGE_STANDARD_QUERY_ROOT, 'match-counts'], () => repo.matchCounts());
 }
 
 export function useUsageStandardMutations() {
@@ -29,8 +29,7 @@ export function useUsageStandardMutations() {
 }
 
 export function useConsumablePlan(workOrderId: string | undefined) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [USAGE_STANDARD_QUERY_ROOT, orgId, 'plan', workOrderId], queryFn: () => repo.plan(workOrderId as string), enabled: Boolean(orgId) && Boolean(workOrderId) });
+  return useOrgQuery([USAGE_STANDARD_QUERY_ROOT, 'plan', workOrderId], () => repo.plan(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 /** The inputs a regeneration would use, for the preview diff (FR-CUS-007). Fetched only when the user asks to regenerate. */
 export function usePlanInputs(workOrderId: string | undefined, enabled: boolean) {

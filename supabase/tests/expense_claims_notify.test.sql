@@ -1,7 +1,7 @@
 -- expense_claims_notify.test.sql — #775 hand-offs (the #788 pattern): submit → the route's approvers; approve →
 -- claimant + Finance; reject/pay → claimant. Never the claimant on submit. AC-EXP-040..041.
 begin;
-select plan(16);
+select plan(17);
 
 insert into organizations (id, name, default_currency) values ('02476000-0000-0000-0000-00000000000a','EXP Notify Org','IDR');
 insert into auth.users (id, email) values
@@ -83,6 +83,9 @@ select is((select count(*)::int from notifications where owner_id = '02476000-00
 select is((select count(*)::int from notifications where owner_id = '02476000-0000-0000-0000-0000000000a1'
             and title = 'Your expense claim was rejected' and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000403'), 1,
   'AC-EXP-041: the claimant hears it was rejected');
+select is((select body from notifications where owner_id = '02476000-0000-0000-0000-0000000000a1'
+            and title = 'Your expense claim was rejected' and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000403'), 'No receipt',
+  'AC-EXP-041: the rejection notification carries the reason');
 select is((select count(*)::int from notifications where owner_id = '02476000-0000-0000-0000-0000000000a1'
             and title = 'Your expense claim was paid' and metadata->'entity'->>'id' = '02476000-0000-0000-0000-000000000401'), 1,
   'AC-EXP-041: the claimant hears it was paid');

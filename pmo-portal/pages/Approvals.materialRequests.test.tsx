@@ -10,14 +10,10 @@ import ApprovalsPage from './Approvals';
 const h = vi.hoisted(() => ({
   setting: { data: undefined as boolean | undefined },
   waiting: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  waitingEnabled: vi.fn(),
   role: 'Engineer',
 }));
 const idle = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
-vi.mock('@/src/hooks/useApproverInbox', () => ({
-  useMaterialInbox: () => { const on = h.setting.data === true; h.waitingEnabled(on); return on ? { on, ...h.waiting } : { on: false, data: undefined, isPending: false, isError: false, refetch: vi.fn() }; },
-}));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useWaitingForMe: () => h.waiting,
   useMaterialRequest: (id: string | undefined) => ({ data: id ? { id, number: `MR-${id}`, workOrderId: 'wo1', projectId: 'p1', neededBy: '2026-12-01' } : undefined }),
@@ -27,6 +23,7 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceAp
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => idle }));
+vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => ({ ...idle, data: { plans: [], replenishments: [] } }) }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => idle,
@@ -65,7 +62,6 @@ beforeEach(() => {
   h.waiting.data = [];
   h.waiting.isPending = false;
   h.waiting.isError = false;
-  h.waitingEnabled.mockClear();
   h.role = 'Engineer';
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -105,23 +101,25 @@ describe('AC-MRI-012 /approvals lists material-request steps awaiting the viewer
   });
 });
 
-describe('AC-MRI-013 the setting off changes nothing', () => {
-  it.each([[false], [undefined]])('setting %s: no section, no scope, the queue is not requested, and the page reads "all caught up"', (value) => {
+describe('AC-MRI-013 (revised, fix-waiting item 1) a waiting step is listed whatever the setting says', () => {
+  it.each([[false], [undefined], [true]])('setting %s: the step the viewer can decide is listed and counted; the setting only governs notifications', (value) => {
     h.role = 'Project Manager';
     h.setting.data = value;
     h.waiting.data = [step('r1', 1, '2026-11-18T08:00:00Z')];
     renderPage('all');
-    expect(screen.queryByRole('region', { name: 'Material requests awaiting you' })).toBeNull();
-    expect(screen.queryByText(/Material requests awaiting you/)).toBeNull();
+    expect(screen.getByRole('region', { name: 'Material requests awaiting you' })).toBeInTheDocument();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+
+  it('nothing waiting reads "all caught up"', () => {
+    h.role = 'Project Manager';
+    renderPage('all');
     expect(screen.getByTestId('approvals-caught-up')).toBeInTheDocument();
-    expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/material requests/i);
-    expect(h.waitingEnabled).toHaveBeenCalledWith(false);
-    expect(h.waitingEnabled).not.toHaveBeenCalledWith(true);
   });
 });
 
 describe('AC-MRI-014 a viewer whose only waiting work is a material-request step', () => {
-  it('gets the page, not "no access", while the setting is on', () => {
+  it('gets the page, not "no access", whatever the setting says', () => {
     h.role = 'Engineer';
     h.setting.data = true;
     h.waiting.data = [step('r1', 1, '2026-11-18T08:00:00Z')];
@@ -130,9 +128,8 @@ describe('AC-MRI-014 a viewer whose only waiting work is a material-request step
     expect(screen.getByRole('region', { name: 'Material requests awaiting you' })).toBeInTheDocument();
   });
 
-  it('keeps the no-access page while the setting is off', () => {
+  it('keeps the no-access page for a viewer with nothing to decide', () => {
     h.role = 'Engineer';
-    h.setting.data = false;
     renderPage('all');
     expect(screen.getByText(/don't have access to approvals/i)).toBeInTheDocument();
   });

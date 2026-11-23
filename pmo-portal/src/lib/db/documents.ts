@@ -1,7 +1,7 @@
 import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import type { Tables, TablesInsert } from '@/src/lib/supabase/database.types';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { issueMicrosoftDocument } from '@/src/lib/m365/graphClient';
 import { fetchAllPages } from '@/src/lib/pagedRead';
@@ -134,18 +134,21 @@ export async function createProjectDocument(
     throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
   }
   const reference = input.microsoft ? referenceColumns(input.microsoft) : {};
+  // `category_id` is resolved from the category text by the resolve_project_document_category trigger (migration 1165),
+  // which introspection cannot see, so the generated Insert type requires what the legacy text path never sends.
+  const row = {
+    project_id: projectId,
+    code: nullable(input.code),
+    ...categoryColumns(input),
+    title: input.title.trim(),
+    revision: nullable(input.revision),
+    doc_date: nullable(input.doc_date),
+    author_id: authorId,
+    ...reference,
+  } satisfies Omit<TablesInsert<'project_documents'>, 'category_id'>;
   const { data, error } = await supabase
     .from('project_documents')
-    .insert({
-      project_id: projectId,
-      code: nullable(input.code),
-      ...categoryColumns(input),
-      title: input.title.trim(),
-      revision: nullable(input.revision),
-      doc_date: nullable(input.doc_date),
-      author_id: authorId,
-      ...reference,
-    })
+    .insert(row as TablesInsert<'project_documents'>)
     .select()
     .single();
   if (error) throwWrite(error);

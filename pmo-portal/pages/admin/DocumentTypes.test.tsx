@@ -22,7 +22,7 @@ vi.mock('@/src/hooks/useDocumentExpiry', () => ({
 import DocumentTypes from './DocumentTypes';
 import { parseWarningDays } from '@/src/lib/db/documentExpiry';
 
-const type = (over: Record<string, unknown> = {}) => ({ id: 't1', name: 'Safety passport', applies_to: 'person', is_medical: false, notify_roles: ['Admin'], ...over });
+const type = (over: Record<string, unknown> = {}) => ({ id: 't1', name: 'Safety passport', applies_to: 'person', is_medical: false, notify_roles: ['Admin'], notify_person: false, ...over });
 const renderIt = (wrap = false) => render(wrap ? <BahasaProvider><ToastProvider><DocumentTypes /></ToastProvider></BahasaProvider> : <ToastProvider><DocumentTypes /></ToastProvider>);
 
 describe('Document types screen (#2614)', () => {
@@ -64,19 +64,47 @@ describe('Document types screen (#2614)', () => {
     const dialog = within(screen.getByRole('dialog'));
     await user.type(dialog.getByLabelText(/^Name/), 'Crane certificate');
     await user.selectOptions(dialog.getByLabelText('Applies to'), 'equipment');
-    await user.click(dialog.getByRole('checkbox', { name: 'Project Manager' }));
+    // the kind's default roles are pre-ticked (what the database would fill); untick Admin to keep only the Project Manager
+    expect(dialog.getByRole('checkbox', { name: 'Admin' })).toBeChecked();
+    expect(dialog.getByRole('checkbox', { name: 'Project Manager' })).toBeChecked();
+    await user.click(dialog.getByRole('checkbox', { name: 'Admin' }));
     await user.click(dialog.getByRole('button', { name: 'Save document type' }));
-    expect(h.create).toHaveBeenCalledWith({ name: 'Crane certificate', applies_to: 'equipment', is_medical: false, notify_roles: ['Project Manager'] });
+    expect(h.create).toHaveBeenCalledWith({ name: 'Crane certificate', applies_to: 'equipment', is_medical: false, notify_roles: ['Project Manager'], notify_person: false });
   });
 
-  it('a medical type is offered for persons only', async () => {
+  it('AC-EXM-003 a person type can warn the manager only: untick every role', async () => {
     const user = userEvent.setup();
     renderIt();
     await user.click(screen.getByRole('button', { name: 'Add document type' }));
     const dialog = within(screen.getByRole('dialog'));
-    expect(dialog.getByRole('checkbox', { name: /Medical document/ })).toBeInTheDocument();
+    await user.type(dialog.getByLabelText(/^Name/), 'Badge');
+    await user.click(dialog.getByRole('checkbox', { name: 'Admin' }));
+    await user.click(dialog.getByRole('button', { name: 'Save document type' }));
+    expect(h.create).toHaveBeenCalledWith({ name: 'Badge', applies_to: 'person', is_medical: false, notify_roles: [], notify_person: false });
+  });
+
+  it('AC-EXM-002 "Also tell the person" is off by default, saved when ticked, offered for person types only, and shown in the list', async () => {
+    const user = userEvent.setup();
+    h.types = { data: [type(), type({ id: 't2', name: 'Told pass', notify_person: true }), type({ id: 't3', name: 'Gear', applies_to: 'equipment', notify_roles: [] })], isPending: false, isError: false, refetch: vi.fn() };
+    renderIt();
+    expect(screen.getByText('Direct manager, Admin')).toBeInTheDocument();
+    expect(screen.getByText('Direct manager, Admin, The person')).toBeInTheDocument();
+    expect(screen.getByText('No one is warned')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit Safety passport' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByRole('checkbox', { name: 'Also tell the person' })).not.toBeChecked();
+    await user.click(dialog.getByRole('checkbox', { name: 'Also tell the person' }));
+    await user.click(dialog.getByRole('button', { name: 'Save document type' }));
+    expect(h.update).toHaveBeenCalledWith({ id: 't1', input: { name: 'Safety passport', notify_roles: ['Admin'], notify_person: true } });
+  });
+
+  it('an equipment type has no "Also tell the person" choice', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    await user.click(screen.getByRole('button', { name: 'Add document type' }));
+    const dialog = within(screen.getByRole('dialog'));
     await user.selectOptions(dialog.getByLabelText('Applies to'), 'equipment');
-    expect(dialog.queryByRole('checkbox', { name: /Medical document/ })).toBeNull();
+    expect(dialog.queryByRole('checkbox', { name: 'Also tell the person' })).toBeNull();
   });
 
   it('renames a type (kind and medical flag are fixed)', async () => {
@@ -88,7 +116,7 @@ describe('Document types screen (#2614)', () => {
     await user.clear(dialog.getByLabelText(/^Name/));
     await user.type(dialog.getByLabelText(/^Name/), 'Site pass');
     await user.click(dialog.getByRole('button', { name: 'Save document type' }));
-    expect(h.update).toHaveBeenCalledWith({ id: 't1', input: { name: 'Site pass', notify_roles: ['Admin'] } });
+    expect(h.update).toHaveBeenCalledWith({ id: 't1', input: { name: 'Site pass', notify_roles: ['Admin'], notify_person: false } });
   });
 
   it('archives after confirming', async () => {

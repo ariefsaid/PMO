@@ -1,0 +1,22 @@
+{
+  "definer_functions": [
+    "archive_labour_class_assignment(uuid)",
+    "end_labour_class_assignment(uuid,date)",
+    "labour_attendance_priced_by(uuid,uuid,date)",
+    "labour_class_for(uuid,uuid,date)",
+    "labour_class_locked(uuid,text,uuid,date)",
+    "labour_class_rate_for(uuid,uuid,date)",
+    "labour_cost_class_lines(uuid)",
+    "save_labour_class_assignment(jsonb)"
+  ],
+  "tables": [
+    {
+      "table": "labour_class_assignments",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ]
+}

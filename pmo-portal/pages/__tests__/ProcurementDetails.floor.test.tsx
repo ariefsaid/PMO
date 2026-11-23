@@ -3,6 +3,12 @@ import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: new Proxy({}, { get: () => fileState.files }), isError: false }) }));
+// C11: the channel reads lost their no-provider fallback; the Details tab click below must not arm a real read.
+vi.mock('@/src/hooks/usePaymentChannels', () => ({
+  usePaymentChannelsOn: () => ({ on: false }),
+  usePaymentChannelNames: () => ({ data: undefined }),
+  useRequestPaymentChannel: () => ({ data: undefined }),
+}));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
@@ -28,7 +34,17 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   }),
 }));
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the follow-up task button mounts with its host page now, so every render here runs
+// inside the shared test query client and the button's open-task read is stubbed quiet.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, task: { ...actual.repositories.task, findOpenForRecord: async () => null } } };
+});
+
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';

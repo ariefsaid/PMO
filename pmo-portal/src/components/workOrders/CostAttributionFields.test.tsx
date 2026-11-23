@@ -67,3 +67,87 @@ describe('AC-WCA-014 CostAttributionFields', () => {
     expect(onChange).toHaveBeenCalledWith({ workOrderId: null, disciplineId: 'd1' });
   });
 });
+
+describe('JOB-TS-WO: the work order is chosen for the person when there is only one', () => {
+  const one = [{ id: 'wo1', wo_number: 'WO-001', title: 'Pipe rack', status: 'Issued', client_po_number: null }];
+  const twoIssued = [
+    { id: 'wo1', wo_number: 'WO-001', title: 'Pipe rack', status: 'Issued', client_po_number: null },
+    { id: 'wo2', wo_number: 'WO-002', title: 'Tie-ins', status: 'Issued', client_po_number: null },
+  ];
+  const issuedAndClosed = [
+    { id: 'wo1', wo_number: 'WO-001', title: 'Pipe rack', status: 'Issued', client_po_number: null },
+    { id: 'wo-closed', wo_number: 'WO-099', title: 'Completed early works', status: 'Closed', client_po_number: null },
+  ];
+  const closedOnly = [
+    { id: 'wo-closed', wo_number: 'WO-099', title: 'Completed early works', status: 'Closed', client_po_number: null },
+  ];
+
+  it('preselects the only open work order, once', () => {
+    h.workOrders.data = one;
+    const onChange = vi.fn();
+    const { rerender } = render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).toHaveBeenCalledWith({ workOrderId: 'wo1', disciplineId: null });
+    onChange.mockClear();
+    // The person clears it: their choice stands, it is not chosen again.
+    rerender(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('does nothing with two open work orders, or when not asked to', () => {
+    h.workOrders.data = twoIssued;
+    const onChange = vi.fn();
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).not.toHaveBeenCalled();
+    h.workOrders.data = one;
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('Issued+Closed selects Issued (closed orders do not count toward single-open preselection)', () => {
+    h.workOrders.data = issuedAndClosed;
+    const onChange = vi.fn();
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).toHaveBeenCalledWith({ workOrderId: 'wo1', disciplineId: null });
+  });
+
+  it('Closed-only makes no selection', () => {
+    h.workOrders.data = closedOnly;
+    const onChange = vi.fn();
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('two Issued makes no selection', () => {
+    h.workOrders.data = twoIssued;
+    const onChange = vi.fn();
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('deliberate manual Closed is still offered in options and selectable', async () => {
+    h.workOrders.data = issuedAndClosed;
+    const onChange = vi.fn();
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Work order' }));
+    expect(await screen.findByRole('option', { name: /WO-001/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /WO-099/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('option', { name: /WO-099/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ workOrderId: 'wo-closed', disciplineId: null });
+  });
+
+  it('preserves existing selected attribution and does not overwrite it', () => {
+    h.workOrders.data = one;
+    const onChange = vi.fn();
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: 'wo-preexisting', disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('clears work order on project change to avoid stale project selection', () => {
+    h.workOrders.data = one;
+    const onChange = vi.fn();
+    const { rerender } = render(<CostAttributionFields projectId="p1" value={{ workOrderId: 'wo1', disciplineId: null }} onChange={onChange} preselectSingle />);
+    rerender(<CostAttributionFields projectId="p2" value={{ workOrderId: 'wo1', disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).toHaveBeenCalledWith({ workOrderId: null, disciplineId: null });
+  });
+});
+

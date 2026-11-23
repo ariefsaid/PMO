@@ -1,6 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { threeWayMatchRepository, type BillMatch } from '@/src/lib/repositories/threeWayMatch';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /**
  * #2634: the Admin setting and the line editors. Kept apart from `useThreeWayMatch` (the ledger's read hooks) so a screen
@@ -9,19 +10,17 @@ import { threeWayMatchRepository, type BillMatch } from '@/src/lib/repositories/
 
 /** The saved setting; null when never saved (the match is off). */
 export function useThreeWayMatchSettings() {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['three-way-match-settings', orgId], queryFn: () => threeWayMatchRepository.settings(), enabled: Boolean(orgId) });
+  return useOrgQuery(['three-way-match-settings'], () => threeWayMatchRepository.settings());
 }
 
 /** Bills held now, Admin only; read while the setting screen is open. */
 export function useThreeWayMatchHeldCount(enabled: boolean) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['three-way-match-held-count', orgId], queryFn: () => threeWayMatchRepository.heldCount(), enabled: enabled && Boolean(orgId) });
+  return useOrgQuery(['three-way-match-held-count'], () => threeWayMatchRepository.heldCount(), { enabled });
 }
 
 export function useSaveThreeWayMatchSettings() {
   const qc = useQueryClient();
-  const orgId = useAuth().currentUser?.org_id;
+  const orgId = useOrgId();
   return useMutation({
     mutationFn: (input: { enabled: boolean; quantityTolerancePct: number; amountTolerancePct: number }) => threeWayMatchRepository.saveSettings(input),
     onSuccess: (saved) => {
@@ -34,9 +33,8 @@ export function useSaveThreeWayMatchSettings() {
 
 /** What the editor starts from: the purchase's ordered items and the lines already recorded. */
 export function useMatchLinesEditorData(kind: 'receipt' | 'bill', targetId: string, procurementId: string) {
-  const orgId = useAuth().currentUser?.org_id;
-  const items = useQuery({ queryKey: ['match-ordered-items', orgId, procurementId], queryFn: () => threeWayMatchRepository.orderedItems(procurementId), enabled: Boolean(orgId) });
-  const lines = useQuery({ queryKey: ['match-recorded-lines', orgId, kind, targetId], queryFn: () => threeWayMatchRepository.recordedLines(kind, targetId), enabled: Boolean(orgId) });
+  const items = useOrgQuery(['match-ordered-items', procurementId], () => threeWayMatchRepository.orderedItems(procurementId));
+  const lines = useOrgQuery(['match-recorded-lines', kind, targetId], () => threeWayMatchRepository.recordedLines(kind, targetId));
   return { items, lines };
 }
 
@@ -44,7 +42,7 @@ type SaveInput = { kind: 'receipt'; id: string; lines: Array<{ itemId: string; q
 /** Record receipt or bill lines; every bill's match (and so the purchase's payment gate) is read again. */
 export function useSaveMatchLines() {
   const qc = useQueryClient();
-  const orgId = useAuth().currentUser?.org_id;
+  const orgId = useOrgId();
   return useMutation({
     // A bill's save returns the match as it now stands (so a cleared hold shows at once); a receipt's returns null.
     mutationFn: async (input: SaveInput): Promise<BillMatch | null> => {

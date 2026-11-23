@@ -11,6 +11,8 @@ select plan(40);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25970000-0000-0000-0000-00000000000a', 'CSP Org', 'IDR', 'Pacific/Kiritimati'),
   ('25970000-0000-0000-0000-00000000000b', 'CSP Other Org', 'IDR', 'UTC');
+-- this switch is on by default now; this file proves the off state, so setup switches it off as an explicit step
+update organizations set performance_indices_enabled = false where id in ('25970000-0000-0000-0000-00000000000a', '25970000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('25970000-0000-0000-0000-0000000000a1', 'csp-admin@example.com'), ('25970000-0000-0000-0000-0000000000a2', 'csp-fin@example.com'), ('25970000-0000-0000-0000-0000000000a3', 'csp-pm@example.com'),
   ('25970000-0000-0000-0000-0000000000a4', 'csp-eng@example.com'), ('25970000-0000-0000-0000-0000000000a5', 'csp-pm2@example.com'), ('25970000-0000-0000-0000-0000000000a6', 'csp-viewer@example.com'),

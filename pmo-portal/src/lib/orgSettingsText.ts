@@ -1,0 +1,63 @@
+import type { TFunction } from 'i18next';
+import type { OrgSettingKey } from '@/src/lib/orgSettingsCatalogue';
+
+/**
+ * The names and one-line summaries of every organisation setting (#2746), in the language `t` speaks. Every key is written out
+ * so the i18n gate sees it; the Record type fails the build when a catalogue entry has no text. They live in the common catalogue
+ * because the command palette reads them on every screen.
+ */
+export const orgSettingGroupLabels = (t: TFunction): Record<string, string> => ({
+  people: t('allSettings.group.people', 'People and crews'),
+  site: t('allSettings.group.site', 'Site and safety'),
+  stock: t('allSettings.group.stock', 'Stock'),
+  purchasing: t('allSettings.group.purchasing', 'Purchasing'),
+  money: t('allSettings.group.money', 'Billing and money'),
+  equipment: t('allSettings.group.equipment', 'Equipment'),
+  notifications: t('allSettings.group.notifications', 'Notifications'),
+  integrations: t('allSettings.group.integrations', 'Connections'),
+});
+
+export const orgSettingText = (t: TFunction): Record<OrgSettingKey, { name: string; summary: string }> => ({
+  modulePeopleCrews: { name: t('allSettings.item.modulePeopleCrews.name', 'Module: people and crews'), summary: t('allSettings.item.modulePeopleCrews.summary', 'Turns built-in roles, the clearance checklist, leave requests and crew loans on or off for everyone.') },
+  moduleSiteDay: { name: t('allSettings.item.moduleSiteDay.name', 'Module: site day'), summary: t('allSettings.item.moduleSiteDay.summary', 'Turns daily safety records and the work order performance panels on or off for everyone.') },
+  moduleStock: { name: t('allSettings.item.moduleStock.name', 'Module: stock'), summary: t('allSettings.item.moduleStock.summary', 'Turns work-order transfers, reservations, two-step transfers and the material request approvals inbox on or off for everyone.') },
+  modulePurchasingExtras: { name: t('allSettings.item.modulePurchasingExtras.name', 'Module: purchasing extras'), summary: t('allSettings.item.modulePurchasingExtras.summary', 'Turns line planning, purchase types, payment channels, purchase order print and delivery notes on or off for everyone.') },
+  moduleBillingExtras: { name: t('allSettings.item.moduleBillingExtras.name', 'Module: billing extras'), summary: t('allSettings.item.moduleBillingExtras.summary', 'Turns revenue per discipline, the revenue plan, idle time as cost and the done-not-claimed reminder on or off for everyone.') },
+  crewLoans: { name: t('allSettings.item.crewLoans.name', 'Crew loans'), summary: t('allSettings.item.crewLoans.summary', 'Lets a crew lend a worker to another crew for a period, shown on the Crews page.') },
+  builtInRoles: { name: t('allSettings.item.builtInRoles.name', 'Built-in roles'), summary: t('allSettings.item.builtInRoles.summary', 'Offers 28 ready-made roles when you edit a person\'s role. Nothing changes until someone is given one.') },
+  clearance: { name: t('allSettings.item.clearance.name', 'Cleared-for-site checklist'), summary: t('allSettings.item.clearance.summary', 'Adds a Clearance section where you record what each person needs before going to site.') },
+  leaveRequests: { name: t('allSettings.item.leaveRequests.name', 'Leave requests'), summary: t('allSettings.item.leaveRequests.summary', 'Lets people request leave and names the role that approves it.') },
+  phoneCheckIn: { name: t('allSettings.item.phoneCheckIn.name', 'Phone check-in supervisor'), summary: t('allSettings.item.phoneCheckIn.summary', 'Chooses the role that decides phone check-ins from outside the work area.') },
+  attendanceTarget: { name: t('allSettings.item.attendanceTarget.name', 'Attendance target'), summary: t('allSettings.item.attendanceTarget.summary', 'Sets the attendance rate crews are measured against.') },
+  crewTools: { name: t('allSettings.item.crewTools.name', 'Crew tool reports'), summary: t('allSettings.item.crewTools.summary', 'Sets the coordinator and the days a tool report may stay open.') },
+  safetyRecords: { name: t('allSettings.item.safetyRecords.name', 'Daily safety records'), summary: t('allSettings.item.safetyRecords.summary', 'Adds a daily safety record to each work order, with your own check, permit and checklist lists.') },
+  performanceIndices: { name: t('allSettings.item.performanceIndices.name', 'Performance indices'), summary: t('allSettings.item.performanceIndices.summary', 'Shows a performance panel on work orders and sets the bands it uses.') },
+  revenuePlan: { name: t('allSettings.item.revenuePlan.name', 'Revenue plan'), summary: t('allSettings.item.revenuePlan.summary', 'Spreads each month\'s plan over working days to give daily targets.') },
+  issueClosingReport: { name: t('allSettings.item.issueClosingReport.name', 'Issue closing report'), summary: t('allSettings.item.issueClosingReport.summary', 'Adds the issue closing time report and sets how it groups issues.') },
+  quantityChangeLimit: { name: t('allSettings.item.quantityChangeLimit.name', 'Quantity change limit'), summary: t('allSettings.item.quantityChangeLimit.summary', 'Sets how far a quantity may rise over the contract before a change request is needed.') },
+  stockTransfers: { name: t('allSettings.item.stockTransfers.name', 'Stock transfers and proof'), summary: t('allSettings.item.stockTransfers.summary', 'Chooses one-step or two-step transfers and when proof is attached.') },
+  stockWoTransfers: { name: t('allSettings.item.stockWoTransfers.name', 'Work-order transfers'), summary: t('allSettings.item.stockWoTransfers.summary', 'Lets stock keepers move leftover material between work orders of one project.') },
+  stockReservations: { name: t('allSettings.item.stockReservations.name', 'Stock reservations'), summary: t('allSettings.item.stockReservations.summary', 'Lets material be held for a work order, with optional borrowing from another reservation.') },
+  dsrStockIssue: { name: t('allSettings.item.dsrStockIssue.name', 'Site reports post stock'), summary: t('allSettings.item.dsrStockIssue.summary', 'Makes a submitted site report issue the material it used from stock.') },
+  woIssueThreshold: { name: t('allSettings.item.woIssueThreshold.name', 'Material progress warning'), summary: t('allSettings.item.woIssueThreshold.summary', 'Warns when material issued runs ahead of work progress by more than a set percentage.') },
+  purchaseTypes: { name: t('allSettings.item.purchaseTypes.name', 'Purchase types'), summary: t('allSettings.item.purchaseTypes.summary', 'Lets each purchase carry a type such as rental, with your own list of types.') },
+  purchaseLinePlanning: { name: t('allSettings.item.purchaseLinePlanning.name', 'Purchase line planning'), summary: t('allSettings.item.purchaseLinePlanning.summary', 'Lets purchase lines be planned against categories before they are ordered.') },
+  threeWayMatch: { name: t('allSettings.item.threeWayMatch.name', 'Three-way match'), summary: t('allSettings.item.threeWayMatch.summary', 'Holds a vendor bill until it agrees with the order and the receipt, within your tolerances.') },
+  purchaseOrderPrint: { name: t('allSettings.item.purchaseOrderPrint.name', 'Purchase order print'), summary: t('allSettings.item.purchaseOrderPrint.summary', 'Adds a printable purchase order with your signature blocks and authorised collectors.') },
+  paymentChannels: { name: t('allSettings.item.paymentChannels.name', 'Payment channels'), summary: t('allSettings.item.paymentChannels.summary', 'Records how each purchase is to be paid, from your list of channels.') },
+  spendApprovalTiers: { name: t('allSettings.item.spendApprovalTiers.name', 'Spend approval tiers'), summary: t('allSettings.item.spendApprovalTiers.summary', 'Routes a purchase to approvers by amount instead of a single approver list.') },
+  hidePrices: { name: t('allSettings.item.hidePrices.name', 'Hide prices from requesters'), summary: t('allSettings.item.hidePrices.summary', 'Hides prices from people who only request material.') },
+  materialRequests: { name: t('allSettings.item.materialRequests.name', 'Material request settings'), summary: t('allSettings.item.materialRequests.summary', 'Sets the approval chain, stand-ins, delivery notes and the approver inbox.') },
+  procurementGates: { name: t('allSettings.item.procurementGates.name', 'Procurement gates'), summary: t('allSettings.item.procurementGates.summary', 'Chooses which steps a purchase must pass before it can move on.') },
+  billingPlan: { name: t('allSettings.item.billingPlan.name', 'Billing plan'), summary: t('allSettings.item.billingPlan.summary', 'Sets the monthly billing target, its currency and the reminder for work done but not claimed.') },
+  billingSteps: { name: t('allSettings.item.billingSteps.name', 'Billing steps'), summary: t('allSettings.item.billingSteps.summary', 'Chooses the default list of billing steps for a work order and who each step belongs to.') },
+  labourCost: { name: t('allSettings.item.labourCost.name', 'Labour cost'), summary: t('allSettings.item.labourCost.summary', 'Costs hours worked at your labour class rates.') },
+  idleCost: { name: t('allSettings.item.idleCost.name', 'Idle hours as cost'), summary: t('allSettings.item.idleCost.summary', 'Counts idle hours as cost against the work order. Needs labour cost on.') },
+  disciplineProfit: { name: t('allSettings.item.disciplineProfit.name', 'Revenue per discipline'), summary: t('allSettings.item.disciplineProfit.summary', 'Shows revenue next to cost for each discipline on a project.') },
+  equipmentPlan: { name: t('allSettings.item.equipmentPlan.name', 'Monthly equipment plan'), summary: t('allSettings.item.equipmentPlan.summary', 'Adds a monthly equipment plan and sets who approves it.') },
+  equipmentTargets: { name: t('allSettings.item.equipmentTargets.name', 'Equipment targets'), summary: t('allSettings.item.equipmentTargets.summary', 'Sets the availability and use targets and when a down machine is escalated.') },
+  emailNotifications: { name: t('allSettings.item.emailNotifications.name', 'Email notifications'), summary: t('allSettings.item.emailNotifications.summary', 'Chooses which events send email, to whom besides the people involved, and in which language.') },
+  scheduledReports: { name: t('allSettings.item.scheduledReports.name', 'Scheduled reports'), summary: t('allSettings.item.scheduledReports.summary', 'Emails a report to chosen people on a schedule.') },
+  m365DefaultLibrary: { name: t('allSettings.item.m365DefaultLibrary.name', 'Default document library'), summary: t('allSettings.item.m365DefaultLibrary.summary', 'Chooses the Microsoft 365 library new project folders are created in.') },
+  feedbackSurveys: { name: t('allSettings.item.feedbackSurveys.name', 'Feedback surveys'), summary: t('allSettings.item.feedbackSurveys.summary', 'Asks people short in-app feedback questions.') },
+});

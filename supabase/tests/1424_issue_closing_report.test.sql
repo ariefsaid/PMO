@@ -30,7 +30,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 -- Report Settings (Org A enabled, Org B disabled by default)
 insert into public.issue_closing_report_settings (org_id, enabled, grouping_mode) values
   ('26780000-0000-0000-0000-00000000000a', true, 'type'),
-  ('26780000-0000-0000-0000-00000000000b', false, 'type');
+  ('26780000-0000-0000-0000-00000000000b', false, 'type')
+on conflict (org_id) do update set enabled = excluded.enabled, grouping_mode = excluded.grouping_mode;
 
 -- Department Groups for Org A
 insert into public.issue_department_groups (id, org_id, name, issue_types) values

@@ -167,6 +167,20 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
   await expect(page.getByText('Books do not balance')).toHaveCount(0);
   await expect(page.locator('li', { hasText: `${tag} diesel` })).toContainText('Paid, topped up');
 
+  // 4b. AC-CAE-001/003: beside the plan, the project's open purchase requests are listed (or the empty state says who raises one);
+  // when there are some, "Start the plan from these" opens the plan editor pre-filled, and nothing is saved until Create draft plan.
+  const openRequests = page.getByTestId('open-requests');
+  await expect(openRequests).toBeVisible({ timeout: 20_000 });
+  const startPlan = page.getByRole('button', { name: 'Start the plan from these' });
+  if (await startPlan.count() > 0 && await startPlan.isEnabled()) {
+    await startPlan.click();
+    await expect(page.getByTestId('plan-seed-editor')).toBeVisible();
+    await page.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.getByTestId('plan-seed-editor')).toHaveCount(0);
+  } else {
+    await expect(openRequests).toContainText(/No open purchase requests|can't see prices|nothing to fill in/);
+  }
+
   // 5. Out of plan: the Engineer files a float claim above the month's remaining (2,000,000 planned, 500,000 drawn).
   await signIn(page, 'engineer@acme.test');
   await page.goto('/expenses/new');

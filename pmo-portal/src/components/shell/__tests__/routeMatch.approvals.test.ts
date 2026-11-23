@@ -27,7 +27,7 @@ describe('modulesForRole — Approvals in ⌘K Navigate (fix #7)', () => {
     expect(modules).toContain('approvals');
   });
 
-  it('AC-FIX7-CMDK-05: Engineer does NOT see Approvals in ⌘K Navigate', () => {
+  it('AC-FIX7-CMDK-05: Engineer does NOT see Approvals in ⌘K Navigate (the menu offers it by standing; the palette by role)', () => {
     const modules = modulesForRole(UserRole.Engineer).map((m) => m.module);
     expect(modules).not.toContain('approvals');
   });

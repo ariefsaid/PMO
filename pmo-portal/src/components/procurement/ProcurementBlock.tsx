@@ -1,4 +1,5 @@
 import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -264,6 +265,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   // The state main action reuses the record page's labels, which live in the common catalogue.
   const { t: tCommon } = useTranslation();
   const { currentUser, role } = useAuth();
+  // roles-that-decide FR-RTD-009: the database gate says whether this person orders by built-in role.
+  const mayOrderByRole = useMayOrderPurchases();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { openRecord } = useListReturn({ list: 'procurement' });
@@ -809,6 +812,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
       mayDecideRoutedApproval(drawerDetails.approvalRoute ?? selected.approvalRoute, currentUser?.id, role === 'Admin'),
       (drawerDetails.payments?.length ?? 0) > 0,
       purchaseHasValue(drawerDetails),
+      mayOrderByRole,
     )),
     tCommon,
   ) : undefined;

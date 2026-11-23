@@ -9,6 +9,7 @@ import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQu
 import type { Role } from '@/src/auth/AuthContext';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
+import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
 const h = vi.hoisted(() => ({
   reconciliation: vi.fn(() => ({ data: [], isPending: false, isError: false, refetch: vi.fn() })),
@@ -20,6 +21,7 @@ const h = vi.hoisted(() => ({
   projectBilling: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   documents: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   orderLines: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  acceptances: [] as unknown[],
   claims: [] as unknown[],
   erpConnected: true,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
@@ -53,7 +55,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectWorkOrderLines: () => h.orderLines,
-  useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useWorkOrderAcceptances: () => ({ data: h.acceptances, isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
@@ -85,6 +87,17 @@ vi.mock('../InvoiceWorkOrderModal', () => ({
 }));
 
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: WorkOrderListsProvider loads the organisation's lists for real now, so the tab renders
+// inside the shared test query client; the lists themselves read quiet defaults here.
+vi.mock('@/src/lib/repositories/workOrderLists', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderLists')>();
+  return { ...actual, workOrderListRepository: { ...actual.workOrderListRepository, list: async () => [] } };
+});
+const WorkOrdersTabInClient = (props: React.ComponentProps<typeof WorkOrdersTab>) => (
+  <QueryClientTestProvider><WorkOrdersTab {...props} /></QueryClientTestProvider>
+);
+
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { formatDay } from '@/src/lib/format';
@@ -103,7 +116,7 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
 });
 const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null, open?: DocumentViewerApi['open']) => {
   h.role = role;
-  const content = <><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></>;
+  const content = <><WorkOrdersTabInClient projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></>;
   return render(
     <MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter>,
   );
@@ -123,6 +136,7 @@ beforeEach(() => {
   h.projectBilling = { data: null, isPending: false, isError: false, refetch: vi.fn() };
   h.documents = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.orderLines = { data: [], isPending: false, isError: false, refetch: vi.fn() };
+  h.acceptances = [];
   h.claims = [];
   h.erpConnected = true;
   h.m = Object.fromEntries(['createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice', 'raiseNativeInvoice', 'recordAssessment']
@@ -152,7 +166,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
     const retryDocuments = vi.fn();
     h.documents = { data: undefined, isPending: false, isError: true, refetch: retryDocuments };
-    view.rerender(<MemoryRouter initialEntries={['/']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
+    view.rerender(<MemoryRouter initialEntries={['/']}><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" clientId="c-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
 
     expect(within(dialog).getByText("Couldn't load evidence documents")).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Retry' }));
@@ -470,7 +484,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
       render(
         <FinanceI18nTestProvider>
           <MemoryRouter>
-            <ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider>
+            <ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" clientId="c-1" /></ToastProvider>
           </MemoryRouter>
         </FinanceI18nTestProvider>,
       );
@@ -920,14 +934,14 @@ describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/
     await financeTestI18n.changeLanguage('id');
     try {
       h.role = 'Finance';
-      render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>);
+      render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>);
       expect(within(screen.getByTestId('customer-order-wo-1')).getByText('Menunggu dikirim')).toBeInTheDocument();
     } finally {
       await financeTestI18n.changeLanguage('en');
     }
   });
 
-  const renderBahasaTab = () => { h.role = 'Finance'; return render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>); };
+  const renderBahasaTab = () => { h.role = 'Finance'; return render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>); };
 
   it('an organisation where PMO owns billing reads no ERP in the empty claims card in Bahasa', async () => {
     h.mode = 'native';
@@ -1096,6 +1110,64 @@ describe('WorkOrdersTab — billing actions', () => {
     await userEvent.click(within(screen.getByTestId('customer-order-wo-1')).getByRole('button', { name: /^Raise invoice/ }));
     expect(screen.getByLabelText('Bills')).toHaveValue('wo-1');
     expect(screen.getByLabelText(/SURVEY/)).toHaveValue('78');
+  });
+
+  it('AC-1402 starting from a confirmed BAST selects that work order and its accepted quantity', async () => {
+    h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2', title: 'Phase 2 install' })];
+    h.billing.data = [bill(), bill({ workOrderId: 'wo-2' })];
+    h.boq = { data: [
+      { id: 'boq-1', item_code: 'SURVEY', description: 'Survey route', unit: 'km', quantity: 1900, rate: 1000, earning_basis: 'unit_rate' },
+      { id: 'boq-unallocated', item_code: 'MOB', description: 'Mobilisation', unit: 'lot', quantity: 1, rate: 1000, earning_basis: 'unit_rate' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    h.orderLines = { data: [
+      { id: 'allocation-a', work_order_id: 'wo-1', boq_item_id: 'boq-1', quantity: 1000 },
+      { id: 'allocation-b', work_order_id: 'wo-2', boq_item_id: 'boq-1', quantity: 500 },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    const confirmedBast = (id: string, workOrderId: string, quantity: number) => ({
+      id, org_id: 'org-1', project_id: 'p1', work_order_id: workOrderId,
+      acceptance_date: '2026-11-01', is_final: false, prepared_by: 'u-pm', prepared_at: '2026-11-02T00:00:00Z',
+      document_id: null, status: 'Confirmed', confirmed_by: 'u-finance', confirmed_at: '2026-11-03T00:00:00Z',
+      confirm_basis: 'standard', withdrawn_at: null, note: null,
+      lines: [{ acceptance_id: id, boq_item_id: 'boq-1', quantity }],
+    }) as WorkOrderAcceptanceWithLines;
+    h.acceptances = [confirmedBast('bast-a', 'wo-1', 997), confirmedBast('bast-b', 'wo-2', 200)];
+    h.projectBilling = { data: {
+      currency: 'USD', contractNet: 1_000_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+      assessment: null, claimedByBoqItem: { 'boq-1': 150 }, assessedByBoqItem: {}, earnedValue: 1_197_000,
+      contractLines: [
+        { boqItemId: 'boq-1', earningBasis: 'unit_rate', lineNo: 1, orderedQuantity: 1500,
+          acceptedQuantity: 1197, closedFinal: 0, earnedQuantity: 1197, contractBalance: 400,
+          allocations: [
+            { workOrderId: 'wo-1', boqItemId: 'boq-1', quantity: 1000, claimedQuantity: 100, acceptedQuantity: 997, final: false },
+            { workOrderId: 'wo-2', boqItemId: 'boq-1', quantity: 500, claimedQuantity: 50, acceptedQuantity: 200, final: false },
+          ] },
+        { boqItemId: 'boq-unallocated', earningBasis: 'unit_rate', lineNo: 2, orderedQuantity: 0,
+          acceptedQuantity: 0, closedFinal: 0, earnedQuantity: 0, contractBalance: 0, allocations: [] },
+      ],
+    }, isPending: false, isError: false, refetch: vi.fn() };
+
+    const user = userEvent.setup();
+    renderTab();
+    const orderA = within(screen.getByTestId('customer-order-wo-1'));
+    await user.click(orderA.getByRole('button', { name: 'Start a claim from this BAST' }));
+
+    expect(screen.getByLabelText('Bills')).toHaveValue('wo-1');
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('897');
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await user.click(within(screen.getByRole('alertdialog', { name: 'Discard your changes?' })).getByRole('button', { name: 'Discard' }));
+    await user.click(screen.getByRole('button', { name: 'New claim' }));
+    expect(screen.getByLabelText('Bills')).toHaveValue('');
+    expect(screen.getByLabelText(/MOB/)).toHaveValue('');
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await user.click(orderA.getByRole('button', { name: 'Start a claim from this BAST' }));
+    expect(screen.getByLabelText('Bills')).toHaveValue('wo-1');
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('897');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' }));
+    await waitFor(() => expect(h.m.createClaim.mutateAsync).toHaveBeenCalledWith({
+      kind: 'progress', workOrderId: 'wo-1', lines: [{ boqItemId: 'boq-1', quantity: 897 }], recoverRemaining: false,
+    }));
   });
 });
 
@@ -1328,7 +1400,7 @@ describe('WorkOrdersTab — Invoice this from the plan (#1640)', () => {
     h.orderLines = { data: [LINE], isPending: false, isError: false, refetch: vi.fn() };
     h.projectBilling = billingWith(ALLOCATED);
     view.rerender(
-      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
     );
     expect(await screen.findByLabelText('Bills')).toHaveValue('wo-2');
     expect(screen.queryByTestId('invoice-modal')).toBeNull();
@@ -1343,7 +1415,7 @@ describe('WorkOrdersTab — Invoice this from the plan (#1640)', () => {
     // Same arrival props, flag still handed in by the parent: the one shot is spent.
     h.list = { ...h.list, data: [...(h.list.data as unknown[])] };
     view.rerender(
-      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
     );
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByTestId('invoice-modal')).toBeNull();
@@ -1371,7 +1443,7 @@ describe('WorkOrdersTab — Invoice this from the plan (#1640)', () => {
     h.synced = true;
     h.routeReady = true;
     view.rerender(
-      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
+      <MemoryRouter initialEntries={['/?wo=wo-2&invoice=1']}><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" clientId="c-1" focusWorkOrderId="wo-2" autoInvoiceWorkOrderId="wo-2" /><RouteSearch /></ToastProvider></MemoryRouter>,
     );
     expect(await screen.findByTestId('invoice-modal')).toHaveTextContent('wo-2|40000|c-1');
   });

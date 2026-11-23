@@ -1,0 +1,6 @@
+{
+  "definer_functions": [
+    "qcr_may_approve_role(uuid)",
+    "qcr_profile_may_approve(user_role,text,uuid)"
+  ]
+}

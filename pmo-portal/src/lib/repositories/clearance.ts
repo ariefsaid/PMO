@@ -4,16 +4,15 @@ import { wrap } from './repositoryErrors';
 import type { ClearanceRepository } from './contracts/clearance';
 
 export type {
-  ClearanceItemRow, ClearanceItemInput, ClearanceState, PersonChecklistRow, ClearanceSummaryRow, ClearanceStateInput,
+  ClearanceItemRow, ClearanceItemInput, ClearanceState, PersonChecklistRow, ClearanceSummaryRow, ClearanceStateInput, PersonClearanceDueRow,
 } from '@/src/lib/db/clearance';
 
 export const clearanceRepository: ClearanceRepository = {
-  enabled: () => wrap(() => clearance.getClearanceEnabled()),
-  setEnabled: (enabled) => wrap(() => clearance.setClearanceEnabled(enabled)),
   items: () => wrap(() => clearance.listClearanceItems()),
   createItem: (input) => wrap(() => clearance.createClearanceItem(input)),
   updateItem: (id, patch) => wrap(() => clearance.updateClearanceItem(id, patch)),
   summary: () => wrap(() => clearance.listClearanceSummary()),
+  due: () => wrap(() => clearance.listPersonClearanceDue()),
   checklist: (personId) => wrap(() => clearance.listPersonChecklist(personId)),
   saveState: (personId, itemId, input) => wrap(() => clearance.saveClearanceState(personId, itemId, input)),
   clearState: (personId, itemId) => wrap(() => clearance.clearClearanceState(personId, itemId)),

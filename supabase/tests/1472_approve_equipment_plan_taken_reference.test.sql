@@ -22,7 +22,9 @@ insert into companies (id, org_id, name, type) values
   ('47020000-0000-0000-0000-0000000000e1', '47020000-0000-0000-0000-00000000000a', 'EQP Vendor', 'Vendor');
 insert into work_orders (id, org_id, project_id, title, order_value, tax_treatment, tax_amount) values
   ('47020000-0000-0000-0000-0000000000d1', '47020000-0000-0000-0000-00000000000a', '47020000-0000-0000-0000-0000000000c1', 'EQP WO on project', 10, 'exclusive', 0);
-insert into org_purchase_type_settings (org_id, enabled) values ('47020000-0000-0000-0000-00000000000a', true);
+insert into org_purchase_type_settings (org_id, enabled) values ('47020000-0000-0000-0000-00000000000a', true) on conflict (org_id) do update set enabled = true;
+-- the organisation trigger already seeded starter purchase types; this file brings its own
+delete from purchase_types where org_id = '47020000-0000-0000-0000-00000000000a';
 insert into purchase_types (id, org_id, name, is_rental, position) values
   ('47020000-0000-0000-0000-0000000000f2', '47020000-0000-0000-0000-00000000000a', 'Hire', true, 2);
 insert into org_equipment_plan_settings (org_id, enabled) values ('47020000-0000-0000-0000-00000000000a', true);
@@ -76,7 +78,7 @@ select lives_ok($$ select public.create_procurement_with_items(
                      'purchase_type_id', '47020000-0000-0000-0000-0000000000f2'::uuid,
                      'rental_from', '2026-02-05'::date, 'rental_to', '2026-02-20'::date),
   jsonb_build_array(jsonb_build_object('id', pg_temp._iid('47020000-0000-0000-0000-000000000b02', 1),
-                     'name', 'Excavator', 'description', 'Monthly plan 2026-02 · Work order EQP WO on project',
+                     'name', 'Excavator', 'description', 'Monthly plan 2026-02',
                      'quantity', 2, 'rate', 1000))) $$, 'the approver raises the first purchase of the second plan themselves');
 select lives_ok($$ select public.approve_equipment_plan('47020000-0000-0000-0000-000000000b02') $$,
   'the approval takes that purchase over instead of refusing it');

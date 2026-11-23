@@ -37,6 +37,12 @@ vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
 }));
 
+// The supplier-bill form's hold note reads the purchase rules and the three-way-match setting (auth + queries), which the
+// record-capture suites do not provide. BillHoldNotice.test.tsx unmocks and proves it.
+vi.mock('@/pages/procurement/BillHoldNotice', () => ({
+  BillHoldNotice: () => createElement('div', { 'data-testid': 'bill-hold-stub' }),
+}));
+
 // #2732: the claim's work-order card reads its own queries (work orders, disciplines) and needs a query client, which the
 // ExpenseClaimDetail suites do not provide. ExpenseAttributionCard.test.tsx unmocks and proves it.
 vi.mock('@/pages/expenses/ExpenseAttributionCard', () => ({
@@ -70,6 +76,16 @@ vi.mock('@/src/hooks/useThreeWayMatch', () => ({
 // provide a query client (or an authenticated session) for. Default: printing off, as for an org that never turned it on.
 // The hook's own suite and the settings-section suite unmock it; the print-action tests register their own value.
 vi.mock('@/src/hooks/usePurchaseOrderSettings', () => import('@/pages/__tests__/helpers/purchaseOrderSettingsMock'));
+
+// roles-that-decide: the ordering-by-built-in-role gate is a query the procurement, rail and shell suites do not provide a client
+// for. Default: no ordering role (an organisation that named none). The hook's suite and the settings-section suite unmock it.
+vi.mock('@/src/hooks/useOrderJobRoles', () => ({
+  ORDER_JOB_ROLES_KEY: 'order-job-roles',
+  MAY_ORDER_PURCHASES_KEY: 'may-order-purchases',
+  useMayOrderPurchases: () => false,
+  useOrderJobRoles: () => ({ data: [], isPending: false, isError: false, refetch: () => Promise.resolve() }),
+  useOrderJobRolesMutation: () => ({ mutateAsync: async () => [], isPending: false }),
+}));
 
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
@@ -223,14 +239,18 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 // and values were string-concatenated instead. Initialising a minimal synchronous instance here
 // makes `t` behave in tests as it does at runtime: a missing key resolves to its defaultValue WITH
 // interpolation applied. Resources stay empty on purpose — the suite asserts the English source
-// strings the call sites carry, never a catalogue (catalogues are fetched JSON, FR-L10N-043).
+// strings the call sites carry, never a catalogue (catalogues are fetched JSON, FR-L10N-043); the exception is `refusals`, whose sentences live only in the catalogue.
 import i18nextTest from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import refusalsEn from '../public/locales/en/refusals.json';
+import refusalsId from '../public/locales/id/refusals.json';
 
 void i18nextTest.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  resources: { en: { common: {} } },
+  // refusals: the one catalogue whose sentences have no inline default. `id` carries it too, so a language with any
+  // resource still resolves to itself (i18next's `resolvedLanguage` skips a language that holds none).
+  resources: { en: { common: {}, refusals: refusalsEn }, id: { refusals: refusalsId } },
   defaultNS: 'common',
   initImmediate: false, // synchronous init — no async gap before the first render
   interpolation: { escapeValue: false }, // React escapes; double-escaping corrupts "D&B" etc.
@@ -292,3 +312,17 @@ if (typeof document !== 'undefined') {
     return instance;
   };
 }
+
+// fix-waiting: the two database reads behind the shared waiting list are held idle by default, so a test of one screen sees only the
+// kinds it feeds. A test of the list itself (or of a kind that needs them) overrides this with its own vi.mock of the module.
+// The module's two cache-key builders are part of that same public contract: screens seed their QueryClient through them. They are
+// pure derivations, so this factory carries their exact signatures/tuples instead of loading the module's auth/provider/DAL imports.
+// Keep in step with useWaitingDecisions.ts:7-8.
+vi.mock('@/src/hooks/useWaitingDecisions', () => ({
+  waitingDecisionsKey: (orgId: string | undefined, userId: string | undefined) =>
+    ['waiting-decisions', orgId, userId] as const,
+  decisionStandingKey: (orgId: string | undefined, userId: string | undefined) =>
+    ['decision-standing', orgId, userId] as const,
+  useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
+  useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
+}));

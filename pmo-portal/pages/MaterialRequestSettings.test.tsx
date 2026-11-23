@@ -16,6 +16,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequestCutoff: () => ({ ...ok, data: null }),
   useDeliveryNoteSettings: () => h.dnSettings,
   useStandIns: () => ({ ...ok, data: [{ id: 's1', delegatorId: 'u1', standInId: 'u2', startsOn: '2026-11-20', endsOn: '2026-11-22', revokedAt: null }] }),
+  useUsageInstalledSource: () => ({ data: 'site_reports', refetch: vi.fn() }),
   useMaterialRequestMutations: () => ({
     setChain: { mutateAsync: vi.fn(), isPending: false }, setCutoff: { mutateAsync: vi.fn(), isPending: false },
     setDeliveryNoteSettings: { mutateAsync: h.setDeliveryNoteSettings, isPending: false },
@@ -28,6 +29,7 @@ vi.mock('@/src/hooks/useUsers', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1', role: 'Engineer' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: false }), useModuleOn: () => true }));
 
 import MaterialRequestSettingsPage from './MaterialRequestSettings';
 
@@ -62,10 +64,10 @@ describe('material request approval settings', () => {
       expect(screen.queryByTestId('delivery-note-settings-editor')).not.toBeInTheDocument();
     });
 
-    it('AC-DNP-006 an Admin sees delivery note settings and can enable and save signature blocks', async () => {
+    it('AC-DNP-006 an Admin sees delivery note settings, with no on/off switch (on for everyone, #2746), and can save signature blocks', async () => {
       h.role = 'Admin';
       h.dnSettings = {
-        data: { enabled: false, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] },
+        data: { enabled: true, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] },
         isPending: false,
         isError: false,
         refetch: vi.fn(),
@@ -73,25 +75,21 @@ describe('material request approval settings', () => {
       render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
 
       expect(screen.getByTestId('delivery-note-settings-editor')).toBeInTheDocument();
-      const checkbox = screen.getByRole('checkbox', { name: /Enable printable delivery note/i });
-      expect(checkbox).not.toBeChecked();
+      expect(screen.queryByRole('checkbox', { name: /Enable printable delivery note/i })).toBeNull();
 
-      // Click enable
-      await userEvent.click(checkbox);
-      expect(checkbox).toBeChecked();
-
-      // Check signature block inputs exist
+      // Signature block inputs exist
       expect(screen.getByTestId('signature-block-input-0')).toBeInTheDocument();
       expect(screen.getByTestId('signature-block-input-1')).toBeInTheDocument();
       expect(screen.getByTestId('signature-block-input-2')).toBeInTheDocument();
 
-      // Save
+      // Change a block, then save
+      await userEvent.type(screen.getAllByRole('textbox', { name: /Signature block 3/i })[0], ' (site)');
       const saveBtn = screen.getByTestId('save-delivery-note-settings-button');
       await userEvent.click(saveBtn);
 
       expect(h.setDeliveryNoteSettings).toHaveBeenCalledWith({
         enabled: true,
-        signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'],
+        signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by (site)'],
       });
     });
   });

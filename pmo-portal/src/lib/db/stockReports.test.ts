@@ -4,24 +4,54 @@ import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
+  const tagQueue: Array<{ data: unknown; error: unknown }> = [];
+  const builder: Record<string, unknown> = {};
+  for (const n of ['select', 'not', 'order', 'range']) builder[n] = () => builder;
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(tagQueue.shift() ?? { data: [], error: null });
+  const from = vi.fn(() => builder);
   const rpc = vi.fn(async () => queue.shift() ?? { data: null, error: null });
-  return { rpc, queue };
+  return { rpc, queue, from, tagQueue };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 
 import { getProjectConsumption, getStockAtRisk, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from './stockReports';
 
 const row = (seq: number) => ({ seq, id: `id${seq}`, document_id: 'd', document_number: 'R-1', document_status: 'Posted', kind: 'receive', posted_at: 't', occurred_on: '2026-10-01', posted_by: 'u', actor_name: 'A', item_id: 'i', item_code: 'C', item_name: 'N', unit_code: 'bag', warehouse_id: 'w', warehouse_code: 'W', project_id: null, project_name: null, boq_item_id: null, boq_item_code: null, qty_delta: '1', qty_after: '1' });
 
-beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); });
+const onHandRow = (itemId: string) => ({ item_id: itemId, item_code: 'C', item_name: 'N', unit_code: 'bag', whole_only: true, warehouse_id: 'w', warehouse_code: 'W', warehouse_name: 'Wh', warehouse_kind: 'site', qty_on_hand: '70' });
+
+beforeEach(() => { h.queue.length = 0; h.tagQueue.length = 0; h.rpc.mockClear(); h.from.mockClear(); });
 
 describe('stockReports DAL', () => {
   it('FR-STK-040 on hand maps rows to camelCase and omits cost keys the server omitted', async () => {
-    h.queue.push({ data: [{ item_id: 'i', item_code: 'C', item_name: 'N', unit_code: 'bag', whole_only: true, warehouse_id: 'w', warehouse_code: 'W', warehouse_name: 'Wh', warehouse_kind: 'site', qty_on_hand: '70' }], error: null });
+    h.queue.push({ data: [onHandRow('i')], error: null });
     const rows = await getStockOnHand({ warehouseId: 'w' });
     expect(h.rpc).toHaveBeenCalledWith('get_stock_on_hand', { p_warehouse_id: 'w' });
     expect(rows[0]).toMatchObject({ itemCode: 'C', qtyOnHand: '70', wholeOnly: true });
     expect('valueOnHand' in rows[0]).toBe(false);
+  });
+
+  it('FR-SSW-010 on hand marks a tagged item with the organisation’s tag and leaves an ordinary item unmarked', async () => {
+    h.queue.push({ data: [onHandRow('i1'), onHandRow('i2')], error: null });
+    h.tagQueue.push({ data: [{ id: 'i1', tag: { name: 'Client supplied' } }], error: null });
+    const rows = await getStockOnHand({});
+    expect(rows[0].tagName).toBe('Client supplied');
+    expect('tagName' in rows[1]).toBe(false);
+  });
+
+  it('FR-SSW-010 an empty balance read asks for no tags at all', async () => {
+    h.queue.push({ data: [], error: null });
+    const rows = await getStockOnHand({});
+    expect(rows).toEqual([]);
+    expect(h.from).not.toHaveBeenCalled();
+  });
+
+  it('FR-STK-041 the trace page marks the configured tag and leaves an ordinary row unmarked', async () => {
+    h.queue.push({ data: { rows: [row(2), { ...row(1), item_id: 'i-plain' }], next_before_seq: null }, error: null });
+    h.tagQueue.push({ data: [{ id: 'i', tag: { name: 'Client supplied' } }], error: null });
+    const page = await getStockLedgerPage({});
+    expect(page.rows[0].tagName).toBe('Client supplied');
+    expect('tagName' in page.rows[1]).toBe(false);
   });
 
   it('FR-STK-041 the trace follows next_before_seq until null and returns every page once', async () => {

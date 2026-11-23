@@ -15,13 +15,14 @@ import {
   hasAttribution,
   type CostAttribution,
   type CostDiscipline,
+  type AttributionSource,
   type CostSource,
   type WorkOrderCostLine,
 } from '@/src/lib/db/workOrderCosts';
 import { listWorkOrderCostMoney, listWorkOrderCostLinks, listWorkOrderTimesheetLabels } from '@/src/lib/db/workOrderCostMoney';
 import { wrap } from './repositoryErrors';
 
-export type { CostAttribution, CostDiscipline, CostDisciplineInput, CostSource, WorkOrderCostLine };
+export type { AttributionSource, CostAttribution, CostDiscipline, CostDisciplineInput, CostSource, WorkOrderCostLine };
 export { DISCIPLINE_CODE_MAX, DISCIPLINE_NAME_MAX } from '@/src/lib/db/workOrderCosts';
 export { NO_ATTRIBUTION, hasAttribution, COST_SOURCES } from '@/src/lib/db/workOrderCosts';
 
@@ -46,7 +47,7 @@ export const workOrderCostRepository = {
   createDiscipline: (input: CostDisciplineInput): Promise<string> => wrap(() => createCostDiscipline(input)),
   updateDiscipline: (id: string, input: CostDisciplineInput): Promise<void> => wrap(() => updateCostDiscipline(id, input)),
   archiveDiscipline: (id: string): Promise<void> => wrap(() => archiveCostDiscipline(id)),
-  setAttribution: (source: CostSource, ids: string[], attribution: CostAttribution): Promise<number> =>
+  setAttribution: (source: AttributionSource, ids: string[], attribution: CostAttribution): Promise<number> =>
     wrap(() => setCostAttribution(source, ids, attribution)),
   /**
    * Called by a form right after it created a record: writes the attribution only when one was picked, so a
@@ -64,6 +65,24 @@ export const workOrderCostRepository = {
     const id = typeof created === 'string' ? created : (created as { id?: unknown } | null | undefined)?.id;
     if (typeof id !== 'string' || !id || !hasAttribution(attribution)) return;
     try { await wrap(() => setCostAttribution(source, [id], attribution)); } catch (err) { throw new AttributionRefusedError(err, id); }
+  },
+  /**
+   * A purchase's lines, each with its own work order and discipline (wo-per-purchase-line). `byLine` maps a line id to what it names
+   * ('' / null = "same as the request": left out by the caller). Run right after the purchase is saved; one write per distinct pair.
+   * A refusal becomes AttributionRefusedError carrying the purchase id, so the form says "saved, but…" and never offers a duplicating retry.
+   */
+  attributeLines: async (purchaseId: string, byLine: Readonly<Record<string, { workOrderId: string; disciplineId: string }>>): Promise<void> => {
+    const groups = new Map<string, { attribution: CostAttribution; ids: string[] }>();
+    for (const [lineId, v] of Object.entries(byLine)) {
+      if (!v.workOrderId && !v.disciplineId) continue;
+      const key = `${v.workOrderId}|${v.disciplineId}`;
+      const g = groups.get(key) ?? { attribution: { workOrderId: v.workOrderId || null, disciplineId: v.disciplineId || null }, ids: [] };
+      g.ids.push(lineId);
+      groups.set(key, g);
+    }
+    try {
+      for (const g of groups.values()) await wrap(() => setCostAttribution('procurement_item', g.ids, g.attribution));
+    } catch (err) { throw new AttributionRefusedError(err, purchaseId); }
   },
   costLines: (workOrderId: string): Promise<WorkOrderCostLine[]> => wrap(() => listWorkOrderCostLines(workOrderId)),
   /** Per-source money behind the lines (#2518); `null` for a source the caller cannot read. */

@@ -131,7 +131,7 @@ rpc save_timesheet_week "{\"p_timesheet_id\":\"$TS\",\"p_week_start_date\":\"$MO
 get "timesheet_entries?select=id,org_id&timesheet_id=eq.$TS" 1 "entries read back"
 [ "$(jq -r '.[0].org_id' "$body")" = "$ORG" ] || fail "timesheet entry landed in $(jq -r '.[0].org_id' "$body")"
 rpc transition_timesheet "{\"p_timesheet_id\":\"$TS\",\"p_to\":\"Submitted\",\"p_notes\":null}" "timesheet Submitted"
-post incident_reports "{\"incident_date\":\"2026-09-11\",\"type\":\"Near Miss\",\"severity\":\"Low\",\"project_id\":\"$PROJ\",\"description\":\"$tag\",\"reported_by\":\"$ENG\"}" "incident report"; INC=$LAST_ID
+post incident_reports "{\"incident_date\":\"2026-09-11\",\"type\":\"Other\",\"severity\":\"Low\",\"project_id\":\"$PROJ\",\"description\":\"$tag\",\"reported_by\":\"$ENG\"}" "incident report"; INC=$LAST_ID
 post meetings "{\"title\":\"$tag eng meeting\",\"project_id\":\"$PROJ\"}" "engineer meeting"; MTG2=$LAST_ID
 post tasks "{\"name\":\"$tag eng task\",\"status\":\"To Do\",\"project_id\":\"$PROJ\",\"assignee_id\":\"$ENG\"}" "engineer task"; T4=$LAST_ID
 post notifications "{\"owner_id\":\"$ENG\",\"title\":\"$tag\"}" notification; NOTE=$LAST_ID

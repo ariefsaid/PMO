@@ -33,9 +33,22 @@ import SubcontractCertificateDetail from './SubcontractCertificateDetail';
 const load = (lng: 'en' | 'id', ns: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/${ns}.json`), 'utf8'));
 function makeI18n(lng: 'en' | 'id') {
   const i18n = i18next.createInstance();
-  const bundle = (l: 'en' | 'id') => ({ common: load(l, 'common'), status: load(l, 'status'), subcontractCertificates: load(l, 'subcontractCertificates') });
-  void i18n.init({ lng, fallbackLng: 'en', ns: ['common', 'status', 'subcontractCertificates'], defaultNS: 'common', fallbackNS: 'common',
-    resources: { en: bundle('en'), id: bundle('id') }, initImmediate: false, interpolation: { escapeValue: false } });
+  const bundle = (l: 'en' | 'id') => ({
+    common: load(l, 'common'),
+    status: load(l, 'status'),
+    subcontractCertificates: load(l, 'subcontractCertificates'),
+    waitingList: load(l, 'waitingList'),
+  });
+  void i18n.init({
+    lng,
+    fallbackLng: 'en',
+    ns: ['common', 'status', 'subcontractCertificates', 'waitingList'],
+    defaultNS: 'common',
+    fallbackNS: 'common',
+    resources: { en: bundle('en'), id: bundle('id') },
+    initImmediate: false,
+    interpolation: { escapeValue: false },
+  });
   return i18n;
 }
 
@@ -178,5 +191,34 @@ describe('subcontract certificate screen', () => {
     expect(screen.getByRole('button', { name: 'Ajukan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Siapkan berita acara' })).toBeInTheDocument();
     expect(screen.queryByText('Left out')).not.toBeInTheDocument();
+  });
+
+  describe('who-next waiting line (cert 1186: Admin, Executive, Finance)', () => {
+    it('submitted certificate shows truthful role-only Finance, Executive, or Admin (using roleFinanceExecAdmin) in EN and ID', () => {
+      h.view = make('submitted', { submitted_by: 'u-prep' });
+      const first = renderPage('en');
+      expect(screen.getByTestId('spc-waiting-for')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
+      first.unmount();
+
+      renderPage('id');
+      expect(screen.getByTestId('spc-waiting-for')).toHaveTextContent('Menunggu Keuangan, Eksekutif, atau Admin');
+    });
+
+    it('non-waiting states do not show waiting-for line in RecordHeader', () => {
+      for (const st of ['draft', 'approved', 'returned', 'billed', 'cancelled'] as const) {
+        h.view = make(st);
+        const { unmount } = renderPage();
+        expect(screen.queryByTestId('spc-waiting-for')).toBeNull();
+        unmount();
+      }
+    });
+
+    it('preparer SoD block is preserved alongside who-next line', () => {
+      h.view = make('submitted', { submitted_by: 'u-prep' });
+      h.userId = 'u-prep';
+      renderPage('en');
+      expect(screen.getByTestId('spc-waiting-for')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
+      expect(screen.getByText(/needs a different approver/)).toBeInTheDocument();
+    });
   });
 });

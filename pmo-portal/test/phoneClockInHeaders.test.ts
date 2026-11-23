@@ -1,6 +1,6 @@
 /**
- * AC-PCI-013 (#2705) — geolocation is allowed on the clock-in route only. The site-wide `/*` rule keeps blocking it (AC-SEC-207 pins that
- * value); `/my` detaches the header and re-adds a policy with geolocation=(self). Camera and microphone stay blocked everywhere.
+ * AC-PCI-013 (#2705) / AC-WCI-041 — geolocation is allowed for this site's own origin on every route, so the phone clock-in screen and
+ * the crews check-in area form work whichever page the browser loaded first. Camera and microphone stay blocked; no rule re-opens either.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -8,51 +8,39 @@ import { join } from 'node:path';
 
 const HEADERS = readFileSync(join(process.cwd(), 'public/_headers'), 'utf8');
 
-interface Rule { detached: string[]; set: Map<string, string> }
-function rules(text: string): Map<string, Rule> {
-  const out = new Map<string, Rule>();
-  let cur: Rule | null = null;
+function rules(text: string): Map<string, Map<string, string>> {
+  const out = new Map<string, Map<string, string>>();
+  let cur: Map<string, string> | null = null;
   for (const line of text.split('\n')) {
     if (!line.trim() || line.trim().startsWith('#')) continue;
-    if (!/^\s/.test(line)) { cur = { detached: [], set: new Map() }; out.set(line.trim(), cur); continue; }
-    if (!cur) continue;
+    if (!/^\s/.test(line)) { cur = new Map(); out.set(line.trim(), cur); continue; }
     const t = line.trim();
-    if (t.startsWith('!')) { cur.detached.push(t.slice(1).trim().toLowerCase()); continue; }
+    if (!cur || t.startsWith('!')) continue;
     const i = t.indexOf(':');
-    cur.set.set(t.slice(0, i).trim().toLowerCase(), t.slice(i + 1).trim());
+    cur.set(t.slice(0, i).trim().toLowerCase(), t.slice(i + 1).trim());
   }
   return out;
 }
 
-describe('AC-PCI-013 geolocation is scoped to the clock-in route', () => {
+describe('AC-PCI-013 geolocation is allowed for this origin on every route', () => {
   const all = rules(HEADERS);
-  it('the clock-in route detaches the site-wide policy and allows geolocation for this origin', () => {
-    const my = all.get('/my');
-    expect(my, 'a /my rule').toBeDefined();
-    expect(my?.detached).toContain('permissions-policy');
-    expect(my?.set.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=(self)');
+  it('the site-wide rule allows geolocation for this origin only, with camera and microphone blocked', () => {
+    expect(all.get('/*')?.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=(self)');
   });
-  it('the detach line comes before the re-add so the route ends with exactly one policy', () => {
-    const block = HEADERS.slice(HEADERS.indexOf('\n/my\n'));
-    expect(block.indexOf('! Permissions-Policy')).toBeGreaterThan(-1);
-    expect(block.indexOf('! Permissions-Policy')).toBeLessThan(block.indexOf('Permissions-Policy: camera'));
+  it('AC-WCI-041 no per-route rule detaches or re-adds the permissions policy (a browser keeps the first page loaded)', () => {
+    expect(HEADERS).not.toMatch(/^\s*!\s*Permissions-Policy/im);
+    expect(all.has('/my')).toBe(false);
+    expect(all.has('/crews')).toBe(false);
   });
-  it('every other rule that sets a permissions policy still blocks geolocation, camera and microphone', () => {
-    const others = [...all.entries()].filter(([path]) => path !== '/my');
-    const withPolicy = others.filter(([, r]) => r.set.has('permissions-policy'));
+  it('every rule that sets a permissions policy blocks camera and microphone and allows geolocation for this origin only', () => {
+    const withPolicy = [...all.entries()].filter(([, r]) => r.has('permissions-policy'));
     expect(withPolicy.length).toBeGreaterThan(0);
     for (const [path, r] of withPolicy) {
-      const v = r.set.get('permissions-policy') ?? '';
-      expect(v, path).toContain('geolocation=()');
+      const v = r.get('permissions-policy') ?? '';
       expect(v, path).toContain('camera=()');
       expect(v, path).toContain('microphone=()');
+      expect(v, path).toMatch(/geolocation=\(self\)/);
+      expect(v, path).not.toContain('*');
     }
-  });
-  it('no rule other than /my allows geolocation, and /my never allows camera or microphone', () => {
-    for (const [path, r] of all) {
-      const v = r.set.get('permissions-policy') ?? '';
-      if (path !== '/my') expect(v, path).not.toMatch(/geolocation=\((?!\))/);
-    }
-    expect(all.get('/my')?.set.get('permissions-policy')).not.toMatch(/(camera|microphone)=\((?!\))/);
   });
 });

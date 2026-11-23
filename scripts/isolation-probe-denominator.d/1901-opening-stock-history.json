@@ -1,0 +1,8 @@
+{
+  "definer_functions": [
+    "load_stock_opening_history(date,jsonb,uuid,text)",
+    "opening_history_plan(uuid,date,jsonb)",
+    "opening_post_location(uuid,uuid,date,jsonb,text,boolean,uuid)",
+    "preview_stock_opening_history(date,jsonb)"
+  ]
+}

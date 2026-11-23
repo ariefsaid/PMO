@@ -35,6 +35,7 @@ test('JOB-PU16 issuing 20 of a bulk stock to a work order charges it 20 units at
   await chooseItem(page, item.code);
   await page.getByLabel(/^Quantity/).fill('20');
   await page.getByRole('button', { name: 'Post issue' }).click();
+  await page.getByRole('dialog', { name: 'Post this issue?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   // The work order's stock balance: 20 issued at 25 each = 500.

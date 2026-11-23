@@ -105,7 +105,9 @@
     "paymentNeedsBillOdoo": "Catat invoice supplier di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
     "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
     "notSent": "Tidak dikirim",
-    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
+    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP",
+    "valueFromLines": "Dari baris pesanan",
+    "valueNotRecorded": "Nilai penerimaan ini belum dicatat"
   },
   "gates": {
     "heading": "Aturan pembelian",
@@ -117,7 +119,15 @@
     "receipt_before_invoice": "Wajib penerimaan barang sebelum invoice",
     "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
     "saving": "Menyimpan…",
-    "saved": "Tersimpan"
+    "saved": "Tersimpan",
+    "imprestLimit": {
+      "heading": "Batas kas lapangan",
+      "help": "Pengeluaran tunggal terbesar yang ditanggung kas lapangan. Atur sebelum menetapkan kas lapangan. Hanya Admin yang dapat mengaturnya.",
+      "notSet": "Belum diatur. Kas lapangan belum bisa ditetapkan sebelum batas ini diatur.",
+      "current": "Batas saat ini: {{amount}}",
+      "label": "Batas per pengeluaran",
+      "save": "Simpan batas"
+    }
   },
   "documents": {
     "attachTo": "Lampirkan ke",
@@ -953,7 +963,7 @@
     "procurementRef": "Referensi pengadaan",
     "vendor": "Pemasok / Vendor",
     "project": "Proyek",
-    "workOrder": "Perintah kerja",
+    "workOrder": "$t(common:terms.clientWorkOrder)",
     "reference": "Nomor referensi",
     "status": "Status",
     "currency": "Mata uang",
@@ -966,13 +976,15 @@
     "openCollectorLine": "________________________________________",
     "name": "Nama",
     "signature": "Tanda tangan",
-    "signatureDate": "Tanggal"
+    "signatureDate": "Tanggal",
+    "section": "Pesanan pembelian",
+    "off": "Cetak pesanan pembelian belum aktif. Admin mengaktifkannya di Administrasi, Akuntansi, Cetak pesanan pembelian.",
+    "discipline": "Disiplin"
   },
   "poSettings": {
     "heading": "Pencetakan pesanan pembelian",
     "subline": "Aktifkan pesanan pembelian yang dapat dicetak, lalu atur blok tanda tangan dan orang yang berwenang mengambil barang.",
     "loadError": "Tidak dapat memuat pengaturan pesanan pembelian",
-    "enablePrint": "Aktifkan cetak pesanan pembelian",
     "enablePrintHelp": "Menampilkan aksi cetak pada pesanan pembelian dan memungkinkan salinan cetak menyebut siapa yang boleh mengambil barang.",
     "collectorsHeading": "Pengambil berwenang",
     "collectorsHelp": "Orang yang ditunjuk untuk mengambil barang yang dibeli dari pemasok. Jika daftar kosong, dokumen mencetak baris terbuka untuk diisi dengan tangan.",
@@ -1010,9 +1022,9 @@
     "refusedRole": "Hanya Admin yang dapat mengubah pencocokan tiga arah."
   },
   "paymentChannel": {
+    "noneYet": "Belum ada saluran pembayaran. Admin menambahkannya di Saluran pembayaran, dalam Pengaturan akuntansi.",
     "heading": "Kanal pembayaran",
-    "intro": "Catat bagaimana setiap permintaan pembelian akan dibayar. Nonaktif sampai Anda mengaktifkannya.",
-    "switchLabel": "Catat kanal pembayaran pada permintaan pembelian",
+    "intro": "Catat bagaimana setiap permintaan pembelian akan dibayar. Ubah daftar saluran di sini.",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "loadError": "Kanal pembayaran tidak dapat dimuat",
     "saving": "Menyimpan…",
@@ -1038,9 +1050,9 @@
     "columnHeader": "Kanal pembayaran"
   },
   "linePlanning": {
+    "noCategoriesHere": "Belum ada kategori. Admin menambahkannya di Perencanaan baris, dalam Pengaturan akuntansi.",
     "heading": "Perencanaan baris",
     "intro": "Setiap baris permintaan dapat memuat kategori dan tanggal dibutuhkan.",
-    "enable": "Tampilkan kategori dan tanggal dibutuhkan pada setiap baris permintaan",
     "categories": "Kategori",
     "categoryName": "Nama kategori",
     "addCategory": "Tambah kategori",
@@ -1063,5 +1075,52 @@
     "lineLabel": "Baris {{name}}",
     "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya.",
     "columnEmpty": "—"
+  },
+  "billHold": {
+    "rule": {
+      "title": "Tagihan ini tertahan oleh aturan pembelian.",
+      "body": "Organisasi Anda mewajibkan penerimaan barang sebelum invoice supplier. Catat penerimaan barang dulu. Admin dapat mengubah aturan ini di Administrasi, Akuntansi, Aturan pembelian."
+    },
+    "match": {
+      "title": "Pembayaran tertahan sampai tagihan ini cocok.",
+      "body": "Tagihan dicocokkan dengan pesanan dan penerimaan barang. Jika tidak cocok, pembayaran tetap tertahan sampai penerimaan dicatat atau Admin atau Finance, selain orang yang mencatat tagihan, menyetujui pengecualian."
+    }
+  },
+  "lineWorkOrders": {
+    "loadError": "Work order proyek ini tidak bisa dimuat.",
+    "section": "Work order per baris",
+    "intro": "Sebutkan work order dan disiplin untuk tiap baris. Jika semua baris menyebut work order yang sama, permintaan memakainya.",
+    "field": "Work order untuk {{line}}",
+    "disciplineField": "Disiplin untuk {{line}}",
+    "noDiscipline": "Tanpa disiplin",
+    "unknownDiscipline": "Disiplin yang sudah tidak dipakai",
+    "sameAsRequest": "Sama dengan permintaan",
+    "sameAsRequestNamed": "Sama dengan permintaan ({{workOrder}})",
+    "unknownWorkOrder": "Work order yang tidak dapat Anda buka",
+    "cancelled": "dibatalkan",
+    "noProject": "Pilih proyek dulu: work order milik sebuah proyek, setelah itu tiap baris bisa diberi work order.",
+    "noWorkOrders": "Proyek ini belum punya work order, jadi baris belum bisa diberi work order. Manajer proyek menambahkannya di tab Work order proyek.",
+    "differs": "Permintaan berada di {{workOrder}}; baris ini untuk work order yang berbeda.",
+    "save": "Simpan",
+    "saved": "Tersimpan",
+    "nothingToSave": "Ubah work order atau disiplin sebuah baris untuk menyimpan.",
+    "saveFailed": "Permintaan sudah tersimpan, tetapi work order beberapa baris belum terpasang.",
+    "saveFailedNext": "Buka permintaan lalu atur di tab Item."
+  },
+  "orderRoles": {
+    "heading": "Siapa yang dapat memesan pembelian",
+    "subline": "Admin, Eksekutif, Manajer Proyek dan Keuangan selalu dapat memesan. Cantumkan peran bawaan yang pemegangnya juga dapat membuat dan mengirim purchase order, hanya untuk pembelian yang sudah disetujui.",
+    "loadError": "Tidak dapat memuat siapa yang dapat memesan pembelian",
+    "none": "Belum ada peran bawaan yang dicantumkan, jadi hanya tingkat akses di atas yang dapat memesan.",
+    "remove": "Hapus",
+    "removeNamed": "Hapus {{role}}",
+    "heldOnlyNote": "Hanya orang yang memegang peran bawaan yang dicantumkan yang dapat memesan. Tingkat akses saja tidak cukup, meskipun peran itu dibangun di atasnya.",
+    "add": "Tambah peran bawaan",
+    "choose": "Pilih peran bawaan",
+    "addButton": "Tambah",
+    "save": "Simpan",
+    "saved": "Siapa yang dapat memesan pembelian tersimpan",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "turnOn": "Aktifkan peran bawaan di Administrasi > Orang > Peran bawaan untuk mencantumkan peran yang dapat memesan."
   }
 }

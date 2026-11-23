@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
 import type { QcrFileKind, QcrListFilter, QcrRaiseInput, QcrRequest } from '@/src/lib/db/quantityChanges';
 
@@ -16,42 +17,34 @@ export const qcrKeys = {
   limit: (orgId: string | undefined) => [...root(orgId), 'limit'] as const,
 };
 
-const useOrg = () => useAuth().currentUser?.org_id;
+const useOrg = useOrgId;
 const repo = () => repositories.quantityChange;
 
 export function useQuantityChangeRequests(filter: QcrListFilter, page: number) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: qcrKeys.list(orgId, filter, page), queryFn: () => repo().list(filter, page), enabled: Boolean(orgId) });
+  return useOrgQuery(['quantity-changes', 'list', filter, page], () => repo().list(filter, page));
 }
 export function useQuantityChangeRequest(id: string | undefined) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: qcrKeys.detail(orgId, id), queryFn: () => repo().get(id as string), enabled: Boolean(orgId && id) });
+  return useOrgQuery(['quantity-changes', 'detail', id], () => repo().get(id as string), { enabled: Boolean(id) });
 }
 export function useOverContract(projectId: string | undefined, onlyOver: boolean, enabled = true) {
-  const orgId = useOrg();
-  return useQuery({
-    queryKey: qcrKeys.over(orgId, projectId, onlyOver), queryFn: () => repo().overContract(projectId as string, onlyOver),
-    enabled: Boolean(orgId && projectId) && enabled,
-  });
+  return useOrgQuery(['quantity-changes', 'over', projectId, onlyOver], () => repo().overContract(projectId as string, onlyOver), { enabled: Boolean(projectId) && enabled });
 }
 export function useWorkOrderRequestBudget(workOrderId: string | undefined, enabled = true) {
-  const orgId = useOrg();
-  return useQuery({
-    queryKey: qcrKeys.budget(orgId, workOrderId), queryFn: () => repo().workOrderBudget(workOrderId as string),
-    enabled: Boolean(orgId && workOrderId) && enabled,
-  });
+  return useOrgQuery(['quantity-changes', 'budget', workOrderId], () => repo().workOrderBudget(workOrderId as string), { enabled: Boolean(workOrderId) && enabled });
 }
 export function useQuantityChangeApproval(id: string | undefined, enabled: boolean) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: qcrKeys.approval(orgId, id), queryFn: () => repo().approvalState(id as string), enabled: Boolean(orgId && id) && enabled });
+  return useOrgQuery(['quantity-changes', 'approval', id], () => repo().approvalState(id as string), { enabled: Boolean(id) && enabled });
 }
 export function useQuantityVersions(boqItemId: string | undefined, enabled = true) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: qcrKeys.versions(orgId, boqItemId), queryFn: () => repo().versions(boqItemId as string), enabled: Boolean(orgId && boqItemId) && enabled });
+  return useOrgQuery(['quantity-changes', 'versions', boqItemId], () => repo().versions(boqItemId as string), { enabled: Boolean(boqItemId) && enabled });
 }
 export function useQuantityChangeLimit(enabled = true) {
   const orgId = useOrg();
-  return useQuery({ queryKey: qcrKeys.limit(orgId), queryFn: () => repo().getLimit(orgId as string), enabled: Boolean(orgId) && enabled });
+  return useOrgQuery(['quantity-changes', 'limit'], () => repo().getLimit(orgId as string), { enabled });
+}
+export function useQuantityChangeApproverRoles(enabled = true) {
+  const orgId = useOrg();
+  return useOrgQuery(['quantity-changes', 'approver-roles'], () => repo().getApproverRoles(orgId as string), { enabled });
 }
 
 export function useQuantityChangeMutations() {
@@ -73,6 +66,7 @@ export function useQuantityChangeMutations() {
     }),
     recordForecast: useMutation({ mutationFn: (v: { boqItemId: string; quantity: string; note?: string | null }) => repo().recordForecast(v.boqItemId, v.quantity, v.note), ...opts }),
     setLimit: useMutation({ mutationFn: (limit: number | null) => repo().setLimit(orgId as string, limit), ...opts }),
+    setApproverRoles: useMutation({ mutationFn: (roles: string[]) => repo().setApproverRoles(orgId as string, roles), ...opts }),
     uploadFile: useMutation({
       mutationFn: (v: { request: Pick<QcrRequest, 'id' | 'org_id'>; kind: QcrFileKind; file: File }) => repo().uploadFile(v.request, v.kind, v.file),
       ...opts,

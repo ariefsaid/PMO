@@ -25,14 +25,14 @@ describe('StockTabs Transfers tab (AC-TST-027)', () => {
     two.unmount();
     h.twoStep = false;
     render(wrap(<StockTabs />));
-    expect(screen.queryByRole('link', { name: 'Transfers' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Stock transfers' })).not.toBeInTheDocument();
     const oneStep = screen.getAllByRole('link').map((a) => a.textContent);
-    expect(withTransfers.filter((t) => t !== 'Transfers')).toEqual(oneStep);
+    expect(withTransfers.filter((t) => t !== 'Stock transfers')).toEqual(oneStep);
     expect(withTransfers).toHaveLength(oneStep.length + 1);
   });
   it('AC-TST-027 a two-step organisation gets a Transfers tab', () => {
     h.twoStep = true;
     render(wrap(<StockTabs />));
-    expect(screen.getByRole('link', { name: 'Transfers' })).toHaveAttribute('href', '/stock/transfers');
+    expect(screen.getByRole('link', { name: 'Stock transfers' })).toHaveAttribute('href', '/stock/transfers');
   });
 });

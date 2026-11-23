@@ -22,6 +22,7 @@ test('JOB-PU14 the site keeper receives 37 and the site stock rises by 37', asyn
   await page.getByLabel(/^Quantity/).fill('37');
   await page.getByLabel(/^Unit cost/).fill('25');
   await page.getByRole('button', { name: 'Post receipt' }).click();
+  await page.getByRole('dialog', { name: 'Post this receipt?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   await page.goto('/stock');

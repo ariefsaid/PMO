@@ -82,6 +82,7 @@ export function compare(offenders, allowKeys) {
 /** key -> one-line reason. */
 const ALLOWLIST = {
   'pmo-portal/src/lib/db/companies.ts :: companies #1': 'bounded: .in(id) chunked by BY_IDS_CHUNK',
+  'pmo-portal/src/lib/db/adminUsers.ts :: profiles #1': 'bounded: .in(id) of the managers of one directory page, at most one per row of that page',
   'pmo-portal/src/lib/db/externalDomainOwnership.ts :: external_domain_ownership #1': 'bounded: one row per (tier, domain), fixed set',
   'pmo-portal/src/lib/db/fxRates.ts :: fx_rates #1': 'bounded: .in(rate_date, dates), one row per date, caller-bounded',
   'pmo-portal/src/lib/db/imprest.ts :: imprest_plan_lines #1': 'bounded: lines of one plan, one per budget category',
@@ -120,6 +121,9 @@ const ALLOWLIST = {
   'pmo-portal/src/lib/db/workOrderBilling.ts :: sales_invoices #1': 'bounded: .in(id) over the listed work orders / invoices',
   'pmo-portal/src/lib/db/workOrderBilling.ts :: projects #1': 'bounded: .in(id) over the listed work orders / invoices',
   'pmo-portal/src/lib/db/workOrderBilling.ts :: work_orders #1': 'bounded: .in(id) over the listed work orders / invoices',
+  'pmo-portal/src/lib/db/emailNotifications.ts :: email_event_settings #1': 'bounded: four event keys by CHECK (migration 1220), one row per key per org',
+  'pmo-portal/src/lib/db/paymentChannels.ts :: procurements #1': 'bounded: .in(id) over the request ids already in hand',
+  'pmo-portal/src/lib/db/scheduledReports.ts :: profiles #1': 'bounded: org members (users), well under 1000; revisit past ~1000 users',
 };
 
 function selfTest() {

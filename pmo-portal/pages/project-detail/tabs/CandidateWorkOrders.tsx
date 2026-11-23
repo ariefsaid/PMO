@@ -12,7 +12,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDate } from '@/src/lib/format';
 import type { WorkOrderCandidate } from '@/src/lib/db/workOrderCandidates';
 import { CandidateChecklist } from './CandidateChecklist';
-import { candidateErrorText } from './candidateErrors';
+import { refusalLine, useRefusalText } from '@/src/lib/refusals';
 
 /**
  * #2595 (FR-CWO-001, 009..016): the candidate work orders of one contract, each with the organisation's assessment checklist
@@ -61,6 +61,7 @@ const CandidateCard: React.FC<{
   candidate: WorkOrderCandidate; projectId: string; today: string; record: { currentUserId: string | null; record: { project_manager_id: string | null } }; onReplace: () => void;
 }> = ({ candidate: c, projectId, today, record, onReplace }) => {
   const { t } = useTranslation('project');
+  const refusal = useRefusalText();
   const may = usePermission();
   const { toast } = useToast();
   const m = useCandidateMutations(projectId);
@@ -83,7 +84,7 @@ const CandidateCard: React.FC<{
       const r = await m.decide.mutateAsync({ candidateId: c.id, decision: deciding, reason });
       toast(r.status === 'accepted' ? t('projectDetail.candidates.acceptedToast', 'Candidate accepted. A draft work order was created.') : t('projectDetail.candidates.rejectedToast', 'Candidate rejected.'), undefined, 'success');
       setDeciding(null);
-    } catch (err) { setDecisionError(candidateErrorText(err, t)); }
+    } catch (err) { setDecisionError(refusalLine(refusal(err))); }
   };
 
   return (

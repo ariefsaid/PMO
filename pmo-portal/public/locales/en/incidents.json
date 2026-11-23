@@ -95,7 +95,8 @@
     "date": "Date",
     "severity": "Severity",
     "type": "Type",
-    "typePlaceholder": "e.g. Near Miss, Equipment Damage, Spill",
+    "typePlaceholder": "Choose a type",
+    "typeEmpty": "No issue types yet. An Admin adds them in Administration.",
     "location": "Location",
     "locationPlaceholder": "e.g. Regional Site B",
     "project": "Project",
@@ -141,6 +142,29 @@
   "allIncidents": "All incidents",
   "viewList": "Register",
   "viewClosingReport": "Closing-time report",
+  "effectiveHours": {
+    "title": "Effective working hours",
+    "basis": "Per day for one work order: the site day from the validated daily report, minus the stopped time recorded on it.",
+    "project": "Project",
+    "projectNoun": "project",
+    "projectPlaceholder": "Choose a project…",
+    "workOrder": "Work order",
+    "workOrderNoun": "work order",
+    "workOrderPlaceholder": "Choose a work order…",
+    "workOrderNeedsProject": "Choose a project first",
+    "pickHint": "Choose a project and a work order to see its effective hours for the date range above.",
+    "rangeHint": "Choose a date range of at most 366 days above (not \"All time\") to see effective hours.",
+    "empty": "No validated daily report for this work order in this range.",
+    "col": {
+      "day": "Day",
+      "worked": "Worked (hrs)",
+      "stopped": "Stopped (hrs)",
+      "effective": "Effective (hrs)"
+    },
+    "noTimes": "Times not entered",
+    "stoppedOnly": "{{hours}} stopped",
+    "total": "Total"
+  },
   "closingReport": {
     "title": "Issue closing-time report",
     "subtitle": "Average and median time to close issues by department, highlighting where site issues stall.",
@@ -180,7 +204,11 @@
     "durationDays": "{{days}} days",
     "durationHours": "{{count}} hrs",
     "durationMinutes": "{{count}} mins",
-    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration."
+    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration.",
+    "notLoaded": {
+      "title": "The report cannot be shown",
+      "sub": "Your role cannot view this report. Ask an administrator for access."
+    }
   },
   "notification": {
     "overdue": "Issue is overdue"
@@ -206,5 +234,18 @@
     "placeholder": "Why it happened, apart from the visible blocker.",
     "save": "Save",
     "cancel": "Cancel"
+  },
+  "nextSteps": {
+    "title": "What happens next",
+    "inCharge": "Person in charge: {{name}}.",
+    "nobody": "Nobody is in charge yet. The project manager picks the person in charge.",
+    "next": "Next: {{action}}.",
+    "nextOpen": "Next: the person in charge starts looking into it.",
+    "nextInvestigating": "Next: the person in charge fixes it and closes it.",
+    "whoCloses": "{{roles}} can close this issue, with proof.",
+    "rolePm": "Project Manager",
+    "roleExecutive": "Executive",
+    "roleAdmin": "Admin",
+    "and": "and"
   }
 }

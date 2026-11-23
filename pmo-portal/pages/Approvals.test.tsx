@@ -92,7 +92,18 @@ vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' })
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 const imprestState = { data: { plans: [] as unknown[], replenishments: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() };
+// A client acceptance (BAST) waiting on the viewer is its own kind from its own caller-filtered read; these tests keep it
+// idle so the kind under test is the surface, and the page still shows the same shared list.
+const bastState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useWorkOrderAcceptances', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useWorkOrderAcceptances')>()),
+  useAcceptancesAwaitingConfirmation: () => bastState,
+}));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => imprestState }));
+const leaveState = { data: [] as unknown[], isPending: false, isError: false, enabled: false, prerequisitePending: false, prerequisiteError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useLeave', () => ({ useLeaveRequests: () => leaveState }));
 const correctionState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => correctionState,
@@ -192,7 +203,7 @@ const LocationProbe = () => {
   const location = useLocation();
   return <output data-testid="approvals-location">{location.pathname}{location.search}</output>;
 };
-const renderPage = (scope: 'all' | 'timesheets' | 'procurement' | 'expense' = 'timesheets', largeScreen = true) => {
+const renderPage = (scope: 'all' | 'timesheets' | 'procurement' | 'expense' | 'imprest' = 'timesheets', largeScreen = true) => {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
     matches: largeScreen,
     addEventListener: vi.fn(),
@@ -393,7 +404,8 @@ it('C9 the site-cash approval link opens its float record', async () => {
     amount: 1000, float: { custodian_id: 'u-cust', project: { name: 'North Terminal' }, currency: 'IDR' },
   }] };
   const user = userEvent.setup();
-  renderPage('expense');
+  // fix-waiting: site cash is its own kind in the shared waiting list, so it has its own scope (deliberate UX change; the goal, opening the float, is unchanged).
+  renderPage('imprest');
   await user.click(screen.getByRole('link', { name: 'REP-1' }));
   expect(screen.getByTestId('approvals-location')).toHaveTextContent('/imprest/f1');
 });

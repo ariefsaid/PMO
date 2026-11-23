@@ -32,12 +32,20 @@
       "vendor_bill": "Invoice supplier",
       "timesheet_entry": "Lembar waktu",
       "stock_document": "Pergerakan stok",
-      "equipment_usage": "Pemakaian alat"
+      "equipment_usage": "Pemakaian alat",
+      "attendance_day": "Kehadiran (orang tanpa akun)",
+      "expense_claim": "Klaim biaya"
     },
     "unavailable": "Jumlah tidak tersedia",
     "notCosted": "Biaya belum dihitung",
     "timesheetLabel": "{{person}}, minggu {{week}}",
-    "timesheetFallback": "Lembar waktu"
+    "timesheetFallback": "Lembar waktu",
+    "commitment": {
+      "purchase_request": "Belum dihitung sebagai biaya langsung: permintaan dihitung setelah invoice supplier dicatat.",
+      "purchase_order": "Belum dihitung sebagai biaya langsung: pesanan dihitung setelah invoice supplier dicatat.",
+      "goods_receipt": "Barang sudah diterima, tetapi belum dihitung sebagai biaya langsung: penerimaan dihitung setelah invoice supplier dicatat."
+    },
+    "attendanceLabel": "Kehadiran"
   },
   "billing": {
     "title": "Penagihan dan penerimaan",
@@ -55,7 +63,22 @@
     "stage": "Tahap",
     "lines": "baris",
     "confirmed": "Dikonfirmasi",
-    "draft": "Draf"
+    "draft": "Menunggu konfirmasi Keuangan atau Admin",
+    "confirmAction": "Konfirmasi BAST",
+    "confirmTitle": "Konfirmasi BAST ini?",
+    "confirmFinalTitle": "Konfirmasi BAST akhir?",
+    "confirmBody": "Kuantitas yang diterima dicatat per BAST ini. Pesanan kerja tetap terbuka dan belum ada yang ditagihkan.",
+    "confirmFinalBody": "Mengonfirmasi BAST akhir menutup pesanan kerja pada kuantitas yang diterima. Tindakan ini tidak dapat dibatalkan.",
+    "confirmedToast": "BAST dikonfirmasi",
+    "perMonth": {
+      "title": "Ditagih per bulan",
+      "error": "Gagal memuat penagihan per bulan",
+      "empty": "Belum ada invoice yang diajukan.",
+      "basis": "Hanya menghitung invoice yang sudah diajukan, tanpa pajak, dalam mata uang perintah kerja. Draf dan klaim yang belum ditagih tidak termasuk.",
+      "incomplete": "Beberapa invoice tidak dapat dijumlahkan dalam mata uang perintah kerja ini, sehingga angka bulanan tidak ditampilkan.",
+      "toDate": "sampai hari ini",
+      "total": "Total ditagih"
+    }
   },
   "documents": {
     "title": "Dokumen",
@@ -82,13 +105,22 @@
     "title": "Lokasi lapangan",
     "label": "Material laporan harian diambil dari",
     "none": "Belum diatur",
-    "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke perintah kerja ini.",
-    "error": "Lokasi lapangan tidak dapat disimpan"
+    "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke $t(common:terms.clientWorkOrder) ini.",
+    "error": "Lokasi lapangan tidak dapat disimpan",
+    "saved": "Lokasi lapangan tersimpan. Laporan harian berikutnya yang divalidasi akan mengeluarkan materialnya dari sini.",
+    "cleared": "Lokasi lapangan dikosongkan"
+  },
+  "responsible": {
+    "title": "Penanggung jawab",
+    "label": "Insinyur lapangan untuk perintah kerja ini",
+    "none": "Belum diatur",
+    "noneReadOnly": "Belum diatur. Minta manajer proyek menunjuk insinyur lapangan.",
+    "help": "Peringatan pemakaian material untuk perintah kerja ini dikirim ke orang ini. Selama belum diatur, peringatan dikirim ke manajer proyek."
   },
   "inspections": {
     "title": "Inspeksi pihak ketiga",
     "error": "Inspeksi tidak dapat dimuat",
-    "empty": "Belum ada inspeksi pihak ketiga pada Work Order ini.",
+    "empty": "Belum ada inspeksi pihak ketiga pada $t(common:terms.clientWorkOrder) ini.",
     "request": "Ajukan inspeksi",
     "create": "Ajukan",
     "dismiss": "Tutup",
@@ -191,7 +223,7 @@
     "clientReference": "Referensi klien {{ref}}",
     "collected": "Sudah diambil",
     "edit": "Ubah",
-    "empty": "Belum ada material klien yang diminta untuk perintah kerja ini.",
+    "empty": "Belum ada material klien yang diminta untuk $t(common:terms.clientWorkOrder) ini.",
     "error": "Material klien tidak dapat dimuat",
     "form": {
       "addLine": "Tambah item",
@@ -237,22 +269,9 @@
     "recordRelease": "Catat pelepasan",
     "recordReservation": "Catat reservasi",
     "refusal": {
-      "allocation": "Baris kontrak itu milik perintah kerja lain.",
-      "cancelled": "Permintaan ini sudah dibatalkan.",
-      "forbidden": "Peran Anda tidak dapat melakukan ini.",
-      "hasPickup": "Pengambilan sudah dicatat, sehingga permintaan ini tidak dapat dibatalkan.",
-      "noProject": "Pilih lokasi lapangan, yard, atau staging milik proyek ini.",
-      "notClientSupplied": "Item ini bukan material pasokan klien.",
-      "notDraft": "Hanya permintaan berstatus draf yang dapat diubah atau dikirim.",
-      "notFound": "Data itu tidak tersedia untuk Anda.",
-      "notKeeper": "Anda bukan penanggung jawab lokasi ini.",
-      "notOpen": "Kirim permintaan terlebih dahulu.",
-      "otherProject": "Lokasi itu milik proyek lain.",
       "overCollect": "Hanya {{n}} yang belum diambil.",
       "overRequested": "Reservasi akan melebihi jumlah diminta sebesar {{n}}.",
-      "ownedByErp": "Stok dikelola di ERP yang terhubung, sehingga pengambilan tidak dapat dicatat di sini.",
-      "releaseBelowCollected": "Pelepasan tidak boleh membuat reservasi di bawah {{n}} yang sudah diambil.",
-      "workOrder": "Perintah kerja ini sudah ditutup atau dibatalkan."
+      "releaseBelowCollected": "Pelepasan tidak boleh membuat reservasi di bawah {{n}} yang sudah diambil."
     },
     "release": {
       "quantity": "Kuantitas dilepas",
@@ -284,5 +303,47 @@
     "stillToCollect": "Belum diambil",
     "title": "Material klien",
     "importTakeoff": "Impor take-off"
+  },
+  "missing": {
+    "title": "Masih kurang",
+    "export": "Ekspor CSV",
+    "fileStem": "Kekurangan",
+    "error": "Tidak dapat memuat apa yang masih kurang pada perintah kerja ini",
+    "empty": "Tidak ada yang kurang: tidak ada langkah terbuka, dan setiap kuantitas yang dilaporkan sudah diterima dan diklaim.",
+    "closed": "Perintah kerja ini sudah ditutup atau dibatalkan, jadi tidak ada yang menunggu.",
+    "whoAdds": "Yang menambahkan: {{who}}",
+    "kind": {
+      "step": "Langkah",
+      "step-attachment": "Lampiran langkah",
+      "quantity-accept": "Kuantitas untuk diterima",
+      "quantity-claim": "Kuantitas untuk diklaim"
+    },
+    "col": {
+      "item": "Butir",
+      "kind": "Jenis",
+      "reason": "Alasan",
+      "who": "Yang menambahkan"
+    },
+    "who": {
+      "role": "{{role}}",
+      "finance": "Keuangan atau Admin",
+      "team": "Tim proyek"
+    },
+    "reason": {
+      "stepOpen": "Langkah ini belum selesai.",
+      "stepAttachment": "Belum ada lampiran untuk langkah \"{{step}}\".",
+      "quantityAccept": "{{quantity}} {{unit}} dilaporkan tetapi belum diterima. Catat penerimaannya.",
+      "quantityClaim": "{{quantity}} {{unit}} diterima tetapi belum diklaim."
+    }
+  },
+  "all": {
+    "empty": "Anda belum punya $t(common:terms.clientWorkOrder)",
+    "error": "Gagal memuat daftar $t(common:terms.clientWorkOrder) Anda",
+    "noMatch": "Tidak ada $t(common:terms.clientWorkOrder) yang cocok dengan pencarian Anda",
+    "overdueCount": "Terlambat: {{count}}",
+    "search": "Cari menurut nomor, judul, atau proyek",
+    "seeAll": "Lihat semua",
+    "tileEmpty": "Tidak ada $t(common:terms.clientWorkOrder) yang terbuka",
+    "until": "sampai {{date}}"
   }
 }

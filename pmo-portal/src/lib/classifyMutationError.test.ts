@@ -283,9 +283,9 @@ describe('#2531 task proof / work-order rules surface their own sentence', () =>
     expect(out.detail).not.toContain('violates check');
   });
 
-  it('AC-CTR-014 a direct Done on a tool task tells the person to close the report on Crews, Tools', () => {
+  it('AC-CTR-014 a direct Done on a tool task tells the person to choose a resolution on Crews, Tools', () => {
     const e = Object.assign(new Error('CTR_RESOLVE_REQUIRED: choose a resolution (replaced, repaired or written off) to close this tool report'), { code: '23514' });
-    expect(classifyMutationError(e).detail).toBe('This task is a tool report. Open Crews, Tools, and close the report there to finish it.');
+    expect(classifyMutationError(e).detail).toBe('Choose a resolution to finish this tool report. Open Crews, Tools.');
   });
 });
 
@@ -314,5 +314,27 @@ describe('#2587 record-linked task refusals surface their own sentence (AC-RLT-0
     const proof = classifyMutationError(Object.assign(new Error('new row violates check constraint "tasks_record_link_no_proof"'), { code: '23514' }), undefined, quiet);
     expect(two.detail).toBe('A task can follow one record at a time.');
     expect(proof.detail).toContain('requires proof');
+  });
+});
+
+describe('a database refusal reads as its own sentence, never its code (#2745)', () => {
+  it('a rule with no mapper of its own shows the catalogue sentence instead of the generic "refresh"', () => {
+    const e = Object.assign(new Error('PCI_CREW: you are not in that crew today'), { code: '23514' });
+    const c = classifyMutationError(e, undefined, { suppressCapture: true });
+    expect(c.detail).toMatch(/not on this work order today/);
+    expect(c.detail).not.toMatch(/refresh|PCI_/i);
+  });
+  it('a code with no sentence still drops its prefix', () => {
+    const e = Object.assign(new Error('ZZZ_UNKNOWN: something plain'), { code: '22023' });
+    expect(classifyMutationError(e, undefined, { suppressCapture: true }).detail).toBe('something plain');
+  });
+});
+
+describe('joinSentences (JOB-I18N-STOP: no doubled full stop)', () => {
+  it('adds the stop only when the headline has none', async () => {
+    const { joinSentences } = await import('./classifyMutationError');
+    expect(joinSentences('Update failed', 'Try again.')).toBe('Update failed. Try again.');
+    expect(joinSentences('That already exists.', 'Another record uses it.')).toBe('That already exists. Another record uses it.');
+    expect(joinSentences("Request timed out — we couldn't confirm whether it saved.", 'Reload.')).not.toContain('..');
   });
 });

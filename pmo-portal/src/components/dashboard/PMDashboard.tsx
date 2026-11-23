@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { WorkOrdersTile } from './WorkOrdersTile';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -231,6 +232,7 @@ export const PMDashboard: React.FC = () => {
             <div className="min-w-0 min-[900px]:col-span-12 min-[900px]:row-start-2">{projectsEl}</div>
             {/* Read after My projects (and drawn there on a phone); on a wide screen it sits beside Waits on you. */}
             {contractRow('grid-cols-1 min-[900px]:col-span-3 min-[900px]:col-start-10 min-[900px]:row-start-1')}
+            <div className="min-w-0 min-[900px]:col-span-12"><WorkOrdersTile /></div>
           </div>
           <Card>
             <CardHead level={2}>{planTitle}</CardHead>
@@ -252,6 +254,7 @@ export const PMDashboard: React.FC = () => {
         {waitsEl}
         {projectsEl}
         {contractRow('grid-cols-1 min-[900px]:max-w-sm')}
+        <WorkOrdersTile />
       </div>
     </FigureScope>
   );

@@ -105,7 +105,9 @@
     "paymentNeedsBillOdoo": "Record the supplier invoice here first; you can then pay it from here.",
     "preCutover": "Recorded before the ERP connection, not sent",
     "notSent": "Not sent",
-    "notSentReason": "Not sent: this purchase started before the ERP connection"
+    "notSentReason": "Not sent: this purchase started before the ERP connection",
+    "valueFromLines": "From the order lines",
+    "valueNotRecorded": "Value not recorded for this receipt"
   },
   "gates": {
     "heading": "Purchase rules",
@@ -117,7 +119,15 @@
     "receipt_before_invoice": "Receipt required before invoice",
     "approval_before_payment": "Approval required before payment",
     "saving": "Saving…",
-    "saved": "Saved"
+    "saved": "Saved",
+    "imprestLimit": {
+      "heading": "Site cash limit",
+      "help": "The largest single spend site cash covers. Set it before setting up site cash. Only an Admin can set it.",
+      "notSet": "Not set yet. Site cash cannot be set up until it is.",
+      "current": "Current limit: {{amount}}",
+      "label": "Limit per spend",
+      "save": "Save limit"
+    }
   },
   "documents": {
     "attachTo": "Attach to",
@@ -966,13 +976,15 @@
     "openCollectorLine": "________________________________________",
     "name": "Name",
     "signature": "Signature",
-    "signatureDate": "Date"
+    "signatureDate": "Date",
+    "section": "Purchase order",
+    "off": "Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing.",
+    "discipline": "Discipline"
   },
   "poSettings": {
     "heading": "Purchase order printing",
     "subline": "Enable printable purchase orders, then set the signature blocks and the people authorised to collect goods.",
     "loadError": "Couldn't load purchase order settings",
-    "enablePrint": "Enable printable purchase order",
     "enablePrintHelp": "Shows the print action on purchase orders and lets a printed copy name who may collect the goods.",
     "collectorsHeading": "Authorised collectors",
     "collectorsHelp": "Named people who may collect purchased goods from a supplier. If the list is empty, the document prints an open line to be filled in by hand.",
@@ -1010,9 +1022,9 @@
     "refusedRole": "Only an Admin can change the three-way match."
   },
   "paymentChannel": {
+    "noneYet": "No payment channels yet. An Admin adds them under Payment channels in Accounting setup.",
     "heading": "Payment channels",
-    "intro": "Record how each purchase request will be paid. Off until you turn it on.",
-    "switchLabel": "Record a payment channel on purchase requests",
+    "intro": "Record how each purchase request will be paid. Edit the list of channels here.",
     "onlyAdmin": "Only an Admin can change this.",
     "loadError": "Couldn’t load payment channels",
     "saving": "Saving…",
@@ -1038,9 +1050,9 @@
     "columnHeader": "Payment channel"
   },
   "linePlanning": {
+    "noCategoriesHere": "No categories yet. An Admin adds them under Line planning in Accounting setup.",
     "heading": "Line planning",
     "intro": "Each request line can carry a category and the date it is needed.",
-    "enable": "Show a category and a needed-by date on each request line",
     "categories": "Categories",
     "categoryName": "Category name",
     "addCategory": "Add category",
@@ -1063,5 +1075,52 @@
     "lineLabel": "Line {{name}}",
     "saveFailed": "The category and date could not be saved for some lines. Open the request to set them.",
     "columnEmpty": "—"
+  },
+  "billHold": {
+    "rule": {
+      "title": "This bill is held by a purchase rule.",
+      "body": "Your organisation requires a receipt before a supplier bill. Record the receipt first. An Admin can change the rule in Administration, Accounting, Purchase rules."
+    },
+    "match": {
+      "title": "Payment is held until this bill matches.",
+      "body": "The bill is compared with its order and receipts. If it does not match, payment stays held until the receipt is recorded or an Admin or Finance user, other than the person who recorded the bill, approves an exception."
+    }
+  },
+  "lineWorkOrders": {
+    "loadError": "Could not load this project’s work orders.",
+    "section": "Work order per line",
+    "intro": "Say which work order, and discipline, each line is for. When every line names the same work order, the request takes it.",
+    "field": "Work order for {{line}}",
+    "disciplineField": "Discipline for {{line}}",
+    "noDiscipline": "No discipline",
+    "unknownDiscipline": "A retired discipline",
+    "sameAsRequest": "Same as the request",
+    "sameAsRequestNamed": "Same as the request ({{workOrder}})",
+    "unknownWorkOrder": "A work order you cannot open",
+    "cancelled": "cancelled",
+    "noProject": "Choose a project first: work orders belong to a project, and each line can then be given one.",
+    "noWorkOrders": "This project has no work orders yet, so lines cannot be given one. A project manager adds work orders on the project’s Work orders tab.",
+    "differs": "The request is on {{workOrder}}; this line is for a different work order.",
+    "save": "Save",
+    "saved": "Saved",
+    "nothingToSave": "Change a line’s work order or discipline to save.",
+    "saveFailed": "The request is saved, but the work order of some lines was not set.",
+    "saveFailedNext": "Open the request and set them on the Items tab."
+  },
+  "orderRoles": {
+    "heading": "Who can order purchases",
+    "subline": "Admin, Executive, Project Manager and Finance can always order. Name built-in roles whose holders may also raise and send purchase orders, for approved purchases only.",
+    "loadError": "Couldn’t load who can order purchases",
+    "none": "No built-in role is named, so only the access levels above can order.",
+    "remove": "Remove",
+    "removeNamed": "Remove {{role}}",
+    "heldOnlyNote": "Only people who hold a named built-in role can order. An access level alone is not enough, even when the role is built on it.",
+    "add": "Add a built-in role",
+    "choose": "Choose a built-in role",
+    "addButton": "Add",
+    "save": "Save",
+    "saved": "Who can order purchases saved",
+    "onlyAdmin": "Only an Admin can change this.",
+    "turnOn": "Turn on built-in roles in Administration > People > Built-in roles to name roles that can order."
   }
 }

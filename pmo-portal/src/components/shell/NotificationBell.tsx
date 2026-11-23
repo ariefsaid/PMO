@@ -56,6 +56,11 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   sales_invoice: '/sales-invoices',
   material_request: '/material-requests',
   quantity_change_request: '/quantity-changes',
+  daily_site_report: '/site-reports',
+  subcontract_certificate: '/subcontract-certificates',
+  // #2800: an overdue close-out item opens its work order; an overdue clearance item opens that person's checklist.
+  work_order: '/work-orders',
+  person_clearance: '/administration/clearance',
 };
 
 /** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
@@ -66,6 +71,7 @@ const ENTITY_LIST_ROUTE: Record<string, string> = {
   imprest_plan: '/imprest',
   imprest_replenishment: '/imprest',
   expiry_document: '/equipment/expiring',
+  equipment_plan: '/equipment-plans',
 };
 
 interface NotificationEntity {
@@ -100,7 +106,7 @@ type InboxState =
   | { status: 'ready'; rows: NotificationRow[]; nextCursor: NotificationCursor | null };
 
 export const NotificationBell: React.FC = () => {
-  const { t } = useTranslation(['common', 'incidents', 'notifications']);
+  const { t, i18n } = useTranslation(['common', 'incidents', 'notifications']);
   const navigate = useNavigate();
   const { openPanel, openThread } = useAssistantPanel();
   const [unread, setUnread] = useState(0);
@@ -311,7 +317,9 @@ export const NotificationBell: React.FC = () => {
               {inbox.rows.map((row) => {
                 const isUnread = row.read_at === null;
                 const sev = severityStyle(row.severity);
-                const body = notificationBody(row, t);
+                const body = notificationBody(row, t, i18n.language);
+                // fix-waiting item 4: a decision notification says WHAT was decided (the record's number or name), not only that something was.
+                const entityLabel = readMetadata(row.metadata).entity?.label?.trim() || null;
                 return (
                   <li key={row.id}>
                     <button
@@ -340,6 +348,9 @@ export const NotificationBell: React.FC = () => {
                           ? t('incidents:notification.overdue', 'Issue is overdue')
                           : notificationTitle(row, t)}
                       </span>
+                      {entityLabel && !(body ?? '').includes(entityLabel) && !notificationTitle(row, t).includes(entityLabel) && (
+                        <span className="break-words text-control font-medium text-foreground" data-testid="notification-entity-label">{entityLabel}</span>
+                      )}
                       {body && (
                         <span className="break-words text-control text-muted-foreground">{body}</span>
                       )}

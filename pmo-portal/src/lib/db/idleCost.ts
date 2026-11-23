@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { sumDecimal } from '@/src/lib/exactDecimal';
 
 /**
  * Idle hours as cost (#2673, migrations 1255-1256). Data access only. The switch is written by Admin and Finance
@@ -9,11 +10,10 @@ import { AppError } from '@/src/lib/appError';
 export interface IdleCostRow {
   workOrderId: string; reasonId: string; reasonLabel: string; minutes: number; hours: string;
   hourlyCost: string | null; amount: string | null; currency: string; reason: 'counted' | 'no-rate';
+  /** Only where the organisation's scope is people_and_equipment (1731); null under labour_average. */
+  peopleAmount: string | null; equipmentAmount: string | null; headcountHours: string | null;
 }
-interface RawIdleRow {
-  work_order_id: string; reason_id: string; reason_label: string; minutes: number | string; hours: string;
-  hourly_cost: string | null; amount: string | null; currency: string; reason: string;
-}
+export type IdleCostScope = 'labour_average' | 'people_and_equipment';
 const EXACT = /^-?\d{1,15}(\.\d{1,2})?$/;
 
 export async function getIdleCostEnabled(): Promise<boolean> {
@@ -27,27 +27,38 @@ export async function setIdleCostEnabled(enabled: boolean): Promise<void> {
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** What idle cost covers (1730). No row means the default, labour_average: today's figure. */
+export async function getIdleCostScope(): Promise<IdleCostScope> {
+  const { data, error } = await supabase.from('idle_cost_settings').select('scope').maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  return data?.scope === 'people_and_equipment' ? 'people_and_equipment' : 'labour_average';
+}
+
+export async function setIdleCostScope(scope: IdleCostScope): Promise<void> {
+  const { error } = await supabase.rpc('save_idle_cost_scope', { p_scope: scope });
+  if (error) throw new AppError(error.message, error.code);
+}
+
 export async function listProjectIdleCost(projectId: string): Promise<IdleCostRow[]> {
-  const { data, error } = await (supabase.rpc('work_order_idle_cost', { p_project_id: projectId }) as unknown as PromiseLike<{
-    data: RawIdleRow[] | null; error: { message: string; code?: string } | null }>);
+  const { data, error } = await supabase.rpc('work_order_idle_cost', { p_project_id: projectId });
   if (error) throw new AppError(error.message, error.code);
   return (data ?? []).map((r) => {
-    if ((r.amount !== null && !EXACT.test(r.amount)) || !EXACT.test(r.hours) || (r.reason !== 'counted' && r.reason !== 'no-rate')) {
+    const exactOrNull = (v: string | null | undefined) => v == null || EXACT.test(v);
+    if ((r.amount !== null && !EXACT.test(r.amount)) || !exactOrNull(r.people_amount) || !exactOrNull(r.equipment_amount)
+      || !exactOrNull(r.headcount_hours) || !EXACT.test(r.hours) || (r.reason !== 'counted' && r.reason !== 'no-rate')) {
       throw new AppError('Idle cost read: unreadable row', 'malformed');
     }
     return {
       workOrderId: r.work_order_id, reasonId: r.reason_id, reasonLabel: r.reason_label, minutes: Number(r.minutes), hours: r.hours,
       hourlyCost: r.hourly_cost, amount: r.amount, currency: r.currency, reason: r.reason,
+      peopleAmount: r.people_amount ?? null, equipmentAmount: r.equipment_amount ?? null, headcountHours: r.headcount_hours ?? null,
     };
   });
 }
 
-/** Sum of the priced rows of one work order, exact to the cent (integer cents, no float drift). */
+/** Sum of the priced rows of one work order, exact to the cent: the amount strings are summed as exact decimals, no float drift. */
 export function totalIdleAmount(rows: readonly IdleCostRow[]): string | null {
   const priced = rows.filter((r) => r.amount !== null);
   if (priced.length === 0) return null;
-  const cents = priced.reduce((s, r) => s + Math.round(Number(r.amount) * 100), 0);
-  const sign = cents < 0 ? '-' : '';
-  const abs = Math.abs(cents);
-  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+  return sumDecimal(priced.map((r) => r.amount), 2);
 }

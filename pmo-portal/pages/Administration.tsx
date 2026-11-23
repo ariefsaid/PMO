@@ -5,18 +5,17 @@ import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import { cn } from '@/src/components/ui/cn';
 import { GateNotice, ListState, PageHeader } from '@/src/components/ui';
-import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import AdminUsers from './AdminUsers';
 import People from './admin/People';
 import Clearance from './admin/Clearance';
-import ClearanceSetting from './admin/ClearanceSetting';
-import { useClearanceEnabled } from '@/src/hooks/useClearance';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import DocumentTypes from './admin/DocumentTypes';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
@@ -31,9 +30,7 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
-import LeaveRequestsSetting from './admin/LeaveRequestsSetting';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
-import OrgDisciplineProfit from './admin/OrgDisciplineProfit';
 import OrgBuiltInRoles from './admin/OrgBuiltInRoles';
 import OrgHidePrices from './admin/OrgHidePrices';
 import { HIDE_PRICES_SETTING_AVAILABLE } from '@/src/lib/db/hidePrices';
@@ -41,17 +38,22 @@ import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import OrgClaimOverCap from './admin/OrgClaimOverCap';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
+import OrderJobRolesSection from './admin/OrderJobRolesSection';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
 import SiteReportLists from './admin/SiteReportLists';
+import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
-import OrgCrewLoans from './admin/OrgCrewLoans';
+import OrgAttendanceTimeRoles from './admin/OrgAttendanceTimeRoles';
+import OrgModules from './admin/OrgModules';
+import { ModuleGate } from '@/src/components/admin/ModuleGate';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
 import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
 import SafetyLists from './admin/SafetyLists';
@@ -61,7 +63,6 @@ import OrgAttendanceTarget from './admin/OrgAttendanceTarget';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
 import LabourCostSettings from './admin/LabourCostSettings';
-import IdleCostSwitch from './admin/IdleCostSwitch';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -70,6 +71,7 @@ export type AdministrationSection =
   | 'people'
   | 'clearance'
   | 'integrations'
+  | 'modules'
   | 'accounting'
   | 'projects'
   | 'plan'
@@ -82,7 +84,7 @@ export type AdministrationSection =
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'modules', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
 const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
@@ -94,6 +96,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   people: 'People',
   clearance: 'Clearance',
   integrations: 'Organization integrations',
+  modules: 'Modules',
   accounting: 'Accounting setup',
   projects: 'Project setup',
   plan: 'Your plan',
@@ -116,6 +119,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   people: t('administration:people.navLabel', SECTION_LABEL_DEFAULTS.people),
   clearance: t('administration:clearance.navLabel', SECTION_LABEL_DEFAULTS.clearance),
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
+  modules: t('administration:admin.modulesNav', SECTION_LABEL_DEFAULTS.modules),
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
   plan: t('plans:yourPlan.navLabel', SECTION_LABEL_DEFAULTS.plan),
@@ -158,7 +162,9 @@ const AdministrationNavigation: React.FC<{
   sections: AdministrationSection[];
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
-}> = ({ section, sections, isOperator, label }) => {
+  /** The All settings page (#2746) is its own route, listed after the sections for an org Admin. */
+  showAllSettings?: boolean;
+}> = ({ section, sections, isOperator, label, showAllSettings }) => {
   const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
@@ -181,10 +187,10 @@ const AdministrationNavigation: React.FC<{
       </Link>
     ));
 
-  const narrow = useIsNarrow();
-  const navigate = useNavigate();
   const listed = [...ORGANIZATION_SECTIONS, 'clearance' as const, 'cost-attribution' as const].filter((id) => sections.includes(id));
   const operatorListed = isOperator ? OPERATOR_SECTIONS : [];
+  const narrow = useIsNarrow();
+  const navigate = useNavigate();
 
   if (narrow) {
     // A phone shows every section in one control instead of a strip that scrolls out of sight.
@@ -200,6 +206,7 @@ const AdministrationNavigation: React.FC<{
           {[...listed, ...operatorListed].map((id) => (
             <option key={id} value={id}>{label(id)}</option>
           ))}
+          {showAllSettings && <option value="all-settings">{t('allSettings.title', 'All settings')}</option>}
         </select>
       </nav>
     );
@@ -207,8 +214,11 @@ const AdministrationNavigation: React.FC<{
 
   return (
     <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-4 min-w-0 md:mb-6">
-      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg bg-secondary p-1">
+      <div className="grid min-w-0 max-w-full grid-cols-2 items-stretch gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap md:items-center">
         {links(listed)}
+        {showAllSettings && (
+          <Link to="/administration/all-settings" className={linkClass(false)}>{t('allSettings.title', 'All settings')}</Link>
+        )}
         {operatorListed.length > 0 && (
           <>
             <span className="shrink-0 px-1 text-control font-semibold text-muted-foreground md:ml-1 md:self-center">
@@ -282,18 +292,16 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
           <People />
-          <OrgCrewLoans />
+          <OrgAttendanceTimeRoles />
           <DocumentTypes />
-          <OrgBuiltInRoles />
-          <ClearanceSetting />
+          <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
         </div>
       );
     case 'clearance':
       return (
         <div data-testid="administration-panel-clearance" className="min-w-0">
           <SectionName name={label('clearance')} />
-          <Clearance />
-          <LeaveRequestsSetting />
+          <ModuleGate module="modulePeopleCrews"><Clearance /></ModuleGate>
           {HIDE_PRICES_SETTING_AVAILABLE && <OrgHidePrices />}
         </div>
       );
@@ -306,6 +314,13 @@ const SelectedAdministrationPanel: React.FC<{
           <EmailNotificationsSetting />
         </div>
       );
+    case 'modules':
+      return (
+        <div data-testid="administration-panel-modules" className="min-w-0">
+          <SectionName name={label('modules')} />
+          <OrgModules />
+        </div>
+      );
     case 'accounting':
       return (
         <div data-testid="administration-panel-accounting" className="min-w-0">
@@ -313,16 +328,16 @@ const SelectedAdministrationPanel: React.FC<{
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgTaxDefault />
             <OrgFiscalYearStart />
-            <OrgDisciplineProfit />
             <SpendApprovers />
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
+            <OrgClaimOverCap />
             <OrgProcurementGates />
-            <PurchaseOrderSettingsSection />
+            <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /><OrderJobRolesSection /></ModuleGate>
             <OrgThreeWayMatch />
-            <OrgPaymentChannels />
-            <OrgPurchaseLines />
+            <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
+            <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>
@@ -333,7 +348,6 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-cost-attribution" className="min-w-0">
           <CostAttribution />
           <div className="mt-6 border-t border-border pt-6"><LabourCostSettings /></div>
-          <div className="mt-6 border-t border-border pt-6"><IdleCostSwitch /></div>
         </div>
       );
     case 'projects':
@@ -344,15 +358,16 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
-            <RevenuePlanSettings />
+            <OrgIssueTypes />
+            <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
             <NonWorkingDatesCard />
             <SiteCheckpointTemplate />
             <WorkOrderCandidateTemplate />
-            <SafetyLists />
+            <ModuleGate module="moduleSiteDay"><SafetyLists /></ModuleGate>
             <CostDisciplines />
             <WorkOrderCloseoutTemplate />
             <WorkOrderLists />
-            <OrgPerformanceIndices />
+            <ModuleGate module="moduleSiteDay"><OrgPerformanceIndices /></ModuleGate>
             <OrgAttendanceTarget />
             <IssueClosingReportSettings />
           </div>
@@ -428,7 +443,7 @@ const Administration: React.FC = () => {
   const costAttributionRoute = section === 'cost-attribution';
   const peopleRoute = section === 'people' && may('view', 'person');
   // #2707: the Clearance section exists only while the organisation setting is on (default off: Administration is unchanged).
-  const clearanceEnabled = useClearanceEnabled().data === true;
+  const clearanceEnabled = useOrgSwitch('clearance').data === true;
   const clearanceRoute = section === 'clearance' && may('view', 'personClearance');
   const showClearance = clearanceEnabled && may('view', 'personClearance');
   const canEnterAdministration = isAdminViewer || isOperator || peopleRoute || clearanceRoute || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
@@ -521,7 +536,7 @@ const Administration: React.FC = () => {
         </>
       ) : (
         <>
-          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />
+          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} showAllSettings={isAdminViewer} />
           <SelectedAdministrationPanel
             section={section}
             orgId={currentUser?.org_id ?? ''}

@@ -44,6 +44,19 @@ project, admin user-role changes. Then:
 3. Reset whatever you mutated in `afterEach` so the spec is retry-safe and doesn't poison the next
    run.
 
+**Leftovers that broke other journeys (2026-11-22 round; each cost a CI pass):**
+
+- Reset an org-wide setting in `finally`/`afterAll`, with the change made *inside* the `try`. A spec that failed
+  before its reset left the setting on and broke the three specs after it.
+- Two specs that flip the same org-wide setting both belong in the serial lane, even if each passes alone.
+- Never open "the first row" of a shared list (`.first()`); another journey's short-lived record can be there and
+  be gone by the time the page loads. Open a seeded record or the one the spec created.
+- A date range that ends "today" is inclusive: the record stays active for the rest of the day and shows up for
+  the same seeded user in other journeys. End it yesterday, and scope a button to the spec's own row.
+- Seed dates on the organisation's calendar, not the UTC clock; the two differ from 17:00 to 24:00 UTC.
+- A shared fixture must fill a field that becomes required when shared data grows (a delivery location once a
+  project has several).
+
 `test.describe.configure({ mode: 'serial' })` is for genuinely *dependent* tests only (per
 Playwright's own guidance, it's discouraged) — it is not a substitute for the `e2e/serial/` lane.
 

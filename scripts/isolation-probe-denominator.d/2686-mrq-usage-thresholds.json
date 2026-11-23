@@ -1,6 +1,30 @@
 {
   "tables": [
-    {"table":"material_request_usage_alerts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+    {
+      "table": "material_request_usage_alerts",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "material_installed_usage_alerts",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
   ],
-  "definer_functions": ["mrq_set_usage_thresholds(numeric,numeric)", "mrq_usage_check(uuid)"]
+  "definer_functions": [
+    "mrq_set_usage_thresholds(numeric,numeric)",
+    "mrq_usage_check(uuid)",
+    "set_usage_installed_source(text)",
+    "usage_installed_qty(uuid,uuid)",
+    "usage_warning_recipient(uuid)",
+    "usage_check_work_order(uuid)",
+    "usage_check_safe(uuid)",
+    "set_work_order_responsible_person(uuid,uuid)"
+  ]
 }

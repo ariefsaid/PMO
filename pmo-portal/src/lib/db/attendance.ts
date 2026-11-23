@@ -23,6 +23,8 @@ export interface AttendanceRowInput {
   hours?: number | null;
   overtime_hours?: number | null;
   reason?: string | null;
+  /** The crew this person followed that day, when it is not their own (no loan arranged). */
+  followed_crew_id?: string | null;
 }
 
 export interface AttendanceDayRow {
@@ -58,6 +60,8 @@ export interface AwaitingWeekRow {
   overtime_hours: number | null;
   /** The work order these hours belong to (a week can span several). */
   work_order_title: string | null;
+  /** Everyone who recorded this day (the separation rule: none of them approves the week). */
+  recorded_by_ids: string[];
 }
 
 function fail(error: { message: string; code?: string } | null): void {
@@ -77,6 +81,13 @@ export async function recordAttendance(
     p_source: source,
     p_rows: rows as unknown as never,
   });
+  fail(error);
+  return Number(data ?? 0);
+}
+
+/** Undo a follow (crew managers): withdraws the followed day's records so the home crew can record it again. */
+export async function clearFollow(workerId: string, workDate: string): Promise<number> {
+  const { data, error } = await supabase.rpc('attendance_clear_follow', { p_worker_id: workerId, p_work_date: workDate });
   fail(error);
   return Number(data ?? 0);
 }
@@ -116,11 +127,11 @@ export async function decideAttendanceWeek(
 /** Days submitted for approval and not yet decided (people with no login), oldest first. */
 export async function listAwaitingAttendance(): Promise<AwaitingWeekRow[]> {
   type Raw = { id: string; worker_id: string; work_date: string; hours: number | null; overtime_hours: number | null;
-    work_orders: { title: string } | null };
+    recorded_by_ids: string[]; work_orders: { title: string } | null };
   const rows = await fetchAllRowsByKeyset<Raw>(async (afterId, limit) => {
     let q = supabase
       .from('attendance_days')
-      .select('id, worker_id, work_date, hours, overtime_hours, work_orders(title)')
+      .select('id, worker_id, work_date, hours, overtime_hours, recorded_by_ids, work_orders(title)')
       .not('submitted_at', 'is', null)
       .is('locked_at', null)
       .order('id', { ascending: true });
@@ -128,8 +139,8 @@ export async function listAwaitingAttendance(): Promise<AwaitingWeekRow[]> {
     return q.limit(limit);
   });
   return rows
-    .map(({ worker_id, work_date, hours, overtime_hours, work_orders }) => (
-      { worker_id, work_date, hours, overtime_hours, work_order_title: work_orders?.title ?? null }))
+    .map(({ worker_id, work_date, hours, overtime_hours, recorded_by_ids, work_orders }) => (
+      { worker_id, work_date, hours, overtime_hours, recorded_by_ids, work_order_title: work_orders?.title ?? null }))
     .sort((a, b) => a.work_date.localeCompare(b.work_date) || a.worker_id.localeCompare(b.worker_id));
 }
 

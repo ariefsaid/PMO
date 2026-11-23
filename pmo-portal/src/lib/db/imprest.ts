@@ -18,6 +18,7 @@ export type ImprestCountRow = Tables<'imprest_cash_counts'>;
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
 export type ImprestPosition = Database['public']['Functions']['get_imprest_position']['Returns'][number];
 export type ImprestPlanUsageRow = Database['public']['Functions']['get_imprest_plan_usage']['Returns'][number];
+export type ImprestOpenRequestRow = Database['public']['Functions']['get_imprest_open_requests']['Returns'][number];
 export type ImprestFloatChoice = Database['public']['Functions']['imprest_float_choices']['Returns'][number];
 
 export const LIST_LIMIT = 200;
@@ -83,6 +84,14 @@ export async function listPlanLines(planId: string): Promise<ImprestPlanLineRow[
   fail(error);
   return data ?? [];
 }
+/** The open purchase requests of the float's project (read-only suggestion for a plan; RLS-scoped like the purchase list). The read is bounded at 501 rows: `truncated` says there are more. */
+export const OPEN_REQUEST_LIMIT = 500;
+export async function getOpenRequests(floatId: string): Promise<Bounded<ImprestOpenRequestRow>> {
+  const { data, error } = await supabase.rpc('get_imprest_open_requests', { p_float: floatId });
+  fail(error);
+  const rows = data ?? [];
+  return { rows: rows.slice(0, OPEN_REQUEST_LIMIT), truncated: rows.length > OPEN_REQUEST_LIMIT };
+}
 export type ImprestReplenishmentWithRejecter = ImprestReplenishmentRow & { rejecter: { full_name: string } | null };
 export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentWithRejecter>> {
   const { data, error } = await supabase.from('imprest_replenishments').select('*, rejecter:profiles!imprest_replenishments_rejected_by_fkey(full_name)').eq('float_id', floatId)
@@ -98,6 +107,57 @@ export async function listFloatChanges(floatId: string): Promise<Bounded<Imprest
     .order('proposed_at', { ascending: false }).limit(LIST_LIMIT + 1);
   fail(error);
   return bounded(data);
+}
+/** #1568 — the record kinds the requester who-next read answers for. */
+export type ImprestRequesterRouteKind = 'plan' | 'limit_change' | 'replenishment';
+export type ImprestRequesterRouteShape = 'named' | 'flat' | 'admin' | 'finance_admin' | 'unavailable';
+export type ImprestRequesterAction = 'approve' | 'pay';
+export interface ImprestRequesterApprover { id: string; name: string; role: string }
+export interface ImprestRequesterRoute {
+  route_kind: ImprestRequesterRouteShape;
+  approvers: ImprestRequesterApprover[];
+  action: ImprestRequesterAction | null;
+  /** True only when a distinct, SoD-eligible Admin can break-glass a `named` route (never a fabricated Admin). */
+  admin_breakglass: boolean;
+}
+const ROUTE_SHAPES: readonly string[] = ['named', 'flat', 'admin', 'finance_admin', 'unavailable'];
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+/**
+ * The RPC returns json; narrow it at the seam instead of trusting a cast. An unrecognised or internally
+ * inconsistent shape (a `named` route or a `pay` step with nobody named) reads as no answer, so the screen can
+ * never invent a decider or render an approval answer in a payment slot.
+ */
+export function parseImprestRequesterRoute(data: unknown): ImprestRequesterRoute | null {
+  if (!isObject(data)) return null;
+  const kind = data.route_kind;
+  if (typeof kind !== 'string' || !ROUTE_SHAPES.includes(kind)) return null;
+  const rawAction = data.action;
+  const action: ImprestRequesterAction | null = rawAction === 'approve' || rawAction === 'pay' ? rawAction : null;
+  const approvers = Array.isArray(data.approvers)
+    ? (data.approvers as unknown[]).filter(isObject).flatMap((a) => {
+        const { id, name, role } = a;
+        return typeof id === 'string' && typeof name === 'string' && typeof role === 'string'
+          ? [{ id, name, role }] : [];
+      })
+    : [];
+  if ((kind === 'named' || action === 'pay') && approvers.length === 0) return null;
+  return {
+    route_kind: kind as ImprestRequesterRouteShape,
+    approvers,
+    action,
+    admin_breakglass: data.admin_breakglass === true,
+  };
+}
+/**
+ * #1568 — who the database computes as the next decision actor for one site-cash record. Names only: the RPC never
+ * returns an amount, a category or per-line routing detail. Integration dependency: the generated `database.types.ts`
+ * entry (Args `{ p_kind, p_record_id }`, Returns `Json`) is supplied by the field-types worker; the call is typed
+ * against it and is never papered over with `as any`.
+ */
+export async function getImprestRequesterRoute(kind: ImprestRequesterRouteKind, recordId: string): Promise<ImprestRequesterRoute | null> {
+  const { data, error } = await supabase.rpc('get_imprest_requester_route', { p_kind: kind, p_record_id: recordId });
+  fail(error);
+  return parseImprestRequesterRoute(data);
 }
 export async function listCounts(floatId: string): Promise<Bounded<ImprestCountRow>> {
   const { data, error } = await supabase.from('imprest_cash_counts').select('*').eq('float_id', floatId)

@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   role: 'Executive' as string,
 }));
 
+vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'exec-1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => h.procurements }));
@@ -32,10 +33,30 @@ vi.mock('@/src/lib/db/dashboard', () => ({
   getFinanceBudgetReview: () => Promise.resolve([]),
   getPMDashboardProjects: () => Promise.resolve([]),
 }));
-vi.mock('@/src/lib/db/timesheetTransition', () => ({
-  listTimesheetsAwaitingApproval: () => h.timesheetsAwaitingFails
-    ? Promise.reject(new Error('timesheets unavailable'))
-    : Promise.resolve(h.timesheetsAwaiting),
+// fix-waiting: the shared waiting list reads timesheets through the same hook the inbox page uses.
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useTimesheetsAwaitingApproval: () => h.timesheetsAwaitingFails
+    ? { data: undefined, isPending: false, isError: true, refetch: vi.fn() }
+    : { data: h.timesheetsAwaiting, isPending: false, isError: false, refetch: vi.fn() },
+}));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+// The accepted waiting-state contract (ccbcd1ba3) reads two more waiting sources that this fixture never stubbed, so they
+// errored and withheld the total for every case: `useLeaveRequests()` (its `useLeaveAvailability` prerequisite calls
+// `leaveRepository.settings()` -> `db/leave.getLeaveSettings()` on the real, unstubbed client, so the settings read failed and
+// produced `prerequisiteError`; `visible()` would fail next) and `useImprestAwaiting()` (its queryFn calls
+// `repositories.imprest.listAwaitingImprest`, absent from this file's partial repositories mock, so the read threw). The
+// product implements both paths; this spec owns only the count/error contract, so both sources are held settled-empty here,
+// exactly as material/timesheets/procurements/invoices already are.
+vi.mock('@/src/hooks/useLeave', () => ({
+  useLeaveRequests: () => ({ data: [], isPending: false, isError: false, enabled: false, prerequisitePending: false, prerequisiteError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useImprest', () => ({
+  useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, enabled: false, refetch: vi.fn() }),
+}));
+// A client acceptance (BAST) waiting on the viewer is its own caller-filtered read; held idle here so the approvals total
+// under test is fed only by the sources this spec controls.
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
+  useAcceptancesAwaitingConfirmation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {

@@ -75,7 +75,8 @@ describe('the enable switch and the admin lists', () => {
   it('isEnabled is true only for an explicit true from the database', async () => {
     h.push({ data: true, error: null });
     await expect(isEnabled()).resolves.toBe(true);
-    expect(h.calls.rpc).toEqual([['safety_records_enabled', {}]]);
+    // The RPC takes no argument; the typed client sends no argument object at all (the recorder stores the bare name).
+    expect(h.calls.rpc).toEqual(['safety_records_enabled']);
     h.push({ data: null, error: null });
     await expect(isEnabled()).resolves.toBe(false);
   });

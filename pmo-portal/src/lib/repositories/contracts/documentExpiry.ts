@@ -3,6 +3,7 @@ import type * as dal from '@/src/lib/db/documentExpiry';
 
 export interface DocumentExpiryRepository {
   listExpiring: typeof dal.listExpiringDocuments;
+  listPersonDocuments: typeof dal.listPersonDocuments;
   listForSubject: typeof dal.listSubjectDocuments;
   listTypes: typeof dal.listDocumentTypes;
   getPerson: typeof dal.getPerson;
@@ -18,4 +19,5 @@ export interface DocumentExpiryRepository {
   archiveType: typeof dal.archiveDocumentType;
   getWarningDays: typeof dal.getDocumentWarningDays;
   setWarningDays: typeof dal.setDocumentWarningDays;
+  recordRenewal: typeof dal.recordDocumentRenewal;
 }

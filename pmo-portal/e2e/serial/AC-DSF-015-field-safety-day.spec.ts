@@ -121,6 +121,10 @@ test('AC-DSF-015 a field Engineer records and submits today\'s safety day on a p
   await expect(page.getByTestId('safety-missing')).toHaveCount(0, { timeout: 10_000 });
 
   await page.getByTestId('safety-submit').click();
+  // Locking is a deliberate confirm: the header button only opens the guard; the Engineer confirms it.
+  const lock = page.getByRole('dialog', { name: 'Lock this safety day?' });
+  await expect(lock).toBeVisible();
+  await lock.getByRole('button', { name: 'Submit and lock' }).click();
   await expect(page.getByTestId('safety-day-status')).toHaveAttribute('data-status', 'locked', { timeout: 15_000 });
 
   await page.goto(`/work-orders/${woId}`);

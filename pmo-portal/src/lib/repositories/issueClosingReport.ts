@@ -6,6 +6,7 @@ import {
   saveIssueDepartmentGroup,
   deleteIssueDepartmentGroup,
   getIssueClosingTimeReport,
+  getWorkOrderEffectiveHours,
 } from '@/src/lib/db/issueClosingReport';
 import type { IssueClosingReportRepository } from './contracts/issueClosingReport';
 
@@ -16,4 +17,5 @@ export const issueClosingReportRepository: IssueClosingReportRepository = {
   saveDepartmentGroup: (input) => wrap(() => saveIssueDepartmentGroup(input)),
   deleteDepartmentGroup: (id) => wrap(() => deleteIssueDepartmentGroup(id)),
   getReport: (filter) => wrap(() => getIssueClosingTimeReport(filter)),
+  getEffectiveHours: (workOrderId, from, to) => wrap(() => getWorkOrderEffectiveHours(workOrderId, from, to)),
 };

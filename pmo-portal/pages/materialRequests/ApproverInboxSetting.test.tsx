@@ -20,7 +20,11 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
 
 import MaterialRequestSettingsPage from '../MaterialRequestSettings';
+import { ApproverInboxSetting } from './ApproverInboxSetting';
 
+const renderCard = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <ToastProvider><ApproverInboxSetting /></ToastProvider></QueryClientProvider>);
 const renderPage = () => render(
   <MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <ToastProvider><MaterialRequestSettingsPage /></ToastProvider></QueryClientProvider></MemoryRouter>);
@@ -30,7 +34,7 @@ beforeEach(() => { h.get.mockReset(); h.set.mockReset(); h.get.mockResolvedValue
 describe('AC-MRI-017 approvals inbox toggle', () => {
   it('an Admin sees it off by default and turning it on calls the server function', async () => {
     h.role = 'Admin';
-    renderPage();
+    renderCard(); // it sits in the Stock module card in Administration (#2746)
     const box = await screen.findByRole('checkbox', { name: /Show material request approvals in the approvals inbox/ });
     await waitFor(() => expect(box).not.toBeDisabled());
     expect(box).not.toBeChecked();
@@ -38,8 +42,8 @@ describe('AC-MRI-017 approvals inbox toggle', () => {
     await waitFor(() => expect(h.set).toHaveBeenCalledWith(true));
   });
 
-  it('a non-Admin does not see it and nothing is read', () => {
-    h.role = 'Engineer';
+  it('the material request settings page no longer carries it, for an Admin too (it moved to the Stock module card)', () => {
+    h.role = 'Admin';
     renderPage();
     expect(screen.queryByText('Approvals inbox and notifications')).toBeNull();
     expect(h.get).not.toHaveBeenCalled();

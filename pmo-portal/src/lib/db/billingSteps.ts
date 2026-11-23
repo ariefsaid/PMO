@@ -1,5 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
+import { setTemplateStepRoles } from './workOrderBillingSteps';
 
 /**
  * Billing steps per claim, templates and the viewer's waiting steps (#2680; migrations 1365-1369). A claim's step is the existing
@@ -29,6 +31,10 @@ export interface StepInput {
   clientSide?: boolean;
   optional?: boolean;
   documents?: Array<{ name: string; required: boolean }>;
+  /** The built-in role key that owns this step on a work order's list (migration 1771); null = nobody in particular. */
+  ownerRoleKey?: string | null;
+  /** Role keys that do not see this step on a work order's list; the named person is exempt. */
+  hiddenFromRoleKeys?: string[];
 }
 
 export interface StepTemplate {
@@ -85,7 +91,7 @@ function patchPayload(p: StepPatch) {
 
 export async function listStepTemplates(): Promise<StepTemplate[]> {
   const { data, error } = await supabase.from('billing_step_templates')
-    .select('id,name,steps:billing_step_template_steps(position,name,owner_role,target_days,client_side,optional,documents:billing_step_template_documents(position,name,required))')
+    .select('id,name,steps:billing_step_template_steps(position,name,owner_role,owner_role_key,hidden_from_role_keys,target_days,client_side,optional,documents:billing_step_template_documents(position,name,required))')
     .is('archived_at', null).order('name').limit(TEMPLATE_LIMIT);
   if (error) fail(error);
   return (data ?? []).map((t) => ({
@@ -95,6 +101,8 @@ export async function listStepTemplates(): Promise<StepTemplate[]> {
       position: s.position,
       name: s.name,
       ownerRole: s.owner_role,
+      ownerRoleKey: s.owner_role_key,
+      hiddenFromRoleKeys: s.hidden_from_role_keys,
       targetDays: s.target_days,
       clientSide: s.client_side,
       optional: s.optional,
@@ -106,10 +114,15 @@ export async function listStepTemplates(): Promise<StepTemplate[]> {
 export async function saveStepTemplate(templateId: string | null, name: string, steps: StepInput[]): Promise<string> {
   const { data, error } = await supabase.rpc('save_billing_step_template', {
     // The function has no default for p_template: a new template sends null.
-    p_template: templateId, p_name: name, p_steps: steps.map(stepPayload),
+    p_template: nullableArg(templateId), p_name: name, p_steps: steps.map(stepPayload),
   });
   if (error) fail(error);
-  return String(data);
+  const id = String(data);
+  // The save recreates the steps; their owner role key and hidden-from list go in with the roles function (Admin or Finance, as the save).
+  if (steps.some((s) => s.ownerRoleKey || (s.hiddenFromRoleKeys?.length ?? 0) > 0)) {
+    await setTemplateStepRoles(id, steps.map((s, i) => ({ position: i + 1, ownerRoleKey: s.ownerRoleKey ?? null, hiddenFromRoleKeys: s.hiddenFromRoleKeys ?? [] })));
+  }
+  return id;
 }
 
 export async function archiveStepTemplate(templateId: string): Promise<void> {

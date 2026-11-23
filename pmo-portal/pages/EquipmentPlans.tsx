@@ -11,8 +11,10 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
-import { usePlanRefusalText } from '@/src/hooks/usePlanRefusalText';
-import { useCanApprovePlan, useEquipmentPlanSettings, usePlanCategories, usePlanMutations, usePlansForMonth } from '@/src/hooks/useEquipmentPlans';
+import { useRefusalLine } from '@/src/lib/refusals';
+import { waitingForText } from '@/src/lib/approvals/waitingFor';
+import { useRoleLabels } from '@/pages/admin-users/roleLabels';
+import { useCanApprovePlan, useEquipmentPlanApprovalRoute, useEquipmentPlanSettings, usePlanCategories, usePlanMutations, usePlansForMonth } from '@/src/hooks/useEquipmentPlans';
 import { monthEnd, monthStart, planTotal, type EquipmentPlan, type PlanLineInput } from '@/src/lib/repositories/equipmentPlans';
 import { formatCurrency, formatDay, formatMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
 
@@ -41,8 +43,10 @@ const monthOptions = (): Array<{ value: string; label: string }> => {
 
 const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPlan | null }> = ({ projectId, month, plan }) => {
   const { t } = useTranslation('equipmentPlans');
+  const { t: tWaiting } = useTranslation('waitingList');
+  const { label: roleLabel } = useRoleLabels();
   const { toast } = useToast();
-  const refusal = usePlanRefusalText();
+  const refusal = useRefusalLine();
   const { currentUser } = useAuth();
   const canCreate = usePermission()('create', 'equipmentPlan');
   const m = usePlanMutations();
@@ -61,6 +65,14 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
   const isAuthor = !plan || plan.createdBy === currentUser?.id;
   const editable = canCreate && status === 'Draft' && isAuthor;
   const canDecide = useCanApprovePlan(plan?.id, status === 'Submitted').data === true;
+  // fix-waiting item 3: who this plan waits for, from the database's own route (1565). It decides nothing; the buttons
+  // above it are still the database's answer. Only a Submitted plan is waiting, so only then is the route asked.
+  const route = useEquipmentPlanApprovalRoute(plan?.id, status === 'Submitted');
+  const waitingNames = (route.data?.approvers ?? []).map((a) => a.name);
+  const waitingRoles = [...new Set((route.data?.approvers ?? []).map((a) => roleLabel(a.role)))];
+  const waitingFor = waitingForText(waitingRoles.length === 1 ? { names: waitingNames, role: waitingRoles[0] } : { names: waitingNames }, tWaiting);
+  const honestEmptyRoute = route.data !== undefined && route.data.approvers.length === 0
+    && (route.data.kind === 'project' || route.data.kind === 'org' || route.data.kind === 'admin' || route.data.kind === 'senior_role');
   const busy = m.save.isPending || m.submit.isPending || m.approve.isPending || m.reject.isPending || m.reopen.isPending;
 
   const woOptions = [{ value: '', label: t('line.noWorkOrder', 'No work order') }, ...(workOrders.data ?? []).map((w) => ({ value: w.id, label: w.title }))];
@@ -109,6 +121,19 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
       title={<span className="flex flex-wrap items-center gap-2">{t('lines', 'Lines')}<StatusPill variant={status === 'Approved' ? 'won' : status === 'Rejected' ? 'lost' : status === 'Submitted' ? 'warn' : 'draft'}>{t(`status.${status}`, status)}</StatusPill></span>}
       data-testid="equipment-plan"
     >
+      {status === 'Submitted' && (
+        <div className="text-sm text-muted-foreground" data-testid="plan-waiting-for">
+          {route.isPending && <span>{t('route.loading', 'Finding who this plan waits for…')}</span>}
+          {route.isError && (
+            <ListState variant="error" quiet title={t('route.loadError', "Couldn't read who approves this plan")} onRetry={() => void route.refetch()} />
+          )}
+          {/* A failed read keeps its cached answer (TanStack holds `data` through an errored refetch), so both data
+              branches are gated on the error state: an error never prints a name or a definitive "no one can approve"
+              beside it. Retry restores whichever sentence is true. */}
+          {!route.isError && route.data && route.data.approvers.length > 0 && <span>{waitingFor}</span>}
+          {!route.isError && honestEmptyRoute && <span>{t('route.nobody', 'No one can approve this plan yet.')}</span>}
+        </div>
+      )}
       {plan?.status === 'Rejected' && plan.rejectReason && <FormErrorStrip>{t('rejectedWhy', 'Rejected: {{reason}}', { reason: plan.rejectReason })}</FormErrorStrip>}
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       {lines.length === 0 && <p className="text-muted-foreground">{t('noLines', 'No lines yet. Add what the project needs this month.')}</p>}

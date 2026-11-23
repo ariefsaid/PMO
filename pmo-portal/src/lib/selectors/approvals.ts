@@ -1,7 +1,10 @@
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 
-export type ApprovalKind = 'procurement' | 'timesheets' | 'expense' | 'invoice' | 'material';
+import type { WaitingKind } from '@/src/lib/approvals/waitingKinds';
+
+/** Every kind of decision a login can be asked for: the registry in `src/lib/approvals/waitingKinds.ts` is the one list. */
+export type ApprovalKind = WaitingKind;
 export type ApprovalScope = 'all' | ApprovalKind;
 
 export interface ApprovalPopulationEntry<T = unknown> {

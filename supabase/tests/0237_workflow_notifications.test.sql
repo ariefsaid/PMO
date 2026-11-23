@@ -3,7 +3,7 @@
 --   requester exclusion · actor exclusion · active-member gate (disabled + banned) · Admin/Executive arms
 --   (Executive only when the owner has no line manager) · task cross-org assignee · empty approval note.
 begin;
-select plan(23);
+select plan(28);
 
 insert into organizations (id, name) values
   ('02370000-0000-0000-0000-000000000001','WFN Org A'),
@@ -102,6 +102,8 @@ select is((select count(*)::int from notifications where owner_id = '02370000-00
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02370000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select transition_timesheet('02370000-0000-0000-0000-000000000021','Approved');
+set local request.jwt.claims = '{"sub":"02370000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select transition_timesheet('02370000-0000-0000-0000-000000000022','Rejected','Hours exceed project allocation');
 set local request.jwt.claims = '{"sub":"02370000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select transition_procurement('02370000-0000-0000-0000-000000000011','Rejected','Missing quote');
 set local request.jwt.claims = '{"sub":"02370000-0000-0000-0000-0000000000a5","role":"authenticated"}';
@@ -111,13 +113,27 @@ reset role;
 select is((select count(*)::int from notifications where owner_id = '02370000-0000-0000-0000-0000000000a1'
             and title = 'Your timesheet was approved'), 1, 'AC-WFN-002 the submitter is told the timesheet was approved');
 select is((select body from notifications where owner_id = '02370000-0000-0000-0000-0000000000a1'
+            and title = 'Your timesheet was approved'), 'Timesheet week of 2026-01-05',
+  'AC-WFN-002 approved timesheet notification preserves week label in body');
+select is((select count(*)::int from notifications where owner_id = '02370000-0000-0000-0000-0000000000a3'
+            and title = 'Your timesheet was rejected'), 1, 'AC-WFN-002 the submitter is told the timesheet was rejected');
+select is((select body from notifications where owner_id = '02370000-0000-0000-0000-0000000000a3'
+            and title = 'Your timesheet was rejected'), 'Hours exceed project allocation',
+  'AC-WFN-002 the timesheet rejection reason reaches the requester in notification body');
+select is((select metadata->'entity'->>'id' from notifications where owner_id = '02370000-0000-0000-0000-0000000000a3'
+            and title = 'Your timesheet was rejected'), '02370000-0000-0000-0000-000000000022',
+  'AC-WFN-002 rejected timesheet notification identifies the exact record');
+select is((select count(*)::int from notifications where owner_id = '02370000-0000-0000-0000-0000000000a7'
+            and title = 'Your timesheet was rejected'), 0,
+  'AC-WFN-004 non-owner approver Executive receives no rejection notification');
+select is((select body from notifications where owner_id = '02370000-0000-0000-0000-0000000000a1'
             and title = 'Your procurement was rejected'), 'Missing quote',
   'AC-WFN-002 the rejection comment reaches the requester');
 select is((select body from notifications where owner_id = '02370000-0000-0000-0000-0000000000a4'
             and title = 'Your procurement was approved'), 'WFN Proc 2',
   'AC-WFN-002 an empty approval note falls back to the procurement title');
 select is((select count(*)::int from notifications where owner_id in
-            ('02370000-0000-0000-0000-0000000000a2','02370000-0000-0000-0000-0000000000a5')
+            ('02370000-0000-0000-0000-0000000000a2','02370000-0000-0000-0000-0000000000a5','02370000-0000-0000-0000-0000000000a6')
             and title like 'Your %'), 0, 'AC-WFN-002 the deciding approvers are not notified of their own decision');
 
 -- Task assignment.

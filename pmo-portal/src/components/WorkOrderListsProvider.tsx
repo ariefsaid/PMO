@@ -1,6 +1,4 @@
-import React, { useContext, useMemo } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
-import { AuthContext } from '@/src/auth/AuthContext';
+import React, { useMemo } from 'react';
 import { WorkOrderListsContext, useWorkOrderListEntries, type WorkOrderLists } from '@/src/hooks/useWorkOrderLists';
 
 const LoadedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -17,12 +15,9 @@ const LoadedProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 /**
- * #2668: loads the organisation's lists for everything below it. Without a query client or a signed-in user (a bare unit
- * render) it provides the empty value, so a screen renders exactly as it did before the lists existed.
+ * #2668: loads the organisation's lists for everything below it. While the read runs it provides the empty value, so a
+ * screen renders exactly as it did before the lists existed.
  */
-export const WorkOrderListsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const queryClient = useContext(QueryClientContext);
-  const auth = useContext(AuthContext);
-  if (!queryClient || !auth) return <>{children}</>;
-  return <LoadedProvider>{children}</LoadedProvider>;
-};
+export const WorkOrderListsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <LoadedProvider>{children}</LoadedProvider>
+);

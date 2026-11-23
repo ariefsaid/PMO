@@ -73,6 +73,15 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({ SalesInvoiceApprov
 vi.mock('@/src/hooks/useInvoicePdfDownload', () => ({ useInvoicePdfDownload: () => h.pdfDownload }));
 vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn(), trackSearchUsed: vi.fn() }));
 
+// The invoice who-next note (1569) subscribes through its own standalone repository seam. This page proof is not
+// about that note; keep the real hook/UI mounted but answer the seam with a settled, typed empty route so no real
+// read leaks into this unrelated journey.
+vi.mock('@/src/lib/repositories/invoiceApprovalRoute', () => ({
+  invoiceApprovalRouteRepository: {
+    get: vi.fn(async () => ({ routeKind: 'unavailable', approvers: [] })),
+  },
+}));
+
 import SalesInvoices from '../SalesInvoices';
 
 const Location = () => {

@@ -10,6 +10,7 @@ import type {
 } from '@/src/lib/db/billingStages';
 import type { OverdueClaimStep, StepInput, StepPatch, StepTemplate, WaitingStep } from '@/src/lib/db/billingSteps';
 
+import type { BoardWorkOrderStep, WaitingWorkOrderStep, WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 import type { BillingBoardResult } from '@/src/lib/db/billingBoard';
 import type { PlanCandidatesResult, PlanSettings } from '@/src/lib/db/billingPlan';
 
@@ -52,4 +53,14 @@ export interface BillingStagesRepository {
   moveStep(stageId: string, newPosition: number): Promise<void>;
   waitingSteps(): Promise<WaitingStep[]>;
   overdueStepsByClaim(projectId: string): Promise<OverdueClaimStep[]>;
+  /** A work order's billing step list (advisory; migrations 1770-1774). */
+  workOrderSteps(workOrderId: string): Promise<WorkOrderStep[]>;
+  boardWorkOrderSteps(projectId?: string): Promise<BoardWorkOrderStep[]>;
+  waitingWorkOrderSteps(): Promise<WaitingWorkOrderStep[]>;
+  completeWorkOrderStep(stepId: string, doneOn: string): Promise<void>;
+  skipWorkOrderStep(stepId: string): Promise<void>;
+  assignWorkOrderStep(stepId: string, personId: string | null): Promise<void>;
+  attachWorkOrderStepDocument(stepId: string, slotId: string | null, documentId: string): Promise<void>;
+  defaultStepTemplateId(): Promise<string | null>;
+  setDefaultStepTemplate(templateId: string | null): Promise<void>;
 }

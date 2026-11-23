@@ -707,6 +707,8 @@ for (const width of [390, 1440] as const) {
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
         if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/);
         else await expect(page.locator('html')).not.toHaveClass(/dark/);
+        await expect(page.getByLabel(locale === 'id' ? 'Periode' : 'Period', { exact: true })).toBeVisible();
+        await expect(page.getByTestId('snapshot-provenance')).toBeVisible();
         await expect(page.getByRole('heading', { level: 2, name: locale === 'id' ? 'Laba rugi proyek' : 'Project profit and loss' })).toBeVisible();
         const currentIncome = locale === 'id' ? '12.345.678.901.234.567.890,01' : '12,345,678,901,234,567,890.01';
         const priorIncome = locale === 'id' ? '76.543.210.987.654.321.098,76' : '76,543,210,987,654,321,098.76';

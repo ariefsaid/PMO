@@ -18,6 +18,8 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useAssigneeOptions: () => ({ data: [] }),
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: uploadMock, isPending: false } }),
 }));
+const { typeState } = vi.hoisted(() => ({ typeState: { data: [] as { id: string; label: string; archived_at: string | null }[] } }));
+vi.mock('@/src/hooks/useIncidentTypes', () => ({ useIncidentTypes: () => typeState }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
 import { IncidentFormModal } from './IncidentFormModal';
@@ -35,6 +37,7 @@ const baseRow: IncidentRow = {
   project_id: null,
   created_at: '2026-03-15T00:00:00Z',
   work_order_id: null, assignee_id: null, action: null, due_at: null, closed_at: null, closed_by: null, close_note: null, escalated_at: null, task_id: null,
+  lost_time: false, root_cause: null, type_id: null,
 };
 
 const renderModal = (incident: IncidentRow | null, onCreate = vi.fn(), onUpdate = vi.fn()) =>
@@ -51,6 +54,7 @@ const renderModal = (incident: IncidentRow | null, onCreate = vi.fn(), onUpdate 
   );
 
 beforeEach(() => {
+  typeState.data = [{ id: 't1', label: 'Near Miss', archived_at: null }, { id: 't2', label: 'Spill', archived_at: null }, { id: 't3', label: 'Retired', archived_at: '2026-11-01T00:00:00Z' }];
   projectOptions.data = [
     { value: 'p1', label: 'Eastfield Phase 2', sub: 'PRJ-001' },
     { value: 'p2', label: 'Northgate Retrofit', sub: 'PRJ-002' },
@@ -62,7 +66,7 @@ describe('IncidentFormModal project selector', () => {
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'America/Los_Angeles' });
     const onCreate = vi.fn().mockResolvedValue(baseRow);
     renderModal(null, onCreate);
-    await userEvent.type(screen.getByLabelText(/^type/i), 'Spill');
+    await userEvent.selectOptions(screen.getByLabelText(/^type/i), 'Spill');
     fireEvent.change(screen.getByLabelText(/fix by/i), { target: { value: '2050-01-01' } });
     await userEvent.click(screen.getByRole('button', { name: /file incident/i }));
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ due_at: '2050-01-02T07:59:00.000Z' }));
@@ -77,7 +81,7 @@ describe('IncidentFormModal project selector', () => {
   it('filing from a project register keeps that project on the new issue', async () => {
     const onCreate = vi.fn().mockResolvedValue(baseRow);
     render(<ToastProvider><IncidentFormModal incident={null} defaultProjectId="p1" onClose={vi.fn()} onCreate={onCreate} onUpdate={vi.fn()} onError={vi.fn()} /></ToastProvider>);
-    await userEvent.type(screen.getByLabelText(/^type/i), 'Spill');
+    await userEvent.selectOptions(screen.getByLabelText(/^type/i), 'Spill');
     await userEvent.click(screen.getByRole('button', { name: /file incident/i }));
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ project_id: 'p1' }));
   });
@@ -86,7 +90,7 @@ describe('IncidentFormModal project selector', () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
     renderModal(null, onCreate);
 
-    await userEvent.type(screen.getByLabelText(/^type/i), 'Spill');
+    await userEvent.selectOptions(screen.getByLabelText(/^type/i), 'Spill');
 
     // Open the project combobox and pick a project.
     const projectField = screen.getByRole('combobox', { name: /project/i });
@@ -135,7 +139,7 @@ describe('IncidentFormModal photos (#2521)', () => {
       </ToastProvider>,
     );
 
-    await userEvent.type(screen.getByLabelText(/^type/i), 'Spill');
+    await userEvent.selectOptions(screen.getByLabelText(/^type/i), 'Spill');
     await userEvent.upload(screen.getByTestId('incident-photo-input'), photo());
     await userEvent.click(screen.getByRole('button', { name: /^file incident$/i }));
 
@@ -158,5 +162,29 @@ describe('IncidentFormModal photos (#2521)', () => {
     const input = screen.getByTestId('incident-photo-input');
     expect(input).toHaveAttribute('accept', 'image/*');
     expect(input).toHaveAttribute('capture');
+  });
+});
+
+describe('AC-ICM-011 issue type is a pick from the kept list', () => {
+  it('offers only live types, with no free text', () => {
+    renderModal(null);
+    const select = screen.getByLabelText(/^type/i) as HTMLSelectElement;
+    expect(select.tagName).toBe('SELECT');
+    expect(Array.from(select.options).map((o) => o.text)).toEqual(['Choose a type', 'Near Miss', 'Spill']);
+  });
+  it('keeps submit disabled until a type is chosen', async () => {
+    renderModal(null);
+    expect(screen.getByRole('button', { name: /^file incident$/i })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText(/^type/i), 'Spill');
+    expect(screen.getByRole('button', { name: /^file incident$/i })).toBeEnabled();
+  });
+  it('an empty list says who adds types', () => {
+    typeState.data = [];
+    renderModal(null);
+    expect(screen.getByText(/An Admin adds them in Administration/i)).toBeInTheDocument();
+  });
+  it('an issue whose type was archived since still shows it on edit', () => {
+    renderModal({ ...baseRow, type: 'Retired' });
+    expect(screen.getByLabelText(/^type/i)).toHaveValue('Retired');
   });
 });

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, GateNotice, ListPage, SelectField, Switch, TextField, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, GateNotice, ListPage, SelectField, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveSettings, useLeaveSettingsMutations, useLeaveTypes } from '@/src/hooks/useLeave';
-import { leaveErrorMessage } from './leaveErrors';
+import { useRoleLabels } from '../admin-users/roleLabels';
+import { useLeaveErrorText } from '../crews/crewErrors';
 
 /** Base roles an organisation can name as the leave approver today; a built-in role key can be added to this list later. */
 const APPROVER_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'] as const;
@@ -13,6 +14,8 @@ const APPROVER_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'] as c
 /** /leave?view=settings (#2708, Admin): switch the feature on, pick the approver role, and keep the leave type list. */
 const LeaveSettingsPage: React.FC = () => {
   const { t } = useTranslation('crews');
+  const roleLabels = useRoleLabels();
+  const writeError = useLeaveErrorText();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -20,17 +23,16 @@ const LeaveSettingsPage: React.FC = () => {
   const settings = useLeaveSettings();
   const types = useLeaveTypes();
   const { save, createType, archiveType } = useLeaveSettingsMutations();
-  const [enabled, setEnabled] = useState(false);
   const [role, setRole] = useState('');
   const [name, setName] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
-    if (settings.data) { setEnabled(settings.data.enabled); setRole(settings.data.approver_role ?? ''); }
+    if (settings.data) { setRole(settings.data.approver_role ?? ''); }
   }, [settings.data]);
   if (!isAdmin) return <GateNotice variant="blocked">{t('crews:leave.adminOnly', 'Only an Admin can change leave settings')}</GateNotice>;
   const guard = async (fn: () => Promise<unknown>, done?: string) => {
     setProblem(null);
-    try { await fn(); if (done) toast(done, undefined, 'success'); } catch (err) { setProblem(leaveErrorMessage(t, err)); }
+    try { await fn(); if (done) toast(done, undefined, 'success'); } catch (err) { setProblem(writeError(err)); }
   };
   return (
     <ListPage title={t('crews:leave.settings', 'Leave settings')}>
@@ -40,16 +42,12 @@ const LeaveSettingsPage: React.FC = () => {
         <Card seam>
           <CardHead>{t('crews:leave.switchHeading', 'Leave requests')}</CardHead>
           <CardPad>
-            <div className="mb-4 flex items-center gap-3">
-              <Switch checked={enabled} onChange={setEnabled} labelledBy="leave-switch-label" />
-              <span id="leave-switch-label" className="text-sm">{t('crews:leave.switchLabel', 'People can request leave and report sickness')}</span>
-            </div>
             <SelectField label={t('crews:leave.approverRole', 'Who approves')} value={role} onChange={setRole}
               helper={t('crews:leave.approverHelp', "The person's line manager can always decide. Empty means Admin.")}
-              options={[{ value: '', label: t('crews:leave.approverDefault', 'Line manager, or Admin') }, ...APPROVER_ROLES.map((r) => ({ value: r, label: r }))]} />
+              options={[{ value: '', label: t('crews:leave.approverDefault', 'Line manager, or Admin') }, ...APPROVER_ROLES.map((r) => ({ value: r, label: roleLabels.label(r) }))]} />
             <div className="mt-4">
               <Button variant="primary" loading={save.isPending}
-                onClick={() => void guard(() => save.mutateAsync({ enabled, approver_role: role || null }), t('crews:leave.saved', 'Settings saved'))}>
+                onClick={() => void guard(() => save.mutateAsync({ enabled: true, approver_role: role || null }), t('crews:leave.saved', 'Settings saved'))}>
                 {t('crews:leave.saveSettings', 'Save settings')}
               </Button>
             </div>

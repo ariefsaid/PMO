@@ -9,6 +9,8 @@ create extension if not exists pgtap;
 select * from no_plan();
 
 insert into organizations (id, name, default_currency, default_timezone) values ('26910000-0000-0000-0000-00000000000a', 'WOT Org', 'IDR', 'UTC'), ('26910000-0000-0000-0000-00000000000b', 'WOT Other Org', 'IDR', 'UTC');
+-- this switch is on by default now; this file proves the off state, so setup switches it off as an explicit step
+update organizations set stock_wo_transfers = false where id in ('26910000-0000-0000-0000-00000000000a', '26910000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values ('26910000-0000-0000-0000-0000000000a1', 'wot-admin@example.com'), ('26910000-0000-0000-0000-0000000000a2', 'wot-keeper@example.com'), ('26910000-0000-0000-0000-0000000000a3', 'wot-plain@example.com'), ('26910000-0000-0000-0000-0000000000b1', 'wot-other@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('26910000-0000-0000-0000-0000000000a1', '26910000-0000-0000-0000-00000000000a', 'WOT Admin', 'wot-admin@example.com', 'Admin', 'active'),

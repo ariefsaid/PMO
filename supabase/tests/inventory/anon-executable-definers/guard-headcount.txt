@@ -1,0 +1,4 @@
+# 1710: a regular-account foreman or manager enters, approves or clears a daily head count of unnamed people.
+record_headcount_day
+approve_headcount_day
+clear_headcount_day

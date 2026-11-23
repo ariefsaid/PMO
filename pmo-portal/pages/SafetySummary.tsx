@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, ListState, PageHeader, SelectField, TextField } from '@/src/components/ui';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
-import { useSafetyEnabled, useSafetySummary, useSafetySummaryDetail } from '@/src/hooks/useSafetyDays';
+import { useSafetySummary, useSafetySummaryDetail } from '@/src/hooks/useSafetyDays';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { deriveSafetySummaryView, formatSafetyMinutes, toClientExport, type SafetyFigure, type SafetyFigureKey } from '@/src/lib/safetyDay';
 import { formatDay } from '@/src/lib/format';
 import type { SafetyDetailKind } from '@/src/lib/db/safetyDays';
@@ -31,7 +32,7 @@ const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${Str
  */
 const SafetySummary: React.FC = () => {
   const { t } = useTranslation('safety');
-  const enabled = useSafetyEnabled();
+  const enabled = useOrgSwitch('safetyRecords');
   const [params, setParams] = useSearchParams();
   const client = params.get('view') === 'client';
   const [month, setMonth] = useState(thisMonth());
@@ -43,7 +44,7 @@ const SafetySummary: React.FC = () => {
   const detail = useSafetySummaryDetail(open ? DETAIL_KIND[open] ?? null : null, project || null, monthDate);
 
   if (enabled.isPending) return <ListState variant="loading" rows={4} />;
-  if (!enabled.data) return <ListState variant="empty" icon="reports" title={t('summary.off', 'Safety records are not switched on for this organisation')} />;
+  if (!enabled.data) return <ListState variant="empty" icon="reports" title={t('summary.off', 'Safety records are turned off for this organisation. An Admin can turn them on under Modules.')} />;
 
   const figures = summary.data ? deriveSafetySummaryView(summary.data) : [];
   const label = (f: SafetyFigure) => t(`summary.figure.${f.key}`, FIGURE_LABEL[f.key]);

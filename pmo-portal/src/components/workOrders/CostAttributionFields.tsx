@@ -23,9 +23,11 @@ export interface CostAttributionFieldsProps {
   idPrefix?: string;
   /** Wraps each picker (e.g. a width in a flex row of fields). */
   itemClassName?: string;
+  /** When the project has exactly one open work order and none is chosen, choose it (a person picking from a list of one is a wasted step). */
+  preselectSingle?: boolean;
 }
 
-export function CostAttributionFields({ projectId, value, onChange, disabled, compact, idPrefix = 'cost', itemClassName }: CostAttributionFieldsProps) {
+export function CostAttributionFields({ projectId, value, onChange, disabled, compact, idPrefix = 'cost', itemClassName, preselectSingle }: CostAttributionFieldsProps) {
   const { t } = useTranslation('workOrderCost');
   const workOrders = useProjectWorkOrders(projectId ?? '');
   const disciplines = useCostDisciplines();
@@ -42,6 +44,26 @@ export function CostAttributionFields({ projectId, value, onChange, disabled, co
   );
   const loadWorkOrders = useCallback(async () => workOrderOptions, [workOrderOptions]);
   const loadDisciplines = useCallback(async () => disciplineOptions, [disciplineOptions]);
+
+  // Candidates for automatic preselection: exactly one OPEN/Issued order.
+  // Closed orders must never auto-select or count toward preselection (#2517, defect 5).
+  const openCandidates = useMemo(
+    () => (workOrders.data ?? []).filter((wo) => wo.status === 'Issued'),
+    [workOrders.data],
+  );
+
+  // Only the first load preselects: once the person clears or changes the work order, their choice stands.
+  const preselected = useRef<string | null>(null);
+  useEffect(() => {
+    if (!preselectSingle || !projectId || disabled || workOrders.isLoading) return;
+    if (preselected.current === projectId) return;
+    if (openCandidates.length === 1) {
+      preselected.current = projectId;
+      if (!value.workOrderId) onChange({ ...value, workOrderId: openCandidates[0].id });
+    } else if (workOrders.data) {
+      preselected.current = projectId;
+    }
+  }, [preselectSingle, projectId, disabled, workOrders.isLoading, workOrders.data, openCandidates, value, onChange]);
 
   // A work order belongs to one project: drop it when the project changes.
   const lastProject = useRef(projectId);

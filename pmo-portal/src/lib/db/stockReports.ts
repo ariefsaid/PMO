@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, toAppError } from '@/src/lib/appError';
+import { listItemTagNames } from './stockMaster';
 
 /** Quantities and money arrive as decimal strings from the read RPCs and stay strings (NFR-STK-007). Cost keys are absent below rank 20. */
 export interface StockOnHandRow {
@@ -8,6 +9,8 @@ export interface StockOnHandRow {
   qtyOnHand: string; valueOnHand?: string; avgCost?: string;
   /** Only on a vendor location: the linked vendor company's name, when it has one. */
   vendorName?: string;
+  /** The organisation's own tag for this item (its word for client-supplied stock); absent on an ordinary item. */
+  tagName?: string;
 }
 export interface StockLedgerRow {
   seq: number; id: string; documentId: string; documentNumber: string; documentStatus: string; kind: string;
@@ -15,6 +18,22 @@ export interface StockLedgerRow {
   itemId: string; itemCode: string; itemName: string; unitCode: string; warehouseId: string; warehouseCode: string;
   projectId: string | null; projectName: string | null; boqItemId: string | null; boqItemCode: string | null;
   qtyDelta: string; qtyAfter: string; valueDelta?: string; valueAfter?: string;
+  /** The organisation's own tag for this item (its word for client-supplied stock); absent on an ordinary item. */
+  tagName?: string;
+}
+
+/**
+ * The read RPCs carry no item tag, so a screen that must mark client-supplied stock joins the organisation's tag by
+ * item id here — one narrow read of tagged items only. An untagged item gets no key (absent, never a blank or a zero).
+ */
+async function withItemTags<T extends { itemId: string; tagName?: string }>(rows: T[]): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const tagByItem = new Map((await listItemTagNames()).map((t) => [t.itemId, t.tagName] as const));
+  for (const row of rows) {
+    const tagName = tagByItem.get(row.itemId);
+    if (tagName) row.tagName = tagName;
+  }
+  return rows;
 }
 export interface StockLedgerFilters {
   itemId?: string; warehouseId?: string; projectId?: string; boqItemId?: string; documentId?: string; from?: string; to?: string;
@@ -54,7 +73,7 @@ const optional = (o: Json, k: string, to: string, out: Json) => { if (o[k] !== u
 export async function getStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }): Promise<StockOnHandRow[]> {
   const { data, error } = await supabase.rpc('get_stock_on_hand', defined({ p_warehouse_id: f.warehouseId, p_item_id: f.itemId, p_include_zero: f.includeZero }) as never);
   if (error) throw toAppError(error);
-  return ((data ?? []) as Json[]).map((r) => {
+  const rows = ((data ?? []) as Json[]).map((r) => {
     const out: Json = {
       itemId: r.item_id, itemCode: r.item_code, itemName: r.item_name, unitCode: r.unit_code, wholeOnly: r.whole_only,
       warehouseId: r.warehouse_id, warehouseCode: r.warehouse_code, warehouseName: r.warehouse_name, warehouseKind: r.warehouse_kind,
@@ -64,6 +83,7 @@ export async function getStockOnHand(f: { warehouseId?: string; itemId?: string;
     if (r.vendor_name != null) out.vendorName = r.vendor_name;
     return out as StockOnHandRow;
   });
+  return withItemTags(rows);
 }
 
 export async function getStockAtRisk(): Promise<StockAtRiskRow[]> {
@@ -92,7 +112,8 @@ const mapLedger = (r: Json): StockLedgerRow => {
   return out as StockLedgerRow;
 };
 
-export async function getStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage> {
+/** One page of the trace, as the database returns it (no tag join: the cursor loop must not pay it per page). */
+async function readStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage> {
   const args = defined({
     p_item_id: f.itemId, p_warehouse_id: f.warehouseId, p_project_id: f.projectId, p_boq_item_id: f.boqItemId, p_document_id: f.documentId,
     p_from: f.from, p_to: f.to, p_before_seq: f.beforeSeq, p_limit: f.limit,
@@ -103,13 +124,19 @@ export async function getStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: n
   return { rows: d.rows.map(mapLedger), nextBeforeSeq: d.next_before_seq };
 }
 
+/** The screen's page: each row carries its item's configured tag so the trace can mark client-supplied stock. */
+export async function getStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage> {
+  const page = await readStockLedgerPage(f);
+  return { ...page, rows: await withItemTags(page.rows) };
+}
+
 /** Follows the cursor to the end. Throws at the page cap rather than silently truncating (FR-STK-044). */
 export async function getStockLedgerAll(f: StockLedgerFilters, opts: { maxPages?: number } = {}): Promise<StockLedgerRow[]> {
   const maxPages = opts.maxPages ?? 25;
   const out: StockLedgerRow[] = [];
   let before: number | undefined;
   for (let i = 0; i < maxPages; i++) {
-    const page = await getStockLedgerPage({ ...f, beforeSeq: before, limit: 200 });
+    const page = await readStockLedgerPage({ ...f, beforeSeq: before, limit: 200 });
     out.push(...page.rows);
     if (page.nextBeforeSeq === null) return out;
     before = page.nextBeforeSeq;

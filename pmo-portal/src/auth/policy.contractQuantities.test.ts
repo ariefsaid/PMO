@@ -84,3 +84,22 @@ describe('contract quantities policy (ADR-0091)', () => {
     for (const role of ROLES) expect(can('edit', 'workOrderAcceptance', as(role, { status: 'Draft' }))).toBe(false);
   });
 });
+
+describe('AC-SCR-013 surveyRecord policy mirrors the BAST people', () => {
+  const issued = { status: 'Issued', project_manager_id: 'pm-1' };
+  it('create: the project manager of this project and Finance rank and above, on an Issued work order only', () => {
+    expect(can('create', 'surveyRecord', as('Project Manager', issued, 'pm-1'))).toBe(true);
+    expect(can('create', 'surveyRecord', as('Project Manager', issued, 'pm-2'))).toBe(false);
+    expect(can('create', 'surveyRecord', as('Engineer', issued, 'pm-1'))).toBe(false);
+    expect(can('create', 'surveyRecord', as('Finance', issued, 'fin-1'))).toBe(true);
+    expect(can('create', 'surveyRecord', as('Finance', { ...issued, status: 'Closed' }, 'fin-1'))).toBe(false);
+  });
+  it('confirm: Admin and Finance on a draft; delete: the recorder or Admin/Finance on a draft', () => {
+    expect(can('confirm', 'surveyRecord', as('Finance', { status: 'draft' }, 'f'))).toBe(true);
+    expect(can('confirm', 'surveyRecord', as('Project Manager', { status: 'draft' }, 'pm-1'))).toBe(false);
+    expect(can('confirm', 'surveyRecord', as('Finance', { status: 'confirmed' }, 'f'))).toBe(false);
+    expect(can('delete', 'surveyRecord', as('Project Manager', { status: 'draft', recorded_by: 'pm-1' }, 'pm-1'))).toBe(true);
+    expect(can('delete', 'surveyRecord', as('Project Manager', { status: 'draft', recorded_by: 'x' }, 'pm-1'))).toBe(false);
+    expect(can('delete', 'surveyRecord', as('Finance', { status: 'confirmed', recorded_by: 'f' }, 'f'))).toBe(false);
+  });
+});

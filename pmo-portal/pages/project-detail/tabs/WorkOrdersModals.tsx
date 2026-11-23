@@ -16,7 +16,7 @@ import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import WorkOrderLinesModal from '../WorkOrderLinesModal';
 import WorkOrderAcceptanceModal from '../WorkOrderAcceptanceModal';
-import ProgressClaimModal from '../ProgressClaimModal';
+import ProgressClaimModalForOrg from '../ProgressClaimModalForOrg';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
@@ -277,7 +277,7 @@ const WorkOrdersModals: React.FC<{
       )}
 
       {(claimFor || newClaimOpen) && summary && (
-        <ProgressClaimModal
+        <ProgressClaimModalForOrg
           boqItems={boqRows}
           workOrders={rows}
           allocations={allocations}

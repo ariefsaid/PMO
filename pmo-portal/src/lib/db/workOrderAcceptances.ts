@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import { fetchAllPages } from '@/src/lib/pagedRead';
+import type { Tables, TablesInsert } from '@/src/lib/supabase/database.types';
 
 /**
  * Contract-quantity DAL (migration 0337, ADR-0091). Allocations (`work_order_lines`) are RLS-scoped table
@@ -39,6 +40,24 @@ export interface ConfirmWorkOrderAcceptanceResult {
   dpHeld: number;
 }
 
+/**
+ * One BAST the caller may confirm, from `acceptances_awaiting_my_confirmation()` (migration 1570):
+ * a Draft acceptance on an Issued work order, for Admin/Finance, with the author excluded unless they
+ * are the only active member. Eligibility is a READ of who can confirm — never a promise the write
+ * succeeds: the document/prerequisite checks and the separation-of-duties refusal stay in
+ * `confirm_work_order_acceptance`.
+ */
+export interface AcceptanceAwaitingConfirmationRow {
+  id: string;
+  project_id: string;
+  /** The order to open: the acceptance id is never a work order id. */
+  work_order_id: string;
+  acceptance_date: string;
+  is_final: boolean;
+  prepared_by: string;
+  prepared_at: string;
+}
+
 /** Rows read per list. PostgREST caps a response at 1000, so reaching the limit means the list may be cut. */
 const LIST_LIMIT = 1000;
 
@@ -75,6 +94,20 @@ export async function listWorkOrderLines(workOrderId: string): Promise<WorkOrder
   return rows;
 }
 
+/**
+ * Every BAST waiting for the signed-in Admin/Finance user to confirm (migration 1570's caller-filtered read).
+ *
+ * This is a WAITING LIST, so a partial answer would be a wrong count, not merely a short page: PostgREST
+ * silently truncates at `db-max-rows`, so the whole set is read page by page and a page error rejects the
+ * read rather than returning what arrived. The function itself has no row cap and orders by
+ * `prepared_at, id`; the re-sort here keeps the caller's order determinate when the pages are stitched.
+ */
+export async function listAcceptancesAwaitingConfirmation(): Promise<AcceptanceAwaitingConfirmationRow[]> {
+  const rows = await fetchAllPages<AcceptanceAwaitingConfirmationRow>((from, to) =>
+    supabase.rpc('acceptances_awaiting_my_confirmation').range(from, to));
+  return [...rows].sort((a, b) => a.prepared_at.localeCompare(b.prepared_at) || a.id.localeCompare(b.id));
+}
+
 /** Every allocation on a project's work orders in ONE query (the tab groups them by work order). */
 export async function listProjectWorkOrderLines(projectId: string): Promise<WorkOrderLineRow[]> {
   const { data, error } = await supabase.from('work_order_lines').select('*, work_orders!inner(project_id)')
@@ -89,9 +122,12 @@ export async function listProjectWorkOrderLines(projectId: string): Promise<Work
 }
 
 export async function createWorkOrderLine(input: WorkOrderLineInput): Promise<WorkOrderLineRow> {
-  const { data, error } = await supabase.from('work_order_lines').insert({
+  // `org_id` is stamped by the org_id before-insert trigger (migration 0074) and the client never sends it (ADR-0017), but
+  // the generated Insert type requires it because introspection cannot see the trigger.
+  const row = {
     work_order_id: input.workOrderId, boq_item_id: input.boqItemId, quantity: input.quantity,
-  }).select().single();
+  } satisfies Omit<TablesInsert<'work_order_lines'>, 'org_id'>;
+  const { data, error } = await supabase.from('work_order_lines').insert(row as TablesInsert<'work_order_lines'>).select().single();
   if (error) fail(error);
   return data as WorkOrderLineRow;
 }

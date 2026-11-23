@@ -3,10 +3,11 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import type { Role } from '@/src/auth/AuthContext';
+import { AuthContext, type AuthContextValue, type Role } from '@/src/auth/AuthContext';
 
 const h = vi.hoisted(() => ({
   role: 'Admin' as string,
+  key: null as string | null,
   docs: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   types: { data: [] as unknown[] },
   create: vi.fn(), update: vi.fn(), archive: vi.fn(),
@@ -29,7 +30,9 @@ const doc = (over: Record<string, unknown> = {}) => ({
 });
 const type = (over: Record<string, unknown> = {}) => ({ id: 't1', name: 'Equipment certificate', applies_to: 'equipment', is_medical: false, ...over });
 const renderCard = (kind: 'person' | 'equipment' = 'equipment') => render(
-  <MemoryRouter><ToastProvider><ExpiryDocumentsCard kind={kind} subjectId="a1" /></ToastProvider></MemoryRouter>);
+  <AuthContext.Provider value={{ currentUser: { id: 'me', built_in_role: h.key } } as AuthContextValue}>
+    <MemoryRouter><ToastProvider><ExpiryDocumentsCard kind={kind} subjectId="a1" /></ToastProvider></MemoryRouter>
+  </AuthContext.Provider>);
 const typeDate = async (user: ReturnType<typeof userEvent.setup>, name: RegExp, value: string) => {
   await user.type(screen.getByRole('textbox', { name }), value);
   await user.tab();
@@ -38,6 +41,7 @@ const typeDate = async (user: ReturnType<typeof userEvent.setup>, name: RegExp, 
 describe('ExpiryDocumentsCard (#2542)', () => {
   beforeEach(() => {
     h.role = 'Admin';
+    h.key = null;
     h.docs = { data: [doc()], isPending: false, isError: false, refetch: vi.fn() };
     h.types = { data: [type(), type({ id: 't2', name: 'Medical check', is_medical: true, applies_to: 'person' })] };
     h.create.mockReset().mockResolvedValue({}); h.update.mockReset().mockResolvedValue(undefined); h.archive.mockReset().mockResolvedValue(undefined);
@@ -52,6 +56,21 @@ describe('ExpiryDocumentsCard (#2542)', () => {
     await typeDate(user, /Expiry date/, '2027-03-01');
     await user.click(screen.getByRole('button', { name: 'Save document' }));
     expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ type_id: 't1', number: 'EC-9', expires_on: '2027-03-01', file: null }));
+  });
+
+  it('fix/walk-people item 5: a new medical document starts with no status and will not save until fit or unfit is chosen', async () => {
+    const user = userEvent.setup();
+    renderCard('person');
+    await user.click(screen.getByRole('button', { name: 'Add document' }));
+    await user.selectOptions(screen.getByLabelText(/Document type/), 't2');
+    const status = screen.getByLabelText(/Medical status/) as HTMLSelectElement;
+    expect(status.value).toBe('');
+    await typeDate(user, /Expiry date/, '2027-03-01');
+    await user.click(screen.getByRole('button', { name: 'Save document' }));
+    expect(h.create).not.toHaveBeenCalled();
+    await user.selectOptions(status, 'unfit');
+    await user.click(screen.getByRole('button', { name: 'Save document' }));
+    expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ type_id: 't2', medical_status: 'unfit' }));
   });
 
   it('AC-DEE-002 edits only the editable fields of an existing document', async () => {
@@ -119,6 +138,28 @@ describe('ExpiryDocumentsCard (#2542)', () => {
     await user.click(screen.getByRole('button', { name: 'Save document' }));
     expect(h.create).not.toHaveBeenCalled();
     expect(screen.getAllByText('Expiry date must be on or after the issue date').length).toBeGreaterThan(0);
+  });
+
+  it('AC-RCG-023 a holder of the people-documents capability adds and edits non-medical person documents, with no medical type to choose', async () => {
+    const user = userEvent.setup();
+    h.role = 'Engineer';
+    h.key = 'hr_officer';
+    h.docs.data = [doc({ id: 'd2', subject_kind: 'person', number: 'WP-1' }), doc({ id: 'd3', subject_kind: 'person', number: null, type_id: 't2', is_medical: true, medical_status: 'fit' })];
+    h.types = { data: [type({ id: 't1', name: 'Work permit', applies_to: 'person' }), type({ id: 't2', name: 'Medical check', is_medical: true, applies_to: 'person' })] };
+    renderCard('person');
+    expect(screen.getByRole('button', { name: /Edit WP-1/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit Medical check/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add document' }));
+    const options = within(screen.getByLabelText(/Document type/)).getAllByRole('option').map((o) => o.textContent);
+    expect(options).toContain('Work permit');
+    expect(options).not.toContain('Medical check');
+  });
+
+  it('AC-RCG-023 an Engineer with another built-in role gets no document actions on a person', () => {
+    h.role = 'Engineer';
+    h.key = 'planner';
+    renderCard('person');
+    expect(screen.queryByRole('button', { name: 'Add document' })).toBeNull();
   });
 
   it('explains an empty record and offers retry on a failed read', () => {

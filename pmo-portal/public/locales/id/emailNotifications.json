@@ -72,6 +72,9 @@
       "5": "Jumat",
       "6": "Sabtu",
       "7": "Minggu"
-    }
+    },
+    "sendEvery": "Kirim laporan ini setiap …",
+    "sendEveryTitle": "Kirim laporan ini lewat email sesuai jadwal",
+    "savedFromReport": "Selesai. Laporan ini akan dikirim lewat email sesuai jadwal."
   }
 }

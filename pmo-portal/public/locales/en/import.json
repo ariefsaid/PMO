@@ -17,7 +17,9 @@
     "people": "people",
     "person": "person",
     "clientTakeoff": "take-off lines",
-    "clientTakeoffLine": "take-off line"
+    "clientTakeoffLine": "take-off line",
+    "personDocuments": "person documents",
+    "personDocument": "person document"
   },
   "wizard": {
     "title": "Import {{entity}}",
@@ -64,7 +66,10 @@
     "invalidCount": "{{n}} invalid",
     "totalCount": "{{n}} total",
     "rowNumber": "Row {{n}}",
-    "alreadyCount": "{{n}} already there"
+    "alreadyCount": "{{n}} already there",
+    "willUpdate": "Will update",
+    "new": "New",
+    "noChange": "No change"
   },
   "committing": {
     "progress": "Importing {{done}} / {{total}}…"
@@ -83,7 +88,8 @@
     "reasonColumn": "Why not imported",
     "failedSheet": "Not imported",
     "alreadyThereSheet": "Already there",
-    "rowInFile": "Row in your file"
+    "rowInFile": "Row in your file",
+    "updated": "{{n}} updated"
   },
   "paste": {
     "label": "Or paste rows copied from a spreadsheet",
@@ -224,6 +230,8 @@
     "description": "Description",
     "unit": "Unit",
     "leadTimeDays": "Lead time (days)",
+    "exampleName": "Cement 50 kg bag",
+    "exampleDescription": "",
     "codeHint": "Your own code for the item. Each code is used once.",
     "unitHint": "The code of an existing unit of measure.",
     "alreadyThere": "This item code already exists.",
@@ -240,6 +248,7 @@
     "name": "Name",
     "kind": "Kind",
     "project": "Project",
+    "exampleName": "North yard",
     "projectHint": "Required for site, yard and staging; leave blank for central.",
     "alreadyThere": "This location code already exists.",
     "error": {
@@ -288,14 +297,26 @@
   "people": {
     "code": "Employee code",
     "name": "Display name",
-    "codeHint": "Your own code for the person. Each code is used once.",
+    "exampleName": "Sample Person",
+    "codeHint": "Your own code for the person. A code already in the register updates that person; a new code adds one.",
     "alreadyThere": "This employee code already exists.",
     "error": {
       "code": "Employee code is required.",
       "codeLong": "Employee code is too long.",
       "name": "Display name is required.",
-      "nameLong": "Display name is too long."
-    }
+      "nameLong": "Display name is too long.",
+      "jobTitleLong": "Job title is too long.",
+      "repeat": "This employee code already appears in row {n}.",
+      "managerRight": "Only an Admin or the people team (HR) can set a person's direct manager. Leave the manager email blank.",
+      "managerSelf": "Only an Admin can make themselves a person's direct manager. Name another manager."
+    },
+    "job_title": "Job title",
+    "manager_id": "Manager email",
+    "jobTitleHint": "Optional. Blank leaves the stored job title as it is.",
+    "managerHint": "Optional. The manager's sign-in email; they must be an active user. Blank leaves the stored manager as it is.",
+    "noChange": "Already in the register with these values.",
+    "unavailable": "Could not read the people register, so changes cannot be previewed. Try again.",
+    "nothingToDo": "Nothing to add or change: every row matches the register."
   },
   "clientTakeoff": {
     "itemCode": "Item code",
@@ -309,6 +330,68 @@
       "itemUnknown": "Item code not found among the client-supplied items.",
       "whole": "This item is counted in whole units.",
       "repeat": "This item already appears in row {n}."
+    }
+  },
+  "match": {
+    "addAndUpdate": "Add {{added}} and update {{updated}}",
+    "updateOnly_one": "Update {{count}}",
+    "updateOnly_other": "Update {{count}}",
+    "addOnly_one": "Add {{count}}",
+    "addOnly_other": "Add {{count}}",
+    "summary": "{{added}} to add, {{updated}} to update",
+    "noChangeCount": "{{n}} no change",
+    "change": "{{field}}: {{from}} → {{to}}",
+    "retry": "Try again"
+  },
+  "personDocument": {
+    "person_code": "Person code",
+    "document_type": "Document type",
+    "number": "Number",
+    "issued_on": "Issue date",
+    "expires_on": "Expiry date",
+    "personHint": "The code of a person in the register.",
+    "typeHint": "A document type from Administration, by name.",
+    "numberHint": "Optional. Blank leaves the stored number as it is.",
+    "issuedHint": "Optional. Year-month-day. Blank leaves the stored date as it is.",
+    "expiryHint": "Year-month-day.",
+    "noChange": "This document already has these values.",
+    "unavailable": "Could not read the existing documents, so changes cannot be previewed. Try again.",
+    "nothingToDo": "Nothing to add or change: every row matches an existing document.",
+    "error": {
+      "date": "Dates are written year-month-day, e.g. 2026-01-31.",
+      "person": "Person code is required.",
+      "type": "Document type is required.",
+      "medical": "Document type \"{type}\" is a medical type. Medical documents are recorded on the person page, not imported.",
+      "numberLong": "Number is too long.",
+      "expiry": "Expiry date is required.",
+      "issuedAfter": "Issue date is after the expiry date.",
+      "repeat": "This person already has this document type in row {n}."
+    }
+  },
+  "stockMovement": {
+    "date": "Date",
+    "location": "Location",
+    "item": "Item",
+    "direction": "Direction",
+    "quantity": "Quantity",
+    "unitCost": "Unit cost",
+    "reference": "Reference",
+    "dateHint": "The day the stock moved. Not after the go-live date.",
+    "locationHint": "The code of an existing stock location.",
+    "itemHint": "The code of an existing stock item.",
+    "directionHint": "in: received, returned or found. out: issued, used or returned to the supplier.",
+    "quantityHint": "Whole numbers only for items counted in whole units.",
+    "unitCostHint": "On an in row. Leave blank for client-supplied items (they are always at zero cost). Not used on out rows.",
+    "referenceHint": "A delivery note, site report or other paper number.",
+    "error": {
+      "date": "Use a day written as YYYY-MM-DD, for example 2026-01-15.",
+      "location": "Write the code of the stock location.",
+      "item": "Write the code of the stock item.",
+      "codeLong": "This code is too long.",
+      "direction": "Write in (stock arrived) or out (stock left).",
+      "quantity": "Quantity must be above 0, with at most 3 decimals.",
+      "unitCost": "Unit cost must be 0 or more, with at most 4 decimals.",
+      "reference": "The reference is too long (100 characters at most)."
     }
   }
 }

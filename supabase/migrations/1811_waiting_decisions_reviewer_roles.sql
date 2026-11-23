@@ -1,0 +1,83 @@
+-- 1811_waiting_decisions_reviewer_roles.sql — change-review: the shared waiting list follows the reviewer-role setting of 1810.
+-- Restates my_waiting_decisions() from its only definition (1560); the single change is the quantity_change role test, which was the
+-- hard-coded Admin/Executive/Finance list and is now public.qcr_may_approve_role(v_org) (the same rule qcr_assert_approver uses).
+-- The separation-of-duties exclusions (author, any editor, submitter) are unchanged. my_decision_standing() needs no change: every
+-- role the setting accepts has a base level of Admin, Executive, Project Manager or Finance, which it already answers true for.
+-- Reversal: rollback/1811_waiting_decisions_reviewer_roles_down.sql.
+-- The 1560 body this takes at head (2026-11-22 revision) wraps the unions in a subquery and orders them deterministically
+-- (created_at, kind, record_id) with NO row cap, so the client's paged read is stable; that shape is carried here unchanged.
+-- drops: the quantity_change line's hard-coded role list (v_role in ('Admin', 'Executive', 'Finance')) is replaced by qcr_may_approve_role(v_org).
+
+create or replace function public.my_waiting_decisions()
+  returns table (kind text, record_id uuid, project_id uuid, title text, created_at timestamptz)
+  language plpgsql stable security definer set search_path = public as $$
+declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_role user_role := public.auth_role();
+begin
+  perform public.assert_is_active_member();
+  perform public.assert_not_light();   -- a light account decides nothing and sees no list (1209)
+  if v_role is null or v_uid is null then return; end if;
+  return query
+  select waiting.kind, waiting.record_id, waiting.project_id, waiting.title, waiting.created_at
+    from (
+  -- daily_report
+  select 'daily_report'::text, d.id, d.project_id,
+         (coalesce(w.wo_number || ' · ', '') || w.title || ' · ' || to_char(d.work_date, 'YYYY-MM-DD'))::text,
+         coalesce(d.submitted_at, d.updated_at)
+    from public.daily_site_reports d
+    join public.work_orders w on w.id = d.work_order_id
+   where d.org_id = v_org and d.status = 'submitted' and d.author_id is distinct from v_uid
+     and public.dsr_may_validate(d.project_id)
+  union all
+  -- work_order_issue: the gate's role set; a Project Manager only for the projects they manage; money rows follow the SoD predicate
+  select 'work_order_issue'::text, w.id, w.project_id, (coalesce(w.wo_number || ' · ', '') || w.title)::text, w.created_at
+    from public.work_orders w
+    join public.projects p on p.id = w.project_id
+   where w.org_id = v_org and w.status = 'Draft'
+     and v_role in ('Admin', 'Executive', 'Project Manager', 'Finance')
+     and (v_role <> 'Project Manager' or p.project_manager_id = v_uid)
+     and coalesce(w.order_value, 0) > 0 and w.order_value_set_by is not null and w.order_value_set_by is distinct from v_uid
+     and (public.holds_won_value_authority(v_role)
+          or (w.order_value_set_at is not null and public.is_active_member(w.order_value_set_by)
+              and public.may_approve_work_of(w.order_value_set_by, v_uid)))
+  union all
+  -- delivery_record
+  select 'delivery_record'::text, pr.id, pr.project_id, pr.title::text, pr.updated_at
+    from public.procurements pr
+    left join public.projects p on p.id = pr.project_id
+   where pr.org_id = v_org and pr.status = 'Ordered'
+     and (v_role = 'Admin'
+          or (pr.requested_by_id = v_uid and v_role in ('Executive', 'Project Manager', 'Finance', 'Engineer'))
+          or (v_role = 'Project Manager' and p.project_manager_id = v_uid))
+  union all
+  -- quantity_change
+  select 'quantity_change'::text, q.id, q.project_id, coalesce(w.wo_number || ' · ', '') || w.title, coalesce(q.submitted_at, q.updated_at)
+    from public.quantity_change_requests q
+    join public.work_orders w on w.id = q.work_order_id
+   where q.org_id = v_org and q.status = 'pending_approval' and public.qcr_may_approve_role(v_org)
+     and q.author_id is distinct from v_uid and not (v_uid = any (q.editor_ids)) and q.submitted_by is distinct from v_uid
+  union all
+  -- certificate
+  select 'certificate'::text, c.id, c.project_id, pr.title::text, coalesce(c.submitted_at, c.created_at)
+    from public.subcontract_certificates c
+    join public.procurements pr on pr.id = c.procurement_id
+   where c.org_id = v_org and c.status = 'submitted' and v_role in ('Admin', 'Finance', 'Executive')
+     and c.prepared_by is distinct from v_uid and c.submitted_by is distinct from v_uid
+  union all
+  -- transfer_receipt: narrower than the gate on purpose (a senior role may receive any transfer; only those addressed to the caller or kept by them are waiting for them)
+  select 'transfer_receipt'::text, x.id, w.project_id, (x.number || ' · ' || w.name)::text, x.sent_at
+    from public.stock_transfers x
+    join public.stock_warehouses w on w.id = x.to_warehouse_id
+   where x.org_id = v_org and x.status = 'Sent' and x.sent_by is distinct from v_uid
+     and (x.to_user_id = v_uid or exists (select 1 from public.stock_warehouse_keepers k
+                                           where k.org_id = x.org_id and k.user_id = v_uid and k.warehouse_id = x.to_warehouse_id))
+  union all
+  -- equipment_plan
+  select 'equipment_plan'::text, e.id, e.project_id, (pj.name || ' · ' || to_char(e.plan_month, 'YYYY-MM'))::text, coalesce(e.submitted_at, e.created_at)
+    from public.equipment_plans e
+    join public.projects pj on pj.id = e.project_id
+   where e.org_id = v_org and e.status = 'Submitted' and public.equipment_plan_approver_ok(e.id)
+    ) as waiting(kind, record_id, project_id, title, created_at)
+   order by waiting.created_at asc nulls last, waiting.kind asc, waiting.record_id asc;
+end; $$;
+revoke all on function public.my_waiting_decisions() from public, anon;
+grant execute on function public.my_waiting_decisions() to authenticated;

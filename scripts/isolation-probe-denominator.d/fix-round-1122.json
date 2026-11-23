@@ -1,0 +1,15 @@
+{
+  "definer_functions": [
+    "apply_org_switch_defaults(uuid)",
+    "backfill_org_modules(uuid)",
+    "dsr_withdraw(uuid)",
+    "may_see_medical_documents(uuid)",
+    "my_decision_standing()",
+    "my_waiting_decisions()",
+    "person_mark_left(uuid,date)",
+    "seed_payment_channels(uuid,uuid)",
+    "seed_purchase_line_categories(uuid)",
+    "seed_purchase_types(uuid)",
+    "set_work_order_check_in_area(uuid,double precision,double precision,double precision)"
+  ]
+}

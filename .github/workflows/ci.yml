@@ -966,6 +966,11 @@ jobs:
       # Extract the anon key + API URL from the local stack and write them into the file
       # pmo-portal/src/lib/supabase/client.ts reads at build/dev time.
       - name: Write .env.local for Vite / Playwright
+        # The lanes below are always() + continue-on-error, so their only real prerequisite is a
+        # stack whose migrations applied. Without this the default success() condition let an
+        # unrelated red step above skip this one, and every lane then started with no env and died
+        # in global setup — collecting no evidence at all.
+        if: ${{ always() && !cancelled() && steps.reset_db.outcome == 'success' }}
         run: |
           eval "$(supabase status -o env)"
           echo "VITE_SUPABASE_URL=${API_URL}" > pmo-portal/.env.local
@@ -1010,6 +1015,10 @@ jobs:
       # runs devices['Desktop Chrome'], so one browser download covers all three. Browsers on a
       # cache miss, system deps always.
       - name: Install Playwright (browsers on cache miss; system deps always)
+        # Same dependency as the env step: the lanes need a browser even when an earlier step is red,
+        # but never against a stack whose reset failed. A cache miss (including a skipped cache step)
+        # still takes the full-download branch below.
+        if: ${{ always() && !cancelled() && steps.reset_db.outcome == 'success' }}
         working-directory: pmo-portal
         run: |
           if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then

@@ -9,10 +9,10 @@ import {
 import {
   INSPECTION_FILE_ALLOWED_MIME, INSPECTION_FILE_MAX_COUNT, inspectionFileRefusal, isInspectionBlocking,
   isInspectionComplete, isInspectionOverdue,
-  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionRow,
+  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionListRow,
 } from '@/src/lib/db/thirdPartyInspections';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useRefusalText } from '@/src/lib/refusals';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 
 /** The viewer's calendar day as YYYY-MM-DD (a planned date is a calendar date, not an instant). */
@@ -23,11 +23,12 @@ function localToday(): string {
 
 const RESULTS: InspectionResult[] = ['pass', 'fail', 'conditional'];
 
-interface CardProps { inspection: InspectionRow; costs: InspectionCostRow[]; workOrderId: string; today: string }
+interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; workOrderId: string; today: string }
 
 /** One inspection: its state, its real cost beside the estimate, and the one next step the viewer may take. */
 const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId, today }) => {
   const { t } = useTranslation('workOrders');
+  const refusal = useRefusalText();
   const can = usePermission();
   const { currentUser } = useAuth();
   const m = useInspectionMutations(workOrderId);
@@ -47,7 +48,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
   const mayCancel = can('cancel', 'thirdPartyInspection', ctx);
   const mayAttach = can('create', 'thirdPartyInspection'); // the same roles; a reported inspection still takes a new file (FR-TPI-015)
   const liveFiles = files.data ?? [];
-  const fail = (e: unknown) => setErr(classifyMutationError(e, undefined, { suppressCapture: true }).detail ?? null);
+  const fail = (e: unknown) => { const r = refusal(e, { context: { suppressCapture: true } }); setErr(r.detail || r.headline); };
   const run = (p: Promise<unknown>) => { setErr(null); p.catch(fail); };
 
   const money = costs.filter((c) => c.currency);
@@ -176,6 +177,7 @@ interface Props { workOrderId: string }
 /** FR-TPI-001..017: a work order's third-party inspections, from request to report, with their real cost. */
 export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
   const { t } = useTranslation('workOrders');
+  const refusal = useRefusalText();
   const can = usePermission();
   const list = useWorkOrderInspections(workOrderId);
   const costs = useInspectionCosts(workOrderId);
@@ -211,7 +213,7 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
       estimate: amount, estimateCurrency: amount === null ? null : currency.trim().toUpperCase(), note: null, requiredFor: gates,
     }, {
       onSuccess: () => { setOpen(false); setTitle(''); setKind(''); setGates([]); setEstimate(''); setCurrency(''); },
-      onError: (e2) => setErr(classifyMutationError(e2, undefined, { suppressCapture: true }).detail ?? null),
+      onError: (e2) => { const r = refusal(e2, { context: { suppressCapture: true } }); setErr(r.detail || r.headline); },
     });
   };
   const toggle = (g: InspectionGate) => setGates((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]));

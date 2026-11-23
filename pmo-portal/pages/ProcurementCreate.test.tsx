@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render as rtlRender, act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the purchase-type fields mount with the form now, so renders run inside the shared test
+// query client; with no signed-in org the reads stay disabled, as the page itself sees.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -7,6 +13,8 @@ import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
+const workOrders = vi.hoisted(() => ({ data: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrders.data, isLoading: false, isError: false, refetch: vi.fn() }) }));
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
   createAtomic: vi.fn(),
@@ -100,7 +108,7 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.projectQuery.isPending = false;
     mocks.vendorQuery.isError = false;
     mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier' }];
-    view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter></QueryClientTestProvider>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     expect(await screen.findByRole('option', { name: /New Supplier/ })).toBeVisible();
   });
@@ -514,6 +522,33 @@ describe('AC-PROC1 one-page request creation', () => {
     unmount();
     expect(mocks.createRequest).not.toHaveBeenCalled();
     expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it('JOB-PU21 a project with one open work order starts the request on it and saves it with the request', async () => {
+    workOrders.data = [
+      { id: 'wo-open', status: 'Issued', title: 'Pump house', wo_number: 'WO-1' },
+      { id: 'wo-done', status: 'Closed', title: 'Old job', wo_number: 'WO-0' },
+      { id: 'wo-void', status: 'Cancelled', title: 'Dropped', wo_number: 'WO-X' },
+    ];
+    try {
+      renderCreate('/procurement/new?project=p1&have=need&title=Pipes&lineName=Pipe&lineQty=3&lineRate=10');
+      fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+      expect(mocks.createAtomic.mock.calls[0][0].header).toMatchObject({ projectId: 'p1', workOrderId: 'wo-open' });
+    } finally { workOrders.data = []; }
+  });
+
+  it('JOB-PU21 a project with several open work orders asks for one and never picks for the person', async () => {
+    workOrders.data = [
+      { id: 'wo-a', status: 'Issued', title: 'A', wo_number: 'WO-A' },
+      { id: 'wo-b', status: 'Draft', title: 'B', wo_number: 'WO-B' },
+    ];
+    try {
+      renderCreate('/procurement/new?project=p1&have=need&title=Pipes&lineName=Pipe&lineQty=3&lineRate=10');
+      fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+      expect(mocks.createAtomic.mock.calls[0][0].header).not.toHaveProperty('workOrderId');
+    } finally { workOrders.data = []; }
   });
 
   it('AC-STK-RESTOCK-1 opens pre-filled from a Stock link: title, project, one line at the shortfall', async () => {

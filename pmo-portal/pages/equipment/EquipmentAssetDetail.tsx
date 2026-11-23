@@ -13,7 +13,7 @@ import { Bar, BarChart, LabelList, ResponsiveContainer, XAxis } from 'recharts';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useProjects } from '@/src/hooks/useProjects';
 import type { EquipmentAllocationRow, EquipmentCostingRow, EquipmentUsageTotalRow } from '@/src/lib/db/equipment';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatNumberMax2, formatMonthYear } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -143,7 +143,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
     try {
       await end.mutateAsync({ settingKey: current.setting_key, effectiveTo: orgToday, expectedVersion: current.version });
       toast(t('equipment:costing.ended', 'Costing ended'), undefined, 'success');
-    } catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
+    } catch (err) { const c = classifyMutationError(err); setProblem(joinSentences(c.headline, c.detail)); }
     setEnding(false);
   };
   return (

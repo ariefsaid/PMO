@@ -24,8 +24,7 @@ import { findNearDuplicateItems, indexStockItems, type IndexedStockItem } from '
 import { WorkOrderIssueThresholdPanel } from './WorkOrderIssueThresholdPanel';
 import { StockTransferSettings } from './StockTransferSettings';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseStockError } from '@/src/lib/stockErrors';
+import { useRefusalText } from '@/src/lib/refusals';
 import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { categoryVariant } from '@/src/lib/status/statusVariants';
@@ -43,11 +42,10 @@ const ENTITY = { units: 'stockUnit', items: 'stockItem', warehouses: 'warehouse'
 /** Stock error copy first (stable `STK_*` code), else the shared mutation classifier. */
 function useErrorCopy() {
   const { t } = useTranslation('stock');
+  const refusal = useRefusalText();
   return (err: unknown, operation: 'create' | 'update' | 'archive'): SubmitError => {
-    const stock = parseStockError(err);
-    if (stock) return { headline: t('setup.toast.failed'), detail: t(`errors.${stock.code}`) };
-    const { headline, detail } = classifyMutationError(err, undefined, { operation, suppressCapture: true });
-    return { headline, detail };
+    const r = refusal(err, { context: { operation, suppressCapture: true } });
+    return r.known ? { headline: t('setup.toast.failed'), detail: r.headline } : { headline: r.headline, detail: r.detail };
   };
 }
 
@@ -89,6 +87,7 @@ const StockSetup: React.FC = () => {
   const canEdit = may('edit', ENTITY[tab], ctx);
   const canArchive = may('archive', ENTITY[tab], ctx);
   const canKeepers = may('manage', 'warehouse', ctx);
+  const canThreshold = may('manage', 'workOrderIssueThreshold', ctx);
 
   const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
   const tagName = useMemo(() => new Map((itemTags.data ?? []).map((tag) => [tag.id, tag.name])), [itemTags.data]);
@@ -221,6 +220,11 @@ const StockSetup: React.FC = () => {
         <Link to="/stock" className="touch-target inline-flex min-h-9 items-center gap-1 rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           <Icon name="back" className="size-4" aria-hidden="true" />{t('setup.backToStock')}
         </Link>
+        {may('manage', 'warehouse') && (
+          <Link to="/stock/opening" className="touch-target inline-flex min-h-9 items-center rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('setup.openingLink')}
+          </Link>
+        )}
         {odooConnected && (
           <Link to="/master-data/product" className="touch-target inline-flex min-h-9 items-center rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('setup.odooDirectories')}
@@ -232,7 +236,7 @@ const StockSetup: React.FC = () => {
       {canKeepers && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={tagsOpen} onClick={() => setTagsOpen(!tagsOpen)}>{t('siteWork.tags.manage')}</Button>
         {tagsOpen && <StockTagsPanel />}
       </div>}
-      {realRole === 'Admin' && !ctx.record.viewOnly && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
+      {canThreshold && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
         {thresholdOpen && <WorkOrderIssueThresholdPanel />}
       </div>}
       {canKeepers && tagsEnabled && <StockTransferSettings />}
@@ -359,7 +363,7 @@ interface FormProps {
   onClose: () => void;
   onDone: (isEdit: boolean) => void;
 }
-interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging' | 'vendor'; projectId: string; tagId: string; cover: string; vendorCompanyId: string }
+interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging' | 'vendor'; projectId: string; tagId: string; consumable: boolean; cover: string; vendorCompanyId: string }
 
 const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tagsEnabled, itemIndex, itemListState, onClose, onDone }) => {
   const { t } = useTranslation('stock');
@@ -389,7 +393,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
     initialValues: {
       code: row ? (row as { code: string }).code : '', name: row ? (row as { name: string }).name : '',
       wholeOnly: unitRow?.whole_only ?? false, description: itemRow?.description ?? '', unitId: itemRow?.unit_id ?? '',
-      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '', vendorCompanyId: whRow?.vendor_company_id ?? '',
+      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '', consumable: (itemRow as { consumable?: boolean } | null)?.consumable === true, vendorCompanyId: whRow?.vendor_company_id ?? '',
       cover: whRow?.cover_value == null ? '' : String(whRow.cover_value),
     },
     validate,
@@ -424,7 +428,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
           const input: StockUnitInput = { code: v.code, name: v.name, wholeOnly: v.wholeOnly };
           if (row) await m.updateUnit.mutateAsync({ id: row.id, input }); else await m.createUnit.mutateAsync(input);
         } else if (which === 'items') {
-          const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, ...(tagsEnabled ? { tagId: v.tagId || null } : {}) };
+          const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, ...(tagsEnabled ? { tagId: v.tagId || null } : {}), consumable: v.consumable };
           if (row) await m.updateItem.mutateAsync({ id: row.id, input }); else await m.createItem.mutateAsync(input);
         } else {
           const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.kind === 'vendor' ? null : v.projectId || null, coverValue: v.cover.trim() ? v.cover.trim() : null, ...(v.kind === 'vendor' ? { vendorCompanyId: v.vendorCompanyId || null } : whRow?.kind === 'vendor' ? { vendorCompanyId: null } : {}) };
@@ -476,6 +480,8 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
             <TextField id={leadTime.id} label={t('setup.form.item.leadTime')} helper={t('setup.form.item.leadTimeHelp')} value={leadTime.value} onChange={leadTime.onChange} onBlur={leadTime.onBlur} error={leadTime.error} inputMode="numeric" />
             {tagsEnabled && <SelectField id={tagId.id} label={t('setup.form.item.tag')} helper={t('setup.form.item.tagHelp')} value={tagId.value} onChange={tagId.onChange} onBlur={tagId.onBlur}
               placeholder={t('setup.form.item.noTag')} options={tags.map((g) => ({ value: g.id, label: g.name }))} />}
+            <Checkbox checked={form.values.consumable} onChange={(v) => form.setValue('consumable', v)} label={t('setup.form.item.consumable')} />
+            <p className="-mt-2 text-sm text-muted-foreground">{t('setup.form.item.consumableHelp')}</p>
             <TextArea id={description.id} label={t('setup.form.item.description')} value={description.value} onChange={description.onChange} onBlur={description.onBlur} fullWidth />
           </>
         )}

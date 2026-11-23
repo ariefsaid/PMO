@@ -13,6 +13,10 @@ vi.mock('@/src/lib/supabase/client', () => ({
   },
 }));
 
+// ⚑ A narrow handle on the mock. `rpcMock` over the generated `Database` makes TS 5.8 hit TS2589
+// ("type instantiation is excessively deep"): the client's rpc overloads are instantiated against the whole schema.
+const rpcMock = supabase.rpc as unknown as ReturnType<typeof vi.fn>;
+
 describe('purchaseOrderSettings DAL (#2688)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,7 +78,7 @@ describe('purchaseOrderSettings DAL (#2688)', () => {
 
   describe('setPurchaseOrderSettings', () => {
     it('calls po_set_print_settings RPC with mapped arguments', async () => {
-      vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: null } as never);
+      rpcMock.mockResolvedValue({ data: null, error: null } as never);
 
       await setPurchaseOrderSettings(true, ['Sign 1'], ['Collector 1', 'Collector 2']);
 
@@ -86,7 +90,7 @@ describe('purchaseOrderSettings DAL (#2688)', () => {
     });
 
     it('throws when RPC fails with error', async () => {
-      vi.mocked(supabase.rpc).mockResolvedValue({
+      rpcMock.mockResolvedValue({
         data: null,
         error: { message: 'PO_ADMIN_ONLY' },
       } as never);

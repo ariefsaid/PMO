@@ -22,7 +22,7 @@ import type { TaskWithRefs } from '@/src/lib/db/tasks';
 
 const task = {
   id: 't1', name: 'Chase delivery', status: 'Done', description: null, end_date: null, priority: null, assignee: null, dependencies: [],
-  parent_task_id: null, tombstoned_at: null, archived_at: null, proof_required: false,
+  parent_task_id: null, tombstoned_at: null, archived_at: null, proof_required: false, section_id: null, task_group_id: null,
   procurement_id: null, expense_claim_id: null, material_request_id: 'm1',
   closed_by_record_type: 'material_request', closed_by_record_status: 'fulfilled',
 } as unknown as TaskWithRefs;

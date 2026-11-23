@@ -11,7 +11,18 @@ import { Rail } from '../Rail';
 import { RailDrawerContext } from '../railDrawerContext';
 
 const roleState = vi.hoisted(() => ({ role: 'Executive' }));
+const builtInRoleKeys = vi.hoisted(() => ({
+  Executive: 'executive',
+  'Project Manager': 'project_manager',
+  Finance: 'finance_manager',
+  Engineer: 'engineer',
+  Admin: 'administrator',
+}));
 
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+const auth = { currentUser: { id: 'u1', org_id: 'org-1' } } as unknown as AuthContextValue;
+const standing = vi.hoisted(() => ({ offered: true }));
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useApprovalsEntryOffered: () => standing.offered }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleState.role, realRole: roleState.role }),
 }));
@@ -27,16 +38,19 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('../ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => () => true,
+  useBuiltInRoleKey: () => builtInRoleKeys[roleState.role as keyof typeof builtInRoleKeys] ?? null,
+}));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => false }));
 
 const renderRail = (entry = '/', drawer = false) =>
   render(
-    <MemoryRouter initialEntries={[entry]}>
+    <AuthContext.Provider value={roleState.role === 'Engineer' ? auth : undefined}><MemoryRouter initialEntries={[entry]}>
       <RailDrawerContext.Provider value={drawer}>
         <Rail />
       </RailDrawerContext.Provider>
-    </MemoryRouter>,
+    </MemoryRouter></AuthContext.Provider>,
   );
 
 beforeEach(() => { roleState.role = 'Executive'; });
@@ -45,11 +59,11 @@ describe('Rail navigation groups', () => {
   beforeEach(() => localStorage.removeItem('shell.navigation.collapsedGroups'));
 
   it.each([
-    ['Executive', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests']],
-    ['Project Manager', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
-    ['Finance', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
-    ['Engineer', ['/', '/projects', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/material-requests', '/my-tasks']],
-    ['Admin', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/sales', '/companies', '/contacts', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks']],
+    ['Executive', ['/approvals', '/', '/finance', '/finance/billing-board', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/sales', '/companies', '/contacts', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests']],
+    ['Project Manager', ['/approvals', '/', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
+    ['Finance', ['/approvals', '/', '/finance', '/finance/billing-board', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
+    ['Engineer', ['/approvals', '/', '/projects', '/work-orders', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/material-requests', '/my-tasks']],
+    ['Admin', ['/approvals', '/', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/sales', '/companies', '/contacts', '/finance', '/finance/billing-board', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks']],
   ] as const)('%s keeps its destination set, in the order that role works', (role, expectedHrefs) => {
     roleState.role = role;
     renderRail();

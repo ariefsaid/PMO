@@ -5,8 +5,8 @@ import React from 'react';
 
 /** #2596 AC-DSF-018 (off = invisible) and FR-DSF-008 (a day worked without a record is flagged on the work-order page). */
 const h = vi.hoisted(() => ({ enabled: false, role: 'Engineer', days: [] as unknown[] }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled, isPending: false }) }));
 vi.mock('@/src/hooks/useSafetyDays', () => ({
-  useSafetyEnabled: () => ({ data: h.enabled, isPending: false }),
   useSafetyWorkOrderDays: () => ({ data: h.days, isPending: false, isError: false, refetch: vi.fn() }),
   useSafetyMutations: () => ({ createDay: { mutateAsync: vi.fn(), isPending: false } }),
 }));
@@ -16,7 +16,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
-import { SafetySection } from './SafetySection';
+import { SafetySection, SafetyTodayLink } from './SafetySection';
 
 const auth = { currentUser: { id: 'u1', org_id: 'o1' } } as never;
 const renderIt = () => render(
@@ -67,5 +67,23 @@ describe('SafetySection', () => {
     h.role = 'Engineer';
     renderIt();
     expect(screen.getByTestId('safety-new-day')).toBeInTheDocument();
+  });
+});
+
+describe('SafetyTodayLink', () => {
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const renderLink = () => render(
+    <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={auth}><ToastProvider><MemoryRouter>
+      <SafetyTodayLink workOrderId="w1" projectId="p1" status="Issued" />
+    </MemoryRouter></ToastProvider></AuthContext.Provider></QueryClientProvider>);
+
+  it('AC-SD-003 puts today\'s safety record one tap from the work-order top, and omits it while safety is off', () => {
+    renderLink();
+    expect(screen.queryByTestId('safety-today')).toBeNull();
+    h.enabled = true;
+    h.days = [{ work_date: today, day_id: 'd9', status: 'draft', version: 1, workers_present: 0, missing: [], complete: false }];
+    renderLink();
+    expect(screen.getByTestId('safety-today')).toHaveTextContent("Today's safety record");
+    expect(screen.getByTestId('safety-today-open')).toHaveTextContent('Open');
   });
 });

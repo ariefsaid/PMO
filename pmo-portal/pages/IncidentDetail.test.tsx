@@ -9,7 +9,7 @@ import { AppError } from '@/src/lib/appError';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ── The single-incident hook + mutations are mocked; the page is the unit. ──
-const { detailState, mutations, uploadEvidence, evidenceState, linkedTaskState } = vi.hoisted(() => ({
+const { assigneeState, detailState, mutations, uploadEvidence, evidenceState, linkedTaskState } = vi.hoisted(() => ({
   detailState: {
     data: undefined as Record<string, unknown> | null | undefined,
     isPending: false,
@@ -17,6 +17,7 @@ const { detailState, mutations, uploadEvidence, evidenceState, linkedTaskState }
     error: null as (Error & { code?: string }) | null,
     refetch: vi.fn(),
   },
+  assigneeState: { data: [] as { value: string; label: string }[] },
   uploadEvidence: vi.fn().mockResolvedValue({}),
   evidenceState: { data: [] as Array<{ id: string; kind: string; title: string }> },
   linkedTaskState: { data: { project_id: 'p1' } as { project_id: string } | null },
@@ -31,11 +32,14 @@ const { detailState, mutations, uploadEvidence, evidenceState, linkedTaskState }
 vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => detailState,
   useIncidentMutations: () => mutations,
-  useAssigneeOptions: () => ({ data: [] }),
+  useAssigneeOptions: () => ({ data: assigneeState.data }),
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: uploadEvidence, isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
   useIncidentFiles: () => evidenceState,
 }));
 vi.mock('@/src/hooks/useIncidentLinkedTask', () => ({ useIncidentLinkedTask: () => linkedTaskState }));
+vi.mock('@/src/hooks/useIncidentTypes', () => ({
+  useIncidentTypes: () => ({ data: [{ id: 't1', label: 'Near Miss', archived_at: null }, { id: 't2', label: 'Spill', archived_at: null }] }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
 
@@ -94,6 +98,32 @@ beforeEach(() => {
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.transition.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';
+});
+
+describe('IncidentDetail — the reporter is told what happens next (walk fix JOB-ISSUE-REPORTER)', () => {
+  it('names the person in charge, the next step, who can close it, and offers a photo', () => {
+    assigneeState.data = [{ value: 'u-boss', label: 'Pak Budi' }];
+    detailState.data = { ...incident, reported_by: 'u-self', assignee_id: 'u-boss', action: 'Barricade the area' };
+    renderPage('Engineer');
+    const panel = screen.getByTestId('incident-next-steps');
+    expect(within(panel).getByText(/Person in charge: Pak Budi/)).toBeInTheDocument();
+    expect(within(panel).getByText(/Next: Barricade the area/)).toBeInTheDocument();
+    expect(within(panel).getByText(/Project Manager, Executive and Admin can close this issue, with proof\./)).toBeInTheDocument();
+    expect(screen.queryByTestId('incident-advance')).toBeNull();
+  });
+
+  it('with nobody in charge yet it says who assigns one', () => {
+    assigneeState.data = [];
+    detailState.data = { ...incident, reported_by: 'u-self' };
+    renderPage('Engineer');
+    expect(within(screen.getByTestId('incident-next-steps')).getByText(/Nobody is in charge yet\. The project manager picks the person in charge\./)).toBeInTheDocument();
+  });
+
+  it('a closed issue shows no next steps', () => {
+    detailState.data = { ...incident, status: 'Closed', reported_by: 'u-self' };
+    renderPage('Engineer');
+    expect(screen.queryByTestId('incident-next-steps')).toBeNull();
+  });
 });
 
 describe('IncidentDetail', () => {
@@ -172,8 +202,7 @@ describe('IncidentDetail', () => {
     const dialog = await screen.findByRole('dialog', { name: /edit incident/i });
     // The form is pre-filled; change the type then save.
     const typeField = within(dialog).getByLabelText(/^type/i);
-    await userEvent.clear(typeField);
-    await userEvent.type(typeField, 'Spill');
+    await userEvent.selectOptions(typeField, 'Spill');
     await userEvent.click(within(dialog).getByRole('button', { name: /save incident/i }));
     expect(mutations.update.mutateAsync).toHaveBeenCalledWith({
       id: 'i1',

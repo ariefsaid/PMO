@@ -1624,6 +1624,13 @@ on conflict (id) do nothing;
 -- §N  incident_reports
 -- ============================================================
 
+-- issue-closing-measure: each distinct type the seeded issues use is on the organisation's kept list (migration 1820/1821).
+insert into incident_types (org_id, label) values
+  ('00000000-0000-0000-0000-000000000001', 'Incident'),
+  ('00000000-0000-0000-0000-000000000001', 'Near Miss'),
+  ('00000000-0000-0000-0000-000000000001', 'Unsafe Condition')
+on conflict do nothing;
+
 insert into incident_reports (id, incident_date, type, severity, location, description, status, reported_by) values
   ('d5000000-0000-0000-0000-000000000001',
    current_date-interval '10 days',
@@ -2757,3 +2764,8 @@ on conflict (id) do nothing;
 -- W.7 — (withdrawn) The Microsoft 365 entitlement stays OFF in the seed: e2e journeys assume the unentitled
 -- default and entitle one page at a time (e2e/helpers.ts grantM365EntitlementFixture). Measure the M365 card the
 -- same way, by rewriting the org_features read for that page only.
+
+-- Module switches (1670): a fresh database runs the migration with no data, which turns every module off for the demo
+-- organisation. The demo shows everything, so turn them on here. Local seed only.
+update public.organizations set module_people_crews = true, module_site_day = true, module_stock = true,
+  module_purchasing_extras = true, module_billing_extras = true;

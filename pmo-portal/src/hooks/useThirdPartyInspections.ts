@@ -1,45 +1,27 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
 import type {
-  InspectionRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionCostRow,
+  InspectionRow, InspectionListRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionCostRow,
 } from '@/src/lib/db/thirdPartyInspections';
 
 /** #2580: the inspections of one work order, their cost read (server-fenced) and the step writes over the repository seam. */
 export function useWorkOrderInspections(workOrderId: string | null | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<InspectionRow[]>({
-    queryKey: ['third-party-inspections', orgId, workOrderId],
-    queryFn: () => repositories.thirdPartyInspection.listForWorkOrder(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useOrgQuery<InspectionListRow[]>(['third-party-inspections', workOrderId], () => repositories.thirdPartyInspection.listForWorkOrder(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
 export function useInspectionCosts(workOrderId: string | null | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<InspectionCostRow[]>({
-    queryKey: ['third-party-inspection-costs', orgId, workOrderId],
-    queryFn: () => repositories.thirdPartyInspection.costs(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useOrgQuery<InspectionCostRow[]>(['third-party-inspection-costs', workOrderId], () => repositories.thirdPartyInspection.costs(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
 export function useInspectionFiles(inspectionId: string | null | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<InspectionFileRow[]>({
-    queryKey: ['third-party-inspection-files', orgId, inspectionId],
-    queryFn: () => repositories.thirdPartyInspection.listFiles(inspectionId as string),
-    enabled: Boolean(orgId) && Boolean(inspectionId),
-  });
+  return useOrgQuery<InspectionFileRow[]>(['third-party-inspection-files', inspectionId], () => repositories.thirdPartyInspection.listFiles(inspectionId as string), { enabled: Boolean(inspectionId) });
 }
 
 export function useInspectionMutations(workOrderId: string) {
   const qc = useQueryClient();
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
+  const orgId = useOrgId();
   const repo = repositories.thirdPartyInspection;
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['third-party-inspections', orgId, workOrderId] });

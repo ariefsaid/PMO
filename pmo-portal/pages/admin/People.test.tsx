@@ -3,32 +3,40 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import type { Role } from '@/src/auth/AuthContext';
+import { AuthContext, type AuthContextValue, type Role } from '@/src/auth/AuthContext';
 
 const h = vi.hoisted(() => ({
   role: 'Admin' as string,
   people: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  create: vi.fn(), update: vi.fn(), archive: vi.fn(),
+  create: vi.fn(), update: vi.fn(), markLeft: vi.fn(),
+  // one stable function, like the real hook: a Combobox reloads when its loader's identity changes
+  loadProfiles: () => Promise.resolve([{ id: 'u1', full_name: 'Sari Dewi', status: 'active' }, { id: 'u2', full_name: 'Former Boss', status: 'disabled' }, { id: 'u3', full_name: 'Rina Putri', status: 'active' }]),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 vi.mock('@/src/hooks/usePeople', () => ({
   usePeople: () => h.people,
-  usePeopleMutations: () => ({ create: { mutateAsync: h.create }, update: { mutateAsync: h.update }, archive: { mutateAsync: h.archive, isPending: false } }),
+  usePeopleMutations: () => ({ create: { mutateAsync: h.create }, update: { mutateAsync: h.update }, markLeft: { mutateAsync: h.markLeft, isPending: false } }),
 }));
 vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({
-  useOrgProfilesLoader: () => () => Promise.resolve([{ id: 'u1', full_name: 'Sari Dewi' }]),
+  useOrgProfilesLoader: () => h.loadProfiles,
 }));
+
+// The document import has its own test (PersonDocumentImport.test.tsx); this file is about the register.
+vi.mock('./PersonDocumentImport', () => ({ PersonDocumentImport: () => null }));
 
 import People from './People';
 
-const person = (over: Record<string, unknown> = {}) => ({ id: 'p1', code: 'P-0001', name: 'Budi Santoso', job_title: 'Welder', profile_id: null, ...over });
-const renderPage = () => render(<MemoryRouter><ToastProvider><People /></ToastProvider></MemoryRouter>);
+const person = (over: Record<string, unknown> = {}) => ({ id: 'p1', code: 'P-0001', name: 'Budi Santoso', job_title: 'Welder', profile_id: null, manager_id: null, ...over });
+const renderPage = (me?: { id: string; built_in_role: string | null }) => render(
+  me
+    ? <AuthContext.Provider value={{ currentUser: me } as unknown as AuthContextValue}><MemoryRouter><ToastProvider><People /></ToastProvider></MemoryRouter></AuthContext.Provider>
+    : <MemoryRouter><ToastProvider><People /></ToastProvider></MemoryRouter>);
 
 describe('People register screen', () => {
   beforeEach(() => {
     h.role = 'Admin';
     h.people = { data: [person()], isPending: false, isError: false, refetch: vi.fn() };
-    h.create.mockReset().mockResolvedValue({}); h.update.mockReset().mockResolvedValue(undefined); h.archive.mockReset().mockResolvedValue(undefined);
+    h.create.mockReset().mockResolvedValue({}); h.update.mockReset().mockResolvedValue(undefined); h.markLeft.mockReset().mockResolvedValue(undefined);
   });
 
   it('AC-PPL-008 each row links to the person record, where documents are added', () => {
@@ -47,7 +55,7 @@ describe('People register screen', () => {
     await user.click(screen.getByRole('button', { name: 'Add person' }));
     await user.type(within(screen.getByRole('dialog')).getByLabelText(/^Name/), 'Ayu Lestari');
     await user.click(screen.getByRole('button', { name: 'Save person' }));
-    expect(h.create).toHaveBeenCalledWith({ name: 'Ayu Lestari', code: null, job_title: null, profile_id: null });
+    expect(h.create).toHaveBeenCalledWith({ name: 'Ayu Lestari', code: null, job_title: null, profile_id: null, manager_id: null });
   });
 
   it('AC-PPL-006 edits name, code, job title and link only', async () => {
@@ -57,7 +65,22 @@ describe('People register screen', () => {
     const code = within(screen.getByRole('dialog')).getByLabelText(/^Person code/);
     await user.clear(code); await user.type(code, 'EMP-7');
     await user.click(screen.getByRole('button', { name: 'Save person' }));
-    expect(h.update).toHaveBeenCalledWith({ id: 'p1', input: { name: 'Budi Santoso', code: 'EMP-7', job_title: 'Welder', profile_id: null } });
+    expect(h.update).toHaveBeenCalledWith({ id: 'p1', input: { name: 'Budi Santoso', code: 'EMP-7', job_title: 'Welder', profile_id: null, manager_id: null } });
+  });
+
+  it('AC-EXM-006 the person form sets the direct manager from active members only', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /Edit Budi Santoso/ }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.click(dialog.getByRole('combobox', { name: /Direct manager/ }));
+    const search = await screen.findByRole('combobox', { name: /^(search|cari) /i });
+    expect(await screen.findByRole('option', { name: /Sari Dewi/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Former Boss/ })).toBeNull();
+    await user.type(search, 'Sari');
+    await user.click(await screen.findByRole('option', { name: /Sari Dewi/ }));
+    await user.click(screen.getByRole('button', { name: 'Save person' }));
+    expect(h.update).toHaveBeenCalledWith({ id: 'p1', input: { name: 'Budi Santoso', code: 'P-0001', job_title: 'Welder', profile_id: null, manager_id: 'u1' } });
   });
 
   it('AC-PPL-009 a duplicate code names the code field', async () => {
@@ -69,28 +92,28 @@ describe('People register screen', () => {
     expect(await screen.findByText('That person code is already in use')).toBeInTheDocument();
   });
 
-  it('AC-PPL-007 archives only after confirming', async () => {
+  it('AC-PPL-007 an Admin marks a person as left with a day, after confirming; the day starts as today', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getByRole('button', { name: /Archive Budi Santoso/ }));
-    expect(h.archive).not.toHaveBeenCalled();
-    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Archive' }));
-    expect(h.archive).toHaveBeenCalledWith('p1');
+    await user.click(screen.getByRole('button', { name: /Mark Budi Santoso as left/ }));
+    expect(h.markLeft).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Mark as left' }));
+    expect(h.markLeft).toHaveBeenCalledWith({ id: 'p1', leftOn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
   });
 
   it('AC-PPL-006 a Finance user sees the register without add, edit or archive', () => {
     h.role = 'Finance';
     renderPage();
     expect(screen.getByText('Budi Santoso')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Add person|Edit|Archive/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Add person|Edit|Mark as left/ })).toBeNull();
   });
 
-  it('Project Managers can add and edit but not archive', () => {
+  it('Project Managers can add and edit but not mark as left', () => {
     h.role = 'Project Manager';
     renderPage();
     expect(screen.getByRole('button', { name: 'Add person' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Edit Budi Santoso/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Archive Budi Santoso/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Mark Budi Santoso as left/ })).toBeNull();
   });
 
   it('shows the empty state with an add action for an Admin', () => {
@@ -98,5 +121,26 @@ describe('People register screen', () => {
     renderPage();
     expect(screen.getByText(/^No people yet/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add person' }).length).toBeGreaterThan(0);
+  });
+
+  it('1930 a Project Manager without the people-documents right sees the manager but cannot change it', async () => {
+    const user = userEvent.setup();
+    h.role = 'Project Manager';
+    renderPage({ id: 'u9', built_in_role: 'project_manager' });
+    await user.click(screen.getByRole('button', { name: /Edit Budi Santoso/ }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByRole('combobox', { name: /Direct manager/ })).toBeDisabled();
+    expect(dialog.getByText(/Only an Admin or the people team \(HR\) can change the direct manager/)).toBeInTheDocument();
+  });
+
+  it('1930 the people team (HR Manager) sets another person as manager, never themselves', async () => {
+    const user = userEvent.setup();
+    h.role = 'Project Manager';
+    renderPage({ id: 'u1', built_in_role: 'hr_manager' });
+    await user.click(screen.getByRole('button', { name: /Edit Budi Santoso/ }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.click(dialog.getByRole('combobox', { name: /Direct manager/ }));
+    expect(await screen.findByRole('option', { name: /Rina Putri/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Sari Dewi/ })).toBeNull();
   });
 });

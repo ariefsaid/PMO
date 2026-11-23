@@ -44,6 +44,14 @@
       "claimForm": {
         "prefillBast": "Mulai dari kuantitas BAST yang diterima",
         "percentLine": "{{item}}: % untuk ditagih",
+        "overClaimAccepted": "Peringatan: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (diterima {{ceiling}}, sudah ditagih {{claimed}}). Turunkan menjadi {{headroom}}, atau konfirmasi BAST berikutnya dahulu. Klaim tetap dapat diajukan.",
+        "overClaimOrdered": "Peringatan: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (dipesan {{ceiling}}, sudah ditagih {{claimed}}, belum ada yang diterima). Turunkan menjadi {{headroom}}, atau konfirmasi BAST dahulu. Klaim tetap dapat diajukan.",
+        "overClaimSurveyed": "Peringatan: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (disurvei {{ceiling}}, sudah ditagih {{claimed}}). Turunkan menjadi {{headroom}}, atau minta survei berikutnya dikonfirmasi dahulu. Klaim tetap dapat diajukan.",
+        "overClaimSurveyedBlock": "Akan ditolak: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (disurvei {{ceiling}}, sudah ditagih {{claimed}}). Turunkan menjadi {{headroom}}, atau minta survei berikutnya dikonfirmasi dahulu.",
+        "overQualityReady": "Peringatan: dengan klaim ini, {{total}} {{unit}} ditagih tetapi hanya {{quality}} {{unit}} yang memiliki dokumen mutu. Lampirkan dokumen mutu pada survei, atau turunkan jumlahnya. Klaim tetap dapat diajukan.",
+        "surveyFigures": "Disurvei {{surveyed}} {{unit}}, di antaranya siap mutu {{quality}}",
+        "overClaimAcceptedBlock": "Akan ditolak: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (diterima {{ceiling}}, sudah ditagih {{claimed}}). Turunkan menjadi {{headroom}}, atau konfirmasi BAST berikutnya dahulu.",
+        "overClaimOrderedBlock": "Akan ditolak: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (dipesan {{ceiling}}, sudah ditagih {{claimed}}, belum ada yang diterima). Turunkan menjadi {{headroom}}, atau konfirmasi BAST dahulu.",
         "errors": {
           "percent": "Masukkan persentase di atas 0 hingga 100 dengan paling banyak 1 angka desimal"
         }
@@ -102,7 +110,7 @@
           "quantities": "Diterima s.d. saat ini",
           "quantityLine": "{{item}}: diterima s.d. saat ini ({{unit}})",
           "save": "Simpan BAST",
-          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat invoice.",
+          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Keuangan atau Admin yang mengonfirmasinya; ini tidak membuat invoice.",
           "titleEdit": "Ubah BAST: {{wo}}",
           "titleNew": "Siapkan BAST: {{wo}}"
         },
@@ -110,13 +118,15 @@
         "noDocument": "Belum ada dokumen BAST bertanda tangan yang ditautkan",
         "prepare": "Siapkan BAST",
         "selfConfirmHint": "Anda yang menyiapkan ini. Pengguna Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
+        "waitingOn": "Menunggu konfirmasi Keuangan atau Admin",
+        "startClaim": "Mulai klaim dari BAST ini",
         "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
         "stage": "Tahap",
         "toast": {
           "closed": "BAST final terkonfirmasi: ditutup pada {{amount}}",
           "confirmed": "BAST terkonfirmasi",
           "prepared": "BAST disiapkan",
-          "preparedSub": "Pihak lain mengonfirmasinya sebelum berlaku.",
+          "preparedSub": "Keuangan atau Admin mengonfirmasinya sebelum berlaku.",
           "updated": "Draft BAST diperbarui",
           "withdrawn": "BAST ditarik"
         },
@@ -125,7 +135,7 @@
         "confirmDelivery": "Konfirmasi draf BAST",
         "finalConfirmed": "Final terkonfirmasi",
         "confirmed": "Terkonfirmasi",
-        "openWorkOrder": "Buka Work Order / SPK"
+        "openWorkOrder": "Buka $t(common:terms.clientWorkOrder)"
       },
       "closing": {
         "closedAt": "Ditutup pada {{amount}} (belum termasuk PPN)",

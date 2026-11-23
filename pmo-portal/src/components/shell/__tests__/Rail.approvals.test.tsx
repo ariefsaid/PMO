@@ -4,6 +4,9 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { awaitingApprovalKey } from '@/src/hooks/approvalsQueryKeys';
+import { acceptancesAwaitingConfirmationKey } from '@/src/hooks/useWorkOrderAcceptances';
+import { waitingDecisionsKey, decisionStandingKey } from '@/src/hooks/useWaitingDecisions';
+import { orgSwitchKey } from '@/src/hooks/useOrgSwitch';
 import { MemoryRouter } from 'react-router';
 
 const { approvalsData, userId, roleState } = vi.hoisted(() => ({
@@ -28,6 +31,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleState.activeRole, realRole: roleState.activeRole }),
 }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: userId, org_id: 'synthetic-org' }, role: roleState.activeRole }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
@@ -37,6 +41,14 @@ vi.mock('@/src/lib/features', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/lib/features')>()),
   isFeatureEnabled: () => false,
   FEATURE_ENV_DEFAULT: { crm: true, procurement: true, timesheets: true, revenue: true, sales_pipeline: true },
+}));
+// test/setup.ts holds the two database reads behind the shared waiting list idle, but its partial mock
+// omits the real cache-key factories — and every case here seeds the canonical cache with them. Keep the
+// real exports and re-hold only the two reads idle, so the badge still aggregates every live queue source.
+vi.mock('@/src/hooks/useWaitingDecisions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useWaitingDecisions')>()),
+  useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
+  useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
 }));
 
 import { Rail } from '../Rail';
@@ -55,7 +67,8 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   roleState.activeRole = role;
   const pendingRows = queues.pending ?? approvalsData.timesheets;
   const correctionRows = queues.corrections ?? [];
-  const queryClient = new QueryClient();
+  // fix-waiting: the badge reads the shared live list, so every source it reads is seeded and kept fresh for these short cases.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, refetchOnMount: false, refetchOnWindowFocus: false } } });
   // Rail's Engineer-only eligibility wrapper mounts both real queue hooks. Other roles still get
   // seeded cache entries.
   // staleTime: Infinity keeps seeded data fresh at mount; each hook's explicit 60s
@@ -65,6 +78,8 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   queryClient.setQueryDefaults(['timesheets-reopenable-approved'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryDefaults(['timesheet-approval-work'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryData(['external-domain-ownership', 'synthetic-org'], []);
+  queryClient.setQueryData(['material-requests', 'synthetic-org', 'waiting'], []);
+  queryClient.setQueryData(['imprest-awaiting', 'synthetic-org'], { plans: [], replenishments: [] });
   queryClient.setQueryData(['procurements', 'synthetic-org', 'requested'], approvalsData.procurements);
   queryClient.setQueryData(['expense-claims-awaiting', 'synthetic-org'], approvalsData.expenses);
   queryClient.setQueryData(awaitingApprovalKey('synthetic-org', userId, roleState.activeRole as AuthContextValue['role']), pendingRows);
@@ -73,6 +88,12 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   queryClient.setQueryData(['salesInvoices', 'synthetic-org', 'native-drafts'], [
     { ...approvalsData.invoices[0], author_user_id: 'someone-else', author_user_ids: ['someone-else'] },
   ]);
+  queryClient.setQueryData(['leave-settings', 'synthetic-org'], { enabled: false, approver_role: null });
+  queryClient.setQueryData(orgSwitchKey('synthetic-org', 'modulePeopleCrews'), true);
+  queryClient.setQueryData(orgSwitchKey('synthetic-org', 'safetyRecords'), false);
+  queryClient.setQueryData(acceptancesAwaitingConfirmationKey('synthetic-org', userId), []);
+  queryClient.setQueryData(waitingDecisionsKey('synthetic-org', userId), []);
+  queryClient.setQueryData(decisionStandingKey('synthetic-org', userId), false);
   render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={{

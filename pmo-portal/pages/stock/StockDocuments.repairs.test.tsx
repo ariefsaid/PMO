@@ -92,9 +92,9 @@ describe('StockDocuments repair controls', () => {
 
   it.each([
     ['Receive', 'receive'],
-    ['Transfer', 'transfer'],
+    ['Stock transfer', 'transfer'],
     ['Issue to project', 'issue'],
-    ['Return from project', 'return'],
+    ['Stock return from project', 'return'],
     ['Stock count', 'count'],
     ['Adjustment', 'adjustment'],
   ])('New document offers %s at its existing destination', async (label, kind) => {

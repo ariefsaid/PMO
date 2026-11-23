@@ -11,11 +11,17 @@ import { useApprovalChain, useDeliveryNoteSettings, useMaterialRequestCutoff, us
 import type { ChainStepInput } from '@/src/lib/repositories/materialRequests';
 import type { Role } from '@/src/auth/AuthContext';
 import { formatDay } from '@/src/lib/format';
+import { baseLevelOf } from '@/src/auth/builtInRoles';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 import { UsageThresholdsEditor } from './materialRequests/UsageThresholdsEditor';
-import { ApproverInboxSetting } from './materialRequests/ApproverInboxSetting';
+import { UsageInstalledSourceEditor } from './materialRequests/UsageInstalledSourceEditor';
+import { ModuleGate } from '@/src/components/admin/ModuleGate';
 
 const ROLES: Role[] = ['Engineer', 'Project Manager', 'Finance', 'Executive', 'Admin'];
+/** An approver is never a field (light) account, so the step picker offers managers and officers only. */
+const APPROVER_TIERS = ['manager', 'officer'] as const;
 
 const ChainEditor: React.FC = () => {
   const { t } = useTranslation('materialRequests');
@@ -27,7 +33,10 @@ const ChainEditor: React.FC = () => {
   const canManage = usePermission()('manage', 'approvalChain');
   const [draft, setDraft] = useState<ChainStepInput[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const steps: ChainStepInput[] = draft ?? (chain.data ?? []).map((s) => ({ role: s.role, label: s.label, onlyOverPlan: s.onlyOverPlan }));
+  // roles-that-decide FR-RTD-004/008: a step names a built-in role only while the organisation has built-in roles on.
+  const builtInOn = useOrgSwitch('builtInRoles').data === true;
+  const jobRoleOptions = useJobRoleOptions(t('settings.jobRoleNone', 'None: anyone with the access level'), APPROVER_TIERS);
+  const steps: ChainStepInput[] = draft ?? (chain.data ?? []).map((s) => ({ role: s.role, jobRole: s.jobRole, label: s.label, onlyOverPlan: s.onlyOverPlan }));
   const edit = (i: number, p: Partial<ChainStepInput>) => setDraft(steps.map((s, j) => (j === i ? { ...s, ...p } : s)));
   const move = (i: number, d: -1 | 1) => { const n = [...steps]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); setDraft(n); };
   const save = async () => {
@@ -47,8 +56,17 @@ const ChainEditor: React.FC = () => {
           {steps.map((s, i) => (
             <li key={i} className="space-y-2 rounded-md border border-border p-3" data-testid="chain-step">
               <p className="font-medium">{t('settings.stepN', 'Step {{n}}', { n: i + 1 })}</p>
-              <SelectField label={t('settings.role', 'Role')} value={s.role} onChange={(v) => edit(i, { role: v as Role })} fullWidth disabled={!canManage}
-                options={ROLES.map((r) => ({ value: r, label: labels.role[r] ?? r }))} />
+              {(builtInOn || s.jobRole) && (
+                <SelectField label={t('settings.jobRole', 'Built-in role that decides')} value={s.jobRole ?? ''} fullWidth disabled={!canManage || !builtInOn}
+                  onChange={(v) => { const base = baseLevelOf(v); edit(i, base ? { jobRole: v, role: base } : { jobRole: null }); }}
+                  options={jobRoleOptions}
+                  helper={!builtInOn
+                    ? t('settings.jobRoleOff', 'Built-in roles are off, so this cannot change. Turn them on in Administration to pick another.')
+                    : t('settings.jobRoleHelp', 'People without a built-in role count when their access level is the one this role is built on.')} />
+              )}
+              <SelectField label={t('settings.role', 'Role')} value={s.role} onChange={(v) => edit(i, { role: v as Role })} fullWidth disabled={!canManage || !!s.jobRole}
+                options={ROLES.map((r) => ({ value: r, label: labels.role[r] ?? r }))}
+                helper={s.jobRole ? t('settings.roleSetByJobRole', 'Set by the built-in role.') : undefined} />
               <TextField label={t('settings.purpose', 'What this step checks')} value={s.label} onChange={(v) => edit(i, { label: v })} disabled={!canManage} />
               <Checkbox checked={s.onlyOverPlan} disabled={!canManage} onChange={(v) => edit(i, { onlyOverPlan: v })}
                 label={t('settings.onlyOverPlan', 'Only when a line is over plan')} />
@@ -62,7 +80,7 @@ const ChainEditor: React.FC = () => {
         </ol>
         <CanWrite entity="approvalChain" action="manage">
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setDraft([...steps, { role: 'Project Manager', label: '', onlyOverPlan: false }])}>{t('settings.addStep', 'Add step')}</Button>
+            <Button variant="outline" onClick={() => setDraft([...steps, { role: 'Project Manager', jobRole: null, label: '', onlyOverPlan: false }])}>{t('settings.addStep', 'Add step')}</Button>
             <Button variant="primary" disabled={!draft || !valid} loading={m.setChain.isPending} onClick={() => void save()}>{t('settings.saveChain', 'Save chain')}</Button>
           </div>
         </CanWrite>
@@ -103,11 +121,9 @@ const DeliveryNoteEditor: React.FC = () => {
   const refusal = useRefusalText();
   const dnQuery = useDeliveryNoteSettings();
   const m = useMaterialRequestMutations();
-  const [enabledDraft, setEnabledDraft] = useState<boolean | null>(null);
   const [blocksDraft, setBlocksDraft] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const enabled = enabledDraft ?? (dnQuery.data?.enabled ?? false);
   const blocks = blocksDraft ?? (dnQuery.data?.signatureBlocks?.length ? dnQuery.data.signatureBlocks : ['Dispatched by', 'Delivered by', 'Received by']);
 
   const editBlock = (index: number, val: string) => {
@@ -125,17 +141,16 @@ const DeliveryNoteEditor: React.FC = () => {
     setBlocksDraft([...blocks, '']);
   };
 
-  const dirty = enabledDraft !== null || blocksDraft !== null;
-  const valid = !enabled || (blocks.length > 0 && blocks.every((b) => b.trim().length > 0));
+  const dirty = blocksDraft !== null;
+  const valid = blocks.length > 0 && blocks.every((b) => b.trim().length > 0);
 
   const save = async () => {
     setError(null);
     try {
       await m.setDeliveryNoteSettings.mutateAsync({
-        enabled,
+        enabled: true,
         signatureBlocks: blocks.map((b) => b.trim()).filter(Boolean),
       });
-      setEnabledDraft(null);
       setBlocksDraft(null);
       toast(t('settings.deliveryNoteSaved', 'Delivery note settings saved'), undefined, 'success');
     } catch (err) {
@@ -159,19 +174,7 @@ const DeliveryNoteEditor: React.FC = () => {
       {dnQuery.data && (
         <div className="space-y-4" data-testid="delivery-note-settings-editor">
           {error && <FormErrorStrip>{error}</FormErrorStrip>}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={enabled}
-              onChange={(checked) => setEnabledDraft(checked)}
-              label={t('settings.deliveryNoteEnabled', 'Enable printable delivery note')}
-            />
-            <span className="text-sm font-medium text-foreground cursor-pointer" onClick={() => setEnabledDraft(!enabled)}>
-              {t('settings.deliveryNoteEnabled', 'Enable printable delivery note')}
-            </span>
-          </div>
-
-          {enabled && (
-            <div className="space-y-3 pt-2 border-t border-border">
+          <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">
                 {t('settings.signatureBlocks', 'Signature blocks')}
               </p>
@@ -201,8 +204,7 @@ const DeliveryNoteEditor: React.FC = () => {
               <Button variant="outline" size="sm" onClick={addBlock}>
                 {t('settings.addSignatureBlock', 'Add signature block')}
               </Button>
-            </div>
-          )}
+          </div>
 
           <div className="pt-2">
             <Button
@@ -285,9 +287,9 @@ const MaterialRequestSettingsPage: React.FC = () => {
       <h1 className="mb-4 text-xl font-semibold">{t('settings.title', 'Approval settings')}</h1>
       <RecordStack>
         <ChainEditor />
-        <CanWrite entity="approvalChain" action="manage"><CutoffEditor /><ApproverInboxSetting /></CanWrite>
-        <CanWrite entity="approvalChain" action="manage"><DeliveryNoteEditor /></CanWrite>
-        <CanWrite entity="approvalChain" action="manage"><UsageThresholdsEditor /></CanWrite>
+        <CanWrite entity="approvalChain" action="manage"><CutoffEditor /></CanWrite>
+        <CanWrite entity="approvalChain" action="manage"><ModuleGate module="modulePurchasingExtras"><DeliveryNoteEditor /></ModuleGate></CanWrite>
+        <CanWrite entity="approvalChain" action="manage"><UsageThresholdsEditor /><UsageInstalledSourceEditor /></CanWrite>
         <StandInEditor />
       </RecordStack>
     </div>

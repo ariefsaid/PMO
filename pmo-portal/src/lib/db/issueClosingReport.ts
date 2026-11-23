@@ -1,14 +1,21 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import type { Tables, TablesInsert } from '@/src/lib/supabase/database.types';
+import { nullableArg } from './nullableArg';
 
 export interface IssueClosingReportSettings {
-  id?: string;
   org_id: string;
   enabled: boolean;
+  /** `text` with a CHECK ('type' | 'department_groups') in the database, which the generated type states as `string`. */
   grouping_mode: 'type' | 'department_groups';
-  created_at?: string | null;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
 }
+
+/** The generated row says `grouping_mode: string`; the column's CHECK bounds it, so narrow where it is read. */
+const groupingMode = (row: Tables<'issue_closing_report_settings'>): IssueClosingReportSettings =>
+  ({ ...row, grouping_mode: row.grouping_mode as IssueClosingReportSettings['grouping_mode'] });
 
 export interface IssueDepartmentGroup {
   id: string;
@@ -60,7 +67,7 @@ export async function getIssueClosingReportSettings(): Promise<IssueClosingRepor
     .select('*')
     .maybeSingle();
   if (error) throwWrite(error);
-  return data ?? null;
+  return data ? groupingMode(data) : null;
 }
 
 /**
@@ -88,7 +95,7 @@ export async function updateIssueClosingReportSettings(
       .select('*')
       .single();
     if (error) throwWrite(error);
-    return data;
+    return groupingMode(data);
   }
 
   // Insert default/initial row
@@ -96,13 +103,15 @@ export async function updateIssueClosingReportSettings(
     enabled: input.enabled ?? false,
     grouping_mode: input.grouping_mode ?? 'type',
   };
+  // `org_id` is stamped by issue_closing_report_settings_stamp_org_id (migration 1424), which introspection cannot see,
+  // so the generated Insert type asks for a column the client must not send (ADR-0017).
   const { data, error } = await supabase
     .from('issue_closing_report_settings')
-    .insert(insert)
+    .insert(insert as TablesInsert<'issue_closing_report_settings'>)
     .select('*')
     .single();
   if (error) throwWrite(error);
-  return data;
+  return groupingMode(data);
 }
 
 /**
@@ -170,9 +179,9 @@ export async function getIssueClosingTimeReport(
   filter?: IssueClosingTimeReportFilter,
 ): Promise<IssueClosingTimeReportRow[]> {
   const { data, error } = await supabase.rpc('get_issue_closing_time_report', {
-    p_date_from: filter?.dateFrom || null,
-    p_date_to: filter?.dateTo || null,
-    p_grouping_mode: filter?.groupingMode || null,
+    p_date_from: nullableArg(filter?.dateFrom || null),
+    p_date_to: nullableArg(filter?.dateTo || null),
+    p_grouping_mode: nullableArg(filter?.groupingMode || null),
   });
   if (error) throwWrite(error);
   return (data ?? []).map((row: Record<string, unknown>) => ({
@@ -183,5 +192,31 @@ export async function getIssueClosingTimeReport(
     avg_closing_hours: row.avg_closing_hours !== null && row.avg_closing_hours !== undefined ? Number(row.avg_closing_hours) : null,
     median_closing_hours: row.median_closing_hours !== null && row.median_closing_hours !== undefined ? Number(row.median_closing_hours) : null,
     overdue_issues: Number(row.overdue_issues ?? 0),
+  }));
+}
+
+/** One validated site day of a work order: the report's site day, its stopped time, and the difference, in minutes. */
+export interface WorkOrderEffectiveHoursRow {
+  work_date: string;
+  /** Null when the report has no start/end time; never shown as 0. */
+  worked_minutes: number | null;
+  stopped_minutes: number;
+  effective_minutes: number | null;
+  has_times: boolean;
+}
+
+/**
+ * Effective working hours of a work order per day (migration 1823): worked (the validated daily site report's site day) minus
+ * stopped (its idle periods), from reports already captured. A security-invoker read, so the caller's own row security applies.
+ */
+export async function getWorkOrderEffectiveHours(workOrderId: string, from: string, to: string): Promise<WorkOrderEffectiveHoursRow[]> {
+  const { data, error } = await supabase.rpc('get_work_order_effective_hours', { p_work_order: workOrderId, p_from: from, p_to: to });
+  if (error) throwWrite(error);
+  return (data ?? []).map((r) => ({
+    work_date: r.work_date,
+    worked_minutes: r.has_times ? r.worked_minutes : null,
+    stopped_minutes: r.stopped_minutes,
+    effective_minutes: r.has_times ? r.effective_minutes : null,
+    has_times: r.has_times,
   }));
 }

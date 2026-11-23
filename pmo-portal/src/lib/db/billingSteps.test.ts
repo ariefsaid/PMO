@@ -25,6 +25,21 @@ describe('billing steps DAL sends every declared argument (#2680)', () => {
     expect(h.rpc).toHaveBeenCalledWith('save_billing_step_template', { p_template: 't9', p_name: 'Renamed', p_steps: [] });
   });
 
+  it('AC-WBS-010 a template with owner role keys or hidden-from roles also sends them through the roles function', async () => {
+    h.rpc.mockResolvedValue({ data: 't1', error: null });
+    await saveStepTemplate(null, 'Standard', [{ name: 'A', ownerRoleKey: 'quantity_surveyor' }, { name: 'B', hiddenFromRoleKeys: ['quality_manager'] }, { name: 'C' }]);
+    expect(h.rpc.mock.calls[1]).toEqual(['set_billing_step_template_roles', { p_template: 't1', p_roles: [
+      { position: 1, owner_role_key: 'quantity_surveyor', hidden_from_role_keys: [] },
+      { position: 2, owner_role_key: null, hidden_from_role_keys: ['quality_manager'] },
+      { position: 3, owner_role_key: null, hidden_from_role_keys: [] },
+    ] }]);
+  });
+
+  it('AC-WBS-010 a template with no role fields makes no roles call', async () => {
+    await saveStepTemplate('t9', 'Plain', [{ name: 'A' }]);
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+  });
+
   it('sends the declared arguments of the other writes', async () => {
     await archiveStepTemplate('t1');
     await loadStepTemplateOntoProject('p1', 't1');

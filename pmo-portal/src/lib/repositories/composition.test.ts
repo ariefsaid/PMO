@@ -62,7 +62,7 @@ vi.mock('@/src/lib/db/workOrders', async (importOriginal) => ({ ...(await import
 vi.mock('@/src/lib/db/progressBilling', async (importOriginal) => ({ ...(await importOriginal<object>()), listBoqItems: vi.fn() }));
 vi.mock('@/src/lib/db/workInHand', async (importOriginal) => ({ ...(await importOriginal<object>()), getWorkInHand: vi.fn() }));
 vi.mock('@/src/lib/db/billingStages', async (importOriginal) => ({ ...(await importOriginal<object>()), getClaimBillingTrace: vi.fn(), setProjectBillingTerms: vi.fn() }));
-vi.mock('@/src/lib/db/workOrderAcceptances', async (importOriginal) => ({ ...(await importOriginal<object>()), listProjectAcceptances: vi.fn() }));
+vi.mock('@/src/lib/db/workOrderAcceptances', async (importOriginal) => ({ ...(await importOriginal<object>()), listProjectAcceptances: vi.fn(), listAcceptancesAwaitingConfirmation: vi.fn() }));
 vi.mock('@/src/lib/db/procurementFiles', async (importOriginal) => ({ ...(await importOriginal<object>()), listProcurementFiles: vi.fn() }));
 vi.mock('@/src/lib/db/expenseClaims', async (importOriginal) => ({ ...(await importOriginal<object>()), listExpenseClaims: vi.fn() }));
 vi.mock('@/src/lib/db/imprest', async (importOriginal) => ({ ...(await importOriginal<object>()), listCounts: vi.fn() }));
@@ -125,6 +125,7 @@ const ROWS: Row[] = [
   { member: 'workInHand', method: 'get', mod: '@/src/lib/db/workInHand', fn: 'getWorkInHand', args: ['2026-12-10'] },
   { member: 'billingStages', method: 'trace', mod: '@/src/lib/db/billingStages', fn: 'getClaimBillingTrace', args: ['c1', 'p1'] },
   { member: 'workOrderAcceptance', method: 'listByProject', mod: '@/src/lib/db/workOrderAcceptances', fn: 'listProjectAcceptances', args: ['p1'] },
+  { member: 'workOrderAcceptance', method: 'listAwaitingConfirmation', mod: '@/src/lib/db/workOrderAcceptances', fn: 'listAcceptancesAwaitingConfirmation', args: [] },
   { member: 'procurementFiles', method: 'list', mod: '@/src/lib/db/procurementFiles', fn: 'listProcurementFiles', args: ['quotation', 'p1'] },
   { member: 'expenseClaim', method: 'list', mod: '@/src/lib/db/expenseClaims', fn: 'listExpenseClaims', args: [], mode: 'called' },
   { member: 'imprest', method: 'listCounts', mod: '@/src/lib/db/imprest', fn: 'listCounts', args: ['f1'] },

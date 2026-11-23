@@ -95,7 +95,8 @@
     "date": "Tanggal",
     "severity": "Tingkat",
     "type": "Jenis",
-    "typePlaceholder": "mis. Nyaris celaka, Kerusakan alat, Tumpahan",
+    "typePlaceholder": "Pilih jenis",
+    "typeEmpty": "Belum ada jenis isu. Admin menambahkannya di Administrasi.",
     "location": "Lokasi",
     "locationPlaceholder": "mis. Lokasi Regional B",
     "project": "Proyek",
@@ -141,6 +142,29 @@
   "allIncidents": "Semua insiden",
   "viewList": "Daftar",
   "viewClosingReport": "Laporan waktu penyelesaian",
+  "effectiveHours": {
+    "title": "Jam kerja efektif",
+    "basis": "Per hari untuk satu perintah kerja: hari kerja di lokasi dari laporan harian yang sudah divalidasi, dikurangi waktu berhenti yang tercatat di laporan itu.",
+    "project": "Proyek",
+    "projectNoun": "proyek",
+    "projectPlaceholder": "Pilih proyek…",
+    "workOrder": "Perintah kerja",
+    "workOrderNoun": "perintah kerja",
+    "workOrderPlaceholder": "Pilih perintah kerja…",
+    "workOrderNeedsProject": "Pilih proyek terlebih dahulu",
+    "pickHint": "Pilih proyek dan perintah kerja untuk melihat jam kerja efektifnya pada rentang tanggal di atas.",
+    "rangeHint": "Pilih rentang tanggal paling lama 366 hari di atas (bukan \"Semua waktu\") untuk melihat jam kerja efektif.",
+    "empty": "Belum ada laporan harian yang divalidasi untuk perintah kerja ini pada rentang ini.",
+    "col": {
+      "day": "Hari",
+      "worked": "Bekerja (jam)",
+      "stopped": "Berhenti (jam)",
+      "effective": "Efektif (jam)"
+    },
+    "noTimes": "Jam belum diisi",
+    "stoppedOnly": "{{hours}} berhenti",
+    "total": "Total"
+  },
   "closingReport": {
     "title": "Laporan waktu penyelesaian isu",
     "subtitle": "Waktu rata-rata dan median penutupan isu per departemen, menandai isu yang terhenti.",
@@ -180,7 +204,11 @@
     "durationDays": "{{days}} hari",
     "durationHours": "{{count}} jam",
     "durationMinutes": "{{count}} menit",
-    "disabledMessage": "Laporan waktu penyelesaian tidak diaktifkan untuk organisasi ini. Administrator dapat mengaktifkannya di menu Administrasi."
+    "disabledMessage": "Laporan waktu penyelesaian tidak diaktifkan untuk organisasi ini. Administrator dapat mengaktifkannya di menu Administrasi.",
+    "notLoaded": {
+      "title": "Laporan tidak dapat ditampilkan",
+      "sub": "Peran Anda tidak dapat melihat laporan ini. Minta akses ke administrator."
+    }
   },
   "notification": {
     "overdue": "Insiden melewati tenggat"
@@ -206,5 +234,18 @@
     "placeholder": "Mengapa ini terjadi, terpisah dari hambatan yang terlihat.",
     "save": "Simpan",
     "cancel": "Batal"
+  },
+  "nextSteps": {
+    "title": "Apa yang terjadi selanjutnya",
+    "inCharge": "Penanggung jawab: {{name}}.",
+    "nobody": "Belum ada penanggung jawab. Manajer proyek akan menunjuknya.",
+    "next": "Berikutnya: {{action}}.",
+    "nextOpen": "Berikutnya: penanggung jawab mulai memeriksanya.",
+    "nextInvestigating": "Berikutnya: penanggung jawab memperbaikinya lalu menutupnya.",
+    "whoCloses": "{{roles}} dapat menutup isu ini, dengan bukti.",
+    "rolePm": "Manajer Proyek",
+    "roleExecutive": "Eksekutif",
+    "roleAdmin": "Admin",
+    "and": "dan"
   }
 }

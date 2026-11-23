@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import RevenuePlanSettings from './RevenuePlanSettings';
 
-const s = vi.hoisted(() => ({ canManage: true, save: vi.fn(), data: { enabled: false, workingWeekdays: [1, 2, 3, 4, 5] } }));
+const s = vi.hoisted(() => ({ canManage: true, save: vi.fn(), data: { enabled: true, workingWeekdays: [1, 2, 3, 4, 5] } }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => s.canManage }));
 vi.mock('@/src/components/ui', async () => ({ ...(await vi.importActual<object>('@/src/components/ui')), useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderRevenuePlan', () => ({
@@ -15,11 +15,9 @@ vi.mock('@/src/hooks/useWorkOrderRevenuePlan', () => ({
 beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); s.canManage = true; s.save.mockReset().mockResolvedValue(undefined); });
 
 describe('RevenuePlanSettings (#2671)', () => {
-  it('AC-WRP-001 is off by default and saves the switch with the working weekdays', async () => {
+  it('AC-WRP-001 offers no switch (the plan is on for everyone, #2746) and saves the working weekdays', async () => {
     render(<RevenuePlanSettings />);
-    const on = screen.getByRole('checkbox', { name: 'Use the revenue plan' });
-    expect(on.getAttribute('aria-checked')).toBe('false');
-    await userEvent.click(on);
+    expect(screen.queryByRole('checkbox', { name: 'Use the revenue plan' })).toBeNull();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Sat' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(s.save).toHaveBeenCalledWith({ enabled: true, weekdays: [1, 2, 3, 4, 5, 6] }));

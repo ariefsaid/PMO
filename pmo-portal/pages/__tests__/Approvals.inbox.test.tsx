@@ -20,6 +20,7 @@ const detailRead = { isError: false, refetch: vi.fn() };
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const { authorityFrom } = vi.hoisted(() => ({ authorityFrom: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: authorityFrom } }));
@@ -112,6 +113,7 @@ vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({
   ),
 }));
 
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 vi.mock('@/pages/approvals/ImprestApprovalSection', () => ({ ImprestApprovalSection: () => null }));
@@ -231,7 +233,11 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
 
     expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('3');
     // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
-    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
+    // The headline above the queue is the canonical all-kinds total (waiting.count), not the queue's
+    // own size — Approvals.waitingKinds.test.tsx pins that — so count the queue's rows here.
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).getAllByRole('button', { name: /Steel beams|Anita Rao/i })).toHaveLength(2);
+    expect(within(queue).queryByRole('link', { name: 'EXP-1' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Procurement cases/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');

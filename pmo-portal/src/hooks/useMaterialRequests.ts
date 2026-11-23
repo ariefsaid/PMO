@@ -4,6 +4,7 @@ import type {
   ChainStepInput, MaterialRequestFilter, MaterialRequestHeader, MaterialRequestLineInput, StepDecision,
 } from '@/src/lib/repositories/materialRequests';
 import { useOrgId } from '@/src/hooks/useOrgId';
+import { useEnabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
 
 /** Material requests (#2524) over the repository seam (ADR-0017). Keys carry org_id (tenant scope); every write refreshes the whole root. */
 export const MATERIAL_REQUEST_QUERY_ROOT = 'material-requests';
@@ -36,6 +37,16 @@ export function useLinePlans(workOrderId: string | undefined, itemIds: string[],
   });
 }
 
+/** The earlier requests behind "already requested" for one item, read only once the person opens the list. */
+export function usePriorRequests(workOrderId: string | undefined, itemId: string | undefined, excludeRequestId: string | null | undefined, enabled: boolean) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'prior', workOrderId, itemId, excludeRequestId ?? null],
+    queryFn: () => repo.priorRequests(workOrderId as string, itemId as string, excludeRequestId),
+    enabled: enabled && Boolean(orgId) && Boolean(workOrderId) && Boolean(itemId),
+  });
+}
+
 export function useApprovalChain() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'chain'], queryFn: () => repo.chain(), enabled: Boolean(orgId) });
@@ -46,12 +57,21 @@ export function useMaterialRequestCutoff() {
 }
 export function useDeliveryNoteSettings() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'delivery-note-settings'], queryFn: () => repo.deliveryNoteSettings(), enabled: Boolean(orgId) });
+  return useEnabledOffWhenModuleOff('modulePurchasingExtras', useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'delivery-note-settings'], queryFn: () => repo.deliveryNoteSettings(), enabled: Boolean(orgId) }));
 }
 
 export function useUsageThresholds() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'usage-thresholds'], queryFn: () => repo.usageThresholds(), enabled: Boolean(orgId) });
+}
+/** Installed-material warnings recorded on a work order, for its card. */
+export function useInstalledUsageWarnings(workOrderId: string | undefined) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'installed-usage-warnings', workOrderId], queryFn: () => repo.installedUsageWarnings(workOrderId as string), enabled: Boolean(orgId) && Boolean(workOrderId) });
+}
+export function useUsageInstalledSource() {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'usage-installed-source'], queryFn: () => repo.usageInstalledSource(), enabled: Boolean(orgId) });
 }
 export function useStandIns() {
   const orgId = useOrgId();

@@ -5,8 +5,9 @@
 import * as dal from '@/src/lib/db/equipmentPlans';
 import { wrap } from './repositoryErrors';
 
-export type { PlanSettings, PlanCategory, PlanCategoryInput, PlanLine, PlanLineInput, EquipmentPlan, PlanStatus, ApprovalStep, PlanRefusal } from '@/src/lib/db/equipmentPlans';
-export { planRefusal, monthStart, monthEnd, planTotal } from '@/src/lib/db/equipmentPlans';
+export type { PlanSettings, PlanCategory, PlanCategoryInput, PlanLine, PlanLineInput, EquipmentPlan, PlanStatus, ApprovalStep,
+  PlanRouteKind, PlanApprover, PlanApprovalRoute } from '@/src/lib/db/equipmentPlans';
+export { monthStart, monthEnd, planTotal } from '@/src/lib/db/equipmentPlans';
 
 export const equipmentPlanRepository = {
   settings: () => wrap(() => dal.getPlanSettings()),
@@ -21,4 +22,6 @@ export const equipmentPlanRepository = {
   approve: (id: string) => wrap(() => dal.approvePlan(id)),
   reject: (id: string, reason: string) => wrap(() => dal.rejectPlan(id, reason)),
   canApprove: (id: string) => wrap(() => dal.canApprovePlan(id)),
+  /** DISPLAY ONLY: who a Submitted plan waits for, from the database's own route (1565). */
+  route: (id: string) => wrap(() => dal.getPlanApprovalRoute(id)),
 };

@@ -1,5 +1,9 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { Constants } from '@/src/lib/supabase/database.types';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
+import { formatDecimal, mulRound } from '@/src/lib/exactDecimal';
+import type { UserRole } from './adminUsers';
 
 /**
  * Monthly equipment and service plan (#2700, migrations 1358-1359; spec docs/specs/monthly-equipment-service-plan.spec.md).
@@ -46,19 +50,7 @@ export interface PlanLineInput {
   dateTo: string;
 }
 
-type DbResult<T> = PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
-
-/** Stable key for a refusal, from the database message prefix (`EQP_…:`). */
-export type PlanRefusal =
-  | 'ADMIN_ONLY' | 'OFF' | 'PREREQ' | 'INVALID' | 'DENIED' | 'DUPLICATE' | 'UNAVAILABLE' | 'REFERENCE' | 'DATE_RANGE'
-  | 'LOCKED' | 'STATE' | 'NOT_FOUND' | 'NOT_APPROVER' | 'SELF_APPROVAL' | 'NO_RENTAL_TYPE';
-
-export function planRefusal(error: unknown): { key: PlanRefusal; message: string } | null {
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-  const m = /EQP_([A-Z_]+):\s*(.*)$/s.exec(message);
-  return m ? { key: m[1] as PlanRefusal, message: m[2] } : null;
-}
 
 /** The first day of the month holding `d` as `YYYY-MM-01`. */
 export const monthStart = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -69,17 +61,23 @@ export function monthEnd(month: string): string {
   return `${month.slice(0, 8)}${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
 }
 
-/** The plan total: each line's quantity times rate rounded to the cent, then summed in cents, so no float drift reaches the screen. */
+/** The plan total: each line's quantity times rate rounded once to the cent, then summed, all in exact BigInt cents — no float arithmetic on money. */
 export function planTotal(lines: Array<{ quantity: number; rate: number }>): number {
-  return lines.reduce((sum, l) => sum + Math.round((Math.round(l.quantity * 100) * Math.round(l.rate * 100)) / 100), 0) / 100;
+  let cents = 0n;
+  for (const l of lines) {
+    const line = mulRound(String(l.quantity), String(l.rate), 2);
+    if (line !== null) cents += line;
+  }
+  return Number(formatDecimal(cents, 2));
 }
 
 export async function getPlanSettings(): Promise<PlanSettings> {
-  const { data, error } = await (supabase.from('org_equipment_plan_settings').select('enabled, approval_step, allow_self_approval').limit(1) as unknown as
-    DbResult<Array<{ enabled: boolean; approval_step: ApprovalStep; allow_self_approval: boolean }>>);
+  const { data, error } = await supabase.from('org_equipment_plan_settings').select('enabled, approval_step, allow_self_approval').limit(1);
   if (error) fail(error);
   const r = data?.[0];
-  return { enabled: r?.enabled ?? false, approvalStep: r?.approval_step ?? 'spend_approvers', allowSelfApproval: r?.allow_self_approval ?? false };
+  // `approval_step` is a text column with a CHECK ('spend_approvers' | 'senior_role'), which the generated type states
+  // as `string`; the database holds the domain, so narrow here rather than leave the screen's type unchecked.
+  return { enabled: r?.enabled ?? false, approvalStep: (r?.approval_step ?? 'spend_approvers') as ApprovalStep, allowSelfApproval: r?.allow_self_approval ?? false };
 }
 
 export async function setPlanSettings(s: PlanSettings): Promise<void> {
@@ -87,17 +85,16 @@ export async function setPlanSettings(s: PlanSettings): Promise<void> {
   if (error) fail(error);
 }
 
-interface CategoryDbRow { id: string; name: string; name_id: string | null; position: number; active: boolean }
 export async function listPlanCategories(): Promise<PlanCategory[]> {
-  const { data, error } = await (supabase.from('equipment_plan_categories').select('id, name, name_id, position, active')
-    .order('position', { ascending: true }).order('name', { ascending: true }).limit(200) as unknown as DbResult<CategoryDbRow[]>);
+  const { data, error } = await supabase.from('equipment_plan_categories').select('id, name, name_id, position, active')
+    .order('position', { ascending: true }).order('name', { ascending: true }).limit(200);
   if (error) fail(error);
   return (data ?? []).map((r) => ({ id: r.id, name: r.name, nameId: r.name_id, position: r.position, active: r.active }));
 }
 
 export interface PlanCategoryInput { id: string | null; name: string; nameId: string | null; position: number }
 export async function upsertPlanCategory(input: PlanCategoryInput): Promise<void> {
-  const { error } = await supabase.rpc('upsert_equipment_plan_category', { p_id: input.id, p_name: input.name, p_name_id: input.nameId, p_position: input.position });
+  const { error } = await supabase.rpc('upsert_equipment_plan_category', { p_id: nullableArg(input.id), p_name: input.name, p_name_id: nullableArg(input.nameId), p_position: input.position });
   if (error) fail(error);
 }
 export async function setPlanCategoryActive(id: string, active: boolean): Promise<void> {
@@ -105,13 +102,15 @@ export async function setPlanCategoryActive(id: string, active: boolean): Promis
   if (error) fail(error);
 }
 
+/** What the select above returns: the plan row with its lines embedded. `status` is a text column whose domain the
+ * database CHECK owns, so it is narrowed in `toPlan` rather than here. */
 interface PlanDbRow {
-  id: string; project_id: string; plan_month: string; status: PlanStatus; created_by: string; reject_reason: string | null;
-  equipment_plan_lines: Array<{ id: string; work_order_id: string | null; category_id: string | null; description: string | null; quantity: number | string;
-    rate: number | string; vendor_id: string; date_from: string; date_to: string; procurement_id: string | null }>;
+  id: string; project_id: string; plan_month: string; status: string; created_by: string; reject_reason: string | null;
+  equipment_plan_lines: Array<{ id: string; work_order_id: string | null; category_id: string | null; description: string | null; quantity: number;
+    rate: number; vendor_id: string; date_from: string; date_to: string; procurement_id: string | null }>;
 }
 const toPlan = (r: PlanDbRow): EquipmentPlan => ({
-  id: r.id, projectId: r.project_id, planMonth: r.plan_month, status: r.status, createdBy: r.created_by, rejectReason: r.reject_reason,
+  id: r.id, projectId: r.project_id, planMonth: r.plan_month, status: r.status as PlanStatus, createdBy: r.created_by, rejectReason: r.reject_reason,
   lines: [...r.equipment_plan_lines].sort((a, b) => a.date_from.localeCompare(b.date_from) || a.id.localeCompare(b.id)).map((l) => ({
     id: l.id, workOrderId: l.work_order_id, categoryId: l.category_id, description: l.description, quantity: Number(l.quantity), rate: Number(l.rate),
     vendorId: l.vendor_id, dateFrom: l.date_from, dateTo: l.date_to, procurementId: l.procurement_id,
@@ -120,9 +119,9 @@ const toPlan = (r: PlanDbRow): EquipmentPlan => ({
 
 /** The plans of one month (every project the caller may read), with their lines. */
 export async function listPlansForMonth(month: string): Promise<EquipmentPlan[]> {
-  const { data, error } = await (supabase.from('equipment_plans')
+  const { data, error } = await supabase.from('equipment_plans')
     .select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)')
-    .eq('plan_month', month).order('created_at', { ascending: true }).limit(200) as unknown as DbResult<PlanDbRow[]>);
+    .eq('plan_month', month).order('created_at', { ascending: true }).limit(200);
   if (error) fail(error);
   return (data ?? []).map(toPlan);
 }
@@ -154,4 +153,59 @@ export async function canApprovePlan(id: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('equipment_plan_approver_ok', { p_plan_id: id });
   if (error) fail(error);
   return data === true;
+}
+
+/**
+ * fix-waiting item 3 (1565): who a Submitted plan waits for, from the database's own approval route.
+ * DISPLAY ONLY — `approve_equipment_plan` / `reject_equipment_plan` stay the authority; this read mirrors their route
+ * (equipment_plan_approver_ok's level: the senior-role step, the project's approvers, the organisation's senior set, or an
+ * Admin). `kind` names the level that answered; `approvers` is EMPTY when that level has nobody reachable (only the author
+ * with self-approval off, everybody inactive) — an honest empty, never a fallback that would change who decides.
+ */
+export type PlanRouteKind = 'project' | 'org' | 'admin' | 'senior_role' | 'disabled' | 'not_waiting' | 'unavailable';
+export interface PlanApprover {
+  id: string;
+  name: string;
+  /** The person's current user_role, as the database states it. */
+  role: UserRole;
+}
+export interface PlanApprovalRoute {
+  kind: PlanRouteKind;
+  approvers: PlanApprover[];
+}
+
+const PLAN_ROUTE_KINDS: readonly string[] = ['project', 'org', 'admin', 'senior_role', 'disabled', 'not_waiting', 'unavailable'];
+/**
+ * The `user_role` enum's values as the DATABASE declares them (`Constants.public.Enums.user_role`, generated from the
+ * schema). Not the UI role catalogue: that one exists to offer roles in forms and can drift a release behind the enum, and
+ * a drifted list here would reject a valid approver and error the whole sentence. Widened to `readonly string[]` so the
+ * check reads a plain string; `UserRole` (the generated column type) still types the parsed value.
+ */
+const USER_ROLES: readonly string[] = Constants.public.Enums.user_role;
+const malformedRoute = () => new AppError('The approval route response was malformed', 'plan-route-malformed');
+
+/** Narrow the RPC's jsonb to the route shape. A malformed body is an error, never an empty list that would read as
+ * "nobody approves this plan". */
+export function parsePlanApprovalRoute(data: unknown): PlanApprovalRoute {
+  const d = data as { approvers?: unknown; route_kind?: unknown } | null;
+  if (d === null || typeof d !== 'object' || !Array.isArray(d.approvers)) throw malformedRoute();
+  const routeKind = d.route_kind;
+  if (typeof routeKind !== 'string' || !PLAN_ROUTE_KINDS.includes(routeKind)) throw malformedRoute();
+  const approvers: PlanApprover[] = [];
+  for (const entry of d.approvers as unknown[]) {
+    const a = entry as { id?: unknown; name?: unknown; role?: unknown } | null;
+    if (a === null || typeof a !== 'object' || typeof a.id !== 'string' || a.id === ''
+        || typeof a.name !== 'string' || a.name.trim() === ''
+        || typeof a.role !== 'string' || !USER_ROLES.includes(a.role)) throw malformedRoute();
+    approvers.push({ id: a.id as string, name: a.name as string, role: a.role as UserRole });
+  }
+  return { kind: routeKind as PlanRouteKind, approvers };
+}
+
+export async function getPlanApprovalRoute(planId: string): Promise<PlanApprovalRoute> {
+  // ⚑ Its type declaration belongs to the shared generated-types seam (database.types.ts) and arrives with the batch
+  // that regenerates it; until then this call is the one place that needs that declaration.
+  const { data, error } = await supabase.rpc('get_equipment_plan_approval_route', { p_plan_id: planId });
+  if (error) fail(error);
+  return parsePlanApprovalRoute(data);
 }

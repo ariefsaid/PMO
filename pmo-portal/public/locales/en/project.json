@@ -95,16 +95,12 @@
       "titleLabel": "Title",
       "referenceLabel": "Client reference",
       "offeredLabel": "Offered on",
-      "descriptionLabel": "Description",
-      "errNotReady": "These required checks are not ready: {{names}}",
-      "errDecided": "This candidate has already been decided.",
-      "errReason": "Give a reason of 1 to 500 characters.",
-      "errReplaces": "Only a rejected candidate of this project can be replaced."
+      "descriptionLabel": "Description"
     },
     "cascade": {
       "error": "Couldn't load the contract",
       "title": "Contract",
-      "contract": "Contract value",
+      "contract": "Contract value · sum of contract lines",
       "source": {
         "contract": "Source: priced contract lines (quantity × rate), excluding tax.",
         "contractFallback": "Source: the project billing summary, excluding tax.",
@@ -131,7 +127,7 @@
         "invoicePaid": "Computed as invoice amount including tax, less accounting balance outstanding.",
         "overdueUnknown": "Unknown: overdue invoices are in more than one currency, so their balances are not added up."
       },
-      "ordered": "Ordered",
+      "ordered": "Ordered · on customer orders",
       "delivered": "Delivered",
       "invoiced": "Invoiced",
       "signedContractInclusive": "Signed contract · including tax",
@@ -375,10 +371,10 @@
         "subtitle": "Quantities done to date for the month. This is the operational assessment. It never creates an invoice.",
         "errors": {
           "quantity": "Each quantity done to date must be 0 or more with at most 3 decimal places",
-          "month": "Enter the month as YYYY-MM"
+          "month": "Choose a month"
         },
         "title": "Record progress",
-        "month": "Month (YYYY-MM)",
+        "month": "Month",
         "record": "Record progress",
         "toast": {
           "saved": "Progress recorded: {{pct}}% complete"
@@ -422,6 +418,9 @@
         "titleNew": "Add a bill of quantities line",
         "legend": "Line",
         "item": "ERP item",
+        "itemCode": "Item code",
+        "existingLine": "This item already has a line: {{code}}. Edit that line instead of adding a second one.",
+        "editExisting": "Edit that line",
         "description": "Description",
         "titleEdit": "Edit bill of quantities line"
       },
@@ -533,7 +532,13 @@
           "reason": "Give a reason of 3 to 500 characters.",
           "name": "Name the step.",
           "shape": "A claim has at most 20 steps."
-        }
+        },
+        "workOrderOwner": "Owner on a work order",
+        "hideFrom": "Hide this step from a role",
+        "hidePick": "Choose a role",
+        "hiddenList": "Hidden from",
+        "hiddenFrom": "Hidden from {{role}}",
+        "unhide": "Show to {{role}} again"
       },
       "templates": {
         "title": "Billing step templates",
@@ -557,7 +562,12 @@
         "stepName": "Step name",
         "addStep": "Add step",
         "stepsMissing": "Add at least one step and name every step.",
-        "save": "Save template"
+        "save": "Save template",
+        "isDefault": "Used for new work orders",
+        "clearDefault": "Stop using",
+        "clearDefaultNamed": "Stop using {{name}} for new work orders",
+        "useDefault": "Use for new work orders",
+        "useDefaultNamed": "Use {{name}} for new work orders"
       },
       "terms": {
         "title": "Billing terms",
@@ -1499,7 +1509,8 @@
     "submittal": "Submittal",
     "certificate": "Certificate",
     "other": "Other",
-    "reference": "Reference"
+    "reference": "Reference",
+    "deliveryRecord": "Delivery record (BAST)"
   },
   "documentRevision": {
     "title": "New revision",

@@ -9,6 +9,7 @@ import type {
   ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
 import type {
+  AcceptanceAwaitingConfirmationRow,
   ConfirmWorkOrderAcceptanceResult,
   PrepareWorkOrderAcceptanceInput,
   WorkOrderAcceptanceWithLines,
@@ -18,13 +19,14 @@ import type {
 import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
 import type {
   WorkOrderRow,
+  WorkOrderListRow,
   WorkOrderStatus,
   WorkOrderInput,
   WorkOrderPatch,
   SetWorkOrderValueInput,
   ProjectDrawdown,
 } from '@/src/lib/db/workOrders';
-import type { WorkOrderAcceptanceAge, WorkOrderBillingRow, UnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
+import type { WorkOrderAcceptanceAge, WorkOrderBilledMonths, WorkOrderBillingRow, UnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import type {
   MilestoneRow,
   MilestoneWithProgress,
@@ -62,6 +64,8 @@ export interface MilestoneRepository {
 export interface WorkOrderRepository {
   claimDocuments(id: string): Promise<string[]>;
   list(projectId: string): Promise<WorkOrderRow[]>;
+  /** Every work order the reader may see across projects (RLS-scoped; no money). */
+  listAll(): Promise<WorkOrderListRow[]>;
   get(id: string): Promise<WorkOrderRow | null>;
   create(projectId: string, input: WorkOrderInput): Promise<WorkOrderRow>;
   /** Body only — never the value or its tax basis (0197 §5(a) revoked those from the grant). */
@@ -74,6 +78,8 @@ export interface WorkOrderRepository {
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
   /** OD-BILL-1: per-work-order billing for one project (view work_order_billing, RLS-scoped). */
   billing(projectId: string): Promise<WorkOrderBillingRow[]>;
+  /** Billed per month for one work order, first billed month through this month to date (rpc get_work_order_billed_months). */
+  billedMonths(workOrderId: string): Promise<WorkOrderBilledMonths>;
   /** OD-BILL-1 / #786: what is still to invoice across the org's issued and closed work orders. */
   unbilled(limit: number): Promise<UnbilledWorkOrders>;
   /** #1640: days since acceptance, not invoiced, per work order of one project (RLS-scoped view). */
@@ -108,6 +114,8 @@ export interface ProgressBillingRepository {
 export interface WorkOrderAcceptanceRepository {
   /** Every acceptance on a project with its lines, newest first; refuses a saturated list. */
   listByProject(projectId: string): Promise<WorkOrderAcceptanceWithLines[]>;
+  /** Every BAST the signed-in Admin/Finance user may confirm; the whole caller-scoped waiting read. */
+  listAwaitingConfirmation(): Promise<AcceptanceAwaitingConfirmationRow[]>;
   /** The allocations of one work order. */
   listLines(workOrderId: string): Promise<WorkOrderLineRow[]>;
   /** Every allocation on a project's work orders. */

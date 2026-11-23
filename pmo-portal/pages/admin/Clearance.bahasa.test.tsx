@@ -9,9 +9,11 @@ import { BahasaProvider } from '@/test/bahasa';
 vi.mock('@/src/lib/repositories/clearance', () => ({
   clearanceRepository: {
     enabled: vi.fn().mockResolvedValue(true), items: vi.fn().mockResolvedValue([]), summary: vi.fn().mockResolvedValue([]),
+    due: vi.fn().mockResolvedValue([]),
     checklist: vi.fn().mockResolvedValue([{ item_id: 'i1', name: 'X', is_required: true, sort_order: 1, done_on: null, expires_on: null, note: null, state: 'missing' }]),
   },
 }));
+vi.mock('@/src/lib/repositories/orgSwitches', async (orig) => ({ ...(await orig<typeof import('@/src/lib/repositories/orgSwitches')>()), orgSwitchRepository: { read: () => Promise.resolve(true), write: vi.fn() } }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     people: { list: vi.fn().mockResolvedValue([]) },

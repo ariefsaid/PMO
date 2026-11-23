@@ -1,4 +1,8 @@
 {
+  "orgSwitch": {
+    "loadError": "Couldn't load this setting",
+    "adminOnly": "Only an Admin can change this."
+  },
   "onlyActiveAdmin": "The only active Admin cannot be disabled",
   "odoo": {
     "banner": {
@@ -611,6 +615,32 @@
     "retry": "Retry"
   },
   "admin": {
+    "modules": {
+      "intro": "Each module switches a group of features on or off for everyone in your organisation. Turning a module off hides its screens and settings. Nothing is deleted, and turning it back on brings everything back.",
+      "peopleCrews": {
+        "label": "People and crews",
+        "helper": "Built-in roles, the clearance checklist for site access, leave requests and crew loans."
+      },
+      "siteDay": {
+        "label": "Site day",
+        "helper": "Daily safety records, and the cost and schedule performance panels on work orders."
+      },
+      "stock": {
+        "stepsHeading": "Steps and notices (off until you choose)",
+        "label": "Stock",
+        "helper": "Work-order transfers, stock reservations and borrowing, two-step transfers and the approvals inbox for material requests."
+      },
+      "purchasingExtras": {
+        "label": "Purchasing extras",
+        "helper": "Purchase line planning, purchase types, payment channels, printable purchase orders and delivery notes."
+      },
+      "billingExtras": {
+        "noticesHeading": "Notices (off until you choose)",
+        "label": "Billing extras",
+        "helper": "Revenue per discipline, the revenue plan, idle time as cost, and the reminder for work that is done but not claimed."
+      }
+    },
+    "modulesNav": "Modules",
     "candidateTemplate": {
       "saved": "Checklist saved",
       "title": "Candidate work order checklist",
@@ -647,10 +677,21 @@
           "officer": "Officers",
           "field": "Field"
         },
-        "none": "No built-in role (access level only)",
-        "label": "Built-in role",
-        "helper": "A built-in role starts from one access level and sets what this person sees and does for their job.",
-        "baseLevel": "Access level: {{level}} (set by the built-in role)"
+        "none": "No job role (access level only)",
+        "label": "Job role",
+        "helper": "A job role starts from one access level and sets what this person sees and does for their job.",
+        "baseLevel": "Access level: {{level}} (set by the job role)",
+        "inviteRequired": "Choose the job role.",
+        "invitePlaceholder": "Choose a job role",
+        "inviteSearch": "Search job roles",
+        "inviteNoun": "job role",
+        "menuEdit": "Change job role",
+        "formTitle": "Change job role: {{name}}",
+        "formSubmit": "Save job role"
+      },
+      "fieldLogin": {
+        "noPerson": "This login is not in the workforce list, so it cannot clock in. Add this person to the workforce list, then place them in a crew.",
+        "noCrew": "This person is not in any crew, so the clock-in shows nothing. Place them in a crew (a Foreman: set them as the crew lead)."
       },
       "roleConfirm": {
         "clearTitle": "Remove {{name}}'s built-in role?"
@@ -682,7 +723,16 @@
         "retry": "This address is already being invited",
         "retryDetail": "Try again in a moment.",
         "seatLimit": "Your plan has no seats left",
-        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
+        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again.",
+        "notSent": "The invitation was not sent",
+        "notSentDetail": "The email could not be sent, so nothing was saved. What you typed is still here: check the address and try again. If it keeps failing, tell your Operator that invitation emails are not going out.",
+        "rateLimited": "Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.",
+        "roleNotSet": "Invitation sent, job role not saved",
+        "roleNotSetDetail": "{{email}} was invited. Open their row and choose Change job role to set it.",
+        "profileCreateFailed": "Invitation email sent, account setup incomplete",
+        "profileCreateFailedDetail": "{{email}} received the invitation email, but their member record was not created, so they are not in the member list yet. Invite the same address again: the pending invitation link is re-sent and the member record is attempted once more. If it fails the same way, tell your Operator.",
+        "unconfirmed": "Could not confirm the invitation",
+        "unconfirmedDetail": "We could not confirm whether the invitation email went out — no answer came back from the server. What you typed is still here: check the address, then invite the same person again. If the first invite landed, you will be told it is already invited instead of getting a second email. If it keeps failing, tell your Operator."
       },
       "statusError": {
         "seatLimit": "Your plan has no seats left",
@@ -693,6 +743,12 @@
         "alreadyInvitedDetail": "{{email}} already has a valid invite. No new email was sent.",
         "inviteResent": "Invite sent again",
         "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
+      },
+      "setup": {
+        "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
+        "linkAction": "Link them to a person",
+        "noCrew": "Not in any crew, so they have no work to check in to.",
+        "crewAction": "Add them to a crew"
       }
     },
     "spendApprovers": {
@@ -709,31 +765,49 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
-      "siteCheckpoints": {
-        "title": "Day checkpoints",
-        "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
-        "loadError": "Couldn't load the checkpoints",
-        "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
-        "name": "Name",
-        "time": "Due time",
-        "grace": "Grace (minutes)",
-        "photo": "Photo required",
-        "photoLabel": "Photo required for {{name}}",
-        "start": "Marks the start of work",
-        "startLabel": "Marks the start of work for {{name}}",
-        "up": "Move up",
-        "down": "Move down",
-        "remove": "Remove",
-        "add": "Add checkpoint",
-        "save": "Save checkpoints",
-        "saved": "Checkpoints saved",
-        "invalid": {
-          "name": "Every checkpoint needs a name of up to 120 characters",
-          "time": "Every checkpoint needs a due time",
-          "grace": "Grace is a whole number from 0 to 120 minutes",
-          "start": "Only one checkpoint can mark the start of work"
-        }
-      },
+    "siteCheckpoints": {
+      "title": "Day checkpoints",
+      "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
+      "loadError": "Couldn't load the checkpoints",
+      "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
+      "name": "Name",
+      "time": "Due time",
+      "grace": "Grace (minutes)",
+      "photo": "Photo required",
+      "photoLabel": "Photo required for {{name}}",
+      "start": "Marks the start of work",
+      "startLabel": "Marks the start of work for {{name}}",
+      "up": "Move up",
+      "down": "Move down",
+      "remove": "Remove",
+      "add": "Add checkpoint",
+      "save": "Save checkpoints",
+      "saved": "Checkpoints saved",
+      "invalid": {
+        "name": "Every checkpoint needs a name of up to 120 characters",
+        "time": "Every checkpoint needs a due time",
+        "grace": "Grace is a whole number from 0 to 120 minutes",
+        "start": "Only one checkpoint can mark the start of work"
+      }
+    },
+    "issueTypes": {
+      "title": "Issue types",
+      "helper": "The types people choose when they raise an issue, and the groups the closing-time report uses. Renaming a type renames it on every issue that has it. Archiving hides a type from new issues; issues that already have it keep it.",
+      "empty": "No issue types yet, so nobody can raise an issue. Add your organisation's types below.",
+      "nearEmpty": "Only one type is listed. Add your organisation's own types below so issues can be grouped and timed by type.",
+      "add": "Add",
+      "addLabel": "New issue type",
+      "rename": "Rename",
+      "renameFor": "Name for {{name}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived": "Archived",
+      "loadError": "Couldn't load the issue types",
+      "saved": "Issue types saved",
+      "duplicate": "That type is already in the list"
+    },
     "siteReportLists": {
       "title": "Site report lists",
       "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
@@ -753,17 +827,6 @@
       "saved": "List saved",
       "duplicate": "That name is already in the list"
     },
-    "builtInRoles": {
-      "title": "Built-in roles",
-      "loadError": "Couldn't load the built-in roles setting",
-      "saved": "Built-in roles setting saved",
-      "helper": "Offer 28 roles across the functions of a contractor, in three levels. Each starts from one of the five access levels, so turning this on changes nothing until someone is given a role. People already given a role keep it if you turn this off.",
-      "on": "On",
-      "off": "Off",
-      "adminOnly": "Only an Admin can change this.",
-      "turnOn": "Turn on built-in roles",
-      "turnOff": "Turn off built-in roles"
-    },
     "hidePrices": {
       "title": "Hide prices from requesters",
       "loadError": "Couldn't load the hide prices setting",
@@ -774,6 +837,17 @@
       "adminOnly": "Only an Admin can change this.",
       "turnOn": "Hide prices from requesters",
       "turnOff": "Show prices to requesters again"
+    },
+    "claimOverCap": {
+      "title": "Claims over the claimable quantity",
+      "loadError": "Couldn't load the claim quantity setting",
+      "saved": "Claim quantity setting saved",
+      "helper": "A claim line is measured against the quantity still claimable on its work order line: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity, otherwise the ordered quantity, less what live claims already took. Warn only lets the claim through with a warning on the form. Refuse stops the claim until the quantity is lowered or the next acceptance is confirmed.",
+      "warn": "Warn only",
+      "block": "Refuse",
+      "adminOnly": "Only an Admin can change this.",
+      "turnOn": "Refuse claims over the claimable quantity",
+      "turnOff": "Only warn on claims over the claimable quantity"
     },
     "fiscalYear": {
       "title": "Fiscal year",
@@ -798,12 +872,17 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
-      },
-    "crewLoans": {
-      "title": "Crew loans",
-      "label": "Allow lending workers between crews",
-      "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans.",
-      "loadError": "Couldn't load the crew loans setting",
+    },
+    "attendanceRoles": {
+      "title": "Time records",
+      "intro": "Name who may enter a second record of a worker's day (a surveyor or timekeeper) and who decides which hours stand when two records differ. A second record never changes paid hours on its own.",
+      "secondLabel": "May enter a second record",
+      "secondHelper": "An Admin, Executive or Project Manager always may.",
+      "deciderLabel": "Decides which hours stand",
+      "deciderHelper": "Leave empty to use today's approvers (Admin, Executive, Project Manager). Nobody decides hours they recorded.",
+      "save": "Save",
+      "saved": "Time record roles saved",
+      "loadError": "Couldn't load the time record roles",
       "adminOnly": "Only an Admin can change this."
     }
   },
@@ -889,25 +968,34 @@
     "user": "App user (optional)",
     "userPlaceholder": "Not an app user",
     "userSearch": "Search users",
-    "archived": "Person archived",
     "actions": "Actions",
     "editLabel": "Edit {{name}}",
     "edit": "Edit",
-    "archiveLabel": "Archive {{name}}",
-    "archive": "Archive",
     "add": "Add person",
+    "importDocuments": "Import documents",
+    "importPeople": "Import people",
     "error": "Couldn't load people",
     "errorSub": "The request failed. Check your connection and try again.",
     "retry": "Retry",
     "empty": "No people yet. Add the first person to record their documents.",
-    "archiveTitle": "Archive person",
-    "archiveBody": "They leave the active list and the expiry warnings, and stay on record under Former staff.",
     "staffStatus": "Staff status",
     "active": "Active",
     "former": "Former staff",
     "all": "All",
-    "formerEmpty": "No former staff. People you archive appear here.",
-    "navLabel": "People"
+    "formerEmpty": "No former staff. People you mark as left appear here.",
+    "navLabel": "People",
+    "manager": "Direct manager (optional)",
+    "managerPlaceholder": "No manager set",
+    "managerSearch": "Search users",
+    "managerHelp": "The manager is warned first when this person's documents are about to expire, and records the renewal.",
+    "managerReadOnly": "Only an Admin or the people team (HR) can change the direct manager.",
+    "markLeft": "Mark as left",
+    "markLeftLabel": "Mark {{name}} as left",
+    "leftTitle": "Mark {{name}} as left",
+    "leftBody": "They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.",
+    "leftOn": "First day off crew roster",
+    "leftOnHelp": "First day off crew roster",
+    "markedLeft": "{{name}} is now former staff"
   },
   "roleNames": {
     "title": "Role names",
@@ -974,7 +1062,11 @@
     "medicalCol": "Medical",
     "yes": "Yes",
     "roles": "Roles notified",
-    "rolesHelp": "The person's manager is always notified. Leave empty to use the default for this kind.",
+    "rolesHelp": "Tick the roles to warn before a document of this type expires. A person's direct manager is always warned too.",
+    "notifyPerson": "Also tell the person",
+    "thePerson": "The person",
+    "manager": "Direct manager",
+    "noOne": "No one is warned",
     "actions": "Actions",
     "edit": "Edit",
     "archive": "Archive",
@@ -1003,7 +1095,7 @@
     "switch": "Cost approved hours in money",
     "adminOnly": "Only an Admin or Finance can change labour cost settings.",
     "locked": "This would change hours already priced on approved timesheets. Start the new rate after the last priced day.",
-    "duplicate": "A rate for this person or role already starts on that date.",
+    "duplicate": "A rate for this person, role or class already starts on that date.",
     "classes": "Labour classes",
     "addClass": "Add class",
     "archived": "archived",
@@ -1037,6 +1129,27 @@
     "saveRate": "Save rate",
     "subjectRole": "A role",
     "subjectPerson": "One person",
+    "subjectClass": "A labour class (people with no login)",
+    "subjectClassCell": "People with no login in this class",
+    "assignments": {
+      "title": "Crew member classes",
+      "add": "Assign a class",
+      "intro": "People with no login are costed by their class: a class rate prices their approved attendance.",
+      "empty": "No crew member has a labour class yet. Admin or Finance adds one here; until then their approved hours carry no rate.",
+      "person": "Person",
+      "personNoun": "person",
+      "personNounPlural": "people",
+      "personHelp": "People in the register with no login.",
+      "noPeople": "Everyone in the people register has a login. Add the crew member under People first.",
+      "endLabel": "End {{name}}",
+      "archiveLabel": "Archive {{name}}",
+      "saved": "Class assigned",
+      "endTitle": "End this class",
+      "lastDay": "Last day in this class",
+      "archiveTitle": "Archive this class?",
+      "archiveDescription": "It stops applying. A class that already costs approved days cannot be archived: end it instead.",
+      "archiveConfirm": "Archive class"
+    },
     "person": "Person",
     "choosePerson": "Choose a person",
     "role": "Role",
@@ -1062,8 +1175,7 @@
   },
   "performanceIndices": {
     "title": "Cost and schedule performance",
-    "description": "Shows the cost and schedule performance indices on projects and work orders. Off until you turn it on.",
-    "enabled": "Show performance indices",
+    "description": "Sets the limits the cost and schedule performance indices are read against on work orders.",
     "low": "Lower limit (below this reads as a problem)",
     "high": "Upper limit (above this reads as ahead)",
     "helper": "The lower limit must be above 0 and below 1; the upper limit above 1. Defaults are 0.90 and 1.10.",
@@ -1078,18 +1190,15 @@
     "off": "Off"
   },
   "idleCost": {
-    "title": "Idle time as cost",
-    "intro": "Cost the idle hours recorded on daily site reports at the work order's average hourly cost, per idle reason. Shown apart from direct cost, which already includes those hours. Needs labour cost in money.",
-    "loadError": "Couldn't load this setting",
-    "switch": "Cost idle hours in money",
     "adminOnly": "Only an Admin or Finance can change this setting.",
-    "needsLabour": "Nothing shows until labour cost in money is switched on."
+    "scope": "Idle cost covers",
+    "scopeHelper": "People: idle hours times the crew present each day. Equipment: standby cost of rented equipment on days with idle time. Neither is added to direct cost.",
+    "scopeLabour": "Idle hours at the average hourly cost",
+    "scopePeopleEquipment": "People present and rented equipment on standby"
   },
   "issueClosingReport": {
     "title": "Issue closing-time report",
-    "helper": "Enable the closing-time report and configure department groupings.",
-    "enableLabel": "Enable closing-time report",
-    "enableHelper": "Makes the closing-time report available on the Incidents register.",
+    "helper": "Choose how the closing-time report groups issues, and set up department groups.",
     "groupingMode": "Default grouping",
     "modeType": "By issue type",
     "modeDepartmentGroups": "By custom department groups",
@@ -1107,7 +1216,7 @@
     "saved": "Settings saved",
     "groupSaved": "Department group saved",
     "groupDeleted": "Department group deleted"
-    },
+  },
   "clearance": {
     "items": {
       "errName": "Enter the item name",
@@ -1117,6 +1226,10 @@
       "addTitle": "Add item",
       "save": "Save item",
       "name": "Item name",
+      "target": "Target (days)",
+      "targetHelp": "Optional. Counted from the day a person is added. Leave blank for no target.",
+      "targetValue": "{{count}} days",
+      "errTarget": "Use a whole number of days from 1 to 365, or leave it blank.",
       "required": "Required to be cleared",
       "heading": "Checklist items",
       "add": "Add item",
@@ -1131,7 +1244,10 @@
       "archiveBody": "It leaves every checklist and no longer counts toward being cleared. Dates already recorded are kept.",
       "archived": "Item archived",
       "editLabel": "Edit {{name}}",
-      "archiveLabel": "Archive {{name}}"
+      "archiveLabel": "Archive {{name}}",
+      "documentType": "Takes its dates from this document",
+      "noDocumentType": "None: record the date on the checklist",
+      "documentTypeHelp": "Pick the document type, such as a licence. The expiry is then kept once, on the person’s document, and also appears on the expiring list."
     },
     "cancel": "Cancel",
     "people": {
@@ -1139,20 +1255,17 @@
       "loadError": "Couldn’t load the people",
       "emptyTitle": "No people in the register",
       "emptySub": "Add people under People first; then their checklist appears here.",
-      "progress": "{{done}} of {{total}} required"
+      "progress": "{{done}} of {{total}} required",
+      "overdue": "Overdue: {{count}}"
     },
     "cleared": "Cleared",
     "notCleared": "Not cleared",
     "setting": {
-      "loadError": "Couldn’t load this setting",
-      "heading": "Cleared-for-site checklist",
-      "label": "Track who is cleared to go to site",
-      "help": "Adds a Clearance section where you list what each person needs and record when it is done. Nothing else changes.",
-      "onlyAdmin": "Only an Admin can change this."
+      "loadError": "Couldn’t load this setting"
     },
     "off": {
       "title": "The clearance checklist is not turned on",
-      "sub": "An Admin can turn it on under People."
+      "sub": "An Admin can turn it on under Modules, in People and crews."
     },
     "person": {
       "errDone": "Enter the date it was done",
@@ -1172,6 +1285,8 @@
       "emptySub": "An Admin lists what a person needs under Clearance; the items then appear here.",
       "doneLine": "Done {{date}}",
       "expiresLine": "Expires {{date}}",
+      "due": "Due {{date}}",
+      "overdue": "Overdue · due {{date}}",
       "edit": "Edit",
       "record": "Record",
       "remove": "Remove",
@@ -1180,7 +1295,12 @@
       "removed": "Date removed",
       "link": "Cleared-for-site checklist",
       "editLabel": "{{action}} {{name}}",
-      "removeLabel": "Remove {{name}}"
+      "removeLabel": "Remove {{name}}",
+      "documentLabel": "{{action}} {{name}}",
+      "openDocument": "Open the document",
+      "addDocument": "Add the document",
+      "fromDocument": "From the {{type}} document",
+      "noDocument": "No {{type}} document yet. Add it on the person’s record."
     },
     "state": {
       "done": "Done",

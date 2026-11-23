@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import {
   CORE_FEATURES,
@@ -260,9 +261,9 @@ export async function setPlanLimits(args: {
 }): Promise<void> {
   const { data, error } = await supabase.rpc('operator_set_plan_limits', {
     p_plan_id: args.planId,
-    p_seat_limit: args.seatLimit,
-    p_project_limit: args.projectLimit,
-    p_ai_monthly_messages: args.aiMonthlyMessages,
+    p_seat_limit: nullableArg(args.seatLimit),
+    p_project_limit: nullableArg(args.projectLimit),
+    p_ai_monthly_messages: nullableArg(args.aiMonthlyMessages),
   });
   if (error) throw new AppError(error.message, error.code);
   void data;

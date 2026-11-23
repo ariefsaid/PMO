@@ -14,8 +14,11 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db/adminUsers';
 import { useRoleLabels } from './roleLabels';
-import { BUILT_IN_ROLES, BUILT_IN_ROLE_TIERS, baseLevelOf } from '@/src/auth/builtInRoles';
+import { BUILT_IN_ROLES, baseLevelOf } from '@/src/auth/builtInRoles';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { FieldLoginFlag } from './FieldLoginFlag';
+import { isLightRoleKey } from '@/src/auth/lightAccount';
 import { initialsOf } from './avatar';
 
 /**
@@ -28,16 +31,30 @@ import { initialsOf } from './avatar';
 
 // ── Invite modal (FR-INV-004/005) ────────────────────────────────────────────
 
+const LEVEL_ORDER: UserRole[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
+
+/** The built-in (job) roles for the invite picker, grouped by the access level each starts from (shown as the second line, and
+ *  searchable by it), then in the set's own order. */
+function useInviteJobRoleOptions(levelLabel: (role: UserRole) => string, roleName: (key: string) => string): ComboboxOption[] {
+  return useMemo(() => [...BUILT_IN_ROLES]
+    .sort((a, b) => LEVEL_ORDER.indexOf(a.base) - LEVEL_ORDER.indexOf(b.base) || a.sortOrder - b.sortOrder)
+    .map((role) => ({ value: role.key, label: roleName(role.key), sub: levelLabel(role.base), searchTerms: [levelLabel(role.base), role.nameEn, role.nameId] })),
+  [levelLabel, roleName]);
+}
+
 interface InviteFormValues {
   email: string;
   role: UserRole;
+  /** The built-in (job) role key, asked instead of the access level once the organisation has the set on. */
+  builtIn: string;
 }
 
 const makeValidateInvite =
-  (t: TFunction) =>
+  (t: TFunction, builtInEnabled: boolean) =>
   (v: InviteFormValues): Partial<Record<keyof InviteFormValues, string>> => {
     const errors: Partial<Record<keyof InviteFormValues, string>> = {};
     const email = v.email.trim();
+    if (builtInEnabled && !v.builtIn) errors.builtIn = t('administration:admin.users.builtIn.inviteRequired', 'Choose the job role.');
     if (!email) errors.email = t('admin.users.inviteForm.emailRequired', 'Email is required.');
     else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       errors.email = t('admin.users.inviteForm.emailInvalid', 'Enter a valid email address.');
@@ -51,13 +68,16 @@ export const InviteFormModal: React.FC<{
   /** #559: owned by the page (which owns the mutation), rendered here. */
   submitError: SubmitError | null;
   onClose: () => void;
-  onSubmit: (email: string, role: UserRole, pOrgId: string | null) => void;
-}> = ({ isOperator, loading, submitError, onClose, onSubmit }) => {
+  onSubmit: (email: string, role: UserRole, pOrgId: string | null, builtIn: string | null) => void;
+  /** True once the organisation has the built-in role set on: the job role is asked, and the access level follows from it. */
+  builtInEnabled?: boolean;
+}> = ({ isOperator, loading, submitError, onClose, onSubmit, builtInEnabled = false }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
-  const validate = useMemo(() => makeValidateInvite(t), [t]);
+  const roleDisplayName = useBuiltInRoleName();
+  const validate = useMemo(() => makeValidateInvite(t, builtInEnabled), [t, builtInEnabled]);
   const form = useEntityForm<InviteFormValues>({
-    initialValues: { email: '', role: 'Engineer' },
+    initialValues: { email: '', role: 'Engineer', builtIn: '' },
     validate,
     idPrefix: 'invite-form',
     requiredFields: ['email'],
@@ -65,17 +85,23 @@ export const InviteFormModal: React.FC<{
   });
   const emailField = form.fieldProps('email');
   const roleField = form.fieldProps('role');
+  const builtInField = form.fieldProps('builtIn');
+  const jobRoleOptions = useInviteJobRoleOptions(roleNames.label, roleDisplayName);
+  const loadJobRoles = useMemo(() => () => Promise.resolve(jobRoleOptions), [jobRoleOptions]);
+  const chosenBase = baseLevelOf(builtInField.value || null);
 
-  const errorSummary = form.errors.email
-    ? [{ fieldId: emailField.id, message: form.errors.email }]
-    : undefined;
+  const errorSummary = [
+    ...(form.errors.email ? [{ fieldId: emailField.id, message: form.errors.email }] : []),
+    ...(form.errors.builtIn ? [{ fieldId: builtInField.id, message: form.errors.builtIn }] : []),
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit((values) => {
       // The Operator cross-org path (p_org_id) is added when the org-switcher lands (S5);
       // for now every invite (Operator or org-Admin) targets the caller's own org.
-      onSubmit(values.email.trim(), values.role, null);
+      if (builtInEnabled) onSubmit(values.email.trim(), baseLevelOf(values.builtIn) ?? values.role, null, values.builtIn);
+      else onSubmit(values.email.trim(), values.role, null, null);
     });
   };
 
@@ -89,7 +115,7 @@ export const InviteFormModal: React.FC<{
       onClose={onClose}
       loading={loading}
       dirty={form.isDirty}
-      errorSummary={errorSummary}
+      errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       <FormSection legend={t('admin.users.inviteForm.legend', 'Invite details')}>
         <TextField
@@ -103,17 +129,43 @@ export const InviteFormModal: React.FC<{
           error={form.errors.email}
           fullWidth
         />
+        {builtInEnabled ? (
+          <>
+            <Combobox
+              id={builtInField.id}
+              label={t('administration:admin.users.builtIn.label', 'Job role')}
+              required
+              value={builtInField.value || null}
+              selectedOption={builtInField.value ? jobRoleOptions.find((o) => o.value === builtInField.value) ?? null : null}
+              onChange={(v) => builtInField.onChange(v)}
+              loadOptions={loadJobRoles}
+              placeholder={t('administration:admin.users.builtIn.invitePlaceholder', 'Choose a job role')}
+              searchPlaceholder={t('administration:admin.users.builtIn.inviteSearch', 'Search job roles')}
+              noun={t('administration:admin.users.builtIn.inviteNoun', 'job role')}
+              error={form.errors.builtIn}
+            />
+            {chosenBase && (
+              <p id="invite-form-base-level" className="text-control text-muted-foreground">
+                {t('administration:admin.users.builtIn.baseLevel', {
+                  defaultValue: 'Access level: {{level}} (set by the job role)',
+                  level: roleNames.label(chosenBase),
+                })}
+              </p>
+            )}
+          </>
+        ) : (
         <SelectField
-          id={roleField.id}
-          label={t('admin.users.columns.role', 'Role')}
-          required
-          value={roleField.value}
-          onChange={(v) => roleField.onChange(v as UserRole)}
-          onBlur={roleField.onBlur}
-          options={roleNames.options}
-          helper={`${t('admin.users.inviteForm.roleHelper', 'Determines what this person can see and do once they sign in.')}${isOperator ? ` ${t('admin.users.inviteForm.subtitleOperator', 'Takes effect immediately.')}` : ''}`}
-          fullWidth
-        />
+            id={roleField.id}
+            label={t('admin.users.columns.role', 'Access level')}
+            required
+            value={roleField.value}
+            onChange={(v) => roleField.onChange(v as UserRole)}
+            onBlur={roleField.onBlur}
+            options={roleNames.options}
+            helper={`${t('admin.users.inviteForm.roleHelper', 'Determines what this person can see and do once they sign in.')}${isOperator ? ` ${t('admin.users.inviteForm.subtitleOperator', 'Takes effect immediately.')}` : ''}`}
+            fullWidth
+          />
+        )}
       </FormSection>
     </EntityFormModal>
   );
@@ -139,7 +191,6 @@ export const RoleFormModal: React.FC<{
 }> = ({ user, submitError, onClose, onSubmit, builtInEnabled = false, onSubmitBuiltIn }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
-  const roleDisplayName = useBuiltInRoleName();
   const form = useEntityForm<RoleFormValues>({
     initialValues: { role: user.role, builtIn: user.built_in_role ?? '' },
     idPrefix: 'role-form',
@@ -149,23 +200,7 @@ export const RoleFormModal: React.FC<{
   const builtInField = form.fieldProps('builtIn');
   const heldKey = user.built_in_role ?? '';
 
-  const builtInOptions = useMemo(() => {
-    const tierLabel = {
-      manager: t('administration:admin.users.builtIn.tier.manager', 'Managers'),
-      officer: t('administration:admin.users.builtIn.tier.officer', 'Officers'),
-      field: t('administration:admin.users.builtIn.tier.field', 'Field'),
-    } as const;
-    return [
-      { value: '', label: t('administration:admin.users.builtIn.none', 'No built-in role (access level only)') },
-      ...BUILT_IN_ROLE_TIERS.flatMap((tier) => [
-        { value: `__${tier}`, label: tierLabel[tier], disabled: true },
-        ...BUILT_IN_ROLES.filter((role) => role.tier === tier).map((role) => ({
-          value: role.key,
-          label: roleDisplayName(role.key),
-        })),
-      ]),
-    ];
-  }, [t, roleDisplayName]);
+  const builtInOptions = useJobRoleOptions(t('administration:admin.users.builtIn.none', 'No job role (access level only)'));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,25 +218,27 @@ export const RoleFormModal: React.FC<{
   return (
     <EntityFormModal
       open
-      title={t('admin.users.roleForm.title', { defaultValue: 'Edit role: {{name}}', name: user.full_name })}
-      submitLabel={t('admin.users.roleForm.submit', 'Save role')}
+      title={builtInEnabled
+        ? t('administration:admin.users.builtIn.formTitle', { defaultValue: 'Change job role: {{name}}', name: user.full_name })
+        : t('admin.users.roleForm.title', { defaultValue: 'Edit access level: {{name}}', name: user.full_name })}
+      submitLabel={builtInEnabled ? t('administration:admin.users.builtIn.formSubmit', 'Save job role') : t('admin.users.roleForm.submit', 'Save access level')}
       onSubmit={handleSubmit}
       submitError={submitError}
       onClose={onClose}
       dirty={form.isDirty}
     >
-      <FormSection legend={t('admin.users.columns.role', 'Role')}>
+      <FormSection legend={t('admin.users.columns.role', 'Access level')}>
         {builtInEnabled && (
           <SelectField
             id={builtInField.id}
-            label={t('administration:admin.users.builtIn.label', 'Built-in role')}
+            label={t('administration:admin.users.builtIn.label', 'Job role')}
             value={builtInField.value}
             onChange={(v) => builtInField.onChange(v)}
             onBlur={builtInField.onBlur}
             options={builtInOptions}
             helper={t(
               'administration:admin.users.builtIn.helper',
-              'A built-in role starts from one access level and sets what this person sees and does for their job.',
+              'A job role starts from one access level and sets what this person sees and does for their job.',
             )}
             fullWidth
           />
@@ -209,14 +246,14 @@ export const RoleFormModal: React.FC<{
         {builtInEnabled && chosenBase ? (
           <p id="role-form-base-level" className="text-control text-muted-foreground">
             {t('administration:admin.users.builtIn.baseLevel', {
-              defaultValue: 'Access level: {{level}} (set by the built-in role)',
+              defaultValue: 'Access level: {{level}} (set by the job role)',
               level: roleNames.label(chosenBase),
             })}
           </p>
         ) : (
           <SelectField
             id={roleField.id}
-            label={t('admin.users.columns.role', 'Role')}
+            label={t('admin.users.columns.role', 'Access level')}
             required
             value={roleField.value}
             onChange={(v) => roleField.onChange(v as UserRole)}
@@ -229,6 +266,7 @@ export const RoleFormModal: React.FC<{
             fullWidth
           />
         )}
+        {builtInEnabled && isLightRoleKey(builtInField.value) && <FieldLoginFlag userId={user.id} roleKey={builtInField.value || null} />}
       </FormSection>
     </EntityFormModal>
   );

@@ -53,15 +53,13 @@ beforeEach(() => {
 });
 
 describe('AC-SCH-011 scheduled reports in the email card', () => {
-  it('an organisation with no email event on and no report sees the card as before: no Scheduled reports section', async () => {
+  it('fix/walk-people item 10: the Admin always finds Scheduled reports, even with no email event on and no report yet', async () => {
     email.getSettings.mockResolvedValue({ locale: 'en', events: events(false) });
     sched.list.mockResolvedValue([]);
     renderUi();
     await screen.findByRole('switch', { name: 'Approval requests' });
-    await waitFor(() => expect(sched.list).toHaveBeenCalled());
-    expect(screen.getAllByRole('switch')).toHaveLength(4);
-    expect(screen.queryByText('Scheduled reports')).toBeNull();
-    expect(screen.queryByText('Add a scheduled report')).toBeNull();
+    expect(await screen.findByText('Scheduled reports')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add a scheduled report' })).toBeInTheDocument();
   });
 
   it('with an event on and no report, only the heading and its empty state are added', async () => {

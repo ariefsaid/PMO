@@ -149,7 +149,7 @@ function makeTask(overrides: {
     created_by: null,
     tombstoned_at: null,
     work_order_id: null,
-    proof_required: false,
+    proof_required: false, section_id: null, task_group_id: null,
     procurement_id: null, expense_claim_id: null, material_request_id: null,
     closed_by_record_type: null, closed_by_record_status: null, closed_by_record_at: null,
     crew_tool_report_id: null,

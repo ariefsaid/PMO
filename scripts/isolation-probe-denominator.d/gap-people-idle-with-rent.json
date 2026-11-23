@@ -1,0 +1,7 @@
+{
+  "definer_functions": [
+    "idle_headcount_days(uuid,uuid)",
+    "save_idle_cost_scope(text)"
+  ],
+  "tables": []
+}

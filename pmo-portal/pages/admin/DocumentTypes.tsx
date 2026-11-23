@@ -9,17 +9,17 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
   useAdminDocumentTypes, useDocumentTypeMutations, useDocumentWarningDays, useSetDocumentWarningDays,
 } from '@/src/hooks/useDocumentExpiry';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { NOTIFY_ROLES, parseWarningDays, type AdminDocumentTypeRow, type NotifyRole, type SubjectKind } from '@/src/lib/db/documentExpiry';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
+import { DEFAULT_NOTIFY_ROLES, NOTIFY_ROLES, parseWarningDays, type AdminDocumentTypeRow, type NotifyRole, type SubjectKind } from '@/src/lib/db/documentExpiry';
 
-interface TypeFormValues { name: string; applies_to: SubjectKind; is_medical: boolean; notify_roles: NotifyRole[] }
+interface TypeFormValues { name: string; applies_to: SubjectKind; is_medical: boolean; notify_roles: NotifyRole[]; notify_person: boolean }
 
 const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> = ({ type, onClose }) => {
   const { t } = useTranslation('administration');
   const { toast } = useToast();
   const { create, update } = useDocumentTypeMutations();
   const [v, setV] = useState<TypeFormValues>({
-    name: type?.name ?? '', applies_to: type?.applies_to ?? 'person', is_medical: type?.is_medical ?? false, notify_roles: type?.notify_roles ?? [],
+    name: type?.name ?? '', applies_to: type?.applies_to ?? 'person', is_medical: type?.is_medical ?? false, notify_roles: type?.notify_roles ?? DEFAULT_NOTIFY_ROLES.person, notify_person: type?.notify_person ?? false,
   });
   const [nameError, setNameError] = useState<string>();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
@@ -33,8 +33,8 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
     if (!v.name.trim()) { setNameError(t('documentTypes.errName', 'Enter the document type name')); return; }
     setSaving(true);
     const run = type
-      ? update.mutateAsync({ id: type.id, input: { name: v.name, notify_roles: v.notify_roles } })
-      : create.mutateAsync({ name: v.name, applies_to: v.applies_to, is_medical: v.is_medical && v.applies_to === 'person', notify_roles: v.notify_roles });
+      ? update.mutateAsync({ id: type.id, input: { name: v.name, notify_roles: v.notify_roles, notify_person: v.notify_person } })
+      : create.mutateAsync({ name: v.name, applies_to: v.applies_to, is_medical: v.is_medical && v.applies_to === 'person', notify_roles: v.notify_roles, notify_person: v.notify_person });
     run.then(() => { toast(t('documentTypes.saved', 'Document type saved'), undefined, 'success'); onClose(); })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : '';
@@ -53,18 +53,22 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
           onChange={(name) => { setV((c) => ({ ...c, name })); setNameError(undefined); }} />
         {!type && (
           <SelectField id="document-type-applies" label={t('documentTypes.appliesTo', 'Applies to')} value={v.applies_to}
-            onChange={(applies_to) => setV((c) => ({ ...c, applies_to: applies_to as SubjectKind, is_medical: applies_to === 'person' && c.is_medical }))}
+            onChange={(applies_to) => setV((c) => ({ ...c, applies_to: applies_to as SubjectKind, is_medical: applies_to === 'person' && c.is_medical, notify_roles: DEFAULT_NOTIFY_ROLES[applies_to as SubjectKind] }))}
             options={[{ value: 'person', label: t('documentTypes.person', 'Person') }, { value: 'equipment', label: t('documentTypes.equipment', 'Equipment') }]} />
         )}
         {!type && v.applies_to === 'person' && (
           <Checkbox checked={v.is_medical} onChange={(is_medical) => setV((c) => ({ ...c, is_medical }))}
-            label={t('documentTypes.medical', 'Medical document (status and date only, visible to Admin only)')}>
-            {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin only)')}
+            label={t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}>
+            {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}
           </Checkbox>
         )}
         <fieldset className="space-y-1">
           <legend className="text-control font-semibold">{t('documentTypes.roles', 'Roles notified')}</legend>
-          <p className="text-control text-muted-foreground">{t('documentTypes.rolesHelp', "The person's manager is always notified. Leave empty to use the default for this kind.")}</p>
+          <p className="text-control text-muted-foreground">{t('documentTypes.rolesHelp', "Tick the roles to warn before a document of this type expires. A person's direct manager is always warned too.")}</p>
+          {(type ? type.applies_to : v.applies_to) === 'person' && (
+            <Checkbox checked={v.notify_person} onChange={(notify_person) => setV((c) => ({ ...c, notify_person }))}
+              label={t('documentTypes.notifyPerson', 'Also tell the person')}>{t('documentTypes.notifyPerson', 'Also tell the person')}</Checkbox>
+          )}
           {NOTIFY_ROLES.map((role) => (
             <Checkbox key={role} checked={v.notify_roles.includes(role)} onChange={(on) => toggleRole(role, on)} label={role}>{role}</Checkbox>
           ))}
@@ -132,7 +136,7 @@ const DocumentTypes: React.FC = () => {
     if (!archiving) return;
     setProblem(null);
     try { await archive.mutateAsync(archiving.id); toast(t('documentTypes.archived', 'Document type archived'), undefined, 'success'); setArchiving(null); }
-    catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
+    catch (err) { const c = classifyMutationError(err); setProblem(joinSentences(c.headline, c.detail)); }
   };
 
   const columns: Column<AdminDocumentTypeRow>[] = [
@@ -140,7 +144,10 @@ const DocumentTypes: React.FC = () => {
     { key: 'kind', header: t('documentTypes.appliesTo', 'Applies to'),
       cell: (r) => <span>{r.applies_to === 'person' ? t('documentTypes.person', 'Person') : t('documentTypes.equipment', 'Equipment')}</span> },
     { key: 'medical', header: t('documentTypes.medicalCol', 'Medical'), cell: (r) => (r.is_medical ? <span>{t('documentTypes.yes', 'Yes')}</span> : null) },
-    { key: 'roles', header: t('documentTypes.roles', 'Roles notified'), cell: (r) => <span>{r.notify_roles.join(', ')}</span> },
+    { key: 'roles', header: t('documentTypes.roles', 'Roles notified'), cell: (r) => {
+      const who = [...(r.applies_to === 'person' ? [t('documentTypes.manager', 'Direct manager')] : []), ...r.notify_roles, ...(r.applies_to === 'person' && r.notify_person ? [t('documentTypes.thePerson', 'The person')] : [])];
+      return <span>{who.length ? who.join(', ') : t('documentTypes.noOne', 'No one is warned')}</span>;
+    } },
     { key: 'actions', header: <span className="sr-only">{t('documentTypes.actions', 'Actions')}</span>,
       cell: (r) => canManage ? (
         <span className="flex gap-1">

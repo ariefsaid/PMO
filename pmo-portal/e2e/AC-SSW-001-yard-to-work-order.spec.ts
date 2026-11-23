@@ -150,6 +150,7 @@ test('AC-SSW-001 a keeper moves client stock through a yard and staging to a wor
   await chooseItem(page, item.code);
   await page.getByLabel(/^Quantity/).fill('3');
   await page.getByRole('button', { name: 'Post issue' }).click();
+  await page.getByRole('dialog', { name: 'Post this issue?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   const balance = await admin.rpc('get_work_order_stock_balance', { p_work_order_id: workOrderId });
@@ -160,7 +161,7 @@ test('AC-SSW-001 a keeper moves client stock through a yard and staging to a wor
 
   await page.goto(`/projects/${SEED_PROJECT_ID}/contract?wo=${workOrderId}`);
   const card = page.getByTestId(`customer-order-${workOrderId}`);
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: 15_000 });
   await card.getByRole('button', { name: 'Stock for this work order' }).click();
   const row = card.getByRole('row').filter({ hasText: staging.code });
   await expect(row).toContainText(tagName);

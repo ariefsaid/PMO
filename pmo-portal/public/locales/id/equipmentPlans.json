@@ -17,13 +17,18 @@
     "Rejected": "Ditolak"
   },
   "rejectedWhy": "Ditolak: {{reason}}",
+  "route": {
+    "loading": "Mencari siapa yang menyetujui rencana ini…",
+    "loadError": "Tidak bisa membaca siapa yang menyetujui rencana ini",
+    "nobody": "Belum ada yang bisa menyetujui rencana ini."
+  },
   "lines": "Baris",
   "noLines": "Belum ada baris. Tambahkan kebutuhan proyek bulan ini.",
   "line": {
     "title": "Baris {{n}}",
     "description": "Yang dibutuhkan",
-    "workOrder": "Perintah kerja",
-    "noWorkOrder": "Tanpa perintah kerja",
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "noWorkOrder": "Tanpa $t(common:terms.clientWorkOrder)",
     "category": "Kategori",
     "noCategory": "Tanpa kategori",
     "vendor": "Pemasok",
@@ -63,23 +68,6 @@
     "dateOrder": "Tanggal akhir tidak boleh sebelum tanggal mulai.",
     "dateMonth": "Tanggal harus berada dalam bulan rencana.",
     "projectRequired": "Pilih proyek."
-  },
-  "refusal": {
-    "ADMIN_ONLY": "Hanya Admin yang dapat mengubah pengaturan rencana bulanan.",
-    "OFF": "Rencana bulanan belum diaktifkan.",
-    "PREREQ": "Aktifkan jenis pembelian dan sediakan jenis sewa yang aktif terlebih dahulu.",
-    "INVALID": "Periksa rencana lalu coba lagi.",
-    "DENIED": "Anda tidak dapat melakukan ini pada rencana ini.",
-    "DUPLICATE": "Kategori dengan nama itu sudah ada.",
-    "UNAVAILABLE": "Pilihan itu tidak tersedia.",
-    "REFERENCE": "Salah satu pilihan pada baris tidak tersedia.",
-    "DATE_RANGE": "Tanggal baris harus berada dalam bulan rencana.",
-    "LOCKED": "Rencana ini tidak dapat diubah lagi.",
-    "STATE": "Rencana ini tidak dalam keadaan yang memungkinkan hal itu.",
-    "NOT_FOUND": "Rencana tidak tersedia.",
-    "NOT_APPROVER": "Anda bukan penyetuju rencana ini.",
-    "SELF_APPROVAL": "Anda tidak dapat menyetujui rencana Anda sendiri.",
-    "NO_RENTAL_TYPE": "Jenis pembelian harus aktif dengan jenis sewa yang aktif sebelum rencana dapat disetujui."
   },
   "settings": {
     "title": "Pengaturan rencana bulanan",

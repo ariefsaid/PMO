@@ -7,7 +7,7 @@ export type StockItemRow = Tables<'stock_items'>;
 export type StockWarehouseRow = Tables<'stock_warehouses'>;
 export type StockKeeperRow = Tables<'stock_warehouse_keepers'>;
 export interface StockUnitInput { code: string; name: string; wholeOnly: boolean }
-export interface StockItemInput { code: string; name: string; description: string | null; unitId: string; leadTimeDays: number | null; tagId?: string | null }
+export interface StockItemInput { code: string; name: string; description: string | null; unitId: string; leadTimeDays: number | null; tagId?: string | null; consumable?: boolean }
 export interface StockWarehouseInput { code: string; name: string; kind: 'central' | 'site' | 'yard' | 'staging' | 'vendor'; projectId: string | null; coverValue: string | null; vendorCompanyId?: string | null }
 export interface StockItemFilters { includeArchived?: boolean; tagId?: string; tagIds?: string[]; limit?: number }
 
@@ -50,6 +50,18 @@ export const listStockItems = (filters: boolean | StockItemFilters = false): Pro
     return q;
   }, f.limit);
 };
+export interface StockItemTagName { itemId: string; tagName: string }
+type TaggedItemRow = { id: string; tag: { name: string } | null };
+
+/**
+ * Every item carrying one of the organisation's tags, with that tag's configured name (FR-SSW-010/011). Deliberately
+ * narrow: only tagged items, and only the item id plus its tag name. Screens whose read RPC does not carry the tag
+ * join it here; an ordinary item is absent, so no label (and no zero) is invented for it.
+ */
+export const listItemTagNames = (): Promise<StockItemTagName[]> =>
+  readAll<TaggedItemRow>((a, b) => supabase.from('stock_items').select('id, tag:stock_tags(name)')
+    .not('tag_id', 'is', null).order('id').range(a, b) as unknown as PromiseLike<{ data: TaggedItemRow[] | null; error: { message: string; code?: string } | null }>)
+    .then((rows) => rows.flatMap((r) => (r.tag?.name ? [{ itemId: r.id, tagName: r.tag.name }] : [])));
 export const listStockWarehouses = (includeArchived = false) =>
   readAll<StockWarehouseRow>((a, b) => {
     let q = supabase.from('stock_warehouses').select('*').order('code').order('id').range(a, b);
@@ -69,10 +81,13 @@ export async function updateStockUnit(id: string, i: StockUnitInput): Promise<vo
   if (error) throw toAppError(error);
   assertWriteLanded(data, 'You cannot change this unit.');
 }
+/** `stock_items.consumable` (1320) is not in the generated types yet; the form sends it only when it has a value. */
+const consumableColumn = (i: StockItemInput): Record<string, never> => (i.consumable === undefined ? {} : ({ consumable: i.consumable } as unknown as Record<string, never>));
 export async function createStockItem(i: StockItemInput): Promise<StockItemRow> {
   const { data, error } = await supabase.from('stock_items').insert({
     code: i.code.trim(), name: i.name.trim(), description: i.description?.trim() || null, unit_id: i.unitId, lead_time_days: i.leadTimeDays,
     ...(i.tagId !== undefined ? { tag_id: i.tagId } : {}),
+    ...consumableColumn(i),
   }).select('*').single();
   if (error) throw toAppError(error);
   return data;
@@ -81,6 +96,7 @@ export async function updateStockItem(id: string, i: StockItemInput): Promise<vo
   const { data, error } = await supabase.from('stock_items').update({
     code: i.code.trim(), name: i.name.trim(), description: i.description?.trim() || null, unit_id: i.unitId, lead_time_days: i.leadTimeDays,
     ...(i.tagId !== undefined ? { tag_id: i.tagId } : {}),
+    ...consumableColumn(i),
   }).eq('id', id).select('id');
   if (error) throw toAppError(error);
   assertWriteLanded(data, 'You cannot change this item.');

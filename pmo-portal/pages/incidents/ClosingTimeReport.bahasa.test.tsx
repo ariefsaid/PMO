@@ -18,13 +18,7 @@ const reportData: IssueClosingTimeReportRow[] = [
   },
 ];
 
-const settingsData: IssueClosingReportSettings = {
-  id: 's1',
-  org_id: 'org1',
-  enabled: true,
-  grouping_mode: 'type',
-  updated_at: '2026-01-01T00:00:00Z',
-};
+const settingsData: IssueClosingReportSettings = { org_id: 'org1', enabled: true, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null };
 
 vi.mock('@/src/hooks/useIssueClosingReport', () => ({
   useIssueClosingReportSettings: () => ({ data: settingsData, isPending: false, isError: false }),
@@ -35,6 +29,8 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => () => true,
 }));
 
+// The effective-hours panel has its own test (EffectiveHoursPanel.test.tsx); here it is stubbed out.
+vi.mock('./EffectiveHoursPanel', () => ({ default: () => null }));
 import ClosingTimeReport from './ClosingTimeReport';
 
 describe('ClosingTimeReport in Bahasa (#2678)', () => {

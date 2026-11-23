@@ -4,7 +4,7 @@ import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
-import type { Database } from '../src/lib/supabase/database.types';
+import type { Database, TablesInsert } from '../src/lib/supabase/database.types';
 
 test.setTimeout(180_000);
 
@@ -67,10 +67,13 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await admin.from('purchase_orders').insert({
       id: poId, org_id: orgId, procurement_id: purchaseId, status: 'Issued', amount: 10_000_000, currency: 'IDR', po_number: `PO-${suffix}`,
     }).throwOnError();
-    await admin.from('project_documents').insert({
+    // `category_id` is resolved from the `category` text by the resolve_project_document_category trigger (migration
+    // 1165), which introspection cannot see, so the generated Insert type asks for a column this fixture must not send.
+    const acceptanceDocument = {
       id: docId, org_id: orgId, project_id: projectId, category: 'Handover', title: documentTitle, status: 'Issued',
       file_path: `${orgId}/${projectId}/${docId}/acceptance.pdf`, code: `ACC-${suffix}`,
-    }).throwOnError();
+    } satisfies Omit<TablesInsert<'project_documents'>, 'category_id'>;
+    await admin.from('project_documents').insert(acceptanceDocument as TablesInsert<'project_documents'>).throwOnError();
 
     const itemCode = `L1-${suffix}`;
     await signIn(page, 'pm@acme.test');

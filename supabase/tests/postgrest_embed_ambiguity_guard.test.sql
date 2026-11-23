@@ -63,6 +63,10 @@ select set_eq(
             -- before adding: nothing reads the table through PostgREST (the reads go through the wrp_* RPCs), so no
             -- embed exists. Any future embed must name its constraint.
             ('work_order_revenue_plan -> profiles'),
+            -- 1770 (billing-steps): work_order_billing_steps carries assignee_id, done_by AND skipped_by, all -> profiles. Checked before adding:
+            -- the only DAL embed of profiles from it is qualified (assignee:profiles!work_order_billing_steps_assignee_id_fkey,
+            -- src/lib/db/workOrderBillingSteps.ts). Any future embed must name its constraint.
+            ('work_order_billing_steps -> profiles'),
             ('credits -> profiles'),
             -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
             -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or
@@ -145,6 +149,10 @@ select set_eq(
             -- 0989 (#2528): attendance_days carries recorded_by and approved_by -> profiles. No DAL code embeds profiles
             -- from it; whatever ships first MUST qualify it with !constraint_name.
             ('attendance_days -> profiles'),
+            -- 1768 (crew-followed): attendance_days carries crew_id AND followed_crew_id, both -> crews. Checked before adding: no DAL,
+            -- repository, edge fn or e2e code embeds crews from attendance_days (or attendance_days from crews); the DAL selects
+            -- explicit columns. Any future embed must name its constraint (crews!attendance_days_followed_crew_id_fkey).
+            ('attendance_days -> crews'),
             -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
             -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
             ('equipment_usage_entries -> profiles'),
@@ -227,6 +235,10 @@ select set_eq(
             -- the only DAL read (workOrderFinance.ts) selects plain columns, no profiles embed. Whatever ships first
             -- MUST qualify it with !constraint_name.
             ('work_order_plan_lines -> profiles'),
+            -- 1751 (medical release): medical_releases carries entered_by AND decided_by -> profiles. CHECKED BEFORE ADDING: the
+            -- only DAL (src/lib/db/medicalRelease.ts) reads through RPCs and a plain people select; nothing embeds profiles
+            -- from it. Whatever ships first MUST qualify it with !constraint_name.
+            ('medical_releases -> profiles'),
             -- 1245 (#2704): crew_loans carries home_crew_id AND host_crew_id, both -> crews. CHECKED BEFORE ADDING: the DAL
             -- (src/lib/db/crewLoans.ts) embeds no crews from it; whatever ships first MUST qualify it with !constraint_name.
             ('crew_loans -> crews'),
@@ -256,7 +268,10 @@ select set_eq(
             ('equipment_plans -> profiles'),
             ('stock_wo_transfers -> work_orders'),
             ('stock_transfers -> profiles'),
-            ('stock_transfers -> stock_warehouses') $$,
+            ('stock_transfers -> stock_warehouses'),
+            -- 1784 (survey-cap-record): survey_records carries recorded_by AND confirmed_by, both -> profiles. The one DAL embed
+            -- (src/lib/db/surveyRecords.ts) is qualified with !survey_records_recorded_by_fkey / !survey_records_confirmed_by_fkey.
+            ('survey_records -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

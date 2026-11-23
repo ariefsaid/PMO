@@ -21,13 +21,13 @@ When a site needs material for a work order, I want to request items and quantit
 - FR-MRQ-004 Create and submit shall be idempotent on a client-generated `client_request_id`.
 
 **Approval chain**
-- FR-MRQ-005 The system shall let an Admin define, per organisation, an **ordered approval chain** of steps, each naming a role and a purpose label (e.g. engineer: plan vs requested; construction: billable change; material coordinator: stock). A step may be marked "only when over plan" (OD-MRQ-2).
+- FR-MRQ-005 The system shall let an Admin define, per organisation, an **ordered approval chain** of steps, each naming a role (an access level, or a built-in role per `roles-that-decide.spec.md` FR-RTD-004) and a purpose label (e.g. engineer: plan vs requested; construction: billable change; material coordinator: stock). A step may be marked "only when over plan" (OD-MRQ-2).
 - FR-MRQ-006 When a request is submitted, the system shall snapshot the applicable steps onto it; later chain edits do not change in-flight requests.
 - FR-MRQ-007 The system shall present a step to users who hold its role and have access to the work order's project; steps are taken **in order**; step n+1 opens only after step n is approved.
 - FR-MRQ-008 Each step decision shall be `approve` or `return`/`reject` with a reason for the latter; the decider's identity and time are stored. A user shall not decide a step on a request they created, and shall not decide two different steps of the same request across its rounds (server-enforced SoD). After a return, the same person may decide the same step again; a step is the same only when its position, role and label all match the earlier snapshot. A renamed, reordered or otherwise changed step counts as different, so the restriction errs strict after chain edits.
 - FR-MRQ-009 A user may name a **stand-in** for a date range; the stand-in must be an active same-organisation user and may act on steps of the delegator's role in that range. A stand-in is not recorded as the delegator; both identities are stored. A stand-in cannot be the request's author and chains of stand-ins are not followed (one hop).
 - FR-MRQ-010 A step's decider may be a stand-in only if the delegation was active at decision time, checked server-side.
-- FR-MRQ-011 When the final step is approved, the system shall in one transaction mark the request `approved` and create a stock transfer draft carrying the request's lines, the work order (as project/work-order reference via #2517) and a link to the request; the delivery document is that transfer's printable document. If creation fails, the request stays at the last step and the error is shown.
+- FR-MRQ-011 When the final step is approved, the system shall mark the request `approved` and record the decision; the final approver need not keep any warehouse. Choosing the source warehouse and creating the stock transfer draft (the request's lines, the work order via #2517, a link to the request; the delivery document is that transfer's printable document) is the stock keeper's step, limited to a keeper of that location (or an Admin). A final approver who does keep a warehouse may name it at approval, and the draft is then created in the same transaction; if that creation fails the request stays at the last step and the error is shown.
 - FR-MRQ-012 When a step returns a request, it goes to `draft` for the author to amend and resubmit, restarting at step 1 (OD-MRQ-3); a rejection is final.
 - FR-MRQ-013 When the linked transfer is posted, the request shall become `fulfilled`; a cancelled draft transfer returns the request to `approved` with a flag "transfer cancelled".
 
@@ -85,6 +85,10 @@ When a site needs material for a work order, I want to request items and quantit
 | AC-MRQ-022 | Given a pin is cleared, when the step opens, then any holder of the role may decide it again. | pgTAP + Unit |
 | AC-MRQ-023 | Given a pinned step whose person is deactivated or lost the step role, when a role holder (or a stand-in for one) looks at their queue and decides, then the step is theirs (mutation check: drop the liveness test, go red). | pgTAP |
 | AC-MRQ-024 | Given such a stuck pin, then the row is kept, the setting screen shows it as needing attention, and re-pointing it to a live person binds again. | pgTAP + Unit |
+| AC-MRQ-030 | Given a final approver who keeps no warehouse, when they approve without naming one, then the request is `approved`, has no transfer yet, and waits on a keeper. | pgTAP |
+| AC-MRQ-031 | Given an approved request without a transfer, when a person who does not keep the warehouse tries to send from it (an approver included, or by naming it at approval), then they are refused; the keeper of that warehouse makes the transfer (mutation check: drop the keeper test, go red). | pgTAP |
+| AC-MRQ-032 | Given the requester, when they try to approve or send stock for their own request, then both are refused. | pgTAP |
+| AC-MRQ-033 | Given a final approver who keeps a warehouse, when they name it at approval, then the transfer draft is made at once. | pgTAP |
 
 ## Errors
 | Condition | Result |

@@ -6,14 +6,18 @@ select plan(46);
 -- default ACL and the explicit origin/dev grants. This is not a deployed predecessor snapshot.
 -- @REFS@
 
--- 1209 (above this proof's window: 0866 + 0873 + 0874) puts the light-account refusal at the top of three of the
--- catalog's read RPCs, and its rollback strips no body (its header: re-apply the latest migration that defines the
--- function). The round trip below can only restore the level's own bodies, so the guard is proven HERE, at head,
--- and the catalog's expected body for those three is the head body without that one injected line.
-select ok((select bool_and(p.prosrc like '%perform public.assert_not_light();%') from pg_proc p
+-- Later migrations above this proof's window (0866 + 0873 + 0874) put the light-account refusal in catalog bodies:
+-- 1209 in the three capture read RPCs and 1530 in unlink_erp_purchase_document. Neither rollback strips a body (each
+-- header says: re-apply the latest migration that defines the function), and the peel above the snapshot does not
+-- rewrite unlink, so the round trip below can only restore the level's own bodies. The guards are therefore proven
+-- HERE, at the peeled head, and the catalog's expected body for those four is that head body minus the one injected
+-- line; every other catalog entry is still compared verbatim.
+select is((select count(*)::int from pg_proc p
              join pg_namespace n on n.oid=p.pronamespace
-            where n.nspname='public' and p.proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health')),
-          'the three capture read RPCs carry 1209''s light-account guard at head');
+            where n.nspname='public'
+              and p.proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','unlink_erp_purchase_document')
+              and p.prosrc like '%perform public.assert_not_light();%'), 4,
+          'the catalog entries later guarded by 1209 and 1530 carry the head light-account guard');
 
 -- Each newer migration's down restores the previous function bodies exactly (the 0866 text, as references).
 savepoint partial_down;
@@ -29,9 +33,9 @@ rollback to savepoint partial_down;
 
 create temporary table f2_forward as
 select proname,
-       -- The level's own body for the three read RPCs 1209 guarded above this window: the head definition without
-       -- the one injected guard line (asserted present just above). Every other catalog entry is compared verbatim.
-       case when proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health')
+       -- The level's own body for the catalog entries a later migration guarded above this window: the peeled-head
+       -- definition without the one injected guard line (asserted present just above). Every other entry is verbatim.
+       case when proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','unlink_erp_purchase_document')
             then replace(pg_get_functiondef(p.oid), E'\n  perform public.assert_not_light();', '')
             else pg_get_functiondef(p.oid) end as body,
        proowner, proconfig, proacl, prosecdef, provolatile, proparallel, prorettype, proargtypes, pronargdefaults

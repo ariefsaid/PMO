@@ -1,7 +1,7 @@
 // @e2e-isolation: serial — turns an organisation-wide setting on; cleanup restores it after the journey.
 /**
  * AC-CLR-011 — the cleared-for-site checklist (#2707).
- * Goal oracle: an Admin turns the checklist on, defines an item, records it done for a person, and sees that person Cleared.
+ * Goal oracle: an Admin defines an item (the checklist is on for everyone, #2746), records it done for a person, and sees that person Cleared.
  */
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -41,18 +41,12 @@ test.afterEach(async () => {
   if (failures.length) throw new Error(`AC-CLR-011 ${failures.join('; ')}`);
 });
 
-test('AC-CLR-011: an Admin turns the checklist on, defines an item, records it for a person and sees them Cleared', async ({ page }) => {
+test('AC-CLR-011: an Admin defines an item (the checklist is on for everyone, #2746), records it for a person and sees them Cleared', async ({ page }) => {
   const personName = `${run} person`;
   const itemName = `${run} item`;
   must('seed person', await admin!.from('people').insert({ org_id: ORG_ID, name: personName }).select('id').single());
-  await admin!.from('organizations').update({ clearance_checklist_enabled: false }).eq('id', ORG_ID);
 
   await signIn(page, 'admin@acme.test');
-  await page.goto('/administration/people');
-  await expect(page.getByRole('link', { name: 'Clearance' })).toHaveCount(0);
-  await page.getByRole('switch', { name: 'Track who is cleared to go to site' }).click();
-  await expect(page.getByRole('switch', { name: 'Track who is cleared to go to site' })).toHaveAttribute('aria-checked', 'true');
-
   await page.goto('/administration/clearance');
   await page.getByRole('button', { name: 'Add item' }).first().click();
   const form = page.getByRole('dialog');

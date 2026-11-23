@@ -28,7 +28,7 @@ import {
   useMeetingMutations,
 } from '@/src/hooks/useMeetings';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -74,7 +74,7 @@ const MeetingDetail: React.FC = () => {
   const onMutationError = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);
     toast(headline, detail, 'warning');
-    return detail ? `${headline}. ${detail}` : headline;
+    return detail ? joinSentences(headline, detail) : headline;
   };
 
   if (query.isPending) {

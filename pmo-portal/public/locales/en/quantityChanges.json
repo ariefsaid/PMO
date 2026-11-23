@@ -17,7 +17,7 @@
     "block": {
       "author": "You raised this request, so someone else must approve it.",
       "editor": "You edited this request, so someone else must approve it.",
-      "role": "Your role cannot approve quantity change requests.",
+      "role": "Your role cannot approve quantity change requests. Ask an Admin to add your role to the reviewer list.",
       "status": "This request is not waiting for approval.",
       "submitter": "You submitted this request, so someone else must approve it."
     },
@@ -25,6 +25,13 @@
     "returnedBy": "Returned: {{reason}}",
     "title": "Internal approval",
     "waiting": "Waiting for approval"
+  },
+  "approvers": {
+    "error": "Couldn't load the reviewer roles",
+    "help": "Admin, Executive and Finance can always approve or return a request. Tick other roles that may too. Whoever raised, edited or submitted a request still cannot approve it.",
+    "save": "Save reviewer roles",
+    "saved": "Reviewer roles saved",
+    "title": "Who may review requests"
   },
   "billing": {
     "draftNote": "This work order is still a draft: accepting this request raises its value by the value change.",

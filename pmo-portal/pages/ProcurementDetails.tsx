@@ -1,4 +1,5 @@
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
+import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
@@ -40,10 +41,14 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
+import { waitingForText } from '@/src/lib/approvals/waitingFor';
+import { useOperationalWaitingRoute, operationalWaitingForText } from '@/src/hooks/useOperationalWaitingRoute';
+import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { ProcurementDetailsTab, ProcurementItemsTab, ProcurementQuotesTab } from './procurement/ProcurementDetailTabs';
 import { LinePlanningPanel } from './procurement/LinePlanningPanel';
+import { LineWorkOrdersPanel } from './procurement/LineWorkOrdersPanel';
 import { procurementAttachTargets, procurementDetailRows, procurementTabs, tabFromParam, type ProcTab } from './procurement/procurementDetailView';
 import { useProcurementDecision } from './procurement/useProcurementDecision';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
@@ -130,7 +135,7 @@ const TimelineWithReadableOrders: React.FC<TimelineWithOrdersProps & { records: 
 };
 
 const ProcurementDetails: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'waitingList']);
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
   const tab = tabFromParam(tabParam);
@@ -138,6 +143,8 @@ const ProcurementDetails: React.FC = () => {
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
+  // roles-that-decide FR-RTD-009: the database gate says whether this person orders by built-in role (view-as never widens it).
+  const mayOrderByRole = useMayOrderPurchases() && realRole === effectiveRole;
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -149,6 +156,11 @@ const ProcurementDetails: React.FC = () => {
   const ownership = useDomainOwnershipMode('procurement');
   const itemEligibility = useProcurementItemEligibility(procurementId, ownership.mode === 'external');
   const detailQuery = useProcurementDetail(procurementId);
+  // An Ordered purchase is ASSIGNED to the people 1560 puts on the receipt list (an Admin, the actual requester while
+  // their role may record a receipt, and this project's own PM) — not every Finance/Executive, not another project's
+  // PM, and no light account (the receipt gate refuses a light caller). Only fetched while Ordered.
+  const receiptWaiting = useOperationalWaitingRoute('delivery_record', procurementId, detailQuery.data?.status === 'Ordered');
+  const { label: roleLabel } = useRoleOptions();
   const linkedErpQuery = useLinkedErpDocuments(procurementId);
   const linkedDocs = linkedErpQuery.data ?? [];
   const gates = useProcurementGates().data;
@@ -281,6 +293,7 @@ const ProcurementDetails: React.FC = () => {
   const { pendingConfirm, setPendingConfirm, onActionClick, commitConfirm, submitVICapture, confirmInFlight } =
     useProcurementDecision(detailQuery.data, mutations, {
       setTab, notesInput, setNotesInput, setMutationError, setShowCreateGR, setShowCreateVI, setShowVICapture, setCaptureKind,
+      openSupplierPicker: () => { setTab('files'); setSelectedVendorId(null); setVendorPickerOpen(true); },
     });
   useEffect(() => {
     if (!tabParam || !['overview', 'documents', 'history'].includes(tabParam)) return;
@@ -387,7 +400,7 @@ const ProcurementDetails: React.FC = () => {
       ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
       : null;
   const hasValue = purchaseHasValue(p);
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue, mayOrderByRole));
   const actionFor = (to: ProcurementStatus) => actions.find((action) => action.to === to);
   const stateMain = stateMainAction(p.status, actions, t);
   const transitionMainAction = stateMain?.transition;
@@ -412,13 +425,32 @@ const ProcurementDetails: React.FC = () => {
         budget: formatCurrency(p.approvalRoute.lineBudget, p.currency),
       })
     : null;
+  // fix-waiting item 3: who the request waits for, from the route the database already computed (never a bare "Waiting for approval").
+  const requestedRoute = p.approvalRoute;
+  // An Ordered purchase is assigned to the actual people the database's receipt list names (the requester while their
+  // role allows it, this project's own manager, an Admin) — not every Finance/Executive. The viewer who can record it
+  // already has that action, so the line is for everyone else. Pending says nothing; a failed read offers a retry.
+  const canReceiveHere = isRequester || RECEIPT_ROLES.has(role);
+  const receiptWaitingNote = p.status === 'Ordered' && !canReceiveHere
+    ? receiptWaiting.isError
+      ? <button type="button" onClick={() => void receiptWaiting.refetch()} className="font-medium text-primary-text hover:underline">
+          {t('ui.listState.retry', 'Retry')}
+        </button>
+      : operationalWaitingForText(receiptWaiting.data, t, { roleLabel, empty: 'none' })
+    : null;
   const waitingNote = p.status === 'Requested' && isRequester
-    ? isEngineer
-      ? t('procurementRecord:waiting.engineerApproval', 'Waiting for approval by a project manager or Finance')
-      : t('procurementRecord:waiting.approval', 'Waiting for approval')
-    : p.status === 'Vendor Invoiced' && !actionFor('Paid')
-      ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
-      : null;
+    ? waitingForText({
+        names: (requestedRoute?.approvers ?? []).map((approver) => approver.fullName),
+        role: requestedRoute?.route === 'admin' ? t('waitingList:waitingFor.roleAdmin', 'Admin')
+          : requestedRoute?.route === 'org' ? t('waitingList:waitingFor.roleOrg', 'senior approver')
+          : requestedRoute?.route === 'project' ? t('waitingList:waitingFor.roleProject', 'project approver')
+          : t('waitingList:waitingFor.roleFlat', 'project manager or Finance'),
+      }, t)
+    : p.status === 'Ordered'
+      ? receiptWaitingNote
+      : p.status === 'Vendor Invoiced' && !actionFor('Paid')
+        ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
+        : null;
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -441,9 +473,10 @@ const ProcurementDetails: React.FC = () => {
     (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
   // #2698: the payment channel (shown only where the org switched it on). Requester or Admin while Draft/Rejected (the header
   // rule), or Finance/Admin until Paid or Cancelled. UX only: set_procurement_payment_channel (1356) is the authority.
-  const canSetPaymentChannel =
-    ((isDraft || isRejected) && (isRequester || realRole === 'Admin'))
-    || ((realRole === 'Finance' || realRole === 'Admin') && p.status !== 'Paid' && p.status !== 'Cancelled');
+  const canSetPaymentChannel = may('setPaymentChannel', 'procurement', {
+    record: { status: p.status, requested_by_id: p.requested_by_id, viewOnly: realRole !== effectiveRole },
+    currentUserId: currentUser?.id,
+  });
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const canEditItems = ownershipReady && isDraft && (isRequester || may('edit', 'procItem'));
@@ -733,7 +766,7 @@ const ProcurementDetails: React.FC = () => {
         meta={meta.length ? <span className="block overflow-hidden"><span data-testid="record-meta" className="flex flex-col gap-y-1 sm:-ml-4 sm:flex-row sm:flex-wrap sm:items-center [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className={i === 0 ? 'sm:whitespace-nowrap sm:pl-4' : 'sm:whitespace-nowrap'}>{i > 0 && <span data-meta-dot aria-hidden="true" className="hidden w-4 text-center text-muted-foreground sm:inline-block">·</span>}{part}</span>)}</span></span> : undefined}
         // Where no action is offered, the slot says who the purchase waits on (#1404).
         actions={waitingNote || !isNarrow ? <>
-          {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
+          {waitingNote && <span data-testid="procurement-waiting" className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
           {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
         </> : undefined}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.
@@ -835,10 +868,18 @@ const ProcurementDetails: React.FC = () => {
       >
         {tab === 'timeline' && <RecordStack>
           <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+          <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />
+          {primaryPo && (
+            <RecordSection data-testid="procurement-po-print" title={t('procurement:purchaseOrderPrint.section', 'Purchase order')}>
+              {poPrintEnabled
+                ? <Button variant="outline" size="sm" data-testid="print-purchase-order-inline" onClick={() => navigate(`/procurement/${p.id}/purchase-orders/${primaryPo.id}/print`)}>{t('procurement:purchaseOrderPrint.printAction', 'Print purchase order')}</Button>
+                : <p className="text-control text-muted-foreground" data-testid="po-print-off">{t('procurement:purchaseOrderPrint.off', 'Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing.')}</p>}
+            </RecordSection>
+          )}
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
-        {tab === 'items' && <><ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /></>}
+        {tab === 'items' && <><ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager'} /></>}
 
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /

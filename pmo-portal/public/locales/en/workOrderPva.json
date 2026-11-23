@@ -80,21 +80,11 @@
     "archivedDiscipline": "Archived discipline",
     "revenueNote": "Revenue is validated progress at the contract rate.",
     "picker": {
+      "noneYet": "No disciplines yet. An Admin adds them under Cost disciplines in Project setup.",
       "label": "Discipline (for profit per discipline)",
       "none": "No discipline",
       "saved": "Discipline saved",
       "error": "Couldn't save the discipline"
-    },
-    "setting": {
-      "title": "Profit per discipline",
-      "label": "Show revenue next to cost per discipline",
-      "helper": "Adds a table to the project's plan-vs-actual section and a discipline field on contract lines. Off by default.",
-      "save": "Save",
-      "saved": "Setting saved",
-      "adminOnly": "Only an Admin can change this.",
-      "loadError": "Couldn't load the setting",
-      "on": "On",
-      "off": "Off"
     }
   },
   "projectHours": "Project and contract hours",
@@ -128,7 +118,10 @@
     "purchase_request": "Purchase request",
     "stock_document": "Stock movement",
     "timesheet_entry": "Timesheet",
-    "vendor_bill": "Vendor bill"
+    "vendor_bill": "Vendor bill",
+    "attendance_day": "Attendance",
+    "headcount_day": "Head count",
+    "expense_claim": "Expense claim"
   },
   "split": {
     "clear": "Use the default split",
@@ -153,6 +146,7 @@
     "hours": "Hours",
     "cost": "Cost",
     "unknownClass": "Other class",
+    "allClasses": "Crew and head count, all classes",
     "note": "Part of the direct cost above, from approved hours at each person's cost rate."
   },
   "performance": {
@@ -241,6 +235,9 @@
     "cost": "Cost",
     "total": "Total idle",
     "noRate": "No rate",
-    "note": "Shown apart: this time was already paid, so it is part of the direct cost above and is not added again. Cost at the work order's average hourly cost."
+    "note": "Shown apart: this time was already paid, so it is part of the direct cost above and is not added again. Cost at the work order's average hourly cost.",
+    "people": "People",
+    "equipment": "Equipment",
+    "noteFull": "Shown apart: the people hours are already in labour cost and the standby money is already in equipment cost, so they are not added again. People are the crew present each day at the work order's average hourly cost."
   }
 }

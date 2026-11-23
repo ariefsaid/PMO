@@ -44,6 +44,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({ useInvoiceTmClaimNative: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('@/src/hooks/useClaimOverCap', () => ({ useClaimOverCap: () => ({ data: 'warn' }) }));
 
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import BillingTab from '../tabs/BillingTab';
@@ -206,7 +207,7 @@ describe('AC-S15-001 / M18 project billing start', () => {
       await user.click(screen.getByRole('button', { name: 'Ajukan invoice' }));
       expect(screen.getByRole('dialog', { name: 'Mulai membuat invoice' })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /Invoice kontrak/ })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Work Order \/ SPK pelanggan/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Work order pelanggan/ })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Klaim kuantitas atau progres/ })).toBeInTheDocument();
     } finally {
       await financeTestI18n.changeLanguage('en');

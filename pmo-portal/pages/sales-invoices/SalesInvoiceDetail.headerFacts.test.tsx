@@ -1,10 +1,16 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import enWaitingList from '../../public/locales/en/waitingList.json';
+import idWaitingList from '../../public/locales/id/waitingList.json';
+
+financeTestI18n.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
+financeTestI18n.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
 
 const orderState = vi.hoisted(() => ({ visible: true, payments: [] as unknown[], paymentPending: false, paymentError: false, paymentReads: [] as unknown[][] }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: orderState.visible ? { id: 'wo1', wo_number: 'WO-1', title: 'Install' } : null }) }));
@@ -20,8 +26,19 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useInvoiceProjectOptions: () => ({ data: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build' }] }),
 }));
-vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
+const assignable = vi.hoisted(() => ({ profiles: [] as { id: string; full_name: string }[] }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: assignable.profiles }) }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
+
+// The who-next route is the server's answer; this suite mocks the seam at the repository and runs the real
+// (shipped) hook + sentence function, so the rendered names are the returned facts, not a test-side label.
+const routeRead = vi.hoisted(() => ({ get: vi.fn() }));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' }, role: 'Finance' }),
+}));
+vi.mock('@/src/lib/repositories/invoiceApprovalRoute', () => ({
+  invoiceApprovalRouteRepository: { get: routeRead.get },
+}));
 
 import { SalesInvoiceDetail } from './SalesInvoiceDetail';
 
@@ -45,6 +62,8 @@ afterEach(async () => {
   orderState.paymentPending = false;
   orderState.paymentError = false;
   orderState.paymentReads = [];
+  assignable.profiles = [];
+  routeRead.get.mockReset();
   await financeTestI18n.changeLanguage('en');
 });
 
@@ -406,6 +425,137 @@ describe('#2442 paid sales invoice wording', () => {
     expect(within(idHeader).getAllByText('Belum dibayar').length).toBeGreaterThanOrEqual(1);
     expect(within(idHeader).queryByText('Tanggal pembayaran')).not.toBeInTheDocument();
     expect(screen.getByText('Siap dikirim')).toBeInTheDocument();
+  });
+
+  describe('fix-waiting item 3: native PMO invoice waiting-for who-next note', () => {
+    const nativeDraft: SalesInvoiceRow = {
+      ...target,
+      pmo_native: true,
+      status: 'Draft',
+      si_number: null,
+      pmo_number: 'PMO-2026-0002',
+    };
+
+    const renderInvoice = (inv: SalesInvoiceRow) => render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <FinanceI18nTestProvider>
+          <MemoryRouter>
+            <SalesInvoiceDetail
+              viewTarget={inv}
+              projectName="Northwind Build"
+              isPending={false}
+              isError={false}
+              data={[inv]}
+              organizationToday="2026-10-16"
+              onBack={vi.fn()}
+              refetch={vi.fn()}
+              recordPrimaryAction={null}
+              invoiceDisplayLabel={() => inv.pmo_number ?? inv.si_number ?? 'INV-1'}
+              may={(() => false) as never}
+              pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+              dialogs={null}
+            />
+          </MemoryRouter>
+        </FinanceI18nTestProvider>
+      </QueryClientProvider>,
+    );
+
+    it('names the actual eligible people in English and Bahasa Indonesia', async () => {
+      routeRead.get.mockResolvedValue({
+        routeKind: 'named',
+        approvers: [
+          { id: 'u-fin', name: 'Finance Three', role: 'Finance' },
+          { id: 'u-admin', name: 'Admin Four', role: 'Admin' },
+        ],
+      });
+      await financeTestI18n.changeLanguage('en');
+      renderInvoice(nativeDraft);
+      const waiting = await screen.findByTestId('invoice-waiting-for');
+      await waitFor(() => expect(waiting).toHaveTextContent('Finance Three, Finance'));
+      expect(waiting).toHaveTextContent('Admin Four, Admin');
+      // The old static role label is NOT the sentence any more.
+      expect(waiting).not.toHaveTextContent('Waiting for Finance or Admin');
+      expect(routeRead.get).toHaveBeenCalledWith('invoice-1');
+
+      cleanup();
+      await financeTestI18n.changeLanguage('id');
+      renderInvoice(nativeDraft);
+      const waitingId = await screen.findByTestId('invoice-waiting-for');
+      await waitFor(() => expect(waitingId).toHaveTextContent('Menunggu Finance Three, Keuangan atau Admin Four, Admin'));
+    });
+
+    it('names only the server route and never names the primary author or a co-author', async () => {
+      assignable.profiles = [
+        { id: 'author-1', full_name: 'Author Admin' },
+        { id: 'coauthor-2', full_name: 'Coauthor Finance' },
+        { id: 'u-fin', full_name: 'Finance Three' },
+      ];
+      routeRead.get.mockResolvedValue({
+        routeKind: 'named',
+        approvers: [{ id: 'u-fin', name: 'Finance Three', role: 'Finance' }],
+      });
+      renderInvoice({ ...nativeDraft, author_user_id: 'author-1', author_user_ids: ['author-1', 'coauthor-2'] });
+      const waiting = await screen.findByTestId('invoice-waiting-for');
+      await waitFor(() => expect(waiting).toHaveTextContent('Finance Three, Finance'));
+      // The same directory names the author in "Raised by", so absence inside the note is a real exclusion.
+      expect(within(screen.getByTestId('record-header')).getByText('Author Admin')).toBeInTheDocument();
+      expect(waiting).not.toHaveTextContent('Author Admin');
+      expect(waiting).not.toHaveTextContent('Coauthor Finance');
+    });
+
+    it('shows no waiting line — and issues no read — on external ERP draft invoices', () => {
+      const erpDraft: SalesInvoiceRow = { ...target, pmo_native: false, status: 'Draft', si_number: null };
+      renderInvoice(erpDraft);
+      expect(screen.queryByTestId('invoice-waiting-for')).toBeNull();
+      expect(routeRead.get).not.toHaveBeenCalled();
+    });
+
+    it('shows no waiting line — and issues no read — on non-draft native PMO invoices (Unpaid, Paid, Cancelled)', () => {
+      for (const nonDraftStatus of ['Unpaid', 'Paid', 'Cancelled'] as const) {
+        cleanup();
+        renderInvoice({ ...target, pmo_native: true, status: nonDraftStatus });
+        expect(screen.queryByTestId('invoice-waiting-for')).toBeNull();
+      }
+      expect(routeRead.get).not.toHaveBeenCalled();
+    });
+
+    it('shows a plain, honest sentence while the route is still loading', async () => {
+      routeRead.get.mockImplementation(() => new Promise(() => {}));
+      renderInvoice(nativeDraft);
+      const waiting = await screen.findByTestId('invoice-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for approval');
+    });
+
+    it('offers a retry on a failed route read and never shows a stale empty or invented names', async () => {
+      routeRead.get.mockRejectedValue(new Error('boom'));
+      renderInvoice(nativeDraft);
+      const waiting = await screen.findByTestId('invoice-waiting-for');
+      await waitFor(() => expect(waiting).toHaveTextContent("Couldn't verify who can approve right now."));
+      expect(waiting).not.toHaveTextContent(/No other Finance|no recorded author/);
+      const retry = within(waiting).getByRole('button', { name: 'Try again' });
+      fireEvent.click(retry);
+      await waitFor(() => expect(routeRead.get.mock.calls.length).toBeGreaterThan(1));
+    });
+
+    it('speaks a proven empty route and a missing-author route as the distinct facts they are', async () => {
+      routeRead.get.mockResolvedValue({ routeKind: 'nobody', approvers: [] });
+      renderInvoice(nativeDraft);
+      const nobody = await screen.findByTestId('invoice-waiting-for');
+      await waitFor(() => expect(nobody).toHaveTextContent('No other Finance or Admin can approve this invoice right now.'));
+
+      cleanup();
+      routeRead.get.mockResolvedValue({ routeKind: 'missing_author', approvers: [] });
+      renderInvoice(nativeDraft);
+      const missing = await screen.findByTestId('invoice-waiting-for');
+      await waitFor(() => expect(missing).toHaveTextContent('This invoice has no recorded author, so it cannot be approved yet.'));
+    });
+
+    it('shows no note at all for the non-leaking unavailable shape', async () => {
+      routeRead.get.mockResolvedValue({ routeKind: 'unavailable', approvers: [] });
+      renderInvoice(nativeDraft);
+      await waitFor(() => expect(routeRead.get).toHaveBeenCalled());
+      await waitFor(() => expect(screen.queryByTestId('invoice-waiting-for')).toBeNull());
+    });
   });
 });
 

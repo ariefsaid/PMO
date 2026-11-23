@@ -27,7 +27,7 @@ import BoqDisciplinePicker from '../BoqDisciplinePicker';
 import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
-import ProgressClaimModal from '../ProgressClaimModal';
+import ProgressClaimModalForOrg from '../ProgressClaimModalForOrg';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
 import { ClaimBillingStages } from './ClaimBillingStages';
@@ -650,7 +650,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         : <ClaimEvidenceList evidence={claimDetailFor.evidence} documents={documents.data ?? []} />}
     </section>
     {claimDetailFor.kind === 'progress' && <ClaimBillingStages claimId={claimDetailFor.id} projectId={projectId} currency={currency}
-      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} today={orgToday} />}
+      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} workOrderId={claimDetailFor.work_order_id} today={orgToday} />}
   </Drawer>;
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
@@ -729,7 +729,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {claimDetailDrawer}
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
-          <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
+          <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
             extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
         )}
@@ -843,7 +843,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
-        <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
+        <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
             extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
       )}
@@ -855,7 +855,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       )}
       {termsOpen && <BillingTermsModal projectId={projectId} onClose={() => setTermsOpen(false)} />}
       {claimFormOpen && (
-        <ProgressClaimModal sources={claimSources.map(({ query, name }) => ({ name,
+        <ProgressClaimModalForOrg sources={claimSources.map(({ query, name }) => ({ name,
           pending: query.isPending || (!query.isError && query.data == null), error: query.isError, retry: () => { void query.refetch(); } }))}
           boqItems={boqRows} workOrders={workOrders.data ?? []}
           allocations={allocations.data ?? []} contractLines={summary?.contractLines ?? []} contractNet={summary?.contractNet ?? 0}

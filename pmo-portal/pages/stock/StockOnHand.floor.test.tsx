@@ -131,22 +131,22 @@ describe('stock on hand floor controls', () => {
     expect(await screen.findByText('ledger for i1')).toBeInTheDocument();
   });
 
-  it('floor: Issue to project opens a new issue movement', async () => {
+  it('floor: Receive goods opens a new receipt', async () => {
     renderRouted();
     await screen.findByText('CEM');
-    const link = screen.getByRole('link', { name: 'Issue to project' });
+    const link = screen.getByRole('link', { name: 'Receive goods' });
     // One tab stop: the link IS the control, with no button nested in it.
-    expect(link).toHaveAttribute('href', '/stock/new/issue');
+    expect(link).toHaveAttribute('href', '/stock/new/receive');
     expect(link.querySelector('button')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Issue to project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Receive goods' })).not.toBeInTheDocument();
     await userEvent.click(link);
-    expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
+    expect(await screen.findByText('new movement: receive')).toBeInTheDocument();
   });
 
   it.each([
-    ['Receive', 'receive'],
-    ['Transfer', 'transfer'],
-    ['Return from project', 'return'],
+    ['Issue to project', 'issue'],
+    ['Stock transfer', 'transfer'],
+    ['Stock return from project', 'return'],
     ['Stock count', 'count'],
     ['Adjustment', 'adjustment'],
   ])('floor: More menu %s opens its movement form', async (label, kind) => {

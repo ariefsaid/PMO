@@ -20,6 +20,7 @@ import {
 } from '@/src/hooks/useIssueClosingReport';
 import { formatClosingDuration } from '@/src/lib/incidents/closingDuration';
 import type { IssueClosingTimeReportRow } from '@/src/lib/db/issueClosingReport';
+import EffectiveHoursPanel from './EffectiveHoursPanel';
 
 type DatePreset = '30d' | '90d' | 'ytd' | 'all' | 'custom';
 
@@ -351,8 +352,20 @@ export const ClosingTimeReport: React.FC = () => {
       </div>
 
       {/* Data Table */}
-      {reportQuery.isPending ? (
+      {/* A query that never fires stays `pending` forever: only show the skeleton while a read is in flight. */}
+      {reportQuery.isPending && reportQuery.fetchStatus !== 'idle' ? (
         <ListState variant="loading" shape="table" rows={5} columns={6} />
+      ) : reportQuery.isPending ? (
+        <Card>
+          <CardPad className="text-center py-10 space-y-2" data-testid="closing-report-not-loaded">
+            <h3 className="text-base font-semibold">
+              {t('closingReport.notLoaded.title', 'The report cannot be shown')}
+            </h3>
+            <p className="text-control text-muted-foreground max-w-sm mx-auto">
+              {t('closingReport.notLoaded.sub', 'Your role cannot view this report. Ask an administrator for access.')}
+            </p>
+          </CardPad>
+        </Card>
       ) : reportQuery.isError ? (
         <ListState
           variant="error"
@@ -380,6 +393,9 @@ export const ClosingTimeReport: React.FC = () => {
           tableId="closing-time-report-table"
         />
       )}
+
+      {/* Effective working hours of one work order per day, beside the closing time (same range, same gate) */}
+      <EffectiveHoursPanel from={dateRange.from} to={dateRange.to} />
     </div>
   );
 };

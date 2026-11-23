@@ -26,6 +26,16 @@ describe('can() on quantityChange', () => {
     expect(can('approve', 'quantityChange', ctx('Project Manager', 'other'))).toBe(false);
   });
 
+  it('AC-CHR-009 a role the server lists as a reviewer may approve, still never the author, an editor or the submitter', () => {
+    const ctx = (currentUserId: string, reviewer_listed: boolean) => ({ realRole: 'Project Manager' as const, currentUserId, record: { ...rec, reviewer_listed } });
+    expect(can('approve', 'quantityChange', ctx('other', true))).toBe(true);
+    expect(can('approve', 'quantityChange', ctx('other', false))).toBe(false);
+    expect(can('approve', 'quantityChange', ctx('author', true))).toBe(false);
+    expect(can('approve', 'quantityChange', ctx('editor', true))).toBe(false);
+    expect(can('approve', 'quantityChange', ctx('submitter', true))).toBe(false);
+    expect(can('approve', 'quantityChange', { realRole: 'Project Manager', currentUserId: 'other', record: { ...rec, reviewer_listed: true, viewOnly: true } })).toBe(false);
+  });
+
   it('submit is for the author or an editor; withdraw adds the approver roles', () => {
     expect(can('act', 'quantityChange', { realRole: 'Project Manager', currentUserId: 'author', record: rec })).toBe(true);
     expect(can('act', 'quantityChange', { realRole: 'Finance', currentUserId: 'editor', record: rec })).toBe(true);

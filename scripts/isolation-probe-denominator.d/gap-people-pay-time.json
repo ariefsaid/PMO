@@ -1,0 +1,21 @@
+{
+  "definer_functions": [
+    "attendance_day_undecided(uuid,uuid,date)",
+    "attendance_report_day_hours(uuid)",
+    "attendance_second_record(uuid,date,jsonb)",
+    "attendance_second_record_decide(uuid,uuid,date,text,text)",
+    "attendance_second_record_may_decide()",
+    "attendance_second_record_may_enter()",
+    "set_attendance_time_roles(text[],text[])"
+  ],
+  "tables": [
+    {
+      "table": "attendance_second_records",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ]
+}

@@ -92,6 +92,13 @@ stays intact in-repo, flip the mode to revert):
 
 ### Execution continuity (owner directive, 2026-10-17)
 
+**Batch rounds (owner, 2026-11-23):** before dispatch, takeover or allocating proof, read
+[`docs/orca-dispatch.md` § Batch integration](docs/orca-dispatch.md#batch-integration-owner-2026-11-23).
+Carry its execution table into every coordinator brief/handoff: parallel bounded builds, one
+integration writer, shared batch proofs, one owner per check, and CI as the merge gate. This
+supersedes per-branch heavy-proof/PR queues for signed rounds; required acceptance and explicit
+safety/production gates remain intact.
+
 A status question steers the active task; answer briefly in commentary, then immediately execute
 its next step in the same turn. Keep working through the authorized queue, including while CI or
 workers run, using independent work where dependencies allow. Check the actual worker/CI state;
@@ -301,7 +308,7 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
 - **Test pyramid (ADR-0010).** Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   Unit (Vitest/RTL, mocked) for logic/components/render-empty-error-filter; Integration (**pgTAP**,
   `supabase test db`) for RLS/tenancy/role read+write contracts; E2E (Playwright, **one curated journey
-  per cross-stack `AC-###`** — **114 spec files / 148 `test()` cases** as of 2026-07-25 (was "~50"); the original "6–8" was an under-estimate, re-baselined 2026-06-21
+  per cross-stack `AC-###`** — **360 spec files / 589 `test()` cases** as of 2026-11-22 (was 114 / 148 on 2026-07-25, "~50" before); the original "6–8" was an under-estimate, re-baselined 2026-06-21
   after the charter audit confirmed all are genuine cross-stack journeys, none misplaced) for real
   cross-stack flows only. Coverage is never lost — never push an AC up a layer to satisfy a convention.
 - **AC-id tagging (traceability).** The owning test names its `AC-###` in its title/description so

@@ -50,6 +50,14 @@ describe('PaymentChannelSection (#2698)', () => {
     expect(await screen.findByTestId('payment-channel-value')).toHaveTextContent('Not set');
   });
 
+  it('AC-PCH-009 on, with no live channel yet it says so and who adds them, never an empty picker', async () => {
+    h.list.mockResolvedValue([{ id: 'c3', name: 'Cheque', archived: true }]);
+    h.onRequest.mockResolvedValue({ channelId: null, name: null });
+    renderIt(true);
+    expect(await screen.findByTestId('payment-channel-none')).toHaveTextContent('No payment channels yet. An Admin adds them under Payment channels in Accounting setup.');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
   it('AC-PCH-010 a user who may set it picks a live channel and saves through the RPC', async () => {
     renderIt(true);
     const select = await screen.findByRole('combobox', { name: 'Payment channel' });

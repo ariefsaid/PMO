@@ -10,7 +10,7 @@ import stockEn from '@/public/locales/en/stock.json';
 
 const h = vi.hoisted(() => ({ enabled: false, role: 'Admin', documents: { list: vi.fn(), count: vi.fn() } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents: h.documents } } }));
-vi.mock('@/src/hooks/useStockWorkOrderTransfer', () => ({ useWoTransfersEnabled: () => h.enabled }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 

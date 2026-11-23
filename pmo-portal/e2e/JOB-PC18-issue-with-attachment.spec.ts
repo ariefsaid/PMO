@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { pickComboboxOption, signIn } from './helpers';
-import { cleanSiteIssue } from './siteIssueFixture';
+import { addIssueType, cleanSiteIssue } from './siteIssueFixture';
 import { cleanupAll, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 
 test.setTimeout(150_000);
@@ -24,16 +24,17 @@ test('JOB-PC18 an issue logged on a work order with a screenshot shows the attac
   projectId = fx.projectId; woIds = fx.workOrders.map((w) => w.id);
   const type = issueType = `E2E-Issue-${run}`;
 
+  await addIssueType(type);
   await signIn(page, 'engineer@acme.test');
   await page.goto('/incidents');
   await page.getByRole('button', { name: /file incident/i }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/^type/i).fill(type);
+  const dialog = page.getByRole('dialog', { name: /file incident/i });
+  await dialog.getByLabel(/^type/i).selectOption({ label: type });
   await pickComboboxOption(dialog, page, /^project/i, new RegExp(`${run} project`));
   await pickComboboxOption(dialog, page, /work order/i, new RegExp(fx.workOrders[0].number));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
   await dialog.getByTestId('incident-photo-input').setInputFiles({ name: 'whatsapp-proof.png', mimeType: 'image/png', buffer: png });
-  await expect(dialog.getByText('whatsapp-proof.png')).toBeVisible();
+  await expect(dialog.getByRole('list', { name: /photos/i }).getByText('whatsapp-proof.png')).toBeVisible();
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
   await page.getByRole('link', { name: new RegExp(`open ${type}`, 'i') }).click();

@@ -43,8 +43,8 @@ test('JOB-F6 a worker moved to the host crew serves its work order today and lea
   await page.getByRole('button', { name: `Show the people in ${run} crew B` }).click();
   await page.getByRole('button', { name: 'Add person' }).first().click();
   const place = page.getByRole('dialog');
-  await place.getByLabel('Or a new person').waitFor({ state: 'visible' });
   await place.getByRole('combobox', { name: /^Person/ }).click();
+  await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(workerName);
   await page.getByRole('listbox').getByRole('option', { name: new RegExp(workerName) }).click();
   await place.getByLabel(/^From/).fill(iso(new Date()));
   await place.getByRole('button', { name: 'Add person' }).click();

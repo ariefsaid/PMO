@@ -12,10 +12,13 @@ const h = vi.hoisted(() => ({
   templates: { data: [] as StepTemplate[], isPending: false, isError: false },
   save: { mutateAsync: vi.fn(), isPending: false },
   archive: { mutateAsync: vi.fn(), isPending: false },
+  defaultId: null as string | null,
+  setDefault: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
 vi.mock('@/src/hooks/useBillingSteps', () => ({
   useStepTemplates: () => h.templates,
   useStepTemplateMutations: () => ({ save: h.save, archive: h.archive }),
+  useDefaultStepTemplate: () => ({ query: { data: h.defaultId }, set: h.setDefault }),
 }));
 vi.mock('@/src/hooks/useRoleOptions', () => ({
   useRoleOptions: () => ({
@@ -42,6 +45,8 @@ beforeEach(() => {
   h.templates = { data: [], isPending: false, isError: false };
   h.save = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   h.archive = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
+  h.defaultId = null;
+  h.setDefault = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
 });
 
 describe('BillingStepTemplatesModal', () => {
@@ -122,7 +127,7 @@ describe('BillingStepTemplatesModal', () => {
     await user.click(screen.getByRole('button', { name: 'Save template' }));
     await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith({
       templateId: null, name: 'Q1 steps',
-      steps: [{ name: 'Mobilise', ownerRole: 'Project Manager', targetDays: 5, clientSide: false, optional: false, documents: [{ name: 'Signed DPR', required: true }, { name: 'Photos', required: true }, { name: 'Site diary', required: false }] }],
+      steps: [{ name: 'Mobilise', ownerRole: 'Project Manager', ownerRoleKey: null, hiddenFromRoleKeys: [], targetDays: 5, clientSide: false, optional: false, documents: [{ name: 'Signed DPR', required: true }, { name: 'Photos', required: true }, { name: 'Site diary', required: false }] }],
     }));
     // The template form returns to the template list; the page-level modal stays open.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument());
@@ -198,5 +203,60 @@ describe('BillingStepTemplatesModal', () => {
     render(<ToastProvider><BillingStepTemplatesModal onClose={onClose} /></ToastProvider>);
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('AC-WBS-010 Finance chooses the default template for new work orders', async () => {
+    const user = userEvent.setup();
+    h.templates = { data: [{ id: 't1', name: 'Standard', steps: [{ position: 1, name: 'Survey' }] }], isPending: false, isError: false };
+    h.defaultId = null;
+    view();
+    await user.click(screen.getByRole('button', { name: 'Use Standard for new work orders' }));
+    expect(h.setDefault.mutateAsync).toHaveBeenCalledWith('t1');
+  });
+
+  it('AC-WBS-010 the default template shows as used and can be cleared', async () => {
+    const user = userEvent.setup();
+    h.templates = { data: [{ id: 't1', name: 'Standard', steps: [{ position: 1, name: 'Survey' }] }], isPending: false, isError: false };
+    h.defaultId = 't1';
+    view();
+    expect(screen.getByTestId('default-step-template')).toHaveTextContent('Used for new work orders');
+    await user.click(screen.getByRole('button', { name: 'Stop using Standard for new work orders' }));
+    expect(h.setDefault.mutateAsync).toHaveBeenCalledWith(null);
+  });
+
+  it('AC-WBS-004 a step takes an owner role and a hidden-from role, and field roles are not offered', async () => {
+    const user = userEvent.setup();
+    view();
+    await user.click(screen.getByRole('button', { name: 'New template' }));
+    await user.click(screen.getByRole('button', { name: 'Add step' }));
+    await user.type(screen.getByLabelText('Template name'), 'Roles');
+    await user.type(screen.getAllByLabelText('Step name')[0], 'Certify');
+    const owner = screen.getByLabelText('Owner on a work order');
+    expect(Array.from(owner.querySelectorAll('option')).map((o) => o.getAttribute('value'))).not.toContain('foreman');
+    expect(Array.from(owner.querySelectorAll('option')).map((o) => o.getAttribute('value'))).not.toContain('field_user');
+    fireEvent.change(owner, { target: { value: 'quantity_surveyor' } });
+    fireEvent.change(screen.getByLabelText('Hide this step from a role'), { target: { value: 'quality_manager' } });
+    expect(screen.getByRole('button', { name: /Show to .* again/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      steps: [expect.objectContaining({ name: 'Certify', ownerRoleKey: 'quantity_surveyor', hiddenFromRoleKeys: ['quality_manager'] })],
+    })));
+  });
+
+  it('a save or Done inside the modal does not submit the form it is opened from (the Billing terms modal stays open)', async () => {
+    const user = userEvent.setup();
+    const outerSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    const onClose = vi.fn();
+    render(<ToastProvider><form onSubmit={outerSubmit}><BillingStepTemplatesModal onClose={onClose} /></form></ToastProvider>);
+    await user.click(screen.getByRole('button', { name: 'New template' }));
+    await user.click(screen.getByRole('button', { name: 'Add step' }));
+    await user.type(screen.getByLabelText('Template name'), 'Nested');
+    await user.type(screen.getAllByLabelText('Step name')[0], 'One');
+    await user.click(screen.getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(outerSubmit).not.toHaveBeenCalled();
   });
 });

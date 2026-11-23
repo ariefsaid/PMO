@@ -71,6 +71,7 @@ export function useDailySiteReportMutations() {
   return {
     save: useMutation({ mutationFn: (input: DsrDraftInput) => repo().saveDraft(input), ...opts }),
     submit: useMutation({ mutationFn: (id: string) => repo().submit(id), ...opts }),
+    withdraw: useMutation({ mutationFn: (id: string) => repo().withdraw(id), ...opts }),
     validate: useMutation({ mutationFn: (id: string) => repo().validate(id), ...opts }),
     returnReport: useMutation({ mutationFn: (v: { id: string; reason: string }) => repo().returnReport(v.id, v.reason), ...opts }),
     correct: useMutation({ mutationFn: (v: { id: string; reason: string }) => repo().correct(v.id, v.reason), ...opts }),

@@ -79,14 +79,14 @@ describe('AC-MRQ-013 waiting for me (unit half)', () => {
   it('AC-MRQ-013 maps the queue and orders it oldest first, keeping who a stand-in acts for', async () => {
     h.result.value = {
       data: [
-        { request_id: 'r2', step_position: 2, role: 'Project Manager', label: 'Billable change', acting_for: 'pm1', submitted_at: '2026-11-19T03:00:00Z' },
-        { request_id: 'r1', step_position: 1, role: 'Engineer', label: 'Plan check', acting_for: null, submitted_at: '2026-11-18T03:00:00Z' },
+        { request_id: 'r2', step_position: 2, role: 'Project Manager', job_role: 'construction_manager', label: 'Billable change', acting_for: 'pm1', submitted_at: '2026-11-19T03:00:00Z' },
+        { request_id: 'r1', step_position: 1, role: 'Engineer', job_role: null, label: 'Plan check', acting_for: null, submitted_at: '2026-11-18T03:00:00Z' },
       ],
       error: null,
     };
     await expect(materialRequestRepository.waitingForMe()).resolves.toEqual([
-      { requestId: 'r1', stepPosition: 1, role: 'Engineer', label: 'Plan check', actingFor: null, submittedAt: '2026-11-18T03:00:00Z' },
-      { requestId: 'r2', stepPosition: 2, role: 'Project Manager', label: 'Billable change', actingFor: 'pm1', submittedAt: '2026-11-19T03:00:00Z' },
+      { requestId: 'r1', stepPosition: 1, role: 'Engineer', jobRole: null, label: 'Plan check', actingFor: null, submittedAt: '2026-11-18T03:00:00Z' },
+      { requestId: 'r2', stepPosition: 2, role: 'Project Manager', jobRole: 'construction_manager', label: 'Billable change', actingFor: 'pm1', submittedAt: '2026-11-19T03:00:00Z' },
     ]);
     expect(h.calls.rpc).toEqual([['mrq_waiting_for_me', undefined]]);
   });
@@ -125,7 +125,7 @@ describe('material request writes', () => {
     expect(dal.materialRequestRefusal(err)).toBe('sodAuthor');
   });
   it('FR-MRQ-005/009/014 configuration calls map their arguments', async () => {
-    await dal.setApprovalChain([{ role: 'Engineer', label: 'Plan check', onlyOverPlan: true }]);
+    await dal.setApprovalChain([{ role: 'Engineer', jobRole: null, label: 'Plan check', onlyOverPlan: true }]);
     await dal.setMaterialRequestCutoff('12:00');
     h.result.value = { data: 's1', error: null };
     await dal.setStandIn({ delegatorId: 'u1', standInId: 'u2', startsOn: '2026-11-20', endsOn: '2026-11-27' });
@@ -134,6 +134,24 @@ describe('material request writes', () => {
       ['mrq_set_cutoff', { p_cutoff: '12:00' }],
       ['mrq_set_stand_in', { p_delegator_id: 'u1', p_stand_in_id: 'u2', p_starts_on: '2026-11-20', p_ends_on: '2026-11-27' }],
     ]);
+  });
+});
+
+describe('roles-that-decide FR-RTD-004 a step naming a built-in role', () => {
+  it('AC-RTD-014 sends the built-in role key for a job-role step and the access level for a plain step', async () => {
+    await dal.setApprovalChain([
+      { role: 'Engineer', jobRole: 'material_coordinator', label: 'Stock check', onlyOverPlan: false },
+      { role: 'Finance', jobRole: null, label: 'Cost check', onlyOverPlan: true },
+    ]);
+    expect(h.calls.rpc).toEqual([['mrq_set_chain', { p_steps: [
+      { job_role: 'material_coordinator', label: 'Stock check', only_over_plan: false },
+      { role: 'Finance', label: 'Cost check', only_over_plan: true },
+    ] }]]);
+  });
+  it('AC-RTD-016 the job-role refusals map to their own keys', () => {
+    expect(dal.materialRequestRefusal({ message: 'MRQ_NOT_JOB_ROLE: this step is for a job role you do not hold' })).toBe('notJobRole');
+    expect(dal.materialRequestRefusal({ message: 'MRQ_JOB_ROLE_OFF: turn on built-in roles' })).toBe('jobRoleOff');
+    expect(dal.materialRequestRefusal({ message: 'MRQ_JOB_ROLE_UNKNOWN: step 1' })).toBe('jobRoleUnknown');
   });
 });
 
@@ -164,7 +182,7 @@ describe('material request detail read', () => {
     const queue: unknown[] = [
       [head],
       [{ id: 'l1', line_no: '1', item_id: 'i1', quantity: '12.5', plan_qty: null, plan_source: null, prior_qty: '3', over_plan_reason: null }],
-      [{ id: 's1', round: 2, position: 1, role: 'Engineer', label: 'Plan check', status: 'open', decided_by: null, acted_for: null, decided_at: null, reason: null }],
+      [{ id: 's1', round: 2, position: 1, role: 'Engineer', job_role: 'storekeeper', label: 'Plan check', status: 'open', decided_by: null, acted_for: null, decided_at: null, reason: null }],
       [{ id: 'e1', action: 'returned', from_status: 'pending', to_status: 'draft', step_position: 1, actor_id: 'u2', acted_for: 'u3', reason: 'split it', created_at: '2026-11-19T00:00:00Z' }],
     ];
     let i = 0;
@@ -174,7 +192,8 @@ describe('material request detail read', () => {
     Object.defineProperty(h.result, 'value', { configurable: true, writable: true, value: { data: null, error: null } });
     expect(d?.round).toBe(2);
     expect(d?.lines).toEqual([{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12.5, planQty: null, planSource: null, priorQty: 3, overPlanReason: null }]);
-    expect(d?.steps[0]).toMatchObject({ position: 1, role: 'Engineer', status: 'open', decidedBy: null });
+    expect(d?.steps[0]).toMatchObject({ position: 1, role: 'Engineer', jobRole: 'storekeeper', status: 'open', decidedBy: null });
+    expect(h.calls.select[2]).toContain('job_role');
     expect(d?.events[0]).toMatchObject({ action: 'returned', actorId: 'u2', actedFor: 'u3', reason: 'split it', stepPosition: 1 });
   });
   it('FR-MRQ-008 an unknown request is null, a failed read throws with its code', async () => {
@@ -221,8 +240,11 @@ describe('material request reads and the rest of the writes', () => {
     ]);
   });
   it('FR-MRQ-005 the approval chain reads in position order', async () => {
-    h.result.value = { data: [{ id: 'c1', position: 1, role: 'Engineer', label: 'Plan check', only_over_plan: true }], error: null };
-    await expect(materialRequestRepository.chain()).resolves.toEqual([{ id: 'c1', position: 1, role: 'Engineer', label: 'Plan check', onlyOverPlan: true }]);
+    h.result.value = { data: [{ id: 'c1', position: 1, role: 'Engineer', job_role: null, label: 'Plan check', only_over_plan: true },
+      { id: 'c2', position: 2, role: 'Project Manager', job_role: 'construction_manager', label: 'Site check', only_over_plan: false }], error: null };
+    await expect(materialRequestRepository.chain()).resolves.toEqual([
+      { id: 'c1', position: 1, role: 'Engineer', jobRole: null, label: 'Plan check', onlyOverPlan: true },
+      { id: 'c2', position: 2, role: 'Project Manager', jobRole: 'construction_manager', label: 'Site check', onlyOverPlan: false }]);
     expect(h.calls.from).toEqual(['approval_chain_steps']);
     expect(h.calls.order).toEqual([['position', { ascending: true }]]);
   });
@@ -272,8 +294,8 @@ describe('material request reads and the rest of the writes', () => {
 
 describe('#2598 step pins', () => {
   it('AC-MRQ-016 reads one project\'s pins and sets or clears one through the RPC', async () => {
-    h.result.value = { data: [{ position: 3, role: 'Finance', approver_id: 'u6' }], error: null };
-    expect(await dal.listStepPins('p1')).toEqual([{ position: 3, role: 'Finance', approverId: 'u6' }]);
+    h.result.value = { data: [{ position: 3, role: 'Finance', job_role: 'finance_officer', approver_id: 'u6' }], error: null };
+    expect(await dal.listStepPins('p1')).toEqual([{ position: 3, role: 'Finance', jobRole: 'finance_officer', approverId: 'u6' }]);
     expect(h.calls.from).toEqual(['approval_step_pins']);
     expect(h.calls.eq).toEqual([['project_id', 'p1']]);
     h.result.value = { data: null, error: null };

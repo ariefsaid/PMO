@@ -124,14 +124,15 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     await bastDialog.getByLabel(new RegExp(`${itemCode} — ${itemDescription}: accepted to date`)).fill('997');
     await bastDialog.getByRole('button', { name: 'Prepare BAST', exact: true }).click();
     await expect(bastDialog).toBeHidden({ timeout: 30_000 });
-    const draft = page.locator(`[data-testid^="bast-"]`).filter({ hasText: 'Draft' });
+    // The prepared BAST row of THIS order (the pending status reads as a sentence now, not the word "Draft").
+    const draft = orderCard.getByRole('region', { name: 'Acceptances (BAST)' }).getByRole('listitem');
     await expect(draft).toContainText(/Final/);
     await expect(draft).toContainText(/997\s*km/);
 
     // --- ...and a DIFFERENT user, Finance, confirms ----------------------------------------------------------
     await signIn(page, 'finance@acme.test');
     await openQuantities(page, projectId, woNumber);
-    await page.getByRole('button', { name: 'Confirm BAST' }).click();
+    await page.getByRole('button', { name: 'Confirm draft BAST' }).click();
     const confirmDialog = page.getByRole('alertdialog', { name: 'Confirm the final BAST?' });
     await expect(confirmDialog).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'Confirm final BAST' }).click();
