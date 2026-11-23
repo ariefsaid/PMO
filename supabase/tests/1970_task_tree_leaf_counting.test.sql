@@ -69,8 +69,8 @@ select set_eq(
               left join tasks t on t.milestone_id = m.id and t.parent_task_id is null and t.archived_at is null
              where m.project_id = %L group by m.id $$, :'Q'),
   'AC-TREE-001: a project with no subtasks reads exactly as the top-level rule did');
-select is((select delivery_pct::numeric(6,2) from get_projects_delivery(array[:'Q'::uuid])), 37.50::numeric(6,2),
-  'AC-TREE-001: its delivery % is unchanged ((50 x 1 + 33.33 x 3) / 4 = 37.50)');
+select is((select delivery_pct::numeric(6,2) from get_projects_delivery(array[:'Q'::uuid])), 50.00::numeric(6,2),
+  'AC-TREE-001: its delivery % is the weighted phase mean ((50 x 1 + 50 x 3) / 4 = 50; the archived task never counts)');
 
 -- Snapshot P before regrouping.
 create temp table before_m on commit drop as
