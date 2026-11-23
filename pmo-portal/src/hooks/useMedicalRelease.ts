@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { QueryClient, QueryClientContext, useMutation, useQuery, type QueryKey } from '@tanstack/react-query';
 import { medicalReleaseRepository } from '@/src/lib/repositories/medicalRelease';
 import { useOptionalOrgId } from '@/src/hooks/useOrgId';
 
@@ -34,16 +34,16 @@ export function useReleaseHolds(date: string | null) {
 }
 
 export function useMedicalReleaseMutations() {
-  const qc = useQueryClient();
+  const qc = useContext(QueryClientContext) ?? IDLE_CLIENT;   // the Approvals page mounts this section; outside a provider it is idle, as the reads are
   const refresh = () => Promise.all(ROOTS.map((r) => qc.invalidateQueries({ queryKey: [r] })));
   return {
     create: useMutation({
       mutationFn: (v: { personId: string; date: string; note: string | null }) => medicalReleaseRepository.create(v.personId, v.date, v.note),
       onSuccess: refresh,
-    }),
+    }, qc),
     decide: useMutation({
       mutationFn: (v: { id: string; decision: 'Approved' | 'Deferred'; note: string | null }) => medicalReleaseRepository.decide(v.id, v.decision, v.note),
       onSuccess: refresh,
-    }),
+    }, qc),
   };
 }

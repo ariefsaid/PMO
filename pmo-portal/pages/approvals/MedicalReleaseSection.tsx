@@ -81,9 +81,8 @@ export const MedicalReleaseSection: React.FC = () => {
   return (
     <section aria-label={t('crews:release.sectionLabel', 'Medical releases')} className="mb-4">
       <Card seam>
-        <CardHead className="flex flex-wrap items-center justify-between gap-2 rounded-t-lg">
-          <span>{t('crews:release.heading', 'Medical releases ({{count}})', { count: rows.length })}</span>
-          {canEnter && <Button variant="outline" size="sm" onClick={() => setOpening(true)}>{t('crews:release.openButton', 'Open a release')}</Button>}
+        <CardHead className="rounded-t-lg" actions={canEnter ? <Button variant="outline" size="sm" onClick={() => setOpening(true)}>{t('crews:release.openButton', 'Open a release')}</Button> : undefined}>
+          {t('crews:release.heading', 'Medical releases ({{count}})', { count: rows.length })}
         </CardHead>
         {problem && <p role="alert" className="px-4 py-2 text-sm text-destructive-text">{problem}</p>}
         {rows.length === 0 ? (

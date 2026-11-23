@@ -73,9 +73,9 @@
     "perMonth": {
       "title": "Ditagih per bulan",
       "error": "Gagal memuat penagihan per bulan",
-      "empty": "Belum ada faktur yang diajukan.",
-      "basis": "Hanya menghitung faktur yang sudah diajukan, tanpa pajak, dalam mata uang perintah kerja. Draf dan klaim yang belum difakturkan tidak termasuk.",
-      "incomplete": "Beberapa faktur tidak dapat dijumlahkan dalam mata uang perintah kerja ini, sehingga angka bulanan tidak ditampilkan.",
+      "empty": "Belum ada invoice yang diajukan.",
+      "basis": "Hanya menghitung invoice yang sudah diajukan, tanpa pajak, dalam mata uang perintah kerja. Draf dan klaim yang belum ditagih tidak termasuk.",
+      "incomplete": "Beberapa invoice tidak dapat dijumlahkan dalam mata uang perintah kerja ini, sehingga angka bulanan tidak ditampilkan.",
       "toDate": "sampai hari ini",
       "total": "Total ditagih"
     }

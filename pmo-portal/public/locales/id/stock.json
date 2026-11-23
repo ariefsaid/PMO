@@ -1034,7 +1034,7 @@
       "summary": "{{accepted}} diterima, {{refused}} ditolak. Tidak ada yang dicatat sebelum Anda mengonfirmasi."
     },
     "closing": {
-      "title": "Saldo akhir",
+      "title": "Sisa akhir",
       "value": "Nilai",
       "clientSupplied": "Dipasok klien"
     },

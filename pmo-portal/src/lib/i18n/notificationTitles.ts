@@ -45,6 +45,7 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Supplier marked at risk': 'supplierAtRisk',
   'Supplier marked inactive': 'supplierInactive',
   'Billing step is overdue': 'billingStepOverdue',
+  'A billing step is waiting for you': 'billingStepWaiting',
   // #2800: the one daily runner's two checklist scans (migration 1832).
   'Close-out item is overdue': 'closeoutItemOverdue',
   'Clearance item is overdue': 'clearanceItemOverdue',

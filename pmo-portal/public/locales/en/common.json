@@ -143,6 +143,10 @@
         "name": "Billing plan",
         "summary": "Sets the monthly billing target, its currency and the reminder for work done but not claimed."
       },
+      "billingSteps": {
+        "name": "Billing steps",
+        "summary": "Chooses the default list of billing steps for a work order and who each step belongs to."
+      },
       "labourCost": {
         "name": "Labour cost",
         "summary": "Costs hours worked at your labour class rates."

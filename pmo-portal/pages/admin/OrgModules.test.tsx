@@ -17,6 +17,7 @@ vi.mock('@/src/hooks/useOrgSwitch', () => ({
 vi.mock('@/src/components/stock/TransferModeSettings', () => ({ TransferModeSettings: () => <p>transfer mode setting</p> }));
 vi.mock('../materialRequests/ApproverInboxSetting', () => ({ ApproverInboxSetting: () => <p>approvals inbox setting</p> }));
 vi.mock('@/src/components/finance/DoneNotClaimedReminder', () => ({ DoneNotClaimedReminder: () => <p>done-not-claimed reminder setting</p> }));
+vi.mock('./IdleCostScopeField', () => ({ default: () => <p>idle cost scope setting</p> }));
 
 import OrgModules from './OrgModules';
 
