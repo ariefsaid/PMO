@@ -67,6 +67,7 @@
     "resultLabel": "Result",
     "title": "Fitness check",
     "type": "Check",
+    "allFit": "Mark all crew members fit",
     "typeNone": "No specific check",
     "visitor": "Or a named visitor",
     "worker": "Worker"

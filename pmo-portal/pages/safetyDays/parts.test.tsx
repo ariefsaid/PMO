@@ -84,6 +84,16 @@ describe('FitnessPart', () => {
     expect(screen.getByLabelText('Worker on the roster')).toHaveValue('');
   });
 
+  it('F23 one tap marks every rostered worker not yet checked as fit, with the chosen check', async () => {
+    const user = userEvent.setup();
+    const done = { id: 'f1', worker_id: 'w1', visitor_name: null, check_type_id: null, result: 'fit' as const, note: null };
+    view(<FitnessPart detail={{ ...base, fitness: [done] }} roster={h.roster} editable seePeople />);
+    await user.selectOptions(screen.getByLabelText('Check'), 'ct1');
+    await user.click(screen.getByRole('button', { name: 'Mark all crew members fit' }));
+    await waitFor(() => expect(h.m.saveFitness.mutateAsync).toHaveBeenCalledTimes(1));
+    expect(h.m.saveFitness.mutateAsync).toHaveBeenCalledWith({ dayId: 'sd1', workerId: 'w2', visitorName: null, checkTypeId: 'ct1', result: 'fit', note: '' });
+  });
+
   it('records a named visitor when no worker is picked', async () => {
     const user = userEvent.setup();
     view(<FitnessPart detail={base} roster={h.roster} editable seePeople />);
