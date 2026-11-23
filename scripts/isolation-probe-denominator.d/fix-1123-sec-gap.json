@@ -1,0 +1,7 @@
+{
+  "definer_functions": [
+    "clearance_document_done(uuid,uuid)",
+    "medical_release_reassign(uuid)",
+    "medical_release_withdraw(uuid,text)"
+  ]
+}

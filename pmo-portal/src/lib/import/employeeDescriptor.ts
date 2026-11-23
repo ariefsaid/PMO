@@ -14,6 +14,11 @@ export interface PeopleImportDeps {
   people: () => Promise<PersonListRow[]>;
   /** Active members of the organisation. */
   managers: readonly ManagerChoice[];
+  /**
+   * Who may set the manager link (1930): an Admin or the people team; only an Admin names themselves. Absent = no refusal at
+   * preview (the database still refuses). `self` is the signed-in person's id.
+   */
+  managerRule?: { may: boolean; maySelf: boolean; self: string | null };
 }
 
 const norm = (v: string | undefined) => (v ?? '').trim().toLowerCase();
@@ -81,6 +86,14 @@ export function makePeopleImportDescriptor(deps: PeopleImportDeps, t?: TFunction
           ...(title !== '' && title !== (p.job_title ?? '') ? { job_title: title } : {}),
           ...(manager && manager !== p.manager_id ? { manager_id: manager } : {}),
         });
+      },
+      refuse: (record, c) => {
+        const rule = deps.managerRule;
+        const manager = managerByEmail(c.manager_id ?? '').id;
+        if (!rule || !manager || manager === (record as PersonListRow | undefined)?.manager_id) return null;
+        if (!rule.may) return { manager_id: L('import:people.error.managerRight', "Only an Admin or the people team (HR) can set a person's direct manager. Leave the manager email blank.") };
+        if (!rule.maySelf && manager === rule.self) return { manager_id: L('import:people.error.managerSelf', "Only an Admin can make themselves a person's direct manager. Name another manager.") };
+        return null;
       },
       noChange: L('import:people.noChange', 'Already in the register with these values.'),
       unavailable: L('import:people.unavailable', 'Could not read the people register, so changes cannot be previewed. Try again.'),

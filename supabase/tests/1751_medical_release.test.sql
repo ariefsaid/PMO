@@ -9,9 +9,14 @@
 --   compare against the live people.manager_id instead of decider_id ... 'AC-MR-002 a Project Manager who made themselves the person''s manager ... cannot decide it' / 'cannot read its row'
 --   make decide check nothing but SoD ............................ 'AC-MR-002 a peer cannot decide'
 --   remove the SoD check from medical_release_decide ............... 'AC-MR-003 the opener cannot decide'
+--   (1934) drop the decider-is-opener test in medical_release_create (mut:sod_decider) ... 'AC-MR-010 the people team cannot open a release they alone would decide'
+--   (1934) drop the right test in medical_release_withdraw (mut:withdraw_right) .......... 'AC-MR-011 a peer cannot withdraw'
+--   (1934) drop the own-release test in medical_release_withdraw (mut:withdraw_self) ..... 'AC-MR-011 the people team cannot withdraw their own release'
+--   (1934) drop the Admin test in medical_release_reassign (mut:reassign_admin) .......... 'AC-MR-012 the people team cannot reassign'
+--   (1934) drop the inactive-decider test in medical_release_reassign (mut:reassign_inactive) 'AC-MR-012 an active decider is not replaced'
 begin;
 create extension if not exists pgtap;
-select plan(40);
+select plan(57);
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('17510000-0000-0000-0000-00000000010a') $$;
 
@@ -188,5 +193,65 @@ select is((select count(*)::int from audit_events where entity_id in (select id 
 select is((select count(*)::int from notifications where owner_id = '17510000-0000-0000-0000-0000000001a3' and metadata->'entity'->>'type' = 'medical_release'), 2,
   'AC-MR-005 the worker with a login is told after each decision; the person with no login is not');
 select is((select count(*)::int from notifications where body ilike '%not yet fit%' or title ilike '%not yet fit%'), 0, 'AC-MR-005 the manager''s reason is not in the notice');
+-- ── AC-MR-010..012 (1934) a release always moves forward ─────────────────────────────────────────────────────
+-- a8: an HR Officer (people team). f04 is a8's own person record; f05 is managed by a8; f06's manager a9 later leaves.
+insert into auth.users (id, email) values
+  ('17510000-0000-0000-0000-0000000001a8', 'mr-hr@example.com'), ('17510000-0000-0000-0000-0000000001a9', 'mr-pm3@example.com');
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
+  ('17510000-0000-0000-0000-0000000001a8', '17510000-0000-0000-0000-00000000010a', 'MR HR', 'mr-hr@example.com', 'Engineer', 'active', 'hr_officer'),
+  ('17510000-0000-0000-0000-0000000001a9', '17510000-0000-0000-0000-00000000010a', 'MR PM Three', 'mr-pm3@example.com', 'Project Manager', 'active', null);
+insert into people (id, org_id, kind, name, profile_id, manager_id) values
+  ('17510000-0000-0000-0000-000000001f04', '17510000-0000-0000-0000-00000000010a', 'own',    'MR HR Person', '17510000-0000-0000-0000-0000000001a8', '17510000-0000-0000-0000-0000000001a2'),
+  ('17510000-0000-0000-0000-000000001f05', '17510000-0000-0000-0000-00000000010a', 'vendor', 'MR HR Report', null, '17510000-0000-0000-0000-0000000001a8'),
+  ('17510000-0000-0000-0000-000000001f06', '17510000-0000-0000-0000-00000000010a', 'vendor', 'MR Leaver Report', null, '17510000-0000-0000-0000-0000000001a9');
+set local role authenticated;
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a8');
+select throws_ok($$ select medical_release_create('17510000-0000-0000-0000-000000001f05', pg_temp.d('t'), null) $$,
+  '42501', null, 'AC-MR-010 the people team cannot open a release they alone would decide');
+select lives_ok($$ insert into mr_ids select 'r3', medical_release_create('17510000-0000-0000-0000-000000001f02', pg_temp.d('p6'), null) $$,
+  'AC-MR-010 the people team still opens a release someone else decides');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a1');
+insert into mr_ids select 'r5', medical_release_create('17510000-0000-0000-0000-000000001f04', pg_temp.d('p7'), null);
+insert into mr_ids select 'r6', medical_release_create('17510000-0000-0000-0000-000000001f06', pg_temp.d('t'), null);
+
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a8');
+select is((select own from medical_releases_visible() where id = (select id from mr_ids where k = 'r5')), true, 'AC-MR-011 the screen knows the release is the caller''s own');
+select throws_ok($$ select medical_release_withdraw((select id from mr_ids where k = 'r5'), 'opened by mistake') $$,
+  '42501', null, 'AC-MR-011 the people team cannot withdraw their own release');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a4');
+select throws_ok($$ select medical_release_withdraw((select id from mr_ids where k = 'r3'), 'wrong date') $$,
+  '42501', null, 'AC-MR-011 a peer cannot withdraw');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a8');
+select throws_ok($$ select medical_release_withdraw((select id from mr_ids where k = 'r3'), '  ') $$,
+  '22023', null, 'AC-MR-011 a withdrawal needs a reason');
+select throws_ok($$ select medical_release_withdraw((select id from mr_ids where k = 'r2'), 'wrong') $$,
+  '23514', 'MR_DECIDED: this release is already approved', 'AC-MR-011 an approved release is not withdrawn');
+select lives_ok($$ select medical_release_withdraw((select id from mr_ids where k = 'r3'), 'opened with the wrong date') $$,
+  'AC-MR-011 the people team withdraws a pending release with a reason');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a1');
+select lives_ok($$ insert into crew_members (crew_id, worker_id, valid_from) values ('17510000-0000-0000-0000-000000001c02', '17510000-0000-0000-0000-000000001f02', pg_temp.d('p6')) $$,
+  'AC-MR-011 once withdrawn, the person is rostered again from that date');
+
+select is((select decider_active from medical_releases_visible() where id = (select id from mr_ids where k = 'r6')), true, 'AC-MR-012 the screen knows the decider is active');
+select throws_ok($$ select medical_release_reassign((select id from mr_ids where k = 'r6')) $$,
+  '23514', 'MR_DECIDER_ACTIVE: the deciding manager is still active and decides this release', 'AC-MR-012 an active decider is not replaced');
+reset role;
+update profiles set status = 'disabled' where id = '17510000-0000-0000-0000-0000000001a9';
+update people set manager_id = '17510000-0000-0000-0000-0000000001a7' where id = '17510000-0000-0000-0000-000000001f06';
+set local role authenticated;
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a8');
+select throws_ok($$ select medical_release_reassign((select id from mr_ids where k = 'r6')) $$,
+  '42501', null, 'AC-MR-012 the people team cannot reassign');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a1');
+select is((select decider_active from medical_releases_visible() where id = (select id from mr_ids where k = 'r6')), false, 'AC-MR-012 the screen knows the decider has left');
+select is(medical_release_reassign((select id from mr_ids where k = 'r6')), '17510000-0000-0000-0000-0000000001a7'::uuid,
+  'AC-MR-012 an Admin moves the decision to the person''s current manager');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a7');
+select is(medical_release_decide((select id from mr_ids where k = 'r6'), 'Approved', null), 'Approved', 'AC-MR-012 the new decider decides');
+reset role;
+select is(public.medical_release_blocks('17510000-0000-0000-0000-000000001f02', null), false, 'AC-MR-011 the withdrawn release holds nothing');
+select is((select count(*)::int from audit_events where action = 'medical_release.withdraw' and actor_id = '17510000-0000-0000-0000-0000000001a8'
+             and detail->>'reason' = 'opened with the wrong date'), 1, 'AC-MR-011 the withdrawal is audited with its reason');
+
 select * from finish();
 rollback;

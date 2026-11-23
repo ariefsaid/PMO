@@ -102,4 +102,31 @@ describe('a member row without an email', () => {
     expect(v[0].valid).toBe(true);
     expect(v[1].errors.manager_id).toMatch(/not found/);
   });
+
+  describe('1930 the manager link: who may set it', () => {
+    const run = async (rule: { may: boolean; maySelf: boolean; self: string | null }, people: PersonListRow[], rows: string[][]) => {
+      const d = makePeopleImportDescriptor({ people: async () => people, managers, managerRule: rule });
+      const mapping = autoMap(HEAD, d.fields);
+      const records = new Map(await d.matchExisting!.load());
+      return applyMatches(validateRows(rows, d.fields, mapping), rows.map((r) => rowToCells(r, d.fields, mapping)), d.matchExisting!, records);
+    };
+    const pm = { may: false, maySelf: false, self: 'm2' };
+    it('a row that would change the manager is refused for that row, with who can, when the caller lacks the right', async () => {
+      const out = await run(pm, [person({ manager_id: 'm1' })], [['P-0001', 'Ana', '', 'other@example.org'], ['E-9', 'Budi', '', 'lead@example.org']]);
+      expect(out[0]).toMatchObject({ valid: false });
+      expect(out[0].errors.manager_id).toMatch(/Only an Admin or the people team/);
+      expect(out[1].errors.manager_id).toMatch(/Only an Admin or the people team/);
+    });
+    it('the same caller still updates a person when the manager stays as it is (legacy rows unchanged)', async () => {
+      const out = await run(pm, [person({ manager_id: 'm1' })], [['P-0001', 'Ana Putri', '', 'lead@example.org']]);
+      expect(out[0]).toMatchObject({ valid: true, action: 'update' });
+    });
+    it('the people team sets another person as manager, but never themselves; an Admin may', async () => {
+      const hr = { may: true, maySelf: false, self: 'm2' };
+      expect((await run(hr, [person({})], [['P-0001', 'Ana', '', 'lead@example.org']]))[0]).toMatchObject({ valid: true, action: 'update' });
+      const self = await run(hr, [person({})], [['P-0001', 'Ana', '', 'other@example.org']]);
+      expect(self[0].errors.manager_id).toMatch(/Only an Admin can make themselves/);
+      expect((await run({ may: true, maySelf: true, self: 'm2' }, [person({})], [['P-0001', 'Ana', '', 'other@example.org']]))[0]).toMatchObject({ valid: true });
+    });
+  });
 });

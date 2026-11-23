@@ -306,7 +306,9 @@
       "name": "Display name is required.",
       "nameLong": "Display name is too long.",
       "jobTitleLong": "Job title is too long.",
-      "repeat": "This employee code already appears in row {n}."
+      "repeat": "This employee code already appears in row {n}.",
+      "managerRight": "Only an Admin or the people team (HR) can set a person's direct manager. Leave the manager email blank.",
+      "managerSelf": "Only an Admin can make themselves a person's direct manager. Name another manager."
     },
     "job_title": "Job title",
     "manager_id": "Manager email",

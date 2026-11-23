@@ -11,4 +11,6 @@ export const medicalReleaseRepository = {
   create: (personId: string, date: string, note: string | null) => wrap(() => release.createMedicalRelease(personId, date, note)),
   decide: (id: string, decision: 'Approved' | 'Deferred', note: string | null) => wrap(() => release.decideMedicalRelease(id, decision, note)),
   holds: (date: string) => wrap(() => release.listReleaseHolds(date)),
+  withdraw: (id: string, reason: string) => wrap(() => release.withdrawMedicalRelease(id, reason)),
+  reassign: (id: string) => wrap(() => release.reassignMedicalRelease(id)),
 };

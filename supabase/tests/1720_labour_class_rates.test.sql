@@ -2,9 +2,10 @@
 -- Migration under test: 1720_labour_class_rates.sql.
 -- AC-NLL-009 class rate writes · AC-NLL-010 assignment writes, reads, org scope · AC-NLL-011 history locks (switch on and off).
 -- Mutation check M4 (plan): `labour_class_locked` returning false turns AC-NLL-011 red; M3 (b) turns the PM read red.
+-- 1937: drop the login test in save_labour_class_assignment (mut:no_login) -> 'AC-NLL-010 a person who signs in cannot be given a class' goes red.
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(33);
 
 insert into organizations (id, name, default_currency) values
   ('17200000-0000-0000-0000-00000000000a', 'Class Rate Org A', 'IDR'),
@@ -32,6 +33,7 @@ insert into crews (id, org_id, code, name) values
 insert into people (id, org_id, kind, code, name, profile_id) values
   ('17200000-0000-0000-0000-000000000f01', '17200000-0000-0000-0000-00000000000a', 'own', 'CR-N1', 'Worker One', null),
   ('17200000-0000-0000-0000-000000000f02', '17200000-0000-0000-0000-00000000000a', 'own', 'CR-N2', 'Worker Two', null),
+  ('17200000-0000-0000-0000-000000000f03', '17200000-0000-0000-0000-00000000000a', 'own', 'CR-L3', 'Worker With Login', '17200000-0000-0000-0000-0000000000a4'),
   ('17200000-0000-0000-0000-000000000f09', '17200000-0000-0000-0000-00000000000b', 'own', 'CR-B9', 'Other Org Worker', null);
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
@@ -96,6 +98,10 @@ select throws_ok(format($$select public.save_labour_class_assignment(%L::jsonb)$
 select throws_ok(format($$select public.save_labour_class_assignment(%L::jsonb)$$,
                         pg_temp.assign('17200000-0000-0000-0000-000000000f09', pg_temp.cls('direct'), '2026-11-01')),
   '22023', null, 'AC-NLL-010 a person of another organisation cannot be assigned');
+select throws_ok(format($$select public.save_labour_class_assignment(%L::jsonb)$$,
+                        pg_temp.assign('17200000-0000-0000-0000-000000000f03', pg_temp.cls('direct'), '2026-11-01')),
+  '23514', 'LCM_HAS_LOGIN: this person signs in, so their hours are costed on their timesheet; a class is for people with no login',
+  'AC-NLL-010 a person who signs in cannot be given a class');
 select throws_ok(format($$select public.save_labour_class_assignment(%L::jsonb)$$,
                         pg_temp.assign('17200000-0000-0000-0000-000000000f01', pg_temp.cls('guard'), '2026-12-01')),
   '22023', null, 'AC-NLL-010 an archived class cannot be assigned');

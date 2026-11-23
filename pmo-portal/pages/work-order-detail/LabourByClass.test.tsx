@@ -43,4 +43,19 @@ describe('labour cost by class on the work-order page', () => {
     render1([line({ amount: '50.00' }), line({ source: 'timesheet_entry', amount: null, reason: 'no-rate', quantity: 8, quantityUnit: 'hours' })]);
     expect(screen.queryByTestId('wo-page-pva-labour')).toBeNull();
   });
+
+  it('1933 a Project Manager\'s class-priced money shows as one line with no class and no hours, inside the direct cost', () => {
+    render1([
+      line({ source: 'timesheet_entry', recordId: null, labourClassId: 'direct', amount: '700000.00', quantity: 14, quantityUnit: 'hours' }),
+      line({ source: 'attendance_day', recordId: null, amount: '440000.00', quantity: null, quantityUnit: 'hours' }),
+      line({ source: 'headcount_day', recordId: null, amount: '960000.00', quantity: null, quantityUnit: 'hours' }),
+    ]);
+    const block = screen.getByTestId('wo-page-pva-labour');
+    expect(within(block).getByTestId('wo-page-pva-labour-direct').textContent).toContain('14');
+    const all = within(block).getByTestId('wo-page-pva-labour-all');
+    expect(within(all).getByText('Crew and head count, all classes')).toBeVisible();
+    expect(all.textContent).toContain('—');
+    expect(all.textContent).toContain(formatExactMoney('1400000.00', 'IDR', 'en-US'));
+    expect(screen.getByTestId('wo-page-pva-direct').textContent).toContain(formatExactMoney('2100000.00', 'IDR', 'en-US'));
+  });
 });

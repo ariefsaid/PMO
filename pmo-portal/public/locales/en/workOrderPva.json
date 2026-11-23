@@ -146,6 +146,7 @@
     "hours": "Hours",
     "cost": "Cost",
     "unknownClass": "Other class",
+    "allClasses": "Crew and head count, all classes",
     "note": "Part of the direct cost above, from approved hours at each person's cost rate."
   },
   "performance": {

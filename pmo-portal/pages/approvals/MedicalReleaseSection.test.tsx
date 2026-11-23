@@ -7,7 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string, viewAs: null as string | null, canEnter: false, rows: [] as unknown[],
-  decide: vi.fn(), create: vi.fn(),
+  decide: vi.fn(), create: vi.fn(), withdraw: vi.fn(), reassign: vi.fn(),
 }));
 vi.mock('@/src/hooks/useMedicalRelease', () => ({
   useMedicalReleases: () => ({ data: h.rows }),
@@ -15,6 +15,7 @@ vi.mock('@/src/hooks/useMedicalRelease', () => ({
   useReleasePeople: () => ({ data: [{ id: 'p1', name: 'Ana' }] }),
   useMedicalReleaseMutations: () => ({
     decide: { mutateAsync: h.decide, isPending: false }, create: { mutateAsync: h.create, isPending: false },
+    withdraw: { mutateAsync: h.withdraw, isPending: false }, reassign: { mutateAsync: h.reassign, isPending: false },
   }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
@@ -26,7 +27,7 @@ import { MedicalReleaseSection } from './MedicalReleaseSection';
 
 const row = (o: Record<string, unknown> = {}) => ({
   id: 'r1', person_id: 'p1', person_name: 'Ana', release_date: '2026-11-20', status: 'Pending', note: null,
-  decided_at: null, decision_note: null, can_decide: false, ...o,
+  decided_at: null, decision_note: null, can_decide: false, own: false, decider_active: true, ...o,
 });
 const page = () => render(<MemoryRouter><ToastProvider><MedicalReleaseSection /></ToastProvider></MemoryRouter>);
 
@@ -34,6 +35,7 @@ describe('medical release section (AC-MR-009)', () => {
   beforeEach(() => {
     h.role = 'Project Manager'; h.viewAs = null; h.canEnter = false; h.rows = [];
     h.decide = vi.fn().mockResolvedValue(undefined); h.create = vi.fn().mockResolvedValue('r9');
+    h.withdraw = vi.fn().mockResolvedValue(undefined); h.reassign = vi.fn().mockResolvedValue(undefined);
   });
 
   it('renders nothing when there is no release and the viewer cannot open one', () => {
@@ -83,5 +85,37 @@ describe('medical release section (AC-MR-009)', () => {
     await user.selectOptions(screen.getByLabelText(/Person/), 'p1');
     await user.click(screen.getByRole('button', { name: 'Open release' }));
     expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ personId: 'p1', note: null }));
+  });
+
+  it('an Admin withdraws a waiting release with a reason (1934)', async () => {
+    const user = userEvent.setup();
+    h.role = 'Admin'; h.rows = [row()];
+    page();
+    await user.click(screen.getByRole('button', { name: 'Withdraw' }));
+    await user.type(screen.getByRole('textbox'), 'opened with the wrong date');
+    await user.click(screen.getAllByRole('button', { name: 'Withdraw' }).at(-1)!);
+    expect(h.withdraw).toHaveBeenCalledWith({ id: 'r1', reason: 'opened with the wrong date' });
+  });
+
+  it('nobody is offered Withdraw on their own release, and a Project Manager is offered neither action', () => {
+    h.role = 'Admin'; h.rows = [row({ own: true })];
+    const { unmount } = page();
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
+    unmount();
+    h.role = 'Project Manager'; h.rows = [row({ decider_active: false })];
+    page();
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Move to current manager' })).toBeNull();
+  });
+
+  it('an Admin moves a release to the current manager only once the fixed decider has left (1934)', async () => {
+    h.role = 'Admin'; h.rows = [row()];
+    const { unmount } = page();
+    expect(screen.queryByRole('button', { name: 'Move to current manager' })).toBeNull();
+    unmount();
+    h.rows = [row({ decider_active: false })];
+    page();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Move to current manager' }));
+    expect(h.reassign).toHaveBeenCalledWith('r1');
   });
 });

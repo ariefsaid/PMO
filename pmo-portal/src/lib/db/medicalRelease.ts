@@ -24,6 +24,10 @@ export interface MedicalReleaseRow {
   decided_at: string | null;
   decision_note: string | null;
   can_decide: boolean;
+  /** The release is the viewer's own (never withdrawn by them). */
+  own: boolean;
+  /** The decider fixed at opening is still an active member (an Admin reassigns only one who has left). */
+  decider_active: boolean;
 }
 export interface ReleasePerson { id: string; name: string }
 
@@ -57,6 +61,18 @@ export async function createMedicalRelease(personId: string, date: string, note:
   fail(error);
   // The function returns the new release's id or raises; it never resolves null.
   return data as string;
+}
+
+/** An Admin or the people team withdraws a release that is not approved, with a reason (1934); the roster block lifts. */
+export async function withdrawMedicalRelease(id: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('medical_release_withdraw', { p_id: id, p_reason: reason });
+  fail(error);
+}
+
+/** An Admin moves a release to the person's current direct manager once the fixed decider has left (1934). */
+export async function reassignMedicalRelease(id: string): Promise<void> {
+  const { error } = await supabase.rpc('medical_release_reassign', { p_id: id });
+  fail(error);
 }
 
 export async function decideMedicalRelease(id: string, decision: 'Approved' | 'Deferred', note: string | null): Promise<void> {

@@ -20,7 +20,7 @@ vi.mock('@/src/hooks/useAttendanceSecondRecords', () => ({
 import SiteReportPeopleHours from './SiteReportPeopleHours';
 
 const worker = (over: Record<string, unknown> = {}) => ({
-  workerId: 'w1', name: 'Budi', undecided: false, mine: false,
+  workerId: 'w1', name: 'Budi', undecided: false, mine: false, own: false,
   day: { status: 'present', hours: 8, overtimeHours: null, source: 'roster_tick' }, second: null, ...over,
 });
 const view = (data: Partial<ReportDayHours>) => {
@@ -63,6 +63,13 @@ describe('SiteReportPeopleHours', () => {
     const row = screen.getByTestId('dsr-people-row-w1');
     expect(within(row).getByRole('button', { name: 'Decide' })).toBeDisabled();
     expect(row).toHaveTextContent('You recorded one of these figures. Someone else decides.');
+  });
+  it('1932 on the viewer\'s own working day: no second record to add, and Decide says someone else decides', () => {
+    view({ mayEnter: true, mayDecide: true, workers: [worker({ undecided: true, own: true, second: { status: 'present', hours: 5, overtimeHours: null, note: null, standing: null, decidedAt: null, decisionReason: null } })] });
+    const row = screen.getByTestId('dsr-people-row-w1');
+    expect(within(row).getByRole('button', { name: 'Decide' })).toBeDisabled();
+    expect(row).toHaveTextContent('This is your own working day. Someone else decides.');
+    expect(within(row).queryByRole('button', { name: 'Add second record' })).toBeNull();
   });
   it('sends the chosen side with its reason', async () => {
     const user = userEvent.setup();

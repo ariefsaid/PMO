@@ -3,14 +3,14 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import type { Role } from '@/src/auth/AuthContext';
+import { AuthContext, type AuthContextValue, type Role } from '@/src/auth/AuthContext';
 
 const h = vi.hoisted(() => ({
   role: 'Admin' as string,
   people: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   create: vi.fn(), update: vi.fn(), markLeft: vi.fn(),
   // one stable function, like the real hook: a Combobox reloads when its loader's identity changes
-  loadProfiles: () => Promise.resolve([{ id: 'u1', full_name: 'Sari Dewi', status: 'active' }, { id: 'u2', full_name: 'Former Boss', status: 'disabled' }]),
+  loadProfiles: () => Promise.resolve([{ id: 'u1', full_name: 'Sari Dewi', status: 'active' }, { id: 'u2', full_name: 'Former Boss', status: 'disabled' }, { id: 'u3', full_name: 'Rina Putri', status: 'active' }]),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 vi.mock('@/src/hooks/usePeople', () => ({
@@ -27,7 +27,10 @@ vi.mock('./PersonDocumentImport', () => ({ PersonDocumentImport: () => null }));
 import People from './People';
 
 const person = (over: Record<string, unknown> = {}) => ({ id: 'p1', code: 'P-0001', name: 'Budi Santoso', job_title: 'Welder', profile_id: null, manager_id: null, ...over });
-const renderPage = () => render(<MemoryRouter><ToastProvider><People /></ToastProvider></MemoryRouter>);
+const renderPage = (me?: { id: string; built_in_role: string | null }) => render(
+  me
+    ? <AuthContext.Provider value={{ currentUser: me } as unknown as AuthContextValue}><MemoryRouter><ToastProvider><People /></ToastProvider></MemoryRouter></AuthContext.Provider>
+    : <MemoryRouter><ToastProvider><People /></ToastProvider></MemoryRouter>);
 
 describe('People register screen', () => {
   beforeEach(() => {
@@ -118,5 +121,26 @@ describe('People register screen', () => {
     renderPage();
     expect(screen.getByText(/^No people yet/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Add person' }).length).toBeGreaterThan(0);
+  });
+
+  it('1930 a Project Manager without the people-documents right sees the manager but cannot change it', async () => {
+    const user = userEvent.setup();
+    h.role = 'Project Manager';
+    renderPage({ id: 'u9', built_in_role: 'project_manager' });
+    await user.click(screen.getByRole('button', { name: /Edit Budi Santoso/ }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByRole('combobox', { name: /Direct manager/ })).toBeDisabled();
+    expect(dialog.getByText(/Only an Admin or the people team \(HR\) can change the direct manager/)).toBeInTheDocument();
+  });
+
+  it('1930 the people team (HR Manager) sets another person as manager, never themselves', async () => {
+    const user = userEvent.setup();
+    h.role = 'Project Manager';
+    renderPage({ id: 'u1', built_in_role: 'hr_manager' });
+    await user.click(screen.getByRole('button', { name: /Edit Budi Santoso/ }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.click(dialog.getByRole('combobox', { name: /Direct manager/ }));
+    expect(await screen.findByRole('option', { name: /Rina Putri/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Sari Dewi/ })).toBeNull();
   });
 });

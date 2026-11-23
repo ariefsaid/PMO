@@ -147,6 +147,11 @@ export interface MatchExisting {
   /** What the row would change on the record; empty = no change. A blank cell never appears here (it never clears). */
   changes: (record: unknown, cells: Record<string, string>) => RowChange[];
   update: (record: unknown, cells: Record<string, string>) => Promise<unknown>;
+  /**
+   * OPTIONAL: a valid row the caller may not apply, keyed by field (the record it matches, or undefined for a new row). The row is
+   * refused with that sentence at preview and written nowhere; the database refuses it too (people import: the manager link, 1930).
+   */
+  refuse?: (record: unknown, cells: Record<string, string>) => Record<string, string> | null;
   /** Under a no-change row's Status. */
   noChange: string;
   /** One line when `load` failed (confirm stays disabled). */

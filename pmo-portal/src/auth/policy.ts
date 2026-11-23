@@ -47,6 +47,9 @@ export type Action =
   | 'confirm_employee_link'
   | 'upload'
   | 'withdraw'
+  | 'reassign'
+  | 'setManager'
+  | 'setSelfAsManager'
   | 'cancel'
   | 'post'
   | 'confirm'
@@ -1246,6 +1249,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   medicalRelease: {
     decide: allowUnlessViewOnly(ALL),
     create: allowUnlessViewOnly(ALL),
+    /** 1934: an Admin or the people team withdraws a release that is not approved, never their own (`record.own`). */
+    withdraw: (role, ctx) => ctx.record?.viewOnly !== true && ctx.record?.status !== 'Approved' && ctx.record?.own !== true
+      && (role === 'Admin' || roleHasCapability(ctx.builtInRoleKey, 'people_documents_view')),
+    /** 1934: an Admin moves a release that is not approved to the person's current manager once its decider has left. */
+    reassign: (role, ctx) => ctx.record?.viewOnly !== true && role === 'Admin' && ctx.record?.status !== 'Approved'
+      && ctx.record?.decider_active === false,
   },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
   attendance: {
@@ -1324,6 +1333,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allowUnlessViewOnly(['Admin', 'Project Manager']),
     edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
     archive: allowUnlessViewOnly(ADMIN),
+    /** The direct manager link (1930): an Admin or the people team (the people-documents right). The trigger is the authority. */
+    setManager: (role, ctx) => ctx.record?.viewOnly !== true
+      && (role === 'Admin' || roleHasCapability(ctx.builtInRoleKey, 'people_documents_view')),
+    /** Naming oneself as the manager (1930): an Admin only. */
+    setSelfAsManager: allowUnlessViewOnly(ADMIN),
   },
   /**
    * Cleared-for-site checklist (#2707, migrations 1235-1237). UX ONLY — RLS is the authority (ADR-0016). Admin defines the items and

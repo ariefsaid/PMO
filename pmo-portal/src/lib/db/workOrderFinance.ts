@@ -43,10 +43,11 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
     supabase.rpc('work_order_cost_amounts', { p_project_id: projectId })
       .order('record_id', { ascending: true }).order('source', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
   return rows.map((r) => {
-    // Labour money for a Project Manager is aggregate (migrations 1298, 1721, 1722): one row per work order, discipline and
-    // class, with no record id and no date. Every other row resolves to its record.
+    // Labour money for a Project Manager is aggregate (migrations 1298, 1721, 1722, 1933): timesheet money one row per work order,
+    // discipline and class; class-priced money (attendance, head count) one row per work order and discipline with no class and no
+    // quantity. No record id and no date either way. Every other row resolves to its record.
     const aggregatedLabour = (r.source === 'timesheet_entry' || r.source === 'attendance_day' || r.source === 'headcount_day') && r.reason === 'counted'
-      && !!r.labour_class_id && r.record_id === null;
+      && r.record_id === null && (!!r.labour_class_id || r.source !== 'timesheet_entry');
     if (!SOURCES.includes(r.source as FinanceCostSource) || !REASONS.includes(r.reason as CostReason)
         || (!aggregatedLabour && !str(r.record_id))) {
       throw new AppError('Work-order cost read: unexpected row', MALFORMED);

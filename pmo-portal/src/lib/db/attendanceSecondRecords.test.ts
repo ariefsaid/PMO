@@ -28,14 +28,15 @@ describe('getReportDayHours', () => {
         worker_id: 'w1', name: 'One', day: { status: 'present', hours: 8, overtime_hours: 1, source: 'roster_tick' },
         second: { status: 'present', hours: 5, overtime_hours: null, note: 'sheet', standing: null, decided_at: null, decision_reason: null },
         undecided: true, mine: false,
-      }, { worker_id: 'w2', name: 'Two', day: null, second: null, undecided: false, mine: false }],
+      }, { worker_id: 'w2', name: 'Two', day: null, second: null, undecided: false, mine: false, own: true }],
     } });
     const r = await getReportDayHours('rep');
     expect(h.rpc).toHaveBeenCalledWith('attendance_report_day_hours', { p_report: 'rep' });
     expect(r.mayEnter).toBe(true);
     expect(r.mayDecide).toBe(false);
     expect(r.workers[0]).toMatchObject({ workerId: 'w1', undecided: true, day: { hours: 8, overtimeHours: 1, source: 'roster_tick' }, second: { hours: 5, note: 'sheet' } });
-    expect(r.workers[1]).toMatchObject({ day: null, second: null });
+    expect(r.workers[1]).toMatchObject({ day: null, second: null, own: true });
+    expect(r.workers[0].own).toBe(false);
   });
   it('a role without detail gets no rows', async () => {
     h.queue.push({ error: null, data: { detail: false, may_enter: false, may_decide: false, workers: [] } });

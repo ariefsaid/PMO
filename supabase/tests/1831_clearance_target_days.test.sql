@@ -17,10 +17,14 @@
 --        reddens 'AC-CTD-005 a recorded clearance row removes the item from the due list'
 --   1831 notices policy `and (select public.auth_role()) in (...)` widened to remove a role
 --        reddens the role-parity assertions ('AC-CTD-007 an Engineer reads no notice, exactly as no clearance row')
+--   1935 read person_clearance_due's document-tied items from expiry_documents again (invoker)
+--        reddens 'AC-CTD-008 a manager sees a done medical item as done'
+--   1935 drop the reader test in clearance_document_done (mut:reader)
+--        reddens 'AC-CTD-008 the helper answers no about a person the caller cannot read'
 begin;
 create extension if not exists pgtap;
 -- Assertions are counted below with `grep -cE '^select (is|ok|lives_ok|throws_ok)'`; update the plan with the file.
-select plan(53);
+select plan(57);
 
 insert into organizations (id, name, default_currency, default_timezone, clearance_checklist_enabled, built_in_roles_enabled) values
   ('28310000-0000-0000-0000-0000000000a1', 'CTD Clearance A', 'IDR', 'Pacific/Kiritimati', true, true),
@@ -260,6 +264,37 @@ select is(pg_temp.detail($q$select * from person_clearance_due()$q$), '42501 ',
   'AC-CTD-007 anon cannot read the due list');
 select is(pg_temp.detail($q$select public.clearance_due_on(now(), now(), 5::smallint, 'UTC')$q$), '42501 ',
   'AC-CTD-007 anon cannot call the due-day seam');
+reset role;
+
+-- ── AC-CTD-008 (1935) an item tied to a medical document type reads "done" for a manager who cannot see the document ─────────
+reset role;
+insert into document_types (id, org_id, name, applies_to, is_medical) values
+  ('28310000-0000-0000-0000-000000000d02', '28310000-0000-0000-0000-0000000000a1', 'Fitness medical', 'person', true);
+insert into clearance_items (id, org_id, name, is_required, sort_order, created_by, target_days, document_type_id) values
+  ('28310000-0000-0000-0000-000000000c04', '28310000-0000-0000-0000-0000000000a1', 'Fitness check', true, 5, '28310000-0000-0000-0000-000000000b01', 5, '28310000-0000-0000-0000-000000000d02');
+set local session_replication_role = replica;
+update clearance_items set target_set_at = now() - interval '20 days' where id = '28310000-0000-0000-0000-000000000c04';
+set local session_replication_role = origin;
+insert into people (id, org_id, code, name, created_by, created_at, manager_id) values
+  ('28310000-0000-0000-0000-000000000e07', '28310000-0000-0000-0000-0000000000a1', 'CTDC-8', 'Managed Fit',
+   '28310000-0000-0000-0000-000000000b03', now() - interval '10 days', '28310000-0000-0000-0000-000000000b02'),
+  ('28310000-0000-0000-0000-000000000e08', '28310000-0000-0000-0000-0000000000a1', 'CTDC-9', 'Managed Unchecked',
+   '28310000-0000-0000-0000-000000000b03', now() - interval '10 days', '28310000-0000-0000-0000-000000000b02');
+insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, issued_on, expires_on, medical_status) values
+  ('28310000-0000-0000-0000-000000000f02', '28310000-0000-0000-0000-0000000000a1', 'person',
+   '28310000-0000-0000-0000-000000000e07', '28310000-0000-0000-0000-000000000d02', current_date - 5, current_date + 300, 'fit');
+-- b02: a Project Manager (reads clearance, cannot read medical documents) who is these people's direct manager.
+select pg_temp.as_user('b02');
+select is(pg_temp.rows_for('28310000-0000-0000-0000-000000000e07', '28310000-0000-0000-0000-000000000c04'), 0,
+  'AC-CTD-008 a manager sees a done medical item as done (not due, not overdue)');
+select is((select overdue from person_clearance_due() where person_id = '28310000-0000-0000-0000-000000000e08' and item_id = '28310000-0000-0000-0000-000000000c04'), true,
+  'AC-CTD-008 an item with no document stays overdue for the manager');
+select is((select count(*)::int from expiry_documents where id = '28310000-0000-0000-0000-000000000f02'), 0,
+  'AC-CTD-008 the manager still reads no medical document');
+reset role;
+select pg_temp.as_user('b61');
+select is(public.clearance_document_done('28310000-0000-0000-0000-000000000e07', '28310000-0000-0000-0000-000000000d02'), false,
+  'AC-CTD-008 the helper answers no about a person the caller cannot read');
 reset role;
 
 select * from finish();

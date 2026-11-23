@@ -8,9 +8,12 @@
 --   actor_may_run_billing_steps returns true ................ 'AC-WBS-005 a reader without the run right ... is refused'
 --   drop the `not coalesce(... any (p_hidden) ...)` term in wo_step_readable ... 'AC-WBS-004 a role the step is hidden from reads ...' (steps and documents)
 --   drop `perform public.assert_not_light()` from complete_work_order_step ........ 'AC-WBS-005 a field account is refused ... complete'
+--   (1936) owner key = built-in role again in wo_step_readable (mut:readable) ..... 'AC-WBS-004 a person with no role key reads only the step ...'
+--   (1936) same in wo_step_owner_matches (mut:owner) ................................ 'AC-WBS-011 a Finance-level person with no job role owns ...'
+--   (1936) same in notify_wo_step_opened (mut:notify) ............................... 'AC-WBS-011 ... is told when it opens'
 begin;
 create extension if not exists pgtap;
-select plan(89);
+select plan(94);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('17700000-0000-0000-0000-0000000000a1', 'WBS Org A', 'IDR', 'UTC', true),
@@ -134,7 +137,8 @@ select is((select count(*)::int from work_order_billing_step_documents d where d
 select pg_temp.as_user('b6');
 select is((select count(*)::int from work_order_billing_steps), 0, 'AC-WBS-004 a role without the see right reads no step');
 select pg_temp.as_user('b9');
-select is((select count(*)::int from work_order_billing_steps), 0, 'AC-WBS-004 a person with no role key and an Engineer level reads no step');
+select is((select string_agg(position::text, ',' order by position) from work_order_billing_steps), '1',
+  'AC-WBS-004 a person with no role key reads only the step whose owner role is built on their Engineer level (holds_job_role, 1936)');
 select pg_temp.as_user('b8');
 select is((select count(*)::int from work_order_billing_steps), 3, 'AC-WBS-004 a person with no role key keeps today''s claim-step readers (Finance)');
 select pg_temp.as_user('b7');
@@ -291,8 +295,8 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
 update work_orders set status = 'Issued', issued_at = now() where id = '17700000-0000-0000-0000-000000000038';
 select is((select string_agg(o.recipient_id::text, ',' order by o.recipient_id::text) from email_outbox o join notifications n on n.id = o.notification_id
             where n.metadata->'entity'->>'id' = '17700000-0000-0000-0000-000000000038' and o.event_key = 'billing_step'),
-  '17700000-0000-0000-0000-0000000000b3,17700000-0000-0000-0000-0000000000b4,17700000-0000-0000-0000-0000000000bb,17700000-0000-0000-0000-0000000000bc',
-  'AC-WBS-008 the owner and the managers who may see the step are emailed; the hidden role, engineers without the right and the field account are not');
+  '17700000-0000-0000-0000-0000000000b3,17700000-0000-0000-0000-0000000000b4,17700000-0000-0000-0000-0000000000b9,17700000-0000-0000-0000-0000000000bb,17700000-0000-0000-0000-0000000000bc',
+  'AC-WBS-008 the owners (the role holder and the Engineer with no job role, 1936) and the managers who may see the step are emailed; the hidden role, engineers without the right and the field account are not');
 
 -- ── security: naming a person the step is hidden from is Finance or Admin only ────────────────────────────────────────────────────────────
 select pg_temp.as_user('b3');
@@ -301,6 +305,24 @@ select is(pg_temp.err(format('select assign_work_order_step(%L, %L)', pg_temp.st
 select pg_temp.as_user('b2');
 select is(pg_temp.err(format('select assign_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000038', 1), '17700000-0000-0000-0000-0000000000b5')), 'ok',
   'AC-WBS-004 Finance can');
+reset role;
+
+-- ── AC-WBS-011 (1936) the owner is decided by holds_job_role: a person with no job role at the matching level owns the step ─────────────
+select pg_temp.as_user('b1');
+select is((select set_billing_step_template_roles(current_setting('wbs.tpl')::uuid, '[{"position":1,"owner_role_key":"finance_manager"}]'::jsonb)), 1,
+  'AC-WBS-011 Admin makes the finance manager role the owner of the one-step template');
+reset role;
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('17700000-0000-0000-0000-000000000039', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS finance owner', 'Draft', 10000, 'exclusive', 0);
+update work_orders set status = 'Issued', issued_at = now() where id = '17700000-0000-0000-0000-000000000039';
+select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000b8' and body like '%WBS finance owner%'), 1,
+  'AC-WBS-011 a Finance-level person with no job role owns a finance-manager step and is told when it opens');
+select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000b2' and body like '%WBS finance owner%'), 0,
+  'AC-WBS-011 a person holding a different job role (finance officer) is not told');
+select pg_temp.as_user('b8');
+select is((select count(*)::int from my_waiting_work_order_steps()), 1, 'AC-WBS-011 the Finance-level person with no job role has it on their waiting list');
+select pg_temp.as_user('b2');
+select is((select count(*)::int from my_waiting_work_order_steps()), 0, 'AC-WBS-011 the holder of a different job role does not');
 reset role;
 
 select * from finish();

@@ -65,7 +65,7 @@ describe('rollupProject — labour cost by class (#2670)', () => {
   });
 });
 
-const attendance = (workOrderId: string | null, classId: string | null, amount: string | null, hours: number, extra: Partial<CostAmountLine> = {}) =>
+const attendance = (workOrderId: string | null, classId: string | null, amount: string | null, hours: number | null, extra: Partial<CostAmountLine> = {}) =>
   line({ source: 'attendance_day', workOrderId, labourClassId: classId, amount, quantity: hours, quantityUnit: 'hours', personId: 'w1',
          reason: amount === null ? 'no-rate' : 'counted', currency: amount === null ? null : 'IDR', ...extra });
 
@@ -98,10 +98,16 @@ describe('rollupProject — approved hours of people with no login (no-login-lab
     expect(f.direct).toBe('720000.00');
   });
 
-  it('AC-NLL-013 a Project Manager aggregate attendance row (no record, no person) still counts its hours and money', () => {
-    const r = run([wo('A')], [attendance('A', 'direct', '440000.00', 10, { recordId: null, occurredOn: null, personId: null })]);
-    expect(r.workOrders[0].crewHours).toBe(10);
-    expect(r.workOrders[0].labour).toEqual([{ classId: 'direct', hours: 10, amount: '440000.00' }]);
+  it('AC-NLL-013 a Project Manager aggregate attendance row (no record, no class, no hours, 1933) counts its money once as one labour line', () => {
+    const r = run([wo('A')], [
+      labour('A', 'direct', '400000.00', 8, { recordId: null, personId: null }),
+      attendance('A', null, '440000.00', null, { recordId: null, occurredOn: null, personId: null }),
+    ]);
+    expect(r.workOrders[0].direct).toBe('840000.00');
+    expect(r.workOrders[0].labour).toEqual([
+      { classId: 'direct', hours: 8, amount: '400000.00' },
+      { classId: null, hours: null, amount: '440000.00' },
+    ]);
   });
 });
 
@@ -135,10 +141,13 @@ describe('rollupProject — daily head counts (guard-headcount)', () => {
     expect(f.uncostedHours).toBe(0);
   });
 
-  it('AC-HC-010 a Project Manager aggregate head-count row (no record, no date) still counts its hours and money', () => {
-    const r = run([wo('A')], [headcount('A', 'guard', '1120000.00', 32, { recordId: null, occurredOn: null })]);
-    expect(r.workOrders[0].crewHours).toBe(32);
-    expect(r.workOrders[0].labour).toEqual([{ classId: 'guard', hours: 32, amount: '1120000.00' }]);
+  it('AC-HC-010 a Project Manager aggregate head-count row (no record, no class, no hours, 1933) counts its money once as one labour line', () => {
+    const r = run([wo('A')], [
+      headcount('A', null, '1120000.00', null, { recordId: null, occurredOn: null }),
+      attendance('A', null, '320000.00', null, { recordId: null, occurredOn: null, personId: null }),
+    ]);
+    expect(r.workOrders[0].direct).toBe('1440000.00');
+    expect(r.workOrders[0].labour).toEqual([{ classId: null, hours: null, amount: '1440000.00' }]);
   });
 });
 

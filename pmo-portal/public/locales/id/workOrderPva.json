@@ -146,6 +146,7 @@
     "hours": "Jam",
     "cost": "Biaya",
     "unknownClass": "Kelas lain",
+    "allClasses": "Kru dan jumlah orang, semua kelas",
     "note": "Bagian dari biaya langsung di atas, dari jam yang disetujui dengan tarif biaya tiap orang."
   },
   "performance": {

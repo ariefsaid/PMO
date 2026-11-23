@@ -988,6 +988,7 @@
     "managerPlaceholder": "Atasan belum ditetapkan",
     "managerSearch": "Cari pengguna",
     "managerHelp": "Atasan diperingatkan lebih dulu saat dokumen personel ini hampir kedaluwarsa, dan mencatat perpanjangannya.",
+    "managerReadOnly": "Hanya Admin atau tim SDM yang dapat mengubah atasan langsung.",
     "markLeft": "Tandai sudah keluar",
     "markLeftLabel": "Tandai {{name}} sudah keluar",
     "leftTitle": "Tandai {{name}} sudah keluar",

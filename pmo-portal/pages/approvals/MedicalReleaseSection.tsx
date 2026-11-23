@@ -64,8 +64,9 @@ export const MedicalReleaseSection: React.FC = () => {
   const canEnter = useCanEnterRelease() && may('create', 'medicalRelease', { record });
   const canDecide = may('decide', 'medicalRelease', { record });
   const { data } = useMedicalReleases();
-  const { decide } = useMedicalReleaseMutations();
+  const { decide, withdraw, reassign } = useMedicalReleaseMutations();
   const [deferring, setDeferring] = useState<MedicalReleaseRow | null>(null);
+  const [withdrawing, setWithdrawing] = useState<MedicalReleaseRow | null>(null);
   const [opening, setOpening] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const rows = (data ?? []).filter((r) => r.status !== 'Approved');
@@ -108,6 +109,14 @@ export const MedicalReleaseSection: React.FC = () => {
                     <Button variant="outline" size="sm" onClick={() => setDeferring(r)}>{t('crews:release.defer', 'Defer')}</Button>
                   </>
                 )}
+                {may('reassign', 'medicalRelease', { record: { ...record, status: r.status, decider_active: r.decider_active } }) && (
+                  <Button variant="outline" size="sm" onClick={() => void run(() => reassign.mutateAsync(r.id), t('crews:release.reassigned', 'Release moved to their current manager'))}>
+                    {t('crews:release.reassign', 'Move to current manager')}
+                  </Button>
+                )}
+                {may('withdraw', 'medicalRelease', { record: { ...record, status: r.status, own: r.own } }) && (
+                  <Button variant="ghost" size="sm" onClick={() => setWithdrawing(r)}>{t('crews:release.withdraw', 'Withdraw')}</Button>
+                )}
               </li>
             ))}
           </ul>
@@ -122,6 +131,15 @@ export const MedicalReleaseSection: React.FC = () => {
           const r = deferring;
           setDeferring(null);
           if (r) void run(() => decide.mutateAsync({ id: r.id, decision: 'Deferred', note }), t('crews:release.deferred', 'Release deferred'));
+        }} />
+      <ReasonDialog open={withdrawing !== null} kind="reject" maxLength={500}
+        title={t('crews:release.withdrawTitle', 'Withdraw the release')} label={t('crews:release.withdrawLabel', 'Reason for withdrawing')}
+        helper={t('crews:release.withdrawHelp', 'Kept in the audit log. The person can be rostered again. Do not write medical detail.')}
+        confirmLabel={t('crews:release.withdraw', 'Withdraw')} loading={withdraw.isPending} onCancel={() => setWithdrawing(null)}
+        onConfirm={(reason) => {
+          const r = withdrawing;
+          setWithdrawing(null);
+          if (r) void run(() => withdraw.mutateAsync({ id: r.id, reason }), t('crews:release.withdrawn', 'Release withdrawn'));
         }} />
     </section>
   );

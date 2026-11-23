@@ -292,6 +292,13 @@
     "deferLabel": "Alasan menunda",
     "deferHelp": "Tim SDM melihat ini. Jangan menulis rincian medis.",
     "heldReason": "Tidak dapat dicatat sampai atasan langsungnya menyetujui pelepasan medis.",
+    "withdraw": "Tarik",
+    "withdrawTitle": "Tarik pelepasan",
+    "withdrawLabel": "Alasan menarik",
+    "withdrawHelp": "Disimpan di log audit. Orang ini dapat dijadwalkan lagi. Jangan menulis rincian medis.",
+    "withdrawn": "Pelepasan ditarik",
+    "reassign": "Pindahkan ke atasan saat ini",
+    "reassigned": "Pelepasan dipindahkan ke atasannya saat ini",
     "status": {
       "pending": "Pelepasan menunggu",
       "approved": "Dilepas",

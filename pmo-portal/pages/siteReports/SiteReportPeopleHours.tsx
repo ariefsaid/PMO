@@ -66,6 +66,7 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
       : t('people.source.manual_correction', 'Office correction');
   const decideWhy = (w: ReportDayWorker, mayDecide: boolean): string | null =>
     !mayDecide ? t('people.cannotDecideRole', 'Your role does not decide which hours stand.')
+      : w.own ? t('people.cannotDecideOwn', 'This is your own working day. Someone else decides.')
       : w.mine ? t('people.cannotDecideMine', 'You recorded one of these figures. Someone else decides.')
       : !w.day ? t('people.cannotDecideNoDay', 'The site report figure for this day is not recorded yet.')
       : null;
@@ -83,7 +84,7 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
             <ul className="divide-y divide-border">
               {data.workers.map((w) => {
                 const why = w.undecided ? decideWhy(w, data.mayDecide) : null;
-                const canAdd = data.mayEnter && !(w.second?.decidedAt);
+                const canAdd = data.mayEnter && !w.own && !(w.second?.decidedAt);
                 return (
                   <li key={w.workerId} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between" data-testid={`dsr-people-row-${w.workerId}`}>
                     <div className="min-w-0">

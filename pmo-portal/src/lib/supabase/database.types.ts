@@ -33428,14 +33428,21 @@ export type Database = {
           state: string
         }[]
       }
+      medical_release_reassign: { Args: { p_id: string }; Returns: string }
+      medical_release_withdraw: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       medical_releases_visible: {
         Args: never
         Returns: {
           can_decide: boolean
           decided_at: string
+          decider_active: boolean
           decision_note: string
           id: string
           note: string
+          own: boolean
           person_id: string
           person_name: string
           release_date: string

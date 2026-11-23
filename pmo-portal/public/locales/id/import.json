@@ -306,7 +306,9 @@
       "name": "Nama tampilan wajib diisi.",
       "nameLong": "Nama tampilan terlalu panjang.",
       "jobTitleLong": "Jabatan terlalu panjang.",
-      "repeat": "Kode karyawan ini sudah muncul di baris {n}."
+      "repeat": "Kode karyawan ini sudah muncul di baris {n}.",
+      "managerRight": "Hanya Admin atau tim SDM yang dapat mengatur atasan langsung seseorang. Kosongkan email manajer.",
+      "managerSelf": "Hanya Admin yang dapat menjadikan dirinya atasan langsung seseorang. Sebutkan manajer lain."
     },
     "job_title": "Jabatan",
     "manager_id": "Email manajer",
