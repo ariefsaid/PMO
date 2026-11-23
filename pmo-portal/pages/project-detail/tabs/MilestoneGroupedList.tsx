@@ -262,7 +262,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
     groupOrder={groupOrder}
     groupLabel={(id) => {
       const s = sectionById.get(id);
-      return <span className={`inline-flex items-center gap-1.5 break-words text-sm font-semibold text-foreground${s?.nested ? ' pl-6' : ''}`}>
+      return <span className={`inline-flex items-center gap-1.5 break-words text-sm font-semibold text-foreground${s?.nested ? ' pl-7' : ''}`}>
         {s?.group && <Icon name="folder" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
         {s?.label ?? id}
       </span>;
