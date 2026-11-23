@@ -1,4 +1,7 @@
 -- 0141_subtask_rollup_exclusion.test.sql
+-- ⚑ #2807 (migration 1970) replaced the top-level rule with the LEAF rule: a task counts when it is not archived
+-- and has no live child; a parent is a display-only roll-up. Each piece of work still counts once, so the cases
+-- below keep their fixtures and now assert the leaf answer (the parent's own status never moves a figure).
 -- OD-INT-9 subtask rollup rule (binding): only tasks with parent_task_id IS NULL participate in
 -- milestone counts (task_count / calculated_pct) and project delivery_pct. Subtasks never
 -- independently move a percentage. Without this rule a parent and its children double-count and
@@ -9,12 +12,12 @@
 -- of the correct 100%. Post-fix (get_project_milestones / get_projects_delivery filter
 -- parent_task_id IS NULL): only the parent counts → 1/1 Done → 100%.
 --
--- AC-SUB-001  parent + 2 subtasks in a milestone → task_count counts ONLY the parent (1, not 3)
--- AC-SUB-002  parent Done + 2 subtasks To-Do → calculated_pct = 100 (not 33)
--- AC-SUB-003  single-milestone project → delivery_pct = effective_pct of that milestone (100, not 33)
--- AC-SUB-004  a milestone with ONLY subtasks (no top-level task) → task_count = 0, calculated_pct null
--- AC-SUB-005  a 3-level chain (grandparent→parent→child): only the grandparent (parent_task_id null) counts
--- AC-SUB-006  a parent's subtask flipping Done does NOT change the milestone's calculated_pct
+-- AC-SUB-001  parent + 2 subtasks in a milestone → task_count counts the 2 subtasks (2, not 3)
+-- AC-SUB-002  parent Done + 2 subtasks To-Do → calculated_pct = 0 (the parent's own status is a roll-up)
+-- AC-SUB-003  single-milestone project → delivery_pct = effective_pct of that milestone (0)
+-- AC-SUB-004  a milestone holding only subtasks counts them (task_count 2, 100%)
+-- AC-SUB-005  a 3-level chain (grandparent→parent→child): only the leaf counts
+-- AC-SUB-006  a subtask flipping Done moves the milestone (50), task_count unchanged
 --
 -- Fixture namespace: 01550000-… (unique to this test).
 begin;
@@ -101,19 +104,19 @@ insert into tasks (id, org_id, project_id, milestone_id, name, status, parent_ta
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01550000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- AC-SUB-001: task_count counts ONLY the parent (1, not 3).
+-- AC-SUB-001: task_count counts the leaves, never the parent too.
 select is(
   (select task_count from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000031'),
-  1,
-  'AC-SUB-001: task_count counts ONLY the parent (1, not parent+2 subtasks = 3)');
+  2,
+  'AC-SUB-001: task_count counts the 2 subtasks, never their parent too (2, not 3)');
 
--- AC-SUB-002: parent Done + 2 subtasks To-Do → calculated_pct = 100 (not 33.33).
+-- AC-SUB-002: parent Done + 2 subtasks To-Do → calculated_pct = 0.
 select is(
   (select calculated_pct::numeric(10,0) from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000031'),
-  100::numeric,
-  'AC-SUB-002: calculated_pct = 100 when only the Done parent counts (pre-fix it was 33)');
+  0::numeric,
+  'AC-SUB-002: calculated_pct = 0: the two To-Do subtasks count, the parent''s own Done does not');
 
 -- AC-SUB-003: project-level delivery_pct on a clean single-milestone project (SUB-002). Parent Done,
 -- 2 subtasks To-Do → milestone effective = 100 (only parent counts) → project delivery = 100.
@@ -131,33 +134,34 @@ insert into tasks (id, org_id, project_id, milestone_id, name, status, parent_ta
 select is(
   (select delivery_pct::numeric(10,0)
      from get_projects_delivery(array['01550000-0000-0000-0000-000000000021'::uuid])),
-  100::numeric,
-  'AC-SUB-003: delivery_pct = 100 on a single-milestone project (subtasks neither inflate nor deflate)');
+  0::numeric,
+  'AC-SUB-003: delivery_pct = 0 on a single-milestone project (the leaves decide, the parent never double-counts)');
 
 -- AC-SUB-004: a milestone with ONLY subtasks (no top-level task) → task_count = 0, calculated_pct null.
 select is(
   (select task_count from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000032'),
-  0,
-  'AC-SUB-004: a milestone with only subtasks has task_count = 0');
+  2,
+  'AC-SUB-004: a milestone holding only subtasks counts them (task_count = 2)');
 
-select ok(
-  (select calculated_pct is null from get_project_milestones('01550000-0000-0000-0000-000000000020')
+select is(
+  (select calculated_pct::numeric(10,0) from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000032'),
-  'AC-SUB-004: a milestone with only subtasks has calculated_pct = null (no top-level tasks)');
+  100::numeric,
+  'AC-SUB-004: a milestone holding only Done subtasks is 100%');
 
 -- AC-SUB-005: 3-level chain — only the grandparent (parent_task_id null) counts → 1/1 Done → 100%.
 select is(
   (select task_count from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000033'),
   1,
-  'AC-SUB-005: 3-level chain — only the top-level (grandparent) counts (task_count = 1, not 3)');
+  'AC-SUB-005: 3-level chain — only the leaf counts (task_count = 1, not 3)');
 
 select is(
   (select calculated_pct::numeric(10,0) from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000033'),
-  100::numeric,
-  'AC-SUB-005: 3-level chain — calculated_pct = 100 (grandparent Done; midparent + leaf excluded)');
+  0::numeric,
+  'AC-SUB-005: 3-level chain — calculated_pct = 0 (the To-Do leaf; the Done grandparent is a roll-up)');
 
 -- AC-SUB-006: flipping a SUBTASK to Done must NOT change the milestone's calculated_pct.
 -- Subtask S1 (under milestone M) Done → milestone M is still 100% (parent already Done; subtask ignored).
@@ -170,14 +174,14 @@ set local request.jwt.claims = '{"sub":"01550000-0000-0000-0000-0000000000a1","r
 select is(
   (select calculated_pct::numeric(10,0) from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000031'),
-  100::numeric,
-  'AC-SUB-006: flipping a subtask to Done does not change calculated_pct (still 100, not 150-style inflation)');
+  50::numeric,
+  'AC-SUB-006: flipping one of two subtasks to Done moves the milestone to 50 (counted once, never with its parent)');
 
 select is(
   (select task_count from get_project_milestones('01550000-0000-0000-0000-000000000020')
     where id = '01550000-0000-0000-0000-000000000031'),
-  1,
-  'AC-SUB-006: task_count is still 1 after a subtask status change');
+  2,
+  'AC-SUB-006: task_count is still 2 after a subtask status change');
 
 reset role;
 

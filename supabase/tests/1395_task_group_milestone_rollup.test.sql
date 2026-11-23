@@ -72,7 +72,7 @@ insert into tasks (id, org_id, project_id, name, status, task_group_id, parent_t
   ('13950000-0000-0001-0000-000000000021',:'A',:'P1','sub','Done',:'G1','13950000-0000-0001-0000-000000000011',null),
   ('13950000-0000-0001-0000-000000000022',:'A',:'P1','arch','Done',:'G1',null,now());
 select is((select task_count from get_project_milestones('13950000-0000-0000-0000-000000000021') where id = '13950000-0000-0000-0000-000000000031'), 5,
-  'AC-TGM-004: subtasks and archived tasks of the group never count');
+  'AC-TGM-004: a subtask takes its parent''s place (each piece once, #2807) and archived tasks never count');
 
 -- AC-TGM-004: archived group, then unlinked group -> back to the direct tasks.
 update task_groups set archived_at = now() where id = :'G1';
