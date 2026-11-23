@@ -5,7 +5,7 @@
 -- 1930 the manager link: only an Admin or a holder of the people-documents right sets or changes it; only an Admin names themselves.
 -- MUTATION NOTES (1930): drop the right test (mut:right) -> 'PIU-MGR a Project Manager without the right cannot change' goes red;
 --   drop the self test (mut:self) -> 'PIU-MGR the people team cannot name themselves' goes red;
---   drop the Admin pass (mut:admin) -> 'PIU-MGR an Admin may name themselves' goes red.
+--   drop the Admin pass (mut:admin) -> the file stops red at its first Admin manager write ('PIU-ROLE Admin may update name, job title and manager').
 begin;
 create extension if not exists pgtap;
 select plan(17);
