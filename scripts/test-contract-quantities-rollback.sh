@@ -18,6 +18,9 @@ text=Path('scripts/contract-quantities-rollback.test.sql').read_text()
 # to work_order_lines; 1047 / 1046 opening balances reference work_order_acceptances; 1040's dsr_progress_lines
 # references work_order_lines; 1041 holds the functions over 1040's tables.
 dependents=[
+    # 1670 adds an AFTER INSERT trigger on organizations that writes the seven switch-settings rows. A real rollback
+    # reverts that trigger first; 1275's rollback then drops org_revenue_plan_settings, which the trigger writes.
+    'supabase/migrations/rollback/1670_features_on_by_default_down.sql',
     'supabase/migrations/rollback/1321_dsr_stock_postings_down.sql',
     'supabase/migrations/rollback/1280_non_working_dates_down.sql',
     'supabase/migrations/rollback/1275_work_order_revenue_plan_down.sql',
