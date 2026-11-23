@@ -416,7 +416,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               checked={proofRequired}
               onChange={setProofRequired}
               label={tTasks('proof.required')}
-            />
+            >
+              {tTasks('proof.required')}
+            </Checkbox>
           )}
           {/* OD-INT-9 — Description. Multi-line (the shared TextArea primitive), full-width so the
               textarea gets the room a scope/notes field needs. Uses the existing FieldShell a11y

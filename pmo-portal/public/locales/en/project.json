@@ -1360,7 +1360,11 @@
         "partialTitle": "Only part of the task was saved",
         "partialDetail": "{{saved}} of {{total}} tasks were saved. Close this form and add the missing subtasks from the task's menu.",
         "rollupNote": "Status and dates come from its subtasks.",
-        "legend": "Subtasks"
+        "legend": "Subtasks",
+        "addUnderTip": "Add subtask under this",
+        "removeTip": "Remove",
+        "assigneePlaceholder": "Assignee",
+        "duePlaceholder": "Due date"
       },
       "action": {
         "addSubtask": "Add subtask",

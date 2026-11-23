@@ -1360,7 +1360,11 @@
         "partialTitle": "Hanya sebagian tugas yang tersimpan",
         "partialDetail": "{{saved}} dari {{total}} tugas tersimpan. Tutup formulir ini lalu tambahkan subtugas yang belum ada dari menu tugas.",
         "rollupNote": "Status dan tanggal diambil dari subtugasnya.",
-        "legend": "Subtugas"
+        "legend": "Subtugas",
+        "addUnderTip": "Tambah subtugas di bawah ini",
+        "removeTip": "Hapus",
+        "assigneePlaceholder": "Penanggung jawab",
+        "duePlaceholder": "Tenggat"
       },
       "action": {
         "addSubtask": "Tambah subtugas",

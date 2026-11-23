@@ -190,12 +190,12 @@ const TasksToolbar: React.FC<{
               ]}
             />
           </div>
-          <div className="min-w-[144px] flex-1 sm:flex-none">
+          <div className="basis-full sm:basis-auto sm:min-w-[144px] sm:flex-none">
             <SelectField id="tasks-filter-work-order" hideLabel
               label={t('tasks:workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={onWorkOrderFilter}
               options={[{ value: 'all', label: t('tasks:workOrderFilter.all', 'All work orders') }, { value: 'none', label: t('tasks:workOrderFilter.none', 'No work order') }, ...workOrderOptions]} />
           </div>
-          <div className="min-w-[144px] flex-1 sm:flex-none">
+          <div className="basis-full sm:basis-auto sm:min-w-[144px] sm:flex-none">
             <SelectField
               id="tasks-filter-assignee"
               hideLabel

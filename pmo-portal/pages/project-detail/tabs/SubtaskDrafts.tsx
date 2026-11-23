@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, SelectField, TextField } from '@/src/components/ui';
+import { Button, Icon, SelectField, TextField, Tooltip } from '@/src/components/ui';
 import { DateField } from '@/src/components/ui/DateField';
 import type { SubtaskDraft } from '@/src/lib/db/tasks';
 import { newDraft } from './subtaskDraftModel';
@@ -15,8 +15,6 @@ const update = (drafts: SubtaskDraft[], key: string, fn: (d: SubtaskDraft) => Su
     if (d.key === key) { const next = fn(d); return next ? [next] : []; }
     return [{ ...d, children: update(d.children, key, fn) }];
   });
-
-const INDENT_PX = 16;
 
 export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFocusFirst }: {
   drafts: SubtaskDraft[];
@@ -38,12 +36,9 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
     lastAdded.current = d.key;
     onChange(parentKey ? update(drafts, parentKey, (p) => ({ ...p, children: [...p.children, d] })) : [...drafts, d]);
   };
-  const row = (d: SubtaskDraft, depth: number): React.ReactNode => (
+  const row = (d: SubtaskDraft): React.ReactNode => (
     <li key={d.key}>
-      <div
-        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/60 py-2"
-        style={depth > 0 ? { paddingLeft: depth * INDENT_PX } : undefined}
-      >
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/60 py-2">
         <TextField
           id={`subtask-${d.key}`}
           label={t('projectDetail.tasks.subtasks.name', 'Subtask name')}
@@ -55,6 +50,7 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
           wrapperClassName="min-w-0"
         />
         <div className="flex items-center gap-1">
+          <Tooltip content={t('projectDetail.tasks.subtasks.addUnderTip', 'Add subtask under this')}>
           <Button
             type="button"
             variant="ghost"
@@ -65,6 +61,8 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
           >
             <Icon name="plus" />
           </Button>
+          </Tooltip>
+          <Tooltip content={t('projectDetail.tasks.subtasks.removeTip', 'Remove')}>
           <Button
             type="button"
             variant="ghost"
@@ -75,6 +73,7 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
           >
             <Icon name="x" />
           </Button>
+          </Tooltip>
         </div>
         <div className="col-span-2 grid grid-cols-2 gap-2">
           <SelectField
@@ -83,17 +82,19 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
             value={d.assigneeId}
             onChange={(assigneeId) => onChange(update(drafts, d.key, (x) => ({ ...x, assigneeId })))}
             options={people}
-            placeholder={t('projectDetail.tasks.unassigned', 'Unassigned')}
+            placeholder={t('projectDetail.tasks.subtasks.assigneePlaceholder', 'Assignee')}
           />
           <DateField
             label={t('projectDetail.tasks.form.dueDate', 'Due date')}
             hideLabel
             value={d.due}
             onChange={(due) => onChange(update(drafts, d.key, (x) => ({ ...x, due })))}
+            placeholder={t('projectDetail.tasks.subtasks.duePlaceholder', 'Due date')}
           />
         </div>
       </div>
-      {d.children.length > 0 && <ul>{d.children.map((c) => row(c, depth + 1))}</ul>}
+      {/* A nested level: a clear indent step plus a guide line down its rows, so a child never reads as a sibling. */}
+      {d.children.length > 0 && <ul className="ml-3 border-l-2 border-border pl-4">{d.children.map(row)}</ul>}
     </li>
   );
   return (
@@ -107,7 +108,7 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
           ))}
         </ul>
       )}
-      {drafts.length > 0 && <ul>{drafts.map((d) => row(d, 0))}</ul>}
+      {drafts.length > 0 && <ul>{drafts.map(row)}</ul>}
       <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => add(null)}>
         <Icon name="plus" />{t('projectDetail.tasks.subtasks.add', 'Add subtask')}
       </Button>
