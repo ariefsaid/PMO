@@ -230,7 +230,7 @@ export async function listAllWorkOrders(): Promise<WorkOrderListRow[]> {
   const rows = await fetchAllRowsByKeyset<Raw>(async (afterId, limit) => {
     let q = supabase
       .from('work_orders')
-      .select('id, wo_number, title, status, project_id, start_date, end_date, created_at, project:projects(name)')
+      .select('id, wo_number, title, status, project_id, start_date, end_date, created_at, project:projects!work_orders_project_id_fkey(name)')
       .order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
     return q.limit(limit) as unknown as PromiseLike<{ data: Raw[] | null; error: { message: string; code?: string } | null }>;

@@ -30,6 +30,10 @@ export const BillingTab = lazyWithPreload(() => import('./tabs/BillingTab'));
 export const ContractCascade = lazyWithPreload(() =>
   import('./ContractCascade').then((module) => ({ default: module.ContractCascade })),
 );
+/** #2805: the project's work orders as one table, the second tab. */
+export const OrdersTab = lazyWithPreload(() =>
+  import('../work-orders/WorkOrdersBoard').then((module) => ({ default: module.WorkOrdersBoard })),
+);
 export const ProjectSCurve = lazyWithPreload(() => import('./ProjectSCurve'));
 
 /**
@@ -46,6 +50,7 @@ interface Preloadable {
 }
 
 export const PROJECT_TAB_CHUNKS: Partial<Record<Area, Preloadable[]>> = {
+  orders: [OrdersTab],
   budget: [BudgetTab],
   procurement: [ProcurementTab],
   materials: [MaterialsTab],

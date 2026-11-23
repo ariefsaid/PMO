@@ -180,22 +180,22 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
 
     fireEvent.keyDown(overviewTab, { key: 'ArrowRight' });
 
-    // Focus moved to the NEXT tab — not to the main content, not stuck on the old tab.
-    const budgetTab = screen.getByRole('tab', { name: 'Budget' });
-    await waitFor(() => expect(budgetTab).toHaveAttribute('aria-selected', 'true'));
-    expect(budgetTab).toHaveFocus();
-    expect(budgetTab).toHaveAttribute('aria-selected', 'true');
+    // Focus moved to the NEXT tab (the work orders, #2805) — not to the main content, not stuck on the old tab.
+    const nextTab = screen.getByRole('tab', { name: 'Work order' });
+    await waitFor(() => expect(nextTab).toHaveAttribute('aria-selected', 'true'));
+    expect(nextTab).toHaveFocus();
+    expect(nextTab).toHaveAttribute('aria-selected', 'true');
     expect(tablist()).toContainElement(activeEl());
     expect(main()).not.toHaveFocus();
     // The URL followed the tab switch (tab lives in the route param).
   });
 
-  it('AC #879: ArrowLeft walks back up the tab bar (Overview ← after one step left from Budget)', async () => {
-    await renderAs('Admin', '/projects/p1/budget');
-    const budgetTab = screen.getByRole('tab', { name: 'Budget' });
-    budgetTab.focus();
+  it('AC #879: ArrowLeft walks back up the tab bar (Overview ← after one step left from the work orders)', async () => {
+    await renderAs('Admin', '/projects/p1/orders');
+    const ordersTab = screen.getByRole('tab', { name: 'Work order' });
+    ordersTab.focus();
 
-    fireEvent.keyDown(budgetTab, { key: 'ArrowLeft' });
+    fireEvent.keyDown(ordersTab, { key: 'ArrowLeft' });
 
     const overviewTab = screen.getByRole('tab', { name: 'Overview' });
     await waitFor(() => expect(overviewTab).toHaveAttribute('aria-selected', 'true'));

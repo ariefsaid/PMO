@@ -405,10 +405,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         ) : (
           <>
             {bar}
-            {/* The strip's column queries resolve against the nearest ANCESTOR container, so give it one. */}
             {/* Six tiles go 3 across (3 rows of 2 on a phone): six abreast crowd to 3-4px gaps in Bahasa at 1440.
                 Fewer take as many columns as they have, so no column is left empty. */}
-            <div className="@container"><StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures alignRows /></div>
+            <StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures alignRows />
           </>
         )}
 

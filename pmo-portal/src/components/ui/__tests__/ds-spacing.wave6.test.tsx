@@ -47,7 +47,8 @@ describe('DS spacing normalization', () => {
         <Toolbar standalone>Filters</Toolbar>
       </>,
     );
-    const [tiles, toolbar] = Array.from(container.children);
+    const [tilesFrame, toolbar] = Array.from(container.children);
+    const tiles = tilesFrame.querySelector('[data-testid="stat-tiles"]')!;
 
     expect(tiles.className).toContain('gap-[var(--space-group)]');
     expect(toolbar.className).toContain('px-[var(--space-content-inset)]');
