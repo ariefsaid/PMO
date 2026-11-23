@@ -130,6 +130,18 @@ describe('ClientMaterialSection', () => {
     expect((h.mutations as { recordPickup: { mutateAsync: ReturnType<typeof vi.fn> } }).recordPickup.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it('FR-CSR-010 a pickup on a line with nothing reserved yet says so, instead of "Only 0 is still to collect"', async () => {
+    h.role = 'Engineer'; h.realRole = 'Engineer'; h.userId = 'u-keeper';
+    h.query = ok({ ...HAND, events: [], pickups: [] });
+    renderIt();
+    await userEvent.click(screen.getByRole('button', { name: 'Record pickup' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/Quantity collected/), '5');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Record pickup' }));
+    expect(await within(dialog).findByText(/Nothing is reserved on this line yet/)).toBeTruthy();
+    expect(within(dialog).queryByText(/Only 0/)).toBeNull();
+  });
+
   it('FR-CSR-010 a valid pickup sends the line, quantity and the only location the keeper keeps; no cost', async () => {
     h.role = 'Engineer'; h.realRole = 'Engineer'; h.userId = 'u-keeper';
     renderIt();

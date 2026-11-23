@@ -214,7 +214,11 @@ export const PickupDialog: React.FC<LineDialogProps & {
     const q = readQuantity(quantity);
     const next: Record<string, string> = {};
     if (q === null) next.quantity = t('clientMaterial.form.quantityError', 'Enter a quantity above 0 with at most 3 decimal places.');
-    else if (Math.round(Number(q) * 1000) > Math.round(room * 1000)) next.quantity = t('clientMaterial.refusal.overCollect', 'Only {{n}} is still to collect.', { n: formatNumberExact(room) });
+    else if (Math.round(Number(q) * 1000) > Math.round(room * 1000)) {
+      next.quantity = Number(figures.reserved) <= 0
+        ? t('clientMaterial.refusal.nothingReserved', 'Nothing is reserved on this line yet. The client\'s reservation is recorded first.')
+        : t('clientMaterial.refusal.overCollect', 'Only {{n}} is still to collect.', { n: formatNumberExact(room) });
+    }
     if (!warehouseId) next.warehouse = t('clientMaterial.pickup.locationRequired', 'Choose where the material is received.');
     setErrors(next);
     if (Object.keys(next).length || q === null) return;
