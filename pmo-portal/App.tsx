@@ -290,7 +290,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
   { path: '/work-orders', chunks: [WorkOrdersPage], namespaces: ['workOrders', 'status'] },
-  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety', 'billingSteps', 'refusals'] },
+  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderPva', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety', 'billingSteps', 'refusals'] },
   { path: '/safety-days/:dayId', chunks: [SafetyDayFormPage], namespaces: ['safety', 'status'] },
   { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
