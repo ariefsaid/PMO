@@ -5,6 +5,7 @@ import {
   cn, DataTable, FilterBar, ListPage, ProgressBar, StatTiles, StatusPill, useUrlFilters,
   type Column, type FilterBarFilter, type StatTile,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export/ExportButton';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
@@ -153,6 +154,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
       hideHeader={Boolean(projectId)}
       headingLevel={projectId ? 2 : 1}
       count={all.isPending ? undefined : rows.length}
+      exportAction={<ExportButton rows={filtered} columns={columns} entity="WorkOrders" />}
       banner={rows.length > 0 ? <StatTiles tiles={tiles} columns={tiles.length} frameClassName={cn('mb-4', projectId && '[--space-content-inset:var(--panel-inset)]')} /> : undefined}
       filters={(
         <FilterBar
