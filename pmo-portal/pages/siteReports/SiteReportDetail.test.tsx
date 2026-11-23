@@ -60,7 +60,7 @@ vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useWorkOrderValidatedRevenue: (_id: string, enabled: boolean) => ({ data: enabled ? 140 : undefined }),
   useDsrLookups: () => ({
     idle: { data: [{ id: 'ir1', label: 'Weather' }] }, weather: { data: [{ id: 'wx1', label: 'Rain' }] },
-    items: { data: h.noItems ? [] : [{ id: 'l1', boq_item_id: 'b1', item_code: 'W-1', description: 'Weld', unit: 'm' }, { id: 'l2', boq_item_id: 'b2', item_code: 'X-9', description: 'Unpriced', unit: 'ea' }] },
+    items: { data: h.noItems ? [] : [{ id: 'l1', boq_item_id: 'b1', item_code: 'W-1', description: 'Weld', unit: 'm', catalogue_item_id: 'cat1' }, { id: 'l2', boq_item_id: 'b2', item_code: 'X-9', description: 'Unpriced', unit: 'ea', catalogue_item_id: null }] },
     hours: { data: { peopleHours: h.peopleHours, equipment: h.equipment } },
   }),
   useDailySiteReportMutations: () => h.m,
@@ -194,6 +194,13 @@ describe('site report record', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
     expect(h.m.submit.mutateAsync).not.toHaveBeenCalled();
     expect(await screen.findByText('Not sent: add a photo of the paper form first')).toBeInTheDocument();
+  });
+
+  it('F1-3 a sub-stage is asked only for an item priced from the catalogue: on a hand-priced line it can only remove the rate', () => {
+    h.detail = make('draft');
+    renderPage();
+    // two progress lines: W-1 (catalogue item) offers the field, X-9 (priced by hand) does not
+    expect(screen.getAllByLabelText('Sub-stage')).toHaveLength(1);
   });
 
   it('AC-DSR-005 the author is never offered Validate, even as Admin', () => {

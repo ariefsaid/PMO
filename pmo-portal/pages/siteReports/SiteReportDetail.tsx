@@ -255,8 +255,11 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
                       <SelectField label={t('progress.item', 'Contract item')} value={line.workOrderLineId} error={errText(`progress.${i}.item`)}
                         onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, workOrderLineId: v } : p)) })}
                         options={[{ value: '', label: t('progress.pickItem', 'Choose an item') }, ...items.map((it) => ({ value: it.id, label: `${it.item_code} · ${it.description}` }))]} />
-                      <TextField label={t('progress.stage', 'Sub-stage')} value={line.subStage}
-                        onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, subStage: v } : p)) })} />
+                      {/* A hand-priced line has no stages: a sub-stage there removes its rate (dsr_line_rate). Kept when a draft already holds one. */}
+                      {(item?.catalogue_item_id || line.subStage)
+                        ? <TextField label={t('progress.stage', 'Sub-stage')} value={line.subStage}
+                          onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, subStage: v } : p)) })} />
+                        : <span aria-hidden />}
                       <TextField label={`${t('progress.quantity', 'Quantity')}${item ? ` (${item.unit})` : ''}`} inputMode="decimal" value={line.quantity} error={errText(`progress.${i}.quantity`)}
                         onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, quantity: v } : p)) })} />
                       <Button variant="ghost" onClick={() => update({ progress: form.progress.filter((_, j) => j !== i) })}>{t('form.remove', 'Remove')}</Button>
