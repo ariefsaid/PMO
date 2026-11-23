@@ -29,6 +29,8 @@ export interface TimesheetGridRow {
   projectId?: string;
   /** Contractual title behind a short `project` label — hover + accessible description (#1325). */
   projectLegalName?: string;
+  /** The work order this line is booked to, when it names one (read-only approval views). */
+  workOrderLabel?: string;
 }
 
 export interface TimesheetGridProps {
@@ -199,6 +201,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               {r.code}
             </div>
           )}
+          {r.workOrderLabel && <div className="break-words text-control text-muted-foreground">{r.workOrderLabel}</div>}
         </div>
       ),
     },
