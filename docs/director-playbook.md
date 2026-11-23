@@ -188,7 +188,8 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
 - `release-engineer` opens the PR and **stops**. The **Director** approves & merges within the signed
   spec (`gh pr merge <n> --merge`; batched branches, never squash — `CLAUDE.md` "PRs"), then performs the ordered cleanup below. Remote branch deletion
   is deliberately not bundled into the merge command because cleanup starts only after merge proof.
-- **Post-merge cleanup is verify-first, delete-last.** From the primary checkout:
+- **Post-merge cleanup is verify-first, delete-last: verify the merge is on the base before removing
+  anything.** From the primary checkout:
   1. `git fetch origin <base>`; inspect
      `gh pr view <n> --json state,mergeCommit,headRefName,headRefOid` and require `state=MERGED`; verify the
      reported merge OID with
