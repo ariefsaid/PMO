@@ -10,7 +10,7 @@ import type {
   Column,
   DataTableSelection,
 } from './DataTable';
-import { PrimaryCell } from './DataTableShared';
+import { LeadSlot, PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
 import { isNumericColumn, numericColumnClass } from './dataTableColumns';
 
@@ -137,6 +137,7 @@ function DataTableMobileCardInner<Row>({
             />
           </span>}
           <div className="min-w-0 flex-1 break-words font-semibold [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal">
+            <LeadSlot lead={titleCol.lead?.(row)}>
             {canActivate && onActivate ? (
               <RowOpenControl href={rowHref} label={accessibleRowLabel(row) ?? ''} onActivate={() => onActivate(row)}>
                 {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
@@ -144,6 +145,7 @@ function DataTableMobileCardInner<Row>({
             ) : (
               mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
             )}
+            </LeadSlot>
           </div>
         </div>
         {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}

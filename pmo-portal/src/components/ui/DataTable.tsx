@@ -39,6 +39,9 @@ export interface Column<Row> {
   rowHeader?: boolean;
   /** Optional muted second line for a primary identity cell. */
   secondaryCell?: (row: Row) => React.ReactNode;
+  /** First column only: a control drawn before the cell and outside its open-row button (a tree's
+   *  expand toggle), so one interactive element never sits inside another. */
+  lead?: (row: Row) => React.ReactNode;
   /** One table-level explanation, referenced by a mark in this column header. */
   caveat?: { reason: React.ReactNode; remedy?: React.ReactNode };
   align?: ColAlign;

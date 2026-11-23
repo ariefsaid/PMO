@@ -57,15 +57,13 @@ function buildTaskColumns(
       header: t('projectDetail.tasks.column.task', 'Task'),
       kind: 'primary',
       primaryTitle: (task) => task.name,
-      cell: (task) => {
+      // The indent and the fold toggle sit before the open-task button, never inside it (nested-interactive).
+      lead: (task) => {
         const depth = depths.get(task.id) ?? 0;
-        const rollup = rollups.get(task.id);
         const open = !collapsed.has(task.id);
-        return <span
-          className="flex min-w-0 items-start gap-1"
-          style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
-        >
-          {rollup ? <button
+        if (!rollups.has(task.id) && depth === 0 && rollups.size === 0) return null;
+        return <span className="flex shrink-0" style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}>
+          {rollups.has(task.id) ? <button
             type="button"
             aria-expanded={open}
             aria-label={open
@@ -75,16 +73,20 @@ function buildTaskColumns(
             className="touch-target -my-1 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             <Icon name="chev" className={`size-3.5 transition-transform${open ? ' rotate-90' : ''}`} />
-          </button> : depth > 0 || rollups.size > 0 ? <span aria-hidden className="inline-block size-6 shrink-0 max-md:hidden" /> : null}
-          <span
+          </button> : <span aria-hidden className="inline-block size-6 shrink-0 max-md:hidden" />}
+        </span>;
+      },
+      cell: (task) => {
+        const depth = depths.get(task.id) ?? 0;
+        const rollup = rollups.get(task.id);
+        return <span
             id={`task-${task.id}`}
             className={`block min-w-0 whitespace-normal break-words ${rollup ? 'font-semibold' : depth > 0 ? 'font-normal' : 'font-semibold'}${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
             title={task.name}
           >
             {depth > 0 && <span className="sr-only">{`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}</span>}
             {task.name}
-          </span>
-        </span>;
+          </span>;
       },
       secondaryCell: (task) => task.priority ? (
         <span className="text-sm font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>

@@ -152,6 +152,9 @@ describe('TasksTab — subtask nesting in the flat List view (AC-SUB-UI-001/002)
     expect(rowOf('Grandparent task').textContent).not.toMatch(/Subtask, level/);
     expect(rowOf('Parent task').textContent).toContain('Subtask, level 1');
     expect(rowOf('Child task').textContent).toContain('Subtask, level 2');
+    // #2807: the fold toggle sits beside the open-task button, never inside it (one control per press).
+    expect(screen.getByRole('button', { name: 'Open task Grandparent task' })
+      .contains(screen.getByRole('button', { name: 'Hide subtasks of Grandparent task' }))).toBe(false);
     // #2807: a parent folds its subtasks and unfolds them again.
     await userEvent.click(screen.getByRole('button', { name: 'Hide subtasks of Grandparent task' }));
     expect(screen.queryByRole('button', { name: 'Open task Child task' })).not.toBeInTheDocument();

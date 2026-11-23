@@ -64,7 +64,7 @@ const DAY_MINUTES = 1440;
 const FRAME_CLASS = 'h-[60vh] min-h-[24rem] border-b border-border';
 /** Tree pane columns (#2807). Wide screens: the name column holds about 28 characters at the deepest level the
  *  outline usually reaches and a date range reads on one line; below 1280px the timeline keeps its room. */
-const PANE = { wide: { name: 280, status: 128, dates: 168 }, compact: { name: 208, status: 104, dates: 140 } };
+const PANE = { wide: { name: 280, status: 152, dates: 168 }, compact: { name: 208, status: 104, dates: 140 } };
 /** The model's id prefix for a phase's target-date row (reuiModel). */
 const TARGET_ROW = 'milestone-target:';
 
