@@ -3,6 +3,7 @@
 -- organisation or work order without targets reads as no target, no due day, never overdue.
 -- set_closeout_checklist and instantiate_work_order_closeout_items are restated from the database at head (the latest migration
 -- file defining each, 1401 and 1402, with the assert_not_light line the 1219/1530 rewrite added to the first).
+-- drops: the two insert statements' column and values lines — instantiate_work_order_closeout_items and set_closeout_checklist each gain target_days (and due_on), so the lines that named the old column lists are rewritten; nothing else is removed.
 -- ── REVERSE: rollback/1830_closeout_target_days_down.sql ─────────────────────────────────────────────────────────────
 
 alter table public.closeout_checklist_templates
