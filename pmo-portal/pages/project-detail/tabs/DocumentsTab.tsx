@@ -40,7 +40,8 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import { createDocumentRegisterCells } from './documentRegisterCells';
 import { buildDocumentRegisterColumns, buildDocumentMobileCardDetails } from './documentRegisterColumns';
 import { buildDocumentRowMenu } from './documentRowMenu';
-import DocumentsToolbar, { type DocumentAddOption } from './DocumentsToolbar';
+import DocumentsToolbar, { type DocumentAddOption, type DocumentsView } from './DocumentsToolbar';
+import { LinkedFolderTree, type FolderTreeRoot } from '@/src/components/m365/LinkedFolderTree';
 import DocumentsBulkBar from './DocumentsBulkBar';
 import { documentCategoryLabel } from '@/src/lib/documentCategories';
 import DocumentsDialogs, { transitionActionLabel } from './DocumentsDialogs';
@@ -215,8 +216,19 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   // revisions stay listed (never hidden), but each sits under its latest so the latest is read first.
   const isEarlierRevision = useCallback((doc: ProjectDocumentRow) => childDocumentsByParentId.has(doc.id), [childDocumentsByParentId]);
 
-  const documentsView = searchParams.get('documentsView') === 'grouped' ? 'grouped' : 'register';
-  const setDocumentsView = (view: 'register' | 'grouped') => {
+  // The tree's tops: every linked Microsoft folder in the register, by its stored reference.
+  const folderRoots = useMemo<FolderTreeRoot[]>(() => all.flatMap((doc) => {
+    const reference = isMicrosoftFolder(doc) ? projectReference(doc) : null;
+    return reference ? [{ key: doc.id, title: doc.title, drive_id: reference.drive_id, item_id: reference.item_id, web_url: reference.web_url }] : [];
+  }), [all]);
+
+  const viewParam = searchParams.get('documentsView');
+  // A project whose files live in a linked folder opens on that folder (#2806: seeing the files must
+  // not need another click); a chosen view, kept in the address, always wins.
+  const documentsView: DocumentsView = viewParam === 'register' || viewParam === 'grouped' || viewParam === 'folders'
+    ? viewParam
+    : folderRoots.length > 0 ? 'folders' : 'register';
+  const setDocumentsView = (view: DocumentsView) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('documentsView', view);
@@ -601,7 +613,24 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           />
         )}
 
-        {state === 'empty' && (
+        {documentsView === 'folders' && (state === undefined || state === 'empty') && (
+          <div className="overflow-hidden rounded-b-lg border border-border bg-card" data-testid="documents-folder-tree">
+            {folderRoots.length > 0 ? <LinkedFolderTree roots={folderRoots} /> : (
+              // No linked folder: what is absent and the one control that fixes it (the same step as
+              // the Add document menu's link option), on the heading's left edge.
+              <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4">
+                <span className="min-w-0 text-control text-muted-foreground">{t('projectDetail.documents.folders.none', 'No Microsoft folder is linked to this project.')}</span>
+                {canCreateMicrosoftReference && (
+                  <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
+                    {t('m365Documents.link', 'Link from Microsoft 365')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {documentsView !== 'folders' && state === 'empty' && (
           // The empty register is one row in the same card, where the first row would be: what is
           // missing and how to start, on the heading's left edge. No second Add control (the toolbar's
           // is the one), no centred block floating in the card.
@@ -618,7 +647,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           </div>
         )}
 
-        {state === undefined && (
+        {documentsView !== 'folders' && state === undefined && (
           <div className="overflow-hidden rounded-b-lg border border-border bg-card">
           <DataTable<ProjectDocumentRow>
             embedded

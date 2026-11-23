@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
-  PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime, formatDayRange,
+  PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime, formatDayRange, formatDayRangeShort,
   formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
   formatDateTime, formatDayMonth, formatExactMoney, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatUtcMonthYearFull, formatWeekday, formatWeekdayMonthDay,
@@ -150,6 +150,15 @@ describe('formatDayRange — years are shown on both endpoints when needed', () 
     expect(formatDayRange('2026-09-01', '2026-10-30', now)).toBe('1 Sep – 30 Oct');
     expect(formatDayRange('2025-09-01', '2026-06-30', now)).toBe('1 Sep 2025 – 30 Jun 2026');
     expect(formatDayRange('2025-09-01', '2025-10-30', now)).toBe('1 Sep 2025 – 30 Oct 2025');
+  });
+});
+
+describe('formatDayRangeShort — a timeline column range fits one line', () => {
+  it('names a shared year once, at the end; none in the current year; both when they differ', () => {
+    const now = new Date('2026-11-11T12:00:00Z');
+    expect(formatDayRangeShort('2026-09-01', '2026-10-30', now)).toBe('1 Sep – 30 Oct');
+    expect(formatDayRangeShort('2027-01-04', '2027-02-15', now)).toBe('4 Jan – 15 Feb 2027');
+    expect(formatDayRangeShort('2026-12-15', '2027-01-04', now)).toBe('15 Dec 2026 – 4 Jan 2027');
   });
 });
 

@@ -17,7 +17,7 @@ describe('T-37 project & delivery language (docs/glossary.md)', () => {
   it('XD1-004 the Task entry states project optionality, subtasks and rollup semantics', () => {
     expect(glossary).toMatch(/may belong to a project or to no project/);
     expect(glossary).toMatch(/[Ss]ubtask/);
-    expect(glossary).toMatch(/[Oo]nly top-level, non-archived tasks/);
+    expect(glossary).toMatch(/a \*\*leaf\*\* — a non-archived task with no live subtask — counts toward/);
     expect(glossary).toMatch(/OD-INT-9/);
     expect(glossary).not.toMatch(/Belongs to a project;/);
     expect(glossary).not.toMatch(/two levels only/);

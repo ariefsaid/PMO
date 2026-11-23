@@ -6,7 +6,20 @@ export async function openDocumentsTab(page: Page) {
   await page.goto(`/projects/${PROJECT_ID}`);
   await page.getByRole('tab', { name: 'Documents' }).click();
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
-  await expect(page.getByRole('heading', { name: 'Document register' })).toBeVisible();
+  await showRegister(page);
+}
+
+/**
+ * A project with a linked Microsoft folder opens its Documents tab on the folder tree (#2806); a
+ * journey about register rows chooses the Register view as a step, as a person would.
+ */
+export async function showRegister(page: Page) {
+  // The view is decided once the documents have loaded: wait for the loaded tree, register or empty register.
+  const folderTree = page.getByTestId('documents-folder-tree');
+  await expect(folderTree.or(page.getByTestId('documents-register-empty')).or(page.getByTestId('documents-register-assembly').locator('table'))
+    .first()).toBeVisible({ timeout: 20_000 });
+  if (await folderTree.isVisible()) await page.getByRole('button', { name: 'Register', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Document register', exact: true })).toBeVisible();
 }
 
 export function documentRow(page: Page, title: string): Locator {

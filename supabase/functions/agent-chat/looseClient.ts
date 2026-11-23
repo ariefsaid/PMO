@@ -12,7 +12,7 @@ export interface LooseQuery extends PromiseLike<LooseResult> {
   eq(column: string, value: unknown): LooseQuery;
   in(column: string, values: readonly unknown[]): LooseQuery;
   lt(column: string, value: string): LooseQuery;
-  is(column: string, value: null): LooseQuery;
+  is(column: string, value: null | boolean): LooseQuery;
   ilike(column: string, pattern: string): LooseQuery;
   order(column: string, opts?: { ascending?: boolean }): LooseQuery;
   limit(n: number): LooseQuery;

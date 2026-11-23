@@ -44,6 +44,8 @@ export interface StatTilesProps {
   wideFigures?: boolean;
   /** Labels on one line and figures on one line across each row, with equal row gaps (see the tile classes). */
   alignRows?: boolean;
+  /** Classes for the strip's frame: how the strip sits in ITS parent (a grid span, a margin). `className` styles the grid. */
+  frameClassName?: string;
 }
 
 /**
@@ -118,6 +120,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   variant = 'framed',
   wideFigures = false,
   alignRows = false,
+  frameClassName,
 }) => {
   const isUnknown = (tile: StatTile) => tile.unavailableReason != null || tile.value == null;
   const unknownTiles = allTiles.filter(isUnknown);
@@ -146,13 +149,16 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   // figures in a row sit on one line whatever wraps; figures step down below @md so two fit abreast.
   const isBare = variant === 'bare';
   return (
+    // The frame is the container the grid's column queries measure: a container query never resolves against the
+    // element that declares it, so `@container` on the grid itself left every strip at two columns (#2805).
+    <div className={cn('@container min-w-0', frameClassName)}>
     <div
       data-testid="stat-tiles"
       className={cn(
         // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel).
         // Container query: the N-col layout is driven by the strip's OWN width, so the
         // same tiles sit 2-up in a narrow pane and N-up on a wide canvas (tidy fix).
-        '@container grid grid-cols-2',
+        'grid grid-cols-2',
         // N-col equal-width grid per the columns prop once the container fits it
         smColsClass,
         // framed = the hairline-gap card strip; bare = borderless on the canvas
@@ -202,6 +208,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
           </div>
         );
       })}
+    </div>
     </div>
   );
 };

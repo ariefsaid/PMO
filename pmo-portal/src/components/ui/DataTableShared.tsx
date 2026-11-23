@@ -23,3 +23,9 @@ export function PrimaryCell({ title, titleText, secondary }: { title: React.Reac
     {secondary != null && <span className="block break-words text-control font-normal text-muted-foreground">{secondary}</span>}
   </span>;
 }
+
+/** A first-column lead control (a tree toggle) beside, never inside, the row's open button. No lead: the cell as is. */
+export function LeadSlot({ lead, children }: { lead: React.ReactNode; children: React.ReactNode }) {
+  if (lead == null || lead === false) return <>{children}</>;
+  return <span className="flex min-w-0 items-start gap-1">{lead}<span className="min-w-0 flex-1">{children}</span></span>;
+}

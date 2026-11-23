@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "backfill_subtask_places()"
+  ]
+}

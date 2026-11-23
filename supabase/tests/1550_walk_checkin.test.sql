@@ -128,7 +128,7 @@ select pg_temp.act_as('15500000-0000-0000-0000-000000000027');
 select is(public.phone_check_in('15500000-0000-0000-0000-000000000052', '15500000-0000-0000-0000-000000000061', null, null, null)->>'status', 'recorded',
   'AC-WCI-010 a Foreman clocks in on a work order his crew is rostered on (no area), though he is not a member of the crew');
 reset role;
-select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000052' and work_date = current_date), '15500000-0000-0000-0000-000000000061'::uuid,
+select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000052' and work_date = public.equipment_org_today('15500000-0000-0000-0000-000000000010')), '15500000-0000-0000-0000-000000000061'::uuid,
   'AC-WCI-010 his attendance is recorded against the crew he leads');
 set local role authenticated;
 select pg_temp.act_as('15500000-0000-0000-0000-000000000027');
@@ -147,7 +147,7 @@ select throws_ok($$ select public.phone_check_in('15500000-0000-0000-0000-000000
 select pg_temp.act_as('15500000-0000-0000-0000-000000000028');
 select is(public.phone_check_in('15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000063', 0.0003, 0, 10)->>'status', 'recorded', 'AC-WCI-013 a Foreman of two crews on the work order chooses the second');
 reset role;
-select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000051' and worker_id = '15500000-0000-0000-0000-000000000072' and work_date = current_date), '15500000-0000-0000-0000-000000000063'::uuid,
+select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000051' and worker_id = '15500000-0000-0000-0000-000000000072' and work_date = public.equipment_org_today('15500000-0000-0000-0000-000000000010')), '15500000-0000-0000-0000-000000000063'::uuid,
   'AC-WCI-013 the attendance names the crew he chose');
 -- outside: a request; the decider approves; the crew carries through
 set local role authenticated;
@@ -162,7 +162,7 @@ select is((select area_radius_m from public.phone_check_in_requests() where work
 select lives_ok($$ select public.phone_check_in_decide((select id from phone_check_ins where worker_id = '15500000-0000-0000-0000-000000000072' and status = 'pending'), true, null) $$,
   'AC-WCI-014 a crew manager approves the Foreman''s request');
 reset role;
-select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000055' and worker_id = '15500000-0000-0000-0000-000000000072' and work_date = current_date), '15500000-0000-0000-0000-000000000067'::uuid,
+select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000055' and worker_id = '15500000-0000-0000-0000-000000000072' and work_date = public.equipment_org_today('15500000-0000-0000-0000-000000000010')), '15500000-0000-0000-0000-000000000067'::uuid,
   'AC-WCI-014 approval records him against the crew he asked with');
 -- mutation: a Foreman's leadership no longer counts as being rostered
 select pg_temp.mutate('public.phone_check_in(uuid,uuid,double precision,double precision,double precision,numeric,boolean)',

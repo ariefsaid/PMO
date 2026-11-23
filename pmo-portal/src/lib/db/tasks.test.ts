@@ -77,6 +77,9 @@ import {
   unarchiveTask,
   addDependency,
   removeDependency,
+  createTaskTree,
+  PartialTreeError,
+  type SubtaskDraft,
 } from './tasks';
 import { AppError } from '@/src/lib/appError';
 
@@ -589,5 +592,32 @@ describe('AC-TASK-004 updateTask — description + priority (external dispatch b
     const record = ext.dispatch.mock.calls[0][1] as Record<string, unknown>;
     expect(record.description).toBeNull();
     expect(record.priority).toBeNull();
+  });
+});
+
+// #2807: a task and its subtasks are saved together.
+describe('createTaskTree', () => {
+  const d = (name: string, children: SubtaskDraft[] = []): SubtaskDraft => ({ key: name, name, assigneeId: '', due: '', children });
+  const root = { project_id: 'p1', name: 'Root', status: 'To Do' as const, assignee_id: null, milestone_id: 'm1' };
+  const place = { project_id: 'p1', milestone_id: 'm1', task_group_id: 'g1' };
+
+  it('AC-TREE-U04: a PMO-owned project gets ONE insert, parents before children, each subtask in its parent\'s phase and group', async () => {
+    h.result.value = { data: null, error: null };
+    await createTaskTree(root, null, [d('A'), d('B', [d('B1')])], place);
+    expect(h.calls.insert).toHaveLength(1);
+    const rows = h.calls.insert[0] as { id: string; name: string; parent_task_id: string | null; milestone_id: string; task_group_id?: string }[];
+    expect(rows.map((r) => r.name)).toEqual(['Root', 'A', 'B', 'B1']);
+    const id = Object.fromEntries(rows.map((r) => [r.name, r.id]));
+    expect(rows.map((r) => r.parent_task_id)).toEqual([null, id.Root, id.Root, id.B]);
+    expect(rows.slice(1).every((r) => r.milestone_id === 'm1' && r.task_group_id === 'g1')).toBe(true);
+  });
+
+  it('AC-TREE-U05: an externally-owned project writes parent first and reports how many landed when one fails', async () => {
+    ext.route = 'external';
+    ext.dispatch.mockResolvedValueOnce({ externalRecordId: 'x', canonical: { id: 'x', name: 'A', status: 'To Do' } }).mockRejectedValueOnce(new AppError('boom', '500'));
+    const err = await createTaskTree(null, 'parent-1', [d('A'), d('B')], place).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PartialTreeError);
+    expect(err).toMatchObject({ saved: 1, total: 2 });
+    expect((ext.dispatch.mock.calls[0][1] as { parent_task_id: string }).parent_task_id).toBe('parent-1');
   });
 });
