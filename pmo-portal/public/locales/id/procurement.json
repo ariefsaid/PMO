@@ -1087,6 +1087,7 @@
     }
   },
   "lineWorkOrders": {
+    "loadError": "Work order proyek ini tidak bisa dimuat.",
     "section": "Work order per baris",
     "intro": "Sebutkan work order dan disiplin untuk tiap baris. Jika semua baris menyebut work order yang sama, permintaan memakainya.",
     "field": "Work order untuk {{line}}",

@@ -8,7 +8,7 @@
 export const WAITING_KINDS = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
   'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
-  'certificate', 'equipment_plan',
+  'certificate', 'equipment_plan', 'medical_release',
 ] as const;
 
 export type WaitingKind = (typeof WAITING_KINDS)[number];
@@ -47,6 +47,8 @@ export const WAITING_KIND_META: Record<WaitingKind, WaitingKindMeta> = {
   quantity_change: { scopeKey: 'waitingList:scope.quantity_change', scopeLabel: 'Quantity changes', href: (id) => `/quantity-changes/${id}`, inboxSection: 'section' },
   certificate: { scopeKey: 'waitingList:scope.certificate', scopeLabel: 'Subcontract certificates', href: (id) => `/subcontract-certificates/${id}`, inboxSection: 'section' },
   equipment_plan: { scopeKey: 'waitingList:scope.equipment_plan', scopeLabel: 'Equipment plans', href: () => '/equipment-plans', inboxSection: 'section' },
+  // Read by the medical-releases section's own read (`can_decide` rows still Pending); that section on /approvals is where it is decided.
+  medical_release: { scopeKey: 'waitingList:scope.medical_release', scopeLabel: 'Medical releases', inboxSection: 'section' },
 };
 
 export const isDatabaseListedKind = (kind: string): kind is DatabaseListedKind => (DATABASE_LISTED_KINDS as readonly string[]).includes(kind);
@@ -72,6 +74,7 @@ export function scopeLabelText(kind: WaitingKind, t: Translate): string {
     case 'quantity_change': return t('waitingList:scope.quantity_change', 'Quantity changes');
     case 'certificate': return t('waitingList:scope.certificate', 'Subcontract certificates');
     case 'equipment_plan': return t('waitingList:scope.equipment_plan', 'Equipment plans');
+    case 'medical_release': return t('waitingList:scope.medical_release', 'Medical releases');
     default: return t(WAITING_KIND_META[kind].scopeKey, WAITING_KIND_META[kind].scopeLabel);
   }
 }

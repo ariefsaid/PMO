@@ -12,6 +12,7 @@ const h = vi.hoisted(() => {
     order: [] as string[],
     range: [] as number[][],
     eq: [] as unknown[][],
+    in: [] as unknown[][],
   };
   let result: { data: unknown; error: unknown; count?: number | null } = { data: [], error: null, count: 0 };
   const queue: Array<{ data: unknown; error: unknown; count?: number | null }> = [];
@@ -22,6 +23,7 @@ const h = vi.hoisted(() => {
     q.or = (filter: string) => { calls.or.push(filter); return q; };
     q.order = (column: string) => { calls.order.push(column); return q; };
     q.eq = (...args: unknown[]) => { calls.eq.push(args); return q; };
+    q.in = (...args: unknown[]) => { calls.in.push(args); return q; };
     q.range = (a: number, b: number) => { calls.range.push([a, b]); return q; };
     q.then = (resolve: (value: unknown) => unknown) => resolve(next());
     q.maybeSingle = () => Promise.resolve(next());
@@ -39,6 +41,7 @@ const h = vi.hoisted(() => {
       calls.order.length = 0;
       calls.range.length = 0;
       calls.eq.length = 0;
+      calls.in.length = 0;
       queue.length = 0;
       result = { data: [], error: null, count: 0 };
     },
@@ -78,17 +81,29 @@ describe('AC-AU-001 directory server page', () => {
     expect(page.rows.map((row) => row.id)).toEqual([person(51).id]);
     expect(h.calls.range).toEqual([[50, 99]]);
     expect(h.calls.order).toEqual(['full_name', 'id']);
-    // The projection is explicit AND the manager's name travels with the row (the manager may not
-    // be on the visible page); a wildcard would return the whole 17-column profile row.
+    // The projection is explicit; a wildcard would return the whole 17-column profile row. The manager name is
+    // NOT a self-embed (PostgREST answers that with the row's reports): it is a second read by manager_id.
     expect(h.calls.select[0]).toEqual([USER_DIRECTORY_COLUMNS, { count: 'exact' }]);
-    // The self-FK hint must be the FK COLUMN: PostgREST rejects a constraint-name hint on a
-    // self-referencing embed (PGRST200), which failed the whole directory read at runtime.
-    expect(USER_DIRECTORY_COLUMNS).toContain('manager:profiles!manager_id(full_name)');
-    expect(USER_DIRECTORY_COLUMNS).not.toMatch(/profiles_manager_id_fkey/);
+    expect(USER_DIRECTORY_COLUMNS).not.toMatch(/manager:|profiles!/);
     expect(USER_DIRECTORY_COLUMNS).not.toContain('*');
     expect(USER_DIRECTORY_COLUMNS).not.toMatch(/\bskills\b|\butilization\b|\btimezone\b|\bavatar_url\b/);
     // org_id is never sent — RLS scopes the rows.
     expect(h.calls.eq).toEqual([]);
+  });
+
+  it('names the manager of a person whose manager is NOT on the same page, and leaves no name where there is no manager', async () => {
+    const report = { ...person(1), manager_id: 'mgr-elsewhere' };
+    h.pushResult({ data: [report, person(2)], error: null, count: 2 });
+    h.pushResult({ data: [{ id: 'mgr-elsewhere', full_name: 'Diego Salvatierra' }], error: null });
+    const page = await listUsersPage({ page: 1, pageSize: 50, search: 'Person' });
+    expect(h.calls.in).toEqual([['id', ['mgr-elsewhere']]]);
+    expect(page.rows.map((row) => row.manager)).toEqual([{ full_name: 'Diego Salvatierra' }, null]);
+  });
+
+  it('a failed manager-name read fails the page, never a directory that says nobody has a manager', async () => {
+    h.pushResult({ data: [{ ...person(1), manager_id: 'mgr-x' }], error: null, count: 1 });
+    h.pushResult({ data: null, error: { message: 'boom', code: '500' } });
+    await expect(listUsersPage({ page: 1, pageSize: 50 })).rejects.toBeDefined();
   });
 
   it('applies a search on the SERVER before the range, escaping LIKE metacharacters', async () => {

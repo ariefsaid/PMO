@@ -50,16 +50,12 @@ export async function listUsers(): Promise<UserRow[]> {
  * columns this page never reads (skills, title, location, utilization, locale, number_locale,
  * timezone, company_id, avatar data, timestamps), and the directory is a whole-org list.
  *
- * `manager` is the row's manager NAME resolved server-side. The hint is the FK COLUMN
- * (`!manager_id`), deliberately not the constraint name: PostgREST resolves a SELF-referencing
- * embed only by column hint — `profiles!profiles_manager_id_fkey(...)` answers
- * PGRST200 "no matches were found" and the whole directory read fails (verified against the local
- * API; the same holds for `tasks!tasks_parent_task_id_fkey`). With a server page the manager may
- * not be on the visible page, so the name must travel with the row — the previous same-list lookup
- * would silently render "No manager" for every manager past the page boundary.
+ * `manager` is the row's manager NAME, read by `manager_id` in a second query (`listUsersPage`). It is NOT a self-embed:
+ * `manager:profiles!manager_id(...)` on this self-referencing table answers with the row's REPORTS, so a searched or paged
+ * directory showed "No manager" for a person who has one. The name travels with the row, whatever page the manager is on.
  */
 export const USER_DIRECTORY_COLUMNS =
-  'id,full_name,email,role,built_in_role,status,org_id,manager_id,manager:profiles!manager_id(full_name)';
+  'id,full_name,email,role,built_in_role,status,org_id,manager_id';
 
 /** Why the projection is not `UserRow`: the directory never receives the columns it does not read. */
 export interface UserDirectoryRow {
@@ -122,7 +118,17 @@ export async function listUsersPage(input: {
   if (count === null || count === undefined) {
     throw new AppError('The users directory total could not be resolved.', 'COUNT_UNRESOLVED');
   }
-  return { rows: (data ?? []) as unknown as UserDirectoryRow[], total: count };
+  const people = (data ?? []) as unknown as Omit<UserDirectoryRow, 'manager'>[];
+  // The manager may be on another page or outside the search: read the names by id, in the same org (RLS scopes it).
+  const managerIds = [...new Set(people.map((p) => p.manager_id).filter((id): id is string => Boolean(id)))];
+  const names = new Map<string, string>();
+  if (managerIds.length > 0) {
+    const { data: managers, error: managerError } = await supabase.from('profiles').select('id,full_name').in('id', managerIds);
+    if (managerError) throw toAppError(managerError);
+    for (const m of (managers ?? []) as { id: string; full_name: string }[]) names.set(m.id, m.full_name);
+  }
+  const rows = people.map((p) => ({ ...p, manager: p.manager_id && names.has(p.manager_id) ? { full_name: names.get(p.manager_id)! } : null }));
+  return { rows, total: count };
 }
 
 /**

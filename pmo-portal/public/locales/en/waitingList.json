@@ -13,6 +13,7 @@
   },
   "scope": {
     "leave": "Leave requests",
+    "medical_release": "Medical releases",
     "imprest": "Site cash",
     "daily_report": "Daily reports",
     "work_order_issue": "Work orders to issue",

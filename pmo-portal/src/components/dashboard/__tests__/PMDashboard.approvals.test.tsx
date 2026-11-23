@@ -28,6 +28,7 @@ const project = {
   realized_margin: 5_000, realized_margin_pct: 0.05, contract_remaining: 90_000,
 };
 
+vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

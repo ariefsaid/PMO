@@ -30,6 +30,15 @@ const renderPanel = (editable: boolean, requestWorkOrder: string | null = 'w2') 
 describe('AC-WPL-011 LineWorkOrdersPanel', () => {
   beforeEach(() => { vi.clearAllMocks(); h.orders.mockReturnValue({ data: ORDERS, isLoading: false }); h.set.mockResolvedValue(1); });
 
+  it('a failed work-orders read shows a retry, not "no work orders yet"', async () => {
+    const refetch = vi.fn();
+    h.orders.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    renderPanel(true);
+    expect(screen.queryByText(/no work orders yet/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
   it('offers "same as the request" naming the request’s work order, then the open work orders (a cancelled one is not offered)', () => {
     renderPanel(true);
     const select = screen.getAllByRole('combobox', { name: 'Work order for Cable' })[0];

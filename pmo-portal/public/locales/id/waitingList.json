@@ -13,6 +13,7 @@
   },
   "scope": {
     "leave": "Permohonan cuti",
+    "medical_release": "Pelepasan medis",
     "imprest": "Kas lapangan",
     "daily_report": "Laporan harian",
     "work_order_issue": "Work order untuk diterbitkan",

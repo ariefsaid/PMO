@@ -25,6 +25,7 @@ const h = vi.hoisted(() => {
     listArgs: { filter: {} as Record<string, string>, page: 0 },
     limit: null as number | null,
     approverRoles: [] as string[],
+    approverState: { isError: false, isPending: false, refetch: vi.fn() },
     listState: { isPending: false, isError: false, refetch: vi.fn() },
     overState: { isPending: false, isError: false, refetch: vi.fn() },
     m: { raise: mutation(), setLimit: mutation(), setApproverRoles: mutation(), recordForecast: mutation(), updateDraft: mutation(), submit: mutation(), approve: mutation(), returnRequest: mutation(), withdraw: mutation(), recordSent: mutation(), recordDecision: mutation(), uploadFile: mutation(), archiveFile: mutation() },
@@ -37,7 +38,7 @@ vi.mock('@/src/hooks/useQuantityChanges', () => ({
   },
   useOverContract: () => ({ ...h.overState, data: h.over }),
   useQuantityChangeLimit: () => ({ data: h.limit }),
-  useQuantityChangeApproverRoles: () => ({ data: h.approverRoles }),
+  useQuantityChangeApproverRoles: () => ({ data: h.approverState.isError || h.approverState.isPending ? undefined : h.approverRoles, ...h.approverState }),
   useQuantityChangeMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
@@ -79,6 +80,7 @@ const view = (entry = '/quantity-changes') => render(
 
 beforeEach(() => {
   h.role = 'Finance';
+  h.approverState = { isError: false, isPending: false, refetch: vi.fn() };
   h.over = [];
   h.list = { rows: [], hasMore: false };
   h.limit = null;
@@ -277,6 +279,7 @@ describe('QuantityChanges hub', () => {
   it('AC-CHR-010 the Admin ticks a reviewer role and saves the list; a non-Admin sees no control', async () => {
     h.role = 'Admin';
     h.approverRoles = ['executive'];
+    h.approverState = { isError: false, isPending: false, refetch: vi.fn() };
     const user = userEvent.setup();
     const { unmount } = view();
     const box = screen.getByRole('checkbox', { name: 'Project Control Manager' });
@@ -290,5 +293,22 @@ describe('QuantityChanges hub', () => {
     h.role = 'Finance';
     view();
     expect(screen.queryByTestId('qcr-approver-roles')).not.toBeInTheDocument();
+  });
+
+  it('the reviewer-roles card shows no boxes and a Retry when the saved list cannot be read', async () => {
+    h.role = 'Admin';
+    h.approverState = { isError: true, isPending: false, refetch: vi.fn() };
+    view();
+    expect(screen.queryByRole('checkbox', { name: 'Executive' })).not.toBeInTheDocument();
+    await userEvent.setup().click(within(screen.getByTestId('qcr-approver-roles')).getByRole('button', { name: 'Retry' }));
+    expect(h.approverState.refetch).toHaveBeenCalled();
+  });
+
+  it('the reviewer-roles card cannot be saved before the saved list has loaded', () => {
+    h.role = 'Admin';
+    h.approverState = { isError: false, isPending: true, refetch: vi.fn() };
+    view();
+    expect(screen.queryByRole('button', { name: 'Save reviewer roles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Executive' })).not.toBeInTheDocument();
   });
 });

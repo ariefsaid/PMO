@@ -10,6 +10,8 @@ import { useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import { useAcceptancesAwaitingConfirmation } from '@/src/hooks/useWorkOrderAcceptances';
 import { useLeaveRequests } from '@/src/hooks/useLeave';
 import { useImprestAwaiting } from '@/src/hooks/useImprest';
+import { useMedicalReleases } from '@/src/hooks/useMedicalRelease';
+import type { MedicalReleaseRow } from '@/src/lib/repositories/medicalRelease';
 import { useOrgId } from '@/src/hooks/useOrgId';
 import { useDatabaseWaiting, useDecisionStanding } from '@/src/hooks/useWaitingDecisions';
 import type { WaitingDecisionRow } from '@/src/lib/db/waitingDecisions';
@@ -95,6 +97,8 @@ function useLiveWaitingForYou(): WaitingForYou {
     () => useAcceptancesAwaitingConfirmation(signedIn && bastApplicable),
     UNKNOWN as QueryRead<AcceptanceAwaitingConfirmationRow[]>,
   );
+  // Medical releases: the section's own read; a release is the viewer's when the database says `can_decide` and it is still Pending.
+  const release = withoutDataLayer(() => useMedicalReleases(), UNKNOWN as QueryRead<MedicalReleaseRow[]>);
   const database = withoutDataLayer(() => useDatabaseWaiting(orgId, userId, signedIn), UNKNOWN as QueryRead<WaitingDecisionRow[]>);
   /* eslint-enable react-hooks/rules-of-hooks */
 
@@ -122,11 +126,13 @@ function useLiveWaitingForYou(): WaitingForYou {
       work_order_acceptance: (bast.data ?? []).map((row) => ({
         key: `work_order_acceptance:${row.id}`, kind: 'work_order_acceptance' as const, createdAt: row.prepared_at, row,
       })),
+      medical_release: (release.data ?? []).filter((r) => r.status === 'Pending' && r.can_decide)
+        .map((row) => ({ key: `medical_release:${row.id}`, kind: 'medical_release' as const, createdAt: row.release_date, row })),
       daily_report: [], work_order_issue: [], delivery_record: [], transfer_receipt: [], quantity_change: [], certificate: [], equipment_plan: [],
     };
     for (const row of database.data ?? []) byKind[row.kind].push({ key: `${row.kind}:${row.recordId}`, kind: row.kind, createdAt: row.createdAt, row });
     return WAITING_KINDS.flatMap((kind) => byKind[kind]);
-  }, [bast.data, database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, leave.enabled, material.data, procurementAdmin, procurementRole, procurements.data, realRole, timesheets.data, userId]);
+  }, [bast.data, database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, leave.enabled, material.data, procurementAdmin, release.data, procurementRole, procurements.data, realRole, timesheets.data, userId]);
 
   const population = useMemo(() => approvalPopulation(entries, 'all'), [entries]);
 
@@ -146,6 +152,7 @@ function useLiveWaitingForYou(): WaitingForYou {
       pending: signedIn && can('view', 'imprestPlan', { realRole }) && imprest.enabled && imprest.isPending,
       error: signedIn && can('view', 'imprestPlan', { realRole }) && imprest.enabled && imprest.isError,
     },
+    medical_release: { pending: signedIn && release.isPending, error: release.isError },
     daily_report: { pending: signedIn && database.isPending, error: database.isError },
     work_order_issue: { pending: signedIn && database.isPending, error: database.isError },
     delivery_record: { pending: signedIn && database.isPending, error: database.isError },
@@ -159,7 +166,7 @@ function useLiveWaitingForYou(): WaitingForYou {
   const failedKinds = WAITING_KINDS.filter((kind) => state[kind].error);
   const refetch = () => {
     void procurements.refetch(); void timesheets.refetch(); void expenses.refetch(); void invoices.refetch(); void material.refetch();
-    void leave.refetch(); void imprest.refetch(); void bast.refetch(); void database.refetch();
+    void leave.refetch(); void imprest.refetch(); void bast.refetch(); void release.refetch(); void database.refetch();
   };
 
   return {

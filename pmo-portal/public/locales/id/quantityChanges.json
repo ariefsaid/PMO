@@ -27,6 +27,7 @@
     "waiting": "Menunggu persetujuan"
   },
   "approvers": {
+    "error": "Peran peninjau tidak bisa dimuat",
     "help": "Admin, Eksekutif dan Keuangan selalu dapat menyetujui atau mengembalikan permintaan. Centang peran lain yang juga boleh. Orang yang mengajukan, mengubah, atau mengirim permintaan tetap tidak dapat menyetujuinya.",
     "save": "Simpan peran peninjau",
     "saved": "Peran peninjau disimpan",

@@ -1087,6 +1087,7 @@
     }
   },
   "lineWorkOrders": {
+    "loadError": "Could not load this project’s work orders.",
     "section": "Work order per line",
     "intro": "Say which work order, and discipline, each line is for. When every line names the same work order, the request takes it.",
     "field": "Work order for {{line}}",
