@@ -206,6 +206,8 @@
     "filters": {
       "warehouse": "Gudang",
       "allWarehouses": "Semua gudang",
+      "tag": "Label",
+      "allTags": "Semua label",
       "search": "Cari barang",
       "belowReorder": "Di bawah level pemesanan ulang",
       "includeZero": "Tampilkan sisa stok nol"

@@ -206,6 +206,8 @@
     "filters": {
       "warehouse": "Warehouse",
       "allWarehouses": "All warehouses",
+      "tag": "Tag",
+      "allTags": "All tags",
       "search": "Search items",
       "belowReorder": "Below reorder level",
       "includeZero": "Show zero balances"
