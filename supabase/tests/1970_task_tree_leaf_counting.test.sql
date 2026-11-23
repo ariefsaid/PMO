@@ -25,6 +25,7 @@ select plan(14);
 \set QM2   '19700000-0000-0000-0000-0000000000b6'
 \set G     '19700000-0000-0000-0001-000000000001'
 \set G2    '19700000-0000-0000-0001-000000000002'
+\set G3    '19700000-0000-0000-0001-000000000003'
 
 insert into organizations (id, name) values (:'ORG', 'Task Tree Org');
 insert into auth.users (id, email) values (:'EXE', 'tree-exe@invalid.example');
@@ -82,14 +83,17 @@ create temp table before_x on commit drop as
     from json_array_elements(get_executive_dashboard() -> 'attention_projects') r where r ->> 'id' = :'P';
 select is((select overdue_milestones from before_x), 0, 'precondition: the all-Done past phase is not overdue');
 
--- Regroup every leaf of P: group G (To Do, no dates) holds a, b and group G2; G2 holds c, d, e, f, g.
+-- Regroup every leaf of P: group G (To Do, no dates) holds a, b and group G2; G2 holds c, d, e; a TOP-LEVEL
+-- To Do parent G3 in the past-due phase MDONE holds its Done leaves f, g. Under the old top-level rule G3 would
+-- make MDONE overdue (1); under the leaf rule it stays 0, so the dashboard leg binds.
 reset role;
 insert into tasks (id, org_id, project_id, milestone_id, name, status) values (:'G', :'ORG', :'P', :'M1', 'Group', 'To Do');
-insert into tasks (id, org_id, project_id, milestone_id, name, status, parent_task_id) values (:'G2', :'ORG', :'P', :'MDONE', 'Sub-group', 'To Do', :'G');
+insert into tasks (id, org_id, project_id, milestone_id, name, status, parent_task_id) values (:'G2', :'ORG', :'P', :'M2', 'Sub-group', 'To Do', :'G');
+insert into tasks (id, org_id, project_id, milestone_id, name, status) values (:'G3', :'ORG', :'P', :'MDONE', 'Done-phase parent', 'To Do');
 update tasks set parent_task_id = :'G'  where id in ('19700000-0000-0000-0002-000000000001', '19700000-0000-0000-0002-000000000002');
 update tasks set parent_task_id = :'G2' where id in ('19700000-0000-0000-0002-000000000003', '19700000-0000-0000-0002-000000000004',
-                                                   '19700000-0000-0000-0002-000000000005', '19700000-0000-0000-0002-000000000006',
-                                                   '19700000-0000-0000-0002-000000000007');
+                                                   '19700000-0000-0000-0002-000000000005');
+update tasks set parent_task_id = :'G3' where id in ('19700000-0000-0000-0002-000000000006', '19700000-0000-0000-0002-000000000007');
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', :'EXE', 'role', 'authenticated')::text, true);
 
@@ -105,7 +109,7 @@ select is((select (r ->> 'overdue_milestones')::int
 
 -- AC-TREE-004: a parent's own status moves nothing; a leaf's does.
 reset role;
-update tasks set status = 'Done' where id in (:'G', :'G2');
+update tasks set status = 'Done' where id in (:'G', :'G2', :'G3');
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', :'EXE', 'role', 'authenticated')::text, true);
 select set_eq(format($$ select id, task_count, calculated_pct, effective_pct from get_project_milestones(%L) $$, :'P'),
