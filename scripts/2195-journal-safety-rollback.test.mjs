@@ -17,8 +17,25 @@ test('AC-ROP-SAFETY-ROLLBACK restores the exact 0858 function body and names edg
 });
 
 test('AC-ROP-SAFETY-ROLLBACK catalog round trip restores body and grants without changing shared schema', () => {
+  // 1530 sits above this window: it puts the field-account guard at the top of this body, and its
+  // rollback strips no body, so the catalog snapshotted at head can never be reproduced by
+  // re-applying 0865 alone. The guard is therefore proven HERE, at head, and the expected forward
+  // body is 0865's own level body: the head definition minus that one injected line. This is the
+  // same ruling scripts/2195-capture-rollback.test.sql:15-20,34-41 applies to the entries 1209/1530
+  // guarded; nothing else is tolerated, the comparison below is still exact.
+  // The guard must be present at head as the literal injected line, so a root gate fails loudly if
+  // 1530 stops guarding this money RPC. `strpos`/`chr(10)` keep it a literal match (no regex, no
+  // LIKE wildcards), and a `--`-commented guard cannot satisfy it: the text has to start right after
+  // a newline with the two-space indent 1530 injects.
   const script = `begin;
-create temp table new_body as select pg_get_functiondef('public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure) body, proacl from pg_proc where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure;
+do $$ begin
+  if not exists (select 1 from pg_proc
+                  where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure
+                    and strpos(prosrc, chr(10) || '  perform public.assert_not_light();') > 0) then
+    raise exception 'head_guard_missing';
+  end if;
+end $$;
+create temp table new_body as select replace(pg_get_functiondef('public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure), E'\\n  perform public.assert_not_light();', '') body, proacl from pg_proc where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure;
 ${down}
 create temp table restored as select pg_get_functiondef('public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure) body, proacl from pg_proc where oid='public.create_record_only_journal_purchase(jsonb,boolean)'::regprocedure;
 ${up}
