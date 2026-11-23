@@ -25,6 +25,7 @@ const { listState, profilesState, mutations, milestoneState } = vi.hoisted(() =>
   milestoneState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
+    createTree: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
     updateStatus: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
@@ -126,7 +127,7 @@ function phase(name: RegExp) {
 }
 
 describe('TasksTab — subtask nesting in the flat List view (AC-SUB-UI-001/002)', () => {
-  it('AC-SUB-UI-001: a 3-level chain renders parent-then-children in order, indented by depth', () => {
+  it('AC-SUB-UI-001: a 3-level chain renders parent-then-children in order, each announced at its depth', async () => {
     listState.data = [
       t('gp', 'Grandparent task'),
       t('p', 'Parent task', 'gp'),
@@ -146,31 +147,36 @@ describe('TasksTab — subtask nesting in the flat List view (AC-SUB-UI-001/002)
     expect(gpIdx).toBeLessThan(pIdx);
     expect(pIdx).toBeLessThan(cIdx);
 
-    // Indentation strictly increases with depth: grandparent(0) < parent(1) < child(2).
-    const gpIndent = parseInt(document.getElementById('task-gp')!.style.paddingLeft || '0', 10);
-    const pIndent = parseInt(document.getElementById('task-p')!.style.paddingLeft || '0', 10);
-    const cIndent = parseInt(document.getElementById('task-c')!.style.paddingLeft || '0', 10);
-    expect(gpIndent).toBe(0);
-    expect(pIndent).toBeGreaterThan(gpIndent);
-    expect(cIndent).toBeGreaterThan(pIndent);
+    // Each level is announced with its depth (the indent is presentation; the level is the behaviour).
+    const rowOf = (name: string) => screen.getByRole('button', { name: `Open task ${name}` }).closest('tr')!;
+    expect(rowOf('Grandparent task').textContent).not.toMatch(/Subtask, level/);
+    expect(rowOf('Parent task').textContent).toContain('Subtask, level 1');
+    expect(rowOf('Child task').textContent).toContain('Subtask, level 2');
+    // #2807: a parent folds its subtasks and unfolds them again.
+    await userEvent.click(screen.getByRole('button', { name: 'Hide subtasks of Grandparent task' }));
+    expect(screen.queryByRole('button', { name: 'Open task Child task' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show subtasks of Grandparent task' }));
+    expect(screen.getByRole('button', { name: 'Open task Child task' })).toBeInTheDocument();
   });
 
   it('AC-SUB-UI-002: a top-level task with no subtasks renders alone, unindented', () => {
     listState.data = [t('lonely', 'Lonely task')];
     renderTab();
-    expect(screen.getByText('Lonely task').style.paddingLeft || '0').toBe('0');
+    const row = screen.getByRole('button', { name: 'Open task Lonely task' }).closest('tr')!;
+    expect(row.textContent).not.toMatch(/Subtask, level/);
+    expect(within(row).queryByRole('button', { name: /subtasks of/ })).not.toBeInTheDocument();
   });
 });
 
-describe('TasksTab — parent-task picker excludes self + descendants (AC-SUB-UI-003)', () => {
+describe('TasksTab — Move offers no parent that would make a cycle (AC-SUB-UI-003)', () => {
   const openEditFor = async (taskName: string) => {
     const row = screen.getByText(taskName).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /edit/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move…' }));
     return screen.findByRole('dialog');
   };
 
-  it('AC-SUB-UI-003: editing the middle task of a chain excludes itself and its descendant from the parent options, but keeps unrelated tasks and its own current parent', async () => {
+  it('AC-SUB-UI-003: moving the middle task of a chain offers neither itself nor its descendant, but keeps unrelated tasks and its own current parent', async () => {
     listState.data = [
       t('gp', 'Grandparent task'),
       t('p', 'Parent task', 'gp'),
@@ -179,7 +185,7 @@ describe('TasksTab — parent-task picker excludes self + descendants (AC-SUB-UI
     ];
     renderTab();
     const dialog = await openEditFor('Parent task');
-    await userEvent.click(within(dialog).getByRole('combobox', { name: /parent task/i }));
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Under task' }));
 
     // Valid candidates: its own current parent (gp) and an unrelated sibling.
     expect(await screen.findByRole('option', { name: /grandparent task/i })).toBeInTheDocument();
@@ -192,7 +198,7 @@ describe('TasksTab — parent-task picker excludes self + descendants (AC-SUB-UI
 });
 
 describe('TasksTab — a subtask whose parent is outside the current milestone group (AC-SUB-UI-004)', () => {
-  it('AC-SUB-UI-004: a subtask grouped under a DIFFERENT milestone than its parent still renders (not vanished), unindented in its own group', () => {
+  it('AC-SUB-UI-004: a subtask in a different phase from its parent still renders, under its parent (a branch reads as one)', () => {
     const m1: MilestoneWithProgress = {
       id: 'm1', project_id: 'p1', name: 'Design', sort_order: 0,
       target_date: null, weight: 1, input_pct: null, task_count: 1,
@@ -206,18 +212,63 @@ describe('TasksTab — a subtask whose parent is outside the current milestone g
     milestoneState.data = [m1, m2];
     listState.data = [
       t('p1t', 'Design review', null, 'm1'),
-      // Its subtask is grouped under m2 — a different milestone than its parent.
+      // Its subtask carries another phase (#2807: it still counts there; it shows under its parent).
       t('c1t', 'Order steel', 'p1t', 'm2'),
     ];
     renderTab();
 
     const design = phase(/^Design/i);
     expect(design.text).toContain('Design review');
-    expect(design.text).not.toContain('Order steel');
+    expect(design.text).toContain('Subtask, level 1. Order steel');
+  });
+});
 
-    // The subtask is NOT lost — it renders in its own (Procurement) group.
-    expect(phase(/^Procurement/i).text).toContain('Order steel');
-    // Its parent isn't present in this slice, so it renders as a root: unindented.
-    expect(document.getElementById('task-c1t')!.style.paddingLeft || '0').toBe('0');
+describe('TasksTab — subtasks are typed in the task form and saved with it (#2807)', () => {
+  it('AC-SUB-UI-005: a new task with two subtasks, one with its own subtask, is saved in ONE tree write (no separate task, no parent picker)', async () => {
+    listState.data = [t('x', 'Existing task')];
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('button', { name: 'New task' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'New task' });
+    expect(within(dialog).queryByRole('combobox', { name: /parent task/i })).not.toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText(/task name/i), 'Foundations');
+    const sub = within(dialog).getByRole('group', { name: 'Subtasks' });
+    await user.click(within(sub).getByRole('button', { name: 'Add subtask' }));
+    await user.click(within(sub).getByRole('button', { name: 'Add subtask' }));
+    const names = () => within(sub).getAllByRole('textbox', { name: 'Subtask name' });
+    await user.type(names()[0], 'Excavate');
+    await user.type(names()[1], 'Pour');
+    await user.click(within(sub).getByRole('button', { name: 'Add a subtask under Pour' }));
+    await user.type(names()[2], 'Rebar');
+    // A task with subtasks takes its status and dates from them, and the form says so instead of asking.
+    expect(within(dialog).getByText('Status and dates come from its subtasks.')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('combobox', { name: /^status/i })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Create task' }));
+
+    expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+    expect(mutations.createTree.mutateAsync).toHaveBeenCalledTimes(1);
+    const [root, parentId, drafts] = mutations.createTree.mutateAsync.mock.calls[0][0];
+    expect(root).toMatchObject({ name: 'Foundations', parent_task_id: null, project_id: 'p1' });
+    expect(parentId).toBeNull();
+    expect(drafts.map((d: { name: string }) => d.name)).toEqual(['Excavate', 'Pour']);
+    expect(drafts[1].children.map((d: { name: string }) => d.name)).toEqual(['Rebar']);
+  });
+
+  it('AC-SUB-UI-006: a parent row shows its roll-up (progress of its subtasks) and no money; an Engineer sees no amount', () => {
+    realRole = 'Engineer';
+    currentUserId = 'eng-1';
+    // An Engineer's list opens on their own tasks.
+    const mine = { assignee_id: 'eng-1' };
+    listState.data = [
+      { ...t('p', 'Parent task'), ...mine },
+      { ...t('a', 'Leaf A', 'p'), ...mine, status: 'Done', end_date: '2026-03-10' },
+      { ...t('b', 'Leaf B', 'p'), ...mine, end_date: '2026-03-20' },
+    ];
+    renderTab();
+    const row = screen.getByRole('button', { name: 'Open task Parent task' }).closest('tr')!;
+    expect(within(row).getByRole('progressbar', { name: 'Subtask progress' })).toHaveAttribute('aria-valuenow', '50');
+    // Price and cost visibility unchanged: the outline carries no amount for any role.
+    const table = screen.getByRole('table', { name: 'Project tasks' });
+    expect(table.textContent).not.toMatch(/IDR|USD|Rp\s?\d|\$\s?\d/);
   });
 });

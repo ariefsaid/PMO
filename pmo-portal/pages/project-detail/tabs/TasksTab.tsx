@@ -18,12 +18,10 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { useTaskGroups, useTaskGroupMutations } from '@/src/hooks/useTaskGroups';
-import { useMilestoneMutations } from '@/src/hooks/useMilestones';
+import { useTaskGroups } from '@/src/hooks/useTaskGroups';
 import { buildRollups, collectDescendants, countedTasks } from '@/src/lib/tasks/taskTree';
 import type { SubtaskDraft } from '@/src/lib/db/tasks';
-import MilestoneFormModal from '../MilestoneFormModal';
-import { MoveTaskDialog, TaskGroupFormModal, placePatch } from './TaskOutlineDialogs';
+import { MoveTaskDialog, NewGroupingDialog, placePatch } from './TaskOutlineDialogs';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -94,8 +92,6 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const { data: assignableProfiles } = useAssignableProfiles();
   const { create, createTree, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = EMPTY_PENDING_PUSH } =
     useTaskMutations(projectId);
-  const groupMutations = useTaskGroupMutations(projectId);
-  const milestoneMutations = useMilestoneMutations(projectId);
   // #2104: the mutation objects are re-created every render but `mutateAsync` is not, so the write
   // callbacks below depend on the function and keep their identity.
   const updateStatusAsync = updateStatus.mutateAsync;
@@ -790,36 +786,12 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         />
       )}
 
-      {newGrouping === 'group' && (
-        <TaskGroupFormModal
+      {newGrouping && (
+        <NewGroupingDialog
+          kind={newGrouping}
+          projectId={projectId}
           milestones={milestoneList}
-          onClose={() => setNewGrouping(null)}
-          onCreate={async (input) => {
-            await groupMutations.create.mutateAsync(input);
-            toast(t('projectDetail.tasks.taskGroups.toast.created', 'Task group created'), input.name, 'success');
-            setNewGrouping(null);
-          }}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
-        />
-      )}
-
-      {newGrouping === 'phase' && (
-        <MilestoneFormModal
-          milestone={null}
-          onClose={() => setNewGrouping(null)}
-          onCreate={async (input) => {
-            await milestoneMutations.create.mutateAsync({ input });
-            toast(t('projectDetail.milestones.toast.created', 'Phase created'), input.name, 'success');
-            setNewGrouping(null);
-          }}
-          onUpdate={async () => undefined}
-          onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
-            toast(headline, detail, 'warning');
-          }}
+          onDone={() => setNewGrouping(null)}
         />
       )}
 

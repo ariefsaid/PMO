@@ -41,18 +41,41 @@ describe('buildReuiGanttModel', () => {
     expect(m.undated).toEqual([{ id: 'u', name: 'U' }]);
   });
 
-  it('excludes subtasks and archived tasks entirely', () => {
+  it('#2807: a parent is a row with no bar of its own, its subtasks are rows and bars under it, to any depth; archived tasks are left out', () => {
     const m = buildReuiGanttModel(
       [
-        task({ id: 's', name: 'Sub', parent_task_id: 'a', start_date: '2026-01-01', end_date: '2026-01-02' }),
+        task({ id: 'p', name: 'Parent', start_date: '2025-01-01', end_date: '2025-12-31' }),
+        task({ id: 'c', name: 'Child', parent_task_id: 'p' }),
+        task({ id: 's', name: 'Sub', parent_task_id: 'c', status: 'Done', start_date: '2026-01-01', end_date: '2026-01-02' }),
+        task({ id: 't', name: 'Sub 2', parent_task_id: 'p', start_date: '2026-01-05', end_date: '2026-01-06' }),
         task({ id: 'x', name: 'Arch', archived_at: '2026-01-01T00:00:00Z', start_date: '2026-01-01', end_date: '2026-01-02' }),
       ],
       [],
       labels,
     );
-    expect(m.events).toHaveLength(0);
+    expect(m.events.map((e) => e.id).sort()).toEqual(['s', 't']);
+    const parent = m.resources[0].children![0];
+    expect(parent.id).toBe('p');
+    expect(parent.children!.map((r) => r.id)).toEqual(['c', 't']);
+    expect(parent.children![0].children!.map((r) => r.id)).toEqual(['s']);
+    // The parent's summary progress is done leaves over leaves (1 of 2), never its own status.
+    expect(m.summaryPct.get('p')).toBe(50);
     expect(m.undated).toHaveLength(0);
-    expect(m.isEmpty).toBe(true);
+  });
+
+  it('#2807: a task group linked to a phase nests under it; an unlinked group is a top row', () => {
+    const m = buildReuiGanttModel(
+      [
+        task({ id: 'a', name: 'A', task_group_id: 'g1', start_date: '2026-01-01', end_date: '2026-01-02' } as Partial<TaskWithRefs> & { id: string; name: string }),
+        task({ id: 'b', name: 'B', task_group_id: 'g2', start_date: '2026-01-01', end_date: '2026-01-02' } as Partial<TaskWithRefs> & { id: string; name: string }),
+      ],
+      [milestone({ id: 'm1', name: 'Phase' })],
+      labels,
+      undefined,
+      { taskGroups: [{ id: 'g1', name: 'Linked', milestone_id: 'm1' }, { id: 'g2', name: 'Loose', milestone_id: null }] },
+    );
+    expect(m.resources.map((r) => r.id)).toEqual(['milestone:m1', 'group:g2']);
+    expect(m.resources[0].children!.map((r) => r.id)).toEqual(['group:g1']);
   });
 
   it('groups tasks under their milestone (sorted) and the rest under Ungrouped', () => {

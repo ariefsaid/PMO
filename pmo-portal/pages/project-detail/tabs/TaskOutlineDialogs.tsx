@@ -5,7 +5,11 @@
  */
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Combobox, EntityFormModal, SelectField, TextField, type ComboboxOption } from '@/src/components/ui';
+import { Combobox, EntityFormModal, FormGrid, SelectField, TextField, useToast, type ComboboxOption } from '@/src/components/ui';
+import { useTaskGroupMutations } from '@/src/hooks/useTaskGroups';
+import { useMilestoneMutations } from '@/src/hooks/useMilestones';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import MilestoneFormModal from '../MilestoneFormModal';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { TaskGroupRow, WithTaskGroup } from '@/src/lib/db/taskGroups';
 import type { TaskPatch, TaskWithRefs } from '@/src/lib/db/tasks';
@@ -36,6 +40,7 @@ export function TaskGroupFormModal({ milestones, onClose, onCreate, onError }: {
       onCreate({ name: name.trim(), milestone_id: phase || null }).catch(onError).finally(() => setBusy(false));
     }}
   >
+    <FormGrid>
     <TextField label={t('projectDetail.tasks.groupForm.name', 'Group name')} value={name} onChange={setName} maxLength={120} required autoFocus />
     {milestones.length > 0 && <SelectField
       label={t('projectDetail.tasks.groupForm.phase', 'In phase')}
@@ -44,6 +49,7 @@ export function TaskGroupFormModal({ milestones, onClose, onCreate, onError }: {
       options={milestones.map((m) => ({ value: m.id, label: m.name }))}
       placeholder={t('projectDetail.tasks.groupForm.noPhase', 'No phase')}
     />}
+    </FormGrid>
   </EntityFormModal>;
 }
 
@@ -104,6 +110,7 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
       onMove(parent, shownPlace !== placeOf(task) ? shownPlace : null).catch(onError).finally(() => setBusy(false));
     }}
   >
+    <FormGrid>
     <Combobox
       label={t('projectDetail.tasks.move.parent', 'Under task')}
       value={parent}
@@ -123,5 +130,46 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
       placeholder={t('projectDetail.tasks.ungrouped', 'Ungrouped')}
       helper={parent ? t('projectDetail.tasks.move.followsParent', 'A subtask stays in its parent task\'s group.') : undefined}
     />
+    </FormGrid>
   </EntityFormModal>;
+}
+
+/** "Add group" in the task view: a task group, or a phase (the existing phase form), saved without leaving the tab. */
+export function NewGroupingDialog({ kind, projectId, milestones, onDone }: {
+  kind: 'group' | 'phase';
+  projectId: string;
+  milestones: MilestoneWithProgress[];
+  onDone: () => void;
+}) {
+  const { t } = useTranslation('project');
+  const { toast } = useToast();
+  const groups = useTaskGroupMutations(projectId);
+  const phases = useMilestoneMutations(projectId);
+  const onError = (err: unknown) => {
+    const { headline, detail } = classifyMutationError(err);
+    toast(headline, detail, 'warning');
+  };
+  if (kind === 'phase') {
+    return <MilestoneFormModal
+      milestone={null}
+      onClose={onDone}
+      onCreate={async (input) => {
+        await phases.create.mutateAsync({ input });
+        toast(t('projectDetail.milestones.toast.created', 'Phase created'), input.name, 'success');
+        onDone();
+      }}
+      onUpdate={async () => undefined}
+      onError={onError}
+    />;
+  }
+  return <TaskGroupFormModal
+    milestones={milestones}
+    onClose={onDone}
+    onCreate={async (input) => {
+      await groups.create.mutateAsync(input);
+      toast(t('projectDetail.tasks.taskGroups.toast.created', 'Task group created'), input.name, 'success');
+      onDone();
+    }}
+    onError={onError}
+  />;
 }

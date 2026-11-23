@@ -271,9 +271,12 @@ describe('evenAxisTicks', () => {
 
 // ── SCurveTask factory ──────────────────────────────────────────────────────
 /** Minimal SCurveTask — only the fields buildSCurve reads from a task. */
+let scSeq = 0;
 const scTask = (over: Partial<SCurveTask> & { milestone_id: string | null }): SCurveTask => ({
+  id: over.id ?? `t${++scSeq}`,
   milestone_id: over.milestone_id,
   parent_task_id: over.parent_task_id ?? null,
+  archived_at: over.archived_at ?? null,
   status: over.status ?? 'To Do',
   completed_at: over.completed_at ?? null,
   end_date: over.end_date ?? null,
@@ -439,62 +442,44 @@ describe('buildSCurve — actual series', () => {
   });
 });
 
-// ── OD-INT-9 subtask rollup exclusion ─────────────────────────────────────────
-// Only top-level tasks (parent_task_id IS NULL) participate in the actual series. A Done subtask
-// must NOT add its own step to the curve, and must NOT dilute the parent's per-task numerator
-// (which would otherwise halve the parent's contribution in a 1-parent + 1-subtask milestone).
-describe('OD-INT-9: subtasks never move the S-curve actual series', () => {
-  it('AC-SUB-SC-001: a Done subtask does not contribute its own actual point', () => {
-    // Milestone m1 (weight 100, target 2026-01-31, effective_pct 100). Parent Done at 2026-01-10;
-    // subtask Done at 2026-01-20 (parent_task_id = 'parent').
-    const milestones = [
-      msa({ id: 'm1', target_date: '2026-01-31', weight: 100, effective_pct: 100 }),
-    ];
+// ── #2807 counting rule (countedTasks) ──────────────────────────────────────────
+// A task counts when it is live and has no live child: leaves carry the work, a parent is a roll-up. Each piece of
+// work moves the actual series once, wherever it sits in the tree.
+describe('#2807: the S-curve counts each piece of work once', () => {
+  const ms = () => [msa({ id: 'm1', target_date: '2026-01-31', weight: 100, effective_pct: 100 })];
+
+  it("AC-SUB-SC-001: a parent's own Done adds no point; its subtask's Done does", () => {
     const tasks: SCurveTask[] = [
-      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z', parent_task_id: null }),
-      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-20T00:00:00Z', parent_task_id: 'parent' }),
+      scTask({ id: 'p', milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z' }),
+      scTask({ id: 's', milestone_id: 'm1', status: 'Done', completed_at: '2026-01-20T00:00:00Z', parent_task_id: 'p' }),
     ];
-    const model = buildSCurve(milestones, '2026-12-31', tasks);
-    const actualPts = model.points.filter((p) => p.actual !== null);
-
-    // No actual point lands on the subtask's completion date (2026-01-20).
-    expect(actualPts.some((p) => p.date === '2026-01-20')).toBe(false);
-  });
-
-  it('AC-SUB-SC-002: the parent contributes the FULL milestone weight, not a diluted half (subtask excluded from the denominator)', () => {
-    // Same milestone (weight 100, one parent + one subtask). If the subtask counted, totalTasksInMs
-    // would be 2 → per-task numerator 50 → parent's point would be 50. With the rule, only the
-    // parent counts → per-task numerator 100 → parent's first point is 100.
-    const milestones = [
-      msa({ id: 'm1', target_date: '2026-01-31', weight: 100, effective_pct: 100 }),
-    ];
-    const tasks: SCurveTask[] = [
-      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z', parent_task_id: null }),
-      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-20T00:00:00Z', parent_task_id: 'parent' }),
-    ];
-    const model = buildSCurve(milestones, '2026-12-31', tasks);
-    const parentPt = model.points.find((p) => p.date === '2026-01-10' && p.actual !== null);
-
-    expect(parentPt).toBeDefined();
-    expect(parentPt!.actual).toBe(100);
-  });
-
-  it('AC-SUB-SC-003: a milestone whose ONLY task is a subtask falls back to the milestone-level path (no task-level contribution)', () => {
-    // Milestone m1 with effective_pct 100 (RPC-derived, already excludes the subtask). The only
-    // task passed is a subtask → the task-level path must treat the milestone as task-less and
-    // contribute at target_date, NOT at the subtask's completed_at.
-    const milestones = [
-      msa({ id: 'm1', target_date: '2026-01-31', weight: 100, effective_pct: 100 }),
-    ];
-    const tasks: SCurveTask[] = [
-      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z', parent_task_id: 'parent' }),
-    ];
-    const model = buildSCurve(milestones, '2026-12-31', tasks);
-    const actualPts = model.points.filter((p) => p.actual !== null);
-
-    // No point at the subtask's date (2026-01-10); the milestone contributes at its target_date instead.
+    const actualPts = buildSCurve(ms(), '2026-12-31', tasks).points.filter((p) => p.actual !== null);
     expect(actualPts.some((p) => p.date === '2026-01-10')).toBe(false);
-    expect(actualPts.some((p) => p.date === '2026-01-31')).toBe(true);
+    expect(actualPts.find((p) => p.date === '2026-01-20')?.actual).toBe(100);
+  });
+
+  it('AC-SUB-SC-002: an archived child does not make a parent: the task still carries the full weight', () => {
+    const tasks: SCurveTask[] = [
+      scTask({ id: 'p', milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z' }),
+      scTask({ id: 's', milestone_id: 'm1', status: 'To Do', parent_task_id: 'p', archived_at: '2026-01-05T00:00:00Z' }),
+    ];
+    const pt = buildSCurve(ms(), '2026-12-31', tasks).points.find((p) => p.date === '2026-01-10' && p.actual !== null);
+    expect(pt?.actual).toBe(100);
+  });
+
+  it('AC-SUB-SC-003: regrouping the same leaves under new parents leaves the actual series identical', () => {
+    const flat: SCurveTask[] = [
+      scTask({ id: 'a', milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z' }),
+      scTask({ id: 'b', milestone_id: 'm1', status: 'Done', completed_at: '2026-01-20T00:00:00Z' }),
+      scTask({ id: 'c', milestone_id: 'm1', status: 'In Progress' }),
+    ];
+    const grouped: SCurveTask[] = [
+      scTask({ id: 'g', milestone_id: 'm1', status: 'To Do' }),
+      scTask({ id: 'g2', milestone_id: 'm1', status: 'Done', completed_at: '2026-01-05T00:00:00Z', parent_task_id: 'g' }),
+      ...flat.map((t, i) => ({ ...t, parent_task_id: i === 0 ? 'g' : 'g2' })),
+    ];
+    const series = (tasks: SCurveTask[]) => buildSCurve(ms(), '2026-12-31', tasks).points.map((p) => [p.date, p.actual]);
+    expect(series(grouped)).toEqual(series(flat));
   });
 });
 

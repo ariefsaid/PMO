@@ -52,7 +52,7 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
   const row = (d: SubtaskDraft, depth: number): React.ReactNode => (
     <li key={d.key}>
       <div
-        className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 border-b border-border/60 py-2 sm:grid-cols-[minmax(0,1fr)_10rem_9.5rem_auto]"
+        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/60 py-2"
         style={depth > 0 ? { paddingLeft: depth * INDENT_PX } : undefined}
       >
         <TextField
@@ -65,7 +65,7 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
           maxLength={500}
           fullWidth
         />
-        <div className="flex items-center gap-1 sm:order-last">
+        <div className="flex items-center gap-1">
           <Button
             type="button"
             variant="ghost"
@@ -87,7 +87,7 @@ export function SubtaskDraftsEditor({ drafts, onChange, people, existing, autoFo
             <Icon name="x" />
           </Button>
         </div>
-        <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:contents">
+        <div className="col-span-2 grid grid-cols-2 gap-2">
           <SelectField
             label={t('projectDetail.tasks.form.assignee', 'Assignee')}
             hideLabel
