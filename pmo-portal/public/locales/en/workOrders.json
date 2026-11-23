@@ -300,6 +300,8 @@
       "dateHelper": "Leave blank for today.",
       "collector": "Collected by",
       "paper": "Delivery paper reference",
+      "slipFailed": "Pickup recorded, but the slip photo was not saved. Add it under Attachments on the receipt.",
+      "slip": "Delivery slip photo",
       "zeroValue": "The material is received into stock at no cost."
     },
     "importTakeoff": "Import take-off"

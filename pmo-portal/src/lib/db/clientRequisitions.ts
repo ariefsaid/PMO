@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Json } from '@/src/lib/supabase/database.types';
+import { uploadStockDocumentFile } from './stockSiteWork';
 import type { CsrEvent, CsrEventKind, CsrLine } from '@/src/lib/clientRequisitionRollup';
 
 /**
@@ -202,4 +203,13 @@ export async function recordClientPickup(
   });
   if (error) fail(error);
   return String(data);
+}
+
+/** The slip photo of a pickup: an attachment on the receipt that pickup posted (the same file store the receipt's own Attachments panel uses). */
+export async function attachClientPickupSlip(pickupId: string, file: File): Promise<void> {
+  const { data, error } = await supabase.from('client_requisition_pickups').select('org_id, stock_document_id').eq('id', pickupId).limit(1);
+  if (error) fail(error);
+  const row = data?.[0];
+  if (!row) throw new AppError('The pickup receipt could not be found.', 'PGRST116');
+  await uploadStockDocumentFile(row.org_id, row.stock_document_id, file, 'Delivery slip');
 }

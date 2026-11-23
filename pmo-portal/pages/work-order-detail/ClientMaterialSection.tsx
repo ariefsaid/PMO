@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ImportButton } from '@/src/components/import';
 import { makeClientTakeoffImportDescriptor } from '@/src/lib/import';
 import { Button, ConfirmDialog, ListState, RecordSection, StatusPill, type StatusVariant } from '@/src/components/ui';
+import { useOptionalToast } from '@/src/components/ui/Toast';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -56,6 +57,7 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
   const viewOnly = realRole !== effectiveRole;                  // view-as is view-only (ADR-0016)
   const q = useWorkOrderClientMaterial(workOrderId);
   const m = useClientRequisitionMutations();
+  const toast = useOptionalToast();
   const tags = useStockTags();
   const zeroCostTagIds = useMemo(() => (tags.data ?? []).filter((tg) => tg.zero_cost).map((tg) => tg.id), [tags.data]);
   const zeroCostTagSet = useMemo(() => new Set(zeroCostTagIds), [zeroCostTagIds]);
@@ -249,7 +251,9 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
       )}
       {dialog?.kind === 'pickup' && (
         <PickupDialog line={dialog.line} figures={dialog.figures} locations={pickupLocations} onClose={() => setDialog(null)}
-          onSave={(v) => m.recordPickup.mutateAsync({ lineId: dialog.line.id, ...v, clientRequestId: crypto.randomUUID() })} />
+          onSave={(v) => m.recordPickup.mutateAsync({ lineId: dialog.line.id, ...v, clientRequestId: crypto.randomUUID() }).then((res) => {
+            if (res?.slipFailed) toast?.toast(t('clientMaterial.pickup.slipFailed', 'Pickup recorded, but the slip photo was not saved. Add it under Attachments on the receipt.'), undefined, 'warning');
+          })} />
       )}
       {dialog?.kind === 'cancel' && (
         <ConfirmDialog open tone="destructive" title={t('clientMaterial.cancelTitle', 'Cancel this requisition?')}

@@ -259,6 +259,8 @@
       "locationPlaceholder": "Pilih lokasi",
       "locationRequired": "Pilih lokasi penerimaan material.",
       "paper": "Referensi surat jalan",
+      "slipFailed": "Pengambilan tercatat, tetapi foto surat jalan belum tersimpan. Tambahkan di Lampiran pada tanda terima.",
+      "slip": "Foto surat jalan",
       "quantity": "Kuantitas diambil",
       "room": "{{n}} belum diambil",
       "submit": "Catat pengambilan",

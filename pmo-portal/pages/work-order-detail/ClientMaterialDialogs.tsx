@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, TextField, type SubmitError } from '@/src/components/ui';
+import { FileInput } from '@/src/components/ui/FormFields';
 import { formatNumberExact } from '@/src/lib/format';
 import type { ClientRequisitionLineRow } from '@/src/lib/repositories/clientRequisitions';
 import type { CsrLineFigures } from '@/src/lib/clientRequisitionRollup';
@@ -195,7 +196,7 @@ export const ReleaseDialog: React.FC<LineDialogProps & {
 
 export const PickupDialog: React.FC<LineDialogProps & {
   locations: Option[];
-  onSave: (v: { quantity: string; warehouseId: string; pickedUpOn: string | null; collector: string | null; paperReference: string | null }) => Promise<unknown>;
+  onSave: (v: { quantity: string; warehouseId: string; pickedUpOn: string | null; collector: string | null; paperReference: string | null; slip: File | null }) => Promise<unknown>;
 }> = ({ line, figures, locations, onClose, onSave }) => {
   const { t } = useTranslation('workOrders');
   const submitError = useSubmitError();
@@ -204,6 +205,7 @@ export const PickupDialog: React.FC<LineDialogProps & {
   const [on, setOn] = useState('');
   const [collector, setCollector] = useState('');
   const [paper, setPaper] = useState('');
+  const [slip, setSlip] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
@@ -220,7 +222,7 @@ export const PickupDialog: React.FC<LineDialogProps & {
     if (Object.keys(next).length || q === null) return;
     setBusy(true);
     setSaveError(null);
-    void onSave({ quantity: q, warehouseId, pickedUpOn: on || null, collector: collector.trim() || null, paperReference: paper.trim() || null })
+    void onSave({ quantity: q, warehouseId, pickedUpOn: on || null, collector: collector.trim() || null, paperReference: paper.trim() || null, slip })
       .then(onClose).catch((err: unknown) => setSaveError(submitError(err))).finally(() => setBusy(false));
   };
   return (
@@ -235,6 +237,10 @@ export const PickupDialog: React.FC<LineDialogProps & {
           helper={t('clientMaterial.pickup.dateHelper', 'Leave blank for today.')} />
         <TextField id="csr-pick-collector" label={t('clientMaterial.pickup.collector', 'Collected by')} value={collector} onChange={setCollector} maxLength={200} />
         <TextField id="csr-pick-paper" label={t('clientMaterial.pickup.paper', 'Delivery paper reference')} value={paper} onChange={setPaper} maxLength={200} code />
+        <div className="space-y-1">
+          <label htmlFor="csr-pick-slip" className="block text-sm font-medium">{t('clientMaterial.pickup.slip', 'Delivery slip photo')}</label>
+          <FileInput id="csr-pick-slip" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={(e) => setSlip(e.currentTarget.files?.[0] ?? null)} />
+        </div>
       </FormGrid>
       <p className="mt-3 text-control text-muted-foreground">{t('clientMaterial.pickup.zeroValue', 'The material is received into stock at no cost.')}</p>
     </EntityFormModal>

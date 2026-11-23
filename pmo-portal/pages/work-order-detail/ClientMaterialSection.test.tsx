@@ -145,6 +145,20 @@ describe('ClientMaterialSection', () => {
     expect(typeof arg.clientRequestId).toBe('string');
   });
 
+  it('W1 a slip photo chosen in the pickup dialog travels with the pickup', async () => {
+    h.role = 'Engineer'; h.realRole = 'Engineer'; h.userId = 'u-keeper';
+    renderIt();
+    await userEvent.click(screen.getByRole('button', { name: 'Record pickup' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/Quantity collected/), '20');
+    const slip = new File(['x'], 'slip.jpg', { type: 'image/jpeg' });
+    await userEvent.upload(within(dialog).getByLabelText('Delivery slip photo'), slip);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Record pickup' }));
+    const fn = (h.mutations as { recordPickup: { mutateAsync: ReturnType<typeof vi.fn> } }).recordPickup.mutateAsync;
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(1));
+    expect(fn.mock.calls[0][0].slip).toBe(slip);
+  });
+
   it('FR-CSR-006/007 a reservation over what can still be reserved is refused before the call', async () => {
     h.query = ok({ ...HAND, events: [ev('reserved', '60'), ev('reserved', '20')] });   // requested 100, reserved 80: room 20
     renderIt();
