@@ -57,7 +57,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   }, [rows, disciplines]);
 
   const filters: FilterBarFilter[] = [
-    { key: 'status', label: t('all.filter.status', 'Status'), kind: 'segment', semantics: 'tabs',
+    { key: 'status', label: t('all.filter.status', 'Filter by status'), kind: 'segment', semantics: 'tabs',
       // Late sits first: what is off track leads (screen rules); it is not a status, so it has no pill colour.
       options: [{ value: 'late', label: t('all.filter.late', 'Late') }, ...STATUSES.map((s) => ({ value: s, label: statusLabel('workOrder', s, ts) }))] },
     ...(!projectId && projects.length > 1 ? [{ key: 'project', label: t('all.filter.project', 'Project'), kind: 'select' as const,
@@ -72,7 +72,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
       cell: (r) => r.wo_number ?? t('notNumbered', 'Not yet numbered'), secondaryCell: (r) => r.title, size: 240,
       primaryTitle: (r) => `${r.wo_number ?? ''} ${r.title}`.trim(), exportValue: (r) => r.wo_number ?? '' },
     ...(projectId ? [] : [{ key: 'project', header: t('project', 'Project'), size: 144, cell: (r: DashboardRow) => r.project_name ?? '—', exportValue: (r: DashboardRow) => r.project_name ?? '' }]),
-    { key: 'status', header: t('all.col.status', 'Status'), kind: 'status', size: 132, cell: (r) => <StatusPill record="workOrder" state={r.status} />,
+    { key: 'status', header: t('common:projects.columns.status', 'Status'), kind: 'status', size: 132, cell: (r) => <StatusPill record="workOrder" state={r.status} />,
       exportValue: (r) => statusLabel('workOrder', r.status, ts) },
     { key: 'progress', header: t('all.col.progress', 'Progress'), kind: 'percent', size: 112, keepWhenBlank: true,
       cell: (r) => r.progress === null ? pendingMark : (

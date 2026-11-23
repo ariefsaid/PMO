@@ -346,14 +346,13 @@
     "tileEmpty": "Tidak ada $t(common:terms.clientWorkOrder) yang terbuka",
     "until": "sampai {{date}}",
     "filter": {
-      "status": "Status",
       "late": "Terlambat",
       "project": "Proyek",
-      "discipline": "Disiplin"
+      "discipline": "Disiplin",
+      "status": "Filter berdasarkan status"
     },
     "col": {
       "workOrder": "$t(common:terms.clientWorkOrder)",
-      "status": "Status",
       "progress": "Progres",
       "cost": "Biaya langsung",
       "billed": "Ditagih",

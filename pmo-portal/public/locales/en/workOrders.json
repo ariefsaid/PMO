@@ -346,14 +346,13 @@
     "tileEmpty": "No open work orders",
     "until": "until {{date}}",
     "filter": {
-      "status": "Status",
       "late": "Late",
       "project": "Project",
-      "discipline": "Discipline"
+      "discipline": "Discipline",
+      "status": "Filter by status"
     },
     "col": {
       "workOrder": "Work order",
-      "status": "Status",
       "progress": "Progress",
       "cost": "Direct cost",
       "billed": "Billed",
