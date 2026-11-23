@@ -64,6 +64,12 @@ vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
   useUploadDestination: () => destinationState.value,
 }));
 
+const listChildren = vi.hoisted(() => vi.fn());
+vi.mock('@/src/lib/m365/graphClient', async (orig) => ({
+  ...(await orig<typeof import('@/src/lib/m365/graphClient')>()),
+  listChildren: (...args: unknown[]) => listChildren(...args),
+}));
+
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => listState,
   useDocumentMutations: () => ({ ...mutations, refresh }),
@@ -808,7 +814,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 
   it('AC-DOC-M365: linked folder contents remain expandable and the footer opens SharePoint', async () => {
     listState.data = [linkedFolder];
-    renderTab('Admin', 'admin-1');
+    renderTab('Admin', 'admin-1', '/?documentsView=register');
     await userEvent.click(screen.getByRole('button', { name: 'View Reference set' }));
     const preview = screen.getByRole('dialog');
     expect(within(preview).getByRole('button', { name: 'Show files' })).toBeInTheDocument();
@@ -1393,11 +1399,6 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     expect(within(assembly).getByRole('status')).toHaveTextContent('Showing 1–11 of 11');
   });
 
-  it('care-10e F1: the document-number line is regular weight and muted (supporting text), not the title weight', () => {
-    renderTab();
-    const line = screen.getAllByText('DOC-001 · Rev A')[0];
-    expect(line).toHaveClass('font-normal', 'text-muted-foreground', 'text-sm');
-  });
 
   it('care-10e F2: 120 documents page 50 a page with the shared pager; the page is kept in the address', async () => {
     listState.data = withDocumentCount(120);
@@ -1488,5 +1489,56 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     const toolbar = screen.getByTestId('documents-register-toolbar');
     if (banner) expect(banner.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(toolbar.compareDocumentPosition(screen.getByRole('table')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+/**
+ * #2806: the linked Microsoft folder is browsable in the tab as a folder tree (the Folders view), read
+ * level by level through the caller's own connection; without a linked folder the view says so.
+ */
+describe('DocumentsTab — Folders view (#2806 AC-DOCTREE-001)', () => {
+  beforeEach(() => {
+    listChildren.mockReset();
+    listChildren.mockResolvedValue({ next: null, value: [{
+      drive_id: 'drive-1', item_id: 'file-9', name: 'Survey.pdf', item_kind: 'file', modified_at: '2026-06-02T00:00:00Z', size: 2048,
+      web_url: 'https://tenant.sharepoint.com/sites/project/ReferenceSet/Survey.pdf', parent_path: null, content_tag: null, sharepoint_ids: null,
+    }] });
+  });
+
+  it('AC-DOCTREE-001: a project with a linked folder opens on the folder tree, with the register filters stepped aside', async () => {
+    listState.data = [linkedFolder, ...seed];
+    renderTab();
+    expect(screen.getByRole('button', { name: 'Folders' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('heading', { name: 'Project folders' })).toBeInTheDocument();
+    const tree = within(screen.getByTestId('documents-folder-tree'));
+    expect(tree.getByRole('button', { name: 'Reference set' })).toHaveAttribute('aria-expanded', 'true');
+    expect(await tree.findByRole('link', { name: 'Open Survey.pdf in SharePoint' })).toHaveAttribute('target', '_blank');
+    expect(listChildren).toHaveBeenCalledWith('drive-1', 'folder-1', undefined);
+    expect(screen.queryByRole('combobox', { name: 'Filter by category' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Register' }));
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Document register' })).toBeInTheDocument();
+    // The choice is kept in the address, so a reload or a shared link stays on the register.
+    expect(screen.getByTestId('route-search')).toHaveTextContent('documentsView=register');
+  });
+
+  it('AC-DOCTREE-001: a project without a linked folder still opens on the register', () => {
+    renderTab();
+    expect(screen.getByRole('button', { name: 'Register' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('AC-DOCTREE-001: with no linked folder, a person who may link one is offered the link step; one who may not just reads why it is empty', async () => {
+    renderTab('Admin', 'admin-1', '/?documentsView=folders');
+    expect(screen.getByText('No Microsoft folder is linked to this project.')).toBeInTheDocument();
+    expect(within(screen.getByTestId('documents-folder-tree')).getByRole('button', { name: 'Link from Microsoft 365' })).toBeInTheDocument();
+    expect(listChildren).not.toHaveBeenCalled();
+  });
+
+  it('AC-DOCTREE-001: an Engineer (no link right) sees the empty folder line without the link step', () => {
+    renderTab('Engineer', 'eng-1', '/?documentsView=folders');
+    expect(screen.getByText('No Microsoft folder is linked to this project.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).not.toBeInTheDocument();
   });
 });

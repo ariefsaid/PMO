@@ -9,6 +9,7 @@ import {
   listMyTasks,
   getTask,
   createTask,
+  createTaskTree,
   updateTask,
   updateTaskStatus,
   deleteTask,
@@ -32,6 +33,7 @@ export const taskRepository: TaskRepository = {
   listByAssignee: (userId) => wrap(() => listMyTasks(userId)),
   get: (id) => wrap(() => getTask(id)),
   create: (input) => wrap(() => createTask(input)),
+  createTree: (root, parentId, drafts, place) => wrap(() => createTaskTree(root, parentId, drafts, place)),
   update: (id, patch, projectId) =>
     wrap(() => (projectId === undefined ? updateTask(id, patch) : updateTask(id, patch, projectId))),
   updateStatus: (id, status, projectId) =>

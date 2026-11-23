@@ -290,7 +290,7 @@ describe('TasksTab delayed scroll (PGB-024) and phase/parent dirty warnings (PGB
     expect(await screen.findByText(/Discard your changes/i)).toBeInTheDocument();
   });
 
-  it('PGB-025: warns of unsaved changes when closing task dialog after only parent task is changed', async () => {
+  it('PGB-025: warns of unsaved changes when closing the task dialog after only a subtask row is typed (#2807: subtasks are made in the form)', async () => {
     renderTab();
     const user = userEvent.setup();
 
@@ -301,11 +301,10 @@ describe('TasksTab delayed scroll (PGB-024) and phase/parent dirty warnings (PGB
 
     const editDialog = await screen.findByRole('dialog', { name: /Edit task/i });
 
-    // Open Parent task combobox and select Top task 2
-    const parentCombobox = within(editDialog).getByRole('combobox', { name: /Parent task/i });
-    await user.click(parentCombobox);
-    const option = await screen.findByRole('option', { name: /Top task 2/i });
-    await user.click(option);
+    // Add one subtask row and name it.
+    const subtasks = within(editDialog).getByRole('group', { name: 'Subtasks' });
+    await user.click(within(subtasks).getByRole('button', { name: 'Add subtask' }));
+    await user.type(within(subtasks).getByRole('textbox', { name: 'Subtask name' }), 'Pour slab');
 
     // Close the dialog by clicking Cancel
     const cancelBtn = within(editDialog).getByRole('button', { name: /cancel/i });

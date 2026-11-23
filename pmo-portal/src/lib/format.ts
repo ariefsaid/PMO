@@ -621,6 +621,18 @@ export function formatDayRange(from: DayInput, to: DayInput, now: Date = new Dat
   return `${formatDay(from, now)} – ${formatDay(to, now)}`;
 }
 
+/** A range for a narrow column: one year at the end when both days share it ("4 Jan – 15 Feb 2027"), none in the current year. */
+export function formatDayRangeShort(from: DayInput, to: DayInput, now: Date = new Date()): string {
+  const start = dayFrame(from);
+  const end = dayFrame(to);
+  if (!start || !end) return formatDayRange(from, to, now);
+  const s = dayPart(start, 'day');
+  const e = dayPart(end, 'day');
+  if (s.year !== e.year) return formatDayRange(from, to, now);
+  const currentYear = dayPart({ date: now, timeZone: getActiveLocale().timezone }, 'day').year;
+  return `${s.day} ${s.month} – ${e.day} ${e.month}${e.year === currentYear ? '' : ` ${e.year}`}`;
+}
+
 /** "Nov 2026" — a month, never "Nov 26" (which reads as a day). */
 export function formatMonthYearShort(input: DayInput): string {
   const frame = dayFrame(input);
@@ -1197,4 +1209,17 @@ export function formatDecimalString(value: string, locale: string, maxFractionDi
 /** "Sun" / "Min" — short weekday name of a date (calendar column headers). */
 export function formatWeekdayShort(d: Date): string {
   return dateFormatterFor('weekdayShort', getDateLocale(), { weekday: 'short' }).format(d);
+}
+
+/** "812 B", "284 kB", "8.3 MB": decimal units, at most three significant digits, in the reader's number locale. */
+export function formatFileSize(bytes: number | null | undefined, locale = getNumberLocale()): string {
+  if (bytes == null) return '';
+  if (bytes < 1000) return `${bytes} B`;
+  const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1; }
+  return numberFormatterFor(`fileSize:${units[unit]}`, locale, undefined, {
+    style: 'unit', unit: units[unit], unitDisplay: 'short', maximumSignificantDigits: 3,
+  }).format(value);
 }

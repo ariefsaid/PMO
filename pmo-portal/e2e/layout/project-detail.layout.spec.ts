@@ -204,7 +204,8 @@ async function checkTabWork(
     // #1402 recomposition: keep the exact Claims & down payment target reachable in the merged Contract & billing area.
     work = panel.getByRole('heading', { name: 'Claims & down payment', exact: true });
   } else if (tab === 'documents') {
-    work = panel.getByRole('heading', { name: 'Document register', exact: true });
+    // #2806: a project with a linked folder opens Documents on its folder tree.
+    work = panel.getByRole('heading', { name: /^(Document register|Project folders)$/ });
   } else if (tab === 'history') {
     // ux/1110: project history is the Activity drawer (the old /history link opens it over the
     // Overview) rather than an in-page tab. The goal is unchanged — the recorded changes are on

@@ -66,9 +66,10 @@ vi.mock('@/src/lib/m365/graphClient', async () => ({
 import { chooseAddOption } from './addDocumentMenu';
 import DocumentsTab from '../DocumentsTab';
 
+// These cases are about register rows; a project with a linked folder otherwise opens on the folder tree (#2806).
 const renderAs = (role: Role) =>
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={['/?documentsView=register']}>
       <ImpersonationProvider realRole={role}>
         <ToastProvider>
           <DocumentsTab projectId="p1" projectCode="PRJ-1" />

@@ -15,6 +15,9 @@ import { menuItemClass, menuPopupClass, menuPopupOrigin } from '@/src/components
 import type { DocStatus } from '@/src/lib/db/documents';
 import { statusLabel } from '@/src/lib/status/statusMap';
 
+/** Register rows, register rows grouped by category, or the linked Microsoft folder as a tree. */
+export type DocumentsView = 'register' | 'grouped' | 'folders';
+
 /** One way to add to the register, offered inside the tab's single "Add document" control. */
 export interface DocumentAddOption {
   key: string;
@@ -43,8 +46,8 @@ const DocumentsToolbar: React.FC<{
   setStatusFilter: (value: DocStatus | '') => void;
   sourceFilter: 'upload' | 'onedrive' | '';
   setSourceFilter: (value: 'upload' | 'onedrive' | '') => void;
-  documentsView: 'register' | 'grouped';
-  setDocumentsView: (view: 'register' | 'grouped') => void;
+  documentsView: DocumentsView;
+  setDocumentsView: (view: DocumentsView) => void;
   /** The ways to add a document this person may use; empty = no create control at all. */
   addOptions: DocumentAddOption[];
 }> = ({
@@ -64,13 +67,16 @@ const DocumentsToolbar: React.FC<{
   const { t } = useTranslation('project');
   const narrow = useIsNarrow();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Search and filters narrow register rows; the folder tree is Microsoft's own listing, so they step aside.
+  const finding = documentsView !== 'folders';
   const activeFilters = [categoryFilter, statusFilter, sourceFilter].filter(Boolean).length;
   const addLabel = t('projectDetail.documents.addDocument', 'Add document');
   const viewToggle = (
-    <ViewToggle<'register' | 'grouped'>
+    <ViewToggle<DocumentsView>
       options={[
         { value: 'register', label: t('projectDetail.documents.view.register', 'Register') },
         { value: 'grouped', label: t('projectDetail.documents.view.grouped', 'Grouped') },
+        { value: 'folders', label: t('projectDetail.documents.view.folders', 'Folders') },
       ]}
       value={documentsView}
       onChange={setDocumentsView}
@@ -92,17 +98,20 @@ const DocumentsToolbar: React.FC<{
     >
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
         <h2 className="mr-2 text-[16px] font-bold tracking-[-0.01em] max-sm:w-full">
-          {t('projectDetail.documents.heading', 'Document register')}
+          {documentsView === 'folders'
+            ? t('projectDetail.documents.headingFolders', 'Project folders')
+            : t('projectDetail.documents.heading', 'Document register')}
         </h2>
         {/* One field finds a document by its name, number, category, status or revision. */}
-        <SearchMini
+        {finding && <SearchMini
           placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}
           aria-label={t('projectDetail.documents.searchAriaLabel', 'Search documents')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           containerClassName="min-w-0 flex-1 max-sm:min-h-11 sm:max-w-60 sm:flex-none [&_input]:max-sm:text-base"
-        />
-        {narrow && (
+        />}
+        {narrow && !finding && <div className="min-w-0 flex-1">{viewToggle}</div>}
+        {narrow && finding && (
           <Button
             variant="outline"
             aria-expanded={filtersOpen}
@@ -115,7 +124,7 @@ const DocumentsToolbar: React.FC<{
           </Button>
         )}
         {narrow && addOptions.length > 0 && <AddDocumentControl options={addOptions} label={addLabel} content={addContent} compact />}
-        {(!narrow || filtersOpen) && (
+        {finding && (!narrow || filtersOpen) && (
           <div id="documents-filters" className={narrow ? 'flex w-full min-w-0 flex-col gap-2' : 'contents'}>
           <label className="sr-only" htmlFor="documents-category-filter">{t('projectDetail.documents.filter.category', 'Filter by category')}</label>
           <select
