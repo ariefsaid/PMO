@@ -115,6 +115,25 @@ describe('attendance tick screen (#2528)', () => {
     expect(screen.getByText("Only this crew's Foreman or a crew manager ticks this roster.")).toBeInTheDocument();
   });
 
+  it('F4-1 a reader who cannot tick sees only the two who clocked in as present; the other four are "Not recorded", not Present', () => {
+    h.uid = 'someone-else';
+    h.day = { data: [
+      { id: 'd1', worker_id: 'w1', work_order_id: 'wo1', crew_id: 'c1', work_date: '2026-11-18', status: 'present', hours: 8, overtime_hours: null, reason: null, source: 'phone' },
+      { id: 'd2', worker_id: 'w2', work_order_id: 'wo1', crew_id: 'c1', work_date: '2026-11-18', status: 'present', hours: 8, overtime_hours: null, reason: null, source: 'phone' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderAt();
+    expect(screen.getAllByText('Not recorded')).toHaveLength(4);
+    expect(within(screen.getByRole('row', { name: /Ana/ })).queryByText('Not recorded')).toBeNull();
+    expect(within(screen.getByRole('row', { name: /Citra/ })).getByText('Not recorded')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Citra/ })).queryByRole('combobox')).toBeNull();
+  });
+
+  it('F4-1 the field controller still starts an unrecorded person as present, to confirm or change', () => {
+    renderAt();
+    expect(screen.queryByText('Not recorded')).toBeNull();
+    expect(within(screen.getByRole('row', { name: /Citra/ })).getByRole('combobox')).toHaveValue('present');
+  });
+
   it('AC-SD-002 one refused person is named and everyone else is saved', async () => {
     const user = userEvent.setup();
     h.record = vi.fn().mockImplementation(async (v: { rows: Array<{ worker_id: string }> }) => {

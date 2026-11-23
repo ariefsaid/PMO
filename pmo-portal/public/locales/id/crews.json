@@ -125,6 +125,7 @@
     "absent": "Absen",
     "leave": "Cuti",
     "offRotation": "Libur rotasi",
+    "notRecorded": "Belum tercatat",
     "present": "Hadir"
   },
   "statusFor": "Status untuk {{name}}",
