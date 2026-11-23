@@ -232,7 +232,11 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
 
     expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('3');
     // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
-    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
+    // The headline above the queue is the canonical all-kinds total (waiting.count), not the queue's
+    // own size — Approvals.waitingKinds.test.tsx pins that — so count the queue's rows here.
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).getAllByRole('button', { name: /Steel beams|Anita Rao/i })).toHaveLength(2);
+    expect(within(queue).queryByRole('link', { name: 'EXP-1' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Procurement cases/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');
