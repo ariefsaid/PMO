@@ -11,7 +11,8 @@ import { BahasaProvider } from '@/test/bahasa';
 const listChildren = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/m365/graphClient', () => ({ listChildren: (...a: unknown[]) => listChildren(...a) }));
 
-import { LinkedFolderTree, formatFileSize } from './LinkedFolderTree';
+import { LinkedFolderTree } from './LinkedFolderTree';
+import { formatFileSize } from '@/src/lib/format';
 
 const item = (id: string, name: string, kind: 'file' | 'folder', extra: { modified?: string; size?: number } = {}) => ({
   drive_id: 'drive-1', item_id: id, name, item_kind: kind, modified_at: extra.modified ?? null, size: extra.size ?? null,

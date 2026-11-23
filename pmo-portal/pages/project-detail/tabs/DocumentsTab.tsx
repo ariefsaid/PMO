@@ -614,7 +614,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             {folderRoots.length > 0 ? <LinkedFolderTree roots={folderRoots} /> : (
               // No linked folder: what is absent and the one control that fixes it (the same step as
               // the Add document menu's link option), on the heading's left edge.
-              <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 px-[var(--panel-inset)] py-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4">
                 <span className="min-w-0 text-control text-muted-foreground">{t('projectDetail.documents.folders.none', 'No Microsoft folder is linked to this project.')}</span>
                 {canCreateMicrosoftReference && (
                   <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>

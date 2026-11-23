@@ -5,8 +5,7 @@ import { Button, Icon, type IconName } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import { listChildren, type GraphItem } from '@/src/lib/m365/graphClient';
 import { validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
-import { formatDay } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatDay, formatFileSize } from '@/src/lib/format';
 import { M365BrowseNotice } from './M365BrowseNotice';
 
 /** A linked folder at the top of the tree: its stored reference (never user input) and its PMO title. */
@@ -29,18 +28,6 @@ function fileIcon(name: string): IconName {
   return SHEET.test(name) ? 'table' : 'doc';
 }
 
-/** "812 B", "284 kB", "8.3 MB": decimal units, at most three significant digits, in the reader's number locale. */
-export function formatFileSize(bytes: number | null | undefined, locale = getNumberLocale()): string {
-  if (bytes == null) return '';
-  if (bytes < 1000) return `${bytes} B`;
-  const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1; }
-  return new Intl.NumberFormat(locale, {
-    style: 'unit', unit: units[unit], unitDisplay: 'short', maximumSignificantDigits: 3,
-  }).format(value);
-}
 
 /**
  * The linked Microsoft folders of a record as an expandable folder and file tree. Each level is read
@@ -122,10 +109,16 @@ function FolderNode({ item, level, initiallyOpen = false }: { item: NodeItem; le
   );
 }
 
-function StateRow({ level, children, role }: { level: number; children: React.ReactNode; role?: 'status' }) {
+/** A level's loading, empty, error or "show more" line, under its folder's names. A notice keeps the full row width on a phone. */
+function StateRow({ level, children, role, notice = false }: { level: number; children: React.ReactNode; role?: 'status'; notice?: boolean }) {
   return (
     <li role={role} className={cn(ROW, 'flex items-center')}>
-      <span className="min-w-0 flex-1" style={{ paddingLeft: `${level * INDENT_REM + LEAD_REM}rem` }}>{children}</span>
+      <span
+        className={cn('min-w-0 flex-1', notice ? 'sm:pl-[var(--lead)]' : 'pl-[var(--lead)]')}
+        style={{ '--lead': `${level * INDENT_REM + LEAD_REM}rem` } as React.CSSProperties}
+      >
+        {children}
+      </span>
     </li>
   );
 }
@@ -156,7 +149,7 @@ function FolderChildren({ item, level }: { item: NodeItem; level: number }) {
   if (query.isError && !query.data) {
     return (
       <ul className="min-w-0">
-        <StateRow level={level}>
+        <StateRow level={level} notice>
           <div className="py-1.5">
             <M365BrowseNotice code={(query.error as { code?: string } | null)?.code} onRetry={() => { void query.refetch(); }} linkedFolder />
           </div>
