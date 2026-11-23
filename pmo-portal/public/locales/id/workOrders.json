@@ -344,6 +344,38 @@
     "search": "Cari menurut nomor, judul, atau proyek",
     "seeAll": "Lihat semua",
     "tileEmpty": "Tidak ada $t(common:terms.clientWorkOrder) yang terbuka",
-    "until": "sampai {{date}}"
+    "until": "sampai {{date}}",
+    "filter": {
+      "status": "Status",
+      "late": "Terlambat",
+      "project": "Proyek",
+      "discipline": "Disiplin"
+    },
+    "col": {
+      "workOrder": "$t(common:terms.clientWorkOrder)",
+      "status": "Status",
+      "progress": "Progres",
+      "cost": "Biaya langsung",
+      "billed": "Ditagih",
+      "missing": "Kurang",
+      "end": "Jatuh tempo"
+    },
+    "costOver": "Melebihi anggaran {{amount}}",
+    "costBudget": "Anggaran {{amount}}",
+    "cannotTotal": "Tidak dapat dijumlah",
+    "ofOrder": "dari {{amount}}",
+    "openSteps": "{{count}} terbuka",
+    "late": "{{count}} terlambat",
+    "tile": {
+      "orderValue": "Nilai order",
+      "billed": "Ditagih",
+      "toBill": "Sisa ditagih"
+    },
+    "findingLate_one": "{{count}} $t(common:terms.clientWorkOrder) terlambat",
+    "findingLate_other": "{{count}} $t(common:terms.clientWorkOrder) terlambat",
+    "openRow": "Buka {{label}}",
+    "costTooMany": "Biaya langsung tampil untuk paling banyak {{count}} proyek. Pilih proyek.",
+    "figuresError": "Sebagian angka gagal dimuat.",
+    "searchShort": "Cari"
   }
 }

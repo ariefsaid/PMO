@@ -344,6 +344,38 @@
     "search": "Search by number, title or project",
     "seeAll": "See all",
     "tileEmpty": "No open work orders",
-    "until": "until {{date}}"
+    "until": "until {{date}}",
+    "filter": {
+      "status": "Status",
+      "late": "Late",
+      "project": "Project",
+      "discipline": "Discipline"
+    },
+    "col": {
+      "workOrder": "Work order",
+      "status": "Status",
+      "progress": "Progress",
+      "cost": "Direct cost",
+      "billed": "Billed",
+      "missing": "Missing",
+      "end": "Due"
+    },
+    "costOver": "Over budget by {{amount}}",
+    "costBudget": "Budget {{amount}}",
+    "cannotTotal": "Can't total",
+    "ofOrder": "of {{amount}}",
+    "openSteps": "{{count}} open",
+    "late": "{{count}} late",
+    "tile": {
+      "orderValue": "Order value",
+      "billed": "Billed",
+      "toBill": "Left to bill"
+    },
+    "findingLate_one": "{{count}} work order late",
+    "findingLate_other": "{{count}} work orders late",
+    "openRow": "Open {{label}}",
+    "costTooMany": "Direct cost shows for up to {{count}} projects. Choose a project.",
+    "figuresError": "Some figures couldn't load.",
+    "searchShort": "Search"
   }
 }

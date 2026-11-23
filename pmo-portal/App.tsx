@@ -251,7 +251,7 @@ const PRELOAD_RULES: PreloadRule[] = [
     chunks,
     namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
   })),
-  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'supplyRisk'] },
+  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
   { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.

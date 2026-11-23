@@ -104,6 +104,20 @@ export async function listWorkOrderBilling(projectId: string): Promise<WorkOrder
   if (rows.length > WORK_ORDER_BILLING_ROW_LIMIT) {
     throw new AppError(`This project has more than ${WORK_ORDER_BILLING_ROW_LIMIT} work orders; billing cannot be shown in one view.`, 'too-many-work-orders');
   }
+  return parseBillingRows(rows);
+}
+
+/**
+ * Every work order the reader may see, across projects, in one paged read of the same view (#2805, the work-order
+ * dashboard): one request per thousand rows, never one per project or per row. RLS scopes the rows.
+ */
+export async function listAllWorkOrderBilling(): Promise<WorkOrderBillingRow[]> {
+  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    supabase.from('work_order_billing').select(COLS).order('work_order_id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string; code?: string } | null }>);
+  return parseBillingRows(rows);
+}
+
+async function parseBillingRows(rows: ReadonlyArray<Record<string, unknown>>): Promise<WorkOrderBillingRow[]> {
   const parsed: WorkOrderBillingRow[] = rows.map((r) => ({
     workOrderId: text(r.work_order_id, 'work_order_id'),
     projectId: text(r.project_id, 'project_id'),
