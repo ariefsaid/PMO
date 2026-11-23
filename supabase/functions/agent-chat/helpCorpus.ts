@@ -28,7 +28,7 @@ Answer only for what the asking user's role can do; if an action belongs to anot
 
 **Phase** — a named chunk of delivery work inside one project, with a target date, a weight, and a percent-complete (called a milestone in some internal documents). The PM may type an override percent; otherwise it is calculated from its top-level tasks.
 
-**Task** — the smallest unit of tracked work. It may belong to a project or stand alone, may sit under one phase, and may carry subtasks; only top-level, non-archived tasks count toward progress.
+**Task** — the smallest unit of tracked work. It may belong to a project or stand alone, may sit under one phase, and may carry subtasks to any depth; progress counts each piece of work once: a non-archived task with no live subtasks (a parent only shows its subtasks' roll-up).
 
 **Document** — a controlled file register entry has one source at most: a PMO-held upload, a linked Microsoft 365 file, or no source yet. A linked folder is reference-only, not an issuable or approvable file. PMO locks uploads at issue; linked files use the issue-time baseline.
 
