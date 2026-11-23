@@ -3,7 +3,7 @@ import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query
 import type { TFunction } from 'i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
-import type { TimesheetApprovalRoute } from '@/src/lib/db/timesheetApprovalRoute';
+import type { TimesheetApprovalRoute, TimesheetApprovalRouteApprover } from '@/src/lib/db/timesheetApprovalRoute';
 import { repositories } from '@/src/lib/repositories';
 
 // Chrome-adjacent read: outside a query provider or a session, and until enabled, it is simply off.
@@ -52,6 +52,19 @@ export interface TimesheetWaitingRoleLabels {
 }
 
 /**
+ * The route token the server uses for the RAW assigned line manager. It is NOT a `profiles.user_role`
+ * value — those are the coarse words ("Admin", "Executive", …) — it is display metadata describing
+ * which bank of the route an approver came from. Authorization stays with the RPC + RLS (ADR-0016);
+ * this classification never grants, never feeds `can()`, and no permission is invented from it.
+ */
+const LINE_MANAGER_ROUTE_TOKEN = 'line_manager';
+
+/** Display classification only: is this approver the route's assigned manager? (not an authorization check) */
+function isAssignedManager(approver: TimesheetApprovalRouteApprover): boolean {
+  return approver.role === LINE_MANAGER_ROUTE_TOKEN;
+}
+
+/**
  * Words the route for the requester. A named manager is spoken with their actual name and the line-
  * manager role; Admin/Executive alternatives are spoken with their real role names, never a flat
  * mislabel. When NO manager is assigned, the signed root ruling requires the actual people the DB
@@ -73,8 +86,8 @@ export function timesheetWaitingForText(
     return t('common:uxs32.holdersNone', 'Nobody active holds these roles right now.');
   }
 
-  const manager = route.approvers.find((approver) => approver.role === 'line_manager') ?? null;
-  const others = route.approvers.filter((approver) => approver.role !== 'line_manager');
+  const manager = route.approvers.find(isAssignedManager) ?? null;
+  const others = route.approvers.filter((approver) => !isAssignedManager(approver));
 
   if (manager) {
     // Named manager + the real role words of the OTHER eligible people. The manager is never repeated
