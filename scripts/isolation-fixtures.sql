@@ -447,12 +447,18 @@ insert into public.material_request_usage_alerts (id, org_id, work_order_id, ite
          wo, item, 1, 50, 1, 2 from _iso_a;
 insert into public.org_billing_plan_settings (org_id, updated_by)
   select 'a6120000-0000-4000-8000-00000000000a', profile from _iso_a;
+-- 1670 gives every organisation a row in the seven switch tables, so the demo org already owns one here and the seed
+-- copy above has already re-keyed it to A (payment channel ON, no actor). The two switch rows are therefore upserts
+-- that overwrite the copied row with the fixture's own values — never a second row, and no insert is left to chance.
 insert into public.org_payment_channel_settings (org_id, enabled, updated_by)
-  select 'a6120000-0000-4000-8000-00000000000a', false, profile from _iso_a;
+  select 'a6120000-0000-4000-8000-00000000000a', false, profile from _iso_a
+  on conflict (org_id) do update set enabled = excluded.enabled, enabled_at = excluded.enabled_at,
+    updated_by = excluded.updated_by;
 insert into public.org_payment_channels (id, org_id, name, created_by)
   select 'a6120000-0000-4000-8000-000000000314', 'a6120000-0000-4000-8000-00000000000a', 'Isolation channel', profile from _iso_a;
 insert into public.org_revenue_plan_settings (org_id, enabled, updated_by)
-  select 'a6120000-0000-4000-8000-00000000000a', true, profile from _iso_a;
+  select 'a6120000-0000-4000-8000-00000000000a', true, profile from _iso_a
+  on conflict (org_id) do update set enabled = excluded.enabled, updated_by = excluded.updated_by;
 insert into public.person_clearances (id, org_id, person_id, item_id, done_on, updated_by)
   select 'a6120000-0000-4000-8000-000000000315', 'a6120000-0000-4000-8000-00000000000a',
          person, 'a6120000-0000-4000-8000-000000000304', current_date, profile from _iso_a;
