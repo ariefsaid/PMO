@@ -71,8 +71,8 @@ export function buildTaskRenderOrder(tasks: TaskWithRefs[]): TaskTreeNode[] {
 
   const out: TaskTreeNode[] = [];
 
-  // DFS from each root. Cycle-safe via a visited set (the DB only blocks self-parent, not
-  // cycles, so malformed data must not send this into an infinite loop).
+  // DFS from each root. Cycle-safe via a visited set: the DB refuses cycles since 1970, but a loop
+  // written before then must still never send this into an infinite loop.
   const walk = (task: TaskWithRefs, depth: number, seen: Set<string>): void => {
     if (seen.has(task.id)) return; // defensive: cycle in the data
     seen.add(task.id);
@@ -88,10 +88,8 @@ export function buildTaskRenderOrder(tasks: TaskWithRefs[]): TaskTreeNode[] {
 /**
  * Collect ALL descendant task ids of `taskId` over `tasks` (children, grandchildren, …).
  *
- * Used by the parent-picker to PREVENT making a task its own ancestor (cycle guard): a task
- * must not become its own parent OR the parent of any of its descendants, or it would create a
- * cycle. The DB only blocks self-parent (CHECK `parent_task_id <> id`); cycle prevention is the
- * UI's job per the task brief ("guard this in the UI, not only in the DB").
+ * Used by the Move dialog to keep a task from moving under itself or its own descendants (the
+ * database refuses that too, TASK_TREE_CYCLE since 1970; the dialog never offers it).
  *
  * Cycle-safe (visits each reachable id once). Returns the empty set for an unknown id or a leaf.
  */
