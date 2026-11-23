@@ -48,13 +48,18 @@ brief and answered `ONE-LINE-OK` on `deepseek/deepseek-v4.1-flash`):
   in `~/.dsh/profiles/{web,headless,dsh-tui}`); without them a session sends no events and
   `orca agent hooks status` reports `dsh: partial`.
 - Model route: the shipped `deepseek-official` route has no key and the Bitdeer key has unpaid
-  charges (402, 2026-11-23), so the profiles' `cordis.patch.yml` point at OpenRouter
-  (`deepseek/deepseek-v4.1-flash`) using `OPENROUTER_API_KEY`. Revert by deleting those patch files
-  once a first-party key is live.
-- **Known gap: no `worker_done`.** dsh has no Orca tool and its `Stop` hook only marks activity, so a
-  dispatch sits at `ready`/idle after it answers. A coordinator reads the terminal
-  (`orca orchestration worker-read --dispatch …`) and settles it (`worker-stop`, then
-  `worker-release`). Briefs must not ask a dsh worker to report completion; Orca never sees it.
+  charges (402, 2026-11-23), so the profiles' `cordis.patch.yml` default to **OpenCode Go**
+  (`https://opencode.ai/inference/go/openai/v1`, model `deepseek-v4.1-flash`, `OPENCODE_API_KEY`),
+  which dsh drives as an ordinary OpenAI-compatible provider — its adapter sends the
+  `x-opencode-session` header Go requires (a bare curl without it gets `MissingSessionID`).
+  OpenRouter (`deepseek/deepseek-v4.1-flash`) stays configured as the fallback route. Keys live in
+  `~/.dsh/.credentials.yaml` and reach the process through `~/bin/dsh-env.sh`.
+- **Completion: dsh has no Orca tool, but it can report through the CLI.** Its Bash tool can run
+  `orca orchestration send --from <handle> --type worker_done --subject … --body … --task-id … --dispatch-id … --outcome succeeded`;
+  Orca then settles the dispatch (`state=succeeded`, verified 2026-11-23). A dsh brief must ask for
+  that explicitly, otherwise the worker ends its turn silently and the dispatch sits idle. When a
+  brief withholds command use, expect no completion report: read the terminal and settle the
+  dispatch with `worker-stop` / `worker-release`.
 
 ## Gotchas
 
