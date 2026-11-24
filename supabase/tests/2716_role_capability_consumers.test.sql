@@ -17,8 +17,7 @@ select plan(6);
 -- capabilities held in the catalogue with no reading rule yet, each awaiting a ruling
 create temp table cap_held (cap text primary key, why text not null);
 insert into cap_held values
-  ('daily_report_enter', 'held for a ruling: no reading rule yet'),
-  ('daily_report_validate', 'held for a ruling: no reading rule yet');
+  ('daily_report_enter', 'held for a ruling: no reading rule yet');
 
 create temp table cap_catalogue as
   select (regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''', 'g'))[1] as cap
@@ -68,11 +67,11 @@ select is((select coalesce(string_agg(h.cap, ', ' order by h.cap), '') from cap_
                or exists (select 1 from cap_reader r where r.cap = h.cap)),
   '', 'AC-RCG-004 every held entry is still in the catalogue and still unread');
 
-select is((select count(*)::int from cap_held), 2, 'AC-RCG-004 the held list is exactly the two capabilities awaiting a ruling');
+select is((select count(*)::int from cap_held), 1, 'AC-RCG-004 the held list is exactly the capability awaiting a ruling (daily_report_validate is read by dsr_may_validate, 2043)');
 
 select is((select string_agg(cap, ',' order by cap) from cap_catalogue),
   'billing_steps_run,billing_steps_view,daily_report_enter,daily_report_validate,medical_documents_view,people_documents_view,sees_prices',
-  'AC-RCG-005 the catalogue lists exactly the read capabilities and the two held ones');
+  'AC-RCG-005 the catalogue lists exactly the read capabilities and the held one');
 
 select * from finish();
 rollback;

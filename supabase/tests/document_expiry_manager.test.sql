@@ -1,9 +1,12 @@
 -- document_expiry_manager.test.sql — 1760/1761 (expiry-to-manager). Owns AC-EXM-001..005 (needs notify_person from 1750).
--- 1931: a medical document's expiry notice (in-app and its email) goes only to the person and to holders of the medical right.
--- MUTATION NOTE (1931): drop the medical recipient condition (mut:medical) -> 'AC-EXM-006 a medical notice reaches the person and the medical right only' goes red.
+-- 1931 as revised by 2043: a medical document's expiry notice (in-app and its email) goes to the person, holders of the medical right
+-- and the direct manager; the manager's is a plain notice (person, type, date) that opens no document.
+-- MUTATION NOTES: drop the medical recipient condition (mut:medical) -> 'AC-EXM-006 a medical notice reaches the person, the medical right and the manager' goes red;
+--   drop the manager branch (2043 mut:rr_medical_manager) -> the same assertion goes red;
+--   always link (2043 mut:rr_medical_plain: pass the document) -> 'AC-EXM-007 the manager''s medical notice opens no document' goes red.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(26);
 
 insert into organizations (id, name, default_currency, default_timezone) values ('17600000-0000-0000-0000-00000000000a', 'EXM Org', 'IDR', 'UTC');
 insert into auth.users (id, email) values
@@ -79,7 +82,7 @@ select is((select count(*)::int from audit_events where action = 'expiry_documen
   'AC-EXM-004 a renewal writes exactly one audit row with the document, both dates and the actor');
 
 
--- ── AC-EXM-006 (1931) a medical notice: the person and the medical right only, in-app and by email ─────────────
+-- ── AC-EXM-006 (1931, 2043) a medical notice: the person, the medical right and the manager, in-app and by email ──
 reset role;
 select set_config('request.jwt.claims', '{}', true);
 insert into email_event_settings (org_id, event_key, enabled) values ('17600000-0000-0000-0000-00000000000a', 'document_expiry', true)
@@ -93,12 +96,21 @@ insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, expi
   ('17600000-0000-0000-0000-0000000000c7', '17600000-0000-0000-0000-00000000000a', 'person', '17600000-0000-0000-0000-0000000000e1', '17600000-0000-0000-0000-0000000000f7', '2026-11-25');
 select lives_ok($$select public.run_document_expiry_warnings('2026-11-20')$$, 'AC-EXM-006 the warning run completes');
 select is((select array_agg(recipient_id order by recipient_id) from document_expiry_notices where document_id = '17600000-0000-0000-0000-0000000000c6'),
-  array['17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
-  'AC-EXM-006 a medical notice reaches the person and the medical right only (not the manager, not another named role)');
+  array['17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
+  'AC-EXM-006 a medical notice reaches the person, the medical right and the manager (not another named role)');
 select is((select array_agg(o.recipient_id order by o.recipient_id) from email_outbox o join notifications n on n.id = o.notification_id
-            where n.metadata->'entity'->>'id' = '17600000-0000-0000-0000-0000000000c6'),
-  array['17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
-  'AC-EXM-006 its email copy goes to the same two people only');
+            where n.metadata->'entity'->>'id' = '17600000-0000-0000-0000-0000000000c6'
+               or (n.owner_id = '17600000-0000-0000-0000-0000000000a3' and n.body like '%Medical told%')),
+  array['17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
+  'AC-EXM-006 its email copy goes to the same three people');
+select is((select count(*)::int from notifications where owner_id = '17600000-0000-0000-0000-0000000000a3' and body like '%Medical told%'
+             and metadata->'entity'->>'id' is null and metadata->'entity'->>'type' is null), 1,
+  'AC-EXM-007 the manager''s medical notice opens no document: it names the person, the type and the date only');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"17600000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+select is((select count(*)::int from expiry_documents where id = '17600000-0000-0000-0000-0000000000c6'), 0,
+  'AC-EXM-007 the manager still cannot read the medical document');
+reset role;
 select is((select array_agg(recipient_id order by recipient_id) from document_expiry_notices where document_id = '17600000-0000-0000-0000-0000000000c7'),
   array['17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a5', '17600000-0000-0000-0000-0000000000a6']::uuid[],
   'AC-EXM-006 a non-medical notice is unchanged: the manager, the named role and the person');
