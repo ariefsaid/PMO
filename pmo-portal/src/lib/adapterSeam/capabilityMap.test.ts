@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canAssignDomainToTier, assertDomainInCapabilityMap, CapabilityMapError, stockMatchingCapabilities } from './capabilityMap.ts';
+import { canAssignDomainToTier, assertDomainInCapabilityMap, CapabilityMapError, stockMatchingCapabilities, accountingSetupCapabilities } from './capabilityMap.ts';
 
 const cap = new Set(['reference', 'tasks']);
 
@@ -22,5 +22,12 @@ describe('AC-EAS-013 a domain assignment is bounded by the employed tier static 
     expect(stockMatchingCapabilities('erpnext').stockMatching).toBe(false);
     expect(stockMatchingCapabilities('unknown').stockMatching).toBe(false);
     expect(stockMatchingCapabilities(undefined).stockMatching).toBe(false);
+  });
+  it('AC-NATIVE-EQU-003 accounting setup follows tier capabilities, including unknown and non-accounting tiers', () => {
+    expect(accountingSetupCapabilities('erpnext').accounting).toBe(true);
+    expect(accountingSetupCapabilities('odoo').accounting).toBe(true);
+    expect(accountingSetupCapabilities('clickup').accounting).toBe(false);
+    expect(accountingSetupCapabilities('unknown').accounting).toBe(false);
+    expect(accountingSetupCapabilities(undefined).accounting).toBe(false);
   });
 });

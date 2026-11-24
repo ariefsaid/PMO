@@ -129,6 +129,15 @@ describe('useTaskMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tasks', 'org-1', 'p1'] });
   });
 
+  it('refreshes the open task history after a deadline edit', async () => {
+    const client = freshClient();
+    const key = ['record-history', 'org-1', 'task', 't1'];
+    client.setQueryData(key, 'old');
+    const { result } = renderHook(() => useTaskMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await result.current.update.mutateAsync({ id: 't1', patch: { end_date: '2026-12-01' } }); });
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  });
+
   it('AC-TASK-004: update invokes the repository with id + patch', async () => {
     const { result } = renderHook(() => useTaskMutations('p1'), { wrapper: wrap(freshClient()) });
     await act(async () => {

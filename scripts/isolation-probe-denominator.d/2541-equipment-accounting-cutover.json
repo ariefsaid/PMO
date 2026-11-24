@@ -1,0 +1,13 @@
+{
+  "tables": [
+    {
+      "table": "equipment_accounting_cutover",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: pk is org_id"
+    }
+  ],
+  "definer_functions": []
+}

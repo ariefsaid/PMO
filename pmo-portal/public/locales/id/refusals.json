@@ -487,6 +487,7 @@
   "CTR_OWN_REPORT": "Anda yang melaporkan alat ini, jadi orang lain yang menghapusbukukannya.",
   "DCV_ADMIN": "Administrator selalu melihat semua kategori.",
   "DCV_JOB_ROLE": "Pilih jabatan saja.",
+  "PRC_STOCK_ITEM": "Pilih barang aktif dari daftar barang organisasi Anda.",
   "PRC_SUPPLIER_FORBIDDEN": "Hanya manajer pembelian atau orang yang memesan pembelian yang menentukan pemasok.",
   "PRC_SUPPLIER_INVALID": "Pilih pemasok aktif dari organisasi Anda.",
   "PRC_SUPPLIER_SET": "Pembelian ini sudah menentukan pemasoknya.",

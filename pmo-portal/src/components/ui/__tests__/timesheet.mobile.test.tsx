@@ -258,4 +258,23 @@ describe('#design-1115 one weekly total on the phone', () => {
     expect(screen.queryByTestId('tsgrid-grand-total')).not.toBeInTheDocument();
     expect(screen.getAllByText('Row total')).toHaveLength(2);
   });
+
+  it('AC-TRW-002 read-only mobile stack renders workOrderLabel when present', () => {
+    mockViewport(false);
+    render(
+      <TimesheetGrid
+        days={days}
+        rows={[
+          {
+            id: 'r1:wo1',
+            project: 'Alpha Project',
+            code: 'AP-001',
+            workOrderLabel: 'WO-009 · Civil foundation',
+            hours: [8, 0, 0, 0, 0, 0, 0],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('tsgrid-mobile')).toHaveTextContent('WO-009 · Civil foundation');
+  });
 });

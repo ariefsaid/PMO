@@ -4166,3 +4166,6 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   reduces it). A count with no work order behaves unchanged, and count separation of duties (counter is not approver) is unchanged
   (`docs/specs/stock-count-work-order.spec.md`, migration 2590).
 
+
+- **DD-R1124-17 Equipment Officer registers and edits assets in their own organisation:** existing editable asset fields only; deletion remains Admin-only. Rental-term and cost rights remain unchanged. The right follows the job role.
+- **DD-R1124-18 Project Control Manager reads the rate catalogue across their own organisation:** items, locations, rates and stage weights, including projects managed by another person. Catalogue write rights, field-account restrictions and organisation isolation remain unchanged. The role already reads project cost performance.

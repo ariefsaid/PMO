@@ -67,3 +67,6 @@ export const CAPTURED_PURCHASE_CAPABILITIES = { payCapturedInvoice: true, applyS
 
 /** Whether setup may match this tier's stock items and warehouses. Posting stock is decided by the domain-ownership guard and the adapter registry. */
 export const STOCK_MATCHING_CAPABILITIES = { stockMatching: false } as const;
+
+/** Whether this tier provides accounting setup and account mapping. */
+export const ACCOUNTING_SETUP_CAPABILITIES = { accounting: true } as const;

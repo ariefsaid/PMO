@@ -33,4 +33,19 @@ describe('atomic procurement creation', () => {
     rpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'conflict' } });
     await expect(createProcurementWithItems(input)).rejects.toMatchObject({ code: '23505', message: 'conflict' });
   });
+
+  it('AC-PSI-001 forwards stockItemId as stock_item_id when picked and omits it for free-text lines', async () => {
+    rpc.mockResolvedValue({ data: { id: 'header-id' }, error: null });
+    await createProcurementWithItems({
+      ...input,
+      lines: [
+        { id: 'line-1', name: 'Welding Electrode E7018', quantity: 5, rate: 10, stockItemId: 'si-1' },
+        { id: 'line-2', name: 'Custom bracket', quantity: 1, rate: 25 },
+      ],
+    });
+    expect(rpc.mock.calls[0][1].p_items).toEqual([
+      { id: 'line-1', name: 'Welding Electrode E7018', quantity: 5, rate: 10, description: null, stock_item_id: 'si-1' },
+      { id: 'line-2', name: 'Custom bracket', quantity: 1, rate: 25, description: null },
+    ]);
+  });
 });
