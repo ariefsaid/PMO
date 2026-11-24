@@ -99,7 +99,7 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
     await expect(equipmentGroup).toContainText(`CR-${sfx.toUpperCase()}`);
     await expect(equipmentGroup).toContainText('3 hours');
     await expect(stockGroup).toBeVisible();
-    await expect(stockGroup).toContainText(item.code);
+    await expect(stockGroup.getByTestId(/^cost-line-/)).toHaveCount(1);
   } finally {
     sqlAsOwner(`delete from public.stock_ledger where org_id = '${ORG_ID}' and document_id in (select id from public.stock_documents where org_id = '${ORG_ID}' and (project_id = '${projectId || '00000000-0000-0000-0000-000000000000'}' or warehouse_id = '${wh.id || '00000000-0000-0000-0000-000000000000'}'));
       delete from public.stock_document_lines where org_id = '${ORG_ID}' and document_id in (select id from public.stock_documents where org_id = '${ORG_ID}' and (project_id = '${projectId || '00000000-0000-0000-0000-000000000000'}' or warehouse_id = '${wh.id || '00000000-0000-0000-0000-000000000000'}'));

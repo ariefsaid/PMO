@@ -4,7 +4,7 @@
 // revises its quantity and submits it; the project manager raises the next two; the work order then refuses a fourth.
 // The app's "both versions" are the request's own history (raise, edit, submit) beside the contract quantity and the requested one.
 import { test, expect } from '@playwright/test';
-import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from '../support/jobFixtures';
+import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 
 test.setTimeout(180_000);
@@ -102,12 +102,11 @@ test('JOB-PC8 a project control manager raises, revises and submits a quantity c
   } finally {
     const { data: requests } = await svc.from('quantity_change_requests').select('id').eq('work_order_id', woId || '00000000-0000-0000-0000-000000000000');
     const requestIds = (requests ?? []).map((r) => r.id as string);
-    await cleanupAll(svc, [
-      ['quantity_change_request_lines', 'request_id', requestIds],
-      ['quantity_overrun_notices', 'boq_item_id', boqIds],
-      ['progress_assessment_quantities', 'boq_item_id', boqIds],
-      ['quantity_change_requests', 'id', requestIds],
-    ]);
+    const inList = requestIds.length ? `(${requestIds.map((id) => `'${id}'`).join(',')})` : '(null)';
+    sqlAsOwner(`delete from public.quantity_change_request_lines where request_id in ${inList};
+      delete from public.quantity_change_requests where id in ${inList};
+      delete from public.quantity_overrun_notices where boq_item_id in (${boqIds.length ? boqIds.map((id) => `'${id}'`).join(',') : 'null'});
+      delete from public.progress_assessment_quantities where boq_item_id in (${boqIds.length ? boqIds.map((id) => `'${id}'`).join(',') : 'null'});`);
     await cleanupAll(svc, [
       ['project_progress_entries', 'project_id', projectId ? [projectId] : []],
       ['work_order_lines', 'work_order_id', woId ? [woId] : []],
