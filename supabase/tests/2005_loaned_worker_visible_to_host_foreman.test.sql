@@ -28,10 +28,13 @@ insert into crew_loans (org_id, worker_id, home_crew_id, host_crew_id, valid_fro
   ('20050000-0000-0000-0000-00000000000a', '20050000-0000-0000-0000-000000000f01',
    '20050000-0000-0000-0000-000000000c01', '20050000-0000-0000-0000-000000000c02', current_date - 1, current_date + 1);
 
+create temp table roster_day as select public.equipment_org_today('20050000-0000-0000-0000-00000000000a') as day;
+grant select on roster_day to authenticated;
+
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', '20050000-0000-0000-0000-0000000000a2', 'role', 'authenticated')::text, true);
 select is((select count(*)::int from public.crew_loans), 1, 'the host crew''s foreman reads the loan into their crew');
-select is((select count(*)::int from public.work_order_roster('20050000-0000-0000-0000-000000000402', public.equipment_org_today('20050000-0000-0000-0000-00000000000a')) r
+select is((select count(*)::int from public.work_order_roster('20050000-0000-0000-0000-000000000402', (select day from roster_day)) r
             where r.members @> '[{"worker_id": "20050000-0000-0000-0000-000000000f01"}]'::jsonb), 1, 'so the lent worker is on the host foreman''s roster today');
 
 select set_config('request.jwt.claims', json_build_object('sub', '20050000-0000-0000-0000-0000000000a3', 'role', 'authenticated')::text, true);

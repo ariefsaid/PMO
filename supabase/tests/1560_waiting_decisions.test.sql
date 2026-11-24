@@ -187,11 +187,11 @@ reset role;
 reset role;
 select is(has_function_privilege('anon', 'public.my_waiting_decisions()', 'execute'), false, 'AC-WAIT-015 anon cannot run the list');
 select is(has_function_privilege('authenticated', 'public.my_decision_standing()', 'execute'), true, 'AC-WAIT-016 a signed-in person can ask their standing');
-select is((select array_agg(k order by k) from unnest(array['attendance_decision','certificate','daily_report','delivery_record','equipment_plan','quantity_change','stock_writeoff','transfer_receipt','work_order_issue']) k
+select is((select array_agg(k order by k) from unnest(array['attendance_decision','certificate','check_in','daily_report','delivery_record','equipment_plan','quantity_change','stock_writeoff','transfer_receipt','work_order_issue']) k
             where position('''' || k || '''::text' in (select prosrc from pg_proc where proname = 'my_waiting_decisions')) > 0),
-  array['attendance_decision','certificate','daily_report','delivery_record','equipment_plan','quantity_change','stock_writeoff','transfer_receipt','work_order_issue'],
+  array['attendance_decision','certificate','check_in','daily_report','delivery_record','equipment_plan','quantity_change','stock_writeoff','transfer_receipt','work_order_issue'],
   'AC-WAIT-017 the function answers for exactly the enumerated kinds; a new kind must be added here and to the inbox registry');
-select is((select count(*)::int from regexp_matches((select prosrc from pg_proc where proname = 'my_waiting_decisions'), '''[a-z_]+''::text', 'g')), 9,
+select is((select count(*)::int from regexp_matches((select prosrc from pg_proc where proname = 'my_waiting_decisions'), '''[a-z_]+''::text', 'g')), 10,
   'AC-WAIT-018 and no kind is answered that the enumeration does not name');
 select * from finish();
 rollback;
