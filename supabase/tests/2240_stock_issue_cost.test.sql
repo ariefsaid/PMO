@@ -109,6 +109,10 @@ create or replace function pg_temp.act_as(p_uid uuid) returns void language sql 
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
 
+set local session_replication_role=replica;
+insert into stock_documents(id,org_id,number,kind,status,warehouse_id,occurred_on,created_by,posted_by,posted_at)
+select '25190000-0000-0000-0000-000000000814',org_id,'OPEN-CUTOVER','receive','Posted',warehouse_id,'2026-11-15',created_by,posted_by,posted_at from stock_documents where id='25190000-0000-0000-0000-000000000810';
+set local session_replication_role=origin;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
 select is(public.set_stock_issue_cost_date('2026-11-16'), '2026-11-16'::date, 'AC-ISC-003 clean organisation enables');
@@ -128,6 +132,12 @@ insert into payments(id,org_id,procurement_id,invoice_id,status,amount,currency)
  ('25190000-0000-0000-0000-000000000645','25190000-0000-0000-0000-00000000000a','25190000-0000-0000-0000-000000000604','25190000-0000-0000-0000-000000000626','Paid',999,'IDR');
 update stock_documents set work_order_id='25190000-0000-0000-0000-000000000401' where id='25190000-0000-0000-0000-000000000811';
 update stock_ledger set qty_delta=-30,value_delta=-300 where line_id='25190000-0000-0000-0000-000000000821';
+update stock_document_lines set quantity=30 where id='25190000-0000-0000-0000-000000000821';
+insert into stock_document_lines(id,org_id,document_id,line_no,item_id,quantity,unit_cost)
+select '25190000-0000-0000-0000-000000000824',org_id,'25190000-0000-0000-0000-000000000810',1,item_id,99.9,10 from stock_document_lines where id='25190000-0000-0000-0000-000000000821';
+insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
+select org_id,'25190000-0000-0000-0000-000000000810','25190000-0000-0000-0000-000000000824',item_id,warehouse_id,'receive',99.9,999,99.9,999,occurred_on,posted_by from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
+
 insert into stock_documents(id,org_id,number,kind,status,warehouse_id,project_id,occurred_on,created_by,posted_by,posted_at,work_order_id)
 select '25190000-0000-0000-0000-000000000812',org_id,'SI-2','issue','Posted',warehouse_id,project_id,occurred_on,created_by,posted_by,posted_at,'25190000-0000-0000-0000-000000000402' from stock_documents where id='25190000-0000-0000-0000-000000000811';
 insert into stock_documents(id,org_id,number,kind,status,warehouse_id,project_id,occurred_on,created_by,posted_by,posted_at,work_order_id)
@@ -147,7 +157,7 @@ select throws_ok($$select set_stock_issue_cost_date('2026-11-17')$$,'23514','thi
 select is(set_stock_issue_cost_date('2026-11-16'),'2026-11-16'::date,'AC-ISC-002 enable at receipt date');
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and work_order_id='25190000-0000-0000-0000-000000000401' and reason='counted'),250::numeric,'AC-ISC-002 work order A issue less return');
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and work_order_id='25190000-0000-0000-0000-000000000402' and reason='counted'),200::numeric,'AC-ISC-002 work order B issue');
-select is((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1'))+549,999::numeric,'AC-ISC-002 consumed plus remaining stock equals bill once');
+select is((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1'))+(select sum(value_delta) from stock_ledger where org_id='25190000-0000-0000-0000-00000000000a'),999::numeric,'AC-ISC-002 consumed plus remaining stock equals bill once');
 select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric,1550::numeric,'AC-ISC-002 project excludes stocked bill and includes 450 consumed plus direct delivery 1100');
 select is((select spent from project_pmo_positions(array['25190000-0000-0000-0000-0000000000d1']::uuid[])),1550::numeric,'AC-ISC-002 dashboard same source');
 select is((select amount from project_pmo_spent_position('25190000-0000-0000-0000-0000000000d1')),1550::numeric,'AC-ISC-002 single-project position same source');
