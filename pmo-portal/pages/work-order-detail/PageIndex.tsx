@@ -92,12 +92,12 @@ export const PageIndex: React.FC<{ entries: PageIndexEntry[] }> = ({ entries }) 
         <SelectField label={label} hideLabel value={active} onChange={(id) => { setActive(id); jumpTo(id); }}
           options={entries.map((e) => ({ value: e.id, label: e.label }))} className="touch-target w-full" />
       </div>
-      <ul className="hidden flex-wrap gap-x-0.5 md:flex [&>li:first-child>a]:ps-0">
+      <ul className="hidden flex-wrap gap-x-6 md:flex">
         {entries.map((e) => (
           <li key={e.id}>
             <a href={`#${e.id}`} aria-current={active === e.id ? 'location' : undefined}
               onClick={(event) => { event.preventDefault(); setActive(e.id); jumpTo(e.id); }}
-              className={cn('relative flex h-11 items-center px-3 text-control',
+              className={cn('relative flex h-11 items-center text-control',
                 active === e.id ? 'ptab-active text-primary-text' : 'text-muted-foreground hover:text-foreground')}>
               {e.label}
             </a>
