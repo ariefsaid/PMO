@@ -4,7 +4,7 @@
 -- Fixtures are written as the table owner; every client check runs as `authenticated` with a JWT.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(10);
 
 insert into organizations (id, name, default_currency) values
   ('26770000-0000-0000-0000-00000000000a', 'ITR Org',   'IDR'),
@@ -61,6 +61,12 @@ select is((select root_cause from incident_reports where id='26770000-0000-0000-
 set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok($$select public.add_task_to_incident('26770000-0000-0000-0000-000000000a01','Unrelated')$$,'42501',null,'JOB-PC17 same-level non-author refuses task');
 select is((select count(*) from tasks where name='Reporter followup' and assignee_id=auth.uid()),1::bigint,'JOB-PC17 assigned task appears in normal task read');
+reset role;
+update incident_reports set assignee_id=null, reported_by=null where id='26770000-0000-0000-0000-000000000a03';
+set local role authenticated;
+select throws_ok($$select public.add_task_to_incident('26770000-0000-0000-0000-000000000a03','Imported')$$,'42501',null,'JOB-PC17 an imported issue gives no reporter authority');
+update incident_reports set root_cause='Unrelated' where id='26770000-0000-0000-0000-000000000a03';
+select is((select root_cause from incident_reports where id='26770000-0000-0000-0000-000000000a03'),null,'JOB-PC17 same-level non-author cannot save root cause');
 reset role;
 update profiles set built_in_role='field_user' where id='26770000-0000-0000-0000-0000000000a4';
 set local role authenticated;
