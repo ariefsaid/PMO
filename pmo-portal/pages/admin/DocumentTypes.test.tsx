@@ -229,6 +229,19 @@ describe('Document types screen (#2614)', () => {
   });
 });
 
+describe('medical expiry recipient explanation', () => {
+  it('AC-SR-005 medical type shows the release rule instead of a worker expiry switch', async () => {
+    h.role = 'Admin'; h.effectiveRole = null; h.builtInRole = null;
+    const user = userEvent.setup();
+    renderIt();
+    await user.click(screen.getByRole('button', { name: 'Add document type' }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.click(dialog.getByRole('checkbox', { name: /Medical document/i }));
+    expect(dialog.queryByRole('checkbox', { name: 'Also tell the person' })).toBeNull();
+    expect(dialog.getByText(/Expiry warnings go to the people team and direct manager/)).toBeInTheDocument();
+  });
+});
+
 describe('parseWarningDays', () => {
   it.each([['30, 14, 7', [30, 14, 7]], ['7', [7]], ['', null], ['0', null], ['366', null], ['1.5', null], ['1 2 3 4 5 6', null]])('%j', (text, out) => {
     expect(parseWarningDays(text)).toEqual(out);

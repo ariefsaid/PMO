@@ -30,7 +30,7 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
     applies_to: defaultKind,
     is_medical: type?.is_medical ?? false,
     notify_roles: type?.notify_roles ?? DEFAULT_NOTIFY_ROLES[defaultKind],
-    notify_person: type?.notify_person ?? false,
+    notify_person: type?.is_medical ? false : (type?.notify_person ?? false),
   });
   const [nameError, setNameError] = useState<string>();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
@@ -84,10 +84,11 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
             {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}
           </Checkbox>
         )}
+        {v.is_medical && <p className="text-control text-muted-foreground">{t('documentTypes.medicalNotice', 'Expiry warnings go to the people team and direct manager. The worker is told after release is approved.')}</p>}
         <fieldset className="space-y-1">
           <legend className="text-control font-semibold">{t('documentTypes.roles', 'Roles notified')}</legend>
           <p className="text-control text-muted-foreground">{t('documentTypes.rolesHelp', "Tick the roles to warn before a document of this type expires. A person's direct manager is always warned too.")}</p>
-          {(type ? type.applies_to : v.applies_to) === 'person' && (
+          {(type ? type.applies_to : v.applies_to) === 'person' && !v.is_medical && (
             <Checkbox checked={v.notify_person} onChange={(notify_person) => setV((c) => ({ ...c, notify_person }))}
               label={t('documentTypes.notifyPerson', 'Also tell the person')}>{t('documentTypes.notifyPerson', 'Also tell the person')}</Checkbox>
           )}
@@ -171,7 +172,7 @@ const DocumentTypes: React.FC = () => {
       cell: (r) => <span>{r.applies_to === 'person' ? t('documentTypes.person', 'Person') : t('documentTypes.equipment', 'Equipment')}</span> },
     { key: 'medical', header: t('documentTypes.medicalCol', 'Medical'), cell: (r) => (r.is_medical ? <span>{t('documentTypes.yes', 'Yes')}</span> : null) },
     { key: 'roles', header: t('documentTypes.roles', 'Roles notified'), cell: (r) => {
-      const who = [...(r.applies_to === 'person' ? [t('documentTypes.manager', 'Direct manager')] : []), ...r.notify_roles, ...(r.applies_to === 'person' && r.notify_person ? [t('documentTypes.thePerson', 'The person')] : [])];
+      const who = [...(r.applies_to === 'person' ? [t('documentTypes.manager', 'Direct manager')] : []), ...r.notify_roles, ...(r.applies_to === 'person' && !r.is_medical && r.notify_person ? [t('documentTypes.thePerson', 'The person')] : [])];
       return <span>{who.length ? who.join(', ') : t('documentTypes.noOne', 'No one is warned')}</span>;
     } },
     { key: 'actions', header: <span className="sr-only">{t('documentTypes.actions', 'Actions')}</span>,

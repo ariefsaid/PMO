@@ -3,7 +3,7 @@
 // for those dates; renting equipment against the work order is a separate screen (equipment use) and the crane-allocation part is held (owner question).
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { signIn } from './helpers';
+import { roleJobUser } from './support/roleJobUser';
 import { need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 
 test.setTimeout(120_000);
@@ -13,17 +13,20 @@ const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.ge
 
 let admin: SupabaseClient;
 let crewId = '';
+let planner: Awaited<ReturnType<typeof roleJobUser>>;
 test.afterEach(async () => {
   if (!admin || !crewId) return;
   const today = iso(new Date());
   await admin.from('work_order_crews').update({ valid_to: today }).eq('crew_id', crewId);
   await admin.from('crew_members').update({ valid_to: today }).eq('crew_id', crewId);
   crewId = '';
+  await planner?.cleanup();
 });
 
 test('JOB-PC9 a crew rostered on a work order for a date range is listed on it for those dates', async ({ page }) => {
   admin = serviceClient('JOB-PC9');
   const run = runId('JOBPC9');
+  planner = await roleJobUser(admin, 'planner', `${run}-planner`);
   const fx = await projectWithWorkOrders(admin, run, ['Pipe rack']);
   const wo = fx.workOrders[0];
   const from = new Date(); const to = new Date(); to.setDate(to.getDate() + 5);
@@ -31,7 +34,7 @@ test('JOB-PC9 a crew rostered on a work order for a date range is listed on it f
   const person = need('person', await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', name: `${run} Ana` }).select('id').single()).id;
   ok('placement', await admin.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: iso(from) }));
 
-  await signIn(page, 'pm@acme.test');
+  await planner.signIn(page);
   await page.goto(`/crews?view=roster&wo=${wo.id}`);
   await page.getByRole('button', { name: 'Roster a crew' }).first().click();
   const dialog = page.getByRole('dialog');

@@ -44,7 +44,7 @@ const EquipmentAvailabilityScreen: React.FC = () => {
   };
   const [problem, setProblem] = useState<string | null>(null);
 
-  const canMetrics = may('view', 'equipmentCosting');
+  const canMetrics = may('view', 'equipmentMetrics');
   const [chosenMetricFrom, setMetricFrom] = useState<string | null>(null);
   const [chosenMetricTo, setMetricTo] = useState<string | null>(null);
   const metricFrom = chosenMetricFrom ?? monthFrom;
