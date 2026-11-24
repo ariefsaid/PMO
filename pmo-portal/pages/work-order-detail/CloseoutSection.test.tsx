@@ -10,13 +10,16 @@ import type { WorkOrderCloseoutItem } from '@/src/lib/db/closeoutChecklist';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  effectiveRole: null as string | null,
   items: undefined as unknown,
   state: { isError: false, refetch: vi.fn() },
   docs: [] as unknown[],
   closer: null as { closedAt: string | null; closedByName: string | null } | null,
   attach: vi.fn(),
   complete: vi.fn(),
+  assignOwner: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
@@ -25,6 +28,7 @@ vi.mock('@/src/hooks/useCloseoutChecklist', () => ({
   useWorkOrderCloseoutItems: () => ({ data: h.items, ...h.state }),
   useWorkOrderCloser: () => ({ data: h.closer }),
   useCloseoutItemMutations: () => ({
+    assignOwner: { mutateAsync: h.assignOwner, isPending: false },
     attachDocument: { mutateAsync: h.attach, isPending: false },
     completeItem: { mutateAsync: h.complete, isPending: false },
   }),
@@ -51,7 +55,7 @@ function renderIt(props: Partial<React.ComponentProps<typeof CloseoutSection>> =
 }
 
 beforeEach(() => {
-  h.role = 'Finance';
+  h.role = 'Finance'; h.effectiveRole = null; h.assignOwner.mockClear();
   h.items = items();
   h.state = { isError: false, refetch: vi.fn() };
   h.docs = [doc('d1', 'Certificate A'), doc('d2', 'Letter B'), doc('d3', 'Draft note', 'Draft'), doc('d4', 'No file yet', 'Approved', null)];
@@ -173,4 +177,19 @@ describe('CloseoutSection', () => {
     expect(screen.queryByTestId('closeout-due-i2')).toBeNull();
     expect(screen.getByTestId('closeout-summary')).toHaveTextContent('Required items not done: 1');
   });
+});
+
+it('AC-SITE-012 Admin can name the owner on an already issued checklist item', async () => {
+ h.role='Admin';
+ const user=renderIt();
+ const row=screen.getByRole('listitem',{name:'Item two'});
+ await user.selectOptions(within(row).getByRole('combobox',{name:'Owner job role'}),'construction_manager');
+ expect(h.assignOwner).toHaveBeenCalledWith({itemId:'i2',ownerRole:'construction_manager'});
+});
+
+it('AC-SITE-012 an Admin viewing as an Engineer cannot assign a close-out owner', () => {
+ h.role='Admin'; h.effectiveRole='Engineer';
+ renderIt();
+ expect(screen.queryAllByRole('combobox',{name:'Owner job role'})).toHaveLength(0);
+ expect(h.assignOwner).not.toHaveBeenCalled();
 });

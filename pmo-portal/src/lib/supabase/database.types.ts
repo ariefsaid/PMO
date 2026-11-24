@@ -4025,6 +4025,7 @@ export type Database = {
       }
       crew_loans: {
         Row: {
+          created_by: string | null
           created_at: string
           home_crew_id: string
           host_crew_id: string
@@ -4036,6 +4037,7 @@ export type Database = {
           worker_id: string
         }
         Insert: {
+          created_by?: string | null
           created_at?: string
           home_crew_id: string
           host_crew_id: string
@@ -4047,6 +4049,7 @@ export type Database = {
           worker_id: string
         }
         Update: {
+          created_by?: string | null
           created_at?: string
           home_crew_id?: string
           host_crew_id?: string
@@ -29235,6 +29238,10 @@ export type Database = {
         Returns: boolean
       }
       actor_may_order_purchases: { Args: never; Returns: boolean }
+      stock_transfer_receiving_items: { Args: { p_transfer: string }; Returns: { item_id: string; item_code: string; item_name: string; needs_quality_check: boolean; from_name: string; to_name: string; proof_rule: string }[] }
+      assign_closeout_item_owner: { Args: { p_item: string; p_role?: string }; Returns: undefined }
+      supervisor_loan_crews: { Args: Record<PropertyKey, never>; Returns: string[] }
+      actor_may_task_incident: { Args: { p_incident: string }; Returns: boolean }
       actor_may_task_issue: { Args: { p_work_order: string }; Returns: boolean }
       actor_may_run_billing_steps: { Args: never; Returns: boolean }
       actor_may_see_billing_steps: { Args: never; Returns: boolean }

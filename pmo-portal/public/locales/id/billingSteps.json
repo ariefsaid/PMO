@@ -69,5 +69,7 @@
       "label": "Edit daftar penagihan perintah kerja yang diterbitkan",
       "helper": "Jika aktif, pelaksana langkah penagihan dapat menambahkan langkah pada perintah kerja terbit, dan Finance atau Admin dapat menyimpan daftar sebagai templat untuk perintah kerja baru."
     }
-  }
+  },
+  "extraDocument": "Dokumen tambahan",
+  "attachExtra": "Lampirkan dokumen tambahan"
 }

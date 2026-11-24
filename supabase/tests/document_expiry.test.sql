@@ -63,7 +63,7 @@ select throws_ok($$insert into people (org_id, code, name, manager_id) values ('
 -- time-controlled runner. Warning days default {30,14,7}.
 select is(public.run_document_expiry_warnings('2026-11-04'), 0, 'AC-DEX-003 nothing is sent before the first threshold (earliest doc is 31 days out)');
 -- 2026-11-20: equipment cert (12-05) is 15 days out -> threshold 30; permit (12-20) is 30 days -> threshold 30; medical 12-10 is 20 -> 30
-select is(public.run_document_expiry_warnings('2026-11-20'), 6, 'AC-DEX-003 30-day wave: permit→manager+admin, medical→admin and the manager as a plain notice (2043), certificate→admin+PM');
+select is(public.run_document_expiry_warnings('2026-11-20'), 7, 'AC-DEX-003 30-day wave: permit→manager+admin, medical→admin, the subject and the manager as a plain notice (24 Nov ruling), certificate→admin+PM');
 select is(public.run_document_expiry_warnings('2026-11-20'), 0, 'AC-DEX-004 re-running the same day sends nothing (idempotent)');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a1' and body like '%Work permit%'), 1,
   'AC-DEX-003 permit notice reached HR (Admin) at 30 days') ;
@@ -71,9 +71,9 @@ select is((select count(*)::int from notifications where owner_id = '25270000-00
 select is((select (metadata->'entity'->>'id') is null and (metadata->'entity'->>'type') is null and body = 'Person One — Medical check expires 10 Dec 2026.'
              from notifications where owner_id = '25270000-0000-0000-0000-0000000000a3' and body like '%Medical check%'), true,
   'AC-DEX-003 the manager''s medical notice names the person, the type and the date, and links to no document (2043)');
-select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a4'), 0, 'AC-DEX-003 an unrelated Engineer is never notified');
+select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a4'), 1, 'AC-DEX-003 the medical subject receives their own warning under the 24 Nov ruling');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2'), 1, 'AC-DEX-003 equipment notice reaches the PM role only for equipment');
-select is(public.run_document_expiry_warnings('2026-12-01'), 4, 'AC-DEX-004 next crossings only: certificate to 7 days (2), medical to 14 days (2: admin and the manager, 2043); permit stays at 30');
+select is(public.run_document_expiry_warnings('2026-12-01'), 5, 'AC-DEX-004 next crossings only: certificate to 7 days (2), medical to 14 days (3: admin, subject and manager); permit stays at 30');
 select is((select severity from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2' and body like '%Crane One%' and title like '%expires in 4 days%'), 'critical', 'AC-DEX-004 the 7-day warning is critical');
 select is((select count(*)::int from notifications where body ilike '%fit%' or body ilike '%unfit%'), 0, 'AC-DEX-002 no notification discloses a medical status');
 

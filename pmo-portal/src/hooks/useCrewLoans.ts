@@ -26,3 +26,7 @@ export function useCrewLoanMutations() {
     }),
   };
 }
+
+export function useSupervisorLoanCrews() {
+ return useOrgQuery(['supervisor-loan-crews'], () => crewLoanRepository.supervisorCrews());
+}

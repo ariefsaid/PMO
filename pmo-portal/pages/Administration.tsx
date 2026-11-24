@@ -73,6 +73,7 @@ import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 export type AdministrationSection =
   | 'users'
   | 'people'
+  | 'document-types'
   | 'clearance'
   | 'integrations'
   | 'modules'
@@ -88,16 +89,17 @@ export type AdministrationSection =
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'modules', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'document-types', 'integrations', 'modules', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
-const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
+const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'document-types', 'exchange-rates', 'cost-attribution'];
 const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'clearance', 'cost-attribution', ...OPERATOR_SECTIONS];
 
 /** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
 const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   users: 'Users',
   people: 'People',
+  'document-types': 'Document types',
   clearance: 'Clearance',
   integrations: 'Organization integrations',
   modules: 'Modules',
@@ -121,6 +123,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
 const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string> => ({
   users: t('admin.nav.users', SECTION_LABEL_DEFAULTS.users),
   people: t('administration:people.navLabel', SECTION_LABEL_DEFAULTS.people),
+  'document-types': t('administration:documentTypesNav', SECTION_LABEL_DEFAULTS['document-types']),
   clearance: t('administration:clearance.navLabel', SECTION_LABEL_DEFAULTS.clearance),
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
   modules: t('administration:admin.modulesNav', SECTION_LABEL_DEFAULTS.modules),
@@ -292,13 +295,14 @@ const SelectedAdministrationPanel: React.FC<{
           <AdminUsers embedded />
         </div>
       );
+    case 'document-types':
+      return <div data-testid="administration-panel-document-types"><SectionName name={label('document-types')} /><DocumentTypes /></div>;
     case 'people':
       return (
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
-          <People />
           <OrgAttendanceTimeRoles />
-          <DocumentTypes />
+          <People />
           <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
         </div>
       );
@@ -454,7 +458,8 @@ const Administration: React.FC = () => {
   const operatorRoute = section !== undefined && isOperatorSection(section);
   const fxRoute = section === 'exchange-rates';
   const costAttributionRoute = section === 'cost-attribution';
-  const peopleRoute = section === 'people' && may('view', 'person');
+  const canViewPeople = may('view', 'person');
+  const peopleRoute = (section === 'people' || section === 'document-types') && canViewPeople;
   // #2707: the Clearance section exists only while the organisation setting is on (default off: Administration is unchanged).
   const clearanceEnabled = useOrgSwitch('clearance').data === true;
   const clearanceRoute = section === 'clearance' && may('view', 'personClearance');
@@ -462,9 +467,9 @@ const Administration: React.FC = () => {
   const canEnterAdministration = isAdminViewer || isOperator || peopleRoute || clearanceRoute || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
   const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance && !peopleRoute && !clearanceRoute);
   const navigationSections: AdministrationSection[] = !isAdminViewer && !isFinance && !isOperator
-    ? ['people', ...(showClearance ? ['clearance' as const] : [])]
+    ? ['people', 'document-types', ...(showClearance ? ['clearance' as const] : [])]
     : isFinance
-    ? [...FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution), ...(showClearance ? ['clearance' as const] : [])]
+    ? [...FINANCE_SECTIONS.filter((id) => (id !== 'cost-attribution' || canManageCostAttribution) && (id !== 'document-types' || canViewPeople)), ...(showClearance ? ['clearance' as const] : [])]
     : [
       ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)
         // "Your plan" is the org Admin's read-only page (FR-PLN-014); an Operator reaches it too.

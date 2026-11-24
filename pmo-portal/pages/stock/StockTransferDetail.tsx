@@ -65,14 +65,14 @@ const StockTransferDetail: React.FC = () => {
   if (!transfer) return <ListState variant="empty" icon="folder" title={t('transfers.notFound')} />;
 
   const loc = getNumberLocale();
-  const wh = (id: string) => (warehouses.data ?? []).find((w) => w.id === id)?.name ?? '';
+  const wh = (id: string) => (id === transfer.fromWarehouseId ? transfer.fromWarehouseName : id === transfer.toWarehouseId ? transfer.toWarehouseName : undefined) ?? (warehouses.data ?? []).find((w) => w.id === id)?.name ?? '';
   const person = (id: string | null) => (id ? (profiles.data ?? []).find((p) => p.id === id)?.full_name ?? '' : '');
-  const item = (l: StockTransferLine) => { const i = itemById.get(l.itemId); return i ? `${i.code} - ${i.name}` : ''; };
+  const item = (l: StockTransferLine) => { const i = itemById.get(l.itemId); return l.itemName ?? (i ? `${i.code} - ${i.name}` : ''); };
   const viewOnly = realRole !== effectiveRole;
   const isAdmin = realRole === 'Admin';
   const countOf = (l: StockTransferLine): Count => counts[l.id] ?? { counted: l.qtySent, accepted: l.qtySent, reason: '', quality: '' };
   const setCount = (l: StockTransferLine, patch: Partial<Count>) => setCounts((c) => ({ ...c, [l.id]: { ...countOf(l), ...patch } }));
-  const rules = new Set<ProofRule>(transfer.lines.map((l) => { const tag = tagById.get(itemById.get(l.itemId)?.tag_id ?? ''); return tag ? ruleOf(tag as never) : 'none'; }).filter((r) => r !== 'none'));
+  const rules = new Set<ProofRule>(transfer.lines.map((l) => { const tag = tagById.get(itemById.get(l.itemId)?.tag_id ?? ''); return l.proofRule ?? (tag ? ruleOf(tag as never) : 'none'); }).filter((r) => r !== 'none'));
   const needsProof = rules.size > 0;
   const blocking = needsProof && settings.data?.proofTiming !== 'may_follow';
   const proofRow = (proof.data ?? []).find((p) => p.movementId === transfer.id);
@@ -104,7 +104,7 @@ const StockTransferDetail: React.FC = () => {
     const stage = transfer.status === 'Sent' ? 'send' : 'receive';
     await repo.recordHandover(transfer.id, { ...(await buildConfirmation(me!.org_id, transfer.id, late, stage)), stage });
   }, t('transfers.proofAddedToast'));
-  const valid = transfer.lines.every((l) => { const c = countOf(l); return c.counted !== '' && c.accepted !== '' && (!flagged(itemById.get(l.itemId)) || c.quality !== ''); });
+  const valid = transfer.lines.every((l) => { const c = countOf(l); return c.counted !== '' && c.accepted !== '' && (!(l.needsQualityCheck ?? flagged(itemById.get(l.itemId))) || c.quality !== ''); });
   const canSubmit = valid && !busy && (!withHandover || isHandoverComplete(handover)) && (!blocking || (withHandover && isHandoverComplete(handover)));
 
   return (
@@ -135,7 +135,7 @@ const StockTransferDetail: React.FC = () => {
       {transfer.status === 'Sent' && !viewOnly && canCount ? (
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (canSubmit) void receive(); }} noValidate>
           <h2 className="text-base font-semibold">{t('transfers.receiveTitle')}</h2>
-          <ul className="space-y-3">{transfer.lines.map((l) => { const c = countOf(l); const rejected = Number(normalizeDecimal(c.counted) || 0) - Number(normalizeDecimal(c.accepted) || 0); const f = flagged(itemById.get(l.itemId)); return (
+          <ul className="space-y-3">{transfer.lines.map((l) => { const c = countOf(l); const rejected = Number(normalizeDecimal(c.counted) || 0) - Number(normalizeDecimal(c.accepted) || 0); const f = l.needsQualityCheck ?? flagged(itemById.get(l.itemId)); return (
             <li key={l.id} className="space-y-2 rounded-lg border border-border p-3">
               <div className="font-medium">{item(l)}</div>
               <div className="text-sm text-muted-foreground">{t('transfers.sentQty', { qty: formatQuantity(l.qtySent, loc) })}</div>

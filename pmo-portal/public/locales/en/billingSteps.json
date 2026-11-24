@@ -69,5 +69,7 @@
       "label": "Edit issued work-order checklists",
       "helper": "When on, billing-step runners can add steps to issued work orders, and Finance or an Admin can save a checklist as a template for new work orders."
     }
-  }
+  },
+  "extraDocument": "Additional document",
+  "attachExtra": "Attach additional document"
 }

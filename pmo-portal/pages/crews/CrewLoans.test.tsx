@@ -24,6 +24,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
 }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled }) }));
 vi.mock('@/src/hooks/useCrewLoans', () => ({
+  useSupervisorLoanCrews: () => ({ data: [] }),
   useCrewLoans: () => ({ data: h.loans, isPending: false, isError: false }),
   useCrewLoanMutations: () => ({ lend: { mutateAsync: h.lend }, endLoan: { mutateAsync: h.endLoan } }),
 }));

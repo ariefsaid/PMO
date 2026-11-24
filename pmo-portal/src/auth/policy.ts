@@ -936,6 +936,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   incident: {
+    act: (role, ctx) => ctx.record?.viewOnly !== true && Boolean(ctx.record?.project_id) && ctx.record?.status !== 'Closed'
+      && (has(DELIVERY, role) || ctx.record?.reporterMayFollowUp === true || (holds(ctx, 'site_supervisor') && ctx.record?.mayTaskIssue === true)),
     view: allow(ALL), // the closing-time report read: the database function admits any active member
     create: allow(ALL), // ANY member files (reporter server-stamped)
     edit: allow(DELIVERY), // managers investigate
@@ -1352,7 +1354,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // database (actor_may_lend_workers) limits the supervisor to its own crew's workers, for one day.
   crewLoan: {
     manage: (role, ctx) => ctx.record?.viewOnly !== true
-      && (has(DELIVERY, role) || (holds(ctx, 'site_supervisor') && ctx.record?.leadsACrew === true)),
+      && (has(DELIVERY, role) || (holds(ctx, 'site_supervisor') && (ctx.record?.leadsACrew === true || ctx.record?.supervisesACrew === true))),
   },
   attendance: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (

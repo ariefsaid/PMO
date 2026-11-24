@@ -27,15 +27,22 @@ const day = inDays(3);
 test.beforeEach(async () => {
   db = serviceClient('AC-LV-015');
   const must = need('AC-LV-015');
+  createdPerson = false;
+  personId = '';
+  previousManager = null;
   run = `E2E-LV-${Date.now()}`;
   ({ workOrderId } = await seedWorkOrder(db, 'AC-LV-015', run, 'site'));
   must('leave on', { data: true, error: (await db.from('organizations').update({ leave_requests_enabled: true, leave_approver_role: null }).eq('id', ORG_ID)).error });
   typeId = must('type', await db.from('leave_types').insert({ org_id: ORG_ID, name: `${run} Type` }).select('id').single()).id;
-  previousManager = (must('profile', await db.from('profiles').select('manager_id').eq('id', ENGINEER_ID).single()) as { manager_id: string | null }).manager_id;
-  must('manager', { data: true, error: (await db.from('profiles').update({ manager_id: PM_ID }).eq('id', ENGINEER_ID)).error });
-  const existing = await db.from('people').select('id').eq('profile_id', ENGINEER_ID).is('archived_at', null).maybeSingle();
-  if (existing.data) personId = existing.data.id as string;
-  else { personId = must('person', await db.from('people').insert({ org_id: ORG_ID, kind: 'own', name: `${run} Engineer`, profile_id: ENGINEER_ID }).select('id').single()).id; createdPerson = true; }
+  const existing = await db.from('people').select('id, manager_id').eq('profile_id', ENGINEER_ID).is('archived_at', null).maybeSingle();
+  if (existing.data) {
+    personId = existing.data.id as string;
+    previousManager = (existing.data.manager_id as string | null) ?? null;
+    must('manager', { data: true, error: (await db.from('people').update({ manager_id: PM_ID }).eq('id', personId)).error });
+  } else {
+    personId = must('person', await db.from('people').insert({ org_id: ORG_ID, kind: 'own', name: `${run} Engineer`, profile_id: ENGINEER_ID, manager_id: PM_ID }).select('id').single()).id;
+    createdPerson = true;
+  }
   crewId = must('crew', await db.from('crews').insert({ org_id: ORG_ID, code: run.slice(-18), name: `${run} crew`, kind: 'own', field_controller_id: ENGINEER_ID }).select('id').single()).id;
   must('placement', await db.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: personId, valid_from: inDays(-1) }).select('id').single());
   must('roster', await db.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: inDays(-1) }).select('id').single());
@@ -49,7 +56,7 @@ test.afterEach(async () => {
   await db.from('crew_members').update({ valid_to: inDays(-1) }).eq('crew_id', crewId);
   if (createdPerson) await db.from('crew_members').delete().eq('worker_id', personId);
   if (createdPerson) await db.from('people').update({ archived_at: new Date().toISOString() }).eq('id', personId); // a live person left on the Engineer login blocks every journey that gives that login its own
-  await db.from('profiles').update({ manager_id: previousManager }).eq('id', ENGINEER_ID);
+  if (!createdPerson && personId) await db.from('people').update({ manager_id: previousManager }).eq('id', personId);
   await db.from('organizations').update({ leave_requests_enabled: true, leave_approver_role: null }).eq('id', ORG_ID);
 });
 

@@ -48,7 +48,8 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
 }) => {
   const { t } = useTranslation('billingSteps');
   const auth = useContext(AuthContext);
-  const { realRole } = useEffectiveRole();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const viewOnly = realRole !== effectiveRole;
   const roleName = useBuiltInRoleName();
   const line = useRefusalLine();
   const { complete, skip, assign, attach } = useWorkOrderStepMutations();
@@ -56,8 +57,8 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
   const [picked, setPicked] = useState<Record<string, string>>({});
   const status = stepStatus(step);
   const actor = { userId: auth?.currentUser?.id ?? null, builtInRoleKey: auth?.currentUser?.built_in_role ?? null, role: realRole };
-  const canAct = issued && status === 'current' && mayActOnStep(actor, step);
-  const canAttach = issued && status !== 'done' && status !== 'skipped' && mayActOnStep(actor, step);
+  const canAct = !viewOnly && issued && status === 'current' && mayActOnStep(actor, step);
+  const canAttach = !viewOnly && issued && status !== 'done' && status !== 'skipped' && mayActOnStep(actor, step);
   const users = useUsers({ enabled: canAct });
   const documents = useDocuments(projectId);
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));
@@ -93,6 +94,15 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
       {due && status === 'current' && ` · ${t('due', 'Due {{date}}', { date: formatIsoDay(due) })}`}
       {age !== null && status === 'current' && ` · ${t('age', '{{count}} days on this step', { count: age })}`}
     </p>
+    {canAttach && <div className="mt-2 flex flex-wrap items-end gap-2">
+      <SelectField label={t('extraDocument', 'Additional document')} placeholder={t('pick', 'Choose a document')}
+        value={picked.extra ?? ''} onChange={(v) => setPicked((p) => ({ ...p, extra: v }))}
+        options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} />
+      <Button variant="outline" size="sm" disabled={!picked.extra || attach.isPending}
+        onClick={() => void run(() => attach.mutateAsync({ stepId: step.id, slotId: null, documentId: picked.extra }))}>
+        {t('attachExtra', 'Attach additional document')}
+      </Button>
+    </div>}
     {step.documents.length > 0 && <ul className="mt-2 space-y-2 text-control" aria-label={t('documents', 'Documents for {{step}}', { step: step.name })}>
       {step.documents.map((d) => <li key={d.id} className="flex flex-wrap items-center justify-between gap-2">
         <span>{d.name}<span className="ml-2 text-muted-foreground">{d.required ? t('required', 'required') : t('optional', 'optional')}</span></span>
@@ -193,7 +203,8 @@ const SaveTemplateModal: React.FC<{ workOrderId: string; steps: WorkOrderStep[];
 const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, projectId, status, today = localToday() }) => {
   const { t } = useTranslation('billingSteps');
   const auth = useContext(AuthContext);
-  const { realRole } = useEffectiveRole();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const viewOnly = realRole !== effectiveRole;
   const may = usePermission();
   const checklistEdit = useOrgSwitch('workOrderChecklist');
   const formId = useId();
@@ -206,7 +217,7 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
   const issued = status === 'Issued';
   // Affordances only (the database is the authority): a person who runs billing steps may add a step; saving a template is Finance or an Admin.
   const checklistEnabled = checklistEdit.data === true;
-  const canAdd = issued && checklistEnabled && mayChangeStepList({ userId: auth?.currentUser?.id ?? null, builtInRoleKey: auth?.currentUser?.built_in_role ?? null, role: realRole });
+  const canAdd = !viewOnly && issued && checklistEnabled && mayChangeStepList({ userId: auth?.currentUser?.id ?? null, builtInRoleKey: auth?.currentUser?.built_in_role ?? null, role: realRole });
   if (status === 'Draft') return null;
   if (query.isError) {
     return <RecordSection title={title}><ListState variant="error" title={t('loadError', "Couldn't load the billing steps")} onRetry={() => void query.refetch()} /></RecordSection>;
@@ -214,7 +225,7 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
   if (!query.data) return null;
   const steps = query.data;
   const left = steps.filter((s) => stepStatus(s) !== 'done' && stepStatus(s) !== 'skipped').length;
-  const canSave = checklistEnabled && steps.length > 0 && may('edit', 'billingStage');
+  const canSave = !viewOnly && checklistEnabled && steps.length > 0 && may('edit', 'billingStage');
   const actions = canAdd || canSave
     ? <span className="flex flex-wrap gap-2">
         {canAdd && <Button variant="outline" size="sm" aria-expanded={adding} aria-controls={adding ? formId : undefined}
@@ -236,9 +247,9 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
           {steps.map((s) => <StepRow key={s.id} step={s} steps={steps} projectId={projectId} today={today} issued={issued} onError={setRefusal} />)}
         </ol>
       </>}
-    {adding && <AddStepForm id={formId} workOrderId={workOrderId} steps={steps} onClose={() => setAdding(false)} onError={setRefusal} />}
+    {adding && canAdd && <AddStepForm id={formId} workOrderId={workOrderId} steps={steps} onClose={() => setAdding(false)} onError={setRefusal} />}
     {refusal && <p role="alert" className="mt-2 text-control text-destructive">{refusal}</p>}
-    {saving && <SaveTemplateModal workOrderId={workOrderId} steps={steps} onClose={() => setSaving(false)} onSaved={(n) => { setSaved(n); setSaving(false); }} />}
+    {saving && canSave && <SaveTemplateModal workOrderId={workOrderId} steps={steps} onClose={() => setSaving(false)} onSaved={(n) => { setSaved(n); setSaving(false); }} />}
     {saved && <p role="status" className="mt-2 text-control text-muted-foreground" data-testid="wo-billing-step-template-saved">
       {t('templateSaved', 'Saved as template "{{name}}".', { name: saved })}</p>}
   </RecordSection>;

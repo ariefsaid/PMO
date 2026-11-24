@@ -147,9 +147,9 @@ export function useIncidentFiles(incidentId: string | undefined) {
 
 /** Upload one photo/PDF for an issue, and make a task from an issue (#2521). */
 /** The Site Supervisor job role adds tasks to issues on work orders it supervises: the database gate decides. Unreadable = no. */
-export function useSupervisorMayTask(workOrderId: string | null | undefined, enabled: boolean): boolean {
-  const q = useOrgQuery(['incident-may-task', workOrderId], () => repositories.incident.mayTaskOnWorkOrder(workOrderId as string),
-    { enabled: enabled && Boolean(workOrderId) });
+export function useSupervisorMayTask(incidentId: string | null | undefined, enabled: boolean): boolean {
+  const q = useOrgQuery(['incident-may-task', incidentId], () => repositories.incident.mayTaskIncident(incidentId as string),
+    { enabled: enabled && Boolean(incidentId) });
   return q.data === true;
 }
 

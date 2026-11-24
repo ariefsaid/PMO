@@ -20,10 +20,12 @@ export type SignerKind = 'account' | 'guest';
 export type HandoverScope = 'transfers' | 'transfers_and_issues';
 export interface TransferSettings { mode: TransferMode; proofTiming: ProofTiming; handoverScope: HandoverScope }
 export interface StockTransferLine {
+  itemName?: string; needsQualityCheck?: boolean; proofRule?: ProofRule;
   id: string; lineNo: number; itemId: string; qtySent: string; qtyCounted: string | null; qtyAccepted: string | null; qtyRejected: string | null;
   rejectReason: string | null; qualityResult: QualityResult | null; shortResolution: ShortResolution | null; shortReason: string | null;
 }
 export interface StockTransfer {
+  fromWarehouseName?: string; toWarehouseName?: string;
   id: string; number: string; fromWarehouseId: string; toWarehouseId: string; transitWarehouseId: string; workOrderId: string | null; toUserId: string | null;
   note: string | null; status: TransferStatus; sentBy: string; sentAt: string; receivedBy: string | null; receivedAt: string | null; cancelReason: string | null;
   lines: StockTransferLine[];
@@ -102,7 +104,15 @@ export async function listStockTransfers(status?: TransferStatus): Promise<Stock
 export async function getStockTransfer(id: string): Promise<StockTransfer | null> {
   const { data, error } = await supabase.from('stock_transfers').select('*, stock_transfer_lines(*)').eq('id', id).maybeSingle();
   if (error) throw toAppError(error);
-  return data ? mapTransfer(data) : null;
+  if (!data) return null;
+  const transfer = mapTransfer(data);
+  const metadata = await supabase.rpc('stock_transfer_receiving_items', { p_transfer: id });
+  if (metadata.error) throw toAppError(metadata.error);
+  const items = new Map((metadata.data ?? []).map((i) => [i.item_id, i]));
+  return { ...transfer, fromWarehouseName: metadata.data?.[0]?.from_name, toWarehouseName: metadata.data?.[0]?.to_name,
+    lines: transfer.lines.map((line) => { const item = items.get(line.itemId); return item ? { ...line,
+      itemName: `${item.item_code} - ${item.item_name}`, needsQualityCheck: item.needs_quality_check, proofRule: item.proof_rule as ProofRule } : line; }) };
+
 }
 export async function listHandoverConfirmations(transferId: string): Promise<HandoverConfirmation[]> {
   const { data, error } = await supabase.from('stock_handover_confirmations').select('*').eq('transfer_id', transferId).order('confirmed_at').limit(200);

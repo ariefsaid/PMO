@@ -1,11 +1,12 @@
 import {
-  attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, getWorkOrderCloser, listOpenCloseoutDue, listWorkOrderCloseoutItems, setCloseoutTemplate,
+  assignCloseoutItemOwner, attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, getWorkOrderCloser, listOpenCloseoutDue, listWorkOrderCloseoutItems, setCloseoutTemplate,
 } from '@/src/lib/db/closeoutChecklist';
 import { wrap } from './repositoryErrors';
 import type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
 
 /** Work-order close-out checklist (#2593). Every rule, the order, the documents and the close guard, lives in the database (1400–1402). */
 export const closeoutChecklistRepository: CloseoutChecklistRepository = {
+  assignOwner: (itemId, ownerRole) => wrap(() => assignCloseoutItemOwner(itemId, ownerRole)),
   getTemplate: () => wrap(() => getCloseoutTemplate()),
   setTemplate: (items) => wrap(() => setCloseoutTemplate(items)),
   listItems: (workOrderId) => wrap(() => listWorkOrderCloseoutItems(workOrderId)),
