@@ -51,6 +51,8 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // finish before the current profile is applied. Superseded queued work is discarded.
   const languageQueue = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
+    // Document metadata follows the resolved profile without waiting for feature catalogues.
+    if (typeof document !== 'undefined') document.documentElement.lang = stable.locale;
     let active = true;
     // Start the singleton bootstrap in the resolved locale immediately (#2097).
     const initialized = initI18n(stable.locale);
@@ -59,8 +61,6 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!active) return;
       if (instance.language !== stable.locale) await instance.changeLanguage(stable.locale);
       if (!active) return;
-      // Keep the screen-reader language aligned with the catalogue that is now ready.
-      if (typeof document !== 'undefined') document.documentElement.lang = stable.locale;
       markCataloguesLoaded(true);
     });
     return () => {

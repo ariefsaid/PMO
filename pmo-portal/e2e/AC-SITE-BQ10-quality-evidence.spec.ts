@@ -8,7 +8,7 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
  try{
   const step=must('quality step',await db.from('work_order_billing_steps').insert({org_id:ORG_ID,work_order_id:fixture.wo,project_id:fixture.project,position:1,name:'Quality evidence',owner_role_key:'quality_inspector',started_on:inDays(0)}).select('id').single()).id;
   const document=must('proof',await db.from('project_documents').insert({id:fixture.run,org_id:ORG_ID,project_id:fixture.project,category:'Acceptance',title:`Quality proof ${fixture.run}`,status:'Approved',author_id:PM_ID,file_path:`${ORG_ID}/${fixture.project}/${fixture.run}/quality.pdf`}).select('id').single()).id;
-  const claims=[]; for(let index=0;index<2;index++) claims.push(must('claim',await db.from('progress_claims').insert({org_id:ORG_ID,project_id:fixture.project,work_order_id:fixture.wo,kind:'progress',currency:'IDR',gross_amount:1000,created_by:PM_ID}).select('id,work_order_id').single()));
+  const claims=[]; for(let index=0;index<2;index++) claims.push(must('claim',await db.from('progress_claims').insert({org_id:ORG_ID,project_id:fixture.project,work_order_id:fixture.wo,kind:'progress',currency:'IDR',gross_amount:1000,created_at:`2026-01-${14+index}T12:00:00Z`,created_by:PM_ID}).select('id,work_order_id').single()));
   await actor.login(page);await page.goto(`/work-orders/${fixture.wo}`);
   const row=page.getByTestId('wo-billing-step').filter({hasText:'Quality evidence'});
   await row.getByRole('combobox',{name:'Additional document'}).selectOption(document);await row.getByRole('button',{name:'Attach additional document'}).click();
@@ -18,9 +18,9 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
   for(const [index,claim] of claims.entries()){
    if(index===0) await page.goto(`/projects/${fixture.project}/contract?open=${claim.id}&openType=billingClaim`);
    else {
-    // Follow the record link back to the cached project and open its other claim.
+    // The work-order claims list exposes dates; use distinct fixture dates to open the other claim.
     await page.getByRole('link',{name:'Claims and invoices',exact:true}).click();
-    await page.getByRole('row').or(page.getByRole('listitem')).filter({has:page.getByTestId(`claim-evidence-${claim.id}`)}).getByRole('button',{name:/^Open Progress claim/}).click();
+    await page.getByRole('button',{name:/^Open Progress claim from 15 Jan(?: 2026)?$/}).click();
    }
    await expect(page).toHaveURL(new RegExp(`open=${claim.id}`));
    const claimSection=page.locator(`[aria-labelledby="billing-stages-${claim.id}"]`);
