@@ -146,8 +146,9 @@ const MyTasks: React.FC = () => {
     else next.delete(key);
     return next;
   }, { replace: true });
-  const queue = searchParams.get('queue') === 'completed' ? 'completed' : 'open';
-  const setQueue = (next: 'open' | 'completed') => setParam('queue', next === 'completed' ? next : '');
+  const queue = searchParams.get('queue') === 'completed' ? 'completed'
+    : searchParams.get('queue') === 'overdue' ? 'overdue' : 'open';
+  const setQueue = (next: 'open' | 'overdue' | 'completed') => setParam('queue', next === 'open' ? '' : next);
   const search = searchParams.get('q') ?? '';
   const setSearch = (value: string) => setParam('q', value);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
@@ -183,13 +184,15 @@ const MyTasks: React.FC = () => {
     return tasks.filter((task) => {
       if (workOrderFilter === 'none' ? task.work_order_id != null : workOrderFilter !== 'all' && task.work_order_id !== workOrderFilter) return false;
       const isCompleted = task.status === 'Done';
-      if (isCompleted !== (queue === 'completed')) return false;
+      if (queue === 'completed' ? !isCompleted : isCompleted) return false;
+      // M6: the Overdue queue is every open task past its deadline — the set a manager chases.
+      if (queue === 'overdue' && !isOverdueTask(task, today)) return false;
       // #1461 due=week: open tasks due by the end of this week (the figure's counted set).
       if (dueBy && !isCompleted && !(task.end_date !== null && task.end_date <= dueBy)) return false;
       if (!normalizedSearch) return true;
       return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
-  }, [tasks, queue, search, dueBy, workOrderFilter]);
+  }, [tasks, queue, search, dueBy, workOrderFilter, today]);
 
   // Unknown (list not loaded) is null: the open-task figure is a fact only once the read has
   // landed, and it never renders as a fabricated 0 (unknown-as-zero audit F19).
@@ -300,6 +303,7 @@ const MyTasks: React.FC = () => {
             onChange={setQueue}
             options={[
               { value: 'open', label: t('tasks:myTasks.openTasksShort', 'Open'), ariaLabel: t('myTasks.openTasks', 'Open tasks') },
+              { value: 'overdue', label: t('tasks:myTasks.overdueShort', 'Overdue') },
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
@@ -370,7 +374,9 @@ const MyTasks: React.FC = () => {
           <p className="text-sm text-muted-foreground">
             {search.trim()
               ? t('myTasks.noSearchResults', 'No tasks match your search')
-              : t('myTasks.noTasksInView', 'No tasks in this view')}
+              : queue === 'overdue'
+                ? tasksT('myTasks.nothingOverdue', 'Nothing is overdue')
+                : t('myTasks.noTasksInView', 'No tasks in this view')}
           </p>
         </div>
       )}

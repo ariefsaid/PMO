@@ -2,7 +2,9 @@
   "dueThisWeek": "Due this week",
   "clearDueWeek": "Clear the due-this-week filter",
   "myTasks": {
-    "openTasksShort": "Open"
+    "openTasksShort": "Open",
+    "overdueShort": "Overdue",
+    "nothingOverdue": "Nothing is overdue"
   },
   "push": {
     "pushing": "Pushing…",
