@@ -8,13 +8,13 @@
 export const WAITING_KINDS = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
   'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
-  'certificate', 'equipment_plan', 'medical_release',
+  'certificate', 'equipment_plan', 'medical_release', 'stock_writeoff', 'attendance_decision',
 ] as const;
 
 export type WaitingKind = (typeof WAITING_KINDS)[number];
 
 /** Kinds answered by the database function `my_waiting_decisions()`; the rest keep the read their own screen already uses. */
-export const DATABASE_LISTED_KINDS = ['daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan'] as const;
+export const DATABASE_LISTED_KINDS = ['daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan', 'stock_writeoff', 'attendance_decision'] as const;
 export type DatabaseListedKind = (typeof DATABASE_LISTED_KINDS)[number];
 
 export interface WaitingKindMeta {
@@ -47,6 +47,10 @@ export const WAITING_KIND_META: Record<WaitingKind, WaitingKindMeta> = {
   quantity_change: { scopeKey: 'waitingList:scope.quantity_change', scopeLabel: 'Quantity changes', href: (id) => `/quantity-changes/${id}`, inboxSection: 'section' },
   certificate: { scopeKey: 'waitingList:scope.certificate', scopeLabel: 'Subcontract certificates', href: (id) => `/subcontract-certificates/${id}`, inboxSection: 'section' },
   equipment_plan: { scopeKey: 'waitingList:scope.equipment_plan', scopeLabel: 'Equipment plans', href: () => '/equipment-plans', inboxSection: 'section' },
+  // A Draft adjustment, or a count with a difference, that someone other than its author may post (stock_assert_writeoff_approver, 0416).
+  stock_writeoff: { scopeKey: 'waitingList:scope.stock_writeoff', scopeLabel: 'Stock write-offs to post', href: (id) => `/stock/documents/${id}`, inboxSection: 'section' },
+  // A day whose second time record disagrees with the site report; the decision is made on that day's site report.
+  attendance_decision: { scopeKey: 'waitingList:scope.attendance_decision', scopeLabel: 'Attendance to decide', href: (id) => `/site-reports/${id}`, inboxSection: 'section' },
   // Read by the medical-releases section's own read (`can_decide` rows still Pending); that section on /approvals is where it is decided.
   medical_release: { scopeKey: 'waitingList:scope.medical_release', scopeLabel: 'Medical releases', inboxSection: 'section' },
 };
@@ -75,6 +79,8 @@ export function scopeLabelText(kind: WaitingKind, t: Translate): string {
     case 'certificate': return t('waitingList:scope.certificate', 'Subcontract certificates');
     case 'equipment_plan': return t('waitingList:scope.equipment_plan', 'Equipment plans');
     case 'medical_release': return t('waitingList:scope.medical_release', 'Medical releases');
+    case 'stock_writeoff': return t('waitingList:scope.stock_writeoff', 'Stock write-offs to post');
+    case 'attendance_decision': return t('waitingList:scope.attendance_decision', 'Attendance to decide');
     default: return t(WAITING_KIND_META[kind].scopeKey, WAITING_KIND_META[kind].scopeLabel);
   }
 }
@@ -92,5 +98,7 @@ export function waitingHeadingText(kind: DatabaseListedKind | 'leave' | 'imprest
     case 'quantity_change': return t('waitingList:heading.quantity_change', 'Quantity changes to decide ({{count}})', { count });
     case 'certificate': return t('waitingList:heading.certificate', 'Subcontract certificates to approve ({{count}})', { count });
     case 'equipment_plan': return t('waitingList:heading.equipment_plan', 'Equipment plans to approve ({{count}})', { count });
+    case 'stock_writeoff': return t('waitingList:heading.stock_writeoff', 'Stock write-offs to post ({{count}})', { count });
+    case 'attendance_decision': return t('waitingList:heading.attendance_decision', 'Attendance to decide ({{count}})', { count });
   }
 }
