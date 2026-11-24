@@ -367,7 +367,7 @@ export const ListState: React.FC<ListStateProps> = ({
             ? <h1 className={cn(safeSub ? 'block' : 'inline', !quiet && 'font-semibold text-destructive-text')}>{title}</h1>
             : <span className={cn(safeSub && 'block', !quiet && 'font-semibold text-destructive-text')}>{title}</span>)}
           {safeSub && <span className="mt-px text-muted-foreground">{safeSub}</span>}{' '}
-          <button type="button" onClick={onRetry} className="-my-1.5 ms-1 inline-block whitespace-nowrap py-1.5 font-medium text-primary-text hover:underline max-[640px]:-my-3 max-[640px]:py-3 pointer-coarse:-my-3 pointer-coarse:py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <button type="button" onClick={onRetry} className="-my-1.5 ms-1 inline-block whitespace-nowrap py-1.5 font-medium text-foreground hover:underline max-[640px]:-my-3 max-[640px]:py-3 pointer-coarse:-my-3 pointer-coarse:py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {resolvedRetryLabel}
           </button>
         </div>

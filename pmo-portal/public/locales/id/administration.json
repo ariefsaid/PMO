@@ -638,6 +638,10 @@
         "noticesHeading": "Pemberitahuan (mati sampai Anda memilih)",
         "label": "Tambahan penagihan",
         "helper": "Pendapatan per disiplin, rencana pendapatan, waktu menganggur sebagai biaya, dan pengingat untuk pekerjaan yang selesai tetapi belum ditagih."
+      },
+      "managementViews": {
+        "label": "Tampilan manajemen",
+        "helper": "Tampilkan portofolio proyek dan progres yang belum diterima oleh klien."
       }
     },
     "modulesNav": "Modul",

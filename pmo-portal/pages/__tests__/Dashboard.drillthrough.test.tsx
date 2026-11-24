@@ -225,7 +225,7 @@ vi.mock('@/src/hooks/useProjectStatusLabel', () => ({
   useProjectStatusLabel: () => (status: string) => status,
   useProcurementStatusLabel: () => (status: string) => status,
 }));
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectManagementOverview: () => ({ data: [], isPending: false, isError: false }),
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }),
 }));
@@ -311,3 +311,5 @@ describe('AC-IXD-DASH-W5-C2A — Engineer dashboard drills', () => {
     expect(within(screen.getByTestId('engineer-tasks')).getByRole('link', { name: 'All tasks' })).toHaveAttribute('href', '/my-tasks');
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

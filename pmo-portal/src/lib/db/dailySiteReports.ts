@@ -36,9 +36,14 @@ export interface DsrReport {
   weather_id: string | null;
   weather_note: string | null;
   note: string | null;
+  /** Optional link to a crew, or to a named person when no crew applies (migration 2130); null on older reports. */
+  crew_id: string | null;
+  person_id: string | null;
+  /** Optional area that overrides the work order's area for the rate (migration 2132). */
+  area_id: string | null;
 }
-/** A list row: the header plus the work order and author it names (embeds qualified: two FKs reach profiles). */
-export interface DsrReportListRow extends DsrReport { work_order_label: string; author_name: string | null }
+/** A list row: the header plus the work order, author and safe directory label of its optional person link. */
+export interface DsrReportListRow extends DsrReport { work_order_label: string; author_name: string | null; crew_name: string | null; person_name: string | null }
 export interface DsrProgressLine { id: string; position: number; work_order_line_id: string; sub_stage: string | null; quantity: number; unit: string }
 export interface DsrIdlePeriod { id: string; position: number; minutes: number; reason_id: string }
 export interface DsrConsumable { id: string; position: number; stock_item_id: string; quantity: number; unit: string; work_order_line_id?: string | null }
@@ -70,12 +75,16 @@ export interface DsrDraftInput {
   weatherId?: string | null;
   weatherNote?: string | null;
   note?: string | null;
+  /** Link keys are sent only when given: leave them out and the stored link stays; null clears it. */
+  crewId?: string | null;
+  personId?: string | null;
+  areaId?: string | null;
   progress: { workOrderLineId: string; subStage?: string | null; quantity: string }[];
   idle: { minutes: number; reasonId: string }[];
   consumables: { stockItemId: string; quantity: string; workOrderLineId?: string }[];
 }
 
-export interface DsrListFilter { projectId?: string; workOrderId?: string; from?: string; to?: string; status?: DsrStatus }
+export interface DsrListFilter { projectId?: string; workOrderId?: string; crewId?: string; from?: string; to?: string; status?: DsrStatus }
 export interface DsrRevenueLineRow { line_id: string; rate: number | null; rate_source: string | null; amount: number | null; frozen: boolean }
 export interface DsrQueueRow {
   report_id: string; project_id: string; work_order_id: string; work_order_label: string; work_date: string; author_id: string;
@@ -84,7 +93,7 @@ export interface DsrQueueRow {
 
 export const DSR_PAGE_SIZE = 50;
 export const SITE_REPORT_PHOTOS_BUCKET = 'site-report-photos';
-const HEADER = 'id, org_id, project_id, work_order_id, work_date, status, version, supersedes_id, superseded_at, correction_reason, author_id, submitted_at, validated_by, validated_at, returned_reason, variant_id, start_time, end_time, total_minutes, weather_id, weather_note, note';
+const HEADER = 'id, org_id, project_id, work_order_id, work_date, status, version, supersedes_id, superseded_at, correction_reason, author_id, submitted_at, validated_by, validated_at, returned_reason, variant_id, start_time, end_time, total_minutes, weather_id, weather_note, note, crew_id, person_id, area_id';
 
 type Err = { message: string; code?: string } | null;
 interface Loose {
@@ -104,17 +113,25 @@ async function rows<T>(query: PromiseLike<{ data: unknown; error: Err }>): Promi
 /** FR-DSR-021: newest first with id as the stable tie-break, one bounded page (one extra row says "more"). */
 export async function listReports(filter: DsrListFilter, page = 0): Promise<{ rows: DsrReportListRow[]; hasMore: boolean }> {
   let q = db.from('daily_site_reports')
-    .select(`${HEADER}, work_orders(title, wo_number), author:profiles!daily_site_reports_author_id_fkey(full_name)`).is('archived_at', null);
+    .select(`${HEADER}, work_orders(title, wo_number), author:profiles!daily_site_reports_author_id_fkey(full_name), crew:crews(name)`).is('archived_at', null);
   if (filter.projectId) q = q.eq('project_id', filter.projectId);
   if (filter.workOrderId) q = q.eq('work_order_id', filter.workOrderId);
+  if (filter.crewId) q = q.eq('crew_id', filter.crewId);
   if (filter.status) q = q.eq('status', filter.status);
   if (filter.from) q = q.gte('work_date', filter.from);
   if (filter.to) q = q.lte('work_date', filter.to);
   const from = page * DSR_PAGE_SIZE;
-  type Raw = DsrReport & { work_orders: { title: string; wo_number: string | null } | null; author: { full_name: string | null } | null };
+  type Raw = DsrReport & { work_orders: { title: string; wo_number: string | null } | null; author: { full_name: string | null } | null; crew: { name: string } | null };
   const data = await rows<Raw>(q.order('work_date', { ascending: false }).order('id', { ascending: false }).range(from, from + DSR_PAGE_SIZE));
-  const list = data.slice(0, DSR_PAGE_SIZE).map(({ work_orders: wo, author, ...r }) => ({
+  const pageRows = data.slice(0, DSR_PAGE_SIZE);
+  const personIds = [...new Set(pageRows.flatMap((r) => r.person_id ? [r.person_id] : []))];
+  const people = personIds.length > 0
+    ? await rows<{ id: string; name: string }>(db.from('people_directory').select('id, name').in('id', personIds).limit(DSR_PAGE_SIZE))
+    : [];
+  const personNames = new Map(people.map((p) => [p.id, p.name]));
+  const list = pageRows.map(({ work_orders: wo, author, crew, ...r }) => ({
     ...r, work_order_label: wo ? [wo.wo_number, wo.title].filter(Boolean).join(' · ') : '', author_name: author?.full_name ?? null,
+    crew_name: crew?.name ?? null, person_name: r.person_id ? personNames.get(r.person_id) ?? null : null,
   }));
   return { rows: list, hasMore: data.length > DSR_PAGE_SIZE };
 }
@@ -165,6 +182,18 @@ export async function setListItemArchived(kind: DsrListKind, id: string, archive
   if (error) fail(error);
 }
 
+/** The people a report may name when no crew applies: the member-readable directory (no pay, no documents). */
+export interface DsrPersonOption { id: string; name: string; code: string }
+export async function listLinkPeople(): Promise<DsrPersonOption[]> {
+  return fetchAllPages<DsrPersonOption>((f, t) => db.from('people_directory').select('id, name, code').is('archived_at', null).order('name').order('id').range(f, t));
+}
+/** One person's name for a report that names them (the directory keeps archived people too). */
+export async function personName(id: string): Promise<string | null> {
+  const { data, error } = await db.from('people_directory').select('name').eq('id', id).maybeSingle();
+  if (error) fail(error);
+  return (data as { name: string } | null)?.name ?? null;
+}
+
 /** The work order's contract items (work_order_lines + their BOQ line). */
 export async function listContractItems(workOrderId: string): Promise<DsrContractItem[]> {
   const data = await fetchAllPages<{ id: string; boq_item_id: string; boq_items: { item_code: string; description: string; unit: string; catalogue_item_id: string | null } | null }>((from, to) =>
@@ -201,6 +230,9 @@ export async function saveDraft(input: DsrDraftInput): Promise<string> {
       weather_id: input.weatherId || null,
       weather_note: input.weatherNote ?? null,
       note: input.note ?? null,
+      ...(input.crewId !== undefined ? { crew_id: input.crewId } : {}),
+      ...(input.personId !== undefined ? { person_id: input.personId } : {}),
+      ...(input.areaId !== undefined ? { area_id: input.areaId } : {}),
       progress: input.progress.map((l) => ({ work_order_line_id: l.workOrderLineId, sub_stage: l.subStage || null, quantity: l.quantity })),
       idle: input.idle.map((l) => ({ minutes: l.minutes, reason_id: l.reasonId })),
       consumables: input.consumables.map((l) => ({ stock_item_id: l.stockItemId, quantity: l.quantity, ...(l.workOrderLineId ? { work_order_line_id: l.workOrderLineId } : {}) })),

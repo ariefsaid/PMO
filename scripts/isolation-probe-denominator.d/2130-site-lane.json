@@ -1,0 +1,26 @@
+{
+  "definer_functions": [
+    "attach_headcount_document(uuid,uuid)",
+    "detach_headcount_document(uuid)",
+    "dsr_line_rate(uuid,text,uuid,date,uuid)",
+    "set_boq_item_area_rate(uuid,uuid,numeric)"
+  ],
+  "tables": [
+    {
+      "table": "boq_item_area_rates",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "headcount_day_documents",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ]
+}

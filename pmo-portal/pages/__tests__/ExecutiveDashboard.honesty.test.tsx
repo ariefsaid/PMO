@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
 import { resetActiveLocale, setActiveLocale } from '../../src/lib/locale/activeLocale';
 import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '../../test/companyDashboardHarness';
@@ -32,3 +32,5 @@ describe('AC-RD-UNAVAIL-002 plan vs actual leaves an unavailable amount out, nev
     expect(cells('Mismatch')).toEqual(['$700', 'No active budget', '—', '—']);
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

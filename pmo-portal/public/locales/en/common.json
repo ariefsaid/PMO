@@ -186,6 +186,10 @@
       "stockIssueCost": {
         "name": "Stock issue costing",
         "summary": "Counts issued stock as work-order cost from a chosen date."
+      },
+      "managementViews": {
+        "name": "Management views",
+        "summary": "Shows the project portfolio and progress not yet accepted by the client."
       }
     },
     "paletteGroup": "Settings"

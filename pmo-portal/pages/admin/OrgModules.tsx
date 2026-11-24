@@ -24,6 +24,7 @@ export default function OrgModules() {
       <p className="max-w-prose text-control text-muted-foreground">
         {t('admin.modules.intro', 'Each module switches a group of features on or off for everyone in your organisation. Turning a module off hides its screens and settings. Nothing is deleted, and turning it back on brings everything back.')}
       </p>
+      <OrgSwitchSetting id="management-views" title={t('admin.modules.managementViews.label', 'Management views')} setting="managementViews" label={t('admin.modules.managementViews.label', 'Management views')} helper={t('admin.modules.managementViews.helper', 'Show the project portfolio and progress not yet accepted by the client.')} />
       {card('modulePeopleCrews', 'module-people-crews', t('admin.modules.peopleCrews.label', 'People and crews'),
         t('admin.modules.peopleCrews.helper', 'Built-in roles, the clearance checklist for site access, leave requests and crew loans.'))}
       {card('moduleSiteDay', 'module-site-day', t('admin.modules.siteDay.label', 'Site day'),

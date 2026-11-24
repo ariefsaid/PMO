@@ -394,7 +394,6 @@
     "approve_bill_match_exception(uuid,text)",
     "bill_match_evaluate(uuid)",
     "dsr_correct(uuid,text)",
-    "dsr_line_rate(uuid,text,uuid,date)",
     "dsr_log(uuid,uuid,text,text)",
     "dsr_may_enter(uuid)",
     "dsr_may_see_revenue(uuid)",

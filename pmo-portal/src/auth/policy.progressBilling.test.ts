@@ -5,6 +5,16 @@ import type { Role } from './AuthContext';
 const as = (realRole: Role) => ({ realRole });
 
 describe('progress billing policy', () => {
+  it('AC-MV-003 lets Project Managers open their project-scoped work-in-hand view only', () => {
+    expect(can('view', 'workInHand', as('Project Manager'))).toBe(true);
+    expect(can('view', 'workInHand', as('Finance'))).toBe(true);
+    expect(can('view', 'workInHand', as('Executive'))).toBe(true);
+    expect(can('view', 'workInHand', as('Admin'))).toBe(true);
+    expect(can('view', 'workInHand', as('Engineer'))).toBe(false);
+    expect(can('viewAssigned', 'workInHand', as('Project Manager'))).toBe(true);
+    expect(can('viewAssigned', 'workInHand', as('Finance'))).toBe(false);
+  });
+
   it.each([['Admin', true], ['Executive', true], ['Project Manager', true], ['Finance', true], ['Engineer', false]] as const)(
     'AC-PB-008 %s maintains the bill of quantities and sees billing: %s', (role, allowed) => {
       expect(can('create', 'boqItem', as(role))).toBe(allowed);

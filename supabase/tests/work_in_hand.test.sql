@@ -4,7 +4,7 @@
 -- Cast: FIN a1 Finance · ADM a2 Admin · EXE a3 Executive · PM a4 · ENG a5 · OFF a6 Finance, disabled · XORG b1 Finance, org B.
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(49);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('10600000-0000-0000-0000-000000000001', 'WIH Org', 'IDR', 'Asia/Jakarta'),
@@ -39,6 +39,8 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
   ('10600000-0000-0000-0000-0000000000c8', '10600000-0000-0000-0000-000000000001', 'WIH P8', 'Ongoing Project', 2000000, 'exclusive', 0, 'IDR', null),
   ('10600000-0000-0000-0000-0000000000c9', '10600000-0000-0000-0000-000000000001', 'WIH P9', 'Won, Pending KoM', 800000, 'exclusive', 0, 'IDR', null),
   ('10600000-0000-0000-0000-0000000000d9', '10600000-0000-0000-0000-000000000002', 'WIH OtherOrg P', 'Ongoing Project', 777777, 'exclusive', 0, 'IDR', null);
+update projects set project_manager_id = '10600000-0000-0000-0000-0000000000a4'
+ where id in ('10600000-0000-0000-0000-0000000000c1', '10600000-0000-0000-0000-0000000000c2');
 
 insert into work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount) values
   ('10600000-0000-0000-0000-0000000000e1', '10600000-0000-0000-0000-000000000001', '10600000-0000-0000-0000-0000000000c8', 'W1 issued', 'Issued', 'WIH-1', 555000, 'inclusive', 55000),
@@ -188,29 +190,36 @@ select lives_ok($$ select public.get_work_in_hand('2026-12-10') $$, 'AC-WIH-013 
 set local request.jwt.claims = '{"sub":"10600000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$ select public.get_work_in_hand('2026-12-10') $$, 'AC-WIH-013 an Executive is served');                                                 -- 36
 set local request.jwt.claims = '{"sub":"10600000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select throws_ok($$ select public.get_work_in_hand('2026-12-10') $$, '42501', 'not authorized',
-  'AC-WIH-013 a Project Manager is refused (this gate is narrower than get_project_finances)');                                                    -- 37
+insert into wih_r values ('pm', public.get_work_in_hand('2026-12-10'));
+select lives_ok($$ select public.get_work_in_hand('2026-12-10') $$,
+  'AC-MV-002 an assigned Project Manager is served by the server-scoped read');                                                                   -- 37
+select set_eq(
+  $$ select c->>'name' from wih_r, jsonb_array_elements(j->'contracts') c where k = 'pm' $$,
+  $$ values ('WIH P1'), ('WIH P2') $$,
+  'AC-MV-002 the Project Manager sees only managed projects, not organization-wide contracts');                                                   -- 38
+select is((select (j->>'undated_invoice_count')::int from wih_r where k = 'pm'), 0,
+  'AC-MV-002 the organization-wide undated invoice count is not exposed to a Project Manager');                                                    -- 39
 set local request.jwt.claims = '{"sub":"10600000-0000-0000-0000-0000000000a5","role":"authenticated"}';
-select throws_ok($$ select public.get_work_in_hand('2026-12-10') $$, '42501', 'not authorized', 'AC-WIH-013 an Engineer is refused');                    -- 38
+select throws_ok($$ select public.get_work_in_hand('2026-12-10') $$, '42501', 'not authorized', 'AC-WIH-013 an Engineer is refused');                    -- 40
 set local request.jwt.claims = '{"sub":"10600000-0000-0000-0000-0000000000a6","role":"authenticated"}';
 select throws_ok($$ select public.get_work_in_hand('2026-12-10') $$, '42501', 'your account is not an active member of this organisation',
-  'AC-WIH-013 an offboarded account is refused');                                                                                                  -- 39
+  'AC-WIH-013 an offboarded account is refused');                                                                                                  -- 41
 reset role;
-select is(has_function_privilege('anon', 'public.get_work_in_hand(date)', 'execute'), false, 'AC-WIH-013 anon cannot execute the read');               -- 40
-select is(has_function_privilege('authenticated', 'public.get_work_in_hand(date)', 'execute'), true, 'AC-WIH-013 authenticated can');                  -- 41
-select is((select prosecdef from pg_proc where oid = 'public.get_work_in_hand(date)'::regprocedure), false, 'AC-WIH-014 the read is security invoker'); -- 42
+select is(has_function_privilege('anon', 'public.get_work_in_hand(date)', 'execute'), false, 'AC-WIH-013 anon cannot execute the read');               -- 42
+select is(has_function_privilege('authenticated', 'public.get_work_in_hand(date)', 'execute'), true, 'AC-WIH-013 authenticated can');                  -- 43
+select is((select prosecdef from pg_proc where oid = 'public.get_work_in_hand(date)'::regprocedure), false, 'AC-WIH-014 the read is security invoker'); -- 44
 
 -- ── AC-WIH-014 tenancy ──────────────────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"10600000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 insert into wih_r values ('xorg', public.get_work_in_hand('2026-12-10'));
-select is((select jsonb_array_length(j->'contracts') from wih_r where k = 'xorg'), 1, 'AC-WIH-014 another organisation sees only its own contract');       -- 43
-select is((select j->'contracts'->0->>'name' from wih_r where k = 'xorg'), 'WIH OtherOrg P', 'AC-WIH-014 and it is its own');                              -- 44
-select is((select jsonb_array_length(j->'work_orders') from wih_r where k = 'xorg'), 0, 'AC-WIH-014 none of the first organisation''s work orders appear');  -- 45
-select is((select (j->>'undated_invoice_count')::int from wih_r where k = 'xorg'), 0, 'AC-WIH-014 nor its undated invoices');                                -- 46
+select is((select jsonb_array_length(j->'contracts') from wih_r where k = 'xorg'), 1, 'AC-WIH-014 another organisation sees only its own contract');       -- 45
+select is((select j->'contracts'->0->>'name' from wih_r where k = 'xorg'), 'WIH OtherOrg P', 'AC-WIH-014 and it is its own');                              -- 46
+select is((select jsonb_array_length(j->'work_orders') from wih_r where k = 'xorg'), 0, 'AC-WIH-014 none of the first organisation''s work orders appear');  -- 47
+select is((select (j->>'undated_invoice_count')::int from wih_r where k = 'xorg'), 0, 'AC-WIH-014 nor its undated invoices');                                -- 48
 reset role;
 select is((select count(*)::int from wih_r, jsonb_array_elements(j->'contracts') c where k = 'xorg' and c->>'name' like 'WIH P%'), 0,
-  'AC-WIH-014 no first-organisation contract is in the other organisation''s result');                                                              -- 47
+  'AC-WIH-014 no first-organisation contract is in the other organisation''s result');                                                              -- 49
 
 select * from finish();
 rollback;
