@@ -53,6 +53,8 @@ select pg_temp.act_as('27090000-0000-0000-0000-0000000001a2');
 select is((select count(*)::int from notifications where message_key = 'leaveRejected'), 0, 'AC-LVR-004 the approver gets no rejected copy');
 select pg_temp.act_as('27090000-0000-0000-0000-0000000001a2');
 select is((select count(*)::int from notifications where message_key = 'leaveApproved'), 0, 'AC-LVR-004 the approver gets no copy');
-select is((select message_params ->> 'type' from (select message_params from notifications limit 1) x), null, 'AC-LVR-004 and cannot read the requester''s notification');
+select is((select message_params ->> 'type' from notifications
+            where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveApproved'), null,
+  'AC-LVR-004 and cannot read the requester''s result notification');
 select * from finish();
 rollback;

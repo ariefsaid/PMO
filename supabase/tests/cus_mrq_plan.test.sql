@@ -5,7 +5,7 @@
 -- can be used, so the fixture approves each authored plan before testing its precedence. Existing mrq_* files cover the rest unchanged.
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(33);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25770000-0000-0000-0000-00000000030a', 'CUSM Org', 'IDR', 'Asia/Jakarta');
@@ -124,6 +124,8 @@ select is((select plan_qty::text || '/' || plan_source from material_request_lin
 select pg_temp._as('25770000-0000-0000-0000-0000000003a1');
 select lives_ok($$ select public.cus_adjust_plan_line(pg_temp._wo(1), '25770000-0000-0000-0000-000000003311', 20, 'scope grew') $$, 'AC-CUS-010 the plan of WO1 is adjusted after the request was submitted');
 select lives_ok($$ select public.cus_generate_plan(pg_temp._wo(1)) $$, 'AC-CUS-010 and regenerated');
+select pg_temp._as('25770000-0000-0000-0000-0000000003a3');
+select lives_ok($$ select public.cus_approve_plan(pg_temp._wo(1)) $$, 'AC-CUS-010 the revised plan is approved before new requests use it');
 select is((select plan_qty::text || '/' || plan_source from material_request_lines where request_id = (select v from t_ids where k = 'o1')),
   '8.800/standard', 'AC-CUS-010 the request still shows the figure it was judged against');
 select pg_temp._as('25770000-0000-0000-0000-0000000003a2');
