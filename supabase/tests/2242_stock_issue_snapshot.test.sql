@@ -188,6 +188,10 @@ select is((select count(*) from stock_issue_cost_purchases),1::bigint,'AC-ISC-00
 select is(set_stock_issue_cost_date('2026-11-14'),'2026-11-14'::date,'AC-ISC-008 valid changed date rebuilds the snapshot');
 select is((select count(*) from stock_issue_cost_purchases),0::bigint,'AC-ISC-008 receipt after changed date needs no pre-date snapshot');
 select is(purchase_costs_as_stock('25190000-0000-0000-0000-000000000604'),true,'AC-ISC-008 post-date receipt remains stock classified');
+select is(set_stock_issue_cost_date('2026-11-16'),'2026-11-16'::date,'AC-ISC-008 restore a populated snapshot before access checks');
+select is((select count(*) from stock_issue_cost_purchases),1::bigint,'AC-ISC-008 Admin reads its populated snapshot');
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a4');
+select is((select count(*) from stock_issue_cost_purchases),0::bigint,'AC-ISC-008 role without cost access reads no snapshot');
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000b1');
 select is((select count(*) from stock_issue_cost_purchases),0::bigint,'AC-ISC-008 snapshot reads remain organisation scoped');
 select * from finish();
