@@ -15,7 +15,7 @@ test.setTimeout(180_000);
 
 let storekeeper: Awaited<ReturnType<typeof roleJobUser>>;
 let purchase: ProcurementFixture;
-let site: { id: string; name: string };
+let site: { id: string; code: string; name: string };
 let item: { id: string; code: string; name: string };
 let poNumber = '';
 let projectId = '';

@@ -60,8 +60,9 @@ test('JOB-BQ13 each claim sits in its step column with its age, and the step own
         org_id: ORG_ID, project_id: fx.projectId, work_order_id: p.order, kind: 'progress', currency: 'IDR', gross_amount: 1000, created_by: finance.id,
       }).select('id').single()).id as string;
       const started = inDays(-p.ageDays);
+      const { projectId } = fx;
       const rows = p.steps.map((s, j) => ({
-        org_id: ORG_ID, claim_id: claimId, project_id: fx.projectId, position: j + 1, name: s.name, client_side: false,
+        org_id: ORG_ID, claim_id: claimId, project_id: projectId, position: j + 1, name: s.name, client_side: false,
         owner_role: 'Finance', started_on: started,
         ...(s.done ? { completed_on: started, completed_by: finance.id } : {}),
       }));
