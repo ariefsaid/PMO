@@ -108,3 +108,15 @@ describe('Rail — stage-aware rail highlight (Option A, Task D)', () => {
     },
   );
 });
+
+describe('Rail — a work order page lights one destination', () => {
+  it.each(['/work-orders/wo-1', '/safety-days/day-1'])('%s: only Work orders is current, never Projects too', (path) => {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <RailDrawerContext.Provider value><Rail railActiveOverride={null} /></RailDrawerContext.Provider>
+      </MemoryRouter>,
+    );
+    const current = screen.getAllByRole('link').filter(isCurrent);
+    expect(current.map((a) => a.getAttribute('href'))).toEqual(['/work-orders']);
+  });
+});

@@ -250,9 +250,11 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
         </FormSection>
       ) : (
         <FormSection legend={t('projectDetail.billing.claimForm.linesLegend', 'Quantities to bill')}>
-          {Object.keys(prefill).length > 0 && (woPrefill?.fromBast || assessmentMonth) && (
+          {Object.keys(prefill).length > 0 && (woPrefill?.fromSurvey || woPrefill?.fromBast || assessmentMonth) && (
             <Button type="button" variant="outline" size="sm" className="mb-3" onClick={applyPrefill}>
-              {woPrefill?.fromBast
+              {woPrefill?.fromSurvey
+                ? t('projectTabs:contractQuantities.billing.claimForm.prefillSurvey', 'Start from the surveyed quantities')
+                : woPrefill?.fromBast
                 ? t('projectTabs:contractQuantities.billing.claimForm.prefillBast', 'Start from the accepted BAST quantities')
                 : t('projectDetail.billing.claimForm.prefill', 'Start from the {{month}} assessment',
                   { month: formatUtcMonthYear(new Date(`${assessmentMonth ?? ''}T00:00:00Z`)) })}

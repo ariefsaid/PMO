@@ -152,9 +152,9 @@ select pg_temp._as('25850000-0000-0000-0000-0000000002a3');
 -- ── AC-CSR-017 role gate ───────────────────────────────────────────────────────────────────────────────────────
 select pg_temp._as('25850000-0000-0000-0000-0000000002a4');
 select throws_ok($$ select public.csr_record_reservation((select v from t_ids where k = 'l1'), 1, 'X') $$, '42501',
-  'CSR_FORBIDDEN: only a Project Manager or above records a reservation or release', 'AC-CSR-017 an Engineer cannot record a reservation');
+  'CSR_FORBIDDEN: only a Project Manager or above, or the Material Coordinator, records a reservation or release', 'AC-CSR-017 an Engineer cannot record a reservation');
 select throws_ok($$ select public.csr_record_release((select v from t_ids where k = 'l1'), 1, 'x') $$, '42501',
-  'CSR_FORBIDDEN: only a Project Manager or above records a reservation or release', 'AC-CSR-017 an Engineer cannot record a release');
+  'CSR_FORBIDDEN: only a Project Manager or above, or the Material Coordinator, records a reservation or release', 'AC-CSR-017 an Engineer cannot record a release');
 select is((select count(*)::int from client_requisitions), 1, 'AC-CSR-017 a same-organisation member reads the requisition (material-request read audience)');
 select is((select count(*)::int from public.csr_work_order_rollup('25850000-0000-0000-0000-000000002401')), 2, 'FR-CSR-018 the rollup returns one row per line');
 

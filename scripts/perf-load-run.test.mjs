@@ -25,8 +25,9 @@ test('summarize excludes failed pages from latency, counts failures', () => {
   assert.equal(s.pages, 3); assert.equal(s.p95, 20); assert.equal(s.failedCalls, 2); assert.equal(s.failedPages, 1);
 });
 test('dateVars derives the windows from today, not capture time', () => {
-  const d = dateVars(new Date('2027-03-15T12:00:00Z'));
-  assert.deepEqual(d, { yearStart: '2027-01-01', monthStart: '2027-03-01', monthEnd: '2027-03-31', monthStartMinus1: '2027-02-01', monthStartMinus12: '2026-03-01' });
+  const d = dateVars(new Date('2027-03-15T20:00:00Z'), 'Asia/Jakarta');
+  assert.deepEqual(d, { yearStart: '2027-01-01', monthStart: '2027-03-01', monthEnd: '2027-03-31', monthStartMinus1: '2027-02-01', monthStartMinus12: '2026-03-01',
+    today: '2027-03-16', todayMinus29: '2027-02-15', todayMinus91: '2026-12-15' }); // 20:00 UTC is already the 16th in Jakarta
 });
 test('fill substitutes every placeholder and leaves none behind', () => {
   const out = fill('/x?id=eq.{userId}&o={orgId}&a={userId}&{projectId}{yearStart}', { userId: 'U', orgId: 'O', projectId: 'P', yearStart: 'Y' });

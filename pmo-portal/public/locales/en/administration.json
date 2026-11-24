@@ -995,7 +995,8 @@
     "leftBody": "They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.",
     "leftOn": "First day off crew roster",
     "leftOnHelp": "First day off crew roster",
-    "markedLeft": "{{name}} is now former staff"
+    "markedLeft": "{{name}} is now former staff",
+    "expiring": "Expiring documents"
   },
   "roleNames": {
     "title": "Role names",
@@ -1039,6 +1040,12 @@
     "created": "Category created",
     "renamed": "Category renamed",
     "rolesSaved": "Saved",
+    "hiddenFrom": "Hidden from these job roles",
+    "hiddenNone": "No job role is hidden from it.",
+    "hideFrom": "Hide from a job role",
+    "hideChoose": "Hide from a job role…",
+    "unhide": "Show it to {{role}} again",
+    "unhideShort": "Remove",
     "reordered": "Order saved",
     "restored": "Category restored",
     "archivedDone": "Category archived",
@@ -1300,7 +1307,9 @@
       "openDocument": "Open the document",
       "addDocument": "Add the document",
       "fromDocument": "From the {{type}} document",
-      "noDocument": "No {{type}} document yet. Add it on the person’s record."
+      "noDocument": "No {{type}} document yet. Add it on the person’s record.",
+      "open": "Open checklist",
+      "progress": "{{done}} of {{count}} done"
     },
     "state": {
       "done": "Done",

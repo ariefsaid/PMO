@@ -77,8 +77,6 @@ export const ROLE_CAPABILITIES: readonly (readonly [string, RoleCapability])[] =
   ['finance_officer', 'sees_prices'],
   ['billing_officer', 'sees_prices'],
   ['quantity_surveyor', 'daily_report_enter'],
-  ['site_supervisor', 'daily_report_validate'],
-  ['project_control_manager', 'daily_report_validate'],
   ['administrator', 'people_documents_view'],
   ['hr_manager', 'people_documents_view'],
   ['hr_officer', 'people_documents_view'],

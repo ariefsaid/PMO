@@ -41,6 +41,7 @@
   },
   "warning": {
     "lead": "Supplier warning",
-    "body": "is {{status}} and has an open order on this work order."
+    "body": "is {{status}} and has an open order on this work order.",
+    "purchaseBody": "is {{status}}."
   }
 }

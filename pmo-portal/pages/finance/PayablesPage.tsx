@@ -253,6 +253,8 @@ const PayablesPage: React.FC = () => {
         selection={{ selectedIds: selectedKeys, onChange: setSelectedKeys }}
         rowMenu={(row) => [
           { label: t('financeHub:hub.openProcurement', 'Open procurement'), onClick: () => openProcurement(row.procurement.id) },
+          // Walk PU7: a held bill's three-way match is reviewed on the purchase's Documents tab.
+          { label: t('financeHub:hub.openBills', 'Open bills and match'), onClick: () => navigate(`/procurement/${row.procurement.id}/files`, { state: { recordContext: { origin: 'finance-payables' } } }) },
           ...(row.procurement.vendor_id ? [{ label: t('financeHub:hub.openSupplier', 'Open supplier'), onClick: () => navigate(`/companies/${row.procurement.vendor_id}`) }] : []),
         ]}
         totals={totals}

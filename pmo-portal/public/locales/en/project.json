@@ -431,6 +431,7 @@
         "none": "No issued or approved document with a file on this project.",
         "title": "Attach billing evidence",
         "revision": "rev {{revision}}",
+        "earlier": "Used on earlier claims of this work order",
         "document": "Evidence document"
       },
       "stages": {
@@ -497,6 +498,8 @@
         "template": "Template",
         "pickTemplate": "Choose a template",
         "load": "Replace steps with template",
+        "loadFirst": "Load steps from a template",
+        "loadEmpty": "Load steps",
         "loadTemplateTerms": "Replace stages with template",
         "loadTemplateError": "The template could not be loaded.",
         "name": "Step name",
@@ -1250,6 +1253,7 @@
       "prioritySource": "Source: task priority field",
       "commentsOpenHint": "Open the task to read or add comments",
       "dueTooltip": "Due date from the task record. Overdue days compare the due date with today in the organization timezone.",
+      "noDueDate": "No due date",
       "dayLate": "day overdue",
       "daysLate": "days overdue",
       "column": {

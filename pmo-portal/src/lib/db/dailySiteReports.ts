@@ -55,7 +55,7 @@ export interface DsrReportDetail {
   events: DsrEvent[];
 }
 export interface DsrListOption { id: string; label: string }
-export interface DsrContractItem { id: string; boq_item_id: string; item_code: string; description: string; unit: string }
+export interface DsrContractItem { id: string; boq_item_id: string; item_code: string; description: string; unit: string; catalogue_item_id: string | null }
 export interface DsrEquipmentHours { id: string; asset_name: string; quantity: number; unit: string; kind: string; status: string }
 export interface DsrReportHours { peopleHours: string; equipment: DsrEquipmentHours[] }
 
@@ -167,9 +167,9 @@ export async function setListItemArchived(kind: DsrListKind, id: string, archive
 
 /** The work order's contract items (work_order_lines + their BOQ line). */
 export async function listContractItems(workOrderId: string): Promise<DsrContractItem[]> {
-  const data = await fetchAllPages<{ id: string; boq_item_id: string; boq_items: { item_code: string; description: string; unit: string } | null }>((from, to) =>
-    db.from('work_order_lines').select('id, boq_item_id, boq_items(item_code, description, unit)').eq('work_order_id', workOrderId).order('id').range(from, to));
-  return data.map((r) => ({ id: r.id, boq_item_id: r.boq_item_id, item_code: r.boq_items?.item_code ?? '', description: r.boq_items?.description ?? '', unit: r.boq_items?.unit ?? '' }))
+  const data = await fetchAllPages<{ id: string; boq_item_id: string; boq_items: { item_code: string; description: string; unit: string; catalogue_item_id: string | null } | null }>((from, to) =>
+    db.from('work_order_lines').select('id, boq_item_id, boq_items(item_code, description, unit, catalogue_item_id)').eq('work_order_id', workOrderId).order('id').range(from, to));
+  return data.map((r) => ({ id: r.id, boq_item_id: r.boq_item_id, item_code: r.boq_items?.item_code ?? '', description: r.boq_items?.description ?? '', unit: r.boq_items?.unit ?? '', catalogue_item_id: r.boq_items?.catalogue_item_id ?? null }))
     .sort((a, b) => a.item_code.localeCompare(b.item_code) || (a.id < b.id ? -1 : 1));
 }
 

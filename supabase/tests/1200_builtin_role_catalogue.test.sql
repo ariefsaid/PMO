@@ -30,8 +30,10 @@ select is(built_in_role_base('nonsense'), null, 'AC-002 unknown key -> NULL');
 -- AC-007 capability holders: exactly the listed keys, no other.
 select is((select string_agg(role_key, ',' order by role_key) from built_in_role_capabilities where capability = 'daily_report_enter'),
   'quantity_surveyor', 'AC-007 daily_report_enter = Quantity Surveyor only');
-select is((select string_agg(role_key, ',' order by role_key) from built_in_role_capabilities where capability = 'daily_report_validate'),
-  'project_control_manager,site_supervisor', 'AC-007 daily_report_validate = Site Supervisor and Project Control Manager');
+-- 2043: the validate gate reads this capability; no job role holds it by default, so the default validators stay today's (the count
+-- changed with the rule: before 2043 the two seeded holders had no reader).
+select is((select count(*)::int from built_in_role_capabilities where capability = 'daily_report_validate'),
+  0, 'AC-007 daily_report_validate has no default holder');
 select is((select string_agg(role_key, ',' order by role_key) from built_in_role_capabilities where capability = 'people_documents_view'),
   'administrator,hr_manager,hr_officer', 'AC-007 people_documents_view = HR roles and Administrator');
 select is((select string_agg(role_key, ',' order by role_key) from built_in_role_capabilities where capability = 'medical_documents_view'),

@@ -33,6 +33,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => detailState,
   useIncidentMutations: () => mutations,
   useAssigneeOptions: () => ({ data: assigneeState.data }),
+  useSupervisorMayTask: () => false,
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: uploadEvidence, isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
   useIncidentFiles: () => evidenceState,
 }));

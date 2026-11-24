@@ -119,7 +119,8 @@ export async function createProcurement(
 export interface AtomicProcurementInput {
   id: string;
   /** #2697: `purchaseTypeId`/`rentalFrom`/`rentalTo` are sent only when the organisation has purchase types on. */
-  header: NewProcurementInput & { purchaseTypeId?: string | null; rentalFrom?: string | null; rentalTo?: string | null; workOrderId?: string | null; disciplineId?: string | null };
+  /** `isSubcontract`: set only at creation; the server refuses any later change (0449). */
+  header: NewProcurementInput & { isSubcontract?: boolean; purchaseTypeId?: string | null; rentalFrom?: string | null; rentalTo?: string | null; workOrderId?: string | null; disciplineId?: string | null };
   lines: (ProcurementItemInput & { id: string })[];
 }
 
@@ -132,6 +133,7 @@ export async function createProcurementWithItems(input: AtomicProcurementInput):
       project_id: input.header.projectId,
       vendor_id: input.header.vendorId,
       ...(input.header.budgetCategory !== undefined ? { budget_category: input.header.budgetCategory } : {}),
+      ...(input.header.isSubcontract ? { is_subcontract: true } : {}),
       ...(input.header.purchaseTypeId ? { purchase_type_id: input.header.purchaseTypeId } : {}),
       ...(input.header.rentalFrom ? { rental_from: input.header.rentalFrom } : {}),
       ...(input.header.rentalTo ? { rental_to: input.header.rentalTo } : {}),
@@ -158,7 +160,14 @@ export interface ProcurementHeaderPatch {
 }
 
 /** Sets a missing supplier using the existing conditional update contract. */
-export async function updateProcurementVendor(id: string, vendorId: string): Promise<void> {
+export async function updateProcurementVendor(id: string, vendorId: string, byBuyer = false): Promise<void> {
+  // A person who orders purchases (not a purchasing manager) names the supplier of an approved purchase through the narrow command.
+  if (byBuyer) {
+    const { error } = await supabase.rpc('set_procurement_supplier', { p_procurement: id, p_vendor: vendorId });
+    if (error?.message.startsWith('PRC_SUPPLIER_SET')) throw new ProcurementVendorAlreadySetError();
+    if (error) throwWrite(error);
+    return;
+  }
   const { data, error } = await supabase
     .from('procurements')
     .update({ vendor_id: vendorId })

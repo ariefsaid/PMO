@@ -37,7 +37,7 @@
       "expense_claim": "Klaim biaya"
     },
     "unavailable": "Jumlah tidak tersedia",
-    "notCosted": "Biaya belum dihitung",
+    "amountNotShown": "Nilai baris tidak ditampilkan",
     "timesheetLabel": "{{person}}, minggu {{week}}",
     "timesheetFallback": "Lembar waktu",
     "commitment": {
@@ -78,7 +78,8 @@
       "incomplete": "Beberapa invoice tidak dapat dijumlahkan dalam mata uang perintah kerja ini, sehingga angka bulanan tidak ditampilkan.",
       "toDate": "sampai hari ini",
       "total": "Total ditagih"
-    }
+    },
+    "openContract": "Klaim dan invoice"
   },
   "documents": {
     "title": "Dokumen",
@@ -163,6 +164,8 @@
     "estimate": "Perkiraan {{amount}} (angka perencanaan, bukan biaya)",
     "files": "Berkas laporan",
     "raisePurchase": "Buat pembelian",
+    "raiseTitle": "Buat pembelian untuk {{title}}",
+    "raiseHelp": "Membuat draf pembelian untuk inspeksi ini. Setelah dibuat, pembelian dibuka dari sini.",
     "invitedOn": "Tanggal undangan",
     "invitedWho": "Siapa yang diundang",
     "invitedHow": "Cara",
@@ -259,6 +262,8 @@
       "locationPlaceholder": "Pilih lokasi",
       "locationRequired": "Pilih lokasi penerimaan material.",
       "paper": "Referensi surat jalan",
+      "slipFailed": "Pengambilan tercatat, tetapi foto surat jalan belum tersimpan. Tambahkan di Lampiran pada tanda terima.",
+      "slip": "Foto surat jalan",
       "quantity": "Kuantitas diambil",
       "room": "{{n}} belum diambil",
       "submit": "Catat pengambilan",
@@ -270,6 +275,7 @@
     "recordReservation": "Catat reservasi",
     "refusal": {
       "overCollect": "Hanya {{n}} yang belum diambil.",
+      "nothingReserved": "Belum ada yang dicadangkan pada baris ini. Reservasi dari klien dicatat lebih dulu.",
       "overRequested": "Reservasi akan melebihi jumlah diminta sebesar {{n}}.",
       "releaseBelowCollected": "Pelepasan tidak boleh membuat reservasi di bawah {{n}} yang sudah diambil."
     },
@@ -377,6 +383,26 @@
     "openRow": "Buka {{label}}",
     "costTooMany": "Biaya langsung tampil untuk paling banyak {{count}} proyek. Pilih proyek.",
     "figuresError": "Sebagian angka gagal dimuat.",
-    "searchShort": "Cari"
+    "searchShort": "Cari",
+    "workInHand": "Pekerjaan dalam tangan"
+  },
+  "pageIndex": {
+    "label": "Bagian $t(common:terms.clientWorkOrder) ini",
+    "scope": "Lokasi dan lingkup",
+    "cost": "Biaya dan rencana",
+    "material": "Material",
+    "billing": "Penagihan",
+    "inspections": "Inspeksi",
+    "closeout": "Penutupan",
+    "documents": "Dokumen dan keselamatan",
+    "issues": "Masalah dan tugas"
+  },
+  "crewsToday": {
+    "title": "Regu hari ini",
+    "open": "Buka jadwal kru",
+    "loadError": "Regu hari ini tidak dapat dimuat",
+    "none": "Tidak ada regu terjadwal hari ini",
+    "people_one": "{{count}} orang",
+    "people_other": "{{count}} orang"
   }
 }

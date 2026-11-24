@@ -307,7 +307,14 @@ export async function createTaskFromIncident(incidentId: string): Promise<string
   return data as string;
 }
 
-/** Add a further task to an issue (managers; #2677). The database checks role, organisation, entitlement, project, open status and assignee. */
+/** Whether the signed-in person may add a task to an issue on this work order (actor_may_task_issue, 2041). */
+export async function mayTaskOnWorkOrder(workOrderId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('actor_may_task_issue', { p_work_order: workOrderId });
+  if (error) throw error;
+  return data === true;
+}
+
+/** Add a further task to an issue (managers, or the Site Supervisor on its own work orders; #2677, 2041). The database checks role, organisation, entitlement, project, open status and assignee. */
 export async function addTaskToIncident(incidentId: string, input: { name: string; assigneeId?: string | null; dueDate?: string | null }): Promise<string> {
   const { data, error } = await supabase.rpc('add_task_to_incident', {
     p_incident: incidentId,

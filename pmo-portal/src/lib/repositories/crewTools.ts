@@ -11,6 +11,7 @@ export type {
 
 export const crewToolRepository = {
   lines: (crewId: string) => wrap(() => tools.listToolLines(crewId)),
+  mayManage: (crewId: string) => wrap(() => tools.toolMayManage(crewId)),
   addLine: (input: tools.ToolLineInput) => wrap(() => tools.addToolLine(input)),
   updateLine: (id: string, patch: Partial<tools.ToolLineInput> & { archived_at?: string | null }) =>
     wrap(() => tools.updateToolLine(id, patch)),

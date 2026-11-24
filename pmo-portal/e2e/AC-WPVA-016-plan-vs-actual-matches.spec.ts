@@ -56,9 +56,9 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.route('**/api/resource/**', (route) => route.abort());
-    await page.goto('/projects/' + projectId + '/contract');
+    await page.goto('/projects/' + projectId + '/orders');
     const row = page.getByTestId('wo-pva-row-' + workOrderId);
-    // The row waits on three request rounds (page, contract tab, plan lines); on a loaded runner that outlasts the 5 s default.
+    // The row waits on three request rounds (page, work-order tab, plan lines); on a loaded runner that outlasts the 5 s default.
     await expect(row).toBeVisible({ timeout: 15_000 });
     // The amount is each cell's first line; a variance note may follow it (the page also notes shared cost against its plan).
     const amountOf = async (testId: string) => (await row.getByTestId(testId).innerText()).split('\n')[0].trim();
@@ -68,7 +68,8 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
       allocated: sameAmount(await amountOf('wo-pva-allocated')),
       result: sameAmount(await amountOf('wo-pva-result')),
     };
-    await page.getByTestId('wo-page-link-' + workOrderId).click();
+    // The Work order tab's row opens the work order (walk M1 moved the plan-vs-actual panel onto this tab).
+    await page.locator('a[href="/work-orders/' + workOrderId + '"]').first().click();
 
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + workOrderId);
     const panel = page.getByTestId('wo-page-pva');

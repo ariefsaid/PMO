@@ -19,6 +19,18 @@ import type { EquipmentAssetRow } from '@/src/lib/db/equipment';
 import { monthStart } from './equipmentWeek';
 import { statusEffect, statusLabel, STATUSES } from './equipmentStatusLabels';
 
+/**
+ * The status write's refusals (1032 `equipment_set_status_core`) carry no refusal code, so they are read by their sentence.
+ * ponytail: matched on the database's wording; move to coded refusals (`src/lib/refusals.ts`) when that function is next restated.
+ */
+const STATUS_REFUSALS: Array<[RegExp, string, string]> = [
+  [/precedes the asset's in-service date/, 'equipment:availability.refusal.beforeInService', 'This date is before the machine went into service. Pick a date on or after its in-service date.'],
+  [/status date is in the future/, 'equipment:availability.refusal.future', 'The status date cannot be in the future.'],
+  [/note is at most 500 characters/, 'equipment:availability.refusal.noteLength', 'Keep the note to 500 characters or fewer.'],
+  [/status must be ready, standby/, 'equipment:availability.refusal.status', 'Choose one of the listed statuses.'],
+  [/asset not found/, 'equipment:availability.refusal.assetGone', 'One of these machines is no longer available. Reload the page.'],
+];
+
 function ProofUpload({ code, onFile }: { code: string; onFile: (file: File | undefined) => void }) {
   const { t } = useTranslation();
   const input = useRef<HTMLInputElement>(null);
@@ -82,7 +94,12 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
     if (items.length === 0) return;
     try {
       await bulk.mutateAsync({ date: statusDate, items });
-    } catch (err) { onProblem(classifyMutationError(err).headline); return; }
+    } catch (err) {
+      const message = (err as { message?: unknown } | null)?.message;
+      const known = typeof message === 'string' ? STATUS_REFUSALS.find(([re]) => re.test(message)) : undefined;
+      onProblem(known ? t(known[1], known[2]) : classifyMutationError(err).headline);
+      return;
+    }
     // The proof goes up with the status: a photo that fails to upload does not undo the saved status.
     const failedProofs: string[] = [];
     for (const item of items) {

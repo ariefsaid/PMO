@@ -16,7 +16,7 @@
   "overdue": "Terlambat · jatuh tempo {{date}}",
   "document": "Dokumen",
   "pickFor": "Dokumen untuk {{item}}",
-  "pick": "Pilih dokumen",
+  "pick": "Pilih dokumen proyek",
   "attachTo": "Lampirkan ke {{item}}",
   "attach": "Lampirkan",
   "notAttached": "Belum ada dokumen terlampir",
@@ -42,6 +42,9 @@
     "targetDays": "Target (hari)",
     "targetDaysHelp": "Opsional. Dihitung dari hari $t(common:terms.clientWorkOrder) diterbitkan. Kosongkan bila tanpa target.",
     "targetDaysInvalid": "Gunakan bilangan bulat 1 sampai 365 hari, atau kosongkan.",
+    "noOwner": "Tanpa jabatan pemilik",
+    "owner": "Jabatan pemilik",
+    "ownerHelp": "Opsional. Orang dengan jabatan ini juga dapat menandai item selesai.",
     "required": "Wajib sebelum penutupan",
     "up": "Naik",
     "moveUp": "Naikkan {{item}}",
@@ -57,5 +60,6 @@
     "readOnlyNote": "Hanya Admin yang dapat mengubah daftar periksa.",
     "limit": "Paling banyak 20 butir.",
     "generic": "Daftar periksa tidak dapat disimpan. Coba lagi."
-  }
+  },
+  "projectDocuments": "Dokumen proyek"
 }

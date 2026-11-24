@@ -22,6 +22,7 @@ test('JOB-W7 a count of 47 against 50 posts a 3-unit difference and stock reads 
   await page.getByRole('alertdialog').getByRole('button', { name: 'Replace lines' }).click();
   await page.getByLabel(/^Counted/).fill('47');
   await expect(page.getByTestId('system-1')).toContainText('50');
+  await page.getByLabel(/^Reason/).fill('three bags damaged');
   await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}/, { timeout: 20_000 });
   const documentUrl = new URL(page.url()).pathname;

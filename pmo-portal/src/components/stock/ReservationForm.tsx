@@ -5,15 +5,16 @@ import { useIssuableProjects } from '@/src/hooks/useStock';
 import { useProjectWorkOrdersForStock } from '@/src/hooks/useStockWorkOrderTransfer';
 import { useReservationRefresh } from '@/src/hooks/useStockReservations';
 import { stockReservationsRepository as repo } from '@/src/lib/repositories/stockReservations';
-import { isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatQuantity, isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
 import { useStockErrorText } from './useStockErrorText';
 
-interface Props { itemId: string; itemLabel: string; warehouseId: string; warehouseLabel: string; onClose: () => void }
+interface Props { itemId: string; itemLabel: string; warehouseId: string; warehouseLabel: string; freeQty?: string; unitCode?: string; onClose: () => void }
 
 const woLabel = (w: { wo_number?: string | null; title?: string | null; id: string }): string => [w.wo_number, w.title].filter(Boolean).join(' - ') || w.id;
 
 /** Reserve a quantity of one item at one location for a work order (#2693). The database decides free quantity and who may reserve. */
-export const ReservationForm: React.FC<Props> = ({ itemId, itemLabel, warehouseId, warehouseLabel, onClose }) => {
+export const ReservationForm: React.FC<Props> = ({ itemId, itemLabel, warehouseId, warehouseLabel, freeQty, unitCode, onClose }) => {
   const { t } = useTranslation('stock');
   const { toast } = useToast();
   const errorText = useStockErrorText();
@@ -56,6 +57,7 @@ export const ReservationForm: React.FC<Props> = ({ itemId, itemLabel, warehouseI
         <SelectField id="reservation-work-order" label={t('reservations.form.workOrder')} required value={workOrderId} placeholder={t('reservations.form.workOrderPlaceholder')}
           error={errors.workOrder} onChange={(v) => { setWorkOrderId(v); setErrors((e) => ({ ...e, workOrder: '' })); }} options={wos.map((w) => ({ value: w.id, label: woLabel(w) }))} />
         <TextField id="reservation-quantity" label={t('reservations.form.quantity')} required inputMode="decimal" value={quantity} error={errors.quantity}
+          helper={freeQty === undefined ? undefined : t('reservations.form.free', { qty: formatQuantity(freeQty, getNumberLocale()), unit: unitCode ?? '' })}
           onChange={(v) => { setQuantity(v); setErrors((e) => ({ ...e, quantity: '' })); }} />
         <DateField label={t('reservations.form.expires')} value={expiresOn} onChange={setExpiresOn} helper={t('reservations.form.expiresHelp')} />
         <TextField id="reservation-note" label={t('reservations.form.note')} value={note} onChange={setNote} />

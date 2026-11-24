@@ -3220,6 +3220,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          owner_job_role: string | null
           position: number
           required: boolean
           target_days: number | null
@@ -3229,6 +3230,7 @@ export type Database = {
           id?: string
           name: string
           org_id: string
+          owner_job_role?: string | null
           position: number
           required?: boolean
           target_days?: number | null
@@ -3238,6 +3240,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          owner_job_role?: string | null
           position?: number
           required?: boolean
           target_days?: number | null
@@ -4707,6 +4710,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           created_at: string
+          hidden_job_roles: string[]
           id: string
           is_system: boolean
           name: string
@@ -4716,6 +4720,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           created_at?: string
+          hidden_job_roles?: string[]
           id?: string
           is_system?: boolean
           name: string
@@ -4725,6 +4730,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           created_at?: string
+          hidden_job_roles?: string[]
           id?: string
           is_system?: boolean
           name?: string
@@ -25841,6 +25847,7 @@ export type Database = {
           name: string
           org_id: string
           overdue_notified_at: string | null
+          owner_job_role: string | null
           position: number
           project_id: string
           required: boolean
@@ -25860,6 +25867,7 @@ export type Database = {
           name: string
           org_id: string
           overdue_notified_at?: string | null
+          owner_job_role?: string | null
           position: number
           project_id: string
           required: boolean
@@ -25879,6 +25887,7 @@ export type Database = {
           name?: string
           org_id?: string
           overdue_notified_at?: string | null
+          owner_job_role?: string | null
           position?: number
           project_id?: string
           required?: boolean
@@ -29041,6 +29050,7 @@ export type Database = {
       }
       actor_is_light: { Args: never; Returns: boolean }
       actor_may_order_purchases: { Args: never; Returns: boolean }
+      actor_may_task_issue: { Args: { p_work_order: string }; Returns: boolean }
       actor_may_run_billing_steps: { Args: never; Returns: boolean }
       actor_may_see_billing_steps: { Args: never; Returns: boolean }
       actor_may_see_medical_documents: { Args: never; Returns: boolean }
@@ -30990,6 +31000,7 @@ export type Database = {
           title: string
         }[]
       }
+      crew_tool_may_manage: { Args: { p_crew: string }; Returns: boolean }
       crew_tool_org_locale: { Args: { p_org: string }; Returns: string }
       crew_tool_photo_stored: { Args: { p_path: string }; Returns: boolean }
       csr_assert_author: { Args: { p_created_by: string }; Returns: undefined }
@@ -36862,6 +36873,18 @@ export type Database = {
         Returns: undefined
       }
       set_desk_journal: { Args: { p_journal_id: string }; Returns: undefined }
+      set_document_category_access: {
+        Args: {
+          p_hidden_job_roles: string[]
+          p_id: string
+          p_roles: Database["public"]["Enums"]["user_role"][]
+        }
+        Returns: undefined
+      }
+      set_document_category_hidden_job_roles: {
+        Args: { p_id: string; p_keys: string[] }
+        Returns: undefined
+      }
       set_document_category_roles: {
         Args: {
           p_id: string
@@ -37071,6 +37094,10 @@ export type Database = {
       set_procurement_line_planning: {
         Args: { p_category: string; p_item: string; p_needed_by: string }
         Returns: boolean
+      }
+      set_procurement_supplier: {
+        Args: { p_procurement: string; p_vendor: string }
+        Returns: undefined
       }
       set_procurement_payment_channel: {
         Args: { p_channel_id: string; p_id: string }

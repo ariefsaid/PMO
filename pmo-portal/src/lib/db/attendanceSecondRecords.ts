@@ -27,6 +27,7 @@ export interface SecondFigure extends DayFigure {
   note: string | null;
   standing: Standing | null;
   decidedAt: string | null;
+  decidedByName?: string | null;
   decisionReason: string | null;
 }
 export interface ReportDayWorker {
@@ -66,6 +67,7 @@ function parseWorker(v: Json | undefined): ReportDayWorker | null {
         note: str(v.second.note),
         standing: standingOf(v.second.standing),
         decidedAt: str(v.second.decided_at),
+        decidedByName: str(v.second.decided_by_name),
         decisionReason: str(v.second.decision_reason),
       }
     : null;

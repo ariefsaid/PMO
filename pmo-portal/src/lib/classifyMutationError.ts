@@ -44,6 +44,7 @@
 import i18next from 'i18next';
 import { safeTrack } from './analytics/safeTrack';
 import { parseRefusal } from './refusals';
+import { catalogueSentence } from './catalogueLookup';
 import { trackSaveFailed, trackBulkImportFailed } from './analytics';
 
 /** Stable, PII-free classification slugs for the friction event (ADR-0067). Exported so bulk-loop
@@ -295,8 +296,9 @@ function refusalDetail(err: unknown): string | undefined {
     void i18next.loadNamespaces('refusals');
     return r.text;
   }
-  const figures = Object.keys(r.values).length ? i18next.t(`refusals:${r.code}_figures`, { ...r.values, defaultValue: '' }) : '';
-  return figures || i18next.t(`refusals:${r.code}`, { ...r.values, defaultValue: '' }) || r.text;
+  const lookup = (key: string) => catalogueSentence(i18next.t.bind(i18next), key, r.values);
+  const figures = Object.keys(r.values).length ? lookup(`refusals:${r.code}_figures`) : '';
+  return figures || lookup(`refusals:${r.code}`) || r.text;
 }
 
 /**

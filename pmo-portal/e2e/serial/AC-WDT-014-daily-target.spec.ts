@@ -96,7 +96,7 @@ test('AC-WDT-014 a non-working date is left out of the month spread, and both sc
     const mtdTarget = (await daily.getByTestId('wo-daily-mtd-target').textContent()) ?? '';
     expect(mtdTarget).not.toBe('');
 
-    await page.goto('/projects/' + projectId + '/contract');
+    await page.goto('/projects/' + projectId + '/orders');
     const row = page.getByTestId('daily-target-row-' + workOrderId);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText(mtdTarget);

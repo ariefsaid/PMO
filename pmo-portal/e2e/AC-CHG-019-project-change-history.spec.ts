@@ -71,7 +71,7 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   await events.first().getByRole('button', { name: 'View details' }).click();
   await expect(events.first().getByText(/31\D*Dec(?:\D*2026)? → \D*15\D*Jan\D*2027/)).toBeVisible();
   await expect(events.first()).toContainText('Diego Salvatierra');
-  await expect(events.first()).toContainText(/minute|second|now/i);
+  await expect(events.first()).toContainText(/\d{1,2}:\d{2}\s?[AP]M/); // the exact date and time is on the row itself (a phone has no hover)
   await expect(events.first()).toContainText(/End date: \D*31\D*Dec(?:\D*2026)? → \D*15\D*Jan\D*2027/);
   // Save 1 below it: the client by name, and the first date move.
   await events.nth(1).getByRole('button', { name: 'View details' }).click();

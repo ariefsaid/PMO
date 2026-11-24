@@ -42,7 +42,7 @@ const CrewsPage: React.FC = () => {
     { value: 'attendance' as View, label: t('crews:tabs.attendance', 'Attendance') },
     { value: 'tools' as View, label: t('crews:tabs.tools', 'Tools') },
     { value: 'manpower' as View, label: t('crews:tabs.manpower', 'Manpower') },
-    ...(rateOffered ? [{ value: 'rate' as View, label: t('crews:tabs.rate', 'Rate') }] : []),
+    ...(rateOffered ? [{ value: 'rate' as View, label: t('crews:tabs.rate', 'Attendance rate') }] : []),
   ];
   return (
     <ListPage

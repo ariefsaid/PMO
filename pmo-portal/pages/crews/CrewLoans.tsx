@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
 import {
   Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, DateField, EntityFormModal, FormGrid, Icon, ListState, SelectField,
@@ -103,11 +104,13 @@ export const CrewLoans: React.FC = () => {
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const canManage = may('manage', 'crew', { record: { viewOnly: realRole !== effectiveRole } });
   const enabled = useOrgSwitch('crewLoans');
   const on = enabled.data === true;
   const loans = useCrewLoans(on);
   const crews = useCrews();
+  const userId = useContext(AuthContext)?.currentUser?.id ?? null;
+  const leadsACrew = !!userId && (crews.data ?? []).some((c) => c.field_controller_id === userId && !c.archived_at);
+  const canManage = may('manage', 'crewLoan', { record: { viewOnly: realRole !== effectiveRole, leadsACrew } });
   const workers = useCrewWorkers();
   const { endLoan } = useCrewLoanMutations();
   const [lending, setLending] = useState(false);

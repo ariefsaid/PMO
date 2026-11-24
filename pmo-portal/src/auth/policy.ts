@@ -212,6 +212,7 @@ export type Entity =
   | 'attendance'
   | 'headcount'
   | 'crewTool'
+  | 'crewLoan'
   | 'attendanceRate'
   | 'attendanceTarget'
   | 'leaveRequest'
@@ -300,7 +301,7 @@ const REVENUE_WRITE: Role[] = [...REVENUE_WRITE_ROLES];
 /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
 const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 /** #2583: who may set a supplier's supply-risk status — mirrors set_vendor_supply_status (1067: Admin, Finance). */
-const SUPPLY_RISK_SET: Role[] = ['Admin', 'Finance'];
+const SUPPLY_RISK_SET: Role[] = ['Admin', 'Finance']; // 2045: and the Procurement Manager job role (supplyRisk.set)
 /** #1515: establish a float, propose its amount (0422). */
 const IMPREST_SETUP: Role[] = ['Admin', 'Finance'];
 /** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
@@ -325,6 +326,9 @@ const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
 // #1522 daily site report (1005): enter = dsr_may_enter, validate = dsr_may_validate, revenue = dsr_may_see_revenue.
 const DSR_ENTER: Role[] = ['Admin', 'Engineer'];
 const DSR_VALIDATE: Role[] = ['Admin', 'Finance'];
+/** 2043: dsr_may_validate also admits a job role an Admin gave the daily_report_validate capability (none by default). */
+const dsrValidator = (role: Role | null, ctx: PolicyContext): boolean =>
+  has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx) || roleHasCapability(ctx.builtInRoleKey, 'daily_report_validate');
 const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 
 // #2578 quantity change requests (1127/1128, OD-QCR-2): author roles raise, edit and record; approver roles approve, never
@@ -332,11 +336,16 @@ const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 const QCR_AUTHOR: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
 const QCR_APPROVER: Role[] = ['Admin', 'Executive', 'Finance'];
 
+/** 2046: work-order section structure — the plan-figure roles or the Planner job role (guard_work_order_section). */
+const sectionWriter = (role: Role | null, ctx: PolicyContext): boolean => has(WORK_ORDER_MONEY, role) || holds(ctx, 'planner');
+
 /** Mirrors equipment_manager_rights (1690): Admin, the Equipment Manager job role, or a Project Manager holding no job role. */
 const equipmentManagerRights = (role: Role | null, ctx: PolicyContext): boolean =>
   role === 'Admin' || ctx.builtInRoleKey === 'equipment_manager' || (!ctx.builtInRoleKey && role === 'Project Manager');
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
+/** Mirrors actor_holds_job_role (2040): the person holds this job role by key. A person with no job role holds none. */
+const holds = (ctx: PolicyContext, key: string): boolean => ctx.builtInRoleKey === key;
 
 /** WON / on-hand statuses for the contract_value SoD (ADR-0019). A value on any of
  *  these is past the pre-win boundary and edits require money authority (Exec/Finance).
@@ -451,7 +460,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(['Admin', 'Project Manager', 'Finance', 'Engineer']),
     advance: (role, ctx) => has(['Admin', 'Project Manager', 'Finance', 'Engineer'], role)
       && ctx.record?.status !== 'cancelled' && ctx.record?.status !== 'reported',
-    raise_purchase: (role, ctx) => has(['Admin', 'Project Manager', 'Finance'], role) && ctx.record?.status === 'requested',
+    // 2045: the Quality Inspector job role raises the inspection's purchase request too (tpi_raise_purchase, new request only).
+    raise_purchase: (role, ctx) => (has(['Admin', 'Project Manager', 'Finance'], role) || holds(ctx, 'quality_inspector'))
+      && ctx.record?.status === 'requested',
     waive: (role, ctx) => {
       const gates = ctx.record?.required_for;
       return has(['Admin', 'Project Manager', 'Finance'], role)
@@ -482,10 +493,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
     approve: (role, ctx) =>
       ctx.record?.viewOnly !== true && !!ctx.currentUserId && ctx.record?.author_id !== ctx.currentUserId &&
-      (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
-    revise: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
+      dsrValidator(role, ctx),
+    revise: (role, ctx) => ctx.record?.viewOnly !== true && dsrValidator(role, ctx),
   },
-  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) },
+  // 2046: the Project Control Manager reads revenue on every project of its organisation (dsr_may_see_revenue); it writes none.
+  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) || holds(ctx, 'project_control_manager') },
   /**
    * Daily safety records (#2596, 1410-1414). UX ONLY. Mirrors safety_may_enter: Admin, Engineer, or the project's own PM
    * enter, submit and correct; every active member reads counts; worker names and photos follow OD-DSF-6
@@ -548,7 +560,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   /** Work-order consumable plan (#2577, 1076): generate and adjust follow the allowance write rule (`may_record_project_progress`):
    *  Admin, Executive, Finance on any project, a PM only on their own. Pass the work order's PROJECT row as `ctx.record`
    *  (a work order has no `project_manager_id`). UX only; the RPCs are the authority. */
-  consumablePlan: { view: allow(ALL), generate: allowanceWriter, adjust: allowanceWriter },
+  consumablePlan: {
+    view: allow(ALL),
+    // 2046: the Engineer job role plans consumables too (cus_assert_planner).
+    generate: (role, ctx) => allowanceWriter(role, ctx) || (ctx.record?.viewOnly !== true && holds(ctx, 'engineer')),
+    adjust: (role, ctx) => allowanceWriter(role, ctx) || (ctx.record?.viewOnly !== true && holds(ctx, 'engineer')),
+  },
   /** Reorder levels (#1512 S6, PQ-6): everyone reads; rank >= 20 sets, edits or clears. UX only; the RPC is the authority. */
   reorderLevel: { view: allow(ALL), edit: allowUnlessViewOnly(MASTER_DATA) },
   /** Stock documents (#1512 S3): mirrors FR-STK-061/062. `isKeeper` is supplied by the screen from the keeper list. UX only; RLS/RPC is the authority. */
@@ -558,7 +575,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     post: (role, ctx) =>
       ctx.record?.viewOnly !== true &&
       (ctx.record?.kind === 'adjustment' || ctx.record?.kind === 'count'
-        ? has(MASTER_DATA, role) && !!ctx.currentUserId && ctx.record?.created_by !== ctx.currentUserId // FR-STK-062
+        ? (has(MASTER_DATA, role) || holds(ctx, 'material_coordinator')) && !!ctx.currentUserId && ctx.record?.created_by !== ctx.currentUserId // FR-STK-062, 2040
         : ctx.record?.isKeeper === true || role === 'Admin'),
     withdraw: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' && (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId)),
@@ -596,8 +613,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     send: (role, ctx) => clientRequisitionAuthor(role, ctx) && ctx.record?.status === 'draft',
     cancel: (role, ctx) =>
       clientRequisitionAuthor(role, ctx) && (ctx.record?.status === 'draft' || ctx.record?.status === 'open') && ctx.record?.hasPickup !== true,
-    recordReservation: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
-    recordRelease: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
+    // 2040: the Material Coordinator job role records them too (csr_assert_recorder).
+    recordReservation: (role, ctx) => (has(MASTER_DATA, role) || holds(ctx, 'material_coordinator')) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
+    recordRelease: (role, ctx) => (has(MASTER_DATA, role) || holds(ctx, 'material_coordinator')) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
     recordPickup: (role, ctx) =>
       has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open' && (ctx.record?.isKeeper === true || role === 'Admin'),
   },
@@ -660,10 +678,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *   discard ← the recorder, or Admin/Finance, on a draft.
    */
   surveyRecord: {
-    view: allow(MASTER_DATA),
+    // 2044: the Quantity Surveyor job role records and reads surveys; it never confirms the one it recorded (server SoD).
+    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'quantity_surveyor'),
     create: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'Issued' &&
-      (has(MONEY_AUTHORITY, role) ||
+      (has(MONEY_AUTHORITY, role) || holds(ctx, 'quantity_surveyor') ||
         (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
     confirm: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'draft' && has(CONFIRM_BAST, role),
@@ -677,7 +696,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * Assessing progress is #765's `projectProgress.edit`, unchanged. The server is the authority.
    */
   progressClaim: {
-    view: allow(MASTER_DATA),
+    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'quantity_surveyor'), // 2044: the QS reads claims
     create: allow(REVENUE_WRITE),
     transition: allow(REVENUE_WRITE),
   },
@@ -687,8 +706,15 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * and its releases (Finance/Admin). The database is the authority.
    */
   billingStage: {
-    view: allow(MASTER_DATA),
-    transition: allow(['Admin', 'Finance', 'Project Manager']),
+    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'quantity_surveyor'), // 2044
+    // 2044: a step names its owner access level (`record.owner_role`); its holders with the run-steps right record it, and the
+    // claim's creator (`record.claim_created_by`) never records a step another owner holds.
+    transition: (role, ctx) => {
+      const owner = ctx.record?.owner_role as Role | null | undefined;
+      if (owner && owner !== role && !!ctx.currentUserId && ctx.record?.claim_created_by === ctx.currentUserId) return false;
+      return has(['Admin', 'Finance', 'Project Manager'], role)
+        || (!!owner && owner === role && roleHasCapability(ctx.builtInRoleKey, 'billing_steps_run'));
+    },
     edit: allow(CONFIRM_BAST),
   },
   /**
@@ -696,7 +722,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * (lock_closeout_item: Admin, Finance, and the project's own manager); edit = the organisation's list (Admin). The close
    * itself stays with transition_work_order's roles; the database guard refuses it while a required item is open. UX only.
    */
-  closeoutItem: { view: allow(ALL), transition: allow(['Admin', 'Finance', 'Project Manager']) },
+  // 2040: an item may name an owner job role (`record.owner_job_role`); its holder marks the item too.
+  closeoutItem: {
+    view: allow(ALL),
+    transition: (role, ctx) => has(['Admin', 'Finance', 'Project Manager'], role)
+      || (typeof ctx.record?.owner_job_role === 'string' && holds(ctx, ctx.record.owner_job_role)),
+  },
   closeoutChecklist: { view: allow(ALL), edit: allow(ADMIN) },
   /**
    * Expense claims and cash advances (#775, migration 0247). Mirrors the server:
@@ -1113,7 +1144,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *   create ← record: Admin, Engineer, the work order's project manager, the crew's own field controller (not Executive).
    */
   siteCheckpoint: {
-    view: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx)
+    view: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx) || holds(ctx, 'project_control_manager') // 2043
       || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId),
     create: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx)
       || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
@@ -1168,9 +1199,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    */
   workOrderSection: {
     view: allow(ALL),
-    create: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
-    edit: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
-    archive: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
+    // structure edits: the plan-figure roles, or the Planner job role (2046); set_plan stays with the money roles.
+    create: (role, ctx) => sectionWriter(role, ctx) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
+    edit: (role, ctx) => sectionWriter(role, ctx) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
+    archive: (role, ctx) => sectionWriter(role, ctx) && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
     delete: (role, ctx) => role === 'Admin' && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
     set_plan: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
     set_readiness: (role, ctx) => ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled'
@@ -1259,6 +1291,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       && ctx.record?.decider_active === false,
   },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
+  // 2041: lending a worker — a crew manager, or the Site Supervisor job role for a crew it leads (`record.leadsACrew`); the
+  // database (actor_may_lend_workers) limits the supervisor to its own crew's workers, for one day.
+  crewLoan: {
+    manage: (role, ctx) => ctx.record?.viewOnly !== true
+      && (has(DELIVERY, role) || (holds(ctx, 'site_supervisor') && ctx.record?.leadsACrew === true)),
+  },
   attendance: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (
       has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
@@ -1271,8 +1309,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * RLS are the authority (ADR-0016). Same shape as `attendance`: `record.field_controller_id`, `record.recorder_ids`.
    */
   headcount: {
+    // 2046: the Project Administrator job role records head counts (never approves them).
     create: (role, ctx) => ctx.record?.viewOnly !== true && (
-      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+      has(DELIVERY, role) || holds(ctx, 'project_administrator') || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
     approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
       !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
   },
@@ -1285,11 +1324,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *   close     ← a crew manager, or the report task's assignee (`record.assignee_id`); never the reporter by that fact alone.
    *   configure ← the equipment coordinator and due days: Admin and Project Manager (the equipment register write set).
    */
+  // 2041: the Storekeeper job role manages and reports the tools of a crew working today at a site it keeps
+  // (`record.keepsCrewSite`, from the database gate crew_tool_may_manage).
   crewTool: {
     view: allow(ALL),
-    manage: allowUnlessViewOnly(DELIVERY),
+    manage: (role, ctx) => ctx.record?.viewOnly !== true && (has(DELIVERY, role) || (holds(ctx, 'storekeeper') && ctx.record?.keepsCrewSite === true)),
     report: (role, ctx) => ctx.record?.viewOnly !== true && (
-      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+      has(DELIVERY, role) || (holds(ctx, 'storekeeper') && ctx.record?.keepsCrewSite === true)
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
     close: (role, ctx) => ctx.record?.viewOnly !== true && (
       has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.assignee_id === ctx.currentUserId)),
     configure: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
@@ -1325,15 +1367,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     archive: expiryDocumentWrite,
   },
   /** Document types and warning days (#2614). UX ONLY: document_types RLS and column grants (0970) and set_document_warning_days (0972) are Admin-only. View-as is view-only. */
-  documentType: { manage: allowUnlessViewOnly(ADMIN) },
+  // 2042: the HR Manager job role manages person document types and their warning days, never a medical one (`record`).
+  documentType: {
+    manage: (role, ctx) => ctx.record?.viewOnly !== true && (role === 'Admin'
+      || (holds(ctx, 'hr_manager') && ctx.record?.applies_to === 'person' && ctx.record?.medical !== true)),
+  },
   /**
    * The People register (#2542 follow-up, migration 1008). UX ONLY — RLS (0970 people_* policies) and the column grants are the
    * authority (ADR-0016). The crews policy change grants basic reads to members and create/edit to Admin and Project Manager; archive remains Admin-only. View-as is view-only.
    */
   person: {
     view: allow(ALL),
-    create: allowUnlessViewOnly(['Admin', 'Project Manager']),
-    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    // 2042: the HR Officer job role adds and edits people (actor_may_write_people); archive stays Admin-only.
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Project Manager'], role) || holds(ctx, 'hr_officer')),
+    edit: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Project Manager'], role) || holds(ctx, 'hr_officer')),
     archive: allowUnlessViewOnly(ADMIN),
     /** The direct manager link (1930): an Admin or the people team (the people-documents right). The trigger is the authority. */
     setManager: (role, ctx) => ctx.record?.viewOnly !== true
@@ -1346,12 +1393,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * switches the feature on; Admin and Project Manager record a person's state; Finance and Executive read. View-as is view-only.
    */
   clearanceItem: {
-    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    view: (role, ctx) => has(['Admin', 'Project Manager', 'Finance', 'Executive'], role) || holds(ctx, 'hr_officer'), // 2042
     manage: allowUnlessViewOnly(ADMIN),
   },
+  // 2042: the HR Officer job role reads and ticks the checklist, never on its own person record (`record.own`).
   personClearance: {
-    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
-    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    view: (role, ctx) => has(['Admin', 'Project Manager', 'Finance', 'Executive'], role) || holds(ctx, 'hr_officer'),
+    edit: (role, ctx) => ctx.record?.viewOnly !== true && ctx.record?.own !== true
+      && (has(['Admin', 'Project Manager'], role) || holds(ctx, 'hr_officer')),
   },
   maintenance: {
     view: allow(ALL),
@@ -1397,7 +1446,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   vendorTaxDefault: { manage: allow(TAX_SETUP) },
   // #2583: a supplier's supply-risk status. UX ONLY — set_vendor_supply_status (1067) and companies_supply_risk_guard
   // (1065) are the authority; `view` offers the panel to the Master-data roles (the flag itself is org-readable).
-  supplyRisk: { view: allow(MASTER_DATA), set: allow(SUPPLY_RISK_SET) },
+  supplyRisk: { view: allow(MASTER_DATA), set: (role, ctx) => has(SUPPLY_RISK_SET, role) || holds(ctx, 'procurement_manager') },
   orgProjectNumbering: {
     manage: allow(ADMIN),
   },

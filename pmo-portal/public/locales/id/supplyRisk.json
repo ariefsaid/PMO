@@ -41,6 +41,7 @@
   },
   "warning": {
     "lead": "Peringatan supplier",
-    "body": "berstatus {{status}} dan memiliki pesanan terbuka pada $t(common:terms.clientWorkOrder) ini."
+    "body": "berstatus {{status}} dan memiliki pesanan terbuka pada $t(common:terms.clientWorkOrder) ini.",
+    "purchaseBody": "berstatus {{status}}."
   }
 }

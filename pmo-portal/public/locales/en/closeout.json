@@ -16,7 +16,7 @@
   "overdue": "Overdue · due {{date}}",
   "document": "Document",
   "pickFor": "Document for {{item}}",
-  "pick": "Choose a document",
+  "pick": "Choose a project document",
   "attachTo": "Attach to {{item}}",
   "attach": "Attach",
   "notAttached": "No document attached",
@@ -42,6 +42,9 @@
     "targetDays": "Target (days)",
     "targetDaysHelp": "Optional. Counted from the day the work order is issued. Leave blank for no target.",
     "targetDaysInvalid": "Use a whole number of days from 1 to 365, or leave it blank.",
+    "noOwner": "No owner job role",
+    "owner": "Owner job role",
+    "ownerHelp": "Optional. A person with this job role can also mark the item done.",
     "required": "Required before closing",
     "up": "Up",
     "moveUp": "Move {{item}} up",
@@ -57,5 +60,6 @@
     "readOnlyNote": "Only an Admin can change the checklist.",
     "limit": "At most 20 items.",
     "generic": "The checklist could not be saved. Try again."
-  }
+  },
+  "projectDocuments": "Project documents"
 }

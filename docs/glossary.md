@@ -1244,6 +1244,22 @@ is the one the role is built on. A person who holds a built-in role is judged by
 holders (holding the role, not only an access level it is built on) may also raise and send purchase orders, for approved purchases only, beside the four levels that always can. Empty by
 default, which changes nothing.
 
+**Held job role** — the person holds this built-in role by key (`actor_holds_job_role`). Unlike *fills a built-in role*, a person
+with no built-in role never holds one, so a right given to a held job role widens no one else at the same access level.
+
+**Job-role right** — an action a named built-in role may take on top of its base level: today's rule, *or* the person holds that
+job role, through one database gate per right that the app's `can()` mirrors. Separation of duties still applies: the holder never
+approves, closes or confirms its own work.
+
+**Close-out owner job role** — an optional job role named on a close-out checklist item; a holder of it marks the item done as well
+as the roles that always could. Copied onto a work order's items when it is issued.
+
+**Hidden from job roles** — job roles that never see a document category's documents, notices or emails, whatever their access
+level. The Administrator is never hidden.
+
+**Plain expiry notice** — the warning a person's direct manager gets when a medical document is about to expire: the person, the
+document type and the date only, with no link and no access to the document; reading it stays behind the medical right.
+
 **Role tier** — manager, officer or field: catalogue data on each built-in role; field roles are light accounts.
 
 **Role capability** — a narrow addition to the base level held by named built-in roles only (today: seeing prices, reading medical-document status and dates, reading, adding and renewing every person's non-medical documents). Each capability is read by one database gate function that every channel (app rule, email, screen) calls, and the screen reads it only through `can()`. A catalogue entry with no gate yet is listed as held for a ruling in `supabase/tests/2716`.

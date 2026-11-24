@@ -108,6 +108,19 @@ describe('Equipment availability screen', () => {
     expect(screen.getByLabelText('Metric period from')).toBeInTheDocument();
   });
 
+  it('E5 a date before the machine went into service is refused in words, not "Update failed"', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.bulk = vi.fn().mockRejectedValue(new AppError("the status date precedes the asset's in-service date", '22023'));
+    renderPage();
+    const date = screen.getByLabelText('Status date');
+    await userEvent.clear(date);
+    await userEvent.type(date, '2026-01-15');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status of EQU-1' }), 'broken');
+    await userEvent.click(screen.getByRole('button', { name: 'Save statuses' }));
+    expect(await screen.findByText('This date is before the machine went into service. Pick a date on or after its in-service date.')).toBeInTheDocument();
+    expect(screen.queryByText('Update failed')).toBeNull();
+  });
+
   it('lets a field controller record a past status with a note', async () => {
     renderPage();
     const date = screen.getByLabelText('Status date');

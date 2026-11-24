@@ -28,6 +28,8 @@ export interface ProjectPlanVsActual {
   plans: PlanLine[];
   split: SplitPercent[] | null;
   rollup: ProjectRollup;
+  /** The read's own lines, each with the reason it is or is not summed (empty when restricted). */
+  costLines?: CostAmountLine[];
 }
 
 function isRefused(err: unknown): boolean {
@@ -71,6 +73,7 @@ async function load(projectId: string): Promise<ProjectPlanVsActual> {
     plans,
     split,
     rollup: rollupProject({ workOrders, lines: money ?? [], plans, split, restricted, projectRevenue: projectFinances?.invoices ?? null }),
+    costLines: money ?? [],
   };
 }
 

@@ -75,7 +75,8 @@ const Panel: React.FC<ClaimStepsPanelProps> = ({ claimId, projectId, stages, ope
 
   return <div className="mt-3">
     <Button variant="outline" size="sm" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
-      {expanded ? t('projectDetail.billing.steps.hide', 'Hide step editor') : t('projectDetail.billing.steps.edit', 'Edit steps')}
+      {expanded ? t('projectDetail.billing.steps.hide', 'Hide step editor')
+        : stages.length === 0 ? t('projectDetail.billing.steps.loadFirst', 'Load steps from a template') : t('projectDetail.billing.steps.edit', 'Edit steps')}
     </Button>
     {expanded && <div className="mt-3 rounded-md border border-border p-3" role="group" aria-label={t('projectDetail.billing.steps.editorLabel', 'Edit billing steps')}>
       <p className="text-sm text-muted-foreground">{canEditList
@@ -88,7 +89,7 @@ const Panel: React.FC<ClaimStepsPanelProps> = ({ claimId, projectId, stages, ope
           options={(templates.data ?? []).map((tpl) => ({ value: tpl.id, label: tpl.name }))} />
         <Button variant="outline" size="sm" disabled={!templateId || loadTemplate.isPending}
           onClick={() => void run(loadTemplate.mutateAsync(templateId)).then((ok) => { if (ok) setTemplateId(''); })}>
-          {t('projectDetail.billing.steps.load', 'Replace steps with template')}
+          {stages.length === 0 ? t('projectDetail.billing.steps.loadEmpty', 'Load steps') : t('projectDetail.billing.steps.load', 'Replace steps with template')}
         </Button>
       </div>}
       <ol className="mt-3 divide-y divide-border">

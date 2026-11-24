@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button, ConfirmDialog, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
@@ -322,7 +322,9 @@ const StockMovementForm: React.FC = () => {
                       {kind === 'receive' && clientTag(l) && (
                         <p className="self-end text-control" data-testid={`client-material-${l.key}`}>
                           <span className="mr-2 rounded border border-border px-1.5 py-0.5 text-sm font-medium">{clientTag(l)!.name}</span>
-                          {t('form.clientMaterialCost')}
+                          {t('form.clientMaterialCost')}{' '}
+                          {/* Walk W1: a client's material collected for a work order is received there (Material → Client material). */}
+                          <Link to="/work-orders" className="font-medium text-primary-text hover:underline" data-testid={`client-material-wo-${l.key}`}>{t('form.clientMaterialWorkOrder', 'For a work order? Record the pickup on the work order.')}</Link>
                         </p>
                       )}
                       {kind === 'receive' && !clientTag(l) && (

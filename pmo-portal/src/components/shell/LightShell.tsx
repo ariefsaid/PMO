@@ -5,11 +5,8 @@ import { Button, ToastProvider } from '@/src/components/ui';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { LoadingFallback } from '@/components/LoadingFallback';
 import { useAuth } from '@/src/auth/useAuth';
-import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
-
-const MyHome = lazyWithPreload(() => import('@/pages/MyHome'));
-const TransferDetail = lazyWithPreload(() => import('@/pages/stock/StockTransferDetail'));
-const ProfileSettings = lazyWithPreload(() => import('@/pages/ProfileSettings'));
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { LIGHT_PAGES } from './lightPages';
 
 /**
  * The shell of a light account (#2710, OD-SCOPE-4): no rail, no phone bottom bar, no search, no command palette, no assistant.
@@ -18,9 +15,11 @@ const ProfileSettings = lazyWithPreload(() => import('@/pages/ProfileSettings'))
  */
 export const LightShell: React.FC = () => {
   const { t } = useTranslation('myHome');
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const onSettings = useLocation().pathname === '/settings/profile';
   return (
+    // The role provider the full shell mounts, so a page reading the role never throws here; no demo eligibility, so no view-as.
+    <ImpersonationProvider realRole={role}>
     <ToastProvider>
       <ErrorBoundary>
         <div className="min-h-[100dvh] bg-background text-foreground">
@@ -32,14 +31,13 @@ export const LightShell: React.FC = () => {
           </header>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
-              <Route path="/my" element={<MyHome />} />
-              <Route path="/stock/transfers/:transferId" element={<TransferDetail />} />
-              <Route path="/settings/profile" element={<ProfileSettings />} />
+              {Object.entries(LIGHT_PAGES).map(([path, Page]) => <Route key={path} path={path} element={<Page />} />)}
               <Route path="*" element={<Navigate to="/my" replace />} />
             </Routes>
           </Suspense>
         </div>
       </ErrorBoundary>
     </ToastProvider>
+    </ImpersonationProvider>
   );
 };

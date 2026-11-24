@@ -1,0 +1,2 @@
+# purchasing job-role rights (2045): checks the light guard, an active membership, the order-purchases gate, the caller's org, an approved purchase with no supplier and an active vendor of the org; 2045_purchasing_role_rights pgTAP.
+set_procurement_supplier  # called by the purchase screen (procurementCrud.ts setSupplier) for the job role that orders purchases

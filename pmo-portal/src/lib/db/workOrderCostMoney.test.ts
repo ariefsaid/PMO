@@ -54,4 +54,20 @@ describe('work order money reads', () => {
 
     expect(result.equipment_usage).toBeNull();
   });
+  it('M6 reads the amount of a stock issue and a timesheet line from the project cost read, per record, for this work order only', async () => {
+    fetchRpc.mockResolvedValue({ data: [
+      { source: 'stock_document', record_id: 'stk1', amount: '1200.00', currency: 'IDR' },
+      { source: 'timesheet_entry', record_id: 'ts1', amount: '495000.00', currency: 'IDR' },
+      { source: 'timesheet_entry', record_id: 'elsewhere', amount: '9.00', currency: 'IDR' },
+      { source: 'stock_document', record_id: 'stk2', amount: null, currency: null },
+    ], error: null });
+    const result = await listWorkOrderCostMoney([line('stock_document', 'stk1'), line('stock_document', 'stk2'), line('timesheet_entry', 'ts1')]);
+    expect(result.stock_document).toEqual({ stk1: { amount: 1200, currency: 'IDR' } });
+    expect(result.timesheet_entry).toEqual({ ts1: { amount: 495000, currency: 'IDR' } });
+  });
+  it('M6 a Project Manager, who reads labour only in groups, gets no per-record amount and no error', async () => {
+    fetchRpc.mockResolvedValue({ data: [{ source: 'timesheet_entry', record_id: null, amount: '495000.00', currency: 'IDR' }], error: null });
+    const result = await listWorkOrderCostMoney([line('timesheet_entry', 'ts1')]);
+    expect(result.timesheet_entry).toBeUndefined();
+  });
 });

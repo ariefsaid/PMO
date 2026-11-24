@@ -482,5 +482,14 @@
   "MR_REASSIGN_NO_MANAGER": "Orang ini tidak punya atasan langsung yang aktif. Atur atasan di data orangnya, lalu pindahkan pelepasannya.",
   "MR_REASSIGN_SOD": "Atasan orang ini saat ini yang membuka pelepasan ini, atau orang itu sendiri. Atur atasan langsung lain lebih dulu, lalu pindahkan.",
   "LCM_HAS_LOGIN": "Orang ini masuk ke aplikasi, jadi jamnya dihitung biayanya di lembar waktunya. Kelas hanya untuk orang tanpa akun.",
-  "TASK_TREE_CYCLE": "Tugas tidak bisa ditempatkan di bawah salah satu subtugasnya sendiri."
+  "TASK_TREE_CYCLE": "Tugas tidak bisa ditempatkan di bawah salah satu subtugasnya sendiri.",
+  "COT_OWNER_ROLE": "Pilih jabatan sebagai pemilik item ini.",
+  "CTR_OWN_REPORT": "Anda yang melaporkan alat ini, jadi orang lain yang menghapusbukukannya.",
+  "DCV_ADMIN": "Administrator selalu melihat semua kategori.",
+  "DCV_JOB_ROLE": "Pilih jabatan saja.",
+  "PRC_SUPPLIER_FORBIDDEN": "Hanya manajer pembelian atau orang yang memesan pembelian yang menentukan pemasok.",
+  "PRC_SUPPLIER_INVALID": "Pilih pemasok aktif dari organisasi Anda.",
+  "PRC_SUPPLIER_SET": "Pembelian ini sudah menentukan pemasoknya.",
+  "PRC_SUPPLIER_STEP": "Tentukan pemasok setelah pembelian disetujui.",
+  "PPL_PROFILE_SELF": "Hanya Admin yang dapat menautkan atau melepas tautan data dirinya sendiri."
 }

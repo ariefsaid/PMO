@@ -17,7 +17,7 @@
 --   skip the rounding in phone_check_in ......................... 'AC-PCI-004 stored latitude is rounded to 5 decimals'
 begin;
 create extension if not exists pgtap;
-select plan(69);
+select plan(71);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('27050000-0000-0000-0000-00000000000a', 'PCI Org',       'IDR', true),
@@ -188,11 +188,13 @@ select pg_temp.act_as('27050000-0000-0000-0000-0000000000a7');
 select throws_ok($$ select public.phone_check_in_decide((select id from pci_ids where requester_id = '27050000-0000-0000-0000-0000000000a4'), true) $$,
   '42501', null, 'AC-PCI-009 an engineer who is not the controller cannot decide');
 select is((select count(*)::int from public.phone_check_in_requests()), 0, 'AC-PCI-009 a non-decider lists no requests');
+select is((select count(*)::int from public.my_waiting_decisions() where kind = 'check_in'), 0, 'F5-3 a non-decider is not told of a waiting clock-in');
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select public.phone_check_in_decide((select id from pci_ids where requester_id = '27050000-0000-0000-0000-0000000000a4'), true) $$,
   'P0002', null, 'AC-PCI-009 another organisation sees no such request');
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a9');
 select is((select count(*)::int from public.phone_check_in_requests()), 1, 'AC-PCI-012 the crew controller lists their crew''s request');
+select is((select count(*)::int from public.my_waiting_decisions() where kind = 'check_in' and record_id = (select id from pci_ids where requester_id = '27050000-0000-0000-0000-0000000000a4')), 1, 'F5-3 the crew controller is told of the waiting clock-in in the shared waiting list');
 -- AC-PCI-010 approve creates attendance
 select is(public.phone_check_in_decide((select id from pci_ids where requester_id = '27050000-0000-0000-0000-0000000000a4'), true)->>'status', 'approved',
   'AC-PCI-010 the crew controller approves');
