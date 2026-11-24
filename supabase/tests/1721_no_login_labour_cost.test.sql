@@ -7,7 +7,7 @@
 -- from work_order_cost_amounts alone again -> 'AC-NLL-008 a Project Manager sees the idle amount' goes red (the hours are gone).
 begin;
 create extension if not exists pgtap;
-select plan(36);
+select plan(38);
 
 insert into organizations (id, name, default_currency) values ('17210000-0000-0000-0000-00000000000a', 'No Login Cost Org', 'IDR');
 insert into auth.users (id, email) values
@@ -237,6 +237,13 @@ select pg_temp.act_as('17210000-0000-0000-0000-0000000000a2');
 select is((select reason || ':' || coalesce(hourly_cost, 'null') || ':' || amount from public.work_order_idle_cost('17210000-0000-0000-0000-0000000000d1')
             where work_order_id = '17210000-0000-0000-0000-000000000402'),
   'counted:null:47500.00', 'AC-NLL-008 a Project Manager sees the idle amount but no hourly cost');
+
+
+reset role;
+update profiles set built_in_role='project_control_manager' where id='17210000-0000-0000-0000-0000000000a2';
+select pg_temp.act_as('17210000-0000-0000-0000-0000000000a2');
+select is((select r->>'ac_status' from jsonb_array_elements(public.get_work_order_performance('17210000-0000-0000-0000-0000000000d1','2026-11-03')->'rows') r where r->>'work_order_id'='17210000-0000-0000-0000-000000000402'),'complete','JOB-PC26 PCM gets complete cost performance from dated approved labour');
+select is((select r->>'ac' from jsonb_array_elements(public.get_work_order_performance('17210000-0000-0000-0000-0000000000d1','2026-11-03')->'rows') r where r->>'work_order_id'='17210000-0000-0000-0000-000000000402'),'760000.00','JOB-PC26 cost performance respects the as-of day without exposing labour identities');
 
 select * from finish();
 rollback;
