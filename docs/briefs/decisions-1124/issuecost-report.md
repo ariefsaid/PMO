@@ -1,37 +1,33 @@
 # Issue-cost lane report
 
-Branch: `feat/1124d-issue-cost` (ships alone). Migration range used: 2240 only; rollback included.
+Branch: `feat/1124d-issue-cost`, ships alone. Migrations: 2240 and 2241, each with a rollback.
 
-An Admin can set or clear the effective date through the authenticated `set_stock_issue_cost_date(date)` RPC. With no setting, existing organisations keep their current figures. On the PMO-paid basis, stock issued from the chosen date contributes its existing stock-ledger value to the work order; returns subtract their existing ledger value. The posted stock purchase is excluded from bill/payment cost once, while direct-delivery purchases keep their existing treatment.
+Admin can now configure stock issue costing under Administration → Accounting, using an on/off checkbox and effective date. The shared DateField, Checkbox and Button primitives handle the form; English and Bahasa include both refusal messages. The setting is also listed in All settings and the command palette. Its two global catalogue labels follow the existing shared-catalogue common-key registration; feature form copy remains in the Administration namespace.
 
-The one whole-purchase classifier is `purchase_costs_as_stock(uuid)`: own-organisation Posted receive, linked by procurement ID, dated on or after the effective date. The common stock-value source is `stock_issue_cost_lines(uuid)`. No new costing rule or ERP write path was introduced.
+No setting means off for existing organisations. On the PMO-paid basis, posted issues from the chosen date contribute their existing stock-ledger value, and returns subtract their existing ledger value. No costing algorithm or ERP write path was added.
 
-Readers changed:
-- `work_order_cost_amounts_unrounded`: feeds the existing canonical work-order money wrappers, plan versus actual, work-order and discipline profit, and `useWorkOrderDashboard` direct cost.
-- `project_finance_actuals`: feeds project-finance totals and category totals.
-- `project_pmo_spent_position`: the individual project spent figure.
-- `project_pmo_positions`: the set-based dashboard and project-budget-position spent figures.
+`purchase_costs_as_stock(uuid)` is the one whole-purchase classifier: a procurement-linked Posted receive is stocked when received on/after the effective date, or when the purchase has no valid bill or Paid payment dated before that date. `purchase_had_cost_before(uuid,date)` supplies the same dated-history predicate to the classifier and enable-time refusal. Later billing keeps the stock basis. ERP-ledger organisations and earlier stock purchases with historical cost still refuse enabling.
 
-Existing UI consumers continue through their repositories. No frontend route or layout changed; no local browser journey or database reset was run. The configuration surface added in this lane is an Admin RPC, with an organisation-scoped settings table.
+The common stock-value source is `stock_issue_cost_lines(uuid)`. Reader changes:
+- `work_order_cost_amounts_unrounded`: existing canonical work-order wrappers feed plan versus actual, profit per work order and discipline, and work-order dashboard direct cost.
+- `project_finance_actuals`: project-finance totals and categories.
+- `project_pmo_spent_position`: individual project spent figure.
+- `project_pmo_positions`: dashboard and project-budget-position spent figures.
 
 Spec: `docs/specs/stock-issue-direct-cost.spec.md`.
-Owning proof: `supabase/tests/2240_stock_issue_cost.test.sql` (AC-ISC-001 through AC-ISC-005).
-Regression proofs: `0997_work_order_plan_vs_actual.test.sql` and `0178_anon_executable_definers.test.sql`.
+Owning tests: `2240_stock_issue_cost.test.sql` (AC-ISC-001–005), `2241_stock_issue_cutover.test.sql` (AC-ISC-006), `StockIssueCostSettings.test.tsx` (AC-ISC-007).
 
-The ledger example has a 999 stocked purchase, issues of 300 and 200 to two work orders, and a return of 50. Work-order stock costs are 250 and 200, unissued stock is derived from the ledger as 549, and their sum is 999. With 1100 direct-delivery cost, both project readers and the work-order cost total are 1550. Mutation probes break the issue sign and the Admin restriction, verify the corresponding oracle changes, and restore the original function bodies. Initial red proof: the new setter was absent before implementation. A later harness-only failure came from savepoint rollback resetting pgTAP counters; explicit function-body restoration corrected it without changing the assertions.
+The additional cutover proof receives 999 into stock on the 15th, enables on the 16th, bills/pays on the 17th and issues on the 18th. Partial issue cost 30 plus ledger-derived stock remainder 969 equals 999; full issue cost 999 plus remaining stock 0 equals 999. Project cost removes the separate 1100 direct-delivery fixture before the same conservation assertion. A mutation removes the dated-history classifier branch and changes the conservation oracle; restoring the shipped body restores the intended result. The original 2240 ledger proof retains the two-work-order and return example.
 
-Follow-ups, approved by the Director, are in `issuecost-open.md`: historical stock-cost migration; ERP reconciliation before ERP-ledger enablement; per-line distinction for mixed stocked/direct purchases. ERP-ledger enabling is refused, and historically costed pre-cutover purchase stock also refuses enabling. No dependency on another lane.
+Validation (source candidate `ca4b05a96`; the final report commit changes documentation only):
+- Spare-runner pgTAP: 2240, 2241, 0997 work-order finance and 0178 definer ACL inventory, 124 assertions passing.
+- Targeted UI/shell/policy run: 215 assertions passing, including six new RTL cases for enable, disable/read state, both refusals, role affordance and required date.
+- Targeted UI/catalogue/palette run: 52 assertions passing (six RTL assertions overlap the prior run).
+- `npm run check:guards`, `npm run typecheck`, touched-file ESLint, restated-function guard and `git diff --check origin/dev`: passing.
+- Affected-e2e selection was generated; no local journeys ran under the dispatch's shared-Mac restriction. Rendered captures/ux-proof at `/administration/accounting` remain for the integration executor under that restriction.
 
-## Verification
+Approved follow-ups remain in `issuecost-open.md`: historical-stock migration, ERP reconciliation and per-line classification for mixed deliveries. No dependency on the receive lane, no PR, merge or production action.
 
-Runtime-proven candidate: `8df7e199b` (the report-only commit carries no code/test changes).
-- Spare-runner pgTAP: **PASS**, 3 files / 115 assertions: 2240 stock issue cost, 0997 work-order finance, 0178 definer ACL inventory. Runner command: `vps-pgtap.sh feat/1124d-issue-cost supabase/tests/2240_stock_issue_cost.test.sql supabase/tests/0997_work_order_plan_vs_actual.test.sql supabase/tests/0178_anon_executable_definers.test.sql`.
-- `npm run check:guards`: PASS; restated-function guard also passed separately.
-- `npm run typecheck`: PASS on Node 22.23.2.
-- Targeted consumer Vitest: PASS, 3 files / 28 tests (`workOrderFinance`, `workOrderCostMoney`, `useWorkOrderDashboard`), Node 22.23.2. An initial Node 26 invocation was rejected by the existing engine guard, before any tests ran.
-- `git diff --check origin/dev`: PASS. No changed JS/TS files requiring touched-file ESLint; no frontend layout changes requiring rendered captures. Local browser journeys and database resets were prohibited by the dispatch and were not run.
-- The conservation test captures the raw balance in privileged fixture setup, then asserts it as the authenticated caller; ledger grants remain unchanged.
-
-Execution ownership: lane branch / this worker is sole writer / guards, typecheck and targeted unit checks on the Mac; touched pgTAP on the spare runner / runtime proven above / coordinator owns review and CI acceptance. No PR, merge, dev push or production action was performed.
+Execution ownership: this worker owns this branch and local scoped checks; the spare runner owns touched pgTAP; the coordinator owns rendered acceptance, review and CI acceptance. Source and runtime proof are ready for review.
 
 DONE: 1124d-issuecost
