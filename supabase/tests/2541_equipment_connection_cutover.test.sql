@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(16);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
   ('15190000-0000-0000-0000-00000000000b', 'EQU Other', 'IDR', 'UTC');
@@ -68,6 +68,7 @@ select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-
 select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-10-15',3,'hours');
 select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-10-16',4,'hours');
 set local role authenticated;
+-- Connection-period ownership intentionally replaces the former permanent suppression after the first date.
 select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),450::numeric,'AC-EQU-CUT-001 before connection all approved native days count');
 reset role;
 insert into budget_category_account_map(org_id,category,erp_account,is_push_target) values ('15190000-0000-0000-0000-00000000000a','Equipment','Depreciation - EQ',true);
@@ -79,7 +80,14 @@ set local role authenticated;
 select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),100::numeric,'AC-EQU-CUT-001 only days strictly before connection retain native hire cost');
 select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,450::numeric,'AC-EQU-CUT-001 native 100 before boundary plus ledger 350 from boundary counts once');
 reset role;
-update external_org_bindings set status='disconnected' where org_id='15190000-0000-0000-0000-00000000000a';
+update external_org_bindings set status='disconnected',disconnected_at='2026-10-16 12:00:00+00' where org_id='15190000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,300::numeric,
+ 'AC-EQU-PERIOD-001 disconnect restores native cost on the disconnect day, while the earlier connected day stays excluded');
+select is((select amount from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2026-10-16','2026-10-16')),200::numeric,
+ 'AC-EQU-PERIOD-001 four crane hours on the first disconnected day cost 200');
+reset role;
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-10-17',5,'hours');
 delete from budget_category_account_map where org_id='15190000-0000-0000-0000-00000000000a';
 set local role authenticated;
 select lives_ok($$select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"hire_rate","work_rate":60,"rate_unit":"hours","effective_from":"2026-01-01"}')$$,'AC-EQU-CUT-002 disconnected organization saves an unmapped rate');
@@ -88,7 +96,28 @@ select throws_ok($$update external_org_bindings set status='active',connected_at
 insert into budget_category_account_map(org_id,category,erp_account,is_push_target) values ('15190000-0000-0000-0000-00000000000a','Equipment','Depreciation - EQ',true);
 update external_org_bindings set status='active',connected_at='2026-11-15 12:00:00+00' where org_id='15190000-0000-0000-0000-00000000000a';
 set local role authenticated;
-select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),100::numeric,'AC-EQU-CUT-003 reconnect preserves the original connection date snapshot');
+select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),550::numeric,'AC-EQU-CUT-003 reconnect preserves the first ledger interval and native cost in the disconnected gap');
+reset role;
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-11-14',1,'hours');
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-11-15',2,'hours');
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-11-16',3,'hours');
+-- Ledger fixture carries only connected-day costs: October 15 (150), November 15 (100), November 16 (150).
+update erp_actuals_snapshot set debit=400,net=400 where org_id='15190000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),600::numeric,
+ 'AC-EQU-PERIOD-002 native hire includes every disconnected day, excluding the reconnect day and later connected days');
+select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,1000::numeric,
+ 'AC-EQU-PERIOD-002 native 600 plus connected-day ledger 400 counts the crane cost once across both connection boundaries');
+reset role;
+update external_org_bindings set status='disconnected',disconnected_at='2026-11-16 12:00:00+00' where org_id='15190000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),750::numeric,
+ 'AC-EQU-PERIOD-003 a second disconnect restores its day without losing the first native gap');
+reset role;
+update external_org_bindings set status='active',connected_at='2026-11-17 12:00:00+00' where org_id='15190000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),750::numeric,
+ 'AC-EQU-PERIOD-003 a second reconnect retains both historical native gaps');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000b1');
 select is((select count(*) from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),0::bigint,'AC-EQU-CUT-004 another organization reads no native charges');
 reset role;
