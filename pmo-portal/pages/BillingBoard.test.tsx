@@ -51,7 +51,7 @@ describe('BillingBoard', () => {
     renderBoard();
     const cards = screen.getAllByTestId('billing-board-card');
     expect(cards).toHaveLength(2);
-    expect(cards[0].getAttribute('href')).toBe('/projects/p1?tab=billing&open=c1&openType=billingClaim');
+    expect(cards[0].getAttribute('href')).toBe('/projects/p1/contract?open=c1&openType=billingClaim');
     expect(within(cards[0]).getByText(/Work order WO-7/)).toBeTruthy();
     expect(within(cards[0]).getByText(/1 of 3 steps/)).toBeTruthy();
     expect(within(cards[0]).getByText(/10 days on this step/)).toBeTruthy();

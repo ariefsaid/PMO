@@ -1,3 +1,4 @@
+vi.mock("@/src/hooks/useOrderJobRoles", () => ({ useMayOrderPurchases: () => h.mayOrder }));
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, within } from '@testing-library/react';
@@ -8,6 +9,7 @@ import { InspectionsSection } from './InspectionsSection';
 /** #2580 — the work-order page's inspections panel: the money fence is the server's, the screen shows what it was given (FR-TPI-008, FR-TPI-017). */
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string,
+  mayOrder: false,
   list: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   costs: { data: [] as unknown[] },
   files: { data: [] as unknown[] },
@@ -31,6 +33,7 @@ const insp = (extra: Record<string, unknown>) => ({
 });
 
 beforeEach(() => {
+  h.mayOrder = false;
   h.role = 'Project Manager';
   h.list = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.costs = { data: [] };
@@ -119,4 +122,11 @@ describe('InspectionsSection', () => {
     render(<InspectionsSection workOrderId="wo" />);
     expect(screen.getByText("Couldn't load the inspections")).toBeTruthy();
   });
+});
+
+it("JOB-BQ9 Buyer opens the linked quality purchase", () => {
+ h.role = "Engineer"; h.mayOrder = true;
+ h.list.data = [insp({ id: "buyer-inspection", status: "purchase_raised", procurement_id: "purchase" })];
+ render(<InspectionsSection workOrderId="wo" />);
+ expect(screen.getByRole("link", { name: "Purchase raised, no cost yet" })).toHaveAttribute("href", "/procurement/purchase");
 });

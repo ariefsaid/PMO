@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('@/src/hooks/useImprest', () => ({
+  useImprestRequesterRoute: () => ok({ route_kind: 'admin', action: 'approve', approvers: [], admin_breakglass: false }),
   useImprestFloatChanges: () => h.changes, useDecideFloatChange: () => h.m.decide, useProposeFloatAmount: () => h.m.propose,
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
