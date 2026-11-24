@@ -46,4 +46,24 @@ describe('AC-SCH-016 scheduledReport policy', () => {
     })).toBe(false);
     expect(can('manage', 'orgEmailNotifications', { realRole: 'Admin' })).toBe(true);
   });
+
+  it('restricts row-level edit on Admin-created schedules for Project Control Manager', () => {
+    const pcmCtx = { realRole: 'Project Manager' as const, builtInRoleKey: 'project_control_manager' };
+    expect(can('edit', 'scheduledReport', {
+      ...pcmCtx,
+      record: { pcm_scheduled_reports_enabled: true, creatorRole: 'Project Manager', creatorBuiltInRole: 'project_control_manager' },
+    })).toBe(true);
+    expect(can('edit', 'scheduledReport', {
+      ...pcmCtx,
+      record: { pcm_scheduled_reports_enabled: true, creatorRole: 'Admin', creatorBuiltInRole: null },
+    })).toBe(false);
+    expect(can('edit', 'scheduledReport', {
+      ...pcmCtx,
+      record: { pcm_scheduled_reports_enabled: true, creatorRole: 'Admin', creatorBuiltInRole: 'project_control_manager' },
+    })).toBe(false);
+    expect(can('edit', 'scheduledReport', {
+      realRole: 'Admin',
+      record: { creatorRole: 'Project Manager', creatorBuiltInRole: 'project_control_manager' },
+    })).toBe(true);
+  });
 });

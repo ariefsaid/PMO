@@ -1248,6 +1248,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     manage: (role, ctx) =>
       ctx.record?.viewOnly !== true &&
       (role === 'Admin' || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
+    edit: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (role === 'Admin' ||
+        (holds(ctx, 'project_control_manager') &&
+          ctx.record?.pcm_scheduled_reports_enabled === true &&
+          (ctx.record?.editableByPcm === true ||
+            (ctx.record?.creatorBuiltInRole === 'project_control_manager' && ctx.record?.creatorRole !== 'Admin')))),
   },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).

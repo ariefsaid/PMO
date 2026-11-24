@@ -141,15 +141,30 @@ const renderStandalone = (role: Role, builtInRole: string | null) =>
   );
 
 describe('TC-PC-19 Project Control Manager scheduled reports', () => {
-  it('an enabled Project Control Manager manages scheduled reports and sees only non-light recipients', async () => {
+  it('an enabled Project Control Manager manages own-role schedules, sees Admin schedules read-only, and sees only non-light recipients', async () => {
+    sched.list.mockResolvedValue([
+      { ...REPORT, id: 'r-pcm', name: 'PCM summary', editableByPcm: true },
+      { ...REPORT, id: 'r-admin', name: 'Admin summary', editableByPcm: false },
+    ]);
     sched.recipientOptions.mockResolvedValue([
       { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
       { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
       { id: 'u3', name: 'Dian', builtInRole: 'field_user' },
     ]);
     renderStandalone('Project Manager', 'project_control_manager');
-    expect(await screen.findByText('Morning progress')).toBeInTheDocument();
+    expect(await screen.findByText('PCM summary')).toBeInTheDocument();
+    expect(screen.getByText('Admin summary')).toBeInTheDocument();
     expect(screen.queryByRole('switch', { name: /Project Control Managers can schedule/i })).toBeNull();
+
+    const pcmItem = screen.getByText('PCM summary').closest('li')!;
+    expect(within(pcmItem).getByRole('switch', { name: 'PCM summary' })).toBeInTheDocument();
+    expect(within(pcmItem).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(pcmItem).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+
+    const adminItem = screen.getByText('Admin summary').closest('li')!;
+    expect(within(adminItem).queryByRole('switch')).toBeNull();
+    expect(within(adminItem).queryByRole('button', { name: 'Edit' })).toBeNull();
+    expect(within(adminItem).queryByRole('button', { name: 'Archive' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Add a scheduled report' }));
     const form = await screen.findByRole('form', { name: 'Scheduled report' });

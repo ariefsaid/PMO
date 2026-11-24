@@ -6,14 +6,20 @@ import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
 import { orgSwitchKey } from '@/src/hooks/useOrgSwitch';
 import { orgSwitchRepository } from '@/src/lib/repositories/orgSwitches';
 import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
+import type { ScheduledReport } from '@/src/lib/db/scheduledReports';
 
 const IDLE_CLIENT = new QueryClient();
 
 /**
  * Who may open and manage scheduled reports (TC-PC-19): Admin always; an active Project Control Manager when the
- * organisation setting `pcm_scheduled_reports_enabled` is on. Safe when rendered without `AuthContext` in unit tests.
+ * organisation setting `pcm_scheduled_reports_enabled` is on (and for row edits/toggles/archives, only schedules that role created).
+ * Safe when rendered without `AuthContext` in unit tests.
  */
-export function useScheduledReportsAccess(): { canManage: boolean; isAdmin: boolean } {
+export function useScheduledReportsAccess(): {
+  canManage: boolean;
+  isAdmin: boolean;
+  canEditRow: (report: Pick<ScheduledReport, 'editableByPcm' | 'creatorRole' | 'creatorBuiltInRole'>) => boolean;
+} {
   const auth = useContext(AuthContext);
   const orgId = auth?.currentUser?.org_id;
   const qc = useContext(QueryClientContext);
@@ -34,11 +40,22 @@ export function useScheduledReportsAccess(): { canManage: boolean; isAdmin: bool
   );
 
   const isAdmin = may('manage', 'orgEmailNotifications') && !viewOnly;
+  const pcmEnabled = pcmSetting.data === true;
   const canManage = may('manage', 'scheduledReport', {
     record: {
       viewOnly,
-      pcm_scheduled_reports_enabled: pcmSetting.data === true,
+      pcm_scheduled_reports_enabled: pcmEnabled,
     },
   });
-  return { canManage, isAdmin };
+  const canEditRow = (report: Pick<ScheduledReport, 'editableByPcm' | 'creatorRole' | 'creatorBuiltInRole'>) =>
+    may('edit', 'scheduledReport', {
+      record: {
+        viewOnly,
+        pcm_scheduled_reports_enabled: pcmEnabled,
+        editableByPcm: report.editableByPcm,
+        creatorRole: report.creatorRole,
+        creatorBuiltInRole: report.creatorBuiltInRole,
+      },
+    });
+  return { canManage, isAdmin, canEditRow };
 }

@@ -27,7 +27,7 @@ export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ st
   const { toast } = useToast();
   const qc = useQueryClient();
   const auth = React.useContext(AuthContext);
-  const { canManage, isAdmin } = useScheduledReportsAccess();
+  const { canManage, isAdmin, canEditRow } = useScheduledReportsAccess();
   const [draft, setDraft] = React.useState<ScheduledReportInput | null>(null);
   const [archiving, setArchiving] = React.useState<ScheduledReport | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -102,6 +102,7 @@ export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ st
         <ul className="mt-2 divide-y divide-border">
           {reports.map((r) => {
             const titleId = `scheduled-report-${r.id}`;
+            const editable = canEditRow(r);
             return (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
@@ -114,9 +115,13 @@ export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ st
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusPill variant={r.enabled ? 'won' : 'neutral'}>{r.enabled ? t('on', 'On') : t('off', 'Off')}</StatusPill>
-                  <Switch checked={r.enabled} labelledBy={titleId} disabled={toggle.isPending} onChange={(next) => toggle.mutate({ id: r.id, enabled: next })} />
-                  <Button variant="outline" onClick={() => { setError(null); setDraft({ ...r }); }}>{t('scheduled.edit', 'Edit')}</Button>
-                  <Button variant="outline" onClick={() => setArchiving(r)}>{t('scheduled.archive', 'Archive')}</Button>
+                  {editable ? (
+                    <>
+                      <Switch checked={r.enabled} labelledBy={titleId} disabled={toggle.isPending} onChange={(next) => toggle.mutate({ id: r.id, enabled: next })} />
+                      <Button variant="outline" onClick={() => { setError(null); setDraft({ ...r }); }}>{t('scheduled.edit', 'Edit')}</Button>
+                      <Button variant="outline" onClick={() => setArchiving(r)}>{t('scheduled.archive', 'Archive')}</Button>
+                    </>
+                  ) : null}
                 </div>
               </li>
             );
