@@ -150,7 +150,7 @@ export function useStockDocumentMutations() {
   const orgId = useAuth().currentUser?.org_id;
   const d = repositories.stock.documents;
   const refresh = () => {
-    for (const k of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-documents-count', 'stock-document', 'stock-consumption', 'wo-stock-balance']) void qc.invalidateQueries({ queryKey: [k, orgId] });
+    for (const k of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-documents-count', 'stock-document', 'stock-consumption', 'wo-stock-balance', 'wo-material-completion']) void qc.invalidateQueries({ queryKey: [k, orgId] });
   };
   return {
     create: useMutation({ mutationFn: (a: { input: StockDocumentInput; post: boolean; clientRequestId: string }) => d.create(a.input, a), onSuccess: refresh, onError: refresh }),

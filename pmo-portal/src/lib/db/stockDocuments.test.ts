@@ -74,6 +74,22 @@ describe('stockDocuments DAL', () => {
     });
   });
 
+  it('FR-SCW-001 a count payload maps workOrderId to work_order_id and preserves explicit null on draft save', async () => {
+    h.queue.push({ data: 'doc-c2', error: null });
+    await createStockDocument({ kind: 'count', warehouseId: 'w1', workOrderId: 'wo-1', lines: [{ itemId: 'i1', countedQuantity: '4' }] },
+      { post: false, clientRequestId: 'r2' });
+    expect(h.rpc).toHaveBeenCalledWith('create_stock_document', {
+      p_header: { kind: 'count', warehouse_id: 'w1', work_order_id: 'wo-1' },
+      p_lines: [{ item_id: 'i1', counted_quantity: '4' }], p_post: false, p_client_request_id: 'r2',
+    });
+    await saveStockDraft('doc-c2', { kind: 'count', warehouseId: 'w1', workOrderId: null, lines: [{ itemId: 'i1', countedQuantity: '4' }] });
+    expect(h.rpc).toHaveBeenLastCalledWith('save_stock_draft', {
+      p_document_id: 'doc-c2',
+      p_header: { kind: 'count', warehouse_id: 'w1', work_order_id: null },
+      p_lines: [{ item_id: 'i1', counted_quantity: '4' }],
+    });
+  });
+
   it('FR-STK-024 an adjustment maps the reason to the header and the direction to each line', async () => {
     h.queue.push({ data: 'doc-a', error: null });
     await createStockDocument({ kind: 'adjustment', warehouseId: 'w1', reason: 'damaged', lines: [{ itemId: 'i1', quantity: '2', direction: 'out' }] },
