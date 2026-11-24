@@ -35,6 +35,8 @@ const SHAPES = 'every other request shape is refused';
 
 /** Each mutation neutralizes ONE tagged line; `killedBy` is the test (step) that must report FAILED. */
 export const MUTATIONS = [
+  { id: 'upload-wo-scope', file: HANDLE_UPLOAD, tag: 'mutation-witness:upload-wo-scoped-helper',
+    apply: (line) => line.replace('allowed !== true', 'false'), killedBy: 'project_administrator is refused' },
   // ── preview allowlist ──
   { id: 'preview-allowlist-always-true', file: PREVIEW, tag: 'mutation-witness:preview-allowlist-always-true', apply: ALWAYS_TRUE, killedBy: SHAPES },
   { id: 'preview-method-post', file: PREVIEW, tag: 'mutation-witness:preview-method-post', apply: NO_RETURN, killedBy: SHAPES },
@@ -74,7 +76,7 @@ export const MUTATIONS = [
     apply: (line) => line.replace('!validUploadFileName(fileName)', 'false'), killedBy: 'rejects everything else' },
   // ── upload authorization order ──
   { id: 'upload-writer-role', file: HANDLE_UPLOAD, tag: 'mutation-witness:upload-writer-role',
-    apply: (line) => line.replace('!WRITER_ROLES.has(caller.role)', 'false'), killedBy: 'read-only role' },
+    apply: (line) => line.replace('!WRITER_ROLES.has(caller.role)', '!WRITER_ROLES.has(caller.role) && Date.now() < 0'), killedBy: 'read-only role' },
   { id: 'upload-org-equality', file: HANDLE_UPLOAD, tag: 'mutation-witness:upload-org-equality',
     apply: (line) => line.replace('row.org_id !== caller.orgId', 'false'), killedBy: 'other-org project document' },
   { id: 'upload-draft-only', file: HANDLE_UPLOAD, tag: 'mutation-witness:upload-draft-only',
@@ -103,8 +105,8 @@ export const MUTATIONS = [
     apply: (line) => line.replace('seen > UPLOAD_BODY_LIMIT', 'false'),
     killedBy: 'a missing or understated length cannot stream past the cap' },
   { id: 'upload-auth-before-body', file: INDEX, tag: 'mutation-witness:upload-auth-before-body',
-    apply: (line) => line.replace('await authorizeUploadCaller(authed)', '{ orgId: "mutant", role: "Admin" } as never'),
-    killedBy: 'a disabled member is refused before any body byte is read' },
+    apply: (line) => line.replace('await authorizeUploadCaller(authed)', '{ orgId: "mutant", role: "Admin", projectAdminOnly: false } as Awaited<ReturnType<typeof authorizeUploadCaller>>'),
+    killedBy: 'a read-only role is refused before any body byte is read' },
 ];
 
 const sha = (text) => createHash('sha256').update(text).digest('hex');
