@@ -251,7 +251,7 @@ const AdministrationDocumentCategories: React.FC = () => {
               isFirst={i === 0}
               isLast={i === live.length - 1}
               busy={busy}
-              onSaveRoles={(roles, keys) => void run(async () => { await m.setRoles.mutateAsync({ id: c.id, roles }); if (keys.join() !== (c.hidden_job_roles ?? []).join()) await m.setHiddenJobRoles.mutateAsync({ id: c.id, keys }); }, t('administration:documentCategories.rolesSaved', 'Saved'))}
+              onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
               onRename={(name) => void run(() => m.rename.mutateAsync({ id: c.id, name }), t('administration:documentCategories.renamed', 'Category renamed'))}
               onArchive={() => setArchiveTarget(c)}
               onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}
@@ -269,7 +269,7 @@ const AdministrationDocumentCategories: React.FC = () => {
                   isFirst
                   isLast
                   busy={busy}
-                  onSaveRoles={(roles, keys) => void run(async () => { await m.setRoles.mutateAsync({ id: c.id, roles }); if (keys.join() !== (c.hidden_job_roles ?? []).join()) await m.setHiddenJobRoles.mutateAsync({ id: c.id, keys }); }, t('administration:documentCategories.rolesSaved', 'Saved'))}
+                  onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
                   onRename={() => undefined}
                   onArchive={() => undefined}
                   onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}

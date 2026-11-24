@@ -378,11 +378,13 @@ const ProcurementDetails: React.FC = () => {
   const managerId = p.project?.project_manager_id;
   // The requester always sees their own procurement, whatever project (or none) it sits on.
   const raisedByMe = !!currentUser?.id && p.requested_by_id === currentUser.id;
-  const recordInScope = role === 'Engineer'
+  // A person the database lets order purchases (actor_may_order_purchases, the same gate the record read uses) opens any purchase
+  // of the organisation; money stays behind the access-level views below.
+  const recordInScope = mayOrderByRole || (role === 'Engineer'
     ? raisedByMe
     : role === 'Project Manager'
       ? raisedByMe || Boolean(p.project_id && p.project != null && managerId === currentUser?.id)
-      : true;
+      : true);
   if (!recordInScope) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
@@ -585,7 +587,8 @@ const ProcurementDetails: React.FC = () => {
   const meta = [
     p.code ? <span key="code" className="record-id">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
-    p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
+    p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing" className="inline-flex items-center gap-1.5">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}
+      {canSetVendorAsBuyer && <Button variant="outline" size="sm" data-testid="buyer-set-supplier" onClick={() => { setTab('files'); setSelectedVendorId(null); setVendorPickerOpen(true); }}>{t('bupot.setVendor', 'Set supplier')}</Button>}</span>,
     p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><Avatar name={p.requested_by.full_name} decorative /><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
   ].filter((part): part is React.ReactElement => part !== null);
 

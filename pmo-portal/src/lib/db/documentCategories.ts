@@ -48,12 +48,9 @@ export async function renameCategory(id: string, name: string): Promise<void> {
   if (error) fail(error);
 }
 /** Replaces the whole set in one step; the database refuses a set without Admin. */
-export async function setCategoryRoles(id: string, roles: CategoryRole[]): Promise<void> {
-  const { error } = await supabase.rpc('set_document_category_roles', { p_id: id, p_roles: roles });
-  if (error) fail(error);
-}
-export async function setCategoryHiddenJobRoles(id: string, keys: string[]): Promise<void> {
-  const { error } = await supabase.rpc('set_document_category_hidden_job_roles', { p_id: id, p_keys: keys });
+/** Role access and hidden job roles in one Admin-only save (2049): both change or neither does. */
+export async function setCategoryAccess(id: string, roles: CategoryRole[], hiddenJobRoles: string[]): Promise<void> {
+  const { error } = await supabase.rpc('set_document_category_access', { p_id: id, p_roles: roles, p_hidden_job_roles: hiddenJobRoles });
   if (error) fail(error);
 }
 

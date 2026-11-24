@@ -5,14 +5,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import type { DocumentCategory } from '@/src/lib/db/documentCategories';
 
-const state = vi.hoisted(() => ({ canManage: true, setRoles: vi.fn(), create: vi.fn(), archive: vi.fn() }));
+const state = vi.hoisted(() => ({ canManage: true, setAccess: vi.fn(), create: vi.fn(), archive: vi.fn() }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => state.canManage }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     documentCategory: {
       list: vi.fn(),
-      setRoles: (...a: unknown[]) => state.setRoles(...a),
+      setAccess: (...a: unknown[]) => state.setAccess(...a),
       create: (...a: unknown[]) => state.create(...a),
       archive: (...a: unknown[]) => state.archive(...a),
       rename: vi.fn(), restore: vi.fn(), reorder: vi.fn(),
@@ -39,7 +39,7 @@ const wrap = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   state.canManage = true;
-  state.setRoles.mockResolvedValue(undefined);
+  state.setAccess.mockResolvedValue(undefined);
   state.create.mockResolvedValue('new-id');
   vi.mocked(repositories.documentCategory.list).mockResolvedValue(cats);
 });
@@ -61,7 +61,7 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     await user.click(byName(/Finance/));
     await user.click(byName(/Executive/));
     await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
-    await waitFor(() => expect(state.setRoles).toHaveBeenCalledWith('c-inv', ['Executive', 'Admin']));
+    await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Executive', 'Admin'], []));
   });
 
   it('accepts a save with every non-Admin role unchecked (Admin alone)', async () => {
@@ -70,7 +70,7 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     const card = await screen.findByTestId('document-category-c-inv');
     await user.click(within(card).getByRole('checkbox', { name: /Finance/ }));
     await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
-    await waitFor(() => expect(state.setRoles).toHaveBeenCalledWith('c-inv', ['Admin']));
+    await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Admin'], []));
   });
 
   it('creates a category with the chosen roles (Admin always included, never an org id)', async () => {

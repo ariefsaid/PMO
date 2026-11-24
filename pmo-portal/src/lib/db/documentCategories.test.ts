@@ -25,10 +25,11 @@ describe('document categories DAL (#2579)', () => {
     expect(list.find((c) => c.id === 'c2')?.roles).toEqual([]);
   });
 
-  it('AC-DCV-020 sends the replaced set of roles to the management function, never an org id', async () => {
+  it('AC-DCV-020 sends the replaced set of roles, with the hidden job roles, to one management function, never an org id', async () => {
     rpc.mockResolvedValue({ data: null, error: null });
-    await dal.setCategoryRoles('c1', ['Admin', 'Executive']);
-    expect(rpc).toHaveBeenCalledWith('set_document_category_roles', { p_id: 'c1', p_roles: ['Admin', 'Executive'] });
+    await dal.setCategoryAccess('c1', ['Admin', 'Executive'], ['quality_inspector']);
+    expect(rpc).toHaveBeenCalledWith('set_document_category_access',
+      { p_id: 'c1', p_roles: ['Admin', 'Executive'], p_hidden_job_roles: ['quality_inspector'] });
   });
 
   it('creates, renames, archives, restores, reorders and re-files through the functions', async () => {
