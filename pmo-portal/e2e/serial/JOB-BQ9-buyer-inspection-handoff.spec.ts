@@ -4,7 +4,7 @@ import { buyerTest as test } from '../support/buyerOrdering';
 import { moneyJobRole } from '../support/moneyJobRole';
 import { serviceClient, projectWithWorkOrders, runId, need, ok, ORG_ID } from '../support/jobFixtures';
 import { createProcurementFixture } from '../procurement-fixture';
-import { recordOrderWithConfirm } from '../helpers';
+import { recordOrderWithConfirm, signIn } from '../helpers';
 
 test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the inspection commitment', async ({ page }) => {
   const admin = serviceClient('inspection handoff');
@@ -15,7 +15,7 @@ test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the 
   let purchase: Awaited<ReturnType<typeof createProcurementFixture>> | undefined;
   let inspectionId = '';
   try {
-    purchase = await createProcurementFixture({ status: 'Approved', title: run, projectId: project.projectId, requestedBy: quality.id, withSupplier: true });
+    purchase = await createProcurementFixture({ status: 'Approved', title: run, projectId: project.projectId, workOrderId: project.workOrders[0].id, requestedBy: quality.id, withSupplier: true });
     inspectionId = need('inspection', await admin.from('third_party_inspections').insert({
       org_id: ORG_ID, project_id: project.projectId, work_order_id: project.workOrders[0].id,
       title: run, planned_date: '2026-11-24', required_for: ['billing'], status: 'purchase_raised',
@@ -30,6 +30,17 @@ test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the 
     await page.goto(`/work-orders/${project.workOrders[0].id}`);
     const card = page.getByTestId('inspection-' + inspectionId);
     await expect(card.getByRole('link')).toHaveAttribute('href', `/procurement/${purchase.id}`);
+    // Admin records the supplier order amount on screen after the buyer places the order.
+    // The native capture completes the numbered order stub with its explicit document price.
+    await signIn(page, 'admin@acme.test');
+    await page.goto(purchase.url);
+    await page.getByRole('button', { name: 'Record another document' }).click();
+    await page.getByRole('menuitem', { name: /^Purchase order$/i }).click();
+    const orderForm = page.getByTestId('form-capture-purchase_order');
+    await orderForm.getByTestId('purchase_order-status-select').selectOption('Issued');
+    await orderForm.getByTestId('purchase_order-amount-input').fill('12000');
+    await orderForm.getByRole('button', { name: 'Save Purchase Order', exact: true }).click();
+    await expect(orderForm).toBeHidden();
     // Quality manager reads the cost after purchasing finishes its dependency.
     await page.context().clearCookies();
     await page.evaluate(() => localStorage.clear());

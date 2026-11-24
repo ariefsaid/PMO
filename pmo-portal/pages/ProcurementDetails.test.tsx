@@ -445,6 +445,16 @@ it('AC-PURCHASE-READ lets the procurement manager inspect another manager’s or
   expect(screen.queryByRole('button', { name: /edit|approve|order|record|add/i })).not.toBeInTheDocument();
 });
 
+it.each(['Approved', 'Rejected', 'Ordered'] as const)('JOB-PU4-READ named decider retains status after %s without ordering rights', (status) => {
+  mockEffectiveRole = 'Project Manager';
+  purchaseReader.allowed = false;
+  detailState.data = { ...orderedProcurement, status, approved_by_id: status === 'Rejected' ? null : 'u-alice', statusEvents: status === 'Rejected' ? [{ id: 'decision', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Rejected', actor_id: 'u-alice', notes: null, created_at: '2026-06-05T00:00:00Z', org_id: 'org-1' }] : [], requested_by_id: 'other-requester', project: { ...baseProcurement.project, project_manager_id: 'other-manager' }, approvalRoute: { procurementId: 'proc-001', route: 'project', reason: 'within_budget', approvers: [{ id: 'u-alice', fullName: 'Alice' }], requestAmount: 50000, lineBudget: 100000, lineUsed: 50000 } };
+  renderPage();
+  expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', status);
+  expect(screen.getByRole('tab', { name: /^Timeline/ })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /edit|approve|order|record|add/i })).not.toBeInTheDocument();
+});
+
 it('AC-PURCHASE-READ keeps an unrelated manager outside the inspection scope', () => {
   mockEffectiveRole = 'Project Manager';
   purchaseReader.allowed = false;
