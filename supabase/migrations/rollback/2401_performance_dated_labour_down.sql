@@ -10,6 +10,7 @@ declare
   v_rows jsonb;
   v_limit constant integer := 500;
 begin
+  perform public.assert_not_light();
   if v_org is null or auth.uid() is null or not public.is_active_member() then
     raise exception 'active organization required' using errcode = '42501';
   end if;

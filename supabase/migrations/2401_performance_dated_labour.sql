@@ -1,4 +1,4 @@
--- Cost performance calculates dated labour internally while preserving the public aggregate labour read. Restated from 1286.
+-- Cost performance calculates dated labour internally while preserving the public aggregate labour read. Restated from 1286 with the 1480 account boundary.
 -- drops: none; the costs CTE replaces masked labour rows with their private dated inputs for Project Manager access.
 create or replace function public.get_work_order_performance(p_project_id uuid, p_as_of date default null)
 returns jsonb
@@ -13,6 +13,7 @@ declare
   v_rows jsonb;
   v_limit constant integer := 500;
 begin
+  perform public.assert_not_light();
   if v_org is null or auth.uid() is null or not public.is_active_member() then
     raise exception 'active organization required' using errcode = '42501';
   end if;
