@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(12);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20450000-0000-0000-0000-00000000000a', 'RR PU Org', 'IDR', 'UTC', true);
@@ -68,11 +68,13 @@ update organizations set hide_prices_from_requesters=true where id='20450000-000
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"20450000-0000-0000-0000-0000000000a6","role":"authenticated"}';
 select is((select vendor_id from procurements_masked where id='20450000-0000-0000-0000-000000000043'),'20450000-0000-0000-0000-0000000000d1'::uuid,'AC-BQS-004 Price viewer keeps supplier');
+select is((select count(*) from procurements_masked p cross join lateral companies(p) c where p.id='20450000-0000-0000-0000-000000000043'),1::bigint,'AC-BQS-004 Price viewer supplier embed is preserved');
 reset role;
 update procurements set requested_by_id='20450000-0000-0000-0000-0000000000a4' where id='20450000-0000-0000-0000-000000000043';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"20450000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select is((select vendor_id from procurements_masked where id='20450000-0000-0000-0000-000000000043'),null::uuid,'AC-BQS-005 Requester supplier follows prices');
+select is((select count(*) from procurements_masked p cross join lateral companies(p) c where p.id='20450000-0000-0000-0000-000000000043'),0::bigint,'AC-BQS-005 Requester supplier embed follows prices');
 reset role;
 insert into organizations(id,name) values ('26500000-0000-0000-0000-000000000001','Other org');
 insert into procurements(id,org_id,title,status) values ('26500000-0000-0000-0000-000000000002','26500000-0000-0000-0000-000000000001','Other request','Approved');

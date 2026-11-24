@@ -1,4 +1,6 @@
 -- The ordering right starts the quoted route; orders carry the chosen quotation amount.
+-- drops: replace the ordering-role conditional with a sourcing branch followed by the same ordering guard;
+-- extend the order insert columns and select expressions with the selected quotation amount; all other guards stay unchanged.
 create or replace function public.transition_procurement(p_id uuid, p_to procurement_status, p_notes text default null)
   returns void language plpgsql security definer set search_path = public as $$
 declare
