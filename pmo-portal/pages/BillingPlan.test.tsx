@@ -105,7 +105,7 @@ describe('BillingPlan', () => {
     expect(within(unaccepted).getByText(/8/)).toBeInTheDocument();
   });
 
-  it('AC-MV-006 hides the unaccepted group and disables its reads until the organisation opts in', () => {
+  it('AC-MV-007 hides the unaccepted group and disables its reads until the organisation opts in', () => {
     state.managementViews = false;
     setRows([line({ key: 'accepted', value: 7000, description: 'Accepted item' })]);
     renderPlan();

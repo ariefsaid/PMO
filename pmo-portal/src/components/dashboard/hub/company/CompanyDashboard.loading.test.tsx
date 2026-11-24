@@ -36,6 +36,7 @@ const h = vi.hoisted(() => ({
   managementViews: false,
   portfolioIds: [] as string[][],
   projectListEnabled: false,
+  projectListPending: false,
   checkInRequests: () => Promise.resolve([] as unknown[]),
 }));
 const read = (name: string) => {
@@ -108,7 +109,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectIdentity: () => ({ data: [] }),
   useProjects: (opts?: { enabled?: boolean }) => {
     h.projectListEnabled = opts?.enabled === true;
-    return { data: [], isPending: !h.projectListEnabled, isError: false, refetch: vi.fn() };
+    return { data: [], isPending: h.projectListEnabled ? h.projectListPending : true, isError: false, refetch: vi.fn() };
   },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: h.role }) }));
@@ -145,11 +146,12 @@ beforeEach(() => {
   h.managementViews = false;
   h.portfolioIds = [];
   h.projectListEnabled = false;
+  h.projectListPending = false;
   h.checkInRequests = () => Promise.resolve([]);
   h.reads = { dashboard: ok(dash), pack: ok(pack), invoices: ok([invoice]), salesInvoices: ok([]), payments: ok([]), procurements: ok([]) };
 });
 
-it('AC-MV-006 keeps the new portfolio hidden and its project reads disabled until the organisation opts in', () => {
+it('AC-MV-007 keeps the new portfolio hidden and its project reads disabled until the organisation opts in', () => {
   renderExec();
   expect(screen.queryByTestId('project-portfolio-table')).toBeNull();
   expect(h.projectListEnabled).toBe(false);
@@ -165,6 +167,13 @@ it('AC-MV-001 shows the cold empty portfolio instead of a skeleton when disabled
   const portfolio = screen.getByTestId('project-portfolio-table');
   expect(within(portfolio).getByText('No active delivery projects')).toBeInTheDocument();
   expect(within(portfolio).queryByTestId('liststate-loading')).toBeNull();
+});
+
+it('AC-MV-001 keeps the portfolio loading while its enabled project list is still pending', () => {
+  h.managementViews = true;
+  h.projectListPending = true;
+  renderExec();
+  expect(within(screen.getByTestId('project-portfolio-table')).getByTestId('liststate-loading')).toBeInTheDocument();
 });
 
 it('AC-2077 finance company-home overdue rows keep the existing list destination as real links', async () => {

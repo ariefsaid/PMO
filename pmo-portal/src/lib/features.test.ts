@@ -47,7 +47,7 @@ it('AC-PLN-012 the console grouping covers every gatable key exactly once', asyn
   expect([...grouped].sort()).toEqual([...FEATURE_KEYS].sort());
 });
 
-it('AC-MV-006 registers management views as an organisation switch that defaults off', async () => {
+it('AC-MV-007 registers management views as an organisation switch that defaults off', async () => {
   const { FEATURE_ENV_DEFAULT, FEATURE_GROUPS, FEATURE_KEYS, FEATURE_LABELS } = await import('./features');
   expect(FEATURE_KEYS).toContain('management_views');
   expect(FEATURE_GROUPS.flatMap((group) => group.keys)).toContain('management_views');

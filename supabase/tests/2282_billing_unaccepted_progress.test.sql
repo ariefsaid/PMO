@@ -1,7 +1,7 @@
 -- AC-MV-004: current measured quantity less confirmed client acceptance, with tenant and role boundaries.
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(12);
 
 insert into organizations (id, name, default_timezone) values
   ('22820000-0000-0000-0000-0000000000a1', 'Progress Org A', 'UTC'),
@@ -15,12 +15,12 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('22820000-0000-0000-0000-0000000000b2', '22820000-0000-0000-0000-0000000000a1', 'Progress Engineer', 'progress-eng@example.invalid', 'Engineer', 'active'),
   ('22820000-0000-0000-0000-0000000000b3', '22820000-0000-0000-0000-0000000000a2', 'Progress Foreign Finance', 'progress-foreign@example.invalid', 'Finance', 'active');
 insert into projects (id, org_id, name, status, currency) values
-  ('22820000-0000-0000-0000-0000000000c1', '22820000-0000-0000-0000-0000000000a1', 'Progress Project A', 'Ongoing Project', 'IDR'),
+  ('22820000-0000-0000-0000-0000000000c1', '22820000-0000-0000-0000-0000000000a1', 'Zulu high quantity project', 'Ongoing Project', 'IDR'),
   ('22820000-0000-0000-0000-0000000000c2', '22820000-0000-0000-0000-0000000000a2', 'Progress Project B', 'Ongoing Project', 'IDR');
 insert into projects (id, org_id, name, status, currency)
 select ('22820000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid,
-       '22820000-0000-0000-0000-0000000000a1', 'Scale project ' || g, 'Ongoing Project', 'IDR'
-  from generate_series(1, 100) g;
+       '22820000-0000-0000-0000-0000000000a1', 'Alpha scale project ' || g, 'Ongoing Project', 'IDR'
+  from generate_series(1, 505) g;
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, earning_basis, line_no) values
   ('22820000-0000-0000-0000-0000000000d1', '22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000c1', 'A', 'Measured and partly accepted', 'm', 20, 10, 'unit_rate', 1),
   ('22820000-0000-0000-0000-0000000000d2', '22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000c1', 'B', 'Fully accepted', 'm', 20, 10, 'unit_rate', 2),
@@ -32,7 +32,7 @@ select ('22820000-0000-0000-0000-' || lpad((g + 2000)::text, 12, '0'))::uuid,
        '22820000-0000-0000-0000-0000000000a1',
        ('22820000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid,
        'S-' || g, 'Scaled measured item', 'm', 1, 10, 'unit_rate', 1
-  from generate_series(1, 100) g;
+  from generate_series(1, 505) g;
 insert into work_orders (id, org_id, project_id, title, status, order_value, currency, tax_treatment, tax_amount) values
   ('22820000-0000-0000-0000-0000000000e1', '22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000c1', 'Progress order A', 'Issued', 1000, 'IDR', 'exclusive', 0),
   ('22820000-0000-0000-0000-0000000000e2', '22820000-0000-0000-0000-0000000000a2', '22820000-0000-0000-0000-0000000000c2', 'Progress order B', 'Issued', 1000, 'IDR', 'exclusive', 0);
@@ -49,7 +49,7 @@ select ('22820000-0000-0000-0000-' || lpad((g + 1000)::text, 12, '0'))::uuid,
        '22820000-0000-0000-0000-0000000000a1',
        ('22820000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid,
        date_trunc('month', current_date)::date, 50
-  from generate_series(1, 100) g;
+  from generate_series(1, 505) g;
 insert into progress_assessment_quantities (org_id, entry_id, boq_item_id, quantity_to_date) values
   ('22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000f1', '22820000-0000-0000-0000-0000000000d1', 12),
   ('22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000f1', '22820000-0000-0000-0000-0000000000d2', 4),
@@ -60,7 +60,7 @@ insert into progress_assessment_quantities (org_id, entry_id, boq_item_id, quant
 select '22820000-0000-0000-0000-0000000000a1',
        ('22820000-0000-0000-0000-' || lpad((g + 1000)::text, 12, '0'))::uuid,
        ('22820000-0000-0000-0000-' || lpad((g + 2000)::text, 12, '0'))::uuid, 1
-  from generate_series(1, 100) g;
+  from generate_series(1, 505) g;
 insert into work_order_acceptances (id, org_id, project_id, work_order_id, acceptance_date, is_final, status, prepared_by, confirmed_by, confirmed_at, confirm_basis) values
   ('22820000-0000-0000-0000-0000000000f3', '22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000c1', '22820000-0000-0000-0000-0000000000e1', current_date, false, 'Confirmed', '22820000-0000-0000-0000-0000000000b1', '22820000-0000-0000-0000-0000000000b1', now(), 'standard');
 insert into work_order_acceptance_lines (acceptance_id, boq_item_id, quantity) values
@@ -76,8 +76,11 @@ select ok(position('get_project_billing' in lower(pg_get_functiondef('public.bil
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22820000-0000-0000-0000-0000000000b1","role":"authenticated"}';
-select is((select count(*)::int from public.billing_unaccepted_progress()), 103, 'AC-MV-004 set-based candidates cover 100 projects plus the existing multi-line fixture');
-select results_eq($$ select item_code, quantity from public.billing_unaccepted_progress('22820000-0000-0000-0000-0000000000c1') order by quantity::numeric desc $$,
+select is((select count(*)::int from public.billing_unaccepted_progress()), 501, 'AC-MV-004 returns its 501-row saturation sentinel for a 506-project input');
+select results_eq($$ select project_name, item_code, quantity from public.billing_unaccepted_progress() with ordinality order by ordinality limit 3 $$,
+  $$ values ('Zulu high quantity project'::text, 'Z'::text, '30.000'::text), ('Zulu high quantity project'::text, 'A'::text, '8.000'::text), ('Zulu high quantity project'::text, 'C'::text, '2.000'::text) $$,
+  'AC-MV-004 the bounded read keeps the largest quantities ahead of alphabetically earlier projects');
+select results_eq($$ select item_code, quantity from public.billing_unaccepted_progress('22820000-0000-0000-0000-0000000000c1') with ordinality order by ordinality $$,
   $$ values ('Z'::text, '30.000'::text), ('A'::text, '8.000'::text), ('C'::text, '2.000'::text) $$, 'AC-MV-004 subtracts acceptance exactly and returns the largest unaccepted quantities first');
 select is((select count(*)::int from public.billing_unaccepted_progress('22820000-0000-0000-0000-0000000000c1')), 3, 'AC-MV-004 project filter returns the selected project');
 select is((select count(*)::int from public.billing_unaccepted_progress('22820000-0000-0000-0000-0000000000c2')), 0, 'AC-MV-004 another organisation project returns nothing');
