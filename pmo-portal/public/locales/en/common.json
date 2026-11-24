@@ -186,6 +186,10 @@
       "stockIssueCost": {
         "name": "Stock issue costing",
         "summary": "Counts issued stock as work-order cost from a chosen date."
+      },
+      "orderReceiving": {
+        "name": "Receive against order",
+        "summary": "Records counted goods against sent purchase orders."
       }
     },
     "paletteGroup": "Settings"

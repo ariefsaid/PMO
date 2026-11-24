@@ -7,7 +7,6 @@
     {"table":"order_receiving_excess_approvals","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"}
   ],
   "definer_functions": [
-    "guard_order_receiving_setting()",
     "map_order_stock(uuid,uuid)",
     "receiving_lock_order(uuid)",
     "receive_order_goods(uuid,uuid,date,jsonb,uuid)",
@@ -15,7 +14,6 @@
     "read_order_receiving(uuid)",
     "list_receiving_orders()",
     "order_receiving_blind()",
-    "guard_order_receipt_immutable()",
     "set_order_receiving_enabled(boolean)",
     "reverse_order_receiving(uuid,text)",
     "order_receiving_line_blind(uuid)",

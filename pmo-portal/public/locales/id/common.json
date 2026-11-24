@@ -186,6 +186,10 @@
       "stockIssueCost": {
         "name": "Biaya pengeluaran stok",
         "summary": "Menghitung stok yang dikeluarkan sebagai biaya perintah kerja mulai tanggal yang dipilih."
+      },
+      "orderReceiving": {
+        "name": "Terima berdasarkan pesanan",
+        "summary": "Mencatat jumlah barang yang dihitung terhadap pesanan pembelian terkirim."
       }
     },
     "paletteGroup": "Pengaturan"
