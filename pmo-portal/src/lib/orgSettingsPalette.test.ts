@@ -6,6 +6,7 @@ import billingStepsEn from '@/public/locales/en/billingSteps.json';
 import billingStepsId from '@/public/locales/id/billingSteps.json';
 import siteReportEn from '@/public/locales/en/siteReport.json';
 import siteReportId from '@/public/locales/id/siteReport.json';
+import { baseLevelOf } from '@/src/auth/builtInRoles';
 import { ORG_SETTINGS, orgSettingKeys } from './orgSettingsCatalogue';
 import { buildSettingsPaletteItems } from './orgSettingsPalette';
 
@@ -51,7 +52,9 @@ describe('buildSettingsPaletteItems (AC-OSM-034)', () => {
     expect(entry.searchCodes).toEqual([siteReportEn.revenue.qsAccess, siteReportId.revenue.qsAccess]);
     entry.run();
     expect(navigate).toHaveBeenCalledWith('/administration/projects');
-    expect(buildSettingsPaletteItems(tEn, instance, 'Quantity Surveyor', vi.fn()).map((i) => i.id)).not.toContain('setting-qsReportRevenue');
+    const qsAccessLevel = baseLevelOf('quantity_surveyor');
+    expect(qsAccessLevel).toBe('Engineer');
+    expect(buildSettingsPaletteItems(tEn, instance, qsAccessLevel ?? undefined, vi.fn()).map((i) => i.id)).not.toContain('setting-qsReportRevenue');
   });
 
   it('offers a role only the settings it may change, and nothing to a role that may change none', () => {
