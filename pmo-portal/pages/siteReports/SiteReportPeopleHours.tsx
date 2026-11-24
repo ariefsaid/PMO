@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, ListState, NumberField, RecordSection, SelectField, TextArea, useToast } from '@/src/components/ui';
-import { formatNumberMax2 } from '@/src/lib/format';
+import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 import { useRefusalLine } from '@/src/lib/refusals';
 import { standingTotal, type ReportDayWorker } from '@/src/lib/db/attendanceSecondRecords';
 import type { Standing } from '@/src/lib/repositories/attendanceSecondRecords';
@@ -99,7 +99,7 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
                         <div className="text-muted-foreground">
                           {t('people.second', 'Second record')}: <span className="tabular-nums">{figureText(w.second)}</span>
                           {w.second.note ? ` · ${w.second.note}` : ''}
-                          {w.second.standing ? ` · ${w.second.standing === 'second' ? t('people.decided.second', 'Second record stands') : t('people.decided.day', 'Site report figure stands')}${w.second.decisionReason ? ` (${w.second.decisionReason})` : ''}` : ''}
+                          {w.second.standing ? ` · ${w.second.standing === 'second' ? t('people.decided.second', 'Second record stands') : t('people.decided.day', 'Site report figure stands')}${w.second.decisionReason ? ` (${w.second.decisionReason})` : ''}${w.second.decidedByName ? ` · ${w.second.decidedByName}` : ''}${w.second.decidedAt ? ` · ${formatDay(w.second.decidedAt)}` : ''}` : ''}
                         </div>
                       ) : null}
                       {w.undecided ? <div className="mt-1 font-medium text-foreground" role="status">{t('people.needsDecision', 'The two records differ. Decide which hours stand.')}</div> : null}
