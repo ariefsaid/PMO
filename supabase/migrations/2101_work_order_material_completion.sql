@@ -12,7 +12,7 @@ declare v_org uuid; v_cost boolean; v_out jsonb;
 begin
   perform public.assert_is_active_member();
   v_org := public.auth_org_id();
-  if not exists (select 1 from public.work_orders w where w.id = p_work_order_id and w.org_id = v_org) then   -- mut:org
+  if not exists (select 1 from public.work_orders w where w.id = p_work_order_id and w.org_id = v_org) then
     raise exception 'STK_NOT_FOUND: the work order is not in your organisation' using errcode = 'P0001';
   end if;
   v_cost := public.stock_can_see_cost();

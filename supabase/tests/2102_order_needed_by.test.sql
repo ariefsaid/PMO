@@ -8,7 +8,7 @@
 --   AC-NBY-007 another organisation changes and reads nothing.
 -- Mutation checks (orchestrator, each alone): mut:required -> 003 · mut:setting_admin -> 002 · mut:write_path -> 006 · mut:who -> 006 · mut:frozen -> 006 · mut:line_exempt -> 004.
 begin;
-select plan(21);
+select plan(23);
 
 insert into organizations (id, name) values
   ('26970000-0000-0000-0000-000000000001', 'NBY Org A'),
@@ -73,6 +73,8 @@ select lives_ok($$ select set_procurement_needed_by('26970000-0000-0000-0000-000
 reset role;
 select is((select needed_by::text from procurement_items where id = '26970000-0000-0000-0000-000000000021'), '2026-12-20', 'AC-NBY-004 a line that followed the header follows the move');
 select is((select needed_by::text from procurement_items where id = '26970000-0000-0000-0000-000000000022'), '2026-12-15', 'AC-NBY-004 a line with its own date is left alone');
+select lives_ok($$ select set_procurement_needed_by('26970000-0000-0000-0000-000000000011', '2026-12-20', '[{"item_id":"26970000-0000-0000-0000-000000000022","needed_by":null}]') $$, 'AC-NBY-004 explicitly clearing a line exception restores the header date');
+select is((select needed_by::text from procurement_items where id = '26970000-0000-0000-0000-000000000022'), '2026-12-20', 'AC-NBY-004 the cleared line follows the header');
 select nby_as('26970000-0000-0000-0000-0000000000a4');
 select lives_ok($$ update procurements set status = 'Ordered' where id = '26970000-0000-0000-0000-000000000011' $$, 'AC-NBY-003 with the date the order is sent');
 

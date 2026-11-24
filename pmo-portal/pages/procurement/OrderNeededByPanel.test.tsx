@@ -3,20 +3,28 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
-const h = vi.hoisted(() => ({ required: true, header: null as string | null, set: vi.fn(async () => undefined), reload: vi.fn() }));
+const h = vi.hoisted(() => ({
+  required: { data: true as boolean | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  header: { data: null as string | null | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  set: vi.fn(async () => undefined), reload: vi.fn(),
+}));
 vi.mock('@/src/hooks/usePoNeededBy', () => ({
   usePoNeededByRequired: () => h.required,
-  useProcurementNeededBy: () => ({ value: h.header, reload: h.reload }),
+  useProcurementNeededBy: () => ({ ...h.header, value: h.header.data ?? null, reload: h.reload }),
 }));
 vi.mock('@/src/lib/db/procurementNeededBy', () => ({ setProcurementNeededBy: h.set }));
 import { OrderNeededByPanel } from './OrderNeededByPanel';
 
 const items = [{ id: 'i1', name: 'Pipe', needed_by: null }, { id: 'i2', name: 'Valve', needed_by: null }];
-beforeEach(() => { h.required = true; h.header = null; h.set.mockClear(); h.reload.mockClear(); });
+beforeEach(() => {
+  h.required = { data: true, isPending: false, isError: false, refetch: vi.fn() };
+  h.header = { data: null, isPending: false, isError: false, refetch: vi.fn() };
+  h.set.mockClear(); h.reload.mockClear();
+});
 
 describe('OrderNeededByPanel (1124d)', () => {
   it('AC-NBY-009 the rule is off: the panel renders nothing, so no purchase screen changes', () => {
-    h.required = false;
+    h.required.data = false;
     const { container } = render(<OrderNeededByPanel procurementId="p1" items={items} editable />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -33,8 +41,53 @@ describe('OrderNeededByPanel (1124d)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(h.set).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: '2026-12-15' }]));
   });
+  it('AC-NBY-009 clearing a line override explicitly restores the header date', async () => {
+    h.header.data = '2026-12-31';
+    const lineItems = [{ ...items[0] }, { ...items[1], needed_by: '2026-12-15' }];
+    render(<OrderNeededByPanel procurementId="p1" items={lineItems} editable />);
+    await userEvent.clear(screen.getAllByLabelText('Line needed by')[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.set).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: null }]));
+  });
+  it('AC-NBY-009 setting a line date to the header date removes its exception', async () => {
+    h.header.data = '2026-12-31';
+    const lineItems = [{ ...items[0] }, { ...items[1], needed_by: '2026-12-15' }];
+    render(<OrderNeededByPanel procurementId="p1" items={lineItems} editable />);
+    const lineDate = screen.getAllByLabelText('Line needed by')[1];
+    await userEvent.clear(lineDate);
+    await userEvent.type(lineDate, '2026-12-31');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.set).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: null }]));
+  });
+  it('AC-NBY-009 a pending organisation setting is shown as loading, not treated as off', () => {
+    h.required = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    const { container } = render(<OrderNeededByPanel procurementId="p1" items={items} editable />);
+    expect(container.querySelector('[data-testid="liststate-loading"]')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Order needed by')).not.toBeInTheDocument();
+  });
+  it('AC-NBY-009 a pending header date is shown as loading, never as an empty date input', () => {
+    h.header = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    render(<OrderNeededByPanel procurementId="p1" items={items} editable />);
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Order needed by')).not.toBeInTheDocument();
+  });
+  it('AC-NBY-009 a failed organisation setting read exposes a retry instead of hiding the setting state', async () => {
+    h.required = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    render(<OrderNeededByPanel procurementId="p1" items={items} editable />);
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(h.required.refetch).toHaveBeenCalled();
+    expect(screen.queryByLabelText('Order needed by')).not.toBeInTheDocument();
+  });
+  it('AC-NBY-009 a failed header read exposes retry and never shows a blank editable date', async () => {
+    h.required = { data: true, isPending: false, isError: false, refetch: vi.fn() };
+    h.header = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    render(<OrderNeededByPanel procurementId="p1" items={items} editable />);
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(h.header.refetch).toHaveBeenCalled();
+    expect(screen.queryByLabelText('Order needed by')).not.toBeInTheDocument();
+  });
   it('AC-NBY-009 once the order is sent the dates are read-only', () => {
-    h.header = '2026-12-31';
+    h.header.data = '2026-12-31';
     render(<OrderNeededByPanel procurementId="p1" items={items} editable={false} />);
     expect(screen.getByTestId('order-needed-by-value')).toHaveTextContent('2026-12-31');
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
