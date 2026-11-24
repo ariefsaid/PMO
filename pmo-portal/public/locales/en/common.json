@@ -85,7 +85,7 @@
       },
       "stockTransfers": {
         "name": "Stock transfers and proof",
-        "summary": "Chooses one-step or two-step transfers and when proof is attached."
+        "summary": "Chooses one-step or two-step transfers, when proof is attached, and whether issues need a signed handover too."
       },
       "stockWoTransfers": {
         "name": "Work-order transfers",
@@ -186,6 +186,10 @@
       "stockIssueCost": {
         "name": "Stock issue costing",
         "summary": "Counts issued stock as work-order cost from a chosen date."
+      },
+      "orderNeededBy": {
+        "name": "Order needed-by date",
+        "summary": "Requires a needed-by date before an order is sent to the supplier."
       }
     },
     "paletteGroup": "Settings"

@@ -46,6 +46,7 @@ import OrderJobRolesSection from './admin/OrderJobRolesSection';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
+import OrgOrderNeededBy from './admin/OrgOrderNeededBy';
 import SiteReportLists from './admin/SiteReportLists';
 import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
@@ -340,6 +341,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgThreeWayMatch />
             <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
             <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
+            <OrgOrderNeededBy />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>

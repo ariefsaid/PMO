@@ -905,6 +905,10 @@
     "beforePosting": "Sebelum pergerakan diposting atau diterima",
     "mayFollow": "Boleh menyusul (pergerakan tetap berstatus bukti belum lengkap)",
     "timingHelp": "Berlaku untuk tag yang mewajibkan bukti.",
+    "scope": "Pergerakan mana yang perlu serah terima bertanda tangan",
+    "scopeTransfers": "Hanya transfer antar lokasi",
+    "scopeIssues": "Transfer, dan pengeluaran ke proyek atau perintah kerja",
+    "scopeHelp": "Pengeluaran lalu diposting hanya dengan dokumen bertanda tangan terlampir, atau, bila bukti boleh menyusul, diposting dan menunggu di daftar \"bukti masih terutang\" sampai dokumen dilampirkan.",
     "proofPerTag": "Bukti yang berlaku, per tag",
     "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima",
     "inTransit_one": "{{count}} transfer stok sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik.",
@@ -1064,5 +1068,27 @@
       "missingColumn": "Berkas tidak memiliki kolom {{column}}. Gunakan templat.",
       "tooMany": "Satu berkas berisi 1 sampai {{max}} baris. Bagi per lokasi."
     }
+  },
+  "materialCompletion": {
+    "title": "Penyelesaian material",
+    "open": "Penyelesaian material (cetak)",
+    "item": "Bahan",
+    "unit": "Satuan",
+    "issued": "Dikeluarkan",
+    "returned": "Dikembalikan",
+    "movedIn": "Masuk",
+    "movedOut": "Keluar",
+    "counted": "Selisih hitung",
+    "balance": "Sisa",
+    "issuedValue": "Nilai dikeluarkan",
+    "balanceValue": "Nilai sisa",
+    "totals": "Total",
+    "workOrder": "Perintah kerja",
+    "empty": "Belum ada material yang bergerak pada perintah kerja ini.",
+    "notFound": "Perintah kerja tidak ditemukan",
+    "print": "Cetak",
+    "back": "Kembali ke perintah kerja",
+    "preparedBy": "Disiapkan oleh",
+    "checkedBy": "Diperiksa oleh"
   }
 }

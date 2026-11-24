@@ -1469,3 +1469,8 @@ The organisation's chosen first date for counting stock issues and returns in PM
 A pre-cutover purchase receipt with no bill or Paid payment dated before the cutover also uses the stock issue basis; later billing keeps that basis.
 
 The pre-cutover purchase set is captured at switch-on and stored until the next accepted settings change; later bill dates never recompute that saved basis.
+## Added by the 1124d stock lane
+- **Handover scope** — the organisation's choice of which stock movements need a signed handover document: transfers between locations only (default), or also issues to a project or work order. Timing (before posting, or may follow) is the separate proof timing setting. See `docs/specs/stock-handover-scope.spec.md`.
+- **Proof still owed** — a posted movement whose required handover document has not yet been attached; listed for the storekeeper and stock manager until it is.
+- **Material completion** — the printable, read-only page of one work order's materials: issued, returned, moved in and out, counted difference and balance, with totals; attached to the close-out item as its document. See `docs/specs/work-order-material-completion.spec.md`.
+- **Needed by (order)** — the one date on an order's header by which the goods are needed; it fills every line, and a line may carry its own. See `docs/specs/order-needed-by.spec.md`.

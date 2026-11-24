@@ -16,3 +16,13 @@ export function useWorkOrderStockBalance(f: { workOrderId?: string; projectId?: 
     enabled: Boolean(orgId) && Boolean(f.workOrderId || f.projectId),
   });
 }
+
+/** The printable material completion of one work order: a single read over the stock ledger (1124d). */
+export function useWorkOrderMaterialCompletion(workOrderId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['wo-material-completion', orgId, workOrderId ?? null],
+    queryFn: () => stockSiteWorkRepository.completion(workOrderId!),
+    enabled: Boolean(orgId) && Boolean(workOrderId),
+  });
+}

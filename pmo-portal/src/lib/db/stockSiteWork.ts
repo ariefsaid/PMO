@@ -103,6 +103,33 @@ export async function getWorkOrderStockBalance(f: { workOrderId?: string; projec
   });
 }
 
+export interface MaterialCompletionRow {
+  itemId: string; itemCode: string; itemName: string; unitCode: string;
+  issued: string; returned: string; movedIn: string; movedOut: string; countedDifference: string; balance: string;
+  issuedValue?: string; returnedValue?: string; balanceValue?: string;
+}
+export interface MaterialCompletionTotal { unitCode: string; issued: string; returned: string; movedIn: string; movedOut: string; countedDifference: string; balance: string }
+export interface MaterialCompletion { rows: MaterialCompletionRow[]; totals: MaterialCompletionTotal[]; valueTotals: { issued: string; returned: string; balance: string } | null }
+
+/** One read for the printable material completion of a work order (1124d). Cost fields arrive only for roles with cost access. */
+export async function getWorkOrderMaterialCompletion(workOrderId: string): Promise<MaterialCompletion> {
+  const { data, error } = await supabase.rpc('get_work_order_material_completion', { p_work_order_id: workOrderId } as never);
+  if (error) throw toAppError(error);
+  const d = (data ?? {}) as Json;
+  return {
+    rows: ((d.rows ?? []) as Json[]).map((r) => {
+      const out: MaterialCompletionRow = {
+        itemId: r.item_id, itemCode: r.item_code, itemName: r.item_name, unitCode: r.unit_code, issued: r.issued, returned: r.returned,
+        movedIn: r.moved_in, movedOut: r.moved_out, countedDifference: r.counted_difference, balance: r.balance,
+      };
+      if (r.issued_value !== undefined) { out.issuedValue = r.issued_value; out.returnedValue = r.returned_value; out.balanceValue = r.balance_value; }
+      return out;
+    }),
+    totals: ((d.totals ?? []) as Json[]).map((x) => ({ unitCode: x.unit_code, issued: x.issued, returned: x.returned, movedIn: x.moved_in, movedOut: x.moved_out, countedDifference: x.counted_difference, balance: x.balance })),
+    valueTotals: d.value_totals ? { issued: d.value_totals.issued, returned: d.value_totals.returned, balance: d.value_totals.balance } : null,
+  };
+}
+
 /** Upload before recording metadata, so a failed upload never counts as paper. */
 export async function uploadStockDocumentFile(orgId: string, documentId: string, file: File, label: string | null): Promise<void> {
   const id = crypto.randomUUID();

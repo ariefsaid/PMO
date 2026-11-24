@@ -181,6 +181,7 @@ const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorde
 const StockTransfersPage = lazyWithPreload(() => import('./pages/stock/StockTransfers'));
 const StockTransferSendPage = lazyWithPreload(() => import('./pages/stock/StockTransferSend'));
 const StockTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockTransferDetail'));
+const WorkOrderMaterialCompletionPage = lazyWithPreload(() => import('./pages/stock/WorkOrderMaterialCompletion'));
 const StockTransferPrintPage = lazyWithPreload(() => import('./pages/stock/StockTransferPrint'));
 const StockWorkOrderTransferPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransfer'));
 const StockWorkOrderTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransferDetail'));
@@ -348,6 +349,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
   { path: '/stock/transfers/new', chunks: [StockTransferSendPage], namespaces: ['stock'] },
   { path: '/stock/transfers/:transferId/print', chunks: [StockTransferPrintPage], namespaces: ['stock'] },
+  { path: '/work-orders/:id/material-completion', chunks: [WorkOrderMaterialCompletionPage], namespaces: ['stock', 'workOrders'] },
   { path: '/stock/transfers/:transferId', chunks: [StockTransferDetailPage], namespaces: ['stock'] },
   { path: '/stock/transfers', chunks: [StockTransfersPage], namespaces: ['stock'] },
   { path: '/stock/work-order-transfer/:transferId', chunks: [StockWorkOrderTransferDetailPage], namespaces: ['stock', 'workOrders'] },
@@ -632,6 +634,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/transfers', element: gated('stock', <StockTransfersPage />) },
   { path: '/stock/transfers/new', element: gated('stock', <StockTransferSendPage />) },
   { path: '/stock/transfers/:transferId/print', element: gated('stock', <StockTransferPrintPage />) },
+  { path: '/work-orders/:id/material-completion', element: gated('stock', <WorkOrderMaterialCompletionPage />) },
   { path: '/stock/transfers/:transferId', element: gated('stock', <StockTransferDetailPage />) },
   { path: '/stock/work-order-transfer', element: gated('stock', <StockWorkOrderTransferPage />) },
   { path: '/stock/work-order-transfer/:transferId', element: gated('stock', <StockWorkOrderTransferDetailPage />) },

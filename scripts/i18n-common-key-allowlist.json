@@ -419,5 +419,7 @@
   "allSettings.item.moduleBillingExtras.name",
   "allSettings.item.moduleBillingExtras.summary",
   "allSettings.item.stockIssueCost.name",
-  "allSettings.item.stockIssueCost.summary"
+  "allSettings.item.stockIssueCost.summary",
+  "allSettings.item.orderNeededBy.name",
+  "allSettings.item.orderNeededBy.summary"
 ]
