@@ -176,6 +176,7 @@ select is((select waiting_for_names from leave_requests_visible() where id = (se
   array['LV PM']::text[], 'AC-PEO-001 a worker without a login still waits for the person-record manager');
 select is(leave_request_decide((select id from lv_ids where k = 'no-login-managed'), 'Approved', null), 'Approved',
   'AC-PEO-001 the person-record manager decides leave for a worker without a login');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
 select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'v1'), 'Approved', null) $$,
   '23514', 'LV_DECIDED: this request is already approved', 'AC-LV-008 a decided request cannot be decided again');
 -- AC-LV-005 the line manager
@@ -213,7 +214,7 @@ select is(leave_request_decide((select id from lv_ids where k = 'v2'), 'Rejected
 
 -- An inactive person-record manager routes to HR, then to Admin if HR is inactive.
 reset role;
-update profiles set status = 'inactive' where id = '27080000-0000-0000-0000-0000000001a7';
+update profiles set status = 'disabled' where id = '27080000-0000-0000-0000-0000000001a7';
 set local role authenticated;
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
 insert into lv_ids select 'inactive-manager', leave_request_submit('27080000-0000-0000-0000-000000001f04', (select id from lv_ids where k = 'ta'), pg_temp.d('p12'), pg_temp.d('p12'), null);
@@ -221,7 +222,7 @@ select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
 select is(leave_request_decide((select id from lv_ids where k = 'inactive-manager'), 'Approved', null), 'Approved',
   'AC-PEO-002 an inactive manager falls back to HR Manager');
 reset role;
-update profiles set status = 'inactive' where id = '27080000-0000-0000-0000-0000000001a6';
+update profiles set status = 'disabled' where id = '27080000-0000-0000-0000-0000000001a6';
 set local role authenticated;
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
 insert into lv_ids select 'admin-fallback', leave_request_submit('27080000-0000-0000-0000-000000001f02', (select id from lv_ids where k = 'ta'), pg_temp.d('p40'), pg_temp.d('p40'), null);
