@@ -9,9 +9,10 @@ fi
 
 test_dir="$(mktemp -d "$root/supabase/tests/.2260-leave-rollback.XXXXXX")"
 test_file="$test_dir/2260_leave_rollback.test.sql"
+export PATH="/opt/pmo-runner/node/bin:$PATH"
 cleanup() {
   [[ ! -f "$test_file" ]] || unlink "$test_file"
-  [[ ! -d "$test_dir" ]] || rmdir "$test_dir"
+  [[ ! -d "$test_dir" ]] || rmdir "$test_dir" 2>/dev/null || true
 }
 trap cleanup EXIT
 

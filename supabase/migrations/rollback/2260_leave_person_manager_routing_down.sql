@@ -29,7 +29,7 @@ create or replace function public.leave_requestable_people()
   select w.id, w.name, coalesce(w.profile_id = auth.uid(), false)
     from public.people w
    where public.is_active_member() and w.org_id = public.auth_org_id() and w.archived_at is null
-     and (coalesce(w.profile_id = auth.uid(), false) or public.crew_can_manage()
+     and (coalesce(w.profile_id = auth.uid(), false) or public.actor_may_enter_leave_for_others() -- mut:rr_hr_leave_restore
           or exists (select 1 from public.profiles p where p.id = w.profile_id and p.manager_id = auth.uid()))
    order by 3 desc, w.name
 $$;
@@ -48,7 +48,7 @@ begin
   end if;
   select w.id, w.profile_id into v_person from public.people w where w.id = p_person_id and w.org_id = v_org;
   if not found then raise exception 'LV_REF: the person is not in this organisation' using errcode = '23514'; end if;
-  if not (coalesce(v_person.profile_id = v_uid, false) or public.crew_can_manage()
+  if not (coalesce(v_person.profile_id = v_uid, false) or public.actor_may_enter_leave_for_others() -- mut:rr_hr_leave_restore
           or exists (select 1 from public.profiles p where p.id = v_person.profile_id and p.manager_id = v_uid)) then
     raise exception 'LV_FORBIDDEN: you cannot enter a request for this person' using errcode = '42501';
   end if;
