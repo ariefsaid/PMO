@@ -489,5 +489,8 @@
   "PRC_SUPPLIER_INVALID": "Choose an active supplier of your organisation.",
   "PRC_SUPPLIER_SET": "This purchase already names its supplier.",
   "PRC_SUPPLIER_STEP": "Name the supplier once the purchase is approved.",
-  "PPL_PROFILE_SELF": "Only an Admin can link or unlink their own person record."
+  "PPL_PROFILE_SELF": "Only an Admin can link or unlink their own person record.",
+  "DSR_VALIDATE_ROLE_ADMIN": "Only an Admin can change which job roles validate daily site reports.",
+  "DSR_VALIDATE_ROLE_INVALID": "Choose manager or officer job roles from the built-in list.",
+  "DSR_VALIDATE_ROLE_OFF": "Turn on built-in roles in Administration > People before naming roles that validate site reports."
 }

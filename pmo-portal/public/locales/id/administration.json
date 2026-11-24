@@ -873,6 +873,17 @@
       "title": "Target kehadiran",
       "turnOff": "Matikan"
     },
+    "dsrValidateRoles": {
+      "title": "Validasi laporan harian lokasi",
+      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Centang jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
+      "legend": "Jabatan yang memvalidasi laporan harian lokasi",
+      "loadError": "Peran validator laporan lokasi tidak dapat dimuat",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "viewOnly": "Keluar dari mode lihat-sebagai untuk mengubah pengaturan ini.",
+      "turnOn": "Aktifkan peran bawaan di Administrasi > Orang untuk menetapkan kemampuan ini.",
+      "save": "Simpan",
+      "saved": "Peran validator laporan lokasi disimpan"
+    },
     "attendanceRoles": {
       "title": "Catatan waktu",
       "intro": "Tentukan siapa yang boleh membuat catatan kedua untuk hari kerja seseorang (juru ukur atau pencatat waktu) dan siapa yang memutuskan jam mana yang berlaku bila dua catatan berbeda. Catatan kedua tidak mengubah jam yang dibayar dengan sendirinya.",

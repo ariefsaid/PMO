@@ -102,6 +102,7 @@ const ProcurementPage = lazyWithPreload(() => import('./pages/Procurement'));
 const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDetails'));
 const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
+const TimesheetReviewPage = lazyWithPreload(() => import('./pages/TimesheetReview'));
 const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
 const WorkOrdersPage = lazyWithPreload(() => import('./pages/WorkOrders'));
 const WorkOrderDetailPage = lazyWithPreload(() => import('./pages/WorkOrderDetail'));
@@ -266,6 +267,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/purchase-types/settings', chunks: [PurchaseTypeSettingsPage], namespaces: ['purchaseTypes'] },
   { path: '/equipment-plans', chunks: [EquipmentPlansPage], namespaces: ['equipmentPlans'] },
   { path: '/equipment-plans/settings', chunks: [EquipmentPlanSettingsPage], namespaces: ['equipmentPlans'] },
+  { path: '/timesheets/review', chunks: [TimesheetReviewPage], namespaces: ['timesheets'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
   { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests', 'waitingList'] },
@@ -504,6 +506,7 @@ export const appRouteConfig: RouteObject[] = [
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: gated('procurement', <ProcurementDetails />) },
   { path: '/procurement/:procurementId/:tab', element: gated('procurement', <ProcurementDetails />) },
+  { path: '/timesheets/review', element: gated('timesheets', <TimesheetReviewPage />) },
   { path: '/timesheets', element: gated('timesheets', <TimesheetsPage />) },
   { path: '/approvals', element: <ApprovalsPage /> },
   { path: '/companies', element: gated('crm', <CompaniesPage />) },

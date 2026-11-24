@@ -1244,6 +1244,10 @@ is the one the role is built on. A person who holds a built-in role is judged by
 holders (holding the role, not only an access level it is built on) may also raise and send purchase orders, for approved purchases only, beside the four levels that always can. Empty by
 default, which changes nothing.
 
+**Roles that validate site reports** — the manager and officer built-in roles an Admin names per organisation (Administration › Project setup, "Validate daily site reports") whose holders gain the `daily_report_validate` capability and may validate, return and correct another person's daily site report beside Admin, Finance and the project's own Project Manager. Empty by default, and a field role is never named.
+
+**Timesheet review** — the HR Officer's read-only list of the organisation's timesheets and their entries (`/timesheets/review`), filtered by period, project and person, with no approval or return action.
+
 **Held job role** — the person holds this built-in role by key (`actor_holds_job_role`). Unlike *fills a built-in role*, a person
 with no built-in role never holds one, so a right given to a held job role widens no one else at the same access level.
 

@@ -14240,6 +14240,7 @@ export type Database = {
           clearance_checklist_enabled: boolean
           created_at: string
           crew_loans_enabled: boolean
+          daily_report_validate_roles: string[]
           default_currency: string
           default_locale: string
           default_number_locale: string | null
@@ -14307,6 +14308,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14374,6 +14376,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -31364,7 +31367,7 @@ export type Database = {
           project_id: string
           report_id: string
           submitted_at: string
-          total_revenue: number
+          total_revenue: number | null
           unrated_lines: number
           waiting_for_validator: boolean
           work_date: string
@@ -36776,6 +36779,10 @@ export type Database = {
       set_attendance_time_roles: {
         Args: { p_decider_roles: string[]; p_second_record_roles: string[] }
         Returns: undefined
+      }
+      set_daily_report_validate_roles: {
+        Args: { p_roles: string[] }
+        Returns: string[]
       }
       set_billing_plan_month_target: {
         Args: { p_month: string; p_target: number }

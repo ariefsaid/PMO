@@ -143,4 +143,34 @@ describe('FR-WAIT-006 dsrWaitingForText — route facts, not a flat label', () =
       .toBe('Saat ini tidak ada anggota aktif yang dapat memvalidasi laporan ini.');
     await t.changeLanguage('en');
   });
+
+  it('AC-DRVR-008 speaks assigned validator job roles when no PM or non-author Finance/Admin exists, and appends them as alternatives when present', async () => {
+    const enLabels: DsrWaitingRoleLabels = {
+      ...labels('en'),
+      jobRole: (k: string) => (k === 'site_supervisor' ? 'Field Superintendent' : k),
+    };
+    expect(dsrWaitingForText({
+      routeKind: 'job_roles',
+      approvers: [],
+      validateRoles: ['site_supervisor'],
+    }, t.t, enLabels)).toBe('Waiting for Field Superintendent');
+
+    expect(dsrWaitingForText({
+      routeKind: 'finance_admin',
+      approvers: [],
+      validateRoles: ['site_supervisor'],
+    }, t.t, enLabels)).toBe('Waiting for Finance or Admin or Field Superintendent');
+
+    await t.changeLanguage('id');
+    const idLabels: DsrWaitingRoleLabels = {
+      ...labels('id'),
+      jobRole: (k: string) => (k === 'site_supervisor' ? 'Pengawas Lapangan' : k),
+    };
+    expect(dsrWaitingForText({
+      routeKind: 'job_roles',
+      approvers: [],
+      validateRoles: ['site_supervisor'],
+    }, t.t, idLabels)).toBe('Menunggu Pengawas Lapangan');
+    await t.changeLanguage('en');
+  });
 });
