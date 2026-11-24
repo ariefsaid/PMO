@@ -6,6 +6,7 @@
  * Partly built: positions (welder, fitter) come from standard roles per crew, not asserted here.
  */
 import { test, expect } from '@playwright/test';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { visibleToast } from './helpers';
 import { need, ORG_ID, serviceClient } from './support/jobJourney';
 import { endCrewRows, seedWorkOrder } from './support/crewJourney';
@@ -13,12 +14,14 @@ import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
 const must = need('JOB-F7');
-const db = serviceClient('JOB-F7');
+let db: SupabaseClient;
+// Built per test so a `--list` run needs no environment.
 const run = `E2E-F7-${Date.now()}`;
 let wo = { projectId: '', workOrderId: '', title: '' };
 let cm: Awaited<ReturnType<typeof roleJobUser>> | undefined;
 
 test.beforeEach(async () => {
+  db = serviceClient('JOB-F7');
   wo = await seedWorkOrder(db, 'JOB-F7', run, 'yard');
   cm = await roleJobUser(db, 'construction_manager', `f7-cm-${Date.now()}`);
   // The register holds people before a crew is formed (the case's precondition).

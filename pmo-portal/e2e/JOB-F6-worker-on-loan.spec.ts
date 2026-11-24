@@ -7,6 +7,7 @@
  * Partly built: the supervisor's separate approval of the change is not built.
  */
 import { test, expect } from '@playwright/test';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { visibleToast } from './helpers';
 import { inDays, need, ORG_ID, serviceClient } from './support/jobJourney';
 import { endCrewRows, seedWorkOrder } from './support/crewJourney';
@@ -14,13 +15,15 @@ import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
 const must = need('JOB-F6');
-const db = serviceClient('JOB-F6');
+let db: SupabaseClient;
+// Built per test so a `--list` run needs no environment.
 const run = `E2E-F6-${Date.now()}`;
 let woA = { projectId: '', workOrderId: '', title: '' }; let woB = woA;
 let crewA = ''; let crewB = ''; let workerId = ''; let workerName = '';
 let supervisor: Awaited<ReturnType<typeof roleJobUser>> | undefined;
 
 test.beforeEach(async () => {
+  db = serviceClient('JOB-F6');
   woA = await seedWorkOrder(db, 'JOB-F6', run, 'A'); woB = await seedWorkOrder(db, 'JOB-F6', run, 'B');
   supervisor = await roleJobUser(db, 'site_supervisor', `f6-ss-${Date.now()}`);
   // Crew B is the crew this supervisor controls, so its day is theirs to record.

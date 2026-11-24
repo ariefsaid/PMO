@@ -34,13 +34,13 @@ test('JOB-F11 validating a report with a material line of 5 falls site stock by 
     ok('validate roles', await admin.rpc('set_daily_report_validate_roles', { p_roles: ['project_manager'] }));
 
     const sfx = runSuffix();
-    const site = await makeWarehouse(svc, sfx, 'SITE', 'site');
+    projectId = need('project', await svc.from('projects').insert({ org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD' }).select('id').single()).id;
+    // The site location must be an open site/yard/staging warehouse of the work order's own project (guard 1320).
+    const site = await makeWarehouse(svc, sfx, 'SITE', 'site', projectId);
     const item = await makeItem(svc, sfx, 'PIPE');
     ok('consumable', await svc.from('stock_items').update({ consumable: true }).eq('id', item.id));
     await keeperOf(admin, site.id, await profileId(svc, ADMIN_SEED_EMAIL));
     await postReceive(admin, site.id, item.id, '50');
-
-    projectId = need('project', await svc.from('projects').insert({ org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD' }).select('id').single()).id;
     workOrderId = need('work order', await svc.from('work_orders').insert({
       org_id: ORG_ID, project_id: projectId, title: `${run} pipe run`, status: 'Issued', issued_at: new Date().toISOString(),
       order_value: 10_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD', site_warehouse_id: site.id,
