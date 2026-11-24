@@ -107,6 +107,8 @@ const SHAPE_NOT_IN_TYPES = [
     reason: '`get_work_order_returnable` is declared `returns jsonb`, so its decimal-string lines are stated in the module.' },
   { file: 'src/lib/db/workOrderRevenuePlan.ts', until: 'wo_revenue_plan_set_day: \\{[\\s\\S]*?p_amount: number',
     reason: 'A `numeric` plan amount goes on the wire as exact decimal TEXT, which the generated argument type (`number`) cannot state.' },
+  { file: 'src/lib/db/workOrderLists.ts', until: 'set_boq_item_area_rate: \\{[\\s\\S]*?p_area: string; p_boq_item: string; p_rate\\?: number',
+    reason: 'An area rate numeric argument goes on the wire as exact decimal TEXT to preserve all eight fractional places and large integer values.' },
 ];
 
 /** Strip comments so a note ABOUT a cast does not count as one. Strings are left alone. */

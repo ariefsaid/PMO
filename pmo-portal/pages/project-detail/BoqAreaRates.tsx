@@ -7,6 +7,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useWorkOrderListEntries } from '@/src/hooks/useWorkOrderLists';
 import { workOrderListRepository } from '@/src/lib/repositories/workOrderLists';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatDecimal, parseDecimal } from '@/src/lib/exactDecimal';
 
 /**
  * Rates by area for one contract line (docs/specs/areas-and-area-rates.spec.md). A line priced by hand may carry a rate per area of
@@ -17,7 +18,15 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 interface Props { boqItemId: string; catalogueItemId: string | null; currency?: string }
 
 const RATE = /^\d{1,16}(\.\d{1,8})?$/;
-const trimFractionalZeroes = (rate: string) => rate.includes('.') ? rate.replace(/0+$/, '').replace(/\.$/, '') : rate;
+const exactAreaRate = (rate: string) => {
+  const units = parseDecimal(rate, 8);
+  return units === null ? rate : formatDecimal(units, 8, { trim: true });
+};
+const parsePositiveAreaRate = (rate: string) => {
+  if (!RATE.test(rate)) return null;
+  const units = parseDecimal(rate, 8);
+  return units === null || units <= 0n ? null : formatDecimal(units, 8, { trim: true });
+};
 
 const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
   const { t } = useTranslation('project');
@@ -36,15 +45,16 @@ const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
   });
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  useEffect(() => { setDraft(Object.fromEntries((rates.data ?? []).map((r) => [r.areaId, trimFractionalZeroes(r.rate)]))); }, [rates.data]);
+  useEffect(() => { setDraft(Object.fromEntries((rates.data ?? []).map((r) => [r.areaId, exactAreaRate(r.rate)]))); }, [rates.data]);
   if (!allowed || live.length === 0) return null;
 
   const run = async (areaId: string, name: string) => {
     const raw = (draft[areaId] ?? '').trim();
-    if (raw !== '' && (!RATE.test(raw) || Number(raw) <= 0)) { setErrors((e) => ({ ...e, [areaId]: t('projectDetail.billing.areaRates.invalid', 'Enter a rate above 0, or leave it empty to remove it.') })); return; }
+    const exactRate = raw === '' ? null : parsePositiveAreaRate(raw);
+    if (raw !== '' && exactRate === null) { setErrors((e) => ({ ...e, [areaId]: t('projectDetail.billing.areaRates.invalid', 'Enter a rate above 0, or leave it empty to remove it.') })); return; }
     setErrors((e) => { const next = { ...e }; delete next[areaId]; return next; });
     try {
-      await save.mutateAsync({ areaId, rate: raw === '' ? null : raw });
+      await save.mutateAsync({ areaId, rate: exactRate });
       toast(raw === '' ? t('projectDetail.billing.areaRates.removed', 'Area rate removed') : t('projectDetail.billing.areaRates.saved', 'Area rate saved'), name, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);

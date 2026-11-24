@@ -37,15 +37,16 @@ describe('area description', () => {
 
 describe('area rates', () => {
   it('AC-ARA-002 reads the rates of a line and sets one through the RPC; no rate removes it', async () => {
-    h.result.value = { data: [{ area_id: 'a1', rate: 8.5 }], error: null };
+    h.result.value = { data: [{ area_id: 'a1', rate_text: '8.5' }], error: null };
     await expect(dal.listBoqItemAreaRates('b1')).resolves.toEqual([{ areaId: 'a1', rate: '8.5' }]);
     expect(h.calls).toContainEqual(['from', ['boq_item_area_rates']]);
+    expect(h.calls).toContainEqual(['select', ['area_id, rate_text:rate::text']]);
     h.calls.length = 0;
     h.result.value = { data: null, error: null };
     await dal.setBoqItemAreaRate('b1', 'a1', '8.5');
     await dal.setBoqItemAreaRate('b1', 'a1', null);
     expect(h.calls.filter(([k]) => k === 'rpc').map(([, a]) => a)).toEqual([
-      ['set_boq_item_area_rate', { p_boq_item: 'b1', p_area: 'a1', p_rate: 8.5 }],
+      ['set_boq_item_area_rate', { p_boq_item: 'b1', p_area: 'a1', p_rate: '8.5' }],
       ['set_boq_item_area_rate', { p_boq_item: 'b1', p_area: 'a1' }],
     ]);
   });
@@ -56,4 +57,22 @@ describe('area rates', () => {
     expect(err).toBeInstanceOf(AppError);
     expect(err.code).toBe('42501');
   });
+
+  it.each([
+    { entered: '10', stored: '10.00000000' },
+    { entered: '1000000000.12345678', stored: '1000000000.12345678' },
+    { entered: '9007199254740993', stored: '9007199254740993.00000000' },
+  ])('AC-ARA-002 keeps the exact rate $entered when stored and shown again', async ({ entered, stored }) => {
+      h.result.value = { data: [{ area_id: 'a1', rate_text: stored }], error: null };
+      const shown = await dal.listBoqItemAreaRates('b1');
+      expect(shown).toEqual([{ areaId: 'a1', rate: entered }]);
+
+      h.calls.length = 0;
+      h.result.value = { data: null, error: null };
+      await dal.setBoqItemAreaRate('b1', 'a1', entered);
+      expect(h.calls).toContainEqual(['rpc', ['set_boq_item_area_rate', {
+        p_boq_item: 'b1', p_area: 'a1', p_rate: entered,
+      }]]);
+      expect(shown[0]?.rate).toBe(entered);
+    });
 });

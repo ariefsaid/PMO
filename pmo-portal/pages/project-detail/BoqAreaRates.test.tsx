@@ -53,6 +53,18 @@ describe('BoqAreaRates', () => {
     await waitFor(() => expect(h.set).toHaveBeenCalledWith('b1', 'a2', '0.12345678'));
   });
 
+  it.each(['10', '1000000000.12345678', '9007199254740993'])(
+    'AC-ARA-002 shows and resaves the exact stored rate %s', async (rate) => {
+      h.rates = [{ areaId: 'a1', rate }];
+      const user = userEvent.setup();
+      renderIt();
+      const north = await screen.findByRole('textbox', { name: 'Rate for North' });
+      await waitFor(() => expect(north).toHaveValue(rate));
+      await user.click(within(north.closest('li') as HTMLElement).getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(h.set).toHaveBeenCalledWith('b1', 'a1', rate));
+    },
+  );
+
   it('AC-ARA-002 an empty field removes the area\'s rate', async () => {
     const user = userEvent.setup();
     renderIt();

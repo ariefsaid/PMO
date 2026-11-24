@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
+import { formatDecimal, parseDecimal } from '@/src/lib/exactDecimal';
 
 /**
  * #2668 (FR-WAG-001/002): the organisation's own work-order area and group lists. Two tables of one
@@ -74,13 +75,19 @@ export function archiveWorkOrderListEntry(kind: WorkOrderListKind, id: string): 
  */
 export interface BoqAreaRate { areaId: string; rate: string }
 
+/** PostgREST's generated numeric argument type is `number`, but rates must go over the wire as exact decimal text. */
+const asNumericRate = (rate: string) => rate as unknown as number;
+
 export async function listBoqItemAreaRates(boqItemId: string): Promise<BoqAreaRate[]> {
-  const { data, error } = await supabase.from('boq_item_area_rates').select('area_id, rate').eq('boq_item_id', boqItemId).order('area_id').limit(500);
+  const { data, error } = await supabase.from('boq_item_area_rates').select('area_id, rate_text:rate::text').eq('boq_item_id', boqItemId).order('area_id').limit(500);
   if (error) throw new AppError(error.message, error.code);
-  return (data ?? []).map((r) => ({ areaId: r.area_id, rate: String(r.rate) }));
+  return (data ?? []).map((r) => {
+    const units = parseDecimal(r.rate_text, 8);
+    return { areaId: r.area_id, rate: units === null ? r.rate_text : formatDecimal(units, 8, { trim: true }) };
+  });
 }
 
 export async function setBoqItemAreaRate(boqItemId: string, areaId: string, rate: string | null): Promise<void> {
-  const { error } = await supabase.rpc('set_boq_item_area_rate', rate === null ? { p_boq_item: boqItemId, p_area: areaId } : { p_boq_item: boqItemId, p_area: areaId, p_rate: Number(rate) });
+  const { error } = await supabase.rpc('set_boq_item_area_rate', rate === null ? { p_boq_item: boqItemId, p_area: areaId } : { p_boq_item: boqItemId, p_area: areaId, p_rate: asNumericRate(rate) });
   if (error) throw new AppError(error.message, error.code);
 }
