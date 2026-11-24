@@ -27,7 +27,7 @@ export interface IncidentRepository {
   /** Add a further task to an issue (managers). Returns the task id. */
   addTask(incidentId: string, input: { name: string; assigneeId?: string | null; dueDate?: string | null }): Promise<string>;
   /** The database gate itself (actor_may_task_issue, 2041): whether the signed-in person may add a task to an issue on this work order. */
-  mayTaskOnWorkOrder(workOrderId: string): Promise<boolean>;
+  mayTaskIncident(incidentId: string): Promise<boolean>;
   /** Record the root cause (manager or the person in charge). */
   setRootCause(id: string, rootCause: string): Promise<void>;
   /** Hard-delete an incident (Admin only). */

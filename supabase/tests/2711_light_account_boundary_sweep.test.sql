@@ -175,6 +175,7 @@ insert into la_fn_allow values
   ('stock_reservations_on', 'helper', 'the reservation reads and writes check the switch through it'),
   ('stock_transfer_mode_of', 'helper', 'stock_lock_transfer, send_stock_transfer and the stock document guards read the mode through it'),
   ('stock_wo_transfers_on', 'helper', 'post_stock_wo_transfer checks the switch through it'),
+  ('stock_transfer_receiving_items', 'field_path', 'addressed-transfer labels and quality requirements only, scoped to the receiving field account and its organisation; 2381 proves both refusals'),
   ('receive_stock_transfer', 'field_path', 'the delivery confirmation path: a field account confirms the count and the photo'),
   ('record_stock_handover', 'field_path', 'the handover confirmation path: a field account signs for the delivery addressed to it'),
   ('report_absence', 'field_path', 'a light worker reports only their own absence');
@@ -365,7 +366,7 @@ select is((select coalesce(string_agg(fn, ', ' order by fn), '') from la_fn_allo
   'attendance_can_record', 'attendance_generate_timesheet', 'attendance_record', 'leave_enabled',
   'leave_on_date', 'leave_request_cancel', 'leave_request_submit', 'leave_requestable_people',
   'medical_release_holds', 'my_home', 'phone_check_in', 'set_my_email_opt_out', 'actor_authorization_state',
-  'org_seat_report', 'resolved_org_features', 'resolved_org_plan', 'receive_stock_transfer',
+  'org_seat_report', 'resolved_org_features', 'resolved_org_plan', 'receive_stock_transfer', 'stock_transfer_receiving_items',
   'record_stock_handover', 'report_absence']) x),
   'AC-LA-014 the field-path allowlist is exactly the ruled field-account paths');
 select is((

@@ -267,3 +267,16 @@ describe('StockTransferDetail who it is assigned to (#1122 Waiting 3, AC-WAIT-07
     expect(h.waiting.refetch).toHaveBeenCalled();
   });
 });
+
+it('AC-SITE-009 an addressed receiver supplies quality even when master items are unavailable', async () => {
+ h.items=[];
+ h.transfer=transfer({toUserId:'me',fromWarehouseName:'Bound origin',toWarehouseName:'Bound site',lines:[line({itemName:'QC - Delivery goods',needsQualityCheck:true})]});
+ renderPage();
+ expect(screen.getByText('QC - Delivery goods')).toBeVisible();
+ expect(screen.getByText(/Bound origin/)).toBeVisible();
+ expect(screen.getByText(/Bound site/)).toBeVisible();
+ expect(screen.getByRole('button',{name:'Confirm receipt'})).toBeDisabled();
+ await userEvent.selectOptions(screen.getByRole('combobox',{name:/Quality check/}),'pass');
+ await userEvent.click(screen.getByRole('button',{name:'Confirm receipt'}));
+ await waitFor(()=>expect(h.receive).toHaveBeenCalledWith('t1',[{lineId:'l1',counted:'10.000',accepted:'10.000',rejectReason:'',qualityResult:'pass'}],null));
+});

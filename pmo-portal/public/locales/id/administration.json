@@ -1343,5 +1343,6 @@
     "loadError": "Pengaturan biaya stok tidak dapat dimuat",
     "migration": "Migrasikan biaya stok yang ada sebelum mengaktifkan pengaturan ini.",
     "erp": "Pengaturan ini tersedia untuk organisasi yang menggunakan biaya pembayaran PMO."
-  }
+  },
+  "documentTypesNav": "Jenis dokumen"
 }

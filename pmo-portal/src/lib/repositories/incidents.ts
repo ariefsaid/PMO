@@ -13,7 +13,7 @@ import {
   getIncidentFileUrl,
   createTaskFromIncident,
   addTaskToIncident,
-  mayTaskOnWorkOrder,
+  mayTaskIncident,
   setIncidentRootCause,
 } from '@/src/lib/db/incidents';
 import { wrap } from './repositoryErrors';
@@ -32,7 +32,7 @@ export const incidentRepository: IncidentRepository = {
   fileUrl: (filePath) => wrap(() => getIncidentFileUrl(filePath)),
   createTask: (incidentId) => wrap(() => createTaskFromIncident(incidentId)),
   addTask: (incidentId, input) => wrap(() => addTaskToIncident(incidentId, input)),
-  mayTaskOnWorkOrder: (workOrderId) => wrap(() => mayTaskOnWorkOrder(workOrderId)),
+  mayTaskIncident: (incidentId) => wrap(() => mayTaskIncident(incidentId)),
   setRootCause: (id, rootCause) => wrap(() => setIncidentRootCause(id, rootCause)),
   delete: (id) => wrap(() => deleteIncident(id)),
 };

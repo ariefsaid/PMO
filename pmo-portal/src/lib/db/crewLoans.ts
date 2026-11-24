@@ -68,3 +68,9 @@ export async function setCrewLoansEnabled(enabled: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_org_crew_loans_enabled', { p_enabled: enabled });
   fail(error);
 }
+
+export async function supervisorLoanCrews(): Promise<string[]> {
+ const { data, error } = await supabase.rpc('supervisor_loan_crews');
+ fail(error);
+ return data ?? [];
+}

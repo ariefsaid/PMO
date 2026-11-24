@@ -68,6 +68,7 @@ export const attendanceRateRepository = {
 
 /** Crew loans (#2704) and the setting that shows them. */
 export const crewLoanRepository = {
+  supervisorCrews: () => wrap(() => crewLoans.supervisorLoanCrews()),
   enabled: () => wrap(() => crewLoans.getCrewLoansEnabled()),
   setEnabled: (enabled: boolean) => wrap(() => crewLoans.setCrewLoansEnabled(enabled)),
   list: () => wrap(() => crewLoans.listAllCrewLoans()),

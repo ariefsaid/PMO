@@ -1,0 +1,1 @@
+assign_closeout_item_owner # 2383: active Admin assigns an open issued checklist item owner; 2383_closeout_item_owner.test.sql

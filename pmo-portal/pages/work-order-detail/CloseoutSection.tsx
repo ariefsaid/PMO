@@ -7,8 +7,10 @@ import { Button } from '@/src/components/ui/Button';
 import { DateField } from '@/src/components/ui/DateField';
 import { SelectField } from '@/src/components/ui/FormFields';
 import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCloseoutItemMutations, useWorkOrderCloser, useWorkOrderCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { closeoutItemActionable, closeoutItemAgeDays, closeoutRemaining } from '@/src/lib/closeoutChecklist';
 import { isChecklistItemOverdue, orgToday } from '@/src/lib/checklistDue';
@@ -44,14 +46,17 @@ const REFUSALS: Record<string, [string, string]> = {
 const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = orgToday(new Date(), getActiveLocale().timezone) }) => {
   const { t } = useTranslation('closeout');
   const may = usePermission();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const viewOnly = realRole !== effectiveRole;
   const query = useWorkOrderCloseoutItems(workOrderId);
   const closer = useWorkOrderCloser(workOrderId, status === 'Closed');
   const documents = useDocuments(projectId);
-  const { attachDocument, completeItem } = useCloseoutItemMutations(workOrderId);
+  const { attachDocument, completeItem, assignOwner } = useCloseoutItemMutations(workOrderId);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [doneOn, setDoneOn] = useState(today);
   const [refusal, setRefusal] = useState<string | null>(null);
 
+  const ownerOptions = useJobRoleOptions(t('admin.noOwner', 'No owner job role'));
   const title = t('title', 'Close-out checklist');
   if (query.isError) {
     return <RecordSection title={title}>
@@ -62,7 +67,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
   if (!items || items.length === 0) return null;
 
   // An item's owner job role (2040) also records it; the rest follows the role rule.
-  const canRecord = (item: { ownerJobRole?: string | null }) => status === 'Issued' && may('transition', 'closeoutItem', { record: { owner_job_role: item.ownerJobRole } });
+  const canRecord = (item: { ownerJobRole?: string | null }) => !viewOnly && status === 'Issued' && may('transition', 'closeoutItem', { record: { owner_job_role: item.ownerJobRole } });
   const remaining = closeoutRemaining(items);
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));
   const titleOf = (id: string) => (documents.data ?? []).find((d) => d.id === id)?.title ?? t('document', 'Document');
@@ -125,6 +130,10 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
               </StatusPill>
             </span>
           </div>
+          {!viewOnly && !item.doneOn && status === 'Issued' && may('edit', 'closeoutChecklist') && <div className="mt-2">
+            <SelectField label={t('admin.owner', 'Owner job role')} value={item.ownerJobRole ?? ''} options={ownerOptions}
+              onChange={(ownerRole) => { setRefusal(null); void assignOwner.mutateAsync({ itemId: item.id, ownerRole }).catch(explain); }} />
+          </div>}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control">
             {item.documentId
               ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(item.documentId)}`}

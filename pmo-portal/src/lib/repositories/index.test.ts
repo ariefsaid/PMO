@@ -175,7 +175,7 @@ vi.mock('@/src/lib/db/incidents', () => ({
   createTaskFromIncident: vi.fn(),
   addTaskToIncident: vi.fn(),
   setIncidentRootCause: vi.fn(),
-  mayTaskOnWorkOrder: vi.fn(),
+  mayTaskIncident: vi.fn(),
 }));
 vi.mock('@/src/lib/db/milestones', () => ({
   listMilestones: vi.fn(),
@@ -432,7 +432,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
-      ['addTask', 'count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'mayTaskOnWorkOrder', 'setRootCause', 'transition', 'update', 'uploadFile'].sort(),
+      ['addTask', 'count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'mayTaskIncident', 'setRootCause', 'transition', 'update', 'uploadFile'].sort(),
     );
     expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
@@ -1151,9 +1151,9 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.incident.list();
     expect(incidentsDal.listIncidents).toHaveBeenLastCalledWith(undefined);
 
-    vi.mocked(incidentsDal.mayTaskOnWorkOrder).mockResolvedValue(true);
-    await expect(repositories.incident.mayTaskOnWorkOrder('wo1')).resolves.toBe(true);
-    expect(incidentsDal.mayTaskOnWorkOrder).toHaveBeenCalledWith('wo1');
+    vi.mocked(incidentsDal.mayTaskIncident).mockResolvedValue(true);
+    await expect(repositories.incident.mayTaskIncident('wo1')).resolves.toBe(true);
+    expect(incidentsDal.mayTaskIncident).toHaveBeenCalledWith('wo1');
 
     await repositories.incident.get('i1');
     const pageArgs = { page: 2, pageSize: 50, status: 'Open' as const, search: 'x' };

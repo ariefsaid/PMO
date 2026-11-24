@@ -96,13 +96,13 @@ insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, expi
   ('17600000-0000-0000-0000-0000000000c7', '17600000-0000-0000-0000-00000000000a', 'person', '17600000-0000-0000-0000-0000000000e1', '17600000-0000-0000-0000-0000000000f7', '2026-11-25');
 select lives_ok($$select public.run_document_expiry_warnings('2026-11-20')$$, 'AC-EXM-006 the warning run completes');
 select is((select array_agg(recipient_id order by recipient_id) from document_expiry_notices where document_id = '17600000-0000-0000-0000-0000000000c6'),
-  array['17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
+  array['17600000-0000-0000-0000-0000000000a1', '17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
   'AC-EXM-006 a medical notice reaches the person, the medical right and the manager (not another named role)');
 select is((select array_agg(o.recipient_id order by o.recipient_id) from email_outbox o join notifications n on n.id = o.notification_id
             where n.metadata->'entity'->>'id' = '17600000-0000-0000-0000-0000000000c6'
                or (n.owner_id = '17600000-0000-0000-0000-0000000000a3' and n.body like '%Medical told%')),
-  array['17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
-  'AC-EXM-006 its email copy goes to the same three people');
+  array['17600000-0000-0000-0000-0000000000a1', '17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
+  'AC-EXM-006 its email copy goes to the same medical-right holders, person and manager');
 select is((select count(*)::int from notifications where owner_id = '17600000-0000-0000-0000-0000000000a3' and body like '%Medical told%'
              and metadata->'entity'->>'id' is null and metadata->'entity'->>'type' is null), 1,
   'AC-EXM-007 the manager''s medical notice opens no document: it names the person, the type and the date only');
