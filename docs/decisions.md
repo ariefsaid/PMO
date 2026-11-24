@@ -4161,3 +4161,6 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   (DD-R1124-1). Reason: the role's job is to oversee buying across projects, so it must see every case and not only those of the projects
   it manages. Not a setting: it follows the job role.
 
+
+- **DD-R1124-17 Equipment Officer registers and edits assets in their own organisation:** existing editable asset fields only; deletion remains Admin-only. Rental-term and cost rights remain unchanged. The right follows the job role.
+- **DD-R1124-18 Project Control Manager reads the rate catalogue across their own organisation:** items, locations, rates and stage weights, including projects managed by another person. Catalogue write rights, field-account restrictions and organisation isolation remain unchanged. The role already reads project cost performance.

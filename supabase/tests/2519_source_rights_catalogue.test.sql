@@ -138,9 +138,11 @@ select is(array(select tablename||':'||policyname from cat_policies
  array['work_order_crews:work_order_crews_insert','work_order_crews:work_order_crews_update',
  'work_order_sections:work_order_sections_insert','work_order_sections:work_order_sections_update'],
  'AC-SRCAT-PLANNER no financial table policy admits Planner');
-select is((select count(*)::int from cat_policies
- where coalesce(qual,'')||coalesce(with_check,'') ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'equipment_officer'$re$),0,
- 'AC-SRCAT-OFFICER no table policy gains an Officer admission');
+-- DD-R1124-17 deliberately adds only asset-register create/edit for the Equipment Officer.
+select is(array(select tablename||':'||policyname||':'||cmd from cat_policies
+ where coalesce(qual,'')||coalesce(with_check,'') ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'equipment_officer'$re$ order by tablename,policyname,cmd),
+ array['equipment_assets:equipment_officer_insert:INSERT','equipment_assets:equipment_officer_update:UPDATE'],
+ 'AC-SRCAT-OFFICER only asset-register insert/update policies admit Officer');
 select ok(exists(select 1 from cat_policies where tablename='work_order_revenue_plan'
  and cmd='SELECT' and qual like '%dsr_may_see_revenue%'),
  'AC-SRCAT-PLANNER direct plan table still uses the general revenue gate');
