@@ -1,4 +1,4 @@
--- Reverses 2262 to the 2261 approval bodies and the 1155 plan writers.
+-- Reverses 2262 to the 2261 approval bodies and the 1155 plan writers after 1530's dynamic field-account guard rewrite.
 
 create or replace function public.cus_capture_plan_author() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
@@ -21,6 +21,7 @@ create or replace function public.cus_generate_plan(p_work_order_id uuid) return
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare wo public.work_orders; v_fp text; v_n integer;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   wo := public.cus_assert_planner(p_work_order_id);
   perform pg_advisory_xact_lock(hashtextextended('cus-plan:' || p_work_order_id::text, 0));
@@ -59,6 +60,7 @@ create or replace function public.cus_adjust_plan_line(p_work_order_id uuid, p_i
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare wo public.work_orders; v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   wo := public.cus_assert_planner(p_work_order_id);
   perform pg_advisory_xact_lock(hashtextextended('cus-plan:' || p_work_order_id::text, 0));

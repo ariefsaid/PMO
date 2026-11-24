@@ -1,5 +1,5 @@
 -- 2262_consumable_plan_creator_and_null_safe_approval.sql — preserve the current plan creator and fail closed for unassigned projects.
--- Restates cus_approve_plan from 2261 and cus_generate_plan/cus_adjust_plan_line from 1155, each from its latest body.
+-- Restates cus_approve_plan from 2261 and cus_generate_plan/cus_adjust_plan_line from their 1155 bodies after 1530's dynamic field-account guard rewrite.
 -- A generation starts a new author route; later line edits retain that route until the final line is removed.
 -- Reverse: supabase/migrations/rollback/2262_consumable_plan_creator_and_null_safe_approval_down.sql
 -- drops: null-safe approval requires a positive Admin/project-manager match; creator provenance follows generation, not the latest line editor.
@@ -27,6 +27,7 @@ create or replace function public.cus_generate_plan(p_work_order_id uuid) return
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare wo public.work_orders; v_fp text; v_n integer; v_actor uuid := auth.uid(); v_is_pcm boolean := false;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   wo := public.cus_assert_planner(p_work_order_id);
   if v_actor is not null then v_is_pcm := public.actor_holds_job_role('project_control_manager'); end if;
@@ -76,6 +77,7 @@ create or replace function public.cus_adjust_plan_line(p_work_order_id uuid, p_i
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare wo public.work_orders; v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   wo := public.cus_assert_planner(p_work_order_id);
   perform pg_advisory_xact_lock(hashtextextended('cus-plan:' || p_work_order_id::text, 0));
