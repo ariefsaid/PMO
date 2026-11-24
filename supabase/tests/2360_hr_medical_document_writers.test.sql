@@ -88,11 +88,11 @@ savepoint broad_writer_mutation;
 alter policy expiry_documents_insert on public.expiry_documents with check (true);
 select pg_temp.err('a4', pg_temp.med('broad')) as broad_result \gset
 rollback to savepoint broad_writer_mutation;
-select is(:'broad_result', 'ok', 'AC-HRM-MUT deny oracle detects a permissive writer mutation');
+select is(:'broad_result'::text, 'ok', 'AC-HRM-MUT deny oracle detects a permissive writer mutation');
 savepoint removed_hr_mutation;
 \ir ../migrations/rollback/2360_hr_medical_document_writers_down.sql
 select pg_temp.err('a2', pg_temp.med('removed')) as removed_result \gset
 rollback to savepoint removed_hr_mutation;
-select matches(:'removed_result', '^42501', 'AC-HRM-MUT allow oracle detects removing the HR writer branch');
+select matches(:'removed_result'::text, '^42501', 'AC-HRM-MUT allow oracle detects removing the HR writer branch');
 select * from finish();
 rollback;
