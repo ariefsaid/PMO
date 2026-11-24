@@ -13,11 +13,12 @@ import { roleJobUser } from './support/roleJobUser';
 import { seedWorkOrder } from './support/crewJourney';
 
 test.setTimeout(180_000);
-const db = serviceClient('JOB-F17');
-const run = `E2E-F17-${Date.now()}`;
+
 let wo = { projectId: '', workOrderId: '', title: '' };
 
 test('JOB-F17 the site supervisor turns an open issue into a task the owner sees in My Tasks', async ({ page }) => {
+  const db = serviceClient('JOB-F17');
+  const run = `E2E-F17-${Date.now()}`;
   const supervisor = await roleJobUser(db, 'site_supervisor', runId('f17-ss'));
   try {
     wo = await seedWorkOrder(db, 'JOB-F17', run, 'plant');
