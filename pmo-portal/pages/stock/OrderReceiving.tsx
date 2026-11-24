@@ -86,25 +86,25 @@ export default function OrderReceiving() {
   return <div className="space-y-6">
     <PageHeader title={t('receiving.title')} />
     <OrderReceivingSetting />
-    {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert"><p>{t('receiving.loadError')}</p><Button onClick={() => { void orders.refetch(); void warehouses.refetch(); void keepers.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
+    {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => { void orders.refetch(); void warehouses.refetch(); void keepers.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField id="receipt-order" label={t('receiving.order')} value={orderId} onChange={(id) => { setSearch(id ? { order: id } : {}); setQuantities({}); setRequestId(crypto.randomUUID()); }} options={(orders.data ?? []).map((o) => ({ value: o.id, label: o.number }))} placeholder={t('receiving.chooseOrder')} />
         <SelectField id="receipt-warehouse" label={t('form.warehouse')} value={warehouse} onChange={setWarehouse} options={(warehouses.data ?? []).filter((w) => !w.archived_at).map((w) => ({ value: w.id, label: w.name }))} />
         <DateField id="receipt-date" label={t('receiving.date')} value={date || day.day || ''} onChange={setDate} />
       </div>
       {orders.data?.length === 0 && <p className="text-control text-muted-foreground">{t('receiving.noOrders')}</p>}
-      {orderId && (order.isPending ? <ListState variant="loading" rows={3} /> : order.isError ? <div role="alert"><p>{t('receiving.loadError')}</p><Button onClick={() => void order.refetch()}>{t('receiving.retry')}</Button></div> : data && <>
+      {orderId && (order.isPending ? <ListState variant="loading" rows={3} /> : order.isError ? <div role="alert"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => void order.refetch()}>{t('receiving.retry')}</Button></div> : data && <>
         {data.purchaser && <section className="space-y-4">{data.lines.map((line) => <div key={line.id} className="grid items-end gap-3 border-b border-border pb-4 md:grid-cols-2">
           <div><h2 className="text-base font-semibold">{line.name}</h2><p className="text-control">{t('receiving.progress', { ordered: line.ordered, received: line.received, outstanding: line.outstanding })}</p><p className="text-control text-muted-foreground">{t(`receiving.${line.status}`)}</p></div>
           {editable ? <div className="space-y-2"><ItemPicker id={`mapping-${line.id}`} label={t('receiving.stockItem')} value={line.stock_item_id} onChange={(id) => void run(() => repository.map(line.id, id))} />{line.stock_item_id && !data.requests.some((r) => r.lines.some((l) => l.item_id === line.id)) && <Button variant="outline" disabled={busy} onClick={() => void run(() => repository.map(line.id, null))}>{t('receiving.clearMapping')}</Button>}</div> : <p>{line.stock_name}</p>}
         </div>)}</section>}
         <OrderReceivingLines lines={data.lines} quantities={quantities} disabled={busy || viewOnly} onChange={(id, q) => setQuantities((old) => ({ ...old, [id]: q }))} />
-        {canReceive && <Button loading={busy} disabled={!warehouse || !(date || day.day) || !Object.values(quantities).some((q) => isPositiveDecimal(q)) || Object.values(quantities).some((q) => q !== '' && !isPositiveDecimal(q))} onClick={() => setConfirm(true)}>{t('receiving.record')}</Button>}
+        {canReceive && <Button variant="primary" loading={busy} disabled={!warehouse || !(date || day.day) || !Object.values(quantities).some((q) => isPositiveDecimal(q)) || Object.values(quantities).some((q) => q !== '' && !isPositiveDecimal(q))} onClick={() => setConfirm(true)}>{t('receiving.record')}</Button>}
         <section className="space-y-4">{data.requests.map((count) => <div key={count.id} className="space-y-2 border-t border-border pt-4">
           <p className="text-control font-medium">{t(count.reversed ? 'receiving.reversed' : count.document_id ? 'receiving.posted' : count.approved ? 'receiving.approved' : 'receiving.waiting')}</p>
           <ul className="text-control">{count.lines.map((line) => <li key={line.item_id}>{data.lines.find((l) => l.id === line.item_id)?.name}: {line.quantity}</li>)}</ul>
           {count.document_id && <Link className="text-control text-primary underline" to={`/stock/documents/${count.document_id}`}>{t('receiving.openMovement')}</Link>}
-          {!count.document_id && count.approved && count.receiver_id === user?.id && !viewOnly && <Button disabled={busy} onClick={() => void post(count)}>{t('receiving.recordApproved')}</Button>}
+          {!count.document_id && count.approved && count.receiver_id === user?.id && !viewOnly && <Button variant="outline" disabled={busy} onClick={() => void post(count)}>{t('receiving.recordApproved')}</Button>}
           {may('approve', 'orderReceiving', { currentUserId: user?.id, record: { viewOnly, receivingPurchaser: data.purchaser, created_by: count.receiver_id } }) && !count.reversed && (!count.document_id && !count.approved || count.document_id && may('post', 'stockDocument', { currentUserId: user?.id, record: { viewOnly, kind: 'adjustment', created_by: count.receiver_id } })) && <Button variant="outline" disabled={busy} onClick={() => { setReason(''); setDecision({ count, reverse: !!count.document_id }); }}>{t(count.document_id ? 'receiving.reverse' : 'receiving.approve')}</Button>}
         </div>)}</section>
       </>)}

@@ -46,7 +46,8 @@ select is((select count(*)::int from procurement_items where procurement_id=pg_t
 select is((select count(*)::int from procurement_items_masked where procurement_id=pg_temp.rid(20)),0,'AC-RGO-004 masked ordered lines hidden');
 select is((read_order_receiving(pg_temp.rid(40))->'lines'->0 ?| array['ordered','outstanding','rate','price']),false,'AC-RGO-004 receiving read omits ordered, outstanding and prices');
 select throws_ok($$select get_bill_match(pg_temp.rid(99))$$,'42501',null,'AC-RGO-004 bill match reader refuses storekeeper');
-select throws_ok($$select pg_temp.receive(4,80)$$,'23514','No exchange rate for USD/IDR on '||current_date||'.','AC-RGO-006 missing exchange rate names pair/date');
+select is(actor_may_see_prices_now(),false,'AC-RGO-004 blind receiving also hides stock valuation when the general price setting is off');
+select throws_ok($$select pg_temp.receive(4,80)$$,'23514','RGO_FX_MISSING: No exchange rate for USD/IDR on '||current_date||'.','AC-RGO-006 missing exchange rate names pair/date');
 reset role;
 select is((select count(*)::int from order_receiving_requests),0,'AC-RGO-006 missing rate leaves no partial receipt');
 insert into fx_rates(org_id,source,base_currency,quote_currency,rate_date,rate) values(pg_temp.rid(1),'JISDOR','USD','IDR',current_date-1,15000);
@@ -56,6 +57,7 @@ select is(pg_temp.receive(4,80)->>'status','posted','AC-RGO-005 keeper posts wit
 select is(pg_temp.receive(4,80)->>'status','posted','AC-RGO-005 retry is idempotent');
 select throws_ok($$select pg_temp.receive(3,80)$$,'23505',null,'AC-RGO-005 retry cannot change counted lines');
 select is(pg_temp.receive(7,81)->>'status','awaiting_approval','AC-RGO-008 excess does not post without approval');
+select is((select count(*)::int from my_waiting_decisions() where kind='order_receiving'),0,'AC-RGO-008 receiver has no own excess approval in inbox');
 select throws_ok($$select approve_order_receiving(pg_temp.rid(81),'Count accepted')$$,'42501',null,'AC-RGO-008 receiver cannot approve own excess');
 select throws_ok($$select receive_order_goods(pg_temp.rid(41),pg_temp.rid(70),current_date,pg_temp.lines(1),pg_temp.rid(82))$$,'P0002',null,'AC-RGO-011 receiver cannot receive another organisation order');
 reset role;
@@ -66,6 +68,7 @@ select is((select fx_date from order_receiving_requests where id=pg_temp.rid(80)
 select is((select count(*)::int from procurement_receipt_lines where item_id=pg_temp.rid(30)),1,'AC-RGO-009 new receipt enters match lines exactly once');
 select pg_temp.actor(10);
 set local role authenticated;
+select is((select count(*)::int from my_waiting_decisions() where kind='order_receiving' and record_id=pg_temp.rid(40)),1,'AC-RGO-008 excess order appears in purchasing inbox');
 select is(read_order_receiving(pg_temp.rid(40))->'lines'->0->>'outstanding','6.000','AC-RGO-007 purchasing sees outstanding');
 select is(read_order_receiving(pg_temp.rid(40))->'lines'->0->>'status','partly_received','AC-RGO-007 partial receipt status');
 select throws_ok($$select map_order_stock(pg_temp.rid(30),pg_temp.rid(60))$$,'23514',null,'AC-RGO-003 receipt freezes mapping');
@@ -171,5 +174,23 @@ select ok(pg_temp.mutation('public.read_order_receiving(uuid)',
 select ok(pg_temp.kill('alter policy receiving_blind_lines on public.procurement_items using(true)',
  $$select pg_temp.value(11,$q$select count(*) from procurement_items where procurement_id=pg_temp.rid(20)$q$)='0'$$),
  'AC-RGO-004 mutation: opening raw ordered-line policy fails the blind table oracle');
+select ok(pg_temp.mutation('public.map_order_stock(uuid,uuid)',
+ $q$raise exception 'RGO_MAPPING_FROZEN: This line has a receipt count; its stock item cannot change.' using errcode = '23514';$q$,'null;',
+ $$select not pg_temp.allowed(10,'select map_order_stock(pg_temp.rid(30),null)')$$),
+ 'AC-RGO-003 mutation: allowing remapping fails the frozen mapping oracle');
+select ok(pg_temp.mutation('public.guard_order_receipt_immutable()',
+ $q$raise exception 'RGO_IMMUTABLE: An order receipt is immutable; record a reversing movement.' using errcode='23514';$q$,'null;',
+ $$select not pg_temp.allowed(10,format('select record_receipt_match_lines(%L,%L::jsonb)',(select receipt_id from order_receiving_requests where id=pg_temp.rid(80)),pg_temp.lines(1)))$$),
+ 'AC-RGO-010 mutation: removing immutability fails the receipt edit oracle');
+select pg_temp.actor(10);
+set local role authenticated;
+select is(pg_temp.receive(20,92)->>'status','awaiting_approval','AC-RGO-008 a purchaser who receives also needs someone else to approve');
+select throws_ok($$select approve_order_receiving(pg_temp.rid(92),'My own excess')$$,'42501',null,'AC-RGO-008 purchasing rights do not permit self-approval');
+reset role;
+select ok(pg_temp.kill(
+ replace(pg_get_functiondef('public.approve_order_receiving(uuid,text)'::regprocedure),' or r.receiver_id = auth.uid()','')
+ || '; alter table public.order_receiving_requests drop constraint order_receiving_requests_check',
+ $$select not pg_temp.allowed(10,'select approve_order_receiving(pg_temp.rid(92),''My own excess'')')$$),
+ 'AC-RGO-008 mutation: removing both self-approval defences fails the same-person oracle');
 select * from finish();
 rollback;

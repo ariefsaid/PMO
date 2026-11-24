@@ -18,7 +18,7 @@ language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if new.enabled and (coalesce(public.domain_externally_owned(new.org_id, 'procurement'), false)
                   or coalesce(public.domain_externally_owned(new.org_id, 'inventory'), false)) then
-    raise exception 'Receiving against an order requires PMO to own purchasing and inventory. Continue receiving in your accounting system.' using errcode = '23514';
+    raise exception 'RGO_EXTERNAL: Receiving against an order requires PMO to own purchasing and inventory. Continue receiving in your accounting system.' using errcode = '23514';
   end if;
   return new;
 end $$;
@@ -62,6 +62,7 @@ create table public.order_receiving_requests (
 );
 create table public.order_receiving_reversals (
   request_id uuid primary key references public.order_receiving_requests(id),
+  org_id uuid not null references public.organizations(id),
   stock_document_id uuid not null unique references public.stock_documents(id),
   reason text not null,
   reversed_by uuid not null references public.profiles(id),
@@ -83,21 +84,21 @@ begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
   if not public.order_receiving_purchaser() then -- mut:rgo_mapping
-    raise exception 'Only a purchasing user can map an order line to stock.' using errcode = '42501';
+    raise exception 'RGO_MAPPING_ROLE: Only a purchasing user can map an order line to stock.' using errcode = '42501';
   end if;
   select i.procurement_id into v_proc from public.procurement_items i where i.id = p_item and i.org_id = v_org; -- mut:rgo_mapping_org
-  if not found then raise exception 'Order line not found.' using errcode = 'P0002'; end if;
+  if not found then raise exception 'RGO_NOT_FOUND: Order line not found.' using errcode = 'P0002'; end if;
   perform 1 from public.procurements p where p.id = v_proc and p.org_id = v_org for update;
   if exists (select 1 from public.procurement_receipt_lines r where r.item_id = p_item)
      or exists (select 1 from public.order_receiving_requests r join public.purchase_orders po on po.id = r.po_id
                 where po.procurement_id = v_proc and r.counted_lines @> jsonb_build_array(jsonb_build_object('item_id', p_item))) then -- mut:rgo_mapping_frozen
-    raise exception 'This line has a receipt count; its stock item cannot change.' using errcode = '23514';
+    raise exception 'RGO_MAPPING_FROZEN: This line has a receipt count; its stock item cannot change.' using errcode = '23514';
   end if;
   if p_stock_item is null then
     delete from public.order_stock_mappings where item_id = p_item and org_id = v_org;
   else
     if not exists (select 1 from public.stock_items s where s.id = p_stock_item and s.org_id = v_org and s.archived_at is null) then
-      raise exception 'Choose an active stock item in this organisation.' using errcode = '23514';
+      raise exception 'RGO_STOCK_ITEM: Choose an active stock item in this organisation.' using errcode = '23514';
     end if;
     insert into public.order_stock_mappings values (p_item, p_stock_item, v_org)
       on conflict (item_id) do update set stock_item_id = excluded.stock_item_id;
@@ -115,18 +116,18 @@ begin
   perform public.assert_feature_on(v_org, 'procurement');
   perform public.assert_feature_on(v_org, 'stock');
   if not exists (select 1 from public.order_receiving_settings s where s.org_id = v_org and s.enabled) then
-    raise exception 'Receiving against an order is off.' using errcode = '23514';
+    raise exception 'RGO_OFF: Receiving against an order is off.' using errcode = '23514';
   end if;
   if coalesce(public.domain_externally_owned(v_org, 'procurement'), false)
      or coalesce(public.domain_externally_owned(v_org, 'inventory'), false) then
-    raise exception 'Continue receiving in your accounting system: PMO must own purchasing and inventory.' using errcode = '23514';
+    raise exception 'RGO_EXTERNAL: Continue receiving in your accounting system: PMO must own purchasing and inventory.' using errcode = '23514';
   end if;
   select * into v_po from public.purchase_orders po where po.id = p_po and po.org_id = v_org; -- mut:rgo_receipt_org
-  if not found then raise exception 'Order not found.' using errcode = 'P0002'; end if;
+  if not found then raise exception 'RGO_ORDER_MISSING: Order not found.' using errcode = 'P0002'; end if;
   select * into v_proc from public.procurements p where p.id = v_po.procurement_id and p.org_id = v_org for update;
   if v_po.status not in ('Issued','Acknowledged') or v_proc.status::text not in ('Ordered','Received','Vendor Invoiced','Paid')
      or v_proc.is_subcontract or v_proc.record_only or v_po.erp_docstatus is not null then
-    raise exception 'Choose an approved, sent order for stock goods.' using errcode = '23514';
+    raise exception 'RGO_ORDER_STATE: Choose an approved, sent order for stock goods.' using errcode = '23514';
   end if;
   return v_po;
 end $$;
@@ -146,13 +147,13 @@ begin
   perform public.stock_assert_dates(v_org, p_date);
   if p_request is null or p_date is null or p_lines is null or jsonb_typeof(p_lines) <> 'array'
      or jsonb_array_length(p_lines) not between 1 and 200 then
-    raise exception 'Enter counted quantities for at least one order line.' using errcode = '22023';
+    raise exception 'RGO_COUNTS: Enter counted quantities for at least one order line.' using errcode = '22023';
   end if;
   select * into v_r from public.order_receiving_requests where id = p_request;
   if found then
     if v_r.org_id <> v_org or v_r.receiver_id <> v_uid or v_r.po_id <> p_po or v_r.warehouse_id <> p_warehouse
        or v_r.receipt_date <> p_date or v_r.counted_lines <> p_lines then
-      raise exception 'This receipt reference already belongs to another count.' using errcode = '23505';
+      raise exception 'RGO_REFERENCE: This receipt reference already belongs to another count.' using errcode = '23505';
     end if;
     if v_r.stock_document_id is not null then return jsonb_build_object('id', p_request, 'status', 'posted', 'document_id', v_r.stock_document_id); end if;
   end if;
@@ -161,23 +162,23 @@ begin
   if v_proc.currency = v_currency then v_fx := 1; v_fx_date := p_date;
   else select rate, rate_date into v_fx, v_fx_date from public.fx_rate_on(v_proc.currency, v_currency, p_date); end if;
   if v_fx is null then
-    raise exception 'No exchange rate for %/% on %.', v_proc.currency, v_currency, p_date using errcode = '23514';
+    raise exception 'RGO_FX_MISSING: No exchange rate for %/% on %.', v_proc.currency, v_currency, p_date using errcode = '23514', detail=jsonb_build_object('base',v_proc.currency,'quote',v_currency,'date',p_date::text)::text;
   end if;
   if exists (select 1 from jsonb_array_elements(p_lines) x group by x->>'item_id' having count(*) > 1) then
-    raise exception 'Count each order line once.' using errcode = '22023';
+    raise exception 'RGO_DUPLICATE: Count each order line once.' using errcode = '22023';
   end if;
   for e in select value from jsonb_array_elements(p_lines) loop
     if exists (select 1 from jsonb_object_keys(e) k where k not in ('item_id','quantity')) then
-      raise exception 'Enter only the order line and counted quantity.' using errcode = '22023';
+      raise exception 'RGO_FIELDS: Enter only the order line and counted quantity.' using errcode = '22023';
     end if;
     v_qty := (e->>'quantity')::numeric;
     if v_qty is null or v_qty <= 0 or v_qty >= 100000000000 or v_qty <> round(v_qty,3) then
-      raise exception 'Enter a positive counted quantity with at most three decimals.' using errcode = '22023';
+      raise exception 'RGO_QUANTITY: Enter a positive counted quantity with at most three decimals.' using errcode = '22023';
     end if;
     select * into v_item from public.procurement_items i where i.id = (e->>'item_id')::uuid and i.procurement_id = v_proc.id and i.org_id = v_org;
-    if not found then raise exception 'Order line not found.' using errcode = 'P0002'; end if;
+    if not found then raise exception 'RGO_NOT_FOUND: Order line not found.' using errcode = 'P0002'; end if;
     select m.stock_item_id into v_stock from public.order_stock_mappings m where m.item_id = v_item.id and m.org_id = v_org;
-    if v_stock is null then raise exception 'This line follows the service or direct-use receiving path.' using errcode = '23514'; end if;
+    if v_stock is null then raise exception 'RGO_UNMAPPED: This line follows the service or direct-use receiving path.' using errcode = '23514'; end if;
     select coalesce(sum(rl.quantity),0) into v_received from public.procurement_receipt_lines rl
       join public.procurement_receipts r on r.id = rl.receipt_id
       left join public.order_receiving_requests req on req.receipt_id = r.id
@@ -216,14 +217,14 @@ begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
   select * into r from public.order_receiving_requests where id = p_request and org_id = public.auth_org_id();
-  if not found then raise exception 'Receipt count not found.' using errcode = 'P0002'; end if;
+  if not found then raise exception 'RGO_COUNT_MISSING: Receipt count not found.' using errcode = 'P0002'; end if;
   perform public.receiving_lock_order(r.po_id);
   select * into r from public.order_receiving_requests where id=p_request for update;
   if not public.order_receiving_purchaser() or r.receiver_id = auth.uid() then -- mut:rgo_approval
-    raise exception 'A different purchasing user must approve this excess.' using errcode = '42501';
+    raise exception 'RGO_APPROVAL: A different purchasing user must approve this excess.' using errcode = '42501';
   end if;
-  if r.stock_document_id is not null or r.approved_by is not null then raise exception 'This count is already decided.' using errcode = '23514'; end if;
-  if nullif(btrim(p_reason),'') is null or length(p_reason) > 500 then raise exception 'Give a reason for accepting the excess.' using errcode = '22023'; end if;
+  if r.stock_document_id is not null or r.approved_by is not null then raise exception 'RGO_DECIDED: This count is already decided.' using errcode = '23514'; end if;
+  if nullif(btrim(p_reason),'') is null or length(p_reason) > 500 then raise exception 'RGO_REASON: Give a reason for accepting the excess.' using errcode = '22023'; end if;
   update public.order_receiving_requests set approved_by = auth.uid(),approved_at = now(),approval_reason = btrim(p_reason) where id = r.id;
   perform public.log_audit('order.receive_excess',r.org_id,auth.uid(),r.id,jsonb_build_object('reason',p_reason));
 end $$;
@@ -235,12 +236,12 @@ begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
   select * into v_po from public.purchase_orders where id = p_po and org_id = v_org;
-  if not found then raise exception 'Order not found.' using errcode = 'P0002'; end if;
+  if not found then raise exception 'RGO_ORDER_MISSING: Order not found.' using errcode = 'P0002'; end if;
   if not exists(select 1 from public.order_receiving_settings where org_id=v_org and enabled) then return null; end if;
   v_purchaser := public.order_receiving_purchaser();
   if not v_purchaser and not public.actor_holds_job_role('storekeeper') and not exists
     (select 1 from public.stock_warehouse_keepers k where k.org_id=v_org and k.user_id=auth.uid()) then
-    raise exception 'Receiving is for warehouse keepers and purchasing users.' using errcode='42501';
+    raise exception 'RGO_READ_ROLE: Receiving is for warehouse keepers and purchasing users.' using errcode='42501';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id',i.id,'name',i.name,'stock_item_id',m.stock_item_id,'stock_name',s.name,'unit',u.code)
     || case when v_purchaser then jsonb_build_object('ordered',i.quantity::text,'received',coalesce(rc.q,0)::text,
@@ -291,7 +292,7 @@ declare v_receipt uuid;
 begin
   if tg_table_name='procurement_receipts' then v_receipt:=old.id; else v_receipt:=old.receipt_id; end if;
   if exists(select 1 from public.order_receiving_requests where receipt_id=v_receipt) then
-    raise exception 'An order receipt is immutable; record a reversing movement.' using errcode='23514';
+    raise exception 'RGO_IMMUTABLE: An order receipt is immutable; record a reversing movement.' using errcode='23514';
   end if;
   if tg_op='DELETE' then return old; end if; return new;
 end $$;
@@ -314,7 +315,7 @@ create function public.set_order_receiving_enabled(p_enabled boolean) returns vo
 language plpgsql security definer set search_path=public,pg_temp as $$
 begin
  perform public.assert_not_light(); perform public.assert_is_active_member();
- if public.auth_role() is distinct from 'Admin' then raise exception 'Only an Admin changes receiving settings.' using errcode='42501'; end if;
+ if public.auth_role() is distinct from 'Admin' then raise exception 'RGO_SETTING_ROLE: Only an Admin changes receiving settings.' using errcode='42501'; end if;
  insert into public.order_receiving_settings(org_id,enabled) values(public.auth_org_id(),coalesce(p_enabled,false))
  on conflict(org_id) do update set enabled=excluded.enabled;
  perform public.log_audit('order.receiving_setting',public.auth_org_id(),auth.uid(),public.auth_org_id(),jsonb_build_object('enabled',p_enabled));

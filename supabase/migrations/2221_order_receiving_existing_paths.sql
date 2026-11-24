@@ -14,7 +14,7 @@ begin
   if coalesce(p_post, false) then perform public.stock_assert_standalone(v_org); end if;                -- D6, before any write
   v_kind := p_header->>'kind';
   if v_kind = 'receive' and exists(select 1 from public.order_receiving_settings where org_id=v_org and enabled) then
-    raise exception 'Receive these goods against their purchase order.' using errcode='23514';
+    raise exception 'RGO_USE_ORDER: Receive these goods against their purchase order.' using errcode='23514';
   end if;
   perform public.stock_validate_payload(v_org, v_kind, p_header, p_lines);
   v_wh := (p_header->>'warehouse_id')::uuid;
@@ -48,7 +48,7 @@ declare l record;
 begin
   if exists(select 1 from public.order_receiving_settings s where s.org_id=p_doc.org_id and s.enabled)
      and not exists(select 1 from public.order_receiving_requests r where r.stock_document_id=p_doc.id and r.org_id=p_doc.org_id) then
-    raise exception 'Receive these goods against their purchase order.' using errcode='23514';
+    raise exception 'RGO_USE_ORDER: Receive these goods against their purchase order.' using errcode='23514';
   end if;
   if p_doc.procurement_id is not null
      and not exists (select 1 from public.procurements pr where pr.id = p_doc.procurement_id and pr.org_id = p_doc.org_id) then
