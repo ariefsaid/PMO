@@ -226,6 +226,65 @@ select pg_temp.act_as('25900000-0000-0000-0000-0000000000b1');
 select throws_ok($$select * from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1')$$, 'P0002', 'project not found',
   'AC-SCW-003 another org cannot read stock_issue_cost_lines');
 
+-- AC-SCW-007 paid purchase receipt, issue, shortage, gain and retained stock conserve value.
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
+select set_stock_issue_cost_date('2026-11-20');
+reset role;
+set local session_replication_role=replica;
+insert into procurements(id,org_id,title,project_id,requested_by_id,status,total_value,approved_total_value,currency,budget_category)
+values ('25900000-0000-0000-0000-000000005001','25900000-0000-0000-0000-00000000000a','Stock purchase','25900000-0000-0000-0000-0000000000c1','25900000-0000-0000-0000-0000000000a1','Ordered',1500,1500,'IDR','Materials');
+insert into payments(org_id,procurement_id,status,amount,currency)
+values ('25900000-0000-0000-0000-00000000000a','25900000-0000-0000-0000-000000005001','Paid',1500,'IDR');
+update stock_documents set procurement_id='25900000-0000-0000-0000-000000005001'
+where warehouse_id='25900000-0000-0000-0000-000000002002' and kind='receive';
+set local session_replication_role=origin;
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a2');
+select set_config('tst.gain',create_stock_document(
+ jsonb_build_object('kind','count','warehouse_id','25900000-0000-0000-0000-000000002002','work_order_id','25900000-0000-0000-0000-000000000401','reason','Found stock','occurred_on','2026-11-21'),
+ jsonb_build_array(jsonb_build_object('item_id','25900000-0000-0000-0000-000000001001','counted_quantity',7)),false)::text,true);
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a3');
+select post_stock_document(current_setting('tst.gain')::uuid,(select revision from stock_documents where id=current_setting('tst.gain')::uuid));
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
+select set_config('tst.issue',create_stock_document(
+ jsonb_build_object('kind','issue','warehouse_id','25900000-0000-0000-0000-000000002002','project_id','25900000-0000-0000-0000-0000000000c1','occurred_on','2026-11-21'),
+ jsonb_build_array(jsonb_build_object('item_id','25900000-0000-0000-0000-000000001001','quantity',1)),true)::text,true);
+select set_cost_attribution('stock_document',array[current_setting('tst.issue')::uuid],'25900000-0000-0000-0000-000000000401',null);
+select is((select a.amount::numeric from work_order_cost_lines l join work_order_cost_amounts('25900000-0000-0000-0000-0000000000c1') a
+ on a.record_id=l.record_id and a.source=l.source where l.record_id=current_setting('tst.gain')::uuid),-100::numeric,
+ 'AC-SCW-007 gain has its own negative cost record at ledger valuation');
+select is((select sum(a.amount::numeric) from work_order_cost_lines l join work_order_cost_amounts('25900000-0000-0000-0000-0000000000c1') a
+ on a.record_id=l.record_id and a.source=l.source where l.work_order_id='25900000-0000-0000-0000-000000000401'),
+ (get_project_finances('25900000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,
+ 'AC-SCW-007 paid purchase is not double counted and visible lines sum to actuals');
+select is((select sum(value_delta) from stock_ledger where warehouse_id='25900000-0000-0000-0000-000000002002')
+ +(get_project_finances('25900000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric
+ -(select sum(value_delta) from stock_ledger where document_id=current_setting('tst.cnt_no_wo')::uuid),1500::numeric,
+ 'AC-SCW-007 receipt value equals remaining stock plus attributed cost plus unassigned loss');
+-- Money authorization is unchanged for the two cost-review job roles.
+reset role;
+update profiles set role='Finance' where id='25900000-0000-0000-0000-0000000000a1';
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
+select is((select count(*) from work_order_cost_lines where record_id=current_setting('tst.gain')::uuid),1::bigint,'AC-SCW-007 Finance reads count record');
+select is((select amount from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1') where record_id=current_setting('tst.gain')::uuid),-100::numeric,'AC-SCW-007 Finance reads signed count amount');
+reset role;
+update profiles set role='Project Manager' where id='25900000-0000-0000-0000-0000000000a1';
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
+select is((select amount from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1') where record_id=current_setting('tst.gain')::uuid),-100::numeric,'AC-SCW-007 Project Manager reads signed count amount');
+reset role;
+update profiles set role='Admin' where id='25900000-0000-0000-0000-0000000000a1';
+-- Rollback is exercised with a linked posted count and a linked draft still present.
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a2');
+select set_config('tst.rollback_draft',create_stock_document(
+ jsonb_build_object('kind','count','warehouse_id','25900000-0000-0000-0000-000000002002','work_order_id','25900000-0000-0000-0000-000000000401'),
+ jsonb_build_array(jsonb_build_object('item_id','25900000-0000-0000-0000-000000001001','counted_quantity',6)),false)::text,true);
+reset role;
+\ir ../migrations/rollback/2591_stock_count_cost_records_down.sql
+\ir ../migrations/rollback/2590_stock_count_work_order_down.sql
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
+select is((select count(*) from work_order_cost_lines where record_id=current_setting('tst.gain')::uuid),0::bigint,'AC-SCW-008 rollback restores prior count-record behavior');
+select is((select sum(amount) from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1')),100::numeric,'AC-SCW-008 rollback retains issue cost and excludes count cost');
+select is((select count(*) from stock_documents where id in(current_setting('tst.gain')::uuid,current_setting('tst.rollback_draft')::uuid) and work_order_id is not null),2::bigint,'AC-SCW-008 rollback preserves linked posted and draft records');
+
 reset role;
 select * from finish();
 rollback;
