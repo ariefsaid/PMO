@@ -40,6 +40,9 @@
     "removeDescription": "This removes the line item from procurement. You can add it again while the procurement is a draft.",
     "removeItem": "Remove item",
     "searchItem": "Search item code or name…",
+    "standardItemsList": "Standard item suggestions",
+    "showStandardItems": "Browse standard items",
+    "clearStandardItem": "Clear standard item link",
     "unknownCurrencyAmount": "Unknown"
   },
   "create": {

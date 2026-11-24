@@ -1,3 +1,4 @@
+import type { StockItemOption } from '@/src/lib/stockItemMatch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, StatusPill, useToast } from '@/src/components/ui';
@@ -20,6 +21,7 @@ import { VendorQuotesTab } from './VendorQuotesTab';
 
 export interface ItemsTabProps {
   p: ProcurementDetail;
+  stockItems?: StockItemOption[];
   ownership: ReturnType<typeof useDomainOwnershipMode>;
   ownershipReady: boolean;
   casePushInFlight: boolean;
@@ -33,7 +35,7 @@ export interface ItemsTabProps {
   managerId: string | null | undefined;
 }
 
-export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ p, ownership, ownershipReady, casePushInFlight, canEditItems, canEditItemValues, itemEligibility, erpItems, crud, onMutationError, currentUserId, managerId }) => {
+export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ p, stockItems, ownership, ownershipReady, casePushInFlight, canEditItems, canEditItemValues, itemEligibility, erpItems, crud, onMutationError, currentUserId, managerId }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   return (
@@ -43,6 +45,7 @@ export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ p, ownership, own
     {ownership.mode === 'external' && canEditItems && !canEditItemValues && <p className="text-sm text-muted-foreground">{casePushInFlight ? t('procurementRecord:items.submitting', 'A case document is being submitted.') : itemEligibility.isError ? t('procurementRecord:items.eligibilityError', 'Line editing availability could not be loaded. Try again.') : (itemEligibility.isPending || itemEligibility.isFetching) ? t('procurementRecord:items.eligibilityChecking', 'Checking line editing availability…') : t('procurementRecord:items.valuesManaged', 'Quantity and unit price are managed by ERP for this purchase.')} {!casePushInFlight && itemEligibility.isError && <Button variant="ghost" size="sm" onClick={() => void itemEligibility.refetch()}>{t('procurementRecord:items.retry', 'Retry')}</Button>}</p>}
     <LineItemsSection
       erpItems={erpItems.connected ? erpItems : undefined}
+      stockItems={erpItems.connected ? undefined : stockItems}
       items={p.items}
       editable={canEditItems}
       valuesEditable={canEditItemValues}

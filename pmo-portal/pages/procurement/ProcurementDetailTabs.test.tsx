@@ -11,7 +11,7 @@ const item: ProcurementItemRow = {
   id: 'item-1', org_id: 'org-1', procurement_id: 'proc-1', name: 'Clip', description: null,
   quantity: 2, rate: 15.25, amount: 30.5,
   erp_docstatus: null, erp_line_amount: null, erp_modified: null,
-  category_id: null, needed_by: null, work_order_id: null, discipline_id: null,
+  category_id: null, needed_by: null, work_order_id: null, discipline_id: null, stock_item_id: null,
 };
 
 function mockPhoneViewport() {
@@ -96,5 +96,30 @@ describe('ProcurementItemsTab record caller', () => {
     expect(await screen.findByText('$15')).toBeInTheDocument();
     expect(screen.getAllByText('$31')).toHaveLength(2);
     expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$31');
+  });
+
+  it('AC-PSI-001 forwards stockItems to LineItemsSection and saves the picked stockItemId on draft lines', async () => {
+    const createItem = vi.fn().mockResolvedValue(undefined);
+    const crud = {
+      createItem: { isPending: false, mutateAsync: createItem },
+      updateItem: { isPending: false, mutateAsync: vi.fn() },
+      deleteItem: { isPending: false, mutateAsync: vi.fn() },
+    };
+    const props = {
+      ...itemTabProps(makeRecord([]), crud, true),
+      stockItems: [{ id: 'si-1', code: 'EL-7018', name: 'Welding Electrode E7018', unitCode: 'kg' }],
+    };
+    render(<ToastProvider><ProcurementItemsTab {...props} /></ToastProvider>);
+    await userEvent.type(screen.getByLabelText('New item description'), 'Welding Elctrode');
+    await userEvent.click(await screen.findByRole('option', { name: /Welding Electrode E7018/i }));
+    await userEvent.type(screen.getByLabelText('New item quantity'), '4');
+    await userEvent.type(screen.getByLabelText('New item unit price'), '15');
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    expect(createItem).toHaveBeenCalledWith({
+      name: 'Welding Electrode E7018',
+      quantity: 4,
+      rate: 15,
+      stockItemId: 'si-1',
+    });
   });
 });

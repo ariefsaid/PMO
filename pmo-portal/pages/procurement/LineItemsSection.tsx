@@ -16,8 +16,9 @@ import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Input } from '@/src/components/shadcn/input';
+import { matchStockItems, type StockItemOption } from '@/src/lib/stockItemMatch';
 
-export interface ItemDraft { name: string; description?: string; quantity: string; rate: string }
+export interface ItemDraft { name: string; description?: string; quantity: string; rate: string; stockItemId?: string | null }
 const EMPTY_DRAFT: ItemDraft = { name: '', quantity: '', rate: '' };
 function num(v: string): number { return parseMoneyInputAtScale(v, 2) ?? 0; }
 function describeFormatError(label: string, locale = getNumberLocale()): string {
@@ -45,7 +46,7 @@ interface LineItemErrors { name?: string; quantity?: string; rate?: string }
 export type PendingRowCommit =
   | { status: 'empty' }
   | { status: 'invalid' }
-  | { status: 'committed'; input: { name: string; quantity: number; rate: number; description?: string } };
+  | { status: 'committed'; input: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null } };
 export interface LineItemsSectionHandle {
   commitPendingRow(): PendingRowCommit;
 }
@@ -61,8 +62,9 @@ export interface LineItemsSectionProps {
   valuesEditable?: boolean;
   /** Starting values for the create-form entry row (a typed line that is not yet added). */
   initialDraft?: Partial<ItemDraft>;
-  onAdd: (input: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
-  onUpdate: (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => Promise<unknown>;
+  onAdd: (input: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null }) => Promise<unknown>;
+  onUpdate: (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string; stockItemId?: string | null }) => Promise<unknown>;
+  stockItems?: StockItemOption[];
   erpItems?: { loadOptions: () => Promise<ComboboxOption[]> };
   onDelete: (id: string) => Promise<unknown>;
   onError: (err: unknown) => void;
@@ -80,10 +82,11 @@ type LineTableRow =
   | { id: string; kind: 'item'; item: ProcurementItemRow }
   | { id: typeof CREATE_ADD_ROW_ID; kind: 'add' };
 
-export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineItemsSectionProps>(function LineItemsSection({ items, editable, createFormLayout = false, onAddRowInputChange, addRowDescriptionRef, valuesEditable = true, initialDraft, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems }, ref) {
+export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineItemsSectionProps>(function LineItemsSection({ items, editable, createFormLayout = false, onAddRowInputChange, addRowDescriptionRef, valuesEditable = true, initialDraft, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems, stockItems }, ref) {
   const { t } = useTranslation('procurement');
   const maySeePrices = useMaySeePrices(); // #2699: false only when the server says this person may not see amounts
   const isDesktop = useIsDesktop();
+  const [browseStock, setBrowseStock] = useState(false);
   const [draft, setDraft] = useState<ItemDraft>(() => ({ ...EMPTY_DRAFT, ...initialDraft }));
   const draftRef = useRef(draft);
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
@@ -130,7 +133,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     // prevents a same-tick Save from committing the same row a second time.
     draftRef.current = EMPTY_DRAFT;
     try {
-      const addResult = onAdd({ name: pending.name.trim(), quantity: num(pending.quantity), rate, ...(erpItems ? { description: pending.description?.trim() ?? '' } : {}) });
+      const addResult = onAdd({ name: pending.name.trim(), quantity: num(pending.quantity), rate, ...(erpItems ? { description: pending.description?.trim() ?? '' } : {}), ...(pending.stockItemId ? { stockItemId: pending.stockItemId } : {}) });
       // The create form adds locally: once onAdd starts, that typed line belongs to saved form
       // state. Clear the parent's pending-input flag now; the row itself clears after the promise.
       if (createFormLayout) onAddRowInputChange?.(false);
@@ -172,7 +175,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     if (createFormLayout) onAddRowInputChange?.(false);
     return {
       status: 'committed',
-      input: { name: pending.name.trim(), quantity: num(pending.quantity), rate, ...(erpItems ? { description: pending.description?.trim() ?? '' } : {}) },
+      input: { name: pending.name.trim(), quantity: num(pending.quantity), rate, ...(erpItems ? { description: pending.description?.trim() ?? '' } : {}), ...(pending.stockItemId ? { stockItemId: pending.stockItemId } : {}) },
     };
   };
   useImperativeHandle(ref, () => ({ commitPendingRow }));
@@ -201,7 +204,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
   };
   const startEdit = (it: ProcurementItemRow) => {
     setEditingId(it.id);
-    setEditDraft({ name: it.name, description: it.description ?? '', quantity: formatMoneyInputValue(Number(it.quantity)), rate: formatMoneyInputValue(Number(it.rate)) });
+    setEditDraft({ name: it.name, description: it.description ?? '', quantity: formatMoneyInputValue(Number(it.quantity)), rate: formatMoneyInputValue(Number(it.rate)), stockItemId: it.stock_item_id ?? null });
     setEditErrors({});
     setEditMutationError(null);
   };
@@ -214,7 +217,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     if (quantityError || rateError || (valuesEditable && rate === null)) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
     setEditErrors({});
     try {
-      await onUpdate(id, { name: editDraft.name.trim(), ...(valuesEditable && rate !== null ? { quantity: num(editDraft.quantity), rate } : {}), ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}) });
+      await onUpdate(id, { name: editDraft.name.trim(), ...(valuesEditable && rate !== null ? { quantity: num(editDraft.quantity), rate } : {}), ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}), ...(stockItems ? { stockItemId: editDraft.stockItemId ?? null } : {}) });
       setEditingId(null);
     } catch (err) {
       setEditMutationError(classifyMutationError(err, undefined, { suppressCapture: true }));
@@ -232,29 +235,36 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     }
   };
 
+  const standardPicker = (value: ItemDraft, update: (patch: Partial<ItemDraft>) => void, label: string, inputRef?: React.Ref<HTMLInputElement>, createForm = false) => {
+    const selected = stockItems?.find((item) => item.id === value.stockItemId);
+    const suggestions = stockItems && !selected && (value.name.trim() || browseStock) ? matchStockItems(stockItems, value.name) : [];
+    return <div className="space-y-1">
+      <CellInput createForm={createForm} ref={inputRef} aria-label={label} value={value.name}
+        onChange={(e) => update({ name: e.target.value, stockItemId: null })}
+        onKeyDown={createForm ? handleAddKeyDown : undefined} />
+      {stockItems && !selected && <Button type="button" size="sm" variant="ghost" aria-expanded={browseStock} onClick={() => setBrowseStock((open) => !open)}>{t('lineItems.showStandardItems', 'Browse standard items')}</Button>}
+      {selected && <div className="flex items-center gap-2"><span>{selected.code}</span><Button type="button" size="sm" variant="ghost" aria-label={t('lineItems.clearStandardItem', 'Clear standard item link')} onClick={() => update({ stockItemId: null })}>×</Button></div>}
+      {suggestions.length > 0 && <div role="listbox" aria-label={t('lineItems.standardItemsList', 'Standard item suggestions')} className="rounded border border-border bg-background">
+        {suggestions.map((item) => <button type="button" role="option" aria-selected={false} key={item.id} className="block w-full px-2 py-1 text-left hover:bg-muted" onClick={() => { update({ name: item.name, stockItemId: item.id }); setBrowseStock(false); }}>{item.name} <span className="text-muted-foreground">{item.code}</span></button>)}
+      </div>}
+    </div>;
+  };
+
   const columns: Column<LineTableRow>[] = [
     {
       key: 'description', header: erpItems ? t('lineItems.itemDescription', 'Item / description') : t('lineItems.description', 'Description'), kind: 'primary', size: createFormLayout ? 240 : 320, minSize: 200,
       cell: (row) => {
         if (row.kind === 'add') return <div className="space-y-1" data-add-cell>
           <span className={isDesktop ? 'sr-only' : 'block text-control font-medium text-foreground'}>{t('lineItems.addRowLabel', 'New line')}</span>
-          <CellInput
-            createForm
-            ref={addRowDescriptionRef}
-            aria-label={t('lineItems.newItemDescription', 'New item description')}
-            placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')}
-            value={draft.name}
-            onChange={(e) => { updateAddDraft({ name: e.target.value }); setAddErrors((p) => ({ ...p, name: undefined })); }}
-            onKeyDown={handleAddKeyDown}
-          />
+          {standardPicker(draft, updateAddDraft, t('lineItems.newItemDescription', 'New item description'), addRowDescriptionRef, true)}
           <FieldError>{addErrors.name}</FieldError>
         </div>;
         const it = row.item;
         if (editable && editingId === it.id) return erpItems ? <div className="space-y-2">
           <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} compact />
           <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.description ?? ''} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
-        </div> : <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.name} onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />;
-        return <span className="font-medium">{it.name}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
+        </div> : standardPicker(editDraft, (patch) => setEditDraft((d) => ({ ...d, ...patch })), `Edit description for ${it.name}`);
+        return <span className="font-medium">{it.name}{stockItems?.find((item) => item.id === it.stock_item_id) && <span className="block font-normal text-muted-foreground">{stockItems.find((item) => item.id === it.stock_item_id)?.code}</span>}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
       },
     },
     { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: createFormLayout ? 80 : 88, cell: (row) => {
@@ -322,7 +332,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     </div>}
     {editable && !addRowInTable && <CardPad>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto] sm:items-start" data-testid="line-item-add-row">
-        <div>{erpItems ? <div className="space-y-2"><Combobox label={t('lineItems.erpItem', 'ERP item')} value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => { updateAddDraft({ name }); setAddErrors((p) => ({ ...p, name: undefined })); }} loadOptions={erpItems.loadOptions} noun="ERP item" placeholder={t('lineItems.selectItem', 'Select or search item…')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} required compact error={addErrors.name} /><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.describeItem', 'Describe the work or goods…')} value={draft.description ?? ''} onChange={(e) => updateAddDraft({ description: e.target.value })} /></div> : <div className="space-y-1"><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')} value={draft.name} onChange={(e) => { updateAddDraft({ name: e.target.value }); setAddErrors((p) => ({ ...p, name: undefined })); }} /><FieldError>{addErrors.name}</FieldError></div>}</div>
+        <div>{erpItems ? <div className="space-y-2"><Combobox label={t('lineItems.erpItem', 'ERP item')} value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => { updateAddDraft({ name }); setAddErrors((p) => ({ ...p, name: undefined })); }} loadOptions={erpItems.loadOptions} noun="ERP item" placeholder={t('lineItems.selectItem', 'Select or search item…')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} required compact error={addErrors.name} /><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.describeItem', 'Describe the work or goods…')} value={draft.description ?? ''} onChange={(e) => updateAddDraft({ description: e.target.value })} /></div> : <div className="space-y-1">{standardPicker(draft, updateAddDraft, t('lineItems.newItemDescription', 'New item description'))}<FieldError>{addErrors.name}</FieldError></div>}</div>
         <div><CellInput numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder="0" value={draft.quantity} onChange={(e) => { updateAddDraft({ quantity: e.target.value }); setAddErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{addErrors.quantity}</FieldError></div>
         <div><CellInput numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder="0" ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} /><FieldError>{addErrors.rate}</FieldError></div>
         <div className="flex items-center gap-3"><span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); const amount = itemsNetTotal([{ quantity: qty, rate }]); return amount === null ? '—' : currencyKnown ? formatCurrencyCents(amount, currency) : unknownAmount; })()}</span><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>

@@ -23,7 +23,7 @@ const items: ProcurementItemRow[] = [
     erp_docstatus: null,
     erp_line_amount: null,
     erp_modified: null,
-    category_id: null, needed_by: null, work_order_id: null, discipline_id: null,
+    category_id: null, needed_by: null, work_order_id: null, discipline_id: null, stock_item_id: null,
   },
 ];
 
@@ -46,6 +46,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         currency={props.currency ?? 'USD'}
         currencyKnown={props.currencyKnown}
         erpItems={catalog.connected ? { loadOptions: async () => [{ value: 'ITEM-TEST', label: 'ITEM-TEST', sub: 'Test service' }] } : undefined}
+        stockItems={props.stockItems}
       />
     </ToastProvider>,
   );
@@ -73,7 +74,7 @@ function renderAddFlow(createFormLayout: boolean) {
               name: input.name, description: input.description ?? null,
               quantity: input.quantity, rate: input.rate, amount: input.quantity * input.rate,
               erp_docstatus: null, erp_line_amount: null, erp_modified: null,
-              category_id: null, needed_by: null, work_order_id: null, discipline_id: null,
+              category_id: null, needed_by: null, work_order_id: null, discipline_id: null, stock_item_id: input.stockItemId ?? null,
             }]);
           }}
           onUpdate={vi.fn().mockResolvedValue(undefined)}
@@ -379,5 +380,78 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.queryByTestId('line-item-add-row')).toBeNull();
     expect(screen.queryByRole('button', { name: /edit mig welding wire/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /remove mig welding wire/i })).toBeNull();
+  });
+});
+
+describe('TC-PFE-13 standard item picker on purchase request lines (AC-PSI-001..005)', () => {
+  const stockItems = [
+    { id: 'si-1', code: 'EL-7018', name: 'Welding Electrode E7018', unitCode: 'kg' },
+    { id: 'si-2', code: 'BLT-M16', name: 'Hex Bolt M16 Galvanized', unitCode: 'pcs' },
+    { id: 'si-old', code: 'OLD-01', name: 'Welding Electrode Old', archived: true },
+  ];
+
+  it('AC-PSI-001/002 offers active standard items on near-duplicate typing and passes stockItemId on Add', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [], createFormLayout: true, stockItems });
+    const desc = screen.getByLabelText('New item description');
+    await user.type(desc, 'Welding Elctrode E-7018');
+    const listbox = await screen.findByRole('listbox', { name: 'Standard item suggestions' });
+    expect(within(listbox).getByRole('option', { name: /Welding Electrode E7018/i })).toBeInTheDocument();
+    expect(within(listbox).queryByRole('option', { name: /Welding Electrode Old/i })).not.toBeInTheDocument();
+    await user.click(within(listbox).getByRole('option', { name: /Welding Electrode E7018/i }));
+    expect(desc).toHaveValue('Welding Electrode E7018');
+    expect(screen.getByText('EL-7018')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('New item quantity'), '5');
+    await user.type(screen.getByLabelText('New item unit price'), '12');
+    await user.click(screen.getByRole('button', { name: /add line item/i }));
+    expect(onAdd).toHaveBeenCalledWith({
+      name: 'Welding Electrode E7018',
+      quantity: 5,
+      rate: 12,
+      stockItemId: 'si-1',
+    });
+  });
+
+  it('AC-PSI-001 clears stockItemId when requester edits the text after picking or types free text', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = renderSection({ items: [], createFormLayout: true, stockItems });
+    const desc = screen.getByLabelText('New item description');
+    await user.type(desc, 'EL-7018');
+    await user.click(await screen.findByRole('option', { name: /Welding Electrode E7018/i }));
+    expect(screen.getByText('EL-7018')).toBeInTheDocument();
+    await user.type(desc, ' custom spec');
+    expect(screen.queryByRole('button', { name: 'Clear standard item link' })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('New item quantity'), '2');
+    await user.type(screen.getByLabelText('New item unit price'), '20');
+    await user.click(screen.getByRole('button', { name: /add line item/i }));
+    expect(onAdd).toHaveBeenCalledWith({
+      name: 'Welding Electrode E7018 custom spec',
+      quantity: 2,
+      rate: 20,
+    });
+  });
+
+  it('AC-PSI-001 shows the linked item code on saved rows and supports linking/unlinking during edit', async () => {
+    const user = userEvent.setup();
+    const linkedRow: ProcurementItemRow = {
+      ...items[0],
+      id: 'it-linked',
+      name: 'Welding Electrode E7018',
+      stock_item_id: 'si-1',
+    };
+    const { onUpdate } = renderSection({ items: [linkedRow], stockItems });
+    expect(screen.getByText('EL-7018')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /edit Welding Electrode E7018/i }));
+    await user.click(screen.getByRole('button', { name: 'Clear standard item link' }));
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onUpdate).toHaveBeenCalledWith('it-linked', {
+      name: 'Welding Electrode E7018',
+      quantity: 24,
+      rate: 86,
+      stockItemId: null,
+    });
   });
 });

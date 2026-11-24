@@ -143,6 +143,7 @@ export async function createProcurementWithItems(input: AtomicProcurementInput):
     p_items: input.lines.map((line) => ({
       id: line.id, name: line.name, quantity: line.quantity, rate: line.rate,
       description: line.description ?? null,
+      ...(line.stockItemId ? { stock_item_id: line.stockItemId } : {}),
     })),
   });
   if (error) throwWrite(error);
@@ -208,6 +209,8 @@ export interface ProcurementItemInput {
   quantity: number;
   rate: number;
   description?: string | null;
+  /** Optional organisation standard item picked from `stock_items` (TC-PFE-13). */
+  stockItemId?: string | null;
 }
 
 /**
@@ -252,6 +255,7 @@ export async function createProcurementItem(
       quantity: input.quantity,
       rate: input.rate,
       ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.stockItemId !== undefined ? { stock_item_id: input.stockItemId } : {}),
     })
     .select()
     .single();
@@ -272,6 +276,7 @@ export async function createProcurementItem(
       && row.procurement_id === procurementId
       && row.name === input.name
       && row.description === (input.description ?? null)
+      && (row.stock_item_id ?? null) === (input.stockItemId ?? null)
       && numericAtDatabaseScale(row.quantity) === quantity
       && numericAtDatabaseScale(row.rate) === rate;
     if (matches) return row;
@@ -288,7 +293,7 @@ async function maskedItemAfterWrite(row: ProcurementItemRow): Promise<Procuremen
   return (data as ProcurementItemRow | null) ?? { ...row, rate: null as unknown as number, amount: null as unknown as number, erp_line_amount: null };
 }
 
-/** Patch for an existing line item — name/quantity/rate (+ optional description). */
+/** Patch for an existing line item — name/quantity/rate (+ optional description/stockItemId). */
 export type ProcurementItemPatch = Partial<ProcurementItemInput>;
 
 /**
@@ -306,11 +311,12 @@ export async function updateProcurementItem(
   id: string,
   patch: ProcurementItemPatch,
 ): Promise<void> {
-  const set: Partial<Pick<ProcurementItemRow, 'name' | 'quantity' | 'rate' | 'description'>> = {};
+  const set: Partial<Pick<ProcurementItemRow, 'name' | 'quantity' | 'rate' | 'description' | 'stock_item_id'>> = {};
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.quantity !== undefined) set.quantity = patch.quantity;
   if (patch.rate !== undefined) set.rate = patch.rate;
   if (patch.description !== undefined) set.description = patch.description;
+  if (patch.stockItemId !== undefined) set.stock_item_id = patch.stockItemId;
 
   const { data, error } = await supabase
     .from('procurement_items')

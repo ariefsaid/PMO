@@ -15,6 +15,12 @@ import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestIns
 
 const workOrders = vi.hoisted(() => ({ data: [] as unknown[] }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrders.data, isLoading: false, isError: false, refetch: vi.fn() }) }));
+const stockCatalog = vi.hoisted(() => ({
+  data: [] as Array<{ id: string; code: string; name: string; archived_at: string | null; unit?: { code: string } | null }>,
+}));
+vi.mock('@/src/hooks/useStock', () => ({
+  useStockItems: () => ({ data: stockCatalog.data, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
   createAtomic: vi.fn(),
@@ -78,6 +84,7 @@ function estimatedTotalCell() {
 describe('AC-PROC1 one-page request creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stockCatalog.data = [];
     mocks.canCreate = true;
     mocks.currency = 'USD';
     mocks.orgFxContext = { data: { currency: 'USD' }, isPlaceholderData: false, isError: false, isPending: false, refetch: vi.fn() };
@@ -94,6 +101,19 @@ describe('AC-PROC1 one-page request creation', () => {
   afterEach(async () => {
     cleanup();
     await financeTestI18n.changeLanguage('en');
+  });
+
+  it('persists a chosen standard item when saving a pending line', async () => {
+    stockCatalog.data = [{ id: 'stock-1', code: 'S-1', name: 'Steel bolts', archived_at: null }];
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Site supplies' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Steel bol' } });
+    fireEvent.click(screen.getByRole('option', { name: /Steel bolts/ }));
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    expect(mocks.createAtomic.mock.calls[0][0].lines).toEqual([expect.objectContaining({ name: 'Steel bolts', stockItemId: 'stock-1' })]);
   });
 
   it('keeps reference pickers unavailable during loading and offers retry after failure', async () => {

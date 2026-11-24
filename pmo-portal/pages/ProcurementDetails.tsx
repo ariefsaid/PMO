@@ -1,3 +1,4 @@
+import { useStockItems } from '@/src/hooks/useStock';
 import { usePurchaseCaseRead } from '@/src/hooks/usePurchaseCaseRead';
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
 import { SupplierRiskNote } from '@/src/components/SupplyRiskWarning';
@@ -174,6 +175,7 @@ const ProcurementDetails: React.FC = () => {
   const crud = useProcurementCrudMutations(procurementId ?? '');
   const recordMutations = useProcurementRecordMutations(procurementId ?? '');
   const erpItems = useErpItemOptions('purchase');
+  const stockItems = useStockItems(true);
   const withholding = useProcurementWithholding();
   const setBupotSelection = (slipId: string | null) => {
     const params = new URLSearchParams(location.search);
@@ -902,7 +904,7 @@ const ProcurementDetails: React.FC = () => {
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
-        {tab === 'items' && <><ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><OrderNeededByPanel procurementId={p.id} items={p.items} editable={['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager'} /></>}
+        {tab === 'items' && <><ProcurementItemsTab p={p} stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><OrderNeededByPanel procurementId={p.id} items={p.items} editable={['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager'} /></>}
 
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /
