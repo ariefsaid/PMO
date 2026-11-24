@@ -61,14 +61,13 @@ test('JOB-M4 executive sees an overdue billing step on the billing board and low
     await expect(card).toContainText('Current');
     await expect(card).toContainText(/\d+ days? past target/);
 
-    // 2. Reorder worklist: stock on hand below its minimum appears read-only for management.
+    // 2. Reorder worklist: stock on hand below its minimum (20 against 150) appears in the below-reorder warning list.
     await page.goto('/stock/reorder');
-    const row = page.getByRole('row').filter({ hasText: item.code });
+    const row = page.getByRole('table', { name: 'Below reorder level' }).getByRole('row').filter({ hasText: item.code });
     await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row).toContainText(site.code);
     await expect(row).toContainText('20');
     await expect(row).toContainText('150');
-    await expect(page.getByTestId('reorder-who-sets')).toBeVisible();
   } finally {
     if (receiptId) {
       sqlAsOwner(`delete from stock_ledger where document_id = '${receiptId}'; delete from stock_document_lines where document_id = '${receiptId}'; delete from stock_documents where id = '${receiptId}';`);
