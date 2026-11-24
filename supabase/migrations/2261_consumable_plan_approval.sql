@@ -73,6 +73,7 @@ create function public.cus_plan_approval_status(p_work_order_id uuid) returns js
   language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.auth_org_id(); v_wo public.work_orders;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   select * into v_wo from public.work_orders w where w.id = p_work_order_id and w.org_id = v_org;
   if not found then raise exception 'CUS_NOT_FOUND: the work order is not in your organisation' using errcode = 'P0001'; end if;
