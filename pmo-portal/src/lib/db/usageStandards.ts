@@ -101,11 +101,19 @@ export interface ConsumablePlanLine {
 }
 export interface UnplannedItem { itemId: string; itemCode: string; itemName: string; unitCode: string; plannedQty: string; priorQty: string; source: 'allowance' | 'none' }
 export interface NoStandardLine { boqItemId: string; itemCode: string; description: string; unit: string; quantity: string }
+export interface ConsumablePlanApproval {
+  authorId: string | null;
+  authorIsPcm: boolean;
+  approved: boolean;
+  approvedBy: string | null;
+  approvedAt: string | null;
+}
 export interface ConsumablePlan {
   workOrderId: string;
   workOrderStatus: string;
   generatedAt: string | null;
   outOfDate: boolean;
+  approval: ConsumablePlanApproval;
   lines: ConsumablePlanLine[];
   noStandard: NoStandardLine[];
   unplanned: UnplannedItem[];
@@ -115,11 +123,16 @@ type J = Record<string, unknown>;
 const str = (v: unknown): string => (v == null ? '' : String(v));
 const strOrNull = (v: unknown): string | null => (v == null ? null : String(v));
 
-export function parseConsumablePlan(raw: unknown): ConsumablePlan {
+export function parseConsumablePlan(raw: unknown, approvalRaw?: unknown): ConsumablePlan {
   const j = (raw ?? {}) as J;
+  const approval = (approvalRaw ?? {}) as J;
   const arr = (v: unknown): J[] => (Array.isArray(v) ? (v as J[]) : []);
   return {
     workOrderId: str(j.work_order_id), workOrderStatus: str(j.work_order_status), generatedAt: strOrNull(j.generated_at), outOfDate: j.out_of_date === true,
+    approval: {
+      authorId: strOrNull(approval.author_id), authorIsPcm: approval.author_is_pcm === true, approved: approval.approved === true,
+      approvedBy: strOrNull(approval.approved_by), approvedAt: strOrNull(approval.approved_at),
+    },
     lines: arr(j.lines).map((l) => ({
       itemId: str(l.item_id), itemCode: str(l.item_code), itemName: str(l.item_name), unitCode: str(l.unit_code),
       generatedQty: str(l.generated_qty), adjustedQty: strOrNull(l.adjusted_qty), adjustReason: strOrNull(l.adjust_reason),
@@ -139,9 +152,14 @@ export function parseConsumablePlan(raw: unknown): ConsumablePlan {
 }
 
 export async function getConsumablePlan(workOrderId: string): Promise<ConsumablePlan> {
-  const { data, error } = await supabase.rpc('cus_get_plan', { p_work_order_id: workOrderId });
-  if (error) throw toAppError(error);
-  return parseConsumablePlan(data);
+  const args = { p_work_order_id: workOrderId };
+  const [plan, approval] = await Promise.all([
+    supabase.rpc('cus_get_plan', args),
+    supabase.rpc('cus_plan_approval_status', args),
+  ]);
+  if (plan.error) throw toAppError(plan.error);
+  if (approval.error) throw toAppError(approval.error);
+  return parseConsumablePlan(plan.data, approval.data);
 }
 export async function generateConsumablePlan(workOrderId: string): Promise<number> {
   const { data, error } = await supabase.rpc('cus_generate_plan', { p_work_order_id: workOrderId });
@@ -154,6 +172,10 @@ export async function adjustConsumablePlanLine(a: { workOrderId: string; itemId:
     p_work_order_id: a.workOrderId, p_item_id: a.itemId,
     p_adjusted_qty: a.adjustedQty === null ? nullableArg(null as number | null) : asNumeric(a.adjustedQty), p_reason: nullableArg(a.reason),
   });
+  if (error) throw toAppError(error);
+}
+export async function approveConsumablePlan(workOrderId: string): Promise<void> {
+  const { error } = await supabase.rpc('cus_approve_plan', { p_work_order_id: workOrderId });
   if (error) throw toAppError(error);
 }
 
@@ -177,8 +199,8 @@ export async function getPlanInputs(workOrderId: string): Promise<{ lines: PlanL
 }
 
 /** The stable `CUS_*` code the plan functions raise, or null. */
-export function consumablePlanRefusal(err: unknown): 'CUS_NOT_FOUND' | 'CUS_FORBIDDEN' | 'CUS_WORK_ORDER' | 'CUS_REASON' | 'CUS_ITEM' | 'CUS_INVALID' | null {
+export function consumablePlanRefusal(err: unknown): 'CUS_NOT_FOUND' | 'CUS_FORBIDDEN' | 'CUS_WORK_ORDER' | 'CUS_REASON' | 'CUS_ITEM' | 'CUS_INVALID' | 'CUS_SOD' | 'CUS_APPROVER' | 'CUS_PLAN_MISSING' | 'CUS_PLAN_STALE' | null {
   const msg = err instanceof Error ? err.message : '';
-  const m = /\b(CUS_NOT_FOUND|CUS_FORBIDDEN|CUS_WORK_ORDER|CUS_REASON|CUS_ITEM|CUS_INVALID)\b/.exec(msg);
+  const m = /\b(CUS_NOT_FOUND|CUS_FORBIDDEN|CUS_WORK_ORDER|CUS_REASON|CUS_ITEM|CUS_INVALID|CUS_SOD|CUS_APPROVER|CUS_PLAN_MISSING|CUS_PLAN_STALE)\b/.exec(msg);
   return m ? (m[1] as ReturnType<typeof consumablePlanRefusal>) : null;
 }

@@ -5,34 +5,40 @@
 -- AC-LV-011 attendance is not blocked · settings write path (Admin only) and the OFF state.
 begin;
 create extension if not exists pgtap;
-select plan(45);
+select plan(65);
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('27080000-0000-0000-0000-00000000010a') $$;
 
-insert into organizations (id, name, default_currency) values
-  ('27080000-0000-0000-0000-00000000010a', 'LV Org', 'IDR'),
-  ('27080000-0000-0000-0000-00000000010b', 'LV Other', 'IDR');
+insert into organizations (id, name, default_currency, built_in_roles_enabled) values
+  ('27080000-0000-0000-0000-00000000010a', 'LV Org', 'IDR', true),
+  ('27080000-0000-0000-0000-00000000010b', 'LV Other', 'IDR', false);
 insert into auth.users (id, email) values
   ('27080000-0000-0000-0000-0000000001a1', 'lv-admin@example.com'),
   ('27080000-0000-0000-0000-0000000001a2', 'lv-pm@example.com'),
   ('27080000-0000-0000-0000-0000000001a3', 'lv-worker@example.com'),
   ('27080000-0000-0000-0000-0000000001a4', 'lv-eng@example.com'),
   ('27080000-0000-0000-0000-0000000001a5', 'lv-fin@example.com'),
+  ('27080000-0000-0000-0000-0000000001a6', 'lv-hr@example.com'),
+  ('27080000-0000-0000-0000-0000000001a7', 'lv-other-pm@example.com'),
   ('27080000-0000-0000-0000-0000000001b1', 'lv-xorg@example.com');
-insert into profiles (id, org_id, full_name, email, role, status) values
-  ('27080000-0000-0000-0000-0000000001a1', '27080000-0000-0000-0000-00000000010a', 'LV Admin',  'lv-admin@example.com',  'Admin', 'active'),
-  ('27080000-0000-0000-0000-0000000001a2', '27080000-0000-0000-0000-00000000010a', 'LV PM',     'lv-pm@example.com',     'Project Manager', 'active'),
-  ('27080000-0000-0000-0000-0000000001a3', '27080000-0000-0000-0000-00000000010a', 'LV Worker', 'lv-worker@example.com', 'Engineer', 'active'),
-  ('27080000-0000-0000-0000-0000000001a4', '27080000-0000-0000-0000-00000000010a', 'LV Eng',    'lv-eng@example.com',    'Engineer', 'active'),
-  ('27080000-0000-0000-0000-0000000001a5', '27080000-0000-0000-0000-00000000010a', 'LV Fin',    'lv-fin@example.com',    'Finance', 'active'),
-  ('27080000-0000-0000-0000-0000000001b1', '27080000-0000-0000-0000-00000000010b', 'LV XOrg',   'lv-xorg@example.com',   'Admin', 'active');
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
+  ('27080000-0000-0000-0000-0000000001a1', '27080000-0000-0000-0000-00000000010a', 'LV Admin',  'lv-admin@example.com',  'Admin', 'active', null),
+  ('27080000-0000-0000-0000-0000000001a2', '27080000-0000-0000-0000-00000000010a', 'LV PM',     'lv-pm@example.com',     'Project Manager', 'active', null),
+  ('27080000-0000-0000-0000-0000000001a3', '27080000-0000-0000-0000-00000000010a', 'LV Worker', 'lv-worker@example.com', 'Engineer', 'active', null),
+  ('27080000-0000-0000-0000-0000000001a4', '27080000-0000-0000-0000-00000000010a', 'LV Eng',    'lv-eng@example.com',    'Engineer', 'active', null),
+  ('27080000-0000-0000-0000-0000000001a5', '27080000-0000-0000-0000-00000000010a', 'LV Fin',    'lv-fin@example.com',    'Finance', 'active', null),
+  ('27080000-0000-0000-0000-0000000001a6', '27080000-0000-0000-0000-00000000010a', 'LV HR Manager', 'lv-hr@example.com', 'Project Manager', 'active', 'hr_manager'),
+  ('27080000-0000-0000-0000-0000000001a7', '27080000-0000-0000-0000-00000000010a', 'LV Other PM', 'lv-other-pm@example.com', 'Project Manager', 'active', null),
+  ('27080000-0000-0000-0000-0000000001b1', '27080000-0000-0000-0000-00000000010b', 'LV XOrg',   'lv-xorg@example.com',   'Admin', 'active', null);
 -- leave is on by default now; these cases start from organisations that switched it off
 update organizations set leave_requests_enabled = false where id in ('27080000-0000-0000-0000-00000000010a','27080000-0000-0000-0000-00000000010b');
-update profiles set manager_id = '27080000-0000-0000-0000-0000000001a2' where id = '27080000-0000-0000-0000-0000000001a3';
-insert into people (id, org_id, kind, name, profile_id) values
-  ('27080000-0000-0000-0000-000000001f01', '27080000-0000-0000-0000-00000000010a', 'own',    'LV Own Worker', '27080000-0000-0000-0000-0000000001a3'),
-  ('27080000-0000-0000-0000-000000001f02', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV Vendor',     null),
-  ('27080000-0000-0000-0000-000000001f03', '27080000-0000-0000-0000-00000000010a', 'own',    'LV Admin Person', '27080000-0000-0000-0000-0000000001a1');
+update profiles set manager_id = '27080000-0000-0000-0000-0000000001a2' where id = '27080000-0000-0000-0000-0000000001a3'; -- legacy link must not decide leave
+insert into people (id, org_id, kind, name, profile_id, manager_id) values
+  ('27080000-0000-0000-0000-000000001f01', '27080000-0000-0000-0000-00000000010a', 'own',    'LV Own Worker', '27080000-0000-0000-0000-0000000001a3', '27080000-0000-0000-0000-0000000001a2'),
+  ('27080000-0000-0000-0000-000000001f02', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV Vendor',     null, null),
+  ('27080000-0000-0000-0000-000000001f03', '27080000-0000-0000-0000-00000000010a', 'own',    'LV Admin Person', '27080000-0000-0000-0000-0000000001a1', null),
+  ('27080000-0000-0000-0000-000000001f04', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV Inactive Manager Worker', null, '27080000-0000-0000-0000-0000000001a7'),
+  ('27080000-0000-0000-0000-000000001f05', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV No Login With Manager', null, '27080000-0000-0000-0000-0000000001a2');
 -- roster fixtures for AC-LV-011
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('27080000-0000-0000-0000-0000000001d1', '27080000-0000-0000-0000-00000000010a', 'LV Site', 'Ongoing Project', '27080000-0000-0000-0000-0000000001a2');
@@ -51,8 +57,8 @@ create temp table lv_ids (k text primary key, id uuid);
 grant all on lv_ids to authenticated;
 create temp table lv_d (k text primary key, d date);
 insert into lv_d values ('t', pg_temp.today()), ('y', pg_temp.today() - 1), ('p10', pg_temp.today() + 10), ('p11', pg_temp.today() + 11),
-  ('p12', pg_temp.today() + 12), ('p13', pg_temp.today() + 13), ('p14', pg_temp.today() + 14), ('p20', pg_temp.today() + 20),
-  ('p21', pg_temp.today() + 21), ('p30', pg_temp.today() + 30), ('p40', pg_temp.today() + 40);
+  ('p12', pg_temp.today() + 12), ('p13', pg_temp.today() + 13), ('p14', pg_temp.today() + 14), ('p15', pg_temp.today() + 15), ('p20', pg_temp.today() + 20),
+  ('p21', pg_temp.today() + 21), ('p30', pg_temp.today() + 30), ('p31', pg_temp.today() + 31), ('p40', pg_temp.today() + 40), ('p42', pg_temp.today() + 42);
 grant select on lv_d to authenticated;
 create function pg_temp.d(p text) returns date language sql stable as $$ select d from lv_d where k = p $$;
 grant execute on function pg_temp.d(text) to authenticated;
@@ -94,6 +100,12 @@ set local role authenticated;
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a3');
 insert into lv_ids select 'w1', leave_request_submit('27080000-0000-0000-0000-000000001f01', (select id from lv_ids where k = 'ta'), pg_temp.d('p10'), pg_temp.d('p12'), 'cough');
 select is((select status from leave_requests where id = (select id from lv_ids where k = 'w1')), 'Pending', 'AC-LV-002 a person requests leave for themselves; it starts Pending');
+reset role;
+select is((select count(*)::int from notifications where owner_id = '27080000-0000-0000-0000-0000000001a2'
+             and message_key = 'leaveRequestPending' and metadata->>'leave_request_id' = (select id::text from lv_ids where k = 'w1')),
+  1, 'AC-PEO-001 the person record manager receives the pending notice');
+set local role authenticated;
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a3');
 select throws_ok($$ select leave_request_submit('27080000-0000-0000-0000-000000001f01', (select id from lv_ids where k = 'ta'), pg_temp.d('p12'), pg_temp.d('p10'), null) $$,
   '23514', 'LV_RANGE: the last day is before the first day', 'AC-LV-002 a last day before the first is refused');
 select throws_ok($$ select leave_request_submit('27080000-0000-0000-0000-000000001f01', (select id from lv_ids where k = 'ta'), pg_temp.d('p12'), pg_temp.d('p14'), null) $$,
@@ -122,13 +134,49 @@ select pg_temp.act_as('27080000-0000-0000-0000-0000000001a4');
 select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'w1'), 'Approved', null) $$,
   '42501', 'LV_FORBIDDEN: you cannot decide this request', 'AC-LV-007 an unrelated user cannot decide');
 select is((select count(*)::int from leave_requests_visible()), 0, 'AC-LV-013 an unrelated user sees no requests');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a7');
+select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'w1'), 'Approved', null) $$,
+  '42501', 'LV_FORBIDDEN: you cannot decide this request', 'AC-PEO-001 a Project Manager who is not the person record manager cannot decide');
+select is((select count(*)::int from leave_requests_visible()), 0, 'AC-PEO-001 the unrelated Project Manager does not see the manager''s waiting request');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a3');
 select is((select count(*)::int from leave_requests_visible()), 1, 'AC-LV-013 the person sees only their own request');
 select is((select can_decide from leave_requests_visible() limit 1), false, 'AC-LV-013 the person is not offered Approve on their own request');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
+select is((select can_decide from leave_requests_visible() where id = (select id from lv_ids where k = 'w1')), true,
+  'AC-PEO-001 the active manager on the person record sees the decision');
+select is((select waiting_for_names from leave_requests_visible() where id = (select id from lv_ids where k = 'w1')),
+  array['LV PM']::text[], 'AC-PEO-001 the waiting list names the person record manager');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
+select is((select count(*)::int from leave_requests_visible() where id = (select id from lv_ids where k = 'w1')), 0,
+  'AC-PEO-001 HR does not see a request that belongs to its active line manager');
+select is((select can_decide from leave_requests_visible() where id = (select id from lv_ids where k = 'v1')), true,
+  'AC-PEO-002 HR Manager is the fallback decider when the person has no manager');
+select is((select waiting_for_names from leave_requests_visible() where id = (select id from lv_ids where k = 'v1')),
+  array['LV HR Manager']::text[], 'AC-PEO-002 the fallback waiting list names the HR Manager');
+reset role;
+select is((select count(*)::int from notifications where owner_id = '27080000-0000-0000-0000-0000000001a6'
+             and message_key = 'leaveRequestPending' and metadata->>'leave_request_id' = (select id::text from lv_ids where k = 'v1')),
+  1, 'AC-PEO-002 the HR Manager receives the pending notice');
+set local role authenticated;
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
--- empty setting, no line manager: Admin decides the vendor request (entered by the PM)
+select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'v1'), 'Approved', null) $$,
+  '42501', 'LV_FORBIDDEN: you cannot decide this request', 'AC-PEO-002 Admin does not bypass an active HR Manager');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
 select is(leave_request_decide((select id from lv_ids where k = 'v1'), 'Approved', null), 'Approved',
-  'AC-LV-007 with the setting empty, an Admin decides a request that has no line manager');
+  'AC-PEO-002 HR Manager decides a request when no manager is set');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
+insert into lv_ids select 'no-login-managed', leave_request_submit('27080000-0000-0000-0000-000000001f05', (select id from lv_ids where k = 'ta'), pg_temp.d('p15'), pg_temp.d('p15'), null);
+reset role;
+select is((select count(*)::int from notifications where owner_id = '27080000-0000-0000-0000-0000000001a2'
+             and message_key = 'leaveRequestPending' and metadata->>'leave_request_id' = (select id::text from lv_ids where k = 'no-login-managed')),
+  1, 'AC-PEO-001 the person-record manager receives the notice for a worker without a login');
+set local role authenticated;
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
+select is((select waiting_for_names from leave_requests_visible() where id = (select id from lv_ids where k = 'no-login-managed')),
+  array['LV PM']::text[], 'AC-PEO-001 a worker without a login still waits for the person-record manager');
+select is(leave_request_decide((select id from lv_ids where k = 'no-login-managed'), 'Approved', null), 'Approved',
+  'AC-PEO-001 the person-record manager decides leave for a worker without a login');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
 select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'v1'), 'Approved', null) $$,
   '23514', 'LV_DECIDED: this request is already approved', 'AC-LV-008 a decided request cannot be decided again');
 -- AC-LV-005 the line manager
@@ -140,17 +188,52 @@ reset role;
 select is((select decided_by from leave_requests where id = (select id from lv_ids where k = 'w1')), '27080000-0000-0000-0000-0000000001a2'::uuid,
   'AC-LV-005 the decider is recorded');
 set local role authenticated;
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
+insert into lv_ids select 'manager-entered', leave_request_submit('27080000-0000-0000-0000-000000001f01', (select id from lv_ids where k = 'ta'), pg_temp.d('p31'), pg_temp.d('p31'), null);
+select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'manager-entered'), 'Approved', null) $$,
+  '42501', 'LV_SOD: you cannot decide your own request, or one you entered', 'AC-PEO-002 a manager who entered the request cannot decide it');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
+select is((select waiting_for_names from leave_requests_visible() where id = (select id from lv_ids where k = 'manager-entered')),
+  array['LV HR Manager']::text[], 'AC-PEO-002 a request entered by its manager routes to HR');
+select is(leave_request_decide((select id from lv_ids where k = 'manager-entered'), 'Approved', null), 'Approved',
+  'AC-PEO-002 HR decides when the person record manager entered the request');
 
--- AC-LV-007 the approver-role setting
+-- The legacy setting remains writable for compatibility but does not change the routing hierarchy.
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
 select lives_ok($$ select set_leave_settings(true, 'Finance') $$, 'AC-LV-007 an Admin sets the approver role');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
 insert into lv_ids select 'v2', leave_request_submit('27080000-0000-0000-0000-000000001f02', (select id from lv_ids where k = 'ta'), pg_temp.d('p40'), pg_temp.d('p40'), null);
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
 select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'v2'), 'Approved', null) $$,
-  '42501', 'LV_FORBIDDEN: you cannot decide this request', 'AC-LV-007 with a role set, an Admin who is neither that role nor the line manager cannot decide');
+  '42501', 'LV_FORBIDDEN: you cannot decide this request', 'AC-PEO-002 configured legacy approver role does not bypass HR Manager');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a5');
-select is(leave_request_decide((select id from lv_ids where k = 'v2'), 'Rejected', 'not this week'), 'Rejected', 'AC-LV-007 a user with the configured role decides');
+select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'v2'), 'Approved', null) $$,
+  '42501', 'LV_FORBIDDEN: you cannot decide this request', 'AC-PEO-002 Finance cannot decide when the HR Manager is active');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
+select is(leave_request_decide((select id from lv_ids where k = 'v2'), 'Rejected', 'not this week'), 'Rejected', 'AC-PEO-002 HR Manager decides despite a legacy Finance setting');
+
+-- An inactive person-record manager routes to HR, then to Admin if HR is inactive.
+reset role;
+update profiles set status = 'disabled' where id = '27080000-0000-0000-0000-0000000001a7';
+set local role authenticated;
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
+insert into lv_ids select 'inactive-manager', leave_request_submit('27080000-0000-0000-0000-000000001f04', (select id from lv_ids where k = 'ta'), pg_temp.d('p12'), pg_temp.d('p12'), null);
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
+select is(leave_request_decide((select id from lv_ids where k = 'inactive-manager'), 'Approved', null), 'Approved',
+  'AC-PEO-002 an inactive manager falls back to HR Manager');
+reset role;
+update profiles set status = 'disabled' where id = '27080000-0000-0000-0000-0000000001a6';
+set local role authenticated;
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
+insert into lv_ids select 'admin-fallback', leave_request_submit('27080000-0000-0000-0000-000000001f02', (select id from lv_ids where k = 'ta'), pg_temp.d('p42'), pg_temp.d('p42'), null);
+reset role;
+select is((select count(*)::int from notifications where owner_id = '27080000-0000-0000-0000-0000000001a1'
+             and message_key = 'leaveRequestPending' and metadata->>'leave_request_id' = (select id::text from lv_ids where k = 'admin-fallback')),
+  1, 'AC-PEO-002 Admin receives the notice when no HR Manager is active');
+set local role authenticated;
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
+select is(leave_request_decide((select id from lv_ids where k = 'admin-fallback'), 'Approved', null), 'Approved',
+  'AC-PEO-002 Admin decides only after the HR Manager is inactive');
 
 -- AC-LV-009 other organisation
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001b1');
@@ -181,7 +264,7 @@ select is(attendance_record('27080000-0000-0000-0000-000000001401', pg_temp.d('y
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a3');
 select is((select count(*)::int from leave_requestable_people()), 1, 'picker: a person may enter a request only for themselves');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
-select is((select count(*)::int from leave_requestable_people()), 3, 'picker: an office user may enter one for every person');
+select is((select count(*)::int from leave_requestable_people()), 5, 'picker: an office user may enter one for every person');
 
 -- OFF state: switching off hides the marker and refuses new requests
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
