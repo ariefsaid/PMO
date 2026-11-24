@@ -12,6 +12,28 @@ export interface OrgWithholdingAccounts {
   pph42Account: string | null;
 }
 
+/** The default-off, Admin-owned switch for the lane's import and opening-balance workflows. */
+export async function getOrgSetupWorkflowsEnabled(): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('org_setup_workflow_settings')
+    .select('enabled')
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  return data?.enabled === true;
+}
+
+/** Upsert only the enabled bit; the database default stamps this caller's org_id. */
+export async function setOrgSetupWorkflowsEnabled(enabled: boolean): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('org_setup_workflow_settings')
+    .upsert({ enabled }, { onConflict: 'org_id' })
+    .select('enabled')
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  if (!data) throw new AppError('You do not have permission to change setup workflows.', '42501');
+  return data.enabled;
+}
+
 export async function getOrgWithholdingAccounts(): Promise<OrgWithholdingAccounts> {
   const { data, error } = await supabase.from('organizations')
     .select('tax_prepaid_account,pph23_prepaid_account,pph4_2_prepaid_account').limit(1);

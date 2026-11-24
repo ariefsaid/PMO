@@ -15,7 +15,7 @@ import { AppError } from '@/src/lib/appError';
  */
 
 /** How the server described the route; `unavailable` is the non-leaking empty shape. */
-export type DsrValidationRouteKind = 'project_manager' | 'finance_admin' | 'nobody' | 'unavailable';
+export type DsrValidationRouteKind = 'project_manager' | 'finance_admin' | 'job_roles' | 'nobody' | 'unavailable';
 
 export interface DsrValidationRouteApprover {
   id: string;
@@ -27,9 +27,11 @@ export interface DsrValidationRouteApprover {
 export interface DsrValidationRoute {
   approvers: DsrValidationRouteApprover[];
   routeKind: DsrValidationRouteKind;
+  /** Active non-author built-in job role keys assigned daily_report_validate in this organisation (when non-empty). */
+  validateRoles?: string[];
 }
 
-const ROUTE_KINDS: readonly DsrValidationRouteKind[] = ['project_manager', 'finance_admin', 'nobody', 'unavailable'];
+const ROUTE_KINDS: readonly DsrValidationRouteKind[] = ['project_manager', 'finance_admin', 'job_roles', 'nobody', 'unavailable'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -53,7 +55,21 @@ export function parseDsrValidationRoute(data: unknown): DsrValidationRoute {
     }
     return { id: entry.id, name: entry.name, role: entry.role };
   });
-  return { approvers, routeKind: data.route_kind as DsrValidationRouteKind };
+  let validateRoles: string[] | undefined;
+  if (data.validate_roles !== undefined) {
+    if (!Array.isArray(data.validate_roles) || !data.validate_roles.every(nonEmptyString)) {
+      throw new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
+    }
+    if (data.validate_roles.length > 0) {
+      validateRoles = data.validate_roles;
+    }
+  }
+  if (data.route_kind === 'job_roles' && (!validateRoles || validateRoles.length === 0)) {
+    throw new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
+  }
+  return validateRoles
+    ? { approvers, routeKind: data.route_kind as DsrValidationRouteKind, validateRoles }
+    : { approvers, routeKind: data.route_kind as DsrValidationRouteKind };
 }
 
 /**

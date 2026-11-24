@@ -1,0 +1,4 @@
+{
+  "tables": [],
+  "definer_functions": ["stock_handover_scope_of(uuid)", "set_stock_handover_scope(text)"]
+}

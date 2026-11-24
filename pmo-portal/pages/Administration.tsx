@@ -46,7 +46,9 @@ import OrderJobRolesSection from './admin/OrderJobRolesSection';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
+import OrgOrderNeededBy from './admin/OrgOrderNeededBy';
 import SiteReportLists from './admin/SiteReportLists';
+import DailyReportValidateRoles from './admin/DailyReportValidateRoles';
 import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import StockIssueCostSettings from './admin/StockIssueCostSettings';
@@ -347,6 +349,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgThreeWayMatch />
             <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
             <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
+            <OrgOrderNeededBy />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>
@@ -367,6 +370,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <DailyReportValidateRoles />
             <OrgIssueTypes />
             <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
             <NonWorkingDatesCard />

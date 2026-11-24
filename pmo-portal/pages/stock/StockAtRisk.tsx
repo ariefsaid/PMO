@@ -144,6 +144,14 @@ const StockAtRisk: React.FC = () => {
               <dd>{t(`setup.kinds.${r.warehouseKind}`)}</dd>
               <dt className="text-muted-foreground">{t('atRisk.columns.project')}</dt>
               <dd className="min-w-0">{r.projectName ?? <span className="text-muted-foreground">—</span>}</dd>
+              {showGuardCover && r.uncovered !== undefined && (
+                <>
+                  <dt className="text-muted-foreground">{t('atRisk.columns.guardCover')}</dt>
+                  <dd className={r.uncovered ? 'font-semibold text-foreground' : 'text-muted-foreground'}>
+                    {r.uncovered ? t('atRisk.noGuardCover') : t('atRisk.guardCovered')}
+                  </dd>
+                </>
+              )}
               {showCost && (
                 <>
                   <dt className="text-muted-foreground">{t('atRisk.columns.stockValue')}</dt>

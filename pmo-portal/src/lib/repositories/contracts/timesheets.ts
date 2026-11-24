@@ -7,7 +7,12 @@ import type {
   hasTimesheetApprovalWork,
 } from '@/src/lib/db/timesheetTransition';
 import type { listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
-import type { TimesheetRow, TimesheetWithEntries } from '@/src/lib/db/timesheets';
+import type {
+  TimesheetForReview,
+  TimesheetReviewFilters,
+  TimesheetRow,
+  TimesheetWithEntries,
+} from '@/src/lib/db/timesheets';
 import type { getTimesheetApprovalRoute } from '@/src/lib/db/timesheetApprovalRoute';
 import type { TimesheetApprovalViewerRole, TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
@@ -27,6 +32,8 @@ export interface TimesheetRepository {
 
   /** Own timesheets; `fromWeek` (Monday ISO) bounds the read to weeks on/after it, server-side. */
   list(userId: string, opts?: { fromWeek?: string }): Promise<TimesheetWithEntries[]>;
+  /** 1124d-rolescreens: read-only org timesheet list for HR Officer / Admin review. */
+  listForReview(filters?: TimesheetReviewFilters): Promise<TimesheetForReview[]>;
   createDraft(weekStartDate: string, userId: string): Promise<TimesheetRow>;
   upsertEntries(entries: EntryUpsert[]): Promise<void>;
   deleteEntry(id: string): Promise<void>;

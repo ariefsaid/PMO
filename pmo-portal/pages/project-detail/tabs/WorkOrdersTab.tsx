@@ -58,6 +58,7 @@ import {
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
 import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
+import { WorkOrderImport } from '../WorkOrderImport';
 import { WorkOrderListsProvider } from '@/src/components/WorkOrderListsProvider';
 import { bucketWorkOrders, type WorkOrderGroupBy } from '@/src/lib/workOrderGrouping';
 
@@ -679,6 +680,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
+            <WorkOrderImport projectId={projectId} currency={currency} projectManagerId={projectManagerId} />
             <ExportButton size="sm" rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
               label={t('common.export', 'Export')} />
           </div>

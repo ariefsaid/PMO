@@ -8,6 +8,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useDailySiteReports, useDsrValidationQueue } from '@/src/hooks/useDailySiteReports';
+import { useDailyReportValidateRoles } from '@/src/hooks/useDailyReportValidateRoles';
 import { useCrews } from '@/src/hooks/useCrews';
 import { formatDay } from '@/src/lib/format';
 import type { DsrStatus } from '@/src/lib/db/dailySiteReports';
@@ -23,7 +24,10 @@ const STATUSES: DsrStatus[] = ['draft', 'submitted', 'returned', 'validated'];
 const SiteReports: React.FC = () => {
   const { t } = useTranslation('siteReport');
   const navigate = useNavigate();
-  const userId = useAuth().currentUser?.id ?? null;
+  const currentUser = useAuth().currentUser;
+  const userId = currentUser?.id ?? null;
+  const builtInRoleKey = currentUser?.built_in_role ?? null;
+  const dailyReportValidateRoles = useDailyReportValidateRoles().data;
   const { realRole } = useEffectiveRole();
   const [params, setParams] = useSearchParams();
   const status = (STATUSES as string[]).includes(params.get('status') ?? '') ? (params.get('status') as DsrStatus) : undefined;
@@ -33,7 +37,7 @@ const SiteReports: React.FC = () => {
   const [newOpen, setNewOpen] = useState(false);
 
   // A PM's own-project check happens per record; at list level the role decides whether the doorway shows.
-  const asOwnPm = { realRole, currentUserId: userId, record: { project_manager_id: userId } };
+  const asOwnPm = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { project_manager_id: userId } };
   const mayEnter = can('create', 'dailySiteReport', asOwnPm);
   const mayValidate = can('approve', 'dailySiteReport', { ...asOwnPm, record: { ...asOwnPm.record, author_id: null } });
   const filter = useMemo(() => ({ ...(status ? { status } : {}), ...(crewId ? { crewId } : {}) }), [status, crewId]);

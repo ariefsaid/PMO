@@ -27,17 +27,18 @@ const ROWS_WITH_DROPDOWN = 500;
  * field with whether it is required, what it holds and its accepted values. The version marker rides in the file's
  * properties, so no extra column appears and an upload can be checked without mis-mapping columns.
  */
-export async function buildTemplateWorkbook<Input>(d: Pick<ImportDescriptor<Input>, 'entity' | 'fields' | 'template' | 'maxRows'>, labels: Partial<TemplateLabels> = {}): Promise<ArrayBuffer> {
+export async function buildTemplateWorkbook<Input>(d: Pick<ImportDescriptor<Input>, 'entity' | 'fields' | 'template' | 'maxRows' | 'extraSheet'>, labels: Partial<TemplateLabels> = {}): Promise<ArrayBuffer> {
   const L = { ...DEFAULT_LABELS, ...labels };
+  const fields = d.fields.filter((f) => !f.internal);
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   wb.keywords = templateMarker(d);
   const ws = wb.addWorksheet(L.sheet.slice(0, 31));
-  ws.addRow(d.fields.map((f) => f.label)).font = { bold: true };
+  ws.addRow(fields.map((f) => f.label)).font = { bold: true };
   const example = d.template?.example ?? {};
-  ws.addRow(d.fields.map((f) => safeCellText(example[f.key] ?? '')));
+  ws.addRow(fields.map((f) => safeCellText(example[f.key] ?? '')));
   const lists = d.template?.lists ?? {};
-  d.fields.forEach((f, i) => {
+  fields.forEach((f, i) => {
     const values = lists[f.key];
     if (!values || values.length === 0) return;
     const inline = values.join(',');
@@ -48,9 +49,17 @@ export async function buildTemplateWorkbook<Input>(d: Pick<ImportDescriptor<Inpu
   });
   ws.columns.forEach((c) => { c.width = 22; });
 
+  // The optional child sheet (work-order scope lines) is always the SECOND worksheet: the importer reads it by position.
+  if (d.extraSheet) {
+    const es = wb.addWorksheet(d.extraSheet.sheet.slice(0, 31));
+    es.addRow(d.extraSheet.fields.map((f) => f.label)).font = { bold: true };
+    es.addRow(d.extraSheet.fields.map((f) => safeCellText(d.extraSheet!.example[f.key] ?? '')));
+    es.columns.forEach((c) => { c.width = 22; });
+  }
+
   const notes = wb.addWorksheet(L.notes.slice(0, 31));
   notes.addRow([L.field, L.required, L.meaning, L.accepted]).font = { bold: true };
-  for (const f of d.fields) {
+  for (const f of [...fields, ...(d.extraSheet?.fields ?? [])]) {
     notes.addRow([
       safeCellText(f.label),
       f.required ? L.required : L.optional,

@@ -59,6 +59,7 @@ import { billingStagesRepository } from './billingStages';
 import { closeoutChecklistRepository } from './closeoutChecklist';
 import { surveyRecordRepository } from './surveyRecords';
 import { workInHandRepository } from './workInHand';
+import { openingBalanceRepository } from './openingBalances';
 import { taskProofRepository } from './taskProofs';
 import { thirdPartyInspectionRepository } from './thirdPartyInspections';
 import { commentRepository } from './comments';
@@ -153,6 +154,7 @@ export const repositories: Repositories = {
   workOrderCandidate: workOrderCandidateRepository,
   safetyDay: safetyDayRepository,
   workInHand: workInHandRepository,
+  openingBalances: openingBalanceRepository,
   quantityChange: quantityChangeRepository,
   stock: stockRepository,
   stockOpening: stockOpeningRepository,

@@ -57,6 +57,8 @@ import {
   setOrgVendorTaxAccounts,
   getOrgProjectClassificationOptions,
   setOrgProjectClassificationOptions,
+  getOrgSetupWorkflowsEnabled,
+  setOrgSetupWorkflowsEnabled,
 } from '@/src/lib/db/orgs';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { wrap } from './repositoryErrors';
@@ -122,6 +124,8 @@ export const orgFeatureRepository: OrgFeatureRepository = {
  * `can('manage', 'orgAccounting')` on the affordance.
  */
 export const orgSettingsRepository: OrgSettingsRepository = {
+  getSetupWorkflowsEnabled: () => wrap(() => getOrgSetupWorkflowsEnabled()),
+  setSetupWorkflowsEnabled: (enabled) => wrap(() => setOrgSetupWorkflowsEnabled(enabled)),
   getDefaultCurrency: () => wrap(() => getOrgDefaultCurrency()),
   getLocaleDefaults: () => wrap(() => getOrgLocaleDefaults()),
   getLifecycleState: () => wrap(() => getOrgLifecycleState()),

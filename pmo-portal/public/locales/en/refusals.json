@@ -542,5 +542,12 @@
   "WBS_CHECKLIST_OFF_detail": "Ask Finance or an Admin to switch it on under billing step templates.",
   "WBS_TEMPLATE_NAME": "Name the template, in up to 120 characters.",
   "WBS_TEMPLATE_TAKEN": "An active template with this name already exists. Choose another name.",
-  "WBS_TEMPLATE_EMPTY": "This checklist has no steps to save as a template."
+  "WBS_TEMPLATE_EMPTY": "This checklist has no steps to save as a template.",
+  "DSR_VALIDATE_ROLE_ADMIN": "Only an Admin can change which job roles validate daily site reports.",
+  "DSR_VALIDATE_ROLE_INVALID": "Choose manager or officer job roles from the built-in list.",
+  "DSR_VALIDATE_ROLE_OFF": "Turn on built-in roles in Administration > People before naming roles that validate site reports.",
+  "IMPORT_EMPTY": "There are no work orders in the file.",
+  "IMPORT_PROJECT": "That project was not found.",
+  "IMPORT_TOO_MANY": "Import at most 500 work orders at a time.",
+  "IMPORT_ROW": "Row {{row}} was refused, so nothing was imported: {{reason}}"
 }

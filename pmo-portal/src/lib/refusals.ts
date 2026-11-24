@@ -29,6 +29,7 @@ const OPENING_STOCK_CODES = ['OPN_ROW_INVALID', 'OPN_UNKNOWN_ITEM', 'OPN_UNKNOWN
  * ponytail: remove an entry when its migration moves the figure into `details` (stock already does).
  */
 const FIGURES: Record<string, (text: string) => Record<string, string>> = {
+  IMPORT_ROW: (s) => ({ row: first(/^row (\d+)/, s)[0] ?? '', reason: s.replace(/^row \d+:\s*/, '') }),
   ATT_DAY_CEILING: (s) => { const [hours = '', workOrder = ''] = first(/already has ([\d.]+) hours on (.+) that day/, s); return { hours, workOrder }; },
   ATT_DATE_WINDOW: (s) => ({ date: day(s) }),
   ATT_TS_MANUAL_ENTRY: (s) => ({ date: day(s) }),

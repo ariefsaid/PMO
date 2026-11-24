@@ -1,0 +1,7 @@
+{
+  "definer_functions": [
+    "po_needed_by_required_from_of(uuid)",
+    "set_po_needed_by_required(boolean)",
+    "set_procurement_needed_by(uuid,date,jsonb)"
+  ]
+}

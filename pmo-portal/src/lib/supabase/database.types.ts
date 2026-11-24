@@ -14253,6 +14253,29 @@ export type Database = {
           },
         ]
       }
+      org_setup_workflow_settings: {
+        Row: {
+          enabled: boolean
+          org_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Update: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_setup_workflow_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_term_keys: {
         Row: {
           term_key: string
@@ -14374,6 +14397,7 @@ export type Database = {
           clearance_checklist_enabled: boolean
           created_at: string
           crew_loans_enabled: boolean
+          daily_report_validate_roles: string[]
           default_currency: string
           default_locale: string
           default_number_locale: string | null
@@ -14423,6 +14447,8 @@ export type Database = {
           safety_records_enabled: boolean
           sector_options: string[]
           service_line_options: string[]
+          po_needed_by_required_from: string | null
+          stock_handover_scope: string
           stock_proof_timing: string
           stock_reservations: boolean
           stock_transfer_mode: string
@@ -14441,6 +14467,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14490,6 +14517,8 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
+          stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
           stock_transfer_mode?: string
@@ -14508,6 +14537,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14557,6 +14587,8 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
+          stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
           stock_transfer_mode?: string
@@ -31528,7 +31560,7 @@ export type Database = {
           project_id: string
           report_id: string
           submitted_at: string
-          total_revenue: number
+          total_revenue: number | null
           unrated_lines: number
           waiting_for_validator: boolean
           work_date: string
@@ -32819,6 +32851,10 @@ export type Database = {
       invoice_settlement_evidence: {
         Args: { p_procurement_id: string }
         Returns: boolean
+      }
+      import_work_orders: {
+        Args: { p_project: string; p_rows: Json }
+        Returns: Json
       }
       is_active_member:
         | { Args: never; Returns: boolean }
@@ -34641,6 +34677,26 @@ export type Database = {
           warehouse_id: string
           work_order: string
           work_order_id: string
+        }[]
+      }
+      opening_balances_overview: {
+        Args: never
+        Returns: {
+          as_of: string
+          certified_value: number
+          claimed_value: number
+          currency: string
+          id: string
+          kind: string
+          label: string
+          line_count: number
+          lines: Json
+          loaded_at: string
+          loaded_by_name: string
+          note: string
+          stock_quantity: number
+          stock_value: number
+          sub_label: string
         }[]
       }
       opening_history_plan: {
@@ -36961,6 +37017,10 @@ export type Database = {
         Args: { p_decider_roles: string[]; p_second_record_roles: string[] }
         Returns: undefined
       }
+      set_daily_report_validate_roles: {
+        Args: { p_roles: string[] }
+        Returns: string[]
+      }
       set_billing_plan_month_target: {
         Args: { p_month: string; p_target: number }
         Returns: undefined
@@ -37500,7 +37560,13 @@ export type Database = {
         Returns: number
       }
       set_site_checkpoint_list: { Args: { p_items: Json }; Returns: number }
+      get_work_order_material_completion: { Args: { p_work_order_id: string }; Returns: Json }
+      set_po_needed_by_required: { Args: { p_on: boolean }; Returns: boolean }
+      set_procurement_needed_by: { Args: { p_id: string; p_needed_by: string | null; p_lines?: Json | null }; Returns: boolean }
+      po_needed_by_required_from_of: { Args: { p_org: string }; Returns: string }
+      set_stock_handover_scope: { Args: { p_scope: string }; Returns: string }
       set_stock_proof_timing: { Args: { p_timing: string }; Returns: string }
+      stock_handover_scope_of: { Args: { p_org: string }; Returns: string }
       set_stock_reorder_level: {
         Args: {
           p_item_id: string
