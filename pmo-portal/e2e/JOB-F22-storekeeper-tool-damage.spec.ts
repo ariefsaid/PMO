@@ -33,13 +33,13 @@ test('JOB-F22 storekeeper reports a damaged hand tool with a photo and usable co
   let warehouseId = '';
   let crewId = '';
   try {
-    const site = await makeWarehouse(admin, sfx, 'F22', 'site');
-    warehouseId = site.id;
-    await keeperOf(admin, site.id, storekeeper.id);
-
     projectId = need('project', await svc.from('projects').insert({
       org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD', project_manager_id: PM_ID,
     }).select('id').single()).id;
+    const site = await makeWarehouse(admin, sfx, 'F22', 'site', projectId);
+    warehouseId = site.id;
+    await keeperOf(admin, site.id, storekeeper.id);
+
     workOrderId = need('work order', await svc.from('work_orders').insert({
       org_id: ORG_ID, project_id: projectId, title: `${run} site work`, status: 'Issued',
       issued_at: new Date().toISOString(), order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
@@ -107,11 +107,11 @@ test('JOB-F22 storekeeper reports a damaged hand tool with a photo and usable co
       `);
     }
     if (workOrderId) ok('work order cleanup', await svc.from('work_orders').delete().eq('id', workOrderId));
-    if (projectId) ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     if (warehouseId) {
       sqlAsOwner(`delete from stock_warehouse_keepers where warehouse_id = '${warehouseId}';`);
       ok('warehouse cleanup', await svc.from('stock_warehouses').delete().eq('id', warehouseId));
     }
+    if (projectId) ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     await storekeeper.cleanup();
   }
 });

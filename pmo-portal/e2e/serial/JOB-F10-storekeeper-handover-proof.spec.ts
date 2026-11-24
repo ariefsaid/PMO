@@ -74,11 +74,11 @@ test('JOB-F10 storekeeper confirms a two-step handover with goods and recipient 
     await page.getByLabel('Photo of the goods').setInputFiles(photo('goods.jpg'));
     await page.getByLabel('Photo of the person receiving').setInputFiles(photo('person.jpg'));
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
-    await expect(page.getByText('Closed', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('region', { name: 'Summary' })).toContainText('Closed', { timeout: 20_000 });
 
     // 3. Goal: after reload, handover confirmation and both proof photos remain visible on the closed transfer.
     await page.reload();
-    await expect(page.getByText('Closed', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('region', { name: 'Summary' })).toContainText('Closed', { timeout: 20_000 });
     const recorded = page.getByRole('region', { name: 'Handover confirmations' });
     await expect(recorded).toContainText(receiverRun);
     const photos = recorded.getByTestId('handover-photos');
@@ -103,7 +103,7 @@ test('JOB-F10 storekeeper confirms a two-step handover with goods and recipient 
     if (whIds.length) {
       const list = whIds.map((id) => `'${id}'`).join(',');
       sqlAsOwner(`
-        delete from stock_documents where warehouse_id in (${list})${receiptId ? ` or id = '${receiptId}'` : ''};
+        delete from stock_documents where warehouse_id in (${list}) or to_warehouse_id in (${list})${receiptId ? ` or id = '${receiptId}'` : ''};
         delete from stock_warehouse_keepers where warehouse_id in (${list});
       `);
       ok('warehouses cleanup', await svc.from('stock_warehouses').delete().in('id', whIds));

@@ -69,7 +69,10 @@ test('JOB-W15 material coordinator calls off client material, hits the reservati
     // 2. Pickup before any client reservation is refused in plain words.
     await page.getByRole('button', { name: 'Record pickup' }).click();
     const blocked = page.getByRole('dialog');
+    await blocked.getByLabel(/Quantity collected/).fill('10');
+    await blocked.getByRole('button', { name: 'Record pickup' }).click();
     await expect(blocked.getByText("Nothing is reserved on this line yet. The client's reservation is recorded first.")).toBeVisible({ timeout: 15_000 });
+    await blocked.getByLabel(/Quantity collected/).fill('');
     await blocked.getByRole('button', { name: 'Cancel' }).click();
     await expect(blocked).toBeHidden();
 

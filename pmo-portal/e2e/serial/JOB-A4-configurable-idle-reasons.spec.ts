@@ -7,6 +7,8 @@ import { roleJobUser } from '../support/roleJobUser';
 
 test.setTimeout(180_000);
 
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+
 test('JOB-A4 administrator adds a new idle reason, project administrator uses it on a daily site report, and it persists after validation', async ({ page }) => {
   const svc = serviceClient('JOB-A4');
   const run = runId('JOBA4');
@@ -88,13 +90,8 @@ test('JOB-A4 administrator adds a new idle reason, project administrator uses it
     await page.getByLabel('Idle minutes').fill('15');
     await page.getByLabel('Reason', { exact: true }).selectOption({ label: reasonLabel });
 
-    ok('paper form photo', await svc.from('dsr_photos').insert({
-      org_id: ORG_ID,
-      report_id: reportId,
-      kind: 'paper_form',
-      file_path: `${ORG_ID}/${reportId}/00000000-0000-4000-8000-0000000000a4/form.jpg`,
-    }));
     await page.getByRole('button', { name: 'Save draft' }).click();
+    await page.getByTestId('dsr-photo-input').setInputFiles({ name: 'form.png', mimeType: 'image/png', buffer: PNG });
     await expect(page.getByTestId('dsr-author-needs-photo')).toHaveCount(0, { timeout: 20_000 });
     await page.getByRole('button', { name: 'Submit' }).click();
     await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'submitted', { timeout: 20_000 });
@@ -107,6 +104,11 @@ test('JOB-A4 administrator adds a new idle reason, project administrator uses it
     await expect(page.getByLabel('Idle minutes')).toHaveValue('15');
     await expect(page.getByLabel('Reason', { exact: true }).locator('option:checked')).toHaveText(reasonLabel);
   } finally {
+    if (reportId) {
+      const { data: dsrPhotos } = await svc.from('dsr_photos').select('file_path').eq('report_id', reportId);
+      const paths = (dsrPhotos ?? []).map((p: { file_path: string }) => p.file_path).filter(Boolean);
+      if (paths.length) await svc.storage.from('site-report-photos').remove(paths);
+    }
     await cleanupAll(svc, [
       ['daily_site_reports', 'id', reportId ? [reportId] : []],
       ['work_order_lines', 'work_order_id', woId ? [woId] : []],

@@ -69,7 +69,8 @@ test('JOB-W19 storekeeper sends a transfer to a field user who confirms handover
     await page.setViewportSize({ width: 390, height: 844 });
     await receiver.signIn(page);
     await expect(page).toHaveURL(/\/my$/, { timeout: 20_000 });
-    const deliveryLink = page.locator(`#my-deliveries a[href="/stock/transfers/${transferId}"]`);
+    const deliveries = page.getByRole('region', { name: 'A delivery for you' });
+    const deliveryLink = deliveries.locator(`a[href="/stock/transfers/${transferId}"]`);
     await expect(deliveryLink).toBeVisible({ timeout: 20_000 });
     await deliveryLink.click();
     await expect(page).toHaveURL(new RegExp(`/stock/transfers/${transferId}$`), { timeout: 20_000 });
@@ -83,7 +84,7 @@ test('JOB-W19 storekeeper sends a transfer to a field user who confirms handover
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
 
     // 4. Goal: transfer closes with guest signer and both handover photos visible.
-    await expect(page.getByText('Closed', { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('region', { name: 'Summary' })).toContainText('Closed', { timeout: 20_000 });
     await expect(page.getByText(/Site Receiver \(no account\)/)).toBeVisible();
     const photos = page.getByTestId('handover-photos');
     await expect(photos.getByAltText('Photo of the goods')).toBeVisible({ timeout: 20_000 });
@@ -107,7 +108,7 @@ test('JOB-W19 storekeeper sends a transfer to a field user who confirms handover
     if (whIds.length) {
       const list = whIds.map((id) => `'${id}'`).join(',');
       sqlAsOwner(`
-        delete from stock_documents where warehouse_id in (${list})${receiptId ? ` or id = '${receiptId}'` : ''};
+        delete from stock_documents where warehouse_id in (${list}) or to_warehouse_id in (${list})${receiptId ? ` or id = '${receiptId}'` : ''};
         delete from stock_warehouse_keepers where warehouse_id in (${list});
       `);
       ok('warehouses cleanup', await svc.from('stock_warehouses').delete().in('id', whIds));

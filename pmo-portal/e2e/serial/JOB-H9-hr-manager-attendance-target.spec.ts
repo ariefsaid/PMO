@@ -75,7 +75,7 @@ test('JOB-H9 HR manager saves daily crew attendance and checks attendance rates 
     // 1. HR manager opens daily attendance for Crew A, enters 8 hours for the crew, and saves.
     await hrManager.signIn(page);
     await page.goto(`/crews?view=attendance&wo=${workOrderId}&crew=${crewAId}`);
-    await expect(page.getByText(`${codeA} · ${run} Alpha`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: `${codeA} · ${run} Alpha` })).toBeVisible({ timeout: 20_000 });
     await page.getByLabel('Hours for the crew').fill('8');
     await page.getByRole('button', { name: 'Save attendance' }).click();
     await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 20_000 });

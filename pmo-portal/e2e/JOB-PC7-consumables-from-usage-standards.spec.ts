@@ -47,7 +47,6 @@ test('JOB-PC7 engineer generates a work order consumable plan from usage standar
 
     const item = await makeItem(admin, suffix, 'PC7');
     ok('usage standard', await admin.from('consumable_usage_standards').insert({
-      org_id: ORG_ID,
       item_id: item.id,
       work_unit: unit,
       boq_code_prefix: 'WLD',

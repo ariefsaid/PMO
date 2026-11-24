@@ -159,14 +159,8 @@ test('JOB-PC15 project administrator records timed checkpoints and idle time on 
     await page.getByLabel('Idle minutes').fill('10');
     await page.getByLabel('Reason', { exact: true }).selectOption(idleReason.id);
 
-    // Paper-form photo row (same hook as AC-DSR-013 so report submission never depends on storage bucket setup for DSR).
-    ok('paper form photo', await svc.from('dsr_photos').insert({
-      org_id: ORG_ID,
-      report_id: reportId,
-      kind: 'paper_form',
-      file_path: `${ORG_ID}/${reportId}/00000000-0000-4000-8000-000000000015/form.jpg`,
-    }));
     await page.getByRole('button', { name: 'Save draft' }).click();
+    await page.getByTestId('dsr-photo-input').setInputFiles({ name: 'form.png', mimeType: 'image/png', buffer: PNG });
     await expect(page.getByTestId('dsr-author-needs-photo')).toHaveCount(0, { timeout: 20_000 });
     await page.getByRole('button', { name: 'Submit' }).click();
     await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'submitted', { timeout: 20_000 });
@@ -193,6 +187,11 @@ test('JOB-PC15 project administrator records timed checkpoints and idle time on 
     await expect(causeRow).toBeVisible();
     await expect(causeRow).toContainText(/\d+h \d{2}m/);
   } finally {
+    if (reportId) {
+      const { data: dsrPhotos } = await svc.from('dsr_photos').select('file_path').eq('report_id', reportId);
+      const paths = (dsrPhotos ?? []).map((p: { file_path: string }) => p.file_path).filter(Boolean);
+      if (paths.length) await svc.storage.from('site-report-photos').remove(paths);
+    }
     if (woId && crewId && today) {
       const { data: files } = await svc.storage.from('site-checkpoint-photos').list(`${ORG_ID}/${woId}/${crewId}/${today}`);
       if (files?.length) {

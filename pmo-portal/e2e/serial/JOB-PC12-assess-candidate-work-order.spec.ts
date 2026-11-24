@@ -50,7 +50,8 @@ test('JOB-PC12 engineer assesses candidate work orders, and the project manager 
     await dialog.getByRole('button', { name: 'Open candidate' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
 
-    const acceptedCard = page.getByRole('listitem').filter({ hasText: `${run} accepted scope` });
+    const main = page.getByRole('main');
+    const acceptedCard = main.getByRole('listitem').filter({ hasText: `${run} accepted scope` });
     await expect(acceptedCard.getByText('0 of 2 required checks ready')).toBeVisible({ timeout: 20_000 });
     // Engineer assesses checks but cannot decide Accept or Reject.
     await expect(acceptedCard.getByRole('button', { name: 'Accept' })).toHaveCount(0);
@@ -67,13 +68,13 @@ test('JOB-PC12 engineer assesses candidate work orders, and the project manager 
     await dialog.getByLabel('Title').fill(`${run} deferred scope`);
     await dialog.getByRole('button', { name: 'Open candidate' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
-    await expect(page.getByRole('listitem').filter({ hasText: `${run} deferred scope` })).toBeVisible({ timeout: 20_000 });
+    await expect(main.getByRole('listitem').filter({ hasText: `${run} deferred scope` })).toBeVisible({ timeout: 20_000 });
 
     // 2. Project manager accepts the assessed candidate and reaches its new Draft work order.
     await pm.signIn(page);
     await page.goto(`/projects/${projectId}/orders`);
 
-    const pmAcceptCard = page.getByRole('listitem').filter({ hasText: `${run} accepted scope` });
+    const pmAcceptCard = main.getByRole('listitem').filter({ hasText: `${run} accepted scope` });
     await expect(pmAcceptCard.getByText('2 of 2 required checks ready')).toBeVisible({ timeout: 20_000 });
     await pmAcceptCard.getByRole('button', { name: 'Accept' }).click();
     let reason = page.getByRole('alertdialog').or(page.getByRole('dialog'));
@@ -88,7 +89,7 @@ test('JOB-PC12 engineer assesses candidate work orders, and the project manager 
 
     // 3. Project manager rejects the second candidate with a reason and confirms it persists after reload.
     await page.goto(`/projects/${projectId}/orders`);
-    const pmRejectCard = page.getByRole('listitem').filter({ hasText: `${run} deferred scope` });
+    const pmRejectCard = main.getByRole('listitem').filter({ hasText: `${run} deferred scope` });
     await expect(pmRejectCard).toBeVisible({ timeout: 20_000 });
     await pmRejectCard.getByRole('button', { name: 'Reject' }).click();
     reason = page.getByRole('alertdialog').or(page.getByRole('dialog'));
@@ -99,7 +100,7 @@ test('JOB-PC12 engineer assesses candidate work orders, and the project manager 
     await expect(pmRejectCard.getByText('Deferred to next shutdown window')).toBeVisible();
 
     await page.reload();
-    const reloadedReject = page.getByRole('listitem').filter({ hasText: `${run} deferred scope` });
+    const reloadedReject = main.getByRole('listitem').filter({ hasText: `${run} deferred scope` });
     await expect(reloadedReject.getByText('Rejected because')).toBeVisible({ timeout: 20_000 });
     await expect(reloadedReject.getByText('Deferred to next shutdown window')).toBeVisible();
   } finally {
