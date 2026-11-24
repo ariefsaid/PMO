@@ -16,6 +16,22 @@ export interface PlanCandidatesResult {
   truncated: boolean;
 }
 
+export interface UnacceptedProgressCandidate {
+  projectId: string;
+  projectName: string;
+  boqItemId: string;
+  itemCode: string | null;
+  description: string | null;
+  unit: string | null;
+  quantity: string;
+  today: string;
+}
+
+export interface UnacceptedProgressResult {
+  rows: UnacceptedProgressCandidate[];
+  truncated: boolean;
+}
+
 export interface PlanSettings {
   monthlyTarget: number | null;
   targetCurrency: string | null;
@@ -63,6 +79,25 @@ export async function getPlanCandidates(projectId: string | null): Promise<PlanC
       };
     }),
   };
+}
+
+/** Positive assessed quantity above confirmed client acceptance, one bounded read over all visible projects. */
+export const UNACCEPTED_PROGRESS_LIMIT = 500;
+
+export async function getUnacceptedProgressCandidates(projectId: string | null): Promise<UnacceptedProgressResult> {
+  const { data, error } = await supabase.rpc('billing_unaccepted_progress', projectId ? { p_project: projectId } : {});
+  if (error) throw new AppError(error.message, error.code);
+  const all = data ?? [];
+  return { truncated: all.length > UNACCEPTED_PROGRESS_LIMIT, rows: all.slice(0, UNACCEPTED_PROGRESS_LIMIT).map((row) => ({
+    projectId: row.project_id,
+    projectName: row.project_name,
+    boqItemId: row.boq_item_id,
+    itemCode: row.item_code,
+    description: row.description,
+    unit: row.unit,
+    quantity: String(row.quantity),
+    today: row.today,
+  })) };
 }
 
 export async function getPlanSettings(): Promise<PlanSettings> {

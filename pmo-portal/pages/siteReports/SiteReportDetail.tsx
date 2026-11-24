@@ -31,6 +31,7 @@ import {
 } from './siteReportForm';
 import { missingPartsFrom } from './emptyReport';
 import { SiteReportPhotos } from './SiteReportPhotos';
+import { SiteReportWho } from './SiteReportWho';
 import { SiteCheckpoints } from './SiteCheckpoints';
 import SiteReportPeopleHours from './SiteReportPeopleHours';
 import { SiteReportStock } from './SiteReportStock';
@@ -292,6 +293,8 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             </Button>
           )}
         </RecordSection>
+
+        <SiteReportWho form={form} editable={editable} onChange={update} />
 
         <RecordSection title={t('hours.title', 'Hours and weather')}>
           <div className="grid gap-3 sm:grid-cols-3">

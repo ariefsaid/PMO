@@ -491,6 +491,11 @@ export function parsePlanCatalogue(migrations) {
       }
     }
 
+    // A later migration may retire a feature from every plan.
+    for (const m of text.matchAll(/delete\s+from\s+(?:public\.)?plan_features\s+where\s+feature_key\s*=\s*'([a-z0-9_]+)'\s*;/gi)) {
+      for (const pair of coverage) if (pair.endsWith(INTERNAL + m[1])) coverage.delete(pair);
+    }
+
     // Latest key CHECK wins (0531 restates 0530's list).
     for (const m of text.matchAll(
       /org_features_feature_key_check\s+check\s*\(\s*feature_key\s+in\s*\(([\s\S]*?)\)\s*\)/gi,
@@ -1076,6 +1081,13 @@ const notATool = { name: 'right_tool' };`;
   ok(!has(errors, 'route /incidents:'), 'a FeatureRoute route passes');
   ok(!has(errors, 'route /:'), 'a core-marked route passes');
   ok(!has(errors, 'stale core route'), 'no stale core marking in the fixture');
+
+  const removedPlanKey = parsePlanCatalogue([
+    { name: '1.sql', sql: "insert into plan_features (plan_id, feature_key, enabled) values ('starter', 'retired', true), ('starter', 'incidents', true);" },
+    { name: '2.sql', sql: "delete from public.plan_features where feature_key = 'retired';" },
+  ]);
+  ok(!removedPlanKey.coverage.has('starter' + INTERNAL + 'retired'), 'retired plan feature rows are removed');
+  ok(removedPlanKey.coverage.has('starter' + INTERNAL + 'incidents'), 'unrelated plan feature rows remain');
 
   // Parsers discover every entry, including adjacent single-line objects.
   ok(parseRoutes(appTsx).length === 6, `parseRoutes discovers all 6 route entries (got ${parseRoutes(appTsx).length})`);

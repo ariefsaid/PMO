@@ -43,6 +43,7 @@ export type Action =
   | 'view_financial_directory'
   | 'manage'
   | 'viewPeople'
+  | 'viewAssigned'
   | 'push_timesheet'
   | 'confirm_employee_link'
   | 'upload'
@@ -178,6 +179,7 @@ export type Entity =
   | 'odooLedgerBasis'
   | 'finance'
   | 'openingBalance'
+  | 'workInHand'
   | 'stockItem'
   | 'stockUnit'
   | 'warehouse'
@@ -793,6 +795,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(ADMIN),
   },
   finance: { view: allow(MONEY_AUTHORITY), act: allow(REVENUE_WRITE) },
+  // Work in hand is server scoped to a PM's assigned projects; company-wide readers retain the finance roles.
+  workInHand: {
+    view: allow([...MONEY_AUTHORITY, 'Project Manager']),
+    viewAssigned: allow(['Project Manager']),
+  },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
   /** The opening balances the CLI loaded at go-live (migration 2161). Read-only here; the database read is Admin and Finance only. */
   openingBalance: { view: allow(['Admin', 'Finance']) },

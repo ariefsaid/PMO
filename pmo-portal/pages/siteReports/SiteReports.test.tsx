@@ -13,7 +13,9 @@ const h = vi.hoisted(() => ({
   hasMore: false,
   queue: [] as unknown[],
   calls: [] as Array<[unknown, number]>,
+  crews: [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }] as unknown[],
 }));
+vi.mock('@/src/hooks/useCrews', () => ({ useCrews: () => ({ data: h.crews }) }));
 vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useDailySiteReports: (filter: unknown, page: number) => { h.calls.push([filter, page]); return { data: { rows: h.rows, hasMore: h.hasMore }, isPending: false, isError: false, refetch: vi.fn() }; },
   useDsrValidationQueue: (enabled: boolean) => ({ data: enabled ? h.queue : undefined }),
@@ -27,12 +29,35 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 import SiteReports from './SiteReports';
 
-const row = (id: string, status: string) => ({ id, work_date: '2026-03-10', work_order_label: `WO ${id}`, author_name: 'Field One', status });
+const row = (id: string, status: string, crew_name: string | null = null, person_name: string | null = null) => ({ id, work_date: '2026-03-10', work_order_label: `WO ${id}`, author_name: 'Field One', status, crew_name, person_name });
 const renderAt = (url = '/site-reports') => render(<MemoryRouter initialEntries={[url]}><SiteReports /></MemoryRouter>);
 
-beforeEach(() => { h.realRole = 'Finance'; h.builtInRole = null; h.validateRoles = []; h.rows = []; h.hasMore = false; h.queue = []; h.calls.length = 0; });
+beforeEach(() => { h.realRole = 'Finance'; h.builtInRole = null; h.validateRoles = []; h.rows = []; h.hasMore = false; h.queue = []; h.calls.length = 0; h.crews = [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }]; });
 
 describe('site reports list', () => {
+  it('AC-SRC-006 the list shows each report\'s crew and filters by crew in the address', async () => {
+    h.rows = [row('a', 'submitted', 'Pipe crew'), row('b', 'draft')];
+    renderAt('/site-reports?crew=c1');
+    expect(h.calls.at(-1)).toEqual([{ crewId: 'c1' }, 0]);
+    expect(screen.getByTestId('dsr-crew')).toHaveTextContent('Crew Pipe crew');
+    expect(screen.getAllByTestId('dsr-crew')).toHaveLength(1);
+    expect(screen.getByRole('combobox', { name: 'Crew' })).toHaveValue('c1');
+  });
+
+  it('AC-SRC-006 the list identifies a named person separately from the report author', () => {
+    h.rows = [row('person-report', 'draft', null, 'Roster person')];
+    renderAt();
+    expect(screen.getByTestId('dsr-person')).toHaveTextContent('Person Roster person');
+    expect(screen.queryByTestId('dsr-crew')).toBeNull();
+    expect(screen.getByText('Field One')).toBeInTheDocument();
+  });
+
+  it('AC-SRC-006 an organisation with no crews sees no crew filter', () => {
+    h.crews = [];
+    renderAt();
+    expect(screen.queryByRole('combobox', { name: 'Crew' })).toBeNull();
+  });
+
   it('FR-DSR-017 a validator sees the queue first with age and unrated count', () => {
     h.queue = [{ report_id: 'r9', work_order_label: 'WO-1 · Pipe', work_date: '2026-03-08', author_name: 'Field One', age_days: 2, unrated_lines: 1, waiting_for_validator: false }];
     renderAt();

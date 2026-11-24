@@ -12,7 +12,7 @@ import type { ProjectDeliverySummary } from '@/src/lib/db/milestones';
  * queryKey: ['projects-delivery', variant, orgId, sorted-ids-joined].
  */
 function useProjectsDeliveryQuery<T>(
-  variant: 'pct' | 'summary',
+  variant: 'pct' | 'summary' | 'management',
   ids: string[],
   queryFn: () => Promise<T>,
 ) {
@@ -40,5 +40,14 @@ export function useProjectsDeliverySummary(ids: string[]) {
     'summary',
     ids,
     () => repositories.milestone.deliverySummaryForProjects(ids),
+  );
+}
+
+/** The batched planned schedule and milestone counts used by the management portfolio table. */
+export function useProjectManagementOverview(ids: string[]) {
+  return useProjectsDeliveryQuery(
+    'management',
+    ids,
+    () => repositories.milestone.managementOverviewForProjects(ids),
   );
 }

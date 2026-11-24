@@ -95,7 +95,7 @@ const make = (status: string, extra: Partial<DsrReportDetail['report']> = {}): D
     id: 'r1', org_id: 'o1', project_id: 'p1', work_order_id: 'w1', work_date: '2026-03-10', status: status as DsrReportDetail['report']['status'],
     version: 1, supersedes_id: null, superseded_at: null, correction_reason: null, author_id: 'eng', submitted_at: null, validated_by: null,
     validated_at: null, returned_reason: null, variant_id: null, start_time: '07:00:00', end_time: '17:30:00', total_minutes: 630,
-    weather_id: null, weather_note: null, note: null, ...extra,
+    weather_id: null, weather_note: null, note: null, crew_id: null, person_id: null, area_id: null, ...extra,
   },
   workOrder: { label: 'WO-1 · Pipe run', currency: 'USD', orderValue: 1000 },
   progress: [

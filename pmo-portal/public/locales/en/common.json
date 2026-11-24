@@ -194,6 +194,10 @@
       "setupWorkflows": {
         "name": "Setup workflows",
         "summary": "Enables work-order imports and the opening balances overview."
+      },
+      "managementViews": {
+        "name": "Management views",
+        "summary": "Shows the project portfolio and progress not yet accepted by the client."
       }
     },
     "paletteGroup": "Settings"

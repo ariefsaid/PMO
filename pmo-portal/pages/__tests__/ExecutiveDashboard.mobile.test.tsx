@@ -43,3 +43,5 @@ describe('AC-MOBILE-1 and AC-MOBILE-3 responsive dashboard reading order', () =>
     expect(screen.queryByText(/Budget check unavailable/)).not.toBeInTheDocument();
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

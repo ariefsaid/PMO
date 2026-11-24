@@ -194,6 +194,10 @@
       "setupWorkflows": {
         "name": "Alur penyiapan",
         "summary": "Mengaktifkan impor perintah kerja dan ringkasan saldo awal."
+      },
+      "managementViews": {
+        "name": "Tampilan manajemen",
+        "summary": "Menampilkan portofolio proyek dan progres yang belum diterima oleh klien."
       }
     },
     "paletteGroup": "Pengaturan"

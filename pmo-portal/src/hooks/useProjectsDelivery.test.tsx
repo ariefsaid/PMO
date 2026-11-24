@@ -7,6 +7,7 @@ const { milestone } = vi.hoisted(() => ({
   milestone: {
     deliveryForProjects: vi.fn(),
     deliverySummaryForProjects: vi.fn(),
+    managementOverviewForProjects: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { milestone } }));
@@ -14,7 +15,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-import { useProjectsDelivery, useProjectsDeliverySummary } from './useProjectsDelivery';
+import { useProjectManagementOverview, useProjectsDelivery, useProjectsDeliverySummary } from './useProjectsDelivery';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -26,13 +27,28 @@ const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: 
 beforeEach(() => {
   milestone.deliveryForProjects.mockReset();
   milestone.deliverySummaryForProjects.mockReset();
+  milestone.managementOverviewForProjects.mockReset();
   milestone.deliveryForProjects.mockResolvedValue({ 'p1': 32, 'p2': 100 });
   milestone.deliverySummaryForProjects.mockResolvedValue({
     p1: { deliveryPct: 75, committedSpend: 500000, budget: 900000 },
   });
+  milestone.managementOverviewForProjects.mockResolvedValue({
+    p1: { projectId: 'p1', plannedPct: 63, doneCount: 2, lateCount: 1, totalCount: 4, today: '2026-11-24' },
+  });
 });
 
 describe('useProjectsDelivery', () => {
+  it('useProjectManagementOverview batches planned progress and milestone counts in one cache variant', async () => {
+    const ids = ['p1', 'p2'];
+    const { result } = renderHook(() => useProjectManagementOverview(ids), { wrapper: wrap(freshClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(milestone.managementOverviewForProjects).toHaveBeenCalledTimes(1);
+    expect(milestone.managementOverviewForProjects).toHaveBeenCalledWith(ids);
+    expect(result.current.data).toEqual({
+      p1: { projectId: 'p1', plannedPct: 63, doneCount: 2, lateCount: 1, totalCount: 4, today: '2026-11-24' },
+    });
+  });
+
   it('useProjectsDeliverySummary returns the summary map', async () => {
     const ids = ['p1'];
     const { result } = renderHook(() => useProjectsDeliverySummary(ids), { wrapper: wrap(freshClient()) });

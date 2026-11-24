@@ -8,7 +8,7 @@ import type { PlanSettings } from '@/src/lib/db/billingPlan';
 
 const state = vi.hoisted(() => ({ rows: [] as unknown[], settings: {} as unknown, may: true, mutate: vi.fn() }));
 
-vi.mock('@/src/hooks/useBillingPlan', () => ({
+vi.mock('@/src/hooks/useBillingPlan', () => ({ useBillingUnacceptedProgress: () => ({ isPending: true, isError: false, isSuccess: false }),
   useBillingPlanCandidates: () => ({ isPending: false, isError: false, isSuccess: true, data: { rows: state.rows, truncated: false }, refetch: vi.fn() }),
   useBillingPlanSettings: () => ({ data: state.settings }),
   useSaveBillingPlanSettings: () => ({ mutate: state.mutate, isPending: false }),
@@ -95,3 +95,5 @@ describe('BillingPlan done-not-claimed age (#2675)', () => {
     expect(screen.queryByText(/since accepted|Over the/)).toBeNull();
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

@@ -27,6 +27,8 @@ export async function getBillingBoard(projectId: string | null): Promise<Billing
       workOrderId: r.work_order_id,
       woNumber: r.wo_number,
       claimCreatedAt: r.claim_created_at,
+      claimValue: String(r.claim_value),
+      currency: r.currency,
       stepCount: Number(r.step_count),
       stepsDone: Number(r.steps_done),
       currentPosition: r.current_position === null ? null : Number(r.current_position),

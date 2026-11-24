@@ -9,6 +9,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useDailySiteReports, useDsrValidationQueue } from '@/src/hooks/useDailySiteReports';
 import { useDailyReportValidateRoles } from '@/src/hooks/useDailyReportValidateRoles';
+import { useCrews } from '@/src/hooks/useCrews';
 import { formatDay } from '@/src/lib/format';
 import type { DsrStatus } from '@/src/lib/db/dailySiteReports';
 import { NewSiteReportDialog } from './NewSiteReportDialog';
@@ -30,6 +31,8 @@ const SiteReports: React.FC = () => {
   const { realRole } = useEffectiveRole();
   const [params, setParams] = useSearchParams();
   const status = (STATUSES as string[]).includes(params.get('status') ?? '') ? (params.get('status') as DsrStatus) : undefined;
+  const crewId = params.get('crew') ?? '';
+  const crews = useCrews();
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0);
   const [newOpen, setNewOpen] = useState(false);
 
@@ -37,7 +40,7 @@ const SiteReports: React.FC = () => {
   const asOwnPm = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { project_manager_id: userId } };
   const mayEnter = can('create', 'dailySiteReport', asOwnPm);
   const mayValidate = can('approve', 'dailySiteReport', { ...asOwnPm, record: { ...asOwnPm.record, author_id: null } });
-  const filter = useMemo(() => (status ? { status } : {}), [status]);
+  const filter = useMemo(() => ({ ...(status ? { status } : {}), ...(crewId ? { crewId } : {}) }), [status, crewId]);
   const list = useDailySiteReports(filter, page);
   const queue = useDsrValidationQueue(mayValidate);
   const stockOn = useDsrStockSettings().data?.enabled === true;
@@ -88,6 +91,16 @@ const SiteReports: React.FC = () => {
       <section aria-labelledby="dsr-list" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 id="dsr-list" className="text-base font-semibold text-foreground">{t('list.title', 'Reports')}</h2>
+          <div className="flex flex-wrap items-end gap-3">
+          {(crews.data ?? []).length > 0 && (
+            <SelectField
+              compact
+              label={t('list.crew', 'Crew')}
+              value={crewId}
+              onChange={(v) => setParam('crew', v)}
+              options={[{ value: '', label: t('list.allCrews', 'All crews') }, ...(crews.data ?? []).map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))]}
+            />
+          )}
           <SelectField
             compact
             label={t('list.status', 'Status')}
@@ -96,6 +109,7 @@ const SiteReports: React.FC = () => {
             options={[{ value: '', label: t('list.allStatuses', 'All statuses') },
               ...STATUSES.map((s) => ({ value: s, label: t(`status:siteReport.${s}`) }))]}
           />
+          </div>
         </div>
         {list.isPending ? (
           <ListState variant="loading" rows={4} />
@@ -112,6 +126,8 @@ const SiteReports: React.FC = () => {
                   <Link to={`/site-reports/${r.id}`} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 hover:bg-surface-hover">
                     <span className="tabular-nums text-foreground">{formatDay(r.work_date)}</span>
                     <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.work_order_label}</span>
+                    {r.crew_name && <span className="text-muted-foreground" data-testid="dsr-crew">{t('list.crewLabel', { defaultValue: 'Crew {{name}}', name: r.crew_name })}</span>}
+                    {r.person_name && <span className="text-muted-foreground" data-testid="dsr-person">{t('list.personLabel', { defaultValue: 'Person {{name}}', name: r.person_name })}</span>}
                     <span className="text-muted-foreground">{r.author_name ?? '—'}</span>
                     {stockFlags?.has(r.id) && <StatusPill variant="warn" data-testid="dsr-stock-flag">{t('stock.flag', 'Stock flagged')}</StatusPill>}
                     <StatusPill record="siteReport" state={r.status} />

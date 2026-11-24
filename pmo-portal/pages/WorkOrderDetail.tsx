@@ -32,6 +32,7 @@ import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
 import { MaterialCompletionLink } from './work-order-detail/MaterialCompletionLink';
+import { SiteReportsSection } from './work-order-detail/SiteReportsSection';
 import { MissingSection } from './work-order-detail/MissingSection';
 import { missingStepsFromSource } from '@/src/lib/workOrderMissing';
 import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
@@ -205,6 +206,7 @@ const WorkOrderDetail: React.FC = () => {
             onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
           <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
           <WorkOrderCrewLink workOrderId={row.id} />
+          <SiteReportsSection workOrderId={row.id} />
         </PageGroup>
         <PageGroup id="wo-cost" label={groupLabels.cost}>
           <CostSection reasons={costReasons} labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
