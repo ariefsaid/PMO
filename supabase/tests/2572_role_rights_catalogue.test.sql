@@ -27,4 +27,17 @@ select ok(not exists(select 1 from pg_policies where schemaname='public' and tab
 select ok(exists(select 1 from pg_policies where schemaname='public' and tablename='procurements' and permissive='RESTRICTIVE'),'AC-RRC-015 purchase policy composition retains restrictive scope');
 select is(coalesce((select array_agg(grantee||':'||privilege_type order by grantee,privilege_type) from information_schema.routine_privileges where routine_schema='public' and routine_name=f.name and grantee in ('PUBLIC','anon','authenticated')),array[]::text[]),case when f.name='guard_equipment_plan_purchase_submitter' then array[]::text[] else array['authenticated:EXECUTE'] end,'AC-RRC-016 explicit routine privilege '||f.name)
 from unnest(array['dsr_report_revenue','equipment_plan_purchase_submit_context','transition_procurement','approve_equipment_plan','guard_equipment_plan_purchase_submitter']) f(name);
+select ok((select q.qual=t.qual and q.with_check=t.with_check and q.roles=array['authenticated']::name[] from pg_policies q join pg_policies t on t.schemaname=q.schemaname and t.tablename=q.tablename where q.schemaname='public' and q.tablename='organizations' and q.policyname='organizations_update_qs_report_revenue' and t.policyname='organizations_update_tax_default'),'AC-RRC-017 new policy exactly matches the retained own-org active Admin predicate');
+set local request.jwt.claims='{"role":"anon"}';
+set local role anon;
+select is((select count(*)::int from organizations),0,'AC-RRC-018 anon reaches no organisation row');
+select is((select count(*)::int from procurements),0,'AC-RRC-018 anon reaches no purchase row');
+select is((select count(*)::int from procurement_status_events),0,'AC-RRC-018 anon reaches no submission history');
+select throws_ok($$select * from equipment_plans$$,'42501',null,'AC-RRC-019 anon cannot read plans');
+select throws_ok($$select * from equipment_plan_lines$$,'42501',null,'AC-RRC-019 anon cannot read provenance lines');
+select throws_ok($$select * from dsr_report_revenue('00000000-0000-0000-0000-000000000000')$$,'42501',null,'AC-RRC-019 anon cannot invoke the priced report read');
+select throws_ok($$select equipment_plan_purchase_submit_context('00000000-0000-0000-0000-000000000000')$$,'42501',null,'AC-RRC-019 anon cannot invoke submission context');
+reset role;
+select ok(not has_column_privilege(r.name,'dsr_progress_lines',c.name,'SELECT'),'AC-RRC-020 raw priced progress is not directly selectable '||r.name||'.'||c.name)
+from unnest(array['anon','authenticated']) r(name),unnest(array['frozen_rate','frozen_amount','frozen_rate_id','frozen_rate_source']) c(name);
 select * from finish(); rollback;
