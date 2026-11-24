@@ -192,19 +192,25 @@ select is(
   'WOF-10 PA updates own Draft work-order document'
 );
 
-select isnt(
-  pg_temp.err('a2', $$
-    update public.project_documents set title = 'Hijacked Admin WO doc' where id = '26300000-0000-0000-0000-000000000702'
+select is(
+  pg_temp.val('a2', $$
+    with changed as (
+      update public.project_documents set title = 'Hijacked Admin WO doc' where id = '26300000-0000-0000-0000-000000000702'
+      returning 1
+    ) select count(*)::text from changed
   $$),
-  'ok',
+  '0',
   'WOF-10 PA cannot update another user Draft work-order document'
 );
 
-select isnt(
-  pg_temp.err('a2', $$
-    update public.project_documents set title = 'Hijacked Proj doc' where id = '26300000-0000-0000-0000-000000000701'
+select is(
+  pg_temp.val('a2', $$
+    with changed as (
+      update public.project_documents set title = 'Hijacked Proj doc' where id = '26300000-0000-0000-0000-000000000701'
+      returning 1
+    ) select count(*)::text from changed
   $$),
-  'ok',
+  '0',
   'WOF-10 PA cannot update project-level document even when self-authored'
 );
 
