@@ -22,6 +22,7 @@ export interface StockDocumentInput {
   warehouseId: string;
   toWarehouseId?: string;
   projectId?: string;
+  workOrderId?: string | null;
   procurementId?: string;
   reason?: string;
   note?: string;
@@ -29,11 +30,11 @@ export interface StockDocumentInput {
   lines: StockLineInput[];
 }
 
-const defined = (o: Record<string, unknown>): Record<string, string> =>
-  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Record<string, string>;
+const defined = (o: Record<string, unknown>): Record<string, string | null> =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Record<string, string | null>;
 const header = (i: StockDocumentInput) => defined({
   kind: i.kind, warehouse_id: i.warehouseId, to_warehouse_id: i.toWarehouseId, project_id: i.projectId,
-  procurement_id: i.procurementId, reason: i.reason, note: i.note, occurred_on: i.occurredOn,
+  work_order_id: i.workOrderId, procurement_id: i.procurementId, reason: i.reason, note: i.note, occurred_on: i.occurredOn,
 });
 const lines = (i: StockDocumentInput) => i.lines.map((l) => defined({
   item_id: l.itemId, quantity: l.quantity, unit_cost: l.unitCost, boq_item_id: l.boqItemId,

@@ -504,7 +504,14 @@
     },
     "costOnFile": "A unit cost is on file. Leave empty to keep it.",
     "editingDraft": "Editing a saved draft: nothing changes in stock until you post it.",
-    "whoPosts": "Save your count here. If anything differs from the book, a Project Manager or above posts it, not you. A count with no difference you can post yourself."
+    "whoPosts": "Save your count here. If anything differs from the book, a Project Manager or above posts it, not you. A count with no difference you can post yourself.",
+    "workOrder": "Work order",
+    "workOrderPlaceholder": "Location only (no work order)",
+    "workOrderSearch": "Search work orders…",
+    "workOrderNoun": "work order",
+    "workOrderNounPlural": "work orders",
+    "workOrderEmpty": "This project has no open work orders.",
+    "workOrderHelp": "Optional: book any counted difference to this work order."
   },
   "consumption": {
     "from": "From month",

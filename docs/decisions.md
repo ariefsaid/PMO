@@ -4160,4 +4160,9 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   order, receipts and bill. The right adds no ordering, approval or edit authority; those stay with the roles that hold them today
   (DD-R1124-1). Reason: the role's job is to oversee buying across projects, so it must see every case and not only those of the projects
   it manages. Not a setting: it follows the job role.
+- **DD-R1124-17 A stock count at a project location may name the work order it is counted for:** its posted difference then appears on
+  that work order's material completion report (extending OD-R1124-5) and, when issued stock counts as work-order cost is switched on
+  (OD-R1124-9), enters that work order's and project's cost at the stock ledger's valuation (`-value_delta`: a shortage adds cost, a gain
+  reduces it). A count with no work order behaves unchanged, and count separation of duties (counter is not approver) is unchanged
+  (`docs/specs/stock-count-work-order.spec.md`, migration 2590).
 
