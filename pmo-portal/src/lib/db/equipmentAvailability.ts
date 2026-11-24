@@ -23,7 +23,7 @@ export interface MetricsRow {
 }
 export interface DowntimeFlag { asset_id: string; period_start: string; down_days: number }
 export interface RentalTermInput {
-  asset_id: string; vendor_id: string; rate: string; basis: 'day' | 'month'; currency: string; rented_from: string; rented_to?: string | null;
+  asset_id: string; vendor_id: string; rate: string; basis: 'hour' | 'day' | 'month'; currency: string; rented_from: string; rented_to?: string | null;
 }
 
 export async function listStatusDays(from: string, to: string, assetIds?: string[]): Promise<StatusDayRow[]> {
@@ -91,7 +91,7 @@ export async function listDowntimeFlags(): Promise<DowntimeFlag[]> {
 export async function setOwnership(assetId: string, ownership: 'owned' | 'rented', inServiceOn: string | null): Promise<void> {
   await call('set_equipment_ownership', { p_asset: assetId, p_ownership: ownership, p_in_service_on: inServiceOn });
 }
-export interface RentalTermRow { id: string; vendor_id: string; rate: number; basis: 'day' | 'month'; currency: string; rented_from: string; rented_to: string | null }
+export interface RentalTermRow { id: string; vendor_id: string; rate: number; basis: 'hour' | 'day' | 'month'; currency: string; rented_from: string; rented_to: string | null }
 export async function listRentalTerms(assetId: string): Promise<RentalTermRow[]> {
   type Query = { select: (columns: string) => Query; eq: (column: string, value: string) => Query; order: (column: string, options: { ascending: boolean }) => Query; range: (from: number, to: number) => Promise<RpcResult> };
   const client = supabase as unknown as { from: (table: string) => Query };
@@ -135,4 +135,31 @@ export async function proofUrl(path: string): Promise<string> {
   if (error) throw new AppError(error.message);
   if (!data?.signedUrl) throw new AppError('Proof link is unavailable');
   return data.signedUrl;
+}
+
+export interface HourlyRentalInput {
+  assetId: string; from: string; to: string; contractedHours: string; invoiceHours: string;
+  broken: { date: string; hours: string }[]; state: 'checked' | 'disputed' | null;
+  invoiceId?: string; note?: string;
+}
+export interface HourlyRentalResult {
+  contracted_hours: string; broken_hours: string; billable_hours: string; invoice_hours: string;
+  rate: string; currency: string; deduction: string; expected_amount: string;
+  state: 'checked' | 'disputed' | null;
+  days: { date: string; hours: number; proven: boolean; proofs: { id: string; file_name: string; file_path: string }[] }[];
+}
+export async function hourlyRentalCheck(v: HourlyRentalInput): Promise<HourlyRentalResult> {
+  return await call('check_hourly_rental', { p_asset: v.assetId, p_from: v.from, p_to: v.to,
+    p_contracted: v.contractedHours, p_invoice: v.invoiceHours, p_broken: v.broken, p_state: v.state,
+    p_invoice_id: v.invoiceId ?? null, p_note: v.note ?? null }) as HourlyRentalResult;
+}
+export interface SavedRentalCheck {
+  id: string; state: 'checked' | 'disputed'; note: string | null; invoice_number: string | null;
+  period_from: string; period_to: string; created_at: string; author: string | null;
+}
+export async function savedRentalChecks(assetId?: string, procurementId?: string): Promise<SavedRentalCheck[]> {
+  return await call('get_hourly_rental_checks', { p_asset: assetId ?? null, p_procurement: procurementId ?? null }) as SavedRentalCheck[];
+}
+export async function rentalInvoiceChoices(assetId: string): Promise<{ id: string; label: string }[]> {
+  return await call('hourly_rental_invoice_choices', { p_asset: assetId }) as { id: string; label: string }[];
 }

@@ -22,6 +22,8 @@ function fail(error: { message: string; code?: string; details?: string | null }
 
 export interface StepInput {
   name: string;
+  templateStepId?: string;
+  claimEvidenceEnabled?: boolean;
   /** A role from the organisation's role set; null/absent = nobody in particular. */
   ownerRole?: string | null;
   /** Whole days, 1 to 365; null = none. */
@@ -70,6 +72,8 @@ export interface OverdueClaimStep {
 
 const stepPayload = (s: StepInput) => ({
   name: s.name,
+  ...(s.templateStepId ? { template_step_id: s.templateStepId } : {}),
+  ...(s.claimEvidenceEnabled !== undefined ? { claim_evidence_enabled: s.claimEvidenceEnabled } : {}),
   ...(s.ownerRole !== undefined ? { owner_role: s.ownerRole } : {}),
   ...(s.targetDays !== undefined ? { target_days: s.targetDays } : {}),
   ...(s.targetOn !== undefined ? { target_on: s.targetOn } : {}),
@@ -91,7 +95,7 @@ function patchPayload(p: StepPatch) {
 
 export async function listStepTemplates(): Promise<StepTemplate[]> {
   const { data, error } = await supabase.from('billing_step_templates')
-    .select('id,name,steps:billing_step_template_steps(position,name,owner_role,owner_role_key,hidden_from_role_keys,target_days,client_side,optional,documents:billing_step_template_documents(position,name,required))')
+    .select('id,name,steps:billing_step_template_steps(id,position,name,owner_role,owner_role_key,hidden_from_role_keys,target_days,client_side,optional,claim_evidence_enabled,documents:billing_step_template_documents(position,name,required))')
     .is('archived_at', null).order('name').limit(TEMPLATE_LIMIT);
   if (error) fail(error);
   return (data ?? []).map((t) => ({
@@ -100,6 +104,8 @@ export async function listStepTemplates(): Promise<StepTemplate[]> {
     steps: [...(t.steps ?? [])].sort((a, b) => a.position - b.position).slice(0, STEP_LIMIT).map((s) => ({
       position: s.position,
       name: s.name,
+      templateStepId: s.id,
+      claimEvidenceEnabled: s.claim_evidence_enabled,
       ownerRole: s.owner_role,
       ownerRoleKey: s.owner_role_key,
       hiddenFromRoleKeys: s.hidden_from_role_keys,

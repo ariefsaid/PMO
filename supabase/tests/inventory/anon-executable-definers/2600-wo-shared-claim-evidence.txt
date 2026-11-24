@@ -1,0 +1,2 @@
+# Work-order claim evidence (2600): client-callable Admin-only step designation.
+set_work_order_step_claim_evidence  # 2600: Admin designates a work-order billing step; field account, active member, org; 2601 pgTAP

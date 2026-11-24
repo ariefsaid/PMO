@@ -253,9 +253,9 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
           >
             {row.title}
           </Link>
-          {(row.code || row.pr_number || row.vendor?.name) && (
+          {(row.code || row.pr_number || (maySeePrices ? row.vendor?.name : undefined)) && (
             <div className="break-words text-sm text-muted-foreground">
-              {(row.code || row.pr_number) && <span className="record-id">{row.code || row.pr_number}</span>}{(row.code || row.pr_number) && row.vendor?.name && ' · '}{row.vendor?.name}
+              {(row.code || row.pr_number) && <span className="record-id">{row.code || row.pr_number}</span>}{(row.code || row.pr_number) && (maySeePrices ? row.vendor?.name : undefined) && ' · '}{(maySeePrices ? row.vendor?.name : undefined)}
             </div>
           )}
         </div>

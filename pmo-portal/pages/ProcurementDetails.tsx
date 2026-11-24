@@ -1,3 +1,4 @@
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { useStockItems } from '@/src/hooks/useStock';
 import { usePurchaseCaseRead } from '@/src/hooks/usePurchaseCaseRead';
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
@@ -42,6 +43,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import RentalCheckHistory from './equipment/RentalCheckHistory';
 import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
@@ -192,6 +194,7 @@ const ProcurementDetails: React.FC = () => {
 
   // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
   // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
+  const maySeePrices = useMaySeePrices();
   const vendorQuery = useVendorOptions();
   const { data: vendorOptions } = vendorQuery;
   const vendorReferencesReady = !vendorQuery.isPending && !vendorQuery.isError && vendorOptions !== undefined;
@@ -601,7 +604,7 @@ const ProcurementDetails: React.FC = () => {
   const meta = [
     p.code ? <span key="code" className="record-id">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
-    p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing" className="inline-flex items-center gap-1.5">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}
+    !maySeePrices ? null : p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing" className="inline-flex items-center gap-1.5">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}
       {canSetVendorAsBuyer && <Button variant="outline" size="sm" data-testid="buyer-set-supplier" onClick={() => { setTab('files'); setSelectedVendorId(null); setVendorPickerOpen(true); }}>{t('bupot.setVendor', 'Set supplier')}</Button>}</span>,
     p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><Avatar name={p.requested_by.full_name} decorative /><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
   ].filter((part): part is React.ReactElement => part !== null);
@@ -682,7 +685,7 @@ const ProcurementDetails: React.FC = () => {
     setTab('quotes');
   };
   const exportCurrentProcurement = () => {
-    const csv = ['number,title,status,project,supplier', [p.code ?? '', p.title, p.status, p.project?.name ?? '', p.vendor?.name ?? ''].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')].join('\n');
+    const csv = [maySeePrices ? 'number,title,status,project,supplier' : 'number,title,status,project', [p.code ?? '', p.title, p.status, p.project?.name ?? '', ...(maySeePrices ? [p.vendor?.name ?? ''] : [])].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     link.download = `${p.code ?? 'procurement'}.csv`;
@@ -757,7 +760,7 @@ const ProcurementDetails: React.FC = () => {
 
   if (inspectionOnly) return <FigureScope><RecordStack>
     <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
-    <RecordHeader panelInset name={p.title} status={<ProcurementStatusPill status={p.status} />} meta={p.vendor?.name}>
+    <RecordHeader panelInset name={p.title} status={<ProcurementStatusPill status={p.status} />} meta={maySeePrices ? p.vendor?.name : undefined}>
       {p.vendor_id && <SupplierRiskNote supplierId={p.vendor_id} />}
     </RecordHeader>
     <TimelineWithOrders procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={false} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
@@ -868,6 +871,7 @@ const ProcurementDetails: React.FC = () => {
       )}
       </div>
 
+      {may('transition', 'equipmentAvailability') && <RentalCheckHistory procurementId={p.id} />}
       {/* #2697: type, rental period, extension links and the guided extend step. Mounted only on a typed purchase, so an organisation
           without purchase types renders exactly what it did before. */}
       {p.purchase_type_id && (

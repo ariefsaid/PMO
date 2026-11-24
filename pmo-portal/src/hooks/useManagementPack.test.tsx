@@ -41,6 +41,28 @@ beforeEach(() => {
 });
 
 describe('useManagementPack', () => {
+  it('keeps the previous report visible while the selected month loads', async () => {
+    let resolveNext!: (value: typeof facts) => void;
+    h.managementPack.mockResolvedValueOnce(facts).mockImplementationOnce(() => new Promise((resolve) => { resolveNext = resolve; }));
+    const { result, rerender } = renderHook(({ to }) => useManagementPack({ from: '2026-01-01', to }), {
+      wrapper, initialProps: { to: '2026-01-01' },
+    });
+    await waitFor(() => expect(result.current.data?.to).toBe('2026-01-01'));
+    rerender({ to: '2026-02-01' });
+    expect(result.current.data?.rows[0].contractNet).toBe(1000);
+    expect(result.current.isPending).toBe(false);
+    await act(async () => resolveNext({ ...facts, to: '2026-02-01' }));
+    await waitFor(() => expect(result.current.data?.to).toBe('2026-02-01'));
+  });
+
+  it('does not retain a report across organisations', async () => {
+    h.managementPack.mockResolvedValueOnce(facts).mockImplementationOnce(() => new Promise(() => {}));
+    const { result, rerender } = renderHook(() => useManagementPack({ from: '2026-01-01', to: '2026-01-01' }), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    h.auth.currentUser.org_id = 'org-2';
+    rerender();
+    expect(result.current.data).toBeUndefined();
+  });
   it('AC-MMP-013 support: returns the BUILT pack for the requested window', async () => {
     const { result } = renderHook(() => useManagementPack({ from: '2026-01-01', to: '2026-01-01' }), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

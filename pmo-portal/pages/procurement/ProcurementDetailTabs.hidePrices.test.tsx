@@ -11,7 +11,7 @@ vi.mock('./VendorQuotesTab', () => ({ VendorQuotesTab: () => null }));
 
 const quote = (id: string, total: number) => ({ id, vendor_id: `v-${id}`, total_amount: total, currency: 'USD', valid_until: null, vq_number: `VQ-${id}` });
 const p = { id: 'p1', currency: 'USD', vendor_id: null, vendor: null, approved_total_value: null, quotations: [quote('a', 1200), quote('b', 1500)] } as unknown as ProcurementDetail;
-const renderTab = () => render(<ToastProvider><ProcurementQuotesTab p={p} selectedQuote={p.quotations[0] as never} vendorMap={{}}
+const renderTab = () => render(<ToastProvider><ProcurementQuotesTab p={p} selectedQuote={p.quotations[0] as never} vendorMap={{ 'v-a': 'Quote supplier' }}
   mutations={{ createQuotation: { isPending: false } } as never} crud={{ selectQuote: { isPending: false } } as never}
   canAddQuote={false} canSelectQuote={false} canManageFiles={false} currentUserId={null} onMutationError={vi.fn()} /></ToastProvider>);
 afterEach(() => act(() => setPricesHidden(false)));
@@ -28,6 +28,7 @@ describe('AC-009 quotes tab without prices', () => {
     expect(screen.queryByText(/1,200/)).toBeNull();
     expect(screen.queryByText(/1,500/)).toBeNull();
     expect(screen.queryByText(/vs chosen/)).toBeNull();
+    expect(screen.queryByText('Quote supplier')).toBeNull();
     expect(screen.getByTestId('quotation-comparison-cards')).toBeInTheDocument();
   });
 });

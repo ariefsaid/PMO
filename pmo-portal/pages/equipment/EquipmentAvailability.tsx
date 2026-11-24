@@ -29,7 +29,7 @@ const EquipmentAvailabilityScreen: React.FC = () => {
 
   const [view, setView] = useState<'status' | 'check'>('status');
   // 1600: the equipment manager reads the invoice check; only Admin and Finance may state a reason to include unproven days.
-  const canCheck = may('manage', 'equipmentAvailability', writeCtx) || may('approve', 'equipmentAvailability', writeCtx);
+  const canCheck = may('transition', 'equipmentAvailability', writeCtx) || may('manage', 'equipmentAvailability', writeCtx) || may('approve', 'equipmentAvailability', writeCtx);
   const canIncludeUnproven = may('approve', 'equipmentAvailability', writeCtx);
   const canConfigure = may('configure', 'equipmentAvailability', writeCtx);
   const assets = useEquipmentAssetPages();
