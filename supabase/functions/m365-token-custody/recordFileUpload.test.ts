@@ -549,3 +549,45 @@ Deno.test("document-preview AC-008 upload refuses an oversize or unauthorised re
     });
   }
 });
+
+Deno.test("TC-PA-13 work-order document upload lands in work_order folder and respects PA scope", async (t) => {
+  const WO_ID = "10200000-0000-0000-0000-000000000601";
+  const WO_FOLDER_ITEM = "synthetic-wo-folder-id";
+  const PROJ_FOLDER_ITEM = "synthetic-proj-folder-id";
+  const woRegisters = (docOver: Record<string, unknown> = {}) => (call: { url: URL }) => {
+    if (call.url.searchParams.get("id")?.startsWith("eq.")) return [docRow({ work_order_id: WO_ID, ...docOver })];
+    if (call.url.searchParams.get("work_order_id")?.startsWith("eq.")) return [folderRow({ ms_item_id: WO_FOLDER_ITEM, work_order_id: WO_ID })];
+    return [folderRow({ ms_item_id: PROJ_FOLDER_ITEM, work_order_id: null })];
+  };
+
+  await t.step("project_administrator uploads a Draft self work-order document into the WO folder (not project folder)", async () => {
+    const putWo = gput(
+      `/drives/${DRIVE}/items/${WO_FOLDER_ITEM}:/Site plan.pdf:/content`,
+      () => jsonResponse(driveItem({ id: "wo-uploaded-1", name: "Site plan.pdf", parentReference: { driveId: DRIVE, id: WO_FOLDER_ITEM } }), { status: 201 }),
+    );
+    const { res, json, calls } = await serveUpload(newWorld({
+      role: "Engineer",
+      holdsProjectAdmin: true,
+      documents: woRegisters(),
+      graph: [putWo],
+    }), projectForm());
+    assertEquals(res.status, 200);
+    assertEquals((json as { reference?: { item_id?: string } })?.reference?.item_id, "wo-uploaded-1");
+    assert(calls.some((c) => c.url.pathname.includes(WO_FOLDER_ITEM)));
+  });
+
+  await t.step("project_administrator is refused on project-level doc (work_order_id null), other author, non-Draft, procurement, and plain Engineer", async () => {
+    const deniedCases: Array<[string, Partial<World>, FormData]> = [
+      ["project-level doc (work_order_id null)", { role: "Engineer", holdsProjectAdmin: true, documents: registers([docRow({ work_order_id: null })], [folderRow()]) }, projectForm()],
+      ["work-order doc authored by someone else", { role: "Engineer", holdsProjectAdmin: true, documents: woRegisters({ author_id: "other-user" }) }, projectForm()],
+      ["issued work-order doc", { role: "Engineer", holdsProjectAdmin: true, documents: woRegisters({ status: "Issued" }) }, projectForm()],
+      ["procurement upload", { role: "Engineer", holdsProjectAdmin: true, tables: { procurement_receipts: [{ id: DOC_ID, org_id: ORG, procurement_id: CASE_ID }] }, documents: registers() }, purchaseForm()],
+      ["plain Engineer on work-order doc", { role: "Engineer", holdsProjectAdmin: false, documents: woRegisters() }, projectForm()],
+    ];
+    for (const [label, worldOver, form] of deniedCases) {
+      const { res, calls } = await serveUpload(newWorld({ graph: [], ...worldOver }), form);
+      assertEquals(res.status, 403, label);
+      assertEquals(graphCalls(calls).length, 0, label);
+    }
+  });
+});

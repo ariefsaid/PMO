@@ -48,8 +48,8 @@ type Failure = Extract<FolderSearchResult, { complete: false }>;
 type Listing = { complete: true; folders: ListedFolder[] } | Failure;
 
 export interface FolderDiscovery {
-  /** Strict-boundary folders for `convention.term` under the convention parent. */
-  find(convention: { term: string; parentSegments: string[] }): Promise<FolderSearchResult>;
+  /** Strict-boundary folders for `convention.term` under the convention parent (or known `parentItemId`). */
+  find(convention: { term: string; parentSegments: string[]; parentItemId?: string }): Promise<FolderSearchResult>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -150,10 +150,10 @@ export function createFolderDiscovery(
 
   return {
     async find(convention) {
-      const key = convention.parentSegments.join("/");
+      const key = convention.parentItemId ? `id:${convention.parentItemId}` : convention.parentSegments.join("/");
       let listing = listings.get(key);
       if (listing === undefined) {
-        const parent = await resolveParent(convention.parentSegments);
+        const parent = convention.parentItemId ?? await resolveParent(convention.parentSegments);
         if (parent === "absent") {
           listing = "absent";
         } else if (typeof parent !== "string") {

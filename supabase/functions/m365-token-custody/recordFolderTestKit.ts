@@ -46,7 +46,9 @@ export interface World {
   appRows?: Record<string, unknown[]>;
   /** Rows for the service-only app status read (#2260). Defaults to the appRows of that org, without the secret. */
   appStatusRows?: Record<string, unknown[]>;
-  /** Rows returned for the caller-RLS parent read (projects / procurements). */
+  /** True when the actor holds the `project_administrator` job role (`actor_holds_job_role('project_administrator')`). */
+  holdsProjectAdmin?: boolean;
+  /** Rows returned for the caller-RLS parent read (projects / procurements / work_orders). */
   parent: unknown[] | ((call: FetchCall) => unknown[] | Promise<unknown[]>);
   parentError?: unknown;
   /** Rows returned for the folder register read. */
@@ -162,6 +164,10 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
   return [
     ...extraTables,
     { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: world.orgId ?? ORG, role: world.role }) },
+    { label: "holds-job-role", pathname: "/rest/v1/rpc/actor_holds_job_role", response: (call) => {
+      const key = (call.bodyJson as Record<string, unknown>)?.p_key;
+      return jsonResponse(key === "project_administrator" && world.holdsProjectAdmin === true);
+    } },
     { label: "app-resolve", pathname: "/rest/v1/rpc/m365_org_app_resolve", response: (call) => jsonResponse(world.appRows?.[String((call.bodyJson as Record<string, unknown>).p_org_id)] ?? []) },
     {
       label: "app-status",
@@ -182,6 +188,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     table("platform_operators", () => jsonResponse(null)),
     table("projects", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("procurements", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
+    table("work_orders", (call) => world.parentError ? jsonResponse(world.parentError, { status: 500 }) : parentRows(call)),
     table("project_documents", documentRows),
     table("procurement_documents", documentRows),
     table("org_m365_document_settings", () => {

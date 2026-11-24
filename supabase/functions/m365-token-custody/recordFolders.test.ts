@@ -23,8 +23,10 @@ import {
   notFound,
   okDrives,
   okRoot,
+  ORG,
   PROJECT_ID,
   projectRow,
+  projectsFolder,
   READ_SCOPES,
   ROOT,
   rpcBodies,
@@ -36,6 +38,7 @@ import {
   webUrl,
 } from "./recordFolderTestKit.ts";
 import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
+import { parseEnsureRequest } from "./recordFolders.ts";
 
 const { handler, setTestJwks } = await import("./index.ts");
 const run = makeScenarioRunner(handler, setTestJwks);
@@ -707,5 +710,84 @@ Deno.test("AC-M365DOC-069 a project with only pmo_project_number creates and mat
   await run(newWorld({ parent: [projectRow({ code: "P-100", pmo_project_number: "PMO-77" })], graph: [...emptyDiscovery(), okDrives(), gpost(childrenOf(PROJECTS_ID), (c) => created("leaf-id", postedName(c), PROJECTS_ID))] }), async ({ call, calls }) => {
     await call(ensureProject);
     assertEquals(postedName(graphCalls(calls).find((c) => c.method === "POST")!), "P-100 Synthetic project");
+  });
+});
+
+const WO_ID = "10200000-0000-0000-0000-000000000601";
+const ensureWorkOrder = { action: "ensure_record_folder", kind: "work_order", id: WO_ID };
+const woRow = (over: Record<string, unknown> = {}) => ({
+  id: WO_ID, org_id: ORG, project_id: PROJECT_ID, wo_number: "WO-12", title: "Pipework", ...over,
+});
+
+Deno.test("TC-PA-13 work_order folder nests under its project folder and scopes project_administrator", async (t) => {
+  await t.step("parseEnsureRequest accepts kind: work_order", () => {
+    assertEquals(parseEnsureRequest(ensureWorkOrder), { action: "ensure_record_folder", kind: "work_order", id: WO_ID });
+  });
+
+  await t.step("project_administrator creates WO folder under existing linked project folder without writing at project level", async () => {
+    const PROJ_FOLDER_ID = "proj-folder-id";
+    await run(newWorld({
+      role: "Engineer",
+      holdsProjectAdmin: true,
+      tables: {
+        work_orders: [woRow()],
+        projects: [projectRow()],
+      },
+      documents: (call) => call.url.searchParams.get("work_order_id") === `eq.${WO_ID}`
+        ? []
+        : [{ id: "proj-doc-folder", project_id: PROJECT_ID, work_order_id: null, source: "onedrive", ms_drive_id: DRIVE, ms_item_id: PROJ_FOLDER_ID, ms_item_kind: "folder", ms_linked_at: "2026-10-01T00:00:00Z" }],
+      graph: [
+        gget(childrenOf(PROJ_FOLDER_ID), () => jsonResponse({ value: [] })),
+        okDrives(),
+        gpost(childrenOf(PROJ_FOLDER_ID), (c) => created("wo-leaf-id", postedName(c), PROJ_FOLDER_ID)),
+      ],
+    }), async ({ call, calls }) => {
+      const response = await call(ensureWorkOrder);
+      assertEquals(response.status, 200);
+      assertEquals(await response.json(), { state: "created", document_id: LINK_ID });
+      const post = graphCalls(calls).find((c) => c.method === "POST")!;
+      assertEquals(post.url.pathname, `/v1.0${childrenOf(PROJ_FOLDER_ID)}`);
+      assertEquals(postedName(post), "WO-12 Pipework");
+      assertEquals(rpcBodies(calls, "m365_link_record_folder")[0]!.p_kind, "work_order");
+      assertEquals(rpcBodies(calls, "m365_link_record_folder").every((b) => b.p_kind !== "project"), true);
+    });
+  });
+
+  await t.step("when project folder is not linked yet, ensures Projects/<project> in Graph without linking project row", async () => {
+    await run(newWorld({
+      role: "Engineer",
+      holdsProjectAdmin: true,
+      tables: {
+        work_orders: [woRow()],
+        projects: [projectRow()],
+      },
+      documents: [],
+      graph: [
+        okDrives(),
+        okRoot(),
+        projectsFolder(),
+        gget(child(PROJECTS_ID, "P-100 Synthetic project"), () => notFound()),
+        gpost(childrenOf(PROJECTS_ID), () => created("created-proj-id", "P-100 Synthetic project", PROJECTS_ID)),
+        gget(childrenOf("created-proj-id"), () => jsonResponse({ value: [] })),
+        gpost(childrenOf("created-proj-id"), (c) => created("wo-leaf-id", postedName(c), "created-proj-id")),
+      ],
+    }), async ({ call, calls }) => {
+      const response = await call(ensureWorkOrder);
+      assertEquals(response.status, 200);
+      assertEquals(await response.json(), { state: "created", document_id: LINK_ID });
+      assertEquals(rpcBodies(calls, "m365_link_record_folder").map((b) => b.p_kind), ["work_order"]);
+    });
+  });
+
+  await t.step("project_administrator is still denied on project and procurement kinds; plain Engineer denied on work_order", async () => {
+    await run(newWorld({ role: "Engineer", holdsProjectAdmin: true, graph: [] }), async ({ call, calls }) => {
+      assertEquals((await call(ensureProject)).status, 403);
+      assertEquals((await call(ensureCase)).status, 403);
+      assertEquals(graphCalls(calls).length, 0);
+    });
+    await run(newWorld({ role: "Engineer", holdsProjectAdmin: false, graph: [] }), async ({ call, calls }) => {
+      assertEquals((await call(ensureWorkOrder)).status, 403);
+      assertEquals(graphCalls(calls).length, 0);
+    });
   });
 });

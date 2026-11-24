@@ -129,6 +129,7 @@ export async function createProjectDocument(
   projectId: string,
   input: ProjectDocumentInput,
   authorId: string | null,
+  workOrderId?: string | null,
 ): Promise<ProjectDocumentRow> {
   if ((input.source === 'onedrive') !== Boolean(input.microsoft)) {
     throw new AppError('Cannot link this item.', '23514', 'm365-reference-invalid');
@@ -144,6 +145,7 @@ export async function createProjectDocument(
     revision: nullable(input.revision),
     doc_date: nullable(input.doc_date),
     author_id: authorId,
+    ...(workOrderId ? { work_order_id: workOrderId } : {}),
     ...reference,
   } satisfies Omit<TablesInsert<'project_documents'>, 'category_id'>;
   const { data, error } = await supabase

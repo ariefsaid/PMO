@@ -52,6 +52,7 @@ import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
 import { ResponsiblePersonSection } from './work-order-detail/ResponsiblePersonSection';
 import { WorkOrderAheadBadge } from './project-detail/tabs/WorkOrderAheadBadge';
+import { isMicrosoftFolder } from './project-detail/tabs/documentUtils';
 import { PageGroup, PageIndex } from './work-order-detail/PageIndex';
 import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
 
@@ -144,10 +145,14 @@ const WorkOrderDetail: React.FC = () => {
   const groups = useMemo(() => (costLines.data ? buildCostView(flatLines, money.data ?? {}) : null), [costLines.data, flatLines, money.data]);
   // The cost read's reason per record, so a line says why it carries no amount (PU16), from the one read that decides it.
   const costReasons = useMemo(() => Object.fromEntries((pva.data?.costLines ?? []).flatMap((l) => l.recordId ? [[`${l.source}:${l.recordId}`, l.reason]] : [])), [pva.data]);
+  const woFolderDoc = useMemo(
+    () => (docs.data ?? []).find((d) => d.work_order_id === id && isMicrosoftFolder(d)) ?? null,
+    [docs.data, id],
+  );
   const documents = useMemo(() => {
     const ids = new Set([...acceptances.map((a) => a.document_id).filter((d): d is string => Boolean(d)), ...(claimDocs.data ?? [])]);
-    return (docs.data ?? []).filter((d) => ids.has(d.id));
-  }, [docs.data, acceptances, claimDocs.data]);
+    return (docs.data ?? []).filter((d) => (d.work_order_id === id && !isMicrosoftFolder(d)) || ids.has(d.id));
+  }, [docs.data, acceptances, claimDocs.data, id]);
 
   if (wo.isPending) return <><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" shape="detail" rows={5} /></>;
   if (wo.isError) {
@@ -273,7 +278,15 @@ const WorkOrderDetail: React.FC = () => {
             scopeError={allocations.isError || boq.isError || bastList.isError} />
         </PageGroup>
         <PageGroup id="wo-documents" label={groupLabels.documents}>
-          <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
+          <DocumentsSection
+            workOrderId={row.id}
+            projectId={row.project_id}
+            folderDoc={woFolderDoc}
+            documents={documents}
+            isPending={docs.isPending || bastList.isPending || claimDocs.isPending}
+            isError={docs.isError || bastList.isError || claimDocs.isError}
+            onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }}
+          />
           <SafetySection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         </PageGroup>
         <PageGroup id="wo-issues" label={groupLabels.issues}>

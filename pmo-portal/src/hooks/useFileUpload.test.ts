@@ -23,6 +23,7 @@ const repo = vi.hoisted(() => ({
   cleanupObject: vi.fn<(filePath: string) => Promise<void>>(),
   attachMicrosoftUpload: vi.fn<(docId: string, reference: unknown) => Promise<void>>(),
 }));
+const ensureFolder = vi.hoisted(() => vi.fn());
 const msUpload = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/m365/uploadClient', async (orig) => ({
   ...(await orig<typeof import('@/src/lib/m365/uploadClient')>()),
@@ -31,6 +32,7 @@ vi.mock('@/src/lib/m365/uploadClient', async (orig) => ({
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     document: repo,
+    m365RecordFolders: { ensure: ensureFolder },
   },
 }));
 vi.mock('@/src/lib/uploadTransport', () => ({
@@ -296,6 +298,25 @@ describe('useFileUpload', () => {
       await act(async () => { await pending; });
       expect(result.current.uploadErrors['doc-1']).toBeUndefined();
       expect(repo.attachMicrosoftUpload).not.toHaveBeenCalled();
+    });
+
+    it('TC-PA-13: ensures the work-order folder on first Microsoft upload when missing, then uploads and attaches', async () => {
+      ensureFolder.mockResolvedValue({ state: 'created', document_id: 'wo-folder-doc' });
+      msUpload.mockResolvedValue(REF);
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+      await act(async () => {
+        await result.current.upload.mutateAsync({
+          docId: 'doc-1',
+          file: file(),
+          destination: 'microsoft',
+          workOrderId: 'wo-1',
+          hasRecordFolder: false,
+        });
+      });
+      expect(ensureFolder).toHaveBeenCalledWith({ kind: 'work_order', id: 'wo-1' });
+      expect(msUpload).toHaveBeenCalledWith({ kind: 'project_document', id: 'doc-1' }, expect.any(File), expect.any(AbortSignal));
+      expect(repo.attachMicrosoftUpload).toHaveBeenCalledWith('doc-1', REF);
     });
   });
 });

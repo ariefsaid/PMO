@@ -85,7 +85,7 @@ const PHASE_PARENT = {
 } as const satisfies Record<ProcFilePhase, string>;
 
 interface FolderScope {
-  kind: "project" | "procurement";
+  kind: "project" | "procurement" | "work_order";
   recordId: string;
 }
 
@@ -96,12 +96,13 @@ interface FolderScope {
  */
 async function loadTarget(
   deps: HandlerDeps,
-  caller: { orgId: string; role: string },
+  caller: UploadCaller,
   target: UploadRecordFileTarget,
 ): Promise<FolderScope | HandlerResult> {
+  if (caller.projectAdminOnly && target.kind !== "project_document") return DENIED();
   const project = target.kind === "project_document";
   const table = project ? "project_documents" : PHASE_PARENT[target.phase];
-  const cols = project ? "id,org_id,project_id,status,author_id,source" : "id,org_id,procurement_id";
+  const cols = project ? "id,org_id,project_id,work_order_id,status,author_id,source" : "id,org_id,procurement_id";
   const id = project ? target.id : target.parent_id;
   const { data, error } = await deps.callerClient!.from(table).select(cols).eq("id", id).limit(1);
   if (error) return UNREADABLE();
@@ -112,8 +113,11 @@ async function loadTarget(
       ? { kind: "procurement", recordId: row.procurement_id }
       : NOT_AVAILABLE();
   }
+  const workOrderId = typeof row.work_order_id === "string" && row.work_order_id ? row.work_order_id : null;
+  if (caller.projectAdminOnly && !workOrderId) return DENIED();
   const writable = row.status === "Draft" && row.source !== "onedrive" && (row.author_id === deps.userId || caller.role === "Admin"); // mutation-witness:upload-draft-only mutation-witness:upload-author-or-admin
   if (!writable) return DENIED();
+  if (workOrderId) return { kind: "work_order", recordId: workOrderId };
   return typeof row.project_id === "string" ? { kind: "project", recordId: row.project_id } : NOT_AVAILABLE();
 }
 
@@ -122,11 +126,18 @@ async function findRecordFolderRef(
   deps: HandlerDeps,
   scope: FolderScope,
 ): Promise<{ driveId: string; itemId: string } | null | "error"> {
-  const project = scope.kind === "project";
-  const { data, error } = await deps.callerClient!
-    .from(project ? "project_documents" : "procurement_documents")
-    .select("ms_drive_id,ms_item_id,ms_linked_at,id")
-    .eq(project ? "project_id" : "procurement_id", scope.recordId)
+  const isProc = scope.kind === "procurement";
+  let query = deps.callerClient!
+    .from(isProc ? "procurement_documents" : "project_documents")
+    .select("ms_drive_id,ms_item_id,ms_linked_at,id");
+  if (scope.kind === "work_order") {
+    query = query.eq("work_order_id", scope.recordId);
+  } else if (scope.kind === "project") {
+    query = query.eq("project_id", scope.recordId).is("work_order_id", null);
+  } else {
+    query = query.eq("procurement_id", scope.recordId);
+  }
+  const { data, error } = await query
     .eq("source", "onedrive")
     .eq("ms_item_kind", "folder")
     .order("ms_linked_at")
@@ -175,7 +186,7 @@ export function mapUploadOutcome(
 /** Largest request body read: the file cap plus room for the multipart framing and the few small fields. */
 export const UPLOAD_BODY_LIMIT = MAX_FILE_SIZE_BYTES + 64 * 1024;
 
-export type UploadCaller = { orgId: string; role: string };
+export type UploadCaller = { orgId: string; role: string; projectAdminOnly?: boolean };
 
 /**
  * Membership, entitlement and writer role: everything that needs no body. The wrapper runs it BEFORE the
@@ -194,8 +205,12 @@ export async function authorizeUploadCaller(deps: HandlerDeps): Promise<UploadCa
     if (err instanceof M365HandlerError) return errorResult(err);
     throw err;
   }
-  if (!WRITER_ROLES.has(caller.role)) return DENIED(); // mutation-witness:upload-writer-role
-  return caller;
+  if (WRITER_ROLES.has(caller.role)) return caller; // mutation-witness:upload-writer-role
+  if (caller.role === "Engineer") {
+    const { data, error } = await deps.callerClient.rpc("actor_holds_job_role", { p_key: "project_administrator" });
+    if (!error && data === true) return { ...caller, projectAdminOnly: true };
+  }
+  return DENIED();
 }
 
 /**
