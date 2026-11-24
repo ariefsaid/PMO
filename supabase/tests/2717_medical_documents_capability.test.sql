@@ -63,7 +63,8 @@ create or replace function pg_temp.outbox_recipients(p_entity uuid) returns uuid
 $$;
 
 -- the email channel: the expiry run writes the notices, the extra roles are the copies
-select is(public.run_document_expiry_warnings('2026-11-20'), 2, 'AC-RCG-012 the expiry run sends the two notices');
+-- Medical-right holders are primary warning recipients under the 24 November rule; recipient arrays below remain exact.
+select is(public.run_document_expiry_warnings('2026-11-20'), 4, 'AC-RCG-012 the expiry run sends the permit notice and all three medical-right notices');
 select is(pg_temp.outbox_recipients('27170000-0000-0000-0000-000000000102'::uuid),
   array['27170000-0000-0000-0000-0000000000a1'::uuid, '27170000-0000-0000-0000-0000000000a2'::uuid, '27170000-0000-0000-0000-0000000000a3'::uuid],
   'AC-RCG-012 the medical notice reaches the Admin addressee and the holders of the capability only');

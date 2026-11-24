@@ -1,6 +1,7 @@
+-- Mutation: remove 2384 site_helper_light guards; the three real field-account calls must fail their refusal assertions.
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(20);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20410000-0000-0000-0000-00000000000a', 'RR CR Org', 'IDR', 'UTC', true);
@@ -90,5 +91,11 @@ select is((select count(*) from attendance_days),0::bigint,'AC-SITE-004 unrelate
 select ok(not actor_may_lend_workers('20410000-0000-0000-0000-000000000041',current_date,current_date), 'AC-SITE-006 same-level unassigned supervisor refused');
 select ok(not actor_may_task_incident('20410000-0000-0000-0000-000000000063'),'AC-SITE-017 project-only issue outside scope refused');
 select ok(not actor_may_task_issue('20410000-0000-0000-0000-000000000031'), 'AC-SITE-017 same-level unassigned supervisor refused');
+reset role;
+select set_config('request.jwt.claims', '{"sub":"20410000-0000-0000-0000-0000000000a8","role":"authenticated"}',true);
+set local role authenticated;
+select throws_ok($$select supervisor_may_lend_crew('20410000-0000-0000-0000-000000000041')$$,'42501',null,'AC-SITE-006 field account cannot call supervisor_may_lend_crew');
+select throws_ok($$select supervisor_loan_crews()$$,'42501',null,'AC-SITE-006 field account cannot call supervisor_loan_crews');
+select throws_ok($$select actor_may_task_incident('20410000-0000-0000-0000-000000000063')$$,'42501',null,'AC-SITE-006 field account cannot call actor_may_task_incident');
 select * from finish();
 rollback;

@@ -1,6 +1,7 @@
+-- Mutation: change 2384 medical_owner_email to v_plain; the exact duplicate-email assertion must fail.
 begin;
 create extension if not exists pgtap;
-select plan(3);
+select plan(4);
 
 insert into organizations (id, name, default_currency, default_timezone) values ('17600000-0000-0000-0000-00000000000a', 'EXM Org', 'IDR', 'UTC');
 insert into auth.users (id, email) values
@@ -23,8 +24,10 @@ insert into people (id, org_id, code, name, manager_id, profile_id) values
 update organizations set built_in_roles_enabled=true;
 insert into document_types(id,org_id,name,applies_to,is_medical,notify_roles,notify_person) values('17600000-0000-0000-0000-0000000000f6','17600000-0000-0000-0000-00000000000a','Medical expiry','person',true,array['Project Manager'],false);
 insert into expiry_documents(id,org_id,subject_kind,person_id,type_id,expires_on,medical_status) values('17600000-0000-0000-0000-0000000000c6','17600000-0000-0000-0000-00000000000a','person','17600000-0000-0000-0000-0000000000e1','17600000-0000-0000-0000-0000000000f6',current_date+7,'fit');
+insert into email_event_settings(org_id,event_key,enabled,extra_roles) values('17600000-0000-0000-0000-00000000000a','document_expiry',true,array['Engineer','Admin']);
 select run_document_expiry_warnings(current_date);
 select ok(exists(select 1 from document_expiry_notices where recipient_id='17600000-0000-0000-0000-0000000000a6'),'AC-SITE-013 HR officer with medical right receives warning independent of access-level list');
 select ok(exists(select 1 from document_expiry_notices where recipient_id='17600000-0000-0000-0000-0000000000a3'),'AC-SITE-013 direct manager receives warning');
 select ok(not exists(select 1 from document_expiry_notices where recipient_id='17600000-0000-0000-0000-0000000000a5'),'AC-SITE-013 unrelated person without medical right receives nothing');
+select is((select count(*) from (select o.recipient_id from email_outbox o join notifications n on n.id=o.notification_id where n.metadata->'entity'->>'id'='17600000-0000-0000-0000-0000000000c6' group by o.recipient_id having count(*)>1) duplicates),0::bigint,'AC-SITE-013 each medical recipient gets only one email even with matching extra roles');
 select * from finish(); rollback;
