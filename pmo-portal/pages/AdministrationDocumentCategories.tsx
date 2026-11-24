@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Button, Card, Checkbox, ConfirmDialog, ListState, TextField, useToast } from '@/src/components/ui';
+import { Badge, Button, Card, Checkbox, ConfirmDialog, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -8,6 +8,8 @@ import { categoryDisplay } from '@/src/lib/documentCategories';
 import type { CategoryRole, DocumentCategory } from '@/src/lib/db/documentCategories';
 import { useDocumentCategories, useDocumentCategoryMutations } from '@/src/hooks/useDocumentCategories';
 import { useRoleLabels } from './admin-users/roleLabels';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 
 /**
  * Administration › Document categories (#2579). An Admin names the categories documents are filed under and says which roles may see
@@ -53,7 +55,7 @@ const CategoryCard: React.FC<{
   isFirst: boolean;
   isLast: boolean;
   busy: boolean;
-  onSaveRoles: (roles: CategoryRole[]) => void;
+  onSaveRoles: (roles: CategoryRole[], hiddenJobRoles: string[]) => void;
   onRename: (name: string) => void;
   onArchive: () => void;
   onRestore: () => void;
@@ -67,8 +69,15 @@ const CategoryCard: React.FC<{
   const [renaming, setRenaming] = useState(false);
   useEffect(() => { setRoles(new Set(saved)); }, [saved]);
   useEffect(() => { setName(category.name); }, [category.name]);
+  // Job roles hidden from the category whatever their access level (2047); the Administrator is never hidden.
+  const [hidden, setHidden] = useState<string[]>(category.hidden_job_roles ?? []);
+  useEffect(() => { setHidden(category.hidden_job_roles ?? []); }, [category.hidden_job_roles]);
+  const roleName = useBuiltInRoleName();
+  const jobRoleOptions = useJobRoleOptions(t('administration:documentCategories.hideChoose', 'Hide from a job role…'));
+  const hideOptions = jobRoleOptions.filter((o) => o.value !== 'administrator' && !hidden.includes(o.value));
 
-  const dirty = ROLE_ORDER.some((r) => roles.has(r) !== saved.has(r));
+  const hiddenDirty = hidden.join() !== (category.hidden_job_roles ?? []).join();
+  const dirty = ROLE_ORDER.some((r) => roles.has(r) !== saved.has(r)) || hiddenDirty;
   const archived = category.archived_at !== null;
   return (
     <Card className="space-y-3 p-4" data-testid={`document-category-${category.id}`}>
@@ -108,9 +117,23 @@ const CategoryCard: React.FC<{
         onToggle={(role, next) => setRoles((prev) => { const s = new Set(prev); if (next) s.add(role); else s.delete(role); return s; })}
       />
 
+      <div className="space-y-2">
+        <p className="text-sm font-semibold">{t('administration:documentCategories.hiddenFrom', 'Hidden from these job roles')}</p>
+        {hidden.length === 0
+          ? <p className="text-sm text-text-secondary">{t('administration:documentCategories.hiddenNone', 'No job role is hidden from it.')}</p>
+          : <ul className="flex flex-wrap gap-2">{hidden.map((key) => (
+            <li key={key}><Badge>{roleName(key)}</Badge>{canManage && (
+              <Button variant="ghost" size="sm" aria-label={t('administration:documentCategories.unhide', 'Show it to {{role}} again', { role: roleName(key) })}
+                onClick={() => setHidden((h) => h.filter((k) => k !== key))}>{t('administration:documentCategories.unhideShort', 'Remove')}</Button>)}</li>))}</ul>}
+        {canManage && (
+          <SelectField label={t('administration:documentCategories.hideFrom', 'Hide from a job role')} value="" options={hideOptions} compact
+            onChange={(key) => { if (key) setHidden((h) => [...h, key]); }} />
+        )}
+      </div>
+
       {canManage && (
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)))}>
+          <Button variant="primary" disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)}>
             {t('administration:documentCategories.saveRoles', 'Save who can see it')}
           </Button>
           {!category.is_system && !renaming && (
@@ -228,7 +251,7 @@ const AdministrationDocumentCategories: React.FC = () => {
               isFirst={i === 0}
               isLast={i === live.length - 1}
               busy={busy}
-              onSaveRoles={(roles) => void run(() => m.setRoles.mutateAsync({ id: c.id, roles }), t('administration:documentCategories.rolesSaved', 'Saved'))}
+              onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
               onRename={(name) => void run(() => m.rename.mutateAsync({ id: c.id, name }), t('administration:documentCategories.renamed', 'Category renamed'))}
               onArchive={() => setArchiveTarget(c)}
               onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}
@@ -246,7 +269,7 @@ const AdministrationDocumentCategories: React.FC = () => {
                   isFirst
                   isLast
                   busy={busy}
-                  onSaveRoles={(roles) => void run(() => m.setRoles.mutateAsync({ id: c.id, roles }), t('administration:documentCategories.rolesSaved', 'Saved'))}
+                  onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
                   onRename={() => undefined}
                   onArchive={() => undefined}
                   onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}

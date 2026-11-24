@@ -27,6 +27,8 @@ const StockAtRisk: React.FC = () => {
   const totalAtRisk = showCost ? sumDecimal(rows.flatMap((r) => (r.atRisk === undefined ? [] : [r.atRisk]))) : null;
   const totalHeld = showCost ? sumDecimal(rows.flatMap((r) => (r.stockValue === undefined ? [] : [r.stockValue]))) : null;
   const exposedCount = rows.filter((r) => isNonZero(r.atRisk)).length;
+  // A Material Coordinator reads no value: the money-free flag says only whether the location has guard cover recorded (2040).
+  const showGuardCover = !showCost && rows.some((r) => r.uncovered !== undefined);
 
   const columns: Column<StockAtRiskRow>[] = useMemo(() => {
     const cols: Column<StockAtRiskRow>[] = [
@@ -43,6 +45,13 @@ const StockAtRisk: React.FC = () => {
       { key: 'kind', header: t('atRisk.columns.kind'), cell: (r) => <span className="text-sm">{t(`setup.kinds.${r.warehouseKind}`)}</span>, exportValue: (r) => t(`setup.kinds.${r.warehouseKind}`) },
       { key: 'project', header: t('atRisk.columns.project'), cell: (r) => (r.projectName ? <span className="block truncate text-sm">{r.projectName}</span> : <span className="text-muted-foreground">—</span>), exportValue: (r) => r.projectName ?? '' },
     ];
+    if (showGuardCover) {
+      cols.push({
+        key: 'guardCover', header: t('atRisk.columns.guardCover'),
+        cell: (r) => (r.uncovered ? <span className="font-semibold text-foreground">{t('atRisk.noGuardCover')}</span> : <span className="text-muted-foreground">{t('atRisk.guardCovered')}</span>),
+        exportValue: (r) => (r.uncovered ? t('atRisk.noGuardCover') : t('atRisk.guardCovered')),
+      });
+    }
     if (showCost) {
       cols.push(
         { key: 'stockValue', header: t('atRisk.columns.stockValue'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.stockValue, currency, loc)}</span>, exportValue: (r) => r.stockValue ?? '' },
@@ -63,7 +72,7 @@ const StockAtRisk: React.FC = () => {
       );
     }
     return cols;
-  }, [t, loc, currency, showCost]);
+  }, [t, loc, currency, showCost, showGuardCover]);
 
   const state: 'loading' | 'empty' | 'error' | undefined =
     atRisk.isError ? 'error' : atRisk.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;

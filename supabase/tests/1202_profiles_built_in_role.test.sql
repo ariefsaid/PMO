@@ -129,8 +129,8 @@ reset role;
 -- AC-009 actor helpers.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000d1","role":"authenticated"}';
-select ok(actor_has_role_capability('daily_report_validate') and not actor_has_role_capability('medical_documents_view'),
-  'AC-009 a Site Supervisor holds daily_report_validate, not medical_documents_view');
+select ok(actor_has_role_capability('billing_steps_view') and not actor_has_role_capability('medical_documents_view'),
+  'AC-009 a Site Supervisor holds billing_steps_view, not medical_documents_view');
 select ok(not actor_sees_prices(), 'AC-009 a Site Supervisor does not see prices');
 set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select ok(actor_sees_prices() and not actor_has_role_capability('medical_documents_view'),

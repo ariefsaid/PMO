@@ -11,7 +11,11 @@ const sqlRoles = [...sql.matchAll(/^\('([a-z_]+)','([^']+)','(\w+)','(\w+)',(\d+
 // The capability rows are the 1200 seed less the rows migration 1539 deletes.
 const prune = readFileSync(resolve(__dirname, '../../../supabase/migrations/1539_role_capabilities_prune.sql'), 'utf8');
 const pruned = [...(/delete from public\.built_in_role_capabilities\s+where capability in \(([^)]*)\)/.exec(prune)?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
-const seedCaps = [...sql.matchAll(/^\('([a-z_]+)','([a-z_]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]).filter(([, cap]) => !pruned.includes(cap));
+// Migration 2043 removes the seeded holders of the validate capability (its gate keeps today's default validators).
+const validate = readFileSync(resolve(__dirname, '../../../supabase/migrations/2043_report_validation_checkpoints_expiry.sql'), 'utf8');
+const unseeded = [...validate.matchAll(/^delete from public\.built_in_role_capabilities where capability = '([a-z_]+)';$/gm)].map((m) => m[1]);
+const seedCaps = [...sql.matchAll(/^\('([a-z_]+)','([a-z_]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]])
+  .filter(([, cap]) => !pruned.includes(cap) && !unseeded.includes(cap));
 // Migration 1771 adds the two billing-step rights after the seed.
 const billing = readFileSync(resolve(__dirname, '../../../supabase/migrations/1771_billing_steps_capabilities.sql'), 'utf8');
 const billingCaps = [...billing.matchAll(/^\('([a-z_]+)','(billing_steps_[a-z]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]);
@@ -24,6 +28,7 @@ describe('AC-003 built-in roles: frontend table equals the database seed (migrat
   });
   it('has the same capabilities', () => {
     expect(pruned).toHaveLength(5);
+    expect(unseeded).toEqual(['daily_report_validate']);
     expect(sqlCaps.length).toBeGreaterThan(0);
     expect(ROLE_CAPABILITIES.map(([k, c]) => [k, c])).toEqual(sqlCaps);
   });

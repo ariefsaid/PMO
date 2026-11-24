@@ -1,0 +1,17 @@
+{
+  "definer_functions": [
+    "actor_holds_job_role(text)",
+    "actor_may_enter_leave_for_others()",
+    "actor_may_lend_workers(uuid,date,date)",
+    "actor_may_manage_document_types(text,boolean)",
+    "actor_may_review_timesheets()",
+    "actor_may_task_issue(uuid)",
+    "actor_may_tick_clearances(uuid)",
+    "actor_may_write_people()",
+    "crew_tool_may_manage(uuid)",
+    "dsr_may_write_revenue(uuid)",
+    "set_document_category_access(uuid,user_role[],text[])",
+    "set_document_category_hidden_job_roles(uuid,text[])",
+    "set_procurement_supplier(uuid,uuid)"
+  ]
+}

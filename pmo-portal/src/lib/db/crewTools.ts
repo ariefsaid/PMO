@@ -85,6 +85,13 @@ function fail(error: { message: string; code?: string; details?: string } | null
 }
 
 /** Live lines of one crew with held, damaged, lost and usable quantities (one indexed read, FR-CTR-004). */
+/** The database gate itself (crew_tool_may_manage, 2041): a crew manager, or the Storekeeper keeping a site the crew works at today. */
+export async function toolMayManage(crewId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('crew_tool_may_manage', { p_crew: crewId });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function listToolLines(crewId: string): Promise<ToolLineRow[]> {
   const rows = await fetchAllRowsByKeyset<ToolLineRow>(async (afterId, limit) => {
     let q = supabase

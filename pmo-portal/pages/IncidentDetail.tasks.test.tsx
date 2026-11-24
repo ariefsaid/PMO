@@ -17,6 +17,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => detail,
   useIncidentMutations: () => ({ update: { mutateAsync: vi.fn(), isPending: false }, transition: { mutateAsync: vi.fn(), isPending: false } }),
   useAssigneeOptions: () => ({ data: [{ value: 'u-a', label: 'Ana Site' }] }),
+  useSupervisorMayTask: () => false,
   useIncidentEvidenceMutations: () => ({
     upload: { mutateAsync: vi.fn(), isPending: false },
     makeTask: { mutateAsync: vi.fn(), isPending: false },

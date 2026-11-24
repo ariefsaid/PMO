@@ -117,14 +117,18 @@ const WarningDays: React.FC<{ canManage: boolean }> = ({ canManage }) => {
 
 /**
  * Administration › Document types (#2614): the types people and equipment documents are filed under, who is notified, and the
- * warning days. Admin-only via `can('manage', 'documentType')` (UX); RLS, the column grants and set_document_warning_days enforce it (ADR-0016).
+ * warning days. An Admin, or the HR Manager for person types that are not medical, via `can('manage', 'documentType')` (UX); RLS,
+ * the column grants and set_document_warning_days enforce it (ADR-0016).
  */
 const DocumentTypes: React.FC = () => {
   const { t } = useTranslation('administration');
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const canManage = may('manage', 'documentType', useMemo(() => ({ record: { viewOnly: realRole !== effectiveRole } }), [realRole, effectiveRole]));
+  const viewOnly = realRole !== effectiveRole;
+  // An Admin manages every type; the HR Manager job role manages person types that are not medical, and the warning days (2042).
+  const canManage = may('manage', 'documentType', useMemo(() => ({ record: { viewOnly, applies_to: 'person', medical: false } }), [viewOnly]));
+  const canManageRow = (r: AdminDocumentTypeRow) => may('manage', 'documentType', { record: { viewOnly, applies_to: r.applies_to, medical: r.is_medical } });
   const q = useAdminDocumentTypes();
   const { archive } = useDocumentTypeMutations();
   const [editing, setEditing] = useState<AdminDocumentTypeRow | 'new' | null>(null);
@@ -149,7 +153,7 @@ const DocumentTypes: React.FC = () => {
       return <span>{who.length ? who.join(', ') : t('documentTypes.noOne', 'No one is warned')}</span>;
     } },
     { key: 'actions', header: <span className="sr-only">{t('documentTypes.actions', 'Actions')}</span>,
-      cell: (r) => canManage ? (
+      cell: (r) => canManageRow(r) ? (
         <span className="flex gap-1">
           <Button variant="ghost" size="sm" aria-label={t('documentTypes.editLabel', 'Edit {{name}}', { name: r.name })} onClick={() => setEditing(r)}>{t('documentTypes.edit', 'Edit')}</Button>
           <Button variant="ghost" size="sm" aria-label={t('documentTypes.archiveLabel', 'Archive {{name}}', { name: r.name })} onClick={() => setArchiving(r)}>{t('documentTypes.archive', 'Archive')}</Button>

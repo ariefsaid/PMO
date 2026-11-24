@@ -1,7 +1,7 @@
 -- document_expiry.test.sql — 0970-0974 (#2527). Owns AC-DEX-001..008 (RLS, runner schedule, idempotency, list, medical shape).
 begin;
 create extension if not exists pgtap;
-select plan(43);
+select plan(45);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25270000-0000-0000-0000-00000000000a', 'DEX Org',   'IDR', 'UTC'),
@@ -63,14 +63,17 @@ select throws_ok($$insert into people (org_id, code, name, manager_id) values ('
 -- time-controlled runner. Warning days default {30,14,7}.
 select is(public.run_document_expiry_warnings('2026-11-04'), 0, 'AC-DEX-003 nothing is sent before the first threshold (earliest doc is 31 days out)');
 -- 2026-11-20: equipment cert (12-05) is 15 days out -> threshold 30; permit (12-20) is 30 days -> threshold 30; medical 12-10 is 20 -> 30
-select is(public.run_document_expiry_warnings('2026-11-20'), 5, 'AC-DEX-003 30-day wave: permit→manager+admin, medical→admin only (a manager without the medical right gets none, 1931), certificate→admin+PM');
+select is(public.run_document_expiry_warnings('2026-11-20'), 6, 'AC-DEX-003 30-day wave: permit→manager+admin, medical→admin and the manager as a plain notice (2043), certificate→admin+PM');
 select is(public.run_document_expiry_warnings('2026-11-20'), 0, 'AC-DEX-004 re-running the same day sends nothing (idempotent)');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a1' and body like '%Work permit%'), 1,
   'AC-DEX-003 permit notice reached HR (Admin) at 30 days') ;
-select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a3'), 1, 'AC-DEX-003 the person''s manager is notified for the non-medical person document only (1931)');
+select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a3'), 2, 'AC-DEX-003 the person''s manager is notified for both person documents (2043: the medical one too)');
+select is((select (metadata->'entity'->>'id') is null and (metadata->'entity'->>'type') is null and body = 'Person One — Medical check expires 10 Dec 2026.'
+             from notifications where owner_id = '25270000-0000-0000-0000-0000000000a3' and body like '%Medical check%'), true,
+  'AC-DEX-003 the manager''s medical notice names the person, the type and the date, and links to no document (2043)');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a4'), 0, 'AC-DEX-003 an unrelated Engineer is never notified');
 select is((select count(*)::int from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2'), 1, 'AC-DEX-003 equipment notice reaches the PM role only for equipment');
-select is(public.run_document_expiry_warnings('2026-12-01'), 3, 'AC-DEX-004 next crossings only: certificate to 7 days (2), medical to 14 days (1, admin only); permit stays at 30');
+select is(public.run_document_expiry_warnings('2026-12-01'), 4, 'AC-DEX-004 next crossings only: certificate to 7 days (2), medical to 14 days (2: admin and the manager, 2043); permit stays at 30');
 select is((select severity from notifications where owner_id = '25270000-0000-0000-0000-0000000000a2' and body like '%Crane One%' and title like '%expires in 4 days%'), 'critical', 'AC-DEX-004 the 7-day warning is critical');
 select is((select count(*)::int from notifications where body ilike '%fit%' or body ilike '%unfit%'), 0, 'AC-DEX-002 no notification discloses a medical status');
 
@@ -78,6 +81,9 @@ select is((select count(*)::int from notifications where body ilike '%fit%' or b
 set local role authenticated;
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a4');
 select is((select count(*)::int from expiry_documents), 0, 'AC-DEX-005 an unrelated Engineer sees no documents');
+select pg_temp.act_as('25270000-0000-0000-0000-0000000000a3');
+select is((select count(*)::int from expiry_documents where is_medical), 0, 'AC-DEX-005 the manager told of a medical expiry still reads no medical document (2043)');
+select pg_temp.act_as('25270000-0000-0000-0000-0000000000a4');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a5');
 select is((select count(*)::int from expiry_documents), 0, 'AC-DEX-005 Finance cannot read unrelated documents');
 select pg_temp.act_as('25270000-0000-0000-0000-0000000000a6');

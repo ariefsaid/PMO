@@ -9,7 +9,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useUsers } from '@/src/hooks/useUsers';
 import { useCrews } from '@/src/hooks/useCrews';
-import { useOpenToolReports, useToolLines, useToolMutations, useToolSettings } from '@/src/hooks/useCrewTools';
+import { useOpenToolReports, useToolLines, useToolMayManage, useToolMutations, useToolSettings } from '@/src/hooks/useCrewTools';
 import type { ToolLineRow, ToolReportRow } from '@/src/lib/repositories/crewTools';
 import { crewToolRepository } from '@/src/lib/repositories/crewTools';
 import { canReport, summariseLine, type ToolReport, type ToolReportKind, type ToolResolution } from '@/src/lib/crewToolQuantity';
@@ -299,9 +299,10 @@ export const CrewTools: React.FC = () => {
   const lines = useToolLines(crewId);
   const reports = useOpenToolReports(crewId);
 
-  const canManage = may('manage', 'crewTool', { record: { viewOnly } });
+  const keepsCrewSite = useToolMayManage(crewId);
+  const canManage = may('manage', 'crewTool', { record: { viewOnly, keepsCrewSite } });
   const canConfigure = may('configure', 'crewTool', { record: { viewOnly } });
-  const canReportHere = may('report', 'crewTool', { currentUserId: currentUser?.id, record: { field_controller_id: crew?.field_controller_id ?? null, viewOnly } });
+  const canReportHere = may('report', 'crewTool', { currentUserId: currentUser?.id, record: { field_controller_id: crew?.field_controller_id ?? null, viewOnly, keepsCrewSite } });
   const canCloseReport = (r: ToolReportRow) => may('close', 'crewTool', { currentUserId: currentUser?.id, record: { assignee_id: r.assignee_id, viewOnly } });
   const today = localToday();
   const nameOf = (id: string | null) => (id ? users.data?.find((u) => u.id === id)?.full_name ?? '—' : '—');

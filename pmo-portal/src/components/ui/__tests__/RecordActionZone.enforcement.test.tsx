@@ -178,6 +178,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useAssigneeOptions: () => ({ data: [] }),
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
   useIncidentFiles: () => ({ data: [] }),
+  useSupervisorMayTask: () => false,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 

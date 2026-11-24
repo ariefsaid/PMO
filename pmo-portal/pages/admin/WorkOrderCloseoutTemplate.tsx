@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, useToast } from '@/src/components/ui';
 import { Checkbox } from '@/src/components/ui/Checkbox';
-import { TextField } from '@/src/components/ui/FormFields';
+import { SelectField, TextField } from '@/src/components/ui/FormFields';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRefusalText } from '@/src/lib/refusals';
 import { parseTargetDays } from '@/src/lib/checklistDue';
@@ -11,7 +12,7 @@ import { useCloseoutTemplate, useSaveCloseoutTemplate } from '@/src/hooks/useClo
 /** At most this many items (the table's check). */
 const MAX_ITEMS = 20;
 
-interface Row { key: number; name: string; required: boolean; targetDays: string }
+interface Row { key: number; name: string; required: boolean; targetDays: string; ownerJobRole: string }
 
 /**
  * The organisation's work-order close-out checklist (#2593, FR-WCO-001): an ordered list of items, each flagged required or
@@ -21,6 +22,7 @@ interface Row { key: number; name: string; required: boolean; targetDays: string
  * Each item can carry an optional target in days (#2800, FR-CTD-001): its due day on a work order is that work order's issue
  * day + the target, worked out by the database. Blank means no target, and a list saved before targets existed reads and
  * saves exactly as it did.
+ * Each item can also name an owner job role (2040): a holder of that job role marks the item done too.
  */
 export default function WorkOrderCloseoutTemplate() {
   const { t } = useTranslation('closeout');
@@ -35,11 +37,13 @@ export default function WorkOrderCloseoutTemplate() {
   const [missing, setMissing] = useState(false);
   const [badTarget, setBadTarget] = useState<number | null>(null);
   const canEdit = may('edit', 'closeoutChecklist');
+  const ownerOptions = useJobRoleOptions(t('admin.noOwner', 'No owner job role'));
 
   useEffect(() => {
     if (rows !== null || !query.data) return;
     setRows(query.data.map((i) => ({
       key: nextKey.current++, name: i.name, required: i.required, targetDays: i.targetDays === null ? '' : String(i.targetDays),
+      ownerJobRole: i.ownerJobRole ?? '',
     })));
   }, [query.data, rows]);
 
@@ -55,7 +59,7 @@ export default function WorkOrderCloseoutTemplate() {
   const update = (key: number, patch: Partial<Row>) => edit(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const move = (index: number) => { const a = [...rows]; [a[index - 1], a[index]] = [a[index], a[index - 1]]; edit(a); };
   const remove = (key: number) => edit(rows.filter((r) => r.key !== key));
-  const add = () => edit([...rows, { key: nextKey.current++, name: '', required: true, targetDays: '' }]);
+  const add = () => edit([...rows, { key: nextKey.current++, name: '', required: true, targetDays: '', ownerJobRole: '' }]);
 
   const submit = async () => {
     const blank = rows.some((r) => r.name.trim() === '');
@@ -64,7 +68,8 @@ export default function WorkOrderCloseoutTemplate() {
     setBadTarget(invalid?.key ?? null);
     if (blank || invalid) return;
     try {
-      await save.mutateAsync(rows.map((r) => ({ name: r.name.trim(), required: r.required, targetDays: parseTargetDays(r.targetDays) ?? null })));
+      await save.mutateAsync(rows.map((r) => ({ name: r.name.trim(), required: r.required, targetDays: parseTargetDays(r.targetDays) ?? null,
+        ...(r.ownerJobRole ? { ownerJobRole: r.ownerJobRole } : {}) })));
       setDirty(false);
       toast(t('admin.saved', 'Close-out checklist saved'), t('admin.savedSub', 'Work orders issued from now on use this list.'), 'success');
     } catch (err) {
@@ -87,6 +92,9 @@ export default function WorkOrderCloseoutTemplate() {
               helper={t('admin.targetDaysHelp', 'Optional. Counted from the day the work order is issued. Leave blank for no target.')}
               onChange={(v) => update(row.key, { targetDays: v })}
               error={badTarget === row.key ? t('admin.targetDaysInvalid', 'Use a whole number of days from 1 to 365, or leave it blank.') : undefined} />
+            <SelectField label={t('admin.owner', 'Owner job role')} value={row.ownerJobRole} disabled={!canEdit} options={ownerOptions}
+              helper={t('admin.ownerHelp', 'Optional. A person with this job role can also mark the item done.')}
+              onChange={(v) => update(row.key, { ownerJobRole: v })} />
             <Checkbox checked={row.required} disabled={!canEdit} onChange={(v) => update(row.key, { required: v })}
               label={t('admin.required', 'Required before closing')}>
               {t('admin.required', 'Required before closing')}

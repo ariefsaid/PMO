@@ -61,7 +61,8 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
   const items = query.data;
   if (!items || items.length === 0) return null;
 
-  const canRecord = status === 'Issued' && may('transition', 'closeoutItem');
+  // An item's owner job role (2040) also records it; the rest follows the role rule.
+  const canRecord = (item: { ownerJobRole?: string | null }) => status === 'Issued' && may('transition', 'closeoutItem', { record: { owner_job_role: item.ownerJobRole } });
   const remaining = closeoutRemaining(items);
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));
   const titleOf = (id: string) => (documents.data ?? []).find((d) => d.id === id)?.title ?? t('document', 'Document');
@@ -83,7 +84,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
   };
 
   // Walk F12-2: the picker offers any issued project document; this names where those documents live and opens it.
-  const register = canRecord
+  const register = items.some(canRecord)
     ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents`} className="text-control font-medium text-primary-text hover:underline" data-testid="closeout-documents-link">{t('projectDocuments', 'Project documents')}</Link>
     : undefined;
   return <RecordSection title={title} actions={register}>
@@ -128,7 +129,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
             {item.documentId
               ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(item.documentId)}`}
                   className="font-medium text-primary-text hover:underline">{titleOf(item.documentId)}</Link>
-              : canRecord && !item.doneOn
+              : canRecord(item) && !item.doneOn
                 ? <span className="flex items-center gap-2">
                     <SelectField compact inline hideLabel
                       label={t('pickFor', 'Document for {{item}}', { item: item.name })}
@@ -143,7 +144,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
                 : <span className="text-muted-foreground">{t('notAttached', 'No document attached')}</span>}
             {item.doneOn && item.doneByName && <span className="text-muted-foreground">{t('doneBy', 'Marked done by {{name}}', { name: item.doneByName })}</span>}
           </div>
-          {isCurrent && canRecord && item.documentId && <div className="mt-3 flex flex-wrap items-end gap-3">
+          {isCurrent && canRecord(item) && item.documentId && <div className="mt-3 flex flex-wrap items-end gap-3">
             <DateField compact label={t('doneOn', 'Done on')} value={doneOn} max={today} onChange={setDoneOn} />
             <Button variant="primary" size="sm" disabled={completeItem.isPending}
               aria-label={t('markDoneNamed', 'Mark {{item}} done', { item: item.name })}
