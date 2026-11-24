@@ -240,6 +240,8 @@ select is((select reason || ':' || coalesce(hourly_cost, 'null') || ':' || amoun
 
 
 reset role;
+select set_config('request.jwt.claims','{}',true);
+update organizations set built_in_roles_enabled=true where id='17210000-0000-0000-0000-00000000000a';
 update profiles set built_in_role='project_control_manager' where id='17210000-0000-0000-0000-0000000000a2';
 select pg_temp.act_as('17210000-0000-0000-0000-0000000000a2');
 select is((select r->>'ac_status' from jsonb_array_elements(public.get_work_order_performance('17210000-0000-0000-0000-0000000000d1','2026-11-03')->'rows') r where r->>'work_order_id'='17210000-0000-0000-0000-000000000402'),'complete','JOB-PC26 PCM gets complete cost performance from dated approved labour');
