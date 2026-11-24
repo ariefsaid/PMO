@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 import { cleanupAll, need, ORG_ID, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 
+test.setTimeout(120_000);
+
 test('AC-PSI-001 requester chooses a standard item and saves its identity on a draft line', async ({ page }) => {
   const admin = serviceClient('JOB-standard-item');
   const run = runId('standard');

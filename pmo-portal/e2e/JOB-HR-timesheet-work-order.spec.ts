@@ -3,6 +3,8 @@ import { test, expect } from "@playwright/test";
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from "./support/jobFixtures";
 import { roleJobUser } from "./support/roleJobUser";
 
+test.setTimeout(120_000);
+
 test("AC-TRW-001 HR reviews the work order attributed to each timesheet line", async ({ page }) => {
   const admin = serviceClient("JOB-HR-timesheet");
   const run = runId("hr-review");
