@@ -9,7 +9,10 @@
 --               is audited, and disables automatic reuse when switched off.
 begin;
 create extension if not exists pgtap;
-select plan(27);
+create extension if not exists dblink;
+select plan(29);
+select dblink_connect('wqe_race', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(),5432)));
+
 
 create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
 begin
@@ -42,9 +45,9 @@ insert into profiles (id, org_id, full_name, email, role, built_in_role, status)
 insert into companies (id, org_id, name, type) values
   ('26000000-0000-0000-0000-0000000000f1', '26000000-0000-0000-0000-000000000001', 'WQE Client', 'Client');
 
-insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, client_id, project_manager_id, currency) values
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, client_id, project_manager_id, currency, subject_to_vat) values
   ('26000000-0000-0000-0000-0000000000c1', '26000000-0000-0000-0000-000000000001', 'WQE Project', 'Ongoing Project', 1000000, 'exclusive', 0,
-   '26000000-0000-0000-0000-0000000000f1', '26000000-0000-0000-0000-0000000000a3', 'IDR');
+   '26000000-0000-0000-0000-0000000000f1', '26000000-0000-0000-0000-0000000000a3', 'IDR', false);
 
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('26000000-0000-0000-0000-0000000000e1', '26000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-0000000000c1', 'QC-01', 'Piping weld', 'm', 100, 1000);
@@ -111,7 +114,12 @@ select is((select work_order_evidence_reuse_enabled from organizations where id 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok($$ select public.attach_work_order_step_document('26000000-0000-0000-0000-000000000021', '26000000-0000-0000-0000-000000000031', '26000000-0000-0000-0000-00000000d001') $$,
-  'AC-WQE-001 Quality Inspector attaches rev A once to WO 1 quality step');                                                    -- 10
+  'AC-WQE-001 Quality Inspector attaches rev A once to WO 1 quality step');
+
+reset role;
+select is((select acquired from dblink('wqe_race', $$select pg_try_advisory_xact_lock(hashtextextended('work_order_billing:26000000-0000-0000-0000-000000000011', 0))$$) as t(acquired boolean)), false,
+  'AC-WQE-001 attachment excludes concurrent work-order billing until its evidence is linked');
+set local role authenticated;                                                    -- 10
 
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 do $$ begin
@@ -138,6 +146,13 @@ select lives_ok($$ select public.create_native_progress_claim_invoice(current_se
 select lives_ok($$ select public.create_native_progress_claim_invoice(current_setting('wqe.c2')::uuid) $$,
   'AC-WQE-001 Claim 2 satisfies the invoice evidence gate automatically');                                                     -- 14
 
+-- An earlier claim without an invoice must keep its own snapshot too.
+do $$ begin
+  perform set_config('wqe.c_open', public.create_progress_claim('26000000-0000-0000-0000-0000000000c1', 'progress',
+    p_work_order_id => '26000000-0000-0000-0000-000000000011',
+    p_lines => '[{"boq_item_id":"26000000-0000-0000-0000-0000000000e1","quantity":5}]'::jsonb)::text, true);
+end $$;
+
 -- ── AC-WQE-003a: Replacing slot doc (rev A -> rev B) keeps Claim 1 & 2 pointing at rev A; Claim 3 gets rev B ───────────────
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok($$ select public.attach_work_order_step_document('26000000-0000-0000-0000-000000000021', '26000000-0000-0000-0000-000000000031', '26000000-0000-0000-0000-00000000d002') $$,
@@ -154,6 +169,11 @@ select is((select string_agg(document_id::text || ':' || document_revision, ',' 
              from progress_claim_evidence where claim_id = current_setting('wqe.c1')::uuid),
   '26000000-0000-0000-0000-00000000d001:A',
   'AC-WQE-003 Claim 1 still points only at rev A it was submitted with');                                                      -- 16
+
+select is((select string_agg(document_id::text || ':' || document_revision, ',' order by document_id)
+             from progress_claim_evidence where claim_id = current_setting('wqe.c_open')::uuid),
+  '26000000-0000-0000-0000-00000000d001:A',
+  'AC-WQE-003 replacement leaves an earlier open claim with its original evidence');
 
 select is((select string_agg(document_id::text || ':' || document_revision, ',' order by document_id)
              from progress_claim_evidence where claim_id = current_setting('wqe.c3')::uuid),
@@ -223,5 +243,6 @@ end $$;
 select is((select count(*)::int from progress_claim_evidence where claim_id = current_setting('wqe.c_off')::uuid), 0,
   'AC-WQE-004 when switched off, new claim does not auto-copy work-order evidence');                                           -- 27
 
+select dblink_disconnect('wqe_race');
 select * from finish();
 rollback;

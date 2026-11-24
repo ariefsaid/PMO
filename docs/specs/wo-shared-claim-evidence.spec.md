@@ -16,6 +16,9 @@ A work order may be billed across multiple progress claims. Quality and acceptan
 - **FR-WQE-005 (Setting off):** While `work_order_evidence_reuse_enabled` is `false`, `create_progress_claim` and `attach_work_order_step_document` shall not automatically populate `progress_claim_evidence`.
 - **FR-WQE-006 (No rights or money change):** No role gains or loses any claim, document, or money permission; document category visibility remains enforced on attach and read.
 
+- **FR-WQE-007 (Time-and-materials sign-off):** While reuse is enabled, when a time-and-materials claim on a work order is signed off, the system shall also snapshot current work-order documents into the claim evidence without changing its signed evidence.
+- **FR-WQE-008 (Concurrent billing):** When work-order evidence is attached concurrently with claim creation, withdrawal, or invoice submission, the system shall serialize the operation with billing and preserve the claim’s submitted evidence.
+
 ## Acceptance Criteria
 
 - **AC-WQE-001 (Work-order evidence reused on claims):**
@@ -34,3 +37,8 @@ A work order may be billed across multiple progress claims. Quality and acceptan
   - **Given** an Admin switches `work_order_evidence_reuse_enabled` off for their organisation
   - **When** a new claim is created or a work-order step document is attached
   - **Then** `progress_claim_evidence` is not automatically populated, non-Admins and field accounts are refused by `set_org_work_order_evidence_reuse`, and the change is audited.
+
+- **AC-WQE-005 (Time-and-materials):**
+  - **Given** a time-and-materials claim for a work order with a filed quality document and reuse enabled
+  - **When** an authorised second person confirms its sign-off
+  - **Then** the claim retains its signed evidence and includes the work-order quality document.

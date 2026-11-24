@@ -221,6 +221,8 @@ begin
   return v_id;
 end; $$;
 
+drop trigger if exists tm_claims_reuse_work_order_evidence on public.tm_claims;
+drop function if exists public.copy_work_order_evidence_after_tm_signoff();
 drop function if exists public.copy_work_order_evidence_to_claim(uuid, uuid);
 drop function if exists public.set_org_work_order_evidence_reuse(boolean);
 

@@ -93,6 +93,19 @@ begin
 end; $$;
 revoke all on function public.copy_work_order_evidence_to_claim(uuid, uuid) from public, anon, authenticated;
 
+-- Time-and-materials sign-off creates its claim and signed evidence before moving to SignedOff.
+-- This internal trigger adds work-order evidence after that transition, without changing sign-off authority.
+create function public.copy_work_order_evidence_after_tm_signoff() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  perform public.copy_work_order_evidence_to_claim(new.id, new.work_order_id);
+  return new;
+end; $$;
+revoke all on function public.copy_work_order_evidence_after_tm_signoff() from public, anon, authenticated;
+create trigger tm_claims_reuse_work_order_evidence after update of status on public.tm_claims
+  for each row when (new.status = 'SignedOff' and old.status is distinct from 'SignedOff')
+  execute function public.copy_work_order_evidence_after_tm_signoff();
+
 -- ── §3 create_progress_claim: restated from 0924 (+ 1530 light guard) with shared WO evidence copy ───────────────────────────
 create or replace function public.create_progress_claim(
   p_project_id          uuid,
@@ -313,11 +326,18 @@ declare
   v_rev    text;
   v_prev_doc uuid;
   v_claim  uuid;
+  v_wo     uuid;
   v_rows   int;
 begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
   if p_step is null then raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002'; end if;
+  -- Match claim/invoice lock order before taking the work-order row lock in lock_wo_billing_step.
+  perform 1 from public.organizations o where o.id = public.auth_org_id() for share;
+  select s.work_order_id into v_wo from public.work_order_billing_steps s
+   where s.id = p_step and s.org_id = public.auth_org_id()
+     and public.wo_step_readable(s.assignee_id, s.owner_role_key, s.hidden_from_role_keys);
+  if v_wo is not null then perform public.lock_work_order_billing(v_wo); end if;
   v_s := public.lock_wo_billing_step(p_step);
   if v_s.done_on is not null or v_s.skipped_on is not null then
     raise exception 'WBS_CLOSED: this billing step is already finished' using errcode = '55000';
@@ -358,13 +378,18 @@ begin
         from public.progress_claims pc
        where pc.org_id = v_s.org_id
          and pc.work_order_id = v_s.work_order_id
-         and pc.withdrawn_at is null
-         and not exists (select 1 from public.sales_invoices si where si.id = pc.id)                                     -- mut:wqe_skip_invoiced
-         and not exists (
-           select 1 from public.external_command_outbox o
-            where o.org_id = v_s.org_id and o.domain = 'revenue'
-              and lower(o.pmo_record_id) = pc.id::text and o.state <> 'failed')
+       order by pc.id
     loop
+      -- Share the claim fence with withdrawal and ERP dispatch, then recheck in a fresh statement.
+      perform 1 from public.progress_claims pc where pc.id = v_claim for update;
+      if not exists (select 1 from public.progress_claims pc
+                      where pc.id = v_claim and pc.withdrawn_at is null
+                        and not exists (select 1 from public.sales_invoices si where si.id = pc.id)                      -- mut:wqe_skip_invoiced
+                        and not exists (select 1 from public.external_command_outbox o
+                                         where o.org_id = v_s.org_id and o.domain = 'revenue'
+                                           and lower(o.pmo_record_id) = pc.id::text and o.state <> 'failed')) then
+        continue;
+      end if;
       insert into public.progress_claim_evidence (org_id, claim_id, document_id, document_status, document_revision, attached_by)
       values (v_s.org_id, v_claim, p_document, v_status, v_rev, auth.uid())
       on conflict (claim_id, document_id) do nothing;

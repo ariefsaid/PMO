@@ -4162,7 +4162,7 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   it manages. Not a setting: it follows the job role.
 - **DD-R1124-17 Quality documents filed once against a work order are reused by every later claim of that work order, without re-upload.**
   Issued or approved documents attached to a work order's billing steps are automatically snapshotted into `progress_claim_evidence` when a
-  claim is created for that work order and propagated to existing open (un-withdrawn, un-invoiced) claims on new attachment, so every claim
+  claim is created or a time-and-materials claim is signed off for that work order, and propagated to existing open (un-withdrawn, un-invoiced) claims on new attachment, so every claim
   shows them and satisfies its invoice evidence gate without re-upload. Replacing a document on a slot or superseding a revision leaves
   earlier claims pointing at the document and revision they were submitted with, while later claims receive the replacement. No rights or
   money change. Controlled by a per-organisation setting (`work_order_evidence_reuse_enabled`, off for existing organisations and on for new ones; `docs/specs/wo-shared-claim-evidence.spec.md`, migration 2600).
