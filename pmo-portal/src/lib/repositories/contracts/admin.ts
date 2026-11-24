@@ -93,6 +93,10 @@ export interface UserViewRepository {
  * unrecoverable.
  */
 export interface OrgSettingsRepository {
+  /** Whether the organisation opted in to the new setup/import workflows (absent row = off). */
+  getSetupWorkflowsEnabled(): Promise<boolean>;
+  /** Admin-only: opt the organisation in or out of the setup/import workflows. */
+  setSetupWorkflowsEnabled(enabled: boolean): Promise<boolean>;
   /** The org's default currency code (own-org read). */
   getDefaultCurrency(): Promise<string>;
   /** The org's locale/timezone defaults used to resolve a user's effective locale. */

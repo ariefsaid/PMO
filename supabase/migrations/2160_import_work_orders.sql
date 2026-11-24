@@ -1,8 +1,8 @@
 -- 2160_import_work_orders.sql — import a project's work orders from a spreadsheet, all or nothing.
--- Spec: docs/specs/work-order-import.spec.md (FR-WOI-001..005). Proven by supabase/tests/2160_import_work_orders.test.sql.
--- SECURITY INVOKER on purpose: every insert runs under the caller's own row-level security, so who may create a work order
--- is exactly the rule the "New work order" form already has (work_orders_insert), and the Draft guards, the area/group
--- guard and the allocation guards fire unchanged. The function adds no authority; it only makes the batch one transaction.
+-- Spec: docs/specs/work-order-import.spec.md (FR-WOI-001..007). Proven by supabase/tests/2160_import_work_orders.test.sql.
+-- SECURITY INVOKER on purpose: every insert runs under the caller's own row-level security. The importer adds its
+-- narrower audience (Admin or the project's own Project Manager) and the Admin-controlled organisation opt-in; the
+-- ordinary "New work order" create policy stays unchanged. Draft, area/group and allocation guards still fire unchanged.
 -- A work order starts as a Draft (status is not sent); `wo_number` is minted at issue, never here (0193).
 -- Reverse: supabase/migrations/rollback/2160_import_work_orders_down.sql.
 
@@ -28,6 +28,17 @@ begin
   end if;
   if not exists (select 1 from public.projects where id = p_project) then
     raise exception 'IMPORT_PROJECT: the project was not found' using errcode = 'P0002';
+  end if;
+  if public.auth_role() not in ('Admin', 'Project Manager') then
+    raise exception 'only the assigned Project Manager or an Admin may import work orders' using errcode = '42501';
+  end if;
+  if not coalesce((select s.enabled from public.org_setup_workflow_settings s where s.org_id = public.auth_org_id()), false) then
+    raise exception 'setup workflows are disabled for this organisation' using errcode = '42501';
+  end if;
+  if public.auth_role() = 'Project Manager'
+     and not exists (select 1 from public.projects p where p.id = p_project and p.org_id = public.auth_org_id()
+       and p.project_manager_id = auth.uid()) then
+    raise exception 'only the assigned Project Manager may import work orders for this project' using errcode = '42501';
   end if;
 
   for r in select value from jsonb_array_elements(p_rows) loop
@@ -63,4 +74,4 @@ end $$;
 revoke all on function public.import_work_orders(uuid, jsonb) from public, anon;
 grant execute on function public.import_work_orders(uuid, jsonb) to authenticated;
 comment on function public.import_work_orders(uuid, jsonb) is
-  'FR-WOI-003: creates Draft work orders (with optional area and scope lines) for one project in one transaction; any row''s failure rolls the whole batch back. SECURITY INVOKER: the caller''s own RLS decides who may.';
+  'FR-WOI-003: creates Draft work orders (with optional area and scope lines) for one project in one transaction; any row''s failure rolls the whole batch back. SECURITY INVOKER: importer audience and opt-in are checked before writes, then caller RLS applies.';

@@ -1466,5 +1466,8 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 ## Work-order import
 A spreadsheet upload that creates a project's work orders as Drafts in one step: a template (work orders, optional scope lines on a second sheet), a preview that checks every row, and one confirm that saves all rows or none. See `docs/specs/work-order-import.spec.md`.
 
+## Setup workflows
+The per-organisation, Admin-controlled switch for the work-order import and opening-balances overview. Existing organisations start with the switch off; the database refuses the import and opening-balance read until an Admin enables it.
+
 ## Opening balances screen
 The read-only Finance screen listing what the CLI loaded at go-live (stock per location and item, running work orders' certified and claimed figures), with the go-live date, who loaded each and totals to check against the source file. See `docs/specs/opening-balances-screen.spec.md`.

@@ -680,7 +680,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
-            <WorkOrderImport projectId={projectId} currency={currency} onImported={() => void refetch()} />
+            <WorkOrderImport projectId={projectId} currency={currency} projectManagerId={projectManagerId} />
             <ExportButton size="sm" rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
               label={t('common.export', 'Export')} />
           </div>

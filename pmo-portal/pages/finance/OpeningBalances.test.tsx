@@ -4,9 +4,10 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpeningBalance } from '@/src/lib/db/openingBalances';
 
-const state = vi.hoisted(() => ({ allowed: true, loading: false, error: false, data: [] as unknown[], refetch: vi.fn(), enabled: undefined as boolean | undefined }));
+const state = vi.hoisted(() => ({ allowed: true, setupEnabled: true, loading: false, error: false, data: [] as unknown[], refetch: vi.fn(), enabled: undefined as boolean | undefined }));
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => action === 'view' && entity === 'openingBalance' && state.allowed }));
+vi.mock('@/src/hooks/useSetupWorkflows', () => ({ useSetupWorkflows: () => ({ enabled: state.setupEnabled, isLoading: false }) }));
 vi.mock('@/src/hooks/useOpeningBalances', () => ({
   useOpeningBalances: (enabled?: boolean) => { state.enabled = enabled; return { data: state.data, isLoading: state.loading, isError: state.error, refetch: state.refetch }; },
 }));
@@ -25,7 +26,7 @@ const order = (over: Partial<OpeningBalance> = {}): OpeningBalance => ({
 } as OpeningBalance);
 
 const renderPage = () => render(<MemoryRouter><OpeningBalances /></MemoryRouter>);
-beforeEach(() => { state.allowed = true; state.loading = false; state.error = false; state.data = []; state.refetch.mockReset(); });
+beforeEach(() => { state.allowed = true; state.setupEnabled = true; state.loading = false; state.error = false; state.data = []; state.refetch.mockReset(); });
 afterEach(cleanup);
 
 describe('Opening balances screen (AC-OBS-004..006)', () => {
@@ -59,6 +60,13 @@ describe('Opening balances screen (AC-OBS-004..006)', () => {
     renderPage();
     expect(state.enabled).toBe(false);
     expect(screen.queryByText('BOLT · Bolt')).toBeNull();
+  });
+
+  it('AC-OBS-007 an opted-out organisation cannot request opening-balance data', () => {
+    state.setupEnabled = false;
+    renderPage();
+    expect(state.enabled).toBe(false);
+    expect(screen.getByText('Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows.')).toBeTruthy();
   });
 
   it('shows the empty state, the loading state and a retry on error', () => {

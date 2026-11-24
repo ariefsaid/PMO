@@ -1,34 +1,44 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Icon } from '@/src/components/ui';
 import { ImportWizard } from '@/src/components/import';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { makeWorkOrderImportDescriptor, type ImportDescriptor, type WorkOrderImportInput } from '@/src/lib/import';
 import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
+import { useSetupWorkflows } from '@/src/hooks/useSetupWorkflows';
+import { invalidateWorkOrderQueries } from '@/src/hooks/useWorkOrders';
 
 interface Props {
   projectId: string;
   currency: string;
-  /** Called after a successful import so the orders list reloads. */
-  onImported: () => void;
+  /** The assigned manager is the only Project Manager allowed to use this bulk workflow. */
+  projectManagerId?: string | null;
 }
 
 /**
  * "Import work orders" on a project's customer orders (FR-WOI-001): the same wizard as the other imports, with a template,
- * a validated preview and one all-or-nothing confirm. The button shows only to who may create a work order (`can()` is UX;
- * the database refuses anyone else). The project's contract lines and client references are read when the button is pressed,
+ * a validated preview and one all-or-nothing confirm. The bulk workflow shows only to an Admin or the assigned PM when the
+ * organisation has opted in (`can()` is UX; the database enforces both checks). The project's contract lines and client references are read when the button is pressed,
  * so the preview can name an unknown item code or a reference already on the project.
  */
-export const WorkOrderImport: React.FC<Props> = ({ projectId, currency, onImported }) => {
+export const WorkOrderImport: React.FC<Props> = ({ projectId, currency, projectManagerId = null }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
+  const { currentUser } = useAuth();
+  const setupWorkflows = useSetupWorkflows();
+  const queryClient = useQueryClient();
   const lists = useWorkOrderLists();
   const [descriptor, setDescriptor] = useState<ImportDescriptor<WorkOrderImportInput> | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
 
-  if (!may('create', 'workOrder')) return null;
+  if (!setupWorkflows.enabled || !may('create', 'workOrderImport', {
+    currentUserId: currentUser?.id,
+    record: { project_manager_id: projectManagerId },
+  })) return null;
 
   const open = async () => {
     setLoading(true);
@@ -58,7 +68,10 @@ export const WorkOrderImport: React.FC<Props> = ({ projectId, currency, onImport
       {descriptor && (
         <ImportWizard
           descriptor={descriptor}
-          onClose={(didImport) => { setDescriptor(null); if (didImport) onImported(); }}
+          onClose={(didImport) => {
+            setDescriptor(null);
+            if (didImport) invalidateWorkOrderQueries(queryClient, currentUser?.org_id, projectId);
+          }}
         />
       )}
     </>

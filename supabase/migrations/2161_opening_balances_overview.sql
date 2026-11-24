@@ -15,6 +15,9 @@ begin
   if public.auth_role() not in ('Admin', 'Finance') then
     raise exception 'only Admin and Finance read the opening balances' using errcode = '42501';
   end if;
+  if not coalesce((select s.enabled from public.org_setup_workflow_settings s where s.org_id = public.auth_org_id()), false) then
+    raise exception 'setup workflows are disabled for this organisation' using errcode = '42501';
+  end if;
   return query
   select o.id, o.kind, o.as_of, o.loaded_at, p.full_name,
          case when o.kind = 'work_order' then coalesce(w.wo_number, w.title) else h.code end,
@@ -36,10 +39,15 @@ begin
                                           'claimed_quantity', x.claimed_quantity, 'claimed_amount', x.claimed_amount) order by b.item_code) detail
         from public.opening_balance_lines x join public.boq_items b on b.id = x.boq_item_id where x.opening_id = o.id) wl on o.kind = 'work_order'
     left join lateral (
-      select count(*) n, coalesce(sum(s.qty_delta), 0) qty, coalesce(sum(s.value_delta), 0) val,
-             jsonb_agg(jsonb_build_object('item_code', i.code, 'item_name', i.name, 'quantity', s.qty_delta, 'value', s.value_delta) order by i.code) detail
-        from public.stock_ledger s join public.stock_items i on i.id = s.item_id
-       where s.document_id = o.stock_document_id and s.kind = 'opening') sl on o.kind = 'stock'
+      select count(*) n, coalesce(sum(b.qty), 0) qty, coalesce(sum(b.val), 0) val,
+             jsonb_agg(jsonb_build_object('item_code', i.code, 'item_name', i.name, 'quantity', b.qty, 'value', b.val) order by i.code) detail
+        from (
+          select s.item_id, sum(s.qty_delta) qty, sum(s.value_delta) val
+            from public.stock_ledger s
+           where s.document_id = o.stock_document_id and s.kind = 'opening'
+           group by s.item_id
+          having sum(s.qty_delta) <> 0
+        ) b join public.stock_items i on i.id = b.item_id) sl on o.kind = 'stock'
    where o.org_id = public.auth_org_id() and o.reversed_at is null
    order by o.kind, o.as_of, 6;
 end $$;

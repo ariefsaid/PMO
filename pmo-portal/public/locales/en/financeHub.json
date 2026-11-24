@@ -314,6 +314,7 @@
   },
   "openingBalances": {
     "title": "Opening balances",
+    "setupDisabled": "Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows.",
     "loading": "Loading opening balances",
     "error": "Couldn't load opening balances",
     "retry": "Try again",
@@ -348,5 +349,12 @@
     "stockHeading": "Stock by location",
     "ordersHeading": "Running work orders",
     "back": "Back to Finance"
+  },
+  "setupWorkflows": {
+    "title": "Setup workflows",
+    "label": "Enable setup workflows",
+    "help": "Allow work-order imports and show the opening balances overview for this organisation.",
+    "loading": "Checking setup workflow access",
+    "error": "Could not load or save this setting. Try again."
   }
 }

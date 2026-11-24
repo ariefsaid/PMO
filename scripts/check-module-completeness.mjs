@@ -98,7 +98,7 @@ export const CORE_ROUTES = {
   '/administration/:section': 'administration — core (unknown sections stay inside the shell)',
   '/finance': 'Finance hub — role-gated (can(view,finance)), no entitlement',
   '/journals': 'manual journals (#895) — the Finance desk, role-gated like the Finance hub (can(view,finance)); no switch key',
-  '/finance/opening-balances': 'opening balances (FR-OBS-001) — read-only, Admin and Finance (can(view,openingBalance)); a go-live record, no switch key',
+  '/finance/opening-balances': 'opening balances (FR-OBS-001) — read-only, Admin and Finance (can(view,openingBalance)); additionally gated by the Admin-owned setup-workflow opt-in',
   '/sales-invoices': 'redirect to /finance/receivables',
   '/incoming-payments': 'redirect to /finance/receivables',
   '/revenue-by-project': 'redirect to /finance/reports',

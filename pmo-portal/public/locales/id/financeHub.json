@@ -314,6 +314,7 @@
   },
   "openingBalances": {
     "title": "Saldo awal",
+    "setupDisabled": "Saldo awal dimatikan untuk organisasi ini. Minta Admin mengaktifkan alur kerja penyiapan.",
     "loading": "Memuat saldo awal",
     "error": "Saldo awal tidak dapat dimuat",
     "retry": "Coba lagi",
@@ -348,5 +349,12 @@
     "stockHeading": "Stok per lokasi",
     "ordersHeading": "Perintah kerja berjalan",
     "back": "Kembali ke Keuangan"
+  },
+  "setupWorkflows": {
+    "title": "Alur kerja penyiapan",
+    "label": "Aktifkan alur kerja penyiapan",
+    "help": "Izinkan impor perintah kerja dan tampilkan ringkasan saldo awal untuk organisasi ini.",
+    "loading": "Memeriksa akses alur kerja penyiapan",
+    "error": "Pengaturan ini tidak dapat dimuat atau disimpan. Coba lagi."
   }
 }

@@ -14119,6 +14119,29 @@ export type Database = {
           },
         ]
       }
+      org_setup_workflow_settings: {
+        Row: {
+          enabled: boolean
+          org_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Update: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_setup_workflow_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_term_keys: {
         Row: {
           term_key: string

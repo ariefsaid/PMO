@@ -5,6 +5,7 @@ import { Card, CardHead, CardPad, ListState, PageHeader } from '@/src/components
 import { usePermission } from '@/src/auth/usePermission';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
 import { useOpeningBalances } from '@/src/hooks/useOpeningBalances';
+import { useSetupWorkflows } from '@/src/hooks/useSetupWorkflows';
 import type { OpeningBalance, OpeningStock, OpeningWorkOrder } from '@/src/lib/db/openingBalances';
 import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
 
@@ -104,7 +105,8 @@ const OpeningBalances: React.FC = () => {
   const { t } = useTranslation('financeHub');
   const may = usePermission();
   const allowed = may('view', 'openingBalance');
-  const query = useOpeningBalances(allowed);
+  const setupWorkflows = useSetupWorkflows();
+  const query = useOpeningBalances(allowed && setupWorkflows.enabled && !setupWorkflows.isLoading && !setupWorkflows.isError);
 
   if (!allowed) return <FinanceAccessDenied />;
 
@@ -118,6 +120,16 @@ const OpeningBalances: React.FC = () => {
       helpSubject={t('openingBalances.title', 'Opening balances')}
     />
   );
+
+  if (setupWorkflows.isLoading) {
+    return <div className="min-w-0">{header}<ListState variant="loading" shape="table" rows={2} loadingLabel={t('setupWorkflows.loading', 'Checking setup workflow access')} /></div>;
+  }
+  if (setupWorkflows.isError) {
+    return <div className="min-w-0">{header}<ListState variant="error" title={t('setupWorkflows.error', 'Could not load or save this setting. Try again.')} retryLabel={t('openingBalances.retry', 'Try again')} onRetry={() => void setupWorkflows.refetch()} /></div>;
+  }
+  if (!setupWorkflows.enabled) {
+    return <div className="min-w-0">{header}<p className="text-control text-muted-foreground">{t('openingBalances.setupDisabled', 'Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows.')}</p></div>;
+  }
 
   if (query.isLoading) {
     return <div className="min-w-0">{header}<ListState variant="loading" shape="table" rows={4} loadingLabel={t('openingBalances.loading', 'Loading opening balances')} /></div>;

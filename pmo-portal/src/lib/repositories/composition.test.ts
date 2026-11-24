@@ -76,7 +76,7 @@ vi.mock('@/src/lib/db/userViews', async (importOriginal) => ({ ...(await importO
 vi.mock('@/src/lib/db/operators', async (importOriginal) => ({ ...(await importOriginal<object>()), isOperator: vi.fn() }));
 vi.mock('@/src/lib/db/usage', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgUsageSummary: vi.fn() }));
 vi.mock('@/src/lib/db/orgFeatures', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnResolvedFeatures: vi.fn(), getOrgCreditBalance: vi.fn() }));
-vi.mock('@/src/lib/db/orgs', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgTaxDefault: vi.fn() }));
+vi.mock('@/src/lib/db/orgs', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgTaxDefault: vi.fn(), getOrgSetupWorkflowsEnabled: vi.fn(), setOrgSetupWorkflowsEnabled: vi.fn() }));
 vi.mock('@/src/lib/db/externalDomainOwnership', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/lib/db/erpSnapshots', async (importOriginal) => ({ ...(await importOriginal<object>()), listActualsSnapshot: vi.fn() }));
 vi.mock('@/src/lib/db/managementPack', async (importOriginal) => ({ ...(await importOriginal<object>()), getManagementPackFacts: vi.fn() }));
@@ -146,6 +146,8 @@ const ROWS: Row[] = [
   { member: 'usage', method: 'getOrgUsageSummary', mod: '@/src/lib/db/usage', fn: 'getOrgUsageSummary', args: [] },
   { member: 'orgFeature', method: 'listOwn', mod: '@/src/lib/db/orgFeatures', fn: 'listOwnResolvedFeatures', args: [] },
   { member: 'orgSettings', method: 'getTaxDefault', mod: '@/src/lib/db/orgs', fn: 'getOrgTaxDefault', args: [] },
+  { member: 'orgSettings', method: 'getSetupWorkflowsEnabled', mod: '@/src/lib/db/orgs', fn: 'getOrgSetupWorkflowsEnabled', args: [] },
+  { member: 'orgSettings', method: 'setSetupWorkflowsEnabled', mod: '@/src/lib/db/orgs', fn: 'setOrgSetupWorkflowsEnabled', args: [true] },
   { member: 'credits', method: 'getOrgBalance', mod: '@/src/lib/db/orgFeatures', fn: 'getOrgCreditBalance', args: ['org-1'] },
   { member: 'externalDomainOwnership', method: 'listOwn', mod: '@/src/lib/db/externalDomainOwnership', fn: 'listOwnExternalDomainOwnership', args: [] },
   { member: 'erpSnapshots', method: 'actuals', mod: '@/src/lib/db/erpSnapshots', fn: 'listActualsSnapshot', args: [] },

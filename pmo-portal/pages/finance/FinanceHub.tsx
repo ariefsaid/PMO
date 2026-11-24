@@ -28,6 +28,8 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { formatMonthYearShort } from '@/src/lib/format';
 import { groupUnknownOverdueReceivablesByAge } from '@/src/lib/finance/financePosition';
 import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
+import { useSetupWorkflows } from '@/src/hooks/useSetupWorkflows';
+import { SetupWorkflowSetting } from '@/src/components/finance/SetupWorkflowSetting';
 
 /** `noAccounting` (#2734) comes from the route wrapper, so this page stays free of the ownership reads; absent means today's behaviour. */
 const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false }) => {
@@ -67,6 +69,7 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
   const projects = useProjects({ enabled: canView });
   // fix-waiting item 2: what waits for Finance is the SAME list the home and the inbox show, never a second computation.
   const waiting = useWaitingForYou();
+  const setupWorkflows = useSetupWorkflows();
 
   if (!canView) return <FinanceAccessDenied />;
 
@@ -235,7 +238,8 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
             {hasRevenue && <Link to="/finance/billing-board" data-testid="finance-hub-claims-board-link" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.claimsBoard', 'Claims board: by step and age')}</Link>}
             {hasRevenue && <BillingPlanLink className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline" />}
             {hasRevenue && <Link to="/finance/work-in-hand" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.workInHand', 'Work in hand')}</Link>}
-            {may('view', 'openingBalance') && <Link to="/finance/opening-balances" data-testid="finance-hub-opening-balances-link" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.openingBalances', 'Opening balances')}</Link>}
+            {may('view', 'openingBalance') && setupWorkflows.enabled && <Link to="/finance/opening-balances" data-testid="finance-hub-opening-balances-link" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.openingBalances', 'Opening balances')}</Link>}
+            <SetupWorkflowSetting />
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
           </div>
         </div>

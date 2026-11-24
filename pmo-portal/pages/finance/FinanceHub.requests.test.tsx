@@ -13,6 +13,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
+vi.mock('@/src/hooks/useSetupWorkflows', () => ({ useSetupWorkflows: () => ({ enabled: false, isLoading: false, isError: false, isSaving: false, setEnabled: vi.fn(), refetch: vi.fn() }) }));
+
 const h = vi.hoisted(() => ({
   figures: vi.fn(),
   monthlyInvoices: vi.fn(),
