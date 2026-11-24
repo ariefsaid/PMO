@@ -16,12 +16,12 @@ from (values (1,'Finance'), (2,'Admin'), (3,'Executive'), (4,'Project Manager'),
 join auth.users u on u.id = ('23000000-0000-0000-0000-00000000001' || r.n)::uuid;
 update profiles set built_in_role = 'field_user' where id = '23000000-0000-0000-0000-000000000019';
 
-set local session_replication_role = replica;
 insert into projects (id, org_id, name, status, currency, project_manager_id)
 select md5('report-project-' || n)::uuid, ('23000000-0000-0000-0000-00000000000' || case when n = 31 then '2' else '1' end)::uuid,
        'Fixture ' || n, (case when n % 3 = 0 then 'On Hold' else 'Ongoing Project' end)::public.project_status, 'USD',
        case when n <= 15 then '23000000-0000-0000-0000-000000000014'::uuid end
 from generate_series(1,31) n;
+set local session_replication_role = replica;
 insert into work_orders (id, org_id, project_id, title, status, currency, order_value, tax_treatment, tax_amount)
 select md5('report-order-' || n)::uuid, p.org_id, p.id, 'Fixture work order',
        (case when n % 3 = 0 then 'Closed' else 'Issued' end)::public.work_order_status, 'USD', 1000, 'exclusive', 0
@@ -43,9 +43,9 @@ insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date
 select md5('report-progress-' || n)::uuid, w.org_id, w.project_id, w.id, '2026-03-01',
        'validated', '23000000-0000-0000-0000-000000000016', '23000000-0000-0000-0000-000000000011', now()
 from generate_series(1,30) n join work_orders w on w.id = md5('report-order-' || n)::uuid where n % 3 <> 0;
-insert into dsr_progress_lines (org_id, report_id, position, work_order_line_id, quantity, unit,
+insert into dsr_progress_lines (org_id, report_id, position, work_order_line_id, work_order_id, quantity, unit,
                                frozen_rate, frozen_rate_source, frozen_amount, frozen_at)
-select w.org_id, md5('report-progress-' || n)::uuid, 1, md5('report-line-' || n)::uuid, n, 'm',
+select w.org_id, md5('report-progress-' || n)::uuid, 1, md5('report-line-' || n)::uuid, w.id, n, 'm',
        case when n % 4 <> 0 then 5 end, case when n % 4 <> 0 then 'contract' end,
        case when n % 4 <> 0 then n * 5 end, now()
 from generate_series(1,30) n join work_orders w on w.id = md5('report-order-' || n)::uuid where n % 3 <> 0;

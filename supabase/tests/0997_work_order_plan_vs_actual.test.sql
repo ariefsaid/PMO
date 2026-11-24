@@ -479,8 +479,8 @@ do $$
 declare original text; mutant text;
 begin
   select pg_get_functiondef('public.work_order_cost_amounts_unrounded(uuid)'::regprocedure) into original;
-  mutant := replace(original, 'v_actual := (v_fin->>''total'')::numeric;',
-                    'v_actual := (v_fin->>''total'')::numeric + 1;');
+  mutant := replace(original, 'else sum(a.actuals_to_date) filter (where a.mapped) end,',
+                    'else sum(a.actuals_to_date) filter (where a.mapped) + 1 end,');
   if mutant = original then raise exception 'mutation did not apply'; end if;
   execute mutant;
 end $$;

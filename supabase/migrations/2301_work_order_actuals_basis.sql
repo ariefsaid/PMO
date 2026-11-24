@@ -1,7 +1,7 @@
 -- AC-RR-001. Restate the internal reader from 1263. The existing public reader
 -- enforces the field-account boundary, and this function's execute grants stay
 -- private. Keep all cost lines on the established basis.
--- drops: the full get_project_finances call and JSON extraction. Read its actuals total and currency directly from the same sources (0791).
+-- drops: the full get_project_finances call and JSON extraction. Read its actuals total, mapped categories and currency directly from the same sources (0791).
 -- Reverse: rollback/2301_work_order_actuals_basis_down.sql.
 create or replace function public.work_order_cost_amounts_unrounded(p_project_id uuid)
 returns table(source text, record_id uuid, project_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date,
@@ -11,6 +11,7 @@ declare
   v_org uuid := public.auth_org_id();
   v_actual numeric;
   v_currency text;
+  v_mapped_categories public.budget_category[];
   v_erp boolean;
 begin
   if not public.is_active_member() or public.auth_role() is null
@@ -21,12 +22,13 @@ begin
     raise exception 'project not found' using errcode = 'P0002';
   end if;
   v_erp := public.org_reads_erp_ledger();
-  -- get_project_finances (0791) derives these two fields from the same actuals
+  -- get_project_finances (0791) derives these fields from the same actuals
   -- rows and ledger company currency. Read just those inputs on the cost path.
   select case when count(*) filter (where a.mapped) = 0
                     or count(*) filter (where a.mapped and a.actuals_to_date is null) > 0 then null
-              else sum(a.actuals_to_date) filter (where a.mapped) end
-    into v_actual
+              else sum(a.actuals_to_date) filter (where a.mapped) end,
+         array_agg(a.category) filter (where a.mapped and a.category is not null)
+    into v_actual, v_mapped_categories
     from public.project_finance_actuals(p_project_id) a;
 
   select case when v_erp then coalesce((
@@ -119,8 +121,7 @@ begin
         and e.work_date between v.window_from and v.window_to and e.unit = v.rate_unit
      where v.basis = 'hire_rate'
        and v_currency = (select default_currency from public.organizations where id = v_org)
-       and exists (select 1 from jsonb_array_elements(v_fin->'categories') c
-                    where c->>'category' = v.charge_category::text and (c->>'mapped')::boolean)
+       and v.charge_category = any(v_mapped_categories)
   ), rate_grouped as (
     select e.*, sum(e.raw_cost) over (partition by e.setting_id, e.month) as group_raw,
            round(sum(e.raw_cost) over (partition by e.setting_id, e.month), 2) as group_total
