@@ -5,7 +5,7 @@
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
 --   actor_has_person_documents_access returns false ............ 'AC-RCG-020 ...' (list, read, add, renew, upload and adapter assertions)
 --   actor_has_person_documents_access returns true ............. 'AC-RCG-021 ...' (plain Engineer, no-key Engineer, other-organisation assertions)
---   drop `not is_medical` from the insert policy ................ 'AC-RCG-022 an HR Officer cannot add a medical document'
+--   Medical writes now follow the HR job-role rule (2360); storage and visibility checks remain here.
 begin;
 create extension if not exists pgtap;
 select plan(23);
@@ -84,9 +84,9 @@ select is((select count(*)::int from expiry_documents where subject_kind = 'pers
 select is((select count(*)::int from expiry_documents where subject_kind = 'equipment'), 0, 'AC-RCG-021 an HR Officer reads no equipment document');
 select ok(pg_temp.try_add('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f1'), 'AC-RCG-020 an HR Officer adds a non-medical person document');
 select is(pg_temp.renew('27180000-0000-0000-0000-000000000101'), 1, 'AC-RCG-020 an HR Officer renews a non-medical person document');
-select ok(not pg_temp.try_add_medical('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f2'), 'AC-RCG-022 an HR Officer cannot add a medical document');
-select is(pg_temp.renew('27180000-0000-0000-0000-000000000102'), 0, 'AC-RCG-022 an HR Officer cannot change a medical document');
-select ok(not exists (select 1 from expiry_documents where id = '27180000-0000-0000-0000-000000000102' and expires_on = '2027-06-30'), 'AC-RCG-022 the medical date is untouched');
+select ok(pg_temp.try_add_medical('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f2'), 'AC-HRM-001 an HR Officer adds a medical status/date record');
+select is(pg_temp.renew('27180000-0000-0000-0000-000000000102'), 1, 'AC-HRM-001 an HR Officer renews a medical date');
+select ok(exists (select 1 from expiry_documents where id = '27180000-0000-0000-0000-000000000102' and expires_on = '2027-06-30'), 'AC-HRM-001 the renewed medical date is stored');
 select ok(not pg_temp.try_add('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f3'), 'AC-RCG-021 an HR Officer cannot add an equipment-type document to a person');
 select ok(pg_temp.try_upload('27180000-0000-0000-0000-00000000000a/person/27180000-0000-0000-0000-0000000000e1/f1/a.pdf'), 'AC-RCG-020 an HR Officer uploads a person file');
 select ok(exists (select 1 from storage.objects where bucket_id = 'expiry-documents' and name = '27180000-0000-0000-0000-00000000000a/person/27180000-0000-0000-0000-0000000000e1/f1/a.pdf'), 'AC-RCG-020 and reads it');

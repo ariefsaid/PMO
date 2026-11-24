@@ -370,7 +370,8 @@ const expiryDocumentWrite: Predicate = (role, ctx) => {
   if (ctx.record?.viewOnly === true) return false;
   if (role === 'Admin') return kind === 'person' || kind === 'equipment';
   if (role === 'Project Manager' && kind === 'equipment') return true;
-  // the people-documents capability: non-medical person documents (`record.medical` true = a medical one, Admin only)
+  // HR keeps medical status/date records; the people-documents capability keeps non-medical records.
+  if (kind === 'person' && ctx.record?.medical === true) return holds(ctx, 'hr_officer') || holds(ctx, 'hr_manager');
   return kind === 'person' && ctx.record?.medical !== true && roleHasCapability(ctx.builtInRoleKey, 'people_documents_view');
 };
 const allowUnlessViewOnly = (set: Role[]): Predicate => (role, ctx) => has(set, role) && ctx.record?.viewOnly !== true;

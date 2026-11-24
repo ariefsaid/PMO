@@ -26,10 +26,10 @@ describe('AC-RCG-023 expiryDocument policy: the people-documents capability', ()
   const holder = (kind: 'person' | 'equipment', over: { medical?: boolean; viewOnly?: boolean; key?: string | null; role?: Role } = {}) =>
     ({ realRole: over.role ?? ('Engineer' as Role), builtInRoleKey: over.key === undefined ? 'hr_officer' : over.key, record: { kind, medical: over.medical, viewOnly: over.viewOnly } });
   for (const action of ['create', 'edit', 'archive'] as const) {
-    it(`${action}: a holder writes non-medical person documents at any base level, nothing else`, () => {
+    it(`${action}: an HR holder writes person documents at either base level, never equipment`, () => {
       for (const role of ['Engineer', 'Project Manager'] as Role[]) {
         expect(can(action, 'expiryDocument', holder('person', { role }))).toBe(true);
-        expect(can(action, 'expiryDocument', holder('person', { role, medical: true }))).toBe(false);
+        expect(can(action, 'expiryDocument', holder('person', { role, medical: true }))).toBe(true);
       }
       expect(can(action, 'expiryDocument', holder('equipment'))).toBe(false);
     });
@@ -37,6 +37,18 @@ describe('AC-RCG-023 expiryDocument policy: the people-documents capability', ()
       expect(can(action, 'expiryDocument', holder('person', { key: 'planner' }))).toBe(false);
       expect(can(action, 'expiryDocument', holder('person', { key: null }))).toBe(false);
       expect(can(action, 'expiryDocument', holder('person', { viewOnly: true }))).toBe(false);
+    });
+  }
+});
+
+describe('AC-HRM-001 medical person document writers', () => {
+  for (const action of ['create', 'edit', 'archive'] as const) {
+    it(`${action}: HR Officer and HR Manager only, besides Admin`, () => {
+      for (const key of ['hr_officer', 'hr_manager', 'storekeeper', 'field_user', 'planner']) {
+        const ctx = { realRole: 'Engineer' as Role, builtInRoleKey: key, record: { kind: 'person', medical: true } };
+        expect(can(action, 'expiryDocument', ctx)).toBe(['hr_officer', 'hr_manager'].includes(key));
+        expect(can(action, 'expiryDocument', { ...ctx, record: { ...ctx.record, viewOnly: true } })).toBe(false);
+      }
     });
   }
 });

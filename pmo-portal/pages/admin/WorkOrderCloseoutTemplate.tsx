@@ -93,7 +93,7 @@ export default function WorkOrderCloseoutTemplate() {
               onChange={(v) => update(row.key, { targetDays: v })}
               error={badTarget === row.key ? t('admin.targetDaysInvalid', 'Use a whole number of days from 1 to 365, or leave it blank.') : undefined} />
             <SelectField label={t('admin.owner', 'Owner job role')} value={row.ownerJobRole} disabled={!canEdit} options={ownerOptions}
-              helper={t('admin.ownerHelp', 'Optional. A person with this job role can also mark the item done.')}
+              helper={row.ownerJobRole ? t('admin.ownerHelp', 'Optional. A person with this job role can also mark the item done.') : t('admin.noOwnerHelp', 'Without an owner job role, only an Admin, Finance, or the project manager can complete this item.')}
               onChange={(v) => update(row.key, { ownerJobRole: v })} />
             <Checkbox checked={row.required} disabled={!canEdit} onChange={(v) => update(row.key, { required: v })}
               label={t('admin.required', 'Required before closing')}>
