@@ -20,7 +20,7 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
    else {
     // Follow the record link back to the cached project and open its other claim.
     await page.getByRole('link',{name:'Claims and invoices',exact:true}).click();
-    await page.getByRole('row').filter({has:page.getByTestId(`claim-evidence-${claim.id}`)}).click();
+    await page.getByRole('row').or(page.getByRole('listitem')).filter({has:page.getByTestId(`claim-evidence-${claim.id}`)}).getByRole('button',{name:/^Open Progress claim/}).click();
    }
    await expect(page).toHaveURL(new RegExp(`open=${claim.id}`));
    const claimSection=page.locator(`[aria-labelledby="billing-stages-${claim.id}"]`);

@@ -47,35 +47,26 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // locale. An effect would let one paint escape with the previous locale's separators.
   setActiveLocale(stable);
 
-  // The locale the FIRST catalogue fetch must use. Read through a ref so the one-shot init below
-  // sees the latest resolution even if the profile lands mid-init (#2097).
-  const localeRef = useRef(stable.locale);
-  localeRef.current = stable.locale;
-
+  // Apply language switches in order: a slower catalogue requested by an older profile must
+  // finish before the current profile is applied. Superseded queued work is discarded.
+  const languageQueue = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     let active = true;
-    // #2097: hand i18next the resolved locale NOW. When a cached session resolves the profile
-    // before the first render, an Indonesian user's first fetch is `/locales/id/...` instead of
-    // English-then-switch (which downloaded the English set and then the Indonesian one).
-    void initI18n(localeRef.current).then((instance) => {
+    // Start the singleton bootstrap in the resolved locale immediately (#2097).
+    const initialized = initI18n(stable.locale);
+    languageQueue.current = languageQueue.current.then(async () => {
+      const instance = await initialized;
       if (!active) return;
-      // The profile may have landed while the boot catalogue was in flight.
-      if (instance.language !== localeRef.current) void instance.changeLanguage(localeRef.current);
+      if (instance.language !== stable.locale) await instance.changeLanguage(stable.locale);
+      if (!active) return;
+      // Keep the screen-reader language aligned with the catalogue that is now ready.
+      if (typeof document !== 'undefined') document.documentElement.lang = stable.locale;
       markCataloguesLoaded(true);
     });
     return () => {
       active = false;
     };
-  }, []);
-
-  useEffect(() => {
-    if (i18next.language !== stable.locale) void i18next.changeLanguage(stable.locale);
-    // FR-L10N-014 / AC-L10N-031 — the document language tracks the resolved locale so screen
-    // readers pick the right voice and the browser offers the right translation prompt.
-    // `index.html` ships a static lang="en"; this is what makes it true after resolution.
-    // ⚑ `lang` only. NOT `dir`: spec §7 rules RTL out deliberately, not "for later".
-    if (typeof document !== 'undefined') document.documentElement.lang = stable.locale;
-  }, [stable]);
+  }, [stable.locale]);
 
   // i18next resolves its first catalogue in a microtask-plus-fetch. Rendering the tree meanwhile is
   // correct — `useSuspense: false` plus FR-L10N-041's fallback means a not-yet-loaded key renders
