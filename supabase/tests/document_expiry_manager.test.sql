@@ -3,7 +3,7 @@
 -- and the direct manager; the manager's is a plain notice (person, type, date) that opens no document.
 -- MUTATION NOTES: drop the medical recipient condition (mut:medical) -> 'AC-EXM-006 a medical notice reaches the person, the medical right and the manager' goes red;
 --   drop the manager branch (2043 mut:rr_medical_manager) -> the same assertion goes red;
---   always link (2043 mut:rr_medical_plain: pass the document) -> 'AC-EXM-007 the manager''s medical notice opens no document' goes red.
+--   always link (2050 mut:rr_medical_plain: v_plain := false) -> 'AC-EXM-007 the manager''s medical notice opens no document' goes red.
 begin;
 create extension if not exists pgtap;
 select plan(26);

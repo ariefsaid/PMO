@@ -3,7 +3,7 @@
 -- with another job role are refused; a person with no job role is judged by access level as before; a field account is refused.
 -- MUTATION NOTES (remove the condition tagged in 2041; the named assertion must go red; restore):
 --   mut:rr_store_tools .... 'RR-CR-01 the Storekeeper of the crew''s site store adds a tool line' and 'RR-CR-04 ... reports a lost tool'
---   mut:rr_own_report ..... 'RR-CR-05 the Storekeeper cannot close a tool report it made'
+--   (the own-report refusal is proven in 2048: nobody writes off a report they made; mut:rr_own_writeoff)
 --   mut:rr_ss_loan ........ 'RR-CR-07 the Site Supervisor of the home crew lends a worker for one day'
 --   mut:rr_ss_task ........ 'RR-CR-11 the Site Supervisor makes a task from an issue on its work order'
 begin;
@@ -96,8 +96,8 @@ select is(pg_temp.err('a6', format($$select report_crew_tool(%L, (select id from
   '20410000-0000-0000-0000-000000000072')), '42501 CTR_NOT_ALLOWED', 'RR-CR-04 a Quality Inspector cannot report a crew''s tool');
 select is(pg_temp.err('a2', $$select correct_crew_tool_report('20410000-0000-0000-0000-000000000071', 'lost', 1, 'counted again')$$), 'ok',
   'RR-CR-04 the Storekeeper corrects that report');
-select is(pg_temp.err('a2', $$select close_crew_tool_report('20410000-0000-0000-0000-000000000071', 'replaced')$$),
-  '42501 CTR_OWN_REPORT', 'RR-CR-05 the Storekeeper cannot close a tool report it made');
+select is(pg_temp.err('a2', $$select close_crew_tool_report('20410000-0000-0000-0000-000000000071', 'written_off')$$),
+  '42501 CTR_OWN_REPORT', 'RR-CR-05 the Storekeeper cannot write off a tool report it made');
 select is(pg_temp.err('a9', $$select close_crew_tool_report('20410000-0000-0000-0000-000000000071', 'replaced')$$), 'ok',
   'RR-CR-06 a crew manager closes the report');
 

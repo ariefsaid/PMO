@@ -10,6 +10,7 @@
     "actor_may_write_people()",
     "crew_tool_may_manage(uuid)",
     "dsr_may_write_revenue(uuid)",
+    "set_document_category_access(uuid,user_role[],text[])",
     "set_document_category_hidden_job_roles(uuid,text[])",
     "set_procurement_supplier(uuid,uuid)"
   ]

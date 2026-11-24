@@ -36873,6 +36873,14 @@ export type Database = {
         Returns: undefined
       }
       set_desk_journal: { Args: { p_journal_id: string }; Returns: undefined }
+      set_document_category_access: {
+        Args: {
+          p_hidden_job_roles: string[]
+          p_id: string
+          p_roles: Database["public"]["Enums"]["user_role"][]
+        }
+        Returns: undefined
+      }
       set_document_category_hidden_job_roles: {
         Args: { p_id: string; p_keys: string[] }
         Returns: undefined

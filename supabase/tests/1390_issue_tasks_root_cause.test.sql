@@ -68,7 +68,7 @@ select is((select l.created_by from incident_tasks l join tasks t on t.id = l.ta
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select public.add_task_to_incident('26770000-0000-0000-0000-000000000a01', 'Engineer task') $$,
-  '42501', 'only a manager may add a task to an issue', 'AC-ITR-002: an Engineer cannot add a task');
+  '42501', 'only a manager, or the site supervisor of its work order, may add a task to an issue', 'AC-ITR-002: an Engineer cannot add a task');
 set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select throws_ok($$ select public.add_task_to_incident('26770000-0000-0000-0000-000000000a01', 'Foreign task') $$,
   '42501', 'issue not found', 'AC-ITR-002: a user of another organisation finds no such issue');

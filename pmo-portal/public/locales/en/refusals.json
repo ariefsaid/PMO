@@ -482,11 +482,12 @@
   "LCM_HAS_LOGIN": "This person signs in, so their hours are costed on their timesheet. A class is only for people with no login.",
   "TASK_TREE_CYCLE": "A task cannot sit under one of its own subtasks.",
   "COT_OWNER_ROLE": "Choose a job role as this item's owner.",
-  "CTR_OWN_REPORT": "You reported this tool, so someone else closes the report.",
+  "CTR_OWN_REPORT": "You reported this tool, so someone else writes it off.",
   "DCV_ADMIN": "The Administrator always sees every category.",
   "DCV_JOB_ROLE": "Choose job roles only.",
   "PRC_SUPPLIER_FORBIDDEN": "Only a purchasing manager or a person who orders purchases names the supplier.",
   "PRC_SUPPLIER_INVALID": "Choose an active supplier of your organisation.",
   "PRC_SUPPLIER_SET": "This purchase already names its supplier.",
-  "PRC_SUPPLIER_STEP": "Name the supplier once the purchase is approved."
+  "PRC_SUPPLIER_STEP": "Name the supplier once the purchase is approved.",
+  "PPL_PROFILE_SELF": "Only an Admin can link or unlink their own person record."
 }
