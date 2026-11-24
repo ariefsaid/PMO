@@ -404,6 +404,16 @@
         "prefill": "Start from the {{month}} assessment",
         "kindProgress": "Progress: quantities against the bill of quantities"
       },
+      "areaRates": {
+        "title": "Rates by area",
+        "hint": "A daily report on a work order in an area is priced at that area's rate. An area with no rate uses the line's rate.",
+        "loadError": "Couldn't load the area rates.",
+        "rate": "Rate for {{name}}",
+        "save": "Save",
+        "saved": "Area rate saved",
+        "removed": "Area rate removed",
+        "invalid": "Enter a rate above 0, or leave it empty to remove it."
+      },
       "boqForm": {
         "quantity": "Quantity",
         "subtitle": "Rates exclude tax. Work orders take quantities from a line when you allocate it.",

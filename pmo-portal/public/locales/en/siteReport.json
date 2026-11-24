@@ -126,7 +126,10 @@
     "pages": "Pages",
     "previous": "Previous",
     "status": "Status",
-    "title": "Reports"
+    "title": "Reports",
+    "crew": "Crew",
+    "allCrews": "All crews",
+    "crewLabel": "Crew {{name}}"
   },
   "lost": {
     "archived": "Archived",
@@ -144,7 +147,9 @@
     "pickProject": "Choose a project",
     "pickWorkOrder": "Choose a work order",
     "project": "Project",
-    "workOrder": "Work order"
+    "workOrder": "Work order",
+    "crew": "Crew (optional)",
+    "noCrew": "No crew"
   },
   "newReport": "New report",
   "note": {
@@ -273,5 +278,22 @@
     "hours": "start and end time",
     "photo": "a photo",
     "progress": "progress"
+  },
+  "who": {
+    "title": "Crew and area",
+    "crew": "Crew",
+    "noCrew": "No crew",
+    "person": "Person (when no crew applies)",
+    "noPerson": "No person",
+    "personHelp": "A report names a crew or a person, not both. Clear the crew to name a person.",
+    "area": "Rate area",
+    "areaDefault": "The work order's area",
+    "areaHelp": "Prices the report's lines at that area's rates. Leave it to use the work order's area."
+  },
+  "woSection": {
+    "title": "Site reports",
+    "empty": "No site reports on this work order yet.",
+    "error": "Couldn't load the site reports",
+    "more": "All site reports"
   }
 }

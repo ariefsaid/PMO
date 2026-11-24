@@ -3,6 +3,7 @@
 --   * daily_site_reports.crew_id / person_id (at most one), indexed for the list's crew filter.
 --   * dsr_save_draft takes optional crew_id / person_id (a payload without the keys keeps the link); dsr_correct copies it.
 -- Both functions are restated from their latest bodies (1041, read from the database at head).
+-- drops: the declaration line and the begin line of dsr_save_draft gain the crew and person variables, and dsr_correct's column and value lists gain crew_id and person_id (each line is otherwise unchanged).
 -- Reversal: rollback/2130_site_report_crew_link_down.sql. Proven by supabase/tests/2130_site_report_crew_link.test.sql.
 
 alter table public.daily_site_reports

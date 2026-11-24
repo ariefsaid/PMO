@@ -396,7 +396,18 @@
     "sod": "You entered this head count, so someone else approves it.",
     "clearTitle": "Clear this head count?",
     "clearBody": "The number for this class and day is removed. You can enter it again.",
-    "clearConfirm": "Clear head count"
+    "clearConfirm": "Clear head count",
+    "evidence": {
+      "none": "No photo or document attached.",
+      "list": "Attached files",
+      "untitled": "File",
+      "remove": "Remove {{name}}",
+      "removeShort": "Remove",
+      "attach": "Attach a photo or document",
+      "category": "Document category",
+      "choose": "Choose a photo or document",
+      "attached": "File attached"
+    }
   },
   "savedExcept": "Saved for everyone except: {{people}}",
   "roleNotSet": "Crew role not set",

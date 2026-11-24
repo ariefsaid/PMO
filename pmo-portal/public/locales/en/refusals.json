@@ -489,5 +489,11 @@
   "PRC_SUPPLIER_INVALID": "Choose an active supplier of your organisation.",
   "PRC_SUPPLIER_SET": "This purchase already names its supplier.",
   "PRC_SUPPLIER_STEP": "Name the supplier once the purchase is approved.",
-  "PPL_PROFILE_SELF": "Only an Admin can link or unlink their own person record."
+  "PPL_PROFILE_SELF": "Only an Admin can link or unlink their own person record.",
+  "SR_LINK": "Link a site report to one crew or to one person, not both, and choose one from your organisation.",
+  "HCE_DOCUMENT": "Choose a file that belongs to this work order's project and has a file attached.",
+  "HCE_LIMIT": "A head count carries at most 10 files. Remove one first.",
+  "AREA_UNKNOWN": "Choose an area from your organisation's list.",
+  "AREA_RATE": "Enter a rate above zero, or clear the field to remove the area's rate.",
+  "AREA_RATE_CATALOGUE": "This line is priced from the rate catalogue, so its rate comes from the catalogue, not from an area."
 }

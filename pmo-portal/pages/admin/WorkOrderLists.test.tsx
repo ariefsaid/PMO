@@ -54,6 +54,15 @@ describe('AC-WAG-009 work-order area and group lists', () => {
     await waitFor(() => expect(h.create).toHaveBeenCalledWith('group', { code: 'G1', name: 'Operations' }));
   });
 
+  it('AC-ARA-001 an Admin gives an area an optional description; a group has none', async () => {
+    const user = setup();
+    await user.click(screen.getByRole('button', { name: 'Edit North' }));
+    const dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/Description/), 'Northern block');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.update).toHaveBeenCalledWith('area', 'a1', { code: 'N1', name: 'North', description: 'Northern block' }));
+  });
+
   it('an Admin renames an area', async () => {
     const user = setup();
     await user.click(screen.getByRole('button', { name: 'Edit North' }));
@@ -61,7 +70,7 @@ describe('AC-WAG-009 work-order area and group lists', () => {
     const name = within(dialog).getByLabelText(/Name/);
     await user.clear(name); await user.type(name, 'North block');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(h.update).toHaveBeenCalledWith('area', 'a1', { code: 'N1', name: 'North block' }));
+    await waitFor(() => expect(h.update).toHaveBeenCalledWith('area', 'a1', { code: 'N1', name: 'North block', description: '' }));
   });
 
   it('an Admin archives an area after confirming', async () => {

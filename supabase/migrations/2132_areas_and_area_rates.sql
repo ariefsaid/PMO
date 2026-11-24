@@ -7,6 +7,7 @@
 --     An organisation with no area rates sees no change. The frozen rate source stays 'contract'.
 -- dsr_line_rate gains a fifth argument with a default; dsr_validate, dsr_validation_queue, dsr_report_revenue (its callers), dsr_save_draft
 -- and dsr_correct are restated from their latest bodies (read from the database at head).
+-- drops: each restated line gains the report's area (dsr_line_rate's fifth argument, the area variable, the column and value lists of dsr_correct); the lines are otherwise unchanged.
 -- Reversal: rollback/2132_areas_and_area_rates_down.sql. Proven by supabase/tests/2132_areas_and_area_rates.test.sql.
 
 alter table public.work_order_areas add column description text check (description is null or char_length(description) <= 500);

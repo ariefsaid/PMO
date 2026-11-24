@@ -6,6 +6,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { useDailySiteReportMutations } from '@/src/hooks/useDailySiteReports';
+import { useCrews } from '@/src/hooks/useCrews';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { localToday as todayIso } from '@/src/lib/efaktur';
@@ -17,13 +18,16 @@ import { localToday as todayIso } from '@/src/lib/efaktur';
  */
 export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id: string) => void }> = ({ onClose, onCreated }) => {
   const { t } = useTranslation('siteReport');
-  const orgId = useAuth().currentUser?.org_id;
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const crews = useCrews();
   const projects = useProjects();
   const { save } = useDailySiteReportMutations();
   const requestId = useRef(crypto.randomUUID());
   const [projectId, setProjectId] = useState('');
   const [workOrderId, setWorkOrderId] = useState('');
   const [workDate, setWorkDate] = useState(todayIso());
+  const [pickedCrew, setPickedCrew] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const workOrders = useQuery({
     queryKey: ['daily-site-reports', orgId, 'new', 'work-orders', projectId],
@@ -35,11 +39,16 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
     .filter((w) => w.status !== 'Cancelled' && w.status !== 'Closed')
     .map((w) => ({ value: w.id, label: [w.wo_number, w.title].filter(Boolean).join(' · ') })), [workOrders.data]);
 
+  // A foreman's report defaults to the crew they lead; any crew can be chosen, or none.
+  const ownCrew = useMemo(() => (crews.data ?? []).find((c) => c.field_controller_id === (currentUser?.id ?? null))?.id ?? '', [crews.data, currentUser?.id]);
+  const crewId = pickedCrew ?? ownCrew;
+  const crewOptions = useMemo(() => (crews.data ?? []).map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` })), [crews.data]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      const id = await save.mutateAsync({ clientRequestId: requestId.current, workOrderId, workDate, progress: [], idle: [], consumables: [] });
+      const id = await save.mutateAsync({ clientRequestId: requestId.current, workOrderId, workDate, ...(crewId ? { crewId } : {}), progress: [], idle: [], consumables: [] });
       onCreated(id);
     } catch (err) {
       const code = (err as { code?: string }).code;
@@ -75,6 +84,10 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
         options={[{ value: '', label: t('new.pickWorkOrder', 'Choose a work order') }, ...workOrderOptions]}
       />
       <DateField label={t('new.date', 'Work date')} required value={workDate} onChange={setWorkDate} max={todayIso()} />
+      {crewOptions.length > 0 && (
+        <SelectField label={t('new.crew', 'Crew (optional)')} value={crewId} onChange={setPickedCrew}
+          options={[{ value: '', label: t('new.noCrew', 'No crew') }, ...crewOptions]} />
+      )}
     </EntityFormModal>
   );
 };
