@@ -95,7 +95,6 @@ select is((select count(*)::int from billing_board('13700000-0000-0000-0000-0000
 select is((select count(*)::int from billing_board('13700000-0000-0000-0000-0000000000c3')), 0, 'AC-BBD-004 a foreign project filter returns nothing');
 -- AC-BBD-007: inline due rule equals billing_stage_due_on (table owner may call it).
 reset role;
-select pg_temp.as_user('b1');
 select is((select count(*)::int from billing_board() b join claim_billing_stages s on s.id = b.current_stage_id where b.due_on is distinct from billing_stage_due_on(s)), 0,
   'AC-BBD-007 the inline due date equals billing_stage_due_on for every current step (date wins, days only, neither)');
 select is((select due_on from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e01'), date '2026-01-20', 'AC-BBD-007 the step date wins over its days');
