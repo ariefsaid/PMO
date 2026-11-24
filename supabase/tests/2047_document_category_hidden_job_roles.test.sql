@@ -1,11 +1,12 @@
 -- 2047_document_category_hidden_job_roles.test.sql — a document category hidden from a named job role (migration 2047).
 -- The Quality Inspector loses the category; a Planner and an Engineer with no job role at the same access level keep it; a Project
--- Manager keeps it; an Admin always sees it; the hidden job role is told of none of its documents; only an Admin sets the list.
+-- Manager keeps it; an Admin always sees it; the hidden job role is told of none of its documents; only an Admin sets the list,
+-- through the one access save (2049; the bare setter is internal since 2051).
 -- MUTATION NOTE: drop the hidden-from test in the register policies (mut:rr_category_hidden: "and not exists (...)" removed)
 --   -> 'RR-DC-03 the Quality Inspector no longer reads the hidden category''s documents' goes red.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(15);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20470000-0000-0000-0000-00000000000a', 'RR DC Org', 'IDR', 'UTC', true);
@@ -53,15 +54,17 @@ create function pg_temp.docs(p_user text) returns text language sql as $$
   select pg_temp.val(p_user, $q$select count(*)::text from project_documents where category_id = '20470000-0000-0000-0000-000000000071'$q$) $$;
 
 select is(pg_temp.docs('a2'), '1', 'RR-DC-01 before any list, the Quality Inspector reads the category as an Engineer');
-select is(pg_temp.err('a5', $$select set_document_category_hidden_job_roles('20470000-0000-0000-0000-000000000071', array['quality_inspector'])$$),
+select is(pg_temp.err('a5', $$select set_document_category_access('20470000-0000-0000-0000-000000000071', '{Admin,Engineer,"Project Manager"}', array['quality_inspector'])$$),
   '42501 only an Admin manages document categories', 'RR-DC-02 only an Admin sets the hidden-from list');
-select is(pg_temp.err('a1', $$select set_document_category_hidden_job_roles('20470000-0000-0000-0000-000000000071', array['inspector'])$$),
+select is(pg_temp.err('a1', $$select set_document_category_access('20470000-0000-0000-0000-000000000071', '{Admin,Engineer,"Project Manager"}', array['inspector'])$$),
   '23514 DCV_JOB_ROLE', 'RR-DC-02 every entry is a job role');
-select is(pg_temp.err('a1', $$select set_document_category_hidden_job_roles('20470000-0000-0000-0000-000000000071', array['administrator'])$$),
+select is(pg_temp.err('a1', $$select set_document_category_access('20470000-0000-0000-0000-000000000071', '{Admin,Engineer,"Project Manager"}', array['administrator'])$$),
   '23514 DCV_ADMIN', 'RR-DC-02 the Administrator is never hidden');
-select is(pg_temp.err('a1', $$select set_document_category_hidden_job_roles('20470000-0000-0000-0000-000000000071', array['quality_inspector'])$$),
+select is(pg_temp.err('a1', $$select set_document_category_access('20470000-0000-0000-0000-000000000071', '{Admin,Engineer,"Project Manager"}', array['quality_inspector'])$$),
   'ok', 'RR-DC-02 an Admin hides the category from the Quality Inspector');
 
+select is(pg_temp.err('a1', $$select set_document_category_hidden_job_roles('20470000-0000-0000-0000-000000000071', array['planner'])$$),
+  '42501 permission denied for function set_document_category_hidden_job_roles', 'RR-DC-02 the list is set only through the one access save (2051)');
 select is(pg_temp.docs('a2'), '0', 'RR-DC-03 the Quality Inspector no longer reads the hidden category''s documents');
 select is(pg_temp.val('a2', $$select document_category_visible('20470000-0000-0000-0000-000000000071', '20470000-0000-0000-0000-00000000000a')::text$$),
   'false', 'RR-DC-03 and the helper for definers says the same');

@@ -84,7 +84,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
   };
 
   // Walk F12-2: the picker offers any issued project document; this names where those documents live and opens it.
-  const register = canRecord
+  const register = items.some(canRecord)
     ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents`} className="text-control font-medium text-primary-text hover:underline" data-testid="closeout-documents-link">{t('projectDocuments', 'Project documents')}</Link>
     : undefined;
   return <RecordSection title={title} actions={register}>

@@ -9,7 +9,7 @@
 --   mut:rr_qi_raise ......... 'RR-PU-10 the Quality Inspector raises an inspection''s purchase request'
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(25);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20450000-0000-0000-0000-00000000000a', 'RR PU Org', 'IDR', 'UTC', true);
@@ -64,7 +64,7 @@ create function pg_temp.supplier(p_proc text) returns text language sql as $$
 create function pg_temp.risk() returns text language sql as $$
   select $r$select set_vendor_supply_status('20450000-0000-0000-0000-0000000000d1', 'at_risk', 'late deliveries')$r$ $$;
 
-select pg_temp.err('a1', $$select po_set_order_job_roles(array['buyer'])$$);
+select is(pg_temp.err('a1', $$select po_set_order_job_roles(array['buyer'])$$), 'ok', 'RR-PU-00 an Admin names the Buyer as the job role that orders purchases');
 
 -- ── quotes ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 select is(pg_temp.err('a2', pg_temp.quote(1000)), 'ok', 'RR-PU-01 the Buyer adds a supplier quote');
