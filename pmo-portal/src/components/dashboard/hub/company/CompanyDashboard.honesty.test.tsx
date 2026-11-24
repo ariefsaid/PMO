@@ -80,7 +80,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useWinRate: () => ({ data: h.win, isPending: false, isError: false, refetch: vi.fn() }),
   useLossBreakdown: () => ({ data: h.loss, isPending: h.loss === null, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectManagementOverview: () => ({ data: [], isPending: false, isError: false }), useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }),
   useProjectsDelivery: () => ({ data: h.delivery, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -550,3 +550,5 @@ describe('#2203 home Left to bill says the held contracts with no value beside i
     expect(tile('Sisa yang harus ditagih')).toHaveTextContent('2 kontrak tanpa nilai, tidak termasuk total');
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

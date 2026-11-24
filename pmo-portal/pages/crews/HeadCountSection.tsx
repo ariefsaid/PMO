@@ -4,7 +4,8 @@ import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, SelectField,
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useHeadcountDay, useHeadcountMutations } from '@/src/hooks/useHeadcount';
+import { useHeadcountDay, useHeadcountEvidence, useHeadcountMutations } from '@/src/hooks/useHeadcount';
+import { HeadCountEvidence } from './HeadCountEvidence';
 import { useLabourClasses } from '@/src/hooks/useLabourCost';
 import type { HeadcountLine } from '@/src/lib/repositories/headcount';
 import { refusalLine, useRefusalText } from '@/src/lib/refusals';
@@ -45,6 +46,8 @@ export const HeadCountSection: React.FC<Props> = ({ crewId, fieldControllerId, w
   const canApproveRole = may('approve', 'headcount', { currentUserId: userId, record: { viewOnly } });
   const className = (id: string) => classes.data?.find((c) => c.id === id)?.name ?? '—';
   const lines = (day.data ?? []).filter((l) => l.crewId === crewId);
+  const evidence = useHeadcountEvidence(lines.map((l) => l.id));
+  const evidenceUnresolved = evidence.isPending || evidence.isFetching || evidence.isError;
   const text = (err: unknown) => String((err as { message?: string })?.message ?? '').startsWith('separation of duties')
     ? t('headCount.sod', 'You entered this head count, so someone else approves it.')
     : refusalLine(refusal(err));
@@ -101,8 +104,10 @@ export const HeadCountSection: React.FC<Props> = ({ crewId, fieldControllerId, w
             <tbody>
               {lines.map((l) => {
                 const entrant = !!userId && l.recordedByIds.includes(userId);
+                const files = (evidence.data ?? []).filter((f) => f.headcountId === l.id);
                 return (
-                  <tr key={l.id} aria-label={className(l.classId)} className="border-t border-border align-top">
+                  <React.Fragment key={l.id}>
+                  <tr aria-label={className(l.classId)} className="border-t border-border align-top">
                     <th scope="row" className="py-2 pr-2 text-left font-normal text-foreground">{className(l.classId)}</th>
                     <td className="py-2 pr-2 tabular-nums">{l.headCount}</td>
                     <td className="py-2 pr-2">{l.approvedAt ? t('headCount.approved', 'Approved') : t('headCount.waiting', 'Waiting for approval')}</td>
@@ -110,12 +115,20 @@ export const HeadCountSection: React.FC<Props> = ({ crewId, fieldControllerId, w
                       {!l.approvedAt && (
                         <div className="inline-flex flex-wrap items-center justify-end gap-2">
                           {canApproveRole && entrant && <span className="text-control text-muted-foreground">{t('headCount.differentApprover', 'A different approver must approve this line.')}</span>}
-                          {canApproveRole && <Button variant="primary" size="sm" disabled={entrant || viewOnly} onClick={() => void approveLine(l)}>{t('headCount.approve', 'Approve')}</Button>}
+                          {canApproveRole && <Button variant="primary" size="sm" disabled={entrant || viewOnly || evidenceUnresolved} onClick={() => void approveLine(l)}>{t('headCount.approve', 'Approve')}</Button>}
                           {canRecord && <Button variant="outline" size="sm" onClick={() => setClearing(l)}>{t('headCount.clear', 'Clear')}</Button>}
                         </div>
                       )}
                     </td>
                   </tr>
+                  <tr>
+                    <td colSpan={4} className="pb-3">
+                      <HeadCountEvidence headcountId={l.id} workOrderId={workOrderId} files={files} canAttach={canRecord && !l.approvedAt && !viewOnly}
+                        isPending={Boolean(evidence.isPending)} isFetching={Boolean(evidence.isFetching)} isError={Boolean(evidence.isError)}
+                        onRetry={() => { void evidence.refetch(); }} />
+                    </td>
+                  </tr>
+                  </React.Fragment>
                 );
               })}
             </tbody>

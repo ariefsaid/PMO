@@ -16,6 +16,7 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Reminder: a task is overdue': 'taskOverdueReminder',
   'Issue is overdue': 'issueOverdue',
   'Checkpoint is late': 'checkpointLate',
+  'Leave request needs your decision': 'leaveRequestPending',
   'Client reserved material': 'clientReserved',
   'Contract quantity exceeded': 'contractQuantityExceeded',
   'Customer invoice awaiting your approval': 'customerInvoiceApproval',

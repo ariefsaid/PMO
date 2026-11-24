@@ -194,6 +194,12 @@ vi.mock('@/src/lib/db/procurementFiles', () => ({
   getSignedDownloadUrl: vi.fn(),
   cleanupStorageObject: vi.fn(),
 }));
+vi.mock('@/src/lib/db/procurementNeededBy', () => ({
+  getPoNeededByRequired: vi.fn(),
+  setPoNeededByRequired: vi.fn(),
+  getProcurementNeededBy: vi.fn(),
+  setProcurementNeededBy: vi.fn(),
+}));
 
 import { repositories } from './index';
 import { AppError } from '@/src/lib/appError';
@@ -212,6 +218,7 @@ import * as procurementsDal from '@/src/lib/db/procurements';
 import * as poSettingsDal from '@/src/lib/db/purchaseOrderSettings';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
+import * as procNeededByDal from '@/src/lib/db/procurementNeededBy';
 import * as procCeilingDal from '@/src/lib/db/procurementPaymentCeiling';
 import * as procRecordsDal from '@/src/lib/db/procurementRecords';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
@@ -253,7 +260,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
       // 'stockOpening' from the opening-stock history load (ADR-0017): preview and load over the movement history.
-      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'closeoutChecklist', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentCategory', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'incidentType', 'integrations', 'issueClosingReport', 'journal', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'quantityChange', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'safetyDay', 'stock', 'stockOpening', 'subcontractCertificates', 'subcontracts', 'surveyRecord', 'supplyRisk', 'task', 'taskProof', 'thirdPartyInspection', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workInHand', 'workOrder', 'workOrderAcceptance', 'workOrderCandidate'].sort(),
+      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'closeoutChecklist', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentCategory', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'incidentType', 'integrations', 'issueClosingReport', 'journal', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'openingBalances', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'quantityChange', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'safetyDay', 'stock', 'stockOpening', 'subcontractCertificates', 'subcontracts', 'surveyRecord', 'supplyRisk', 'task', 'taskProof', 'thirdPartyInspection', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workInHand', 'workOrder', 'workOrderAcceptance', 'workOrderCandidate'].sort(),
     );
   });
 
@@ -300,8 +307,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
   });
 
-  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243; #2329 fiscal year 1018)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getFiscalYearSetting', 'setFiscalYearStartMonth', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccounts', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccounts'].sort());
+  it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243; #2329 fiscal year 1018; setup workflows)', () => {
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getFiscalYearSetting', 'setFiscalYearStartMonth', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getSetupWorkflowsEnabled', 'setSetupWorkflowsEnabled', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccounts', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccounts'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
@@ -372,6 +379,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
+      // needed-by accessors added with 1124d so purchasing pages stay behind this seam.
       [
         'approveAmount',
         'captureVendorInvoice',
@@ -391,6 +399,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'deleteDocument',
         'deleteItem',
         'get',
+        'getNeededBy',
+        'getPoNeededByRequired',
         'getProjectCommittedSpend',
         'getProjectReservedSpend',
         'itemValuesEditable',
@@ -404,7 +414,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'purchaseOrderSettings',
         'selectQuote',
         'setEfaktur',
+        'setNeededBy',
         'setOrderJobRoles',
+        'setPoNeededByRequired',
         'setPurchaseOrderSettings',
         'transition',
         'unlinkMicrosoftDocument',
@@ -414,7 +426,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
-      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'hasApprovalWork', 'getApprovalRoute', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
+      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'listForReview', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'hasApprovalWork', 'getApprovalRoute', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
@@ -905,6 +917,22 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.procurement.deleteDocument('d1');
     expect(procCrudDal.deleteProcurementDocument).toHaveBeenCalledWith('d1');
+  });
+
+  it('procurement needed-by methods delegate through the repository seam', async () => {
+    vi.mocked(procNeededByDal.getPoNeededByRequired).mockResolvedValue(true);
+    vi.mocked(procNeededByDal.setPoNeededByRequired).mockResolvedValue(true);
+    vi.mocked(procNeededByDal.getProcurementNeededBy).mockResolvedValue('2026-12-31');
+    vi.mocked(procNeededByDal.setProcurementNeededBy).mockResolvedValue(undefined);
+
+    await expect(repositories.procurement.getPoNeededByRequired()).resolves.toBe(true);
+    expect(procNeededByDal.getPoNeededByRequired).toHaveBeenCalledTimes(1);
+    await expect(repositories.procurement.setPoNeededByRequired(true)).resolves.toBe(true);
+    expect(procNeededByDal.setPoNeededByRequired).toHaveBeenCalledWith(true);
+    await expect(repositories.procurement.getNeededBy('pr1')).resolves.toBe('2026-12-31');
+    expect(procNeededByDal.getProcurementNeededBy).toHaveBeenCalledWith('pr1');
+    await expect(repositories.procurement.setNeededBy('pr1', '2026-12-31', [{ itemId: 'it1', neededBy: null }])).resolves.toBeUndefined();
+    expect(procNeededByDal.setProcurementNeededBy).toHaveBeenCalledWith('pr1', '2026-12-31', [{ itemId: 'it1', neededBy: null }]);
   });
 
   it('AC-SEC-220: approveAmount delegates the higher approved amount to the DAL and maps a refusal to AppError', async () => {

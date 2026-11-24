@@ -18,6 +18,9 @@ text=Path('scripts/contract-quantities-rollback.test.sql').read_text()
 # to work_order_lines; 1047 / 1046 opening balances reference work_order_acceptances; 1040's dsr_progress_lines
 # references work_order_lines; 1041 holds the functions over 1040's tables.
 dependents=[
+    # Area-rate policy and report RPCs depend on the daily report functions reverted below.
+    'supabase/migrations/rollback/2132_areas_and_area_rates_down.sql',
+    'supabase/migrations/rollback/2130_site_report_crew_link_down.sql',
     # 1670 adds an AFTER INSERT trigger on organizations that writes the seven switch-settings rows. A real rollback
     # reverts that trigger first; 1275's rollback then drops org_revenue_plan_settings, which the trigger writes.
     'supabase/migrations/rollback/1670_features_on_by_default_down.sql',

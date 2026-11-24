@@ -1,0 +1,5 @@
+# 2131: the recorder of a head count attaches and detaches evidence files (same authority as recording the head count).
+attach_headcount_document
+detach_headcount_document
+# 2132: Admin, Finance, Executive or the project's manager sets a contract line's rate for one area.
+set_boq_item_area_rate

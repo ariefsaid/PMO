@@ -4,7 +4,7 @@ import { AppError } from '@/src/lib/appError';
 
 /**
  * Leave and sick requests (#2708, migrations 1240-1242). Every write is an RPC; the database owns the rules:
- * overlap, the line-manager or approver-role authority, and that nobody decides their own or an entered request.
+ * overlap, the person's own manager / HR Manager / Admin route, and that nobody decides their own or an entered request.
  * This module only carries requests. org_id is never sent.
  */
 const fail = (error: { message: string; code?: string } | null): void => {
@@ -32,10 +32,12 @@ export interface LeaveRequestRow {
   can_decide: boolean;
   /** Who decided it (1611); null while pending. */
   decided_by_name: string | null;
-  /** The person's line manager, who can decide it; null when none is set (1611). */
+  /** Legacy shape retained for RPC compatibility; the active routing notice is `waiting_for_names`. */
   line_manager_name: string | null;
-  /** The organisation's approver role key; any holder of it can decide (1611). */
+  /** Legacy organization setting retained for API compatibility; it no longer affects routing. */
   approver_role: string | null;
+  /** The current decider route shown in the list (the same resolver used by authority and notice routing). */
+  waiting_for_names: string[];
 }
 export interface LeaveRequestInput { person_id: string; leave_type_id: string; start_date: string; end_date: string; reason?: string | null }
 
@@ -78,6 +80,9 @@ export async function listVisibleLeaveRequests(): Promise<LeaveRequestRow[]> {
     reason: r.reason ?? null,
     decided_at: r.decided_at ?? null,
     decision_note: r.decision_note ?? null,
+    line_manager_name: r.line_manager_name ?? null,
+    approver_role: r.approver_role ?? null,
+    waiting_for_names: r.waiting_for_names ?? [],
   }));
 }
 

@@ -2,18 +2,24 @@
 -- Org a1: b1 finance, b6 engineer. Org a2 (foreign): b9 finance. Projects c1, c2 (org a1), c3 (org a2).
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(26);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('13700000-0000-0000-0000-0000000000a1', 'BBD Org A', 'IDR', 'UTC'),
   ('13700000-0000-0000-0000-0000000000a2', 'BBD Org B', 'IDR', 'UTC');
 insert into auth.users (id, email) values
   ('13700000-0000-0000-0000-0000000000b1', 'bbd-fin@example.com'),
+  ('13700000-0000-0000-0000-0000000000b2', 'bbd-admin@example.com'),
+  ('13700000-0000-0000-0000-0000000000b3', 'bbd-exec@example.com'),
   ('13700000-0000-0000-0000-0000000000b6', 'bbd-eng@example.com'),
+  ('13700000-0000-0000-0000-0000000000b7', 'bbd-pm@example.com'),
   ('13700000-0000-0000-0000-0000000000b9', 'bbd-ffin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('13700000-0000-0000-0000-0000000000b1', '13700000-0000-0000-0000-0000000000a1', 'BBD Finance', 'bbd-fin@example.com', 'Finance', 'active'),
+  ('13700000-0000-0000-0000-0000000000b2', '13700000-0000-0000-0000-0000000000a1', 'BBD Admin', 'bbd-admin@example.com', 'Admin', 'active'),
+  ('13700000-0000-0000-0000-0000000000b3', '13700000-0000-0000-0000-0000000000a1', 'BBD Executive', 'bbd-exec@example.com', 'Executive', 'active'),
   ('13700000-0000-0000-0000-0000000000b6', '13700000-0000-0000-0000-0000000000a1', 'BBD Engineer', 'bbd-eng@example.com', 'Engineer', 'active'),
+  ('13700000-0000-0000-0000-0000000000b7', '13700000-0000-0000-0000-0000000000a1', 'BBD Project Manager', 'bbd-pm@example.com', 'Project Manager', 'active'),
   ('13700000-0000-0000-0000-0000000000b9', '13700000-0000-0000-0000-0000000000a2', 'BBD Foreign Finance', 'bbd-ffin@example.com', 'Finance', 'active');
 insert into companies (id, org_id, name, type) values
   ('13700000-0000-0000-0000-0000000000cc', '13700000-0000-0000-0000-0000000000a1', 'BBD Client', 'Client'),
@@ -31,7 +37,7 @@ insert into work_orders (id, project_id, title, order_value, tax_treatment, tax_
 -- e3 c2: all steps done (ready to invoice).   e4 c1: withdrawn.   e5 c1: no steps.   e6 c1: invoiced.   e7 c3: foreign.
 insert into progress_claims (id, org_id, project_id, work_order_id, kind, currency, gross_amount, created_by, withdrawn_by, withdrawn_at) values
   ('13700000-0000-0000-0000-000000000e01', '13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-0000000000c1', '13700000-0000-0000-0000-0000000000d1', 'progress', 'IDR', 1000, '13700000-0000-0000-0000-0000000000b1', null, null),
-  ('13700000-0000-0000-0000-000000000e02', '13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-0000000000c1', null, 'progress', 'IDR', 1000, '13700000-0000-0000-0000-0000000000b1', null, null),
+  ('13700000-0000-0000-0000-000000000e02', '13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-0000000000c1', null, 'progress', 'USD', 1000, '13700000-0000-0000-0000-0000000000b1', null, null),
   ('13700000-0000-0000-0000-000000000e03', '13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-0000000000c2', null, 'progress', 'IDR', 1000, '13700000-0000-0000-0000-0000000000b1', null, null),
   ('13700000-0000-0000-0000-000000000e04', '13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-0000000000c1', null, 'progress', 'IDR', 1000, '13700000-0000-0000-0000-0000000000b1', '13700000-0000-0000-0000-0000000000b1', now()),
   ('13700000-0000-0000-0000-000000000e05', '13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-0000000000c1', null, 'progress', 'IDR', 1000, '13700000-0000-0000-0000-0000000000b1', null, null),
@@ -71,6 +77,10 @@ select is((select count(distinct claim_id)::int from billing_board()), 3, 'AC-BB
 select results_eq($$ select current_name, current_position::int, step_count, steps_done, project_name from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e01' $$,
   $$ values ('Approve'::text, 2, 3, 1, 'BBD one'::text) $$, 'AC-BBD-001 claim e1: current step, counts, project');
 select is((select work_order_id from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e01'), '13700000-0000-0000-0000-0000000000d1'::uuid, 'AC-BBD-001 the work order is carried');
+select results_eq($$ select claim_value, currency from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e01' $$,
+  $$ values ('1000.00'::text, 'IDR'::text) $$, 'AC-MV-005 the board returns the exact claim value and currency');
+select results_eq($$ select claim_value, currency from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e02' $$,
+  $$ values ('1000.00'::text, 'USD'::text) $$, 'AC-MV-005 each claim keeps its own currency');
 -- AC-BBD-002: skipped / completed are passed over; all done -> flag.
 select results_eq($$ select current_name, current_position::int, steps_done, all_done from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e02' $$,
   $$ values ('Approve'::text, 2, 1, false) $$, 'AC-BBD-002 a skipped first step is passed over');
@@ -90,8 +100,14 @@ select is((select count(*)::int from billing_board() b join claim_billing_stages
 select is((select due_on from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e01'), date '2026-01-20', 'AC-BBD-007 the step date wins over its days');
 select is((select due_on from billing_board() where claim_id = '13700000-0000-0000-0000-000000000e02'), date '2026-01-09', 'AC-BBD-007 days only: started + days');
 -- AC-BBD-004: Engineer sees nothing; foreign finance sees only its own organisation.
+select pg_temp.as_user('b2');
+select is((select count(*)::int from billing_board()), 3, 'AC-MV-006 Admin retains access');
+select pg_temp.as_user('b3');
+select is((select count(*)::int from billing_board()), 3, 'AC-MV-006 Executive retains access');
 select pg_temp.as_user('b6');
 select is((select count(*)::int from billing_board()), 0, 'AC-BBD-004 an Engineer gets no rows');
+select pg_temp.as_user('b7');
+select is((select count(*)::int from billing_board()), 0, 'AC-MV-006 a Project Manager cannot read the Finance board');
 select pg_temp.as_user('b9');
 select is((select count(*)::int from billing_board()), 1, 'AC-BBD-004 foreign finance sees only its own claim');
 select is((select count(*)::int from billing_board() where project_id <> '13700000-0000-0000-0000-0000000000c3'), 0, 'AC-BBD-004 no row of the first organisation leaks');

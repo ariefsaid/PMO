@@ -22,6 +22,7 @@ describe('milestoneRepository', () => {
     ['list', 'listMilestones', ['p1']],
     ['deliveryForProjects', 'getProjectsDelivery', [['p1', 'p2']]],
     ['deliverySummaryForProjects', 'getProjectsDeliverySummary', [['p1']]],
+    ['managementOverviewForProjects', 'getProjectMilestoneOverview', [['p1']]],
     ['milestoneDatesForProjects', 'getProjectsMilestoneDates', [['p1']]],
     ['create', 'createMilestone', [{ name: 'M1' }, 'p1']],
     ['update', 'updateMilestone', ['m1', { name: 'M2' }]],

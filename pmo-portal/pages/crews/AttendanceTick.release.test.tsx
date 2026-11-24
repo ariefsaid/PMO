@@ -27,6 +27,8 @@ vi.mock('@/src/hooks/useCrews', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useHeadcount', () => ({
+  useHeadcountEvidence: () => ({ data: [] }),
+  useHeadcountEvidenceMutations: () => ({ attachFile: { mutateAsync: vi.fn(), isPending: false }, detach: { mutateAsync: vi.fn(), isPending: false } }),
   useHeadcountDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useHeadcountMutations: () => ({ record: { mutateAsync: vi.fn() }, approve: { mutateAsync: vi.fn() }, clear: { mutateAsync: vi.fn() } }),
 }));

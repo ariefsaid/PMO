@@ -48,7 +48,8 @@ import { LeaveApprovalSection } from '../approvals/LeaveApprovalSection';
 
 const row = (over: Record<string, unknown> = {}) => ({
   id: 'r1', person_id: 'p1', person_name: 'Own Person', leave_type_id: 't1', type_name: 'Type A', start_date: '2026-12-01',
-  end_date: '2026-12-03', days: 3, reason: null, status: 'Pending', decided_at: null, decision_note: null, is_mine: true, can_decide: false, ...over,
+  end_date: '2026-12-03', days: 3, reason: null, status: 'Pending', decided_at: null, decision_note: null, is_mine: true, can_decide: false,
+  waiting_for_names: ['Person manager'], ...over,
 });
 const page = (bahasa = false) => {
   const ui = <MemoryRouter><ToastProvider><LeaveRequestsPage /></ToastProvider></MemoryRouter>;
@@ -103,6 +104,7 @@ describe('leave requests page (#2708)', () => {
     h.rows = [row({ id: 'a', can_decide: true, is_mine: false, person_name: 'Other' }), row({ id: 'b' })];
     page();
     expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
+    expect(screen.getAllByText('Waiting for Person manager to decide')).toHaveLength(2);
     h.decide.mockResolvedValue(undefined);
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
     expect(h.decide).toHaveBeenCalledWith({ id: 'a', decision: 'Approved', note: null });

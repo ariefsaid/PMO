@@ -638,6 +638,10 @@
         "noticesHeading": "Pemberitahuan (mati sampai Anda memilih)",
         "label": "Tambahan penagihan",
         "helper": "Pendapatan per disiplin, rencana pendapatan, waktu menganggur sebagai biaya, dan pengingat untuk pekerjaan yang selesai tetapi belum ditagih."
+      },
+      "managementViews": {
+        "label": "Tampilan manajemen",
+        "helper": "Tampilkan portofolio proyek dan progres yang belum diterima oleh klien."
       }
     },
     "modulesNav": "Modul",
@@ -872,6 +876,17 @@
       "saved": "Target kehadiran disimpan",
       "title": "Target kehadiran",
       "turnOff": "Matikan"
+    },
+    "dsrValidateRoles": {
+      "title": "Validasi laporan harian lokasi",
+      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Centang jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
+      "legend": "Jabatan yang memvalidasi laporan harian lokasi",
+      "loadError": "Peran validator laporan lokasi tidak dapat dimuat",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "viewOnly": "Keluar dari mode lihat-sebagai untuk mengubah pengaturan ini.",
+      "turnOn": "Aktifkan peran bawaan di Administrasi > Orang untuk menetapkan kemampuan ini.",
+      "save": "Simpan",
+      "saved": "Peran validator laporan lokasi disimpan"
     },
     "attendanceRoles": {
       "title": "Catatan waktu",

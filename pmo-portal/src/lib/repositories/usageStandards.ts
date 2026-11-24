@@ -7,7 +7,7 @@ import * as dal from '@/src/lib/db/usageStandards';
 import { wrap } from './repositoryErrors';
 
 export type {
-  UsageStandardRow, UsageStandardInput, UsageStandardFilter, ConsumablePlan, ConsumablePlanLine, ConsumablePlanBasis,
+  UsageStandardRow, UsageStandardInput, UsageStandardFilter, ConsumablePlan, ConsumablePlanApproval, ConsumablePlanLine, ConsumablePlanBasis,
   UnplannedItem, NoStandardLine, ConsumablePlanSource,
 } from '@/src/lib/db/usageStandards';
 export { consumablePlanRefusal, USAGE_STANDARDS_PAGE_SIZE } from '@/src/lib/db/usageStandards';
@@ -22,4 +22,5 @@ export const usageStandardRepository = {
   planInputs: (workOrderId: string) => wrap(() => dal.getPlanInputs(workOrderId)),
   generate: (workOrderId: string) => wrap(() => dal.generateConsumablePlan(workOrderId)),
   adjust: (a: { workOrderId: string; itemId: string; adjustedQty: string | null; reason: string | null }) => wrap(() => dal.adjustConsumablePlanLine(a)),
+  approve: (workOrderId: string) => wrap(() => dal.approveConsumablePlan(workOrderId)),
 };

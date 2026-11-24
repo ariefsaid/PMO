@@ -67,11 +67,23 @@ describe('job-role rights (2040–2047)', () => {
     expect(can('manage', 'documentType', as('Admin', null, { record: { applies_to: 'equipment' } }))).toBe(true);
   });
 
-  it('report validation reads the capability: nobody holds it by default, the author never validates', () => {
+  it('report validation reads the capability: nobody holds it by default, an Admin-assigned role validates, the author never validates', () => {
     const record = { author_id: 'other' };
     expect(can('approve', 'dailySiteReport', as('Engineer', 'site_supervisor', { record }))).toBe(false);
+    expect(can('approve', 'dailySiteReport', as('Engineer', 'site_supervisor', { record, dailyReportValidateRoles: ['site_supervisor'] }))).toBe(true);
+    expect(can('revise', 'dailySiteReport', as('Engineer', 'site_supervisor', { record, dailyReportValidateRoles: ['site_supervisor'] }))).toBe(true);
+    expect(can('approve', 'dailySiteReport', as('Engineer', 'site_supervisor', { record: { author_id: 'me' }, dailyReportValidateRoles: ['site_supervisor'] }))).toBe(false);
+    expect(can('approve', 'dailySiteReport', as('Project Manager', 'project_control_manager', { record, dailyReportValidateRoles: ['site_supervisor'] }))).toBe(false);
     expect(can('approve', 'dailySiteReport', as('Finance', null, { record }))).toBe(true);
     expect(can('approve', 'dailySiteReport', as('Finance', null, { record: { author_id: 'me' } }))).toBe(false);
+  });
+
+  it('AC-HTR-001 the HR Officer reviews timesheets; other Engineers and Finance do not', () => {
+    expect(can('review', 'timesheet', as('Engineer', 'hr_officer'))).toBe(true);
+    expect(can('review', 'timesheet', as('Engineer', 'storekeeper'))).toBe(false);
+    expect(can('review', 'timesheet', as('Engineer', null))).toBe(false);
+    expect(can('review', 'timesheet', as('Finance', null))).toBe(false);
+    expect(can('review', 'timesheet', as('Admin', null))).toBe(true);
   });
 
   it('the Project Control Manager reads revenue and checkpoints on every project; others keep their scope', () => {

@@ -6,8 +6,11 @@ import { axe } from 'jest-axe';
 import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
+vi.mock('@/src/hooks/useSetupWorkflows', () => ({ useSetupWorkflows: () => ({ enabled: state.setupEnabled, isLoading: false, isError: false, isSaving: false, setEnabled: vi.fn(), refetch: vi.fn() }) }));
+
 const state = vi.hoisted(() => ({
   role: 'Finance',
+  setupEnabled: false,
   currency: 'IDR',
   position: null as FinancePosition | null,
   financeSources: {
@@ -111,6 +114,7 @@ function renderHub(role = 'Finance') {
 }
 
 beforeEach(() => {
+  state.setupEnabled = false;
   state.currency = 'IDR';
   state.position = positionFixture();
   state.financeSources = {
@@ -138,9 +142,19 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   state.role = 'Finance';
+  state.setupEnabled = false;
 });
 
 describe('Finance hub', () => {
+  it('AC-OBS-007 shows opening balances only after the organisation setting is enabled', () => {
+    renderHub();
+    expect(screen.queryByTestId('finance-hub-opening-balances-link')).not.toBeInTheDocument();
+    cleanup();
+    state.setupEnabled = true;
+    renderHub();
+    expect(screen.getByTestId('finance-hub-opening-balances-link')).toHaveAttribute('href', '/finance/opening-balances');
+  });
+
   it('fix-billing item 6: Finance reaches the claims board by step and age in one tap from the Finance page', () => {
     state.position = positionFixture();
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);

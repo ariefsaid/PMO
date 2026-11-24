@@ -20,7 +20,77 @@ export type TimesheetWithEntries = TimesheetRow & {
   rejecter: { full_name: string } | null;
 };
 
+/** 1124d-rolescreens (FR-HTR-002): filter inputs for the read-only HR Officer timesheet review list. */
+export interface TimesheetReviewFilters {
+  personId?: string;
+  projectId?: string;
+  from?: string;
+  to?: string;
+}
+
+/** A timesheet row with its owner profile and project-joined entries for the read-only review list. */
+export type TimesheetForReview = TimesheetRow & {
+  owner: { id: string; full_name: string } | null;
+  entries: Array<
+    TimesheetEntryRow & {
+      project: { id: string; name: string; short_name?: string | null; code: string | null } | null;
+      work_order?: { wo_number: string | null; title: string | null } | null;
+    }
+  >;
+};
+
 const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code)), rejecter:profiles!timesheets_rejected_by_fkey(full_name)';
+const SELECT_FOR_REVIEW =
+  '*, owner:profiles!timesheets_user_id_fkey(id,full_name), entries:timesheet_entries(*, project:projects(id,name,short_name,code), work_order:work_orders(wo_number,title))';
+
+function shiftIsoDays(iso: string, delta: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + delta));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+/**
+ * List timesheets + entries across the caller's organisation for read-only review (HR Officer / Admin).
+ * `org_id` is NEVER sent — RLS (`timesheets_select` + `timesheet_entries_select`, migration 2042) scopes rows.
+ */
+export async function listTimesheetsForReview(
+  filters: TimesheetReviewFilters = {},
+): Promise<TimesheetForReview[]> {
+  const data = await fetchAllRowsByKeyset<TimesheetForReview>(async (afterId, limit) => {
+    let q = supabase.from('timesheets').select(SELECT_FOR_REVIEW);
+    if (filters.personId) q = q.eq('user_id', filters.personId);
+    if (filters.from) q = q.gte('week_start_date', shiftIsoDays(filters.from, -6));
+    if (filters.to) q = q.lte('week_start_date', filters.to);
+    q = q.order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    const res = await q.limit(limit);
+    return { data: res.data as unknown as TimesheetForReview[] | null, error: res.error };
+  });
+
+  const normalised = data
+    .map((sheet) => ({
+      ...sheet,
+      rejection_reason: sheet.rejection_reason ?? null,
+      rejected_by: sheet.rejected_by ?? null,
+      rejected_at: sheet.rejected_at ?? null,
+      entries: sheet.entries.map((e) => ({ ...e, hours: Number(e.hours) })),
+    }))
+    .filter((sheet) => {
+      const weekEnd = shiftIsoDays(sheet.week_start_date, 6);
+      if (filters.from && weekEnd < filters.from) return false;
+      if (filters.to && sheet.week_start_date > filters.to) return false;
+      if (filters.projectId && !sheet.entries.some((e) => e.project_id === filters.projectId)) return false;
+      return true;
+    });
+
+  normalised.sort(
+    (a, b) =>
+      b.week_start_date.localeCompare(a.week_start_date) ||
+      (a.owner?.full_name ?? '').localeCompare(b.owner?.full_name ?? '') ||
+      a.id.localeCompare(b.id),
+  );
+  return normalised;
+}
 
 /**
  * List the given user's timesheets + entries for the caller's org. org_id is NEVER sent — RLS

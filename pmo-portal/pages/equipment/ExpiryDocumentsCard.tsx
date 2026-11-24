@@ -53,7 +53,7 @@ export const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string
   });
   const chosen = (types.data ?? []).find((x) => x.id === form.values.type_id);
   const medical = doc ? doc.is_medical : Boolean(chosen?.is_medical);
-  // a medical type is offered only to a role that may write medical documents (Admin)
+  // a medical type is offered only to a role that may write medical status/date records
   const mayMedical = usePermission()('create', 'expiryDocument', { record: { kind, medical: true } });
   const typeOptions = (types.data ?? []).filter((x) => mayMedical || !x.is_medical).map((x) => ({ value: x.id, label: x.name }));
   const typeLabel = doc ? (types.data ?? []).find((x) => x.id === doc.type_id)?.name : undefined;
@@ -127,7 +127,7 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
   const [problem, setProblem] = useState<string | null>(null);
   const typeName = (id: string) => (types.data ?? []).find((x) => x.id === id)?.name ?? '—';
   const rows = q.data ?? [];
-  // per document: a medical document is written by Admin only
+  // per document: medical document writes follow the shared permission rule
   const rowCtx = (d: ExpiryDocumentRow) => ({ record: { ...ctx.record, medical: d.is_medical } });
   const canEdit = (d: ExpiryDocumentRow) => may('edit', 'expiryDocument', rowCtx(d));
   const canArchive = (d: ExpiryDocumentRow) => may('archive', 'expiryDocument', rowCtx(d));

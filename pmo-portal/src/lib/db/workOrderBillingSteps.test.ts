@@ -4,7 +4,9 @@ const h = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 
 import {
-  assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getWaitingWorkOrderSteps, listWorkOrderSteps, setDefaultStepTemplate, skipWorkOrderStep,
+  addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getWaitingWorkOrderSteps, getWorkOrderChecklistEnabled,
+  listWorkOrderSteps, saveWorkOrderChecklistAsTemplate, setDefaultStepTemplate, setWorkOrderChecklistEnabled,
+  skipWorkOrderStep,
 } from './workOrderBillingSteps';
 
 beforeEach(() => { h.rpc.mockReset().mockResolvedValue({ data: null, error: null }); h.from.mockReset(); });
@@ -23,6 +25,54 @@ describe('work-order billing steps DAL (migrations 1770-1774)', () => {
       ['attach_work_order_step_document', { p_step: 's1', p_slot: null, p_document: 'd1' }],
       ['set_default_billing_step_template', { p_template: null }],
     ]);
+  });
+
+  it('AC-WCE-001 adds a step with the work order, the place and the step the page collected', async () => {
+    h.rpc.mockResolvedValue({ data: 'n1', error: null });
+    await expect(addWorkOrderStep('w1', 2, { name: 'Joint survey sign-off', ownerRoleKey: 'quantity_surveyor' })).resolves.toBe('n1');
+    expect(h.rpc).toHaveBeenCalledWith('add_work_order_step', {
+      p_work_order: 'w1', p_after_position: 2, p_step: { name: 'Joint survey sign-off', owner_role_key: 'quantity_surveyor' },
+    });
+  });
+
+  it('AC-WCE-001 a step with no owner role, target or flag carries only its name; a target and the optional flag travel with it', async () => {
+    h.rpc.mockResolvedValue({ data: 'n2', error: null });
+    await addWorkOrderStep('w1', 0, { name: 'Only', ownerRoleKey: null, targetDays: null, optional: false });
+    await addWorkOrderStep('w1', 0, { name: 'Timed', ownerRoleKey: 'billing_officer', targetDays: 4, optional: true });
+    expect(h.rpc.mock.calls.map((c) => c[1].p_step)).toEqual([
+      { name: 'Only' },
+      { name: 'Timed', owner_role_key: 'billing_officer', target_days: 4, optional: true },
+    ]);
+  });
+
+  it('AC-WCE-005 sends null as the database-resolved end when the visible list does not reveal its tail', async () => {
+    h.rpc.mockResolvedValue({ data: 'n3', error: null });
+    await expect(addWorkOrderStep('w1', null, { name: 'Append after hidden steps' })).resolves.toBe('n3');
+    expect(h.rpc).toHaveBeenCalledWith('add_work_order_step', {
+      p_work_order: 'w1', p_after_position: null, p_step: { name: 'Append after hidden steps' },
+    });
+  });
+
+  it('AC-WCE-002 saves the complete work-order list through the database copy RPC', async () => {
+    h.rpc.mockResolvedValue({ data: 'template-1', error: null });
+    await expect(saveWorkOrderChecklistAsTemplate('w1', 'Remote site')).resolves.toBe('template-1');
+    expect(h.rpc).toHaveBeenCalledWith('save_work_order_steps_as_template', { p_work_order: 'w1', p_name: 'Remote site' });
+  });
+
+  it('AC-WCE-006 reads the organisation setting and writes it through its guarded RPC', async () => {
+    const chain = { select: vi.fn().mockReturnThis(), limit: vi.fn() };
+    chain.limit.mockResolvedValue({ data: [{ work_order_checklist_enabled: true }], error: null });
+    h.from.mockReturnValue(chain);
+    await expect(getWorkOrderChecklistEnabled()).resolves.toBe(true);
+    expect(h.from).toHaveBeenCalledWith('organizations');
+    expect(chain.select).toHaveBeenCalledWith('work_order_checklist_enabled');
+    await setWorkOrderChecklistEnabled(false);
+    expect(h.rpc).toHaveBeenCalledWith('set_org_work_order_checklist_edit', { p_enabled: false });
+  });
+
+  it('AC-WCE-003 a refusal keeps its code for the refusals catalogue', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'WBS_STEP_CLOSED: a new step goes after the current step', code: '55000' } });
+    await expect(addWorkOrderStep('w1', 0, { name: 'Too early' })).rejects.toMatchObject({ message: expect.stringContaining('WBS_STEP_CLOSED:'), code: '55000' });
   });
 
   it('AC-WBS-006 a refusal keeps its sentence and code for the refusals catalogue', async () => {

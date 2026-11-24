@@ -2,27 +2,41 @@ import React from 'react';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deriveWorkInHand, type WipInputRow } from '@/src/lib/workInHand';
 import type { WorkInHand as WorkInHandFacts } from '@/src/lib/db/workInHand';
+import { contrastRatio, themeTokens } from '@/src/test/a11yContrast';
 
 const state = vi.hoisted(() => ({
-  canView: true,
+  role: 'Finance',
   loading: false,
   error: false,
   facts: null as unknown,
   rows: [] as unknown[],
   refetch: vi.fn(),
+  readEnabled: true,
 }));
 
-vi.mock('@/src/components/finance/useFinanceAccess', () => ({ useFinanceAccess: () => ({ canView: state.canView, canAct: false }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: state.role }) }));
 vi.mock('@/src/hooks/useWorkInHand', () => ({
-  useWorkInHand: () => ({ facts: state.facts, rows: state.rows, isLoading: state.loading, isError: state.error, isSuccess: !state.loading && !state.error, error: null, refetch: state.refetch }),
+  useWorkInHand: (enabled: boolean) => {
+    state.readEnabled = enabled;
+    return { facts: enabled ? state.facts : null, rows: enabled ? state.rows : [], isLoading: enabled && state.loading, isError: enabled && state.error, isSuccess: enabled && !state.loading && !state.error, error: null, refetch: state.refetch };
+  },
 }));
 
 import WorkInHand from './WorkInHand';
 
 const AS_OF = '2026-12-10';
+const TEXT_AA_MIN = 4.5;
+const themeCss = readFileSync(join(__dirname, '..', '..', 'index.css'), 'utf8');
+const THEME_TOKENS = [
+  { name: 'light', tokens: themeTokens(themeCss, ':root {') },
+  { name: 'dark', tokens: themeTokens(themeCss, '.dark {') },
+];
+
 const rated = (id: string, name: string, value: string, over: Partial<WipInputRow> = {}): WipInputRow => ({
   kind: 'contract', parentId: null, id, name, code: null, status: 'Ongoing Project', currency: 'IDR', value,
   incomplete: false, foreignCurrencyInvoiceCount: 0, unpricedInvoiceCount: 0,
@@ -42,7 +56,7 @@ function renderPage() {
   return render(<MemoryRouter><WorkInHand /></MemoryRouter>);
 }
 
-beforeEach(() => { state.canView = true; state.loading = false; state.error = false; state.refetch.mockReset(); });
+beforeEach(() => { state.role = 'Finance'; state.loading = false; state.error = false; state.readEnabled = true; state.refetch.mockReset(); });
 afterEach(cleanup);
 
 const rowOrder = () => screen.getAllByTestId(/^wih-row-/).map((r) => r.getAttribute('data-testid'));
@@ -141,12 +155,28 @@ describe('Work in hand screen', () => {
     expect(screen.getByRole('button', { name: 'Open projects' })).toBeInTheDocument();
   });
 
-  it('error: the shared error state with retry, never a plausible zero', async () => {
+  it('error: the retry uses a DESIGN.md token with WCAG AA text contrast', async () => {
     state.error = true;
     state.facts = undefined;
     renderPage();
     expect(screen.getByText("Couldn't load work in hand")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    expect(retry).toHaveClass('text-foreground');
+
+    for (const { name, tokens } of THEME_TOKENS) {
+      const textToken = [...retry.classList].find((className) => className.startsWith('text-'))?.slice('text-'.length);
+      expect(textToken, `retry text token in ${name} theme`).toBe('foreground');
+      for (const surface of ['background', 'card'] as const) {
+        const ink = tokens[textToken!];
+        const paper = tokens[surface];
+        expect(ink, `--${textToken} missing from ${name} theme`).toBeDefined();
+        expect(paper, `--${surface} missing from ${name} theme`).toBeDefined();
+        const ratio = contrastRatio(ink!, paper!);
+        expect(ratio, `${textToken} on ${surface} in ${name}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(TEXT_AA_MIN);
+      }
+    }
+
+    await userEvent.click(retry);
     expect(state.refetch).toHaveBeenCalled();
   });
 
@@ -159,9 +189,27 @@ describe('Work in hand screen', () => {
   });
 
   it('a role without finance access gets the access-denied state and reads nothing', () => {
-    state.canView = false;
+    state.role = 'Engineer';
     setData([rated('c', 'Contract', '900000.00')]);
     renderPage();
     expect(screen.queryByTestId('wih-row-c')).toBeNull();
+    expect(state.readEnabled).toBe(false);
+  });
+
+  it('AC-MV-003 labels a Project Manager position as their assigned projects only', () => {
+    state.role = 'Project Manager';
+    setData([rated('managed', 'Managed project', '900000.00')]);
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'My work in hand' })).toBeInTheDocument();
+    expect(screen.getByText('These figures cover only projects assigned to you.')).toBeInTheDocument();
+  });
+
+  it('AC-MV-003 keeps Finance company-wide while the Project Manager gets the assigned-project label', () => {
+    state.role = 'Finance';
+    setData([rated('company', 'Company project', '900000.00')]);
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Work in hand' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'My work in hand' })).toBeNull();
+    expect(screen.queryByText('These figures cover only projects assigned to you.')).toBeNull();
   });
 });

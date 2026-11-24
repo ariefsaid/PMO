@@ -6,6 +6,8 @@ import { Button, ConfirmDialog, Icon, PageHeader, Toolbar } from '@/src/componen
 type Props = {
   weekRangeLabel: string;
   isApprover: boolean;
+  /** Read-only review doorway for the HR Officer job role (2042 / 1124d-rolescreens). */
+  canReview?: boolean;
   /** Known count of sheets awaiting approval; null while the read has not landed (no count shown). */
   pendingCount: number | null;
   busy: boolean;
@@ -17,8 +19,9 @@ type Props = {
   onConfirmDiscard: () => void;
 };
 
-export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount, busy, stepWeek, pendingWeekDelta, discardHasInvalid, onCancelDiscard, onConfirmDiscard }: Props) {
+export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, canReview = false, pendingCount, busy, stepWeek, pendingWeekDelta, discardHasInvalid, onCancelDiscard, onConfirmDiscard }: Props) {
   const { t } = useTranslation(['common', 'timesheets']);
+  const showSwitcher = isApprover || canReview;
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const stepper = (
         <span className="ml-auto inline-flex items-center gap-0.5">
@@ -41,24 +44,22 @@ export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount,
     <>
       <PageHeader title={t('timesheets.title', 'Timesheets')} />
 
-      {isApprover ? (
+      {showSwitcher ? (
       <Toolbar standalone>
         {/* CW-6: the approvals queue has ONE home at /approvals. Approvers get a cross-link
             there (scoped to timesheets) instead of an in-page queue tab — so this page no longer
-            competes as a second approvals surface. Non-approvers (Engineer) see no link at all. */}
-        {/* UX-062: two named jobs. My time is this page; Team review is the canonical Approvals
-            inbox (scoped to timesheets), one click away. Engineers get no switch (no review job). */}
-        {isApprover && (
-          <nav
-            aria-label={t('uxs28.nav.label', 'Timesheet views')}
-            className="inline-flex items-center gap-1"
+            competes as a second approvals surface. HR Officers get a read-only Review timesheets doorway. */}
+        <nav
+          aria-label={t('uxs28.nav.label', 'Timesheet views')}
+          className="inline-flex items-center gap-1"
+        >
+          <span
+            aria-current="page"
+            className="inline-flex h-8 items-center rounded-md bg-accent px-2.5 text-control font-semibold text-foreground"
           >
-            <span
-              aria-current="page"
-              className="inline-flex h-8 items-center rounded-md bg-accent px-2.5 text-control font-semibold text-foreground"
-            >
-              {t('uxs28.nav.myTime', 'My time')}
-            </span>
+            {t('uxs28.nav.myTime', 'My time')}
+          </span>
+          {isApprover ? (
             <Link
               to="/approvals?scope=timesheets"
               className="touch-target inline-flex h-8 items-center rounded-md px-2.5 text-control font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -67,8 +68,15 @@ export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount,
                 ? t('uxs28.nav.teamReviewAwaiting', 'Team review · {{n}} awaiting', { n: String(pendingCount) })
                 : t('uxs28.nav.teamReview', 'Team review')}
             </Link>
-          </nav>
-        )}
+          ) : (
+            <Link
+              to="/timesheets/review"
+              className="touch-target inline-flex h-8 items-center rounded-md px-2.5 text-control font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {t('timesheets:review.navLink', 'Review timesheets')}
+            </Link>
+          )}
+        </nav>
         {stepper}
       </Toolbar>
       ) : <div className="mb-3 flex justify-end">{stepper}</div>}

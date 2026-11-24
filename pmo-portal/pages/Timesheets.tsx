@@ -67,6 +67,7 @@ const TimesheetsPage: React.FC = () => {
   // as the rail's Approvals item — `may('transition','approval')` (DELIVERY = Admin·Exec·PM).
   // Engineer cannot approve timesheets (OD-W2-2), so showing them the cross-link is a RBAC leak.
   const isApprover = may('transition', 'approval');
+  const canReview = may('review', 'timesheet');
   const signedInUserId = currentUser?.id;
   // Pending-approval count for the queue toggle badge (shared cache; cheap). Unknown (not yet
   // loaded) is null — the badge withholds the count; it never reads as a confirmed zero.
@@ -222,7 +223,7 @@ const TimesheetsPage: React.FC = () => {
   }
 
   const head = <TimesheetWeekToolbar
-    weekRangeLabel={weekRangeLabel} isApprover={isApprover} pendingCount={pendingCount}
+    weekRangeLabel={weekRangeLabel} isApprover={isApprover} canReview={canReview} pendingCount={pendingCount}
     busy={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending}
     stepWeek={stepWeek} pendingWeekDelta={pendingWeekDelta}
     discardHasInvalid={!editValid}

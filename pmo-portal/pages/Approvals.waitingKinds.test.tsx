@@ -87,6 +87,7 @@ const pendingLeaveRow = (overrides: Partial<LeaveRequestRow> = {}): LeaveRequest
   decision_note: null,
   is_mine: false,
   can_decide: true,
+  waiting_for_names: [],
   decided_by_name: null,
   line_manager_name: 'Supervisor',
   approver_role: 'Project Manager',
