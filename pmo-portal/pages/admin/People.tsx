@@ -2,7 +2,7 @@ import React, { useContext, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Combobox, DataTable, EntityFormModal, FormGrid, Icon, ListState, StatusPill, TextField, ViewToggle, useToast,
+  Button, buttonClasses, Combobox, DataTable, EntityFormModal, FormGrid, Icon, ListState, StatusPill, TextField, ViewToggle, useToast,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 
@@ -168,6 +168,8 @@ const People: React.FC = () => {
             ]} />
         </div>
         <div className="flex flex-wrap items-center gap-[var(--space-group)]">
+          {/* Walk F13-1: the expiring-documents list (people and equipment) sat under Equipment only. */}
+          <Link to="/equipment/expiring" className={buttonClasses('outline')} data-testid="people-expiring-link">{t('administration:people.expiring', 'Expiring documents')}</Link>
           <PersonDocumentImport onImported={() => void q.refetch()} />
           <CanWrite entity="person" action="create" ctx={ctx}>
             <ImportButton entity="person" label={t('administration:people.importPeople', 'Import people')} descriptor={importDescriptor} onImported={() => void q.refetch()} />

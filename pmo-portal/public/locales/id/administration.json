@@ -995,7 +995,8 @@
     "leftBody": "Personel ini pindah ke Mantan personel dan keluar dari semua susunan kru mulai hari ini. Dokumen, jam kerja, dan riwayatnya tetap tercatat.",
     "leftOn": "Hari pertama keluar dari susunan kru",
     "leftOnHelp": "Hari pertama keluar dari susunan kru",
-    "markedLeft": "{{name}} sekarang menjadi mantan personel"
+    "markedLeft": "{{name}} sekarang menjadi mantan personel",
+    "expiring": "Dokumen akan kedaluwarsa"
   },
   "roleNames": {
     "title": "Nama peran",
@@ -1301,7 +1302,9 @@
       "openDocument": "Buka dokumennya",
       "addDocument": "Tambahkan dokumennya",
       "fromDocument": "Dari dokumen {{type}}",
-      "noDocument": "Belum ada dokumen {{type}}. Tambahkan di catatan orangnya."
+      "noDocument": "Belum ada dokumen {{type}}. Tambahkan di catatan orangnya.",
+      "open": "Buka daftar periksa",
+      "progress": "{{done}} dari {{count}} selesai"
     },
     "state": {
       "done": "Selesai",

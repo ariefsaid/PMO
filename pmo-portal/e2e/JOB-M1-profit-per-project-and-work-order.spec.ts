@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — creates its own project, two work orders, one asset with a hire rate and approved usage; deletes them in afterEach.
-// JOB-M1 (management): profit per project with plan against actual per work order. The director opens the project's contract area; each work order
+// JOB-M1 (management): profit per project with plan against actual per work order. The director opens the project's Work order tab (walk M1: the profit panels moved there from Contract); each work order
 // shows its planned direct cost, its actual direct cost and the difference, and the project total equals the sum of the rows.
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -36,7 +36,7 @@ test('JOB-M1 the director sees plan, actual and the difference per work order, a
   equipment = await equipmentCost(admin, run, projectId, 100, [{ woId: a.id, day: '2026-11-10', hours: 3 }, { woId: b.id, day: '2026-11-11', hours: 2 }]);
 
   await signIn(page, 'exec@acme.test');
-  await page.goto(`/projects/${projectId}/contract`);
+  await page.goto(`/projects/${projectId}/orders`);
   const pva = page.getByTestId('wo-plan-vs-actual');
   const rowA = pva.getByTestId(`wo-pva-row-${a.id}`);
   const rowB = pva.getByTestId(`wo-pva-row-${b.id}`);

@@ -52,7 +52,7 @@
     "empty": "Tidak ada hari regu dalam rentang ini",
     "from": "Dari",
     "help": "Menghitung hari ketika setiap regu mencatat titik pemeriksaan mulai kerja dalam waktu target. Persentase dihitung dari jumlah hari, bukan rata-rata menit.",
-    "link": "Regu tepat waktu dan waktu hilang",
+    "link": "Checkpoint terlewat, regu tepat waktu dan waktu hilang",
     "minutesLate": "terlambat {{n}} menit",
     "missedTitle": "Melewati waktu target",
     "share": "{{onTime}} dari {{days}} hari tepat waktu",

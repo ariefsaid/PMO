@@ -152,7 +152,7 @@ function transitionMoney(p: ProcurementDetail) {
 
 /** Where the decision flow reaches back into the page: its own open/closed panels and tab. */
 export interface ProcurementDecisionUi {
-  setTab: (tab: 'quotes') => void;
+  setTab: (tab: 'quotes' | 'files') => void;
   notesInput: string;
   setNotesInput: (value: string) => void;
   setMutationError: (message: string | null) => void;
@@ -295,8 +295,11 @@ export function useProcurementDecision(
         toast(t('procurementRecord:order.needsSupplierTitle', 'Choose the supplier first'), t('procurementRecord:order.needsSupplier', 'An order needs its supplier. Choose it, then record the order.'), 'warning');
         return;
       }
-      const { headline, detail } = threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
+      const held = threeWayMatchHeldMessage(err, t);
+      const { headline, detail } = held ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
+      // Walk PU7: the hold is reviewed beside the bill, on the Documents tab; take the reader there.
+      if (held) setTab('files');
       setMutationError(detail ? joinSentences(headline, detail) : headline);
     }
   };

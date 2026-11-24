@@ -455,7 +455,8 @@
       "undo": "Setelah diposting, kesalahan dikoreksi dengan entri koreksi, bukan diubah.",
       "confirm": "Posting"
     },
-    "clientMaterialCost": "Dipasok klien: biaya ditetapkan nol."
+    "clientMaterialCost": "Dipasok klien: biaya ditetapkan nol.",
+    "clientMaterialWorkOrder": "Untuk $t(common:terms.clientWorkOrder)? Catat pengambilan di $t(common:terms.clientWorkOrder)."
   },
   "count": {
     "sections": {

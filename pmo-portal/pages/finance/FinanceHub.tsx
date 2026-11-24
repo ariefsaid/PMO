@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { BillingPlanLink } from '@/src/components/finance/BillingPlanLink';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -232,6 +233,7 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {tiles}
             {hasRevenue && <Link to="/finance/billing-board" data-testid="finance-hub-claims-board-link" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.claimsBoard', 'Claims board: by step and age')}</Link>}
+            {hasRevenue && <BillingPlanLink className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline" />}
             {hasRevenue && <Link to="/finance/work-in-hand" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.workInHand', 'Work in hand')}</Link>}
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
           </div>

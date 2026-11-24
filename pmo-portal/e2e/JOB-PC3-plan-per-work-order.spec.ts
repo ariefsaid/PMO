@@ -30,7 +30,7 @@ test('JOB-PC3 a plan saved on a released work order shows beside zero actuals, a
   const wo = fx.workOrders[0];
 
   await signIn(page, 'pm@acme.test');
-  await page.goto(`/projects/${projectId}/contract`);
+  await page.goto(`/projects/${projectId}/orders`);
   const row = page.getByTestId(`wo-pva-row-${wo.id}`);
   await expect(row).toBeVisible({ timeout: 30_000 });
   await expect(row).toContainText('No plan');
