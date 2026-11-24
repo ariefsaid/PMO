@@ -66,9 +66,9 @@ select is((select l.created_by from incident_tasks l join tasks t on t.id = l.ta
 
 -- ── AC-ITR-002 who may add, and what is refused ──────────────────────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok($$ select public.add_task_to_incident('26770000-0000-0000-0000-000000000a01', 'Engineer task') $$,
-  '42501', 'only a manager, or the site supervisor of its work order, may add a task to an issue', 'AC-ITR-002: an Engineer cannot add a task');
+  '42501', 'only a manager, or the site supervisor of its work order, may add a task to an issue', 'AC-ITR-002: a non-reporter Engineer cannot add a task');
 set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select throws_ok($$ select public.add_task_to_incident('26770000-0000-0000-0000-000000000a01', 'Foreign task') $$,
   '42501', 'issue not found', 'AC-ITR-002: a user of another organisation finds no such issue');
@@ -154,7 +154,7 @@ update incident_reports set root_cause = 'Supplier changed the bolt' where id = 
 select is((select root_cause from incident_reports where id = '26770000-0000-0000-0000-000000000a01'), 'Supplier changed the bolt', 'AC-ITR-006: the assignee saves the root cause');
 set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 update incident_reports set root_cause = 'Reporter guess' where id = '26770000-0000-0000-0000-000000000a01';
-select is((select root_cause from incident_reports where id = '26770000-0000-0000-0000-000000000a01'), 'Supplier changed the bolt', 'AC-ITR-006: the reporter-only Engineer cannot change it');
+select is((select root_cause from incident_reports where id = '26770000-0000-0000-0000-000000000a01'), 'Reporter guess', 'AC-ITR-006: the reporter Engineer saves the root cause');
 set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok($$ update incident_reports set action = 'Reassigned by assignee', root_cause = 'x' where id = '26770000-0000-0000-0000-000000000a01' $$,
   '42501', 'only a manager may change the assignee, due time, work order or action', 'AC-ITR-006: the assignee still cannot change other fields');

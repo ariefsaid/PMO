@@ -80,6 +80,14 @@ describe('IncidentDetail tasks and root cause (#2677)', () => {
     expect(addTask).toHaveBeenCalledWith({ incidentId: 'i1', name: 'Inspect the weld', assigneeId: null, dueDate: null });
   });
 
+  it('JOB-PC17: an Engineer reporter may add tasks and record the cause of their open issue', () => {
+    auth.id = base.reported_by;
+    renderPage('Engineer');
+    expect(screen.getByTestId('incident-add-task')).toBeInTheDocument();
+    expect(screen.getByTestId('incident-root-cause-add')).toBeInTheDocument();
+    expect(screen.queryByTestId('incident-advance')).not.toBeInTheDocument();
+  });
+
   it('AC-ITR-009: an Engineer does not see "Add a task"', () => {
     renderPage('Engineer');
     expect(screen.queryByTestId('incident-add-task')).not.toBeInTheDocument();
@@ -102,14 +110,14 @@ describe('IncidentDetail tasks and root cause (#2677)', () => {
     expect(saveRootCause).toHaveBeenCalledWith({ id: 'i1', rootCause: 'Wrong fixing spec' });
   });
 
-  it('AC-ITR-010: the person in charge may edit it; a reporter-only Engineer sees it read-only', () => {
+  it('AC-ITR-010: the person in charge may edit it; a non-reporter Engineer sees it read-only', () => {
     detail.data = { ...base, root_cause: 'Supplier changed the bolt' };
     auth.id = 'u-a';
     const { unmount } = renderPage('Engineer');
     expect(screen.getByText('Supplier changed the bolt')).toBeInTheDocument();
     expect(screen.getByTestId('incident-root-cause-edit')).toBeInTheDocument();
     unmount();
-    auth.id = 'u1';
+    auth.id = 'unrelated';
     renderPage('Engineer');
     expect(screen.getByText('Supplier changed the bolt')).toBeInTheDocument();
     expect(screen.queryByTestId('incident-root-cause-edit')).not.toBeInTheDocument();
@@ -117,7 +125,7 @@ describe('IncidentDetail tasks and root cause (#2677)', () => {
 
   it('AC-ITR-008: an issue with no root cause and no extra tasks renders as before (no Root cause card, no task list)', () => {
     detail.data = { ...base, incident_tasks: [] };
-    auth.id = 'u1';
+    auth.id = 'unrelated';
     renderPage('Engineer');
     expect(screen.queryByText('Root cause')).not.toBeInTheDocument();
     expect(screen.queryByTestId('incident-root-cause')).not.toBeInTheDocument();
