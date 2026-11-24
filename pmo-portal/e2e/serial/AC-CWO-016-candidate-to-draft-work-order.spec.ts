@@ -39,7 +39,7 @@ test('AC-CWO-016 AC-WAIT-074 a project manager assesses a candidate, accepts it 
   templateIds = items.map((i: { id: string }) => i.id);
 
   await signIn(page, 'pm@acme.test');
-  await page.goto(`/projects/${projectId}/contract`);
+  await page.goto(`/projects/${projectId}/orders`);
   await page.getByRole('button', { name: 'New candidate' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Title').fill(`${run} pipe repair`);

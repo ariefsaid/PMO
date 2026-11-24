@@ -78,7 +78,7 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(expectedPlan + ' behind plan');
     await shots(page, section, 'work-order-revenue-plan');
 
-    await page.goto('/projects/' + projectId + '/contract');
+    await page.goto('/projects/' + projectId + '/orders');
     const row = page.getByTestId('revenue-plan-row-' + workOrderId);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText(expectedPlan);
