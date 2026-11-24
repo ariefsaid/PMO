@@ -19,6 +19,7 @@ vi.mock('@/src/hooks/useCrewTools', () => ({
   useToolLines: () => ({ data: h.lines, isPending: false, isError: false }),
   useOpenToolReports: () => ({ data: h.reports, isPending: false, isError: false }),
   useToolSettings: () => ({ data: null }),
+  useToolMayManage: () => false,
   useToolMutations: () => ({
     report: { mutateAsync: h.report, isPending: false }, close: { mutateAsync: h.close, isPending: false },
     correct: { mutateAsync: h.correct, isPending: false }, addLine: { mutateAsync: vi.fn(), isPending: false },

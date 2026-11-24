@@ -45,6 +45,8 @@ export interface StockAtRiskRow {
   warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
   projectId: string | null; projectName: string | null;
   stockValue?: string; coverValue?: string | null; atRisk?: string;
+  /** No guard cover recorded: sent to a cost reader and to the Material Coordinator job role, who reads no value (2040). */
+  uncovered?: boolean;
 }
 
 /** The project consumption report (#1512 S5, FR-STK-042/043). Per-month rows carry consumption only; allowances are cumulative to `to`. */
@@ -94,7 +96,7 @@ export async function getStockAtRisk(): Promise<StockAtRiskRow[]> {
       warehouseId: r.warehouse_id, warehouseCode: r.warehouse_code, warehouseName: r.warehouse_name, warehouseKind: r.warehouse_kind,
       projectId: r.project_id ?? null, projectName: r.project_name ?? null,
     };
-    optional(r, 'stock_value', 'stockValue', out); optional(r, 'cover_value', 'coverValue', out); optional(r, 'at_risk', 'atRisk', out);
+    optional(r, 'stock_value', 'stockValue', out); optional(r, 'cover_value', 'coverValue', out); optional(r, 'at_risk', 'atRisk', out); optional(r, 'uncovered', 'uncovered', out);
     return out as StockAtRiskRow;
   });
 }

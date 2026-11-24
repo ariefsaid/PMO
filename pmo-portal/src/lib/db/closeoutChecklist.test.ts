@@ -63,7 +63,7 @@ describe('close-out checklist DAL', () => {
       { name: 'Item one', required: true, targetDays: 5 },
       { name: 'Item two', required: false, targetDays: null },
     ]);
-    expect(h.calls).toContainEqual(['closeout_checklist_templates.select', ['position,name,required,target_days']]);
+    expect(h.calls).toContainEqual(['closeout_checklist_templates.select', ['position,name,required,target_days,owner_job_role']]);
   });
 
   it('AC-WCO-004 a refusal detail from the database becomes the error code the screen explains', async () => {

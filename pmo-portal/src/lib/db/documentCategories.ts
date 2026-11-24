@@ -18,6 +18,8 @@ export interface DocumentCategory {
   archived_at: string | null;
   /** The viewer roles. Admin is always present. */
   roles: CategoryRole[];
+  /** Job role keys that never see the category, whatever their access level (2047). Never the Administrator. */
+  hidden_job_roles?: string[];
 }
 
 function fail(error: { message: string; code?: string; details?: string }): never { throw new AppError(error.message, error.code, error.details); }
@@ -26,7 +28,7 @@ export async function listDocumentCategories(): Promise<DocumentCategory[]> {
   // Both lists have no provable ceiling (an organisation adds categories and viewer roles), so both are paged rather
   // than silently truncated at PostgREST's 1000-row cap.
   const [cats, roles] = await Promise.all([
-    fetchAllPages((f, t) => supabase.from('document_categories').select('id, name, is_system, sort_order, archived_at')
+    fetchAllPages((f, t) => supabase.from('document_categories').select('id, name, is_system, sort_order, archived_at, hidden_job_roles')
       .order('sort_order', { ascending: true }).order('name', { ascending: true }).order('id', { ascending: true }).range(f, t)),
     fetchAllPages((f, t) => supabase.from('document_category_roles').select('category_id, role')
       .order('category_id', { ascending: true }).order('role', { ascending: true }).range(f, t)),
@@ -50,6 +52,11 @@ export async function setCategoryRoles(id: string, roles: CategoryRole[]): Promi
   const { error } = await supabase.rpc('set_document_category_roles', { p_id: id, p_roles: roles });
   if (error) fail(error);
 }
+export async function setCategoryHiddenJobRoles(id: string, keys: string[]): Promise<void> {
+  const { error } = await supabase.rpc('set_document_category_hidden_job_roles', { p_id: id, p_keys: keys });
+  if (error) fail(error);
+}
+
 export async function archiveCategory(id: string): Promise<void> {
   const { error } = await supabase.rpc('archive_document_category', { p_id: id });
   if (error) fail(error);

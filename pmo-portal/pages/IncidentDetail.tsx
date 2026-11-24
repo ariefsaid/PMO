@@ -19,7 +19,8 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { can } from '@/src/auth/policy';
-import { useIncident, useIncidentMutations, useIncidentFiles, useIncidentEvidenceMutations, useAssigneeOptions } from '@/src/hooks/useIncidents';
+import { useIncident, useIncidentMutations, useIncidentFiles, useIncidentEvidenceMutations, useAssigneeOptions, useSupervisorMayTask } from '@/src/hooks/useIncidents';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
@@ -58,6 +59,7 @@ const IncidentDetail: React.FC = () => {
   const { update, transition } = useIncidentMutations();
   const { makeTask, addTask, saveRootCause } = useIncidentEvidenceMutations();
   const { currentUser } = useAuth();
+  const { realRole, effectiveRole } = useEffectiveRole();
   const files = useIncidentFiles(incidentId);
   const { data: assigneeOptions } = useAssigneeOptions();
   const workOrders = useProjectWorkOrders(query.data?.project_id ?? '');
@@ -77,6 +79,9 @@ const IncidentDetail: React.FC = () => {
   // The person in charge may move their own issue forward (status, note, photos) — the database limits them to that.
   const isAssignee = Boolean(currentUser?.id && query.data?.assignee_id === currentUser.id);
   const canMakeTask = canEdit;
+  // The Site Supervisor job role adds tasks to an issue on a work order it supervises (add_task_to_incident, 2041).
+  const supervisorMayTask = useSupervisorMayTask(query.data?.work_order_id, !canEdit && currentUser?.built_in_role === 'site_supervisor'
+    && realRole === effectiveRole);
   // The root cause may be written by a manager or the person in charge (the issue guard decides).
   const canEditRootCause = canEdit || isAssignee;
 
@@ -173,7 +178,7 @@ const IncidentDetail: React.FC = () => {
   };
 
   const taskLines = incident.incident_tasks ?? [];
-  const showTaskList = taskLines.length > 0;
+  const showTaskList = taskLines.length > 0 || supervisorMayTask;
 
   const onMakeTask = async () => {
     try {
@@ -327,7 +332,7 @@ const IncidentDetail: React.FC = () => {
             <IncidentTasks
               lines={taskLines}
               assigneeOptions={assigneeOptions ?? []}
-              canAdd={canMakeTask && Boolean(incident.project_id) && incident.status !== 'Closed'}
+              canAdd={(canMakeTask || supervisorMayTask) && Boolean(incident.project_id) && incident.status !== 'Closed'}
               onAdd={async (input) => {
                 await addTask.mutateAsync({ incidentId: incident.id, ...input });
                 toast(t('toast.taskMade', 'Task created'), incident.type, 'success');

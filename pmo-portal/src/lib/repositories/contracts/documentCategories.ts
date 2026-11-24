@@ -6,6 +6,7 @@ export interface DocumentCategoryRepository {
   create: typeof dal.createCategory;
   rename: typeof dal.renameCategory;
   setRoles: typeof dal.setCategoryRoles;
+  setHiddenJobRoles: typeof dal.setCategoryHiddenJobRoles;
   archive: typeof dal.archiveCategory;
   restore: typeof dal.restoreCategory;
   reorder: typeof dal.reorderCategories;

@@ -158,7 +158,14 @@ export interface ProcurementHeaderPatch {
 }
 
 /** Sets a missing supplier using the existing conditional update contract. */
-export async function updateProcurementVendor(id: string, vendorId: string): Promise<void> {
+export async function updateProcurementVendor(id: string, vendorId: string, byBuyer = false): Promise<void> {
+  // A person who orders purchases (not a purchasing manager) names the supplier of an approved purchase through the narrow command.
+  if (byBuyer) {
+    const { error } = await supabase.rpc('set_procurement_supplier', { p_procurement: id, p_vendor: vendorId });
+    if (error?.message.startsWith('PRC_SUPPLIER_SET')) throw new ProcurementVendorAlreadySetError();
+    if (error) throwWrite(error);
+    return;
+  }
   const { data, error } = await supabase
     .from('procurements')
     .update({ vendor_id: vendorId })

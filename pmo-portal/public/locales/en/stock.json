@@ -730,7 +730,8 @@
       "project": "Project",
       "stockValue": "Stock value",
       "cover": "Cover",
-      "atRisk": "At risk"
+      "atRisk": "At risk",
+      "guardCover": "Guard cover"
     },
     "summary": {
       "held": "Stock value held",
@@ -739,6 +740,8 @@
       "exposedOne": "1 above cover"
     },
     "notRecorded": "Not recorded",
+    "noGuardCover": "No guard cover",
+    "guardCovered": "Cover recorded",
     "states": {
       "emptyTitle": "No location holds stock",
       "emptySub": "Locations with stock appear here against the cover recorded on them."

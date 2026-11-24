@@ -22,6 +22,8 @@ export interface CloseoutTemplateItem {
   required: boolean;
   /** Optional target in days (1–365, #2800); null = the item carries no target and is never overdue. */
   targetDays: number | null;
+  /** Optional owner job role key (2040): its holder marks the item done too. Absent or null = no owner job role. */
+  ownerJobRole?: string | null;
 }
 
 export interface WorkOrderCloseoutItem {
@@ -38,6 +40,8 @@ export interface WorkOrderCloseoutItem {
   targetDays: number | null;
   /** The database's due day (issue day + target days); null = no target, never overdue. */
   dueOn: string | null;
+  /** The owner job role copied from the list when the work order was issued (2040); null = none. */
+  ownerJobRole?: string | null;
 }
 
 /** One open, targeted close-out item, for the per-work-order overdue count (#2800, FR-CTD-009). */
@@ -50,9 +54,10 @@ export interface OpenCloseoutDueRow {
 /** The organisation's list, in order. */
 export async function getCloseoutTemplate(): Promise<CloseoutTemplateItem[]> {
   const { data, error } = await supabase.from('closeout_checklist_templates')
-    .select('position,name,required,target_days').order('position').limit(ITEM_LIMIT);
+    .select('position,name,required,target_days,owner_job_role').order('position').limit(ITEM_LIMIT);
   if (error) fail(error);
-  return (data ?? []).map((r) => ({ name: r.name, required: r.required, targetDays: r.target_days ?? null }));
+  return (data ?? []).map((r) => ({ name: r.name, required: r.required, targetDays: r.target_days ?? null,
+    ...(r.owner_job_role ? { ownerJobRole: r.owner_job_role } : {}) }));
 }
 
 /**
@@ -62,7 +67,8 @@ export async function getCloseoutTemplate(): Promise<CloseoutTemplateItem[]> {
  */
 export async function setCloseoutTemplate(items: CloseoutTemplateItem[]): Promise<number> {
   const { data, error } = await supabase.rpc('set_closeout_checklist', {
-    p_items: items.map((i) => ({ name: i.name, required: i.required, ...(i.targetDays === null ? {} : { target_days: i.targetDays }) })),
+    p_items: items.map((i) => ({ name: i.name, required: i.required, ...(i.targetDays === null ? {} : { target_days: i.targetDays }),
+      ...(i.ownerJobRole ? { owner_job_role: i.ownerJobRole } : {}) })),
   });
   if (error) fail(error);
   return Number(data);
@@ -71,7 +77,7 @@ export async function setCloseoutTemplate(items: CloseoutTemplateItem[]): Promis
 /** One work order's checklist in order, with the name of who marked each item done. */
 export async function listWorkOrderCloseoutItems(workOrderId: string): Promise<WorkOrderCloseoutItem[]> {
   const { data, error } = await supabase.from('work_order_closeout_items')
-    .select('id,position,name,required,started_on,done_on,document_id,done_by,target_days,due_on,doer:profiles!done_by(full_name)')
+    .select('id,position,name,required,started_on,done_on,document_id,done_by,target_days,due_on,owner_job_role,doer:profiles!done_by(full_name)')
     .eq('work_order_id', workOrderId).order('position').limit(ITEM_LIMIT);
   if (error) fail(error);
   return (data ?? []).map((r) => ({
@@ -86,6 +92,7 @@ export async function listWorkOrderCloseoutItems(workOrderId: string): Promise<W
     doneByName: (r.doer as { full_name: string | null } | null)?.full_name ?? null,
     targetDays: r.target_days ?? null,
     dueOn: r.due_on ?? null,
+    ...(r.owner_job_role ? { ownerJobRole: r.owner_job_role } : {}),
   }));
 }
 

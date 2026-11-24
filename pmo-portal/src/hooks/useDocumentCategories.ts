@@ -36,6 +36,7 @@ export function useDocumentCategoryMutations() {
     create: useMutation({ mutationFn: (v: { name: string; roles: CategoryRole[] }) => repo.create(v.name, v.roles), onSuccess: refresh }),
     rename: useMutation({ mutationFn: (v: { id: string; name: string }) => repo.rename(v.id, v.name), onSuccess: refresh }),
     setRoles: useMutation({ mutationFn: (v: { id: string; roles: CategoryRole[] }) => repo.setRoles(v.id, v.roles), onSuccess: refresh }),
+    setHiddenJobRoles: useMutation({ mutationFn: (v: { id: string; keys: string[] }) => repo.setHiddenJobRoles(v.id, v.keys), onSuccess: refresh }),
     archive: useMutation({ mutationFn: (id: string) => repo.archive(id), onSuccess: refresh }),
     restore: useMutation({ mutationFn: (id: string) => repo.restore(id), onSuccess: refresh }),
     reorder: useMutation({ mutationFn: (ids: string[]) => repo.reorder(ids), onSuccess: refresh }),

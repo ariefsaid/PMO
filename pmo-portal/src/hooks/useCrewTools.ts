@@ -18,6 +18,12 @@ export function useToolLines(crewId: string | null) {
   return useOrgQuery(['crew-tool-lines', crewId], () => crewToolRepository.lines(crewId as string), { enabled: Boolean(crewId) });
 }
 
+/** Whether the signed-in person manages this crew's tools, by the database gate (a Storekeeper keeps the crew's site). Unreadable = no. */
+export function useToolMayManage(crewId: string | null): boolean {
+  const q = useOrgQuery(['crew-tool-may-manage', crewId], () => crewToolRepository.mayManage(crewId as string), { enabled: Boolean(crewId) });
+  return q.data === true;
+}
+
 export function useOpenToolReports(crewId: string | null) {
   return useOrgQuery(['crew-tool-reports', crewId], () => crewToolRepository.openReports(crewId as string), { enabled: Boolean(crewId) });
 }

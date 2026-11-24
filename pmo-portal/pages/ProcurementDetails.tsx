@@ -488,8 +488,9 @@ const ProcurementDetails: React.FC = () => {
   );
   const canEditItemValues = ownership.mode === 'pmo' || (ownership.mode === 'external' && !casePushInFlight && itemEligibility.data === true && !itemEligibility.isError && !itemEligibility.isFetching);
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
-  const canAddQuote = may('create', 'quotation');
-  const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
+  // A person who orders purchases (roles-that-decide) also adds and selects quotes (create_procurement_quotation / select_procurement_quote).
+  const canAddQuote = may('create', 'quotation') || mayOrderByRole;
+  const canSelectQuote = canAddQuote && p.status === 'Vendor Quoted';
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
   const canManageFiles = may('create', 'procFile');
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
@@ -501,11 +502,14 @@ const ProcurementDetails: React.FC = () => {
   const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
   // 0002_rls.sql defines procurements_update for Admin, Executive, Project Manager, and Finance;
   // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
-  const canSetVendor = !p.vendor_id
+  const canSetVendorAsManager = !p.vendor_id
     && effectiveRole === realRole
     && realRole != null
     && ['Admin', 'Executive', 'Project Manager', 'Finance'].includes(realRole)
     && may('edit', 'procurement');
+  // A person who orders purchases names the supplier of an approved purchase (set_procurement_supplier); amounts stay closed.
+  const canSetVendorAsBuyer = !canSetVendorAsManager && !p.vendor_id && mayOrderByRole && p.status === 'Approved';
+  const canSetVendor = canSetVendorAsManager || canSetVendorAsBuyer;
   const canLinkAccounting = role === 'Admin' || role === 'Finance';
   const currentUserId = currentUser?.id ?? null;
 
@@ -946,7 +950,7 @@ const ProcurementDetails: React.FC = () => {
                   onClick={async () => {
                     if (!selectedVendorId) return;
                     try {
-                      await crud.updateVendor.mutateAsync(selectedVendorId);
+                      await crud.updateVendor.mutateAsync(canSetVendorAsBuyer ? { vendorId: selectedVendorId, byBuyer: true } : selectedVendorId);
                       setVendorPickerOpen(false);
                       toast(t('bupot.vendorSet', 'Supplier set'), undefined, 'success');
                     } catch (err) {

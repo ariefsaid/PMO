@@ -8,6 +8,7 @@ export const documentCategoryRepository: DocumentCategoryRepository = {
   create: (name, roles) => wrap(() => dal.createCategory(name, roles)),
   rename: (id, name) => wrap(() => dal.renameCategory(id, name)),
   setRoles: (id, roles) => wrap(() => dal.setCategoryRoles(id, roles)),
+  setHiddenJobRoles: (id, keys) => wrap(() => dal.setCategoryHiddenJobRoles(id, keys)),
   archive: (id) => wrap(() => dal.archiveCategory(id)),
   restore: (id) => wrap(() => dal.restoreCategory(id)),
   reorder: (ids) => wrap(() => dal.reorderCategories(ids)),
