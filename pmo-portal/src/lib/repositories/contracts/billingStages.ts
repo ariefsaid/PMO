@@ -66,6 +66,8 @@ export interface BillingStagesRepository {
   saveWorkOrderChecklistAsTemplate(workOrderId: string, name: string): Promise<string>;
   workOrderChecklistEnabled(): Promise<boolean>;
   setWorkOrderChecklistEnabled(enabled: boolean): Promise<void>;
+  workOrderEvidenceReuseEnabled(): Promise<boolean>;
+  setWorkOrderEvidenceReuseEnabled(enabled: boolean): Promise<void>;
   attachWorkOrderStepDocument(stepId: string, slotId: string | null, documentId: string): Promise<void>;
   defaultStepTemplateId(): Promise<string | null>;
   setDefaultStepTemplate(templateId: string | null): Promise<void>;

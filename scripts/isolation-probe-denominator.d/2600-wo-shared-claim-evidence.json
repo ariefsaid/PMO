@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "set_org_work_order_evidence_reuse(boolean)"
+  ]
+}

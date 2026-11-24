@@ -14458,6 +14458,7 @@ export type Database = {
           stock_wo_transfers: boolean
           tax_prepaid_account: string | null
           work_order_checklist_enabled: boolean
+          work_order_evidence_reuse_enabled: boolean
         }
         Insert: {
           attendance_backdate_days?: number
@@ -14528,6 +14529,7 @@ export type Database = {
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
           work_order_checklist_enabled?: boolean
+          work_order_evidence_reuse_enabled?: boolean
         }
         Update: {
           attendance_backdate_days?: number
@@ -14598,6 +14600,7 @@ export type Database = {
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
           work_order_checklist_enabled?: boolean
+          work_order_evidence_reuse_enabled?: boolean
         }
         Relationships: [
           {
@@ -37280,6 +37283,10 @@ export type Database = {
         Returns: boolean
       }
       set_org_work_order_checklist_edit: {
+        Args: { p_enabled: boolean }
+        Returns: boolean
+      }
+      set_org_work_order_evidence_reuse: {
         Args: { p_enabled: boolean }
         Returns: boolean
       }

@@ -77,6 +77,7 @@ export const ORG_SETTINGS = {
   setupWorkflows: { group: 'money', writers: ['Admin'], route: '/finance', covers: ['org_setup_workflow_settings', 'useSetupWorkflows'] },
   stockIssueCost: { group: 'money', writers: ['Admin'], route: '/administration/accounting#stock-issue-cost-heading', manage: 'stockIssueCostSettings', covers: ['stock_issue_cost_settings', 'useStockIssueCostSettings'] },
   workOrderChecklist: { group: 'money', writers: ['Admin'], route: '/administration/accounting#work-order-checklist', manage: 'orgAccounting', switch: 'workOrderChecklist', covers: ['organizations.work_order_checklist_enabled'] },
+  workOrderEvidenceReuse: { group: 'money', writers: ['Admin'], route: '/administration/accounting#work-order-evidence-reuse', manage: 'orgAccounting', switch: 'workOrderEvidenceReuse', covers: ['organizations.work_order_evidence_reuse_enabled'] },
   labourCost: { group: 'money', writers: ['Admin', 'Finance'], route: '/administration/cost-attribution#labour-cost-settings', manage: 'labourCost', covers: ['labour_cost_settings', 'useLabourCostEnabled'] },
   idleCost: { group: 'money', alwaysOn: true, writers: ['Admin', 'Finance'], route: '/administration/modules#module-billing-extras', manage: 'labourCost', covers: ['idle_cost_settings', 'useIdleCostEnabled'] },
   disciplineProfit: { group: 'money', alwaysOn: true, writers: ['Admin'], route: '/administration/modules#module-billing-extras', manage: 'orgAccounting', switch: 'disciplineProfit', covers: ['organizations.discipline_profit_enabled'] },

@@ -44,6 +44,7 @@ export const ORG_SWITCHES = {
   safetyRecords: { source: { read: safetyDayRepository.isEnabled, write: safetyDayRepository.setEnabled }, module: 'moduleSiteDay', manage: 'safetyLists', writers: ['Admin'], refreshes: ['safety-days'] },
   stockWoTransfers: { source: { read: stockWorkOrderTransferRepository.enabled, write: stockWorkOrderTransferRepository.setEnabled }, module: 'moduleStock', pmoStockOnly: true, manage: 'warehouse', writers: ['Admin'] },
   workOrderChecklist: { source: { read: billingStagesRepository.workOrderChecklistEnabled, write: billingStagesRepository.setWorkOrderChecklistEnabled }, manage: 'orgAccounting', writers: ['Admin'] },
+  workOrderEvidenceReuse: { source: { read: billingStagesRepository.workOrderEvidenceReuseEnabled, write: billingStagesRepository.setWorkOrderEvidenceReuseEnabled }, manage: 'orgAccounting', writers: ['Admin'] },
   // The five modules (#2746): UI only, one check per module; no database guard reads them.
   modulePeopleCrews: { source: { column: 'module_people_crews' }, manage: 'orgAccounting', writers: ['Admin'] },
   moduleSiteDay: { source: { column: 'module_site_day' }, manage: 'orgAccounting', writers: ['Admin'] },

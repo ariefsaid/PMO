@@ -1,0 +1,2 @@
+# Work-order shared claim evidence (2600): client-callable SECURITY DEFINER writer (authenticated only; anon and PUBLIC revoked).
+set_org_work_order_evidence_reuse  # 2600: the organisation's work-order evidence reuse switch; field account, active member, Admin; 2600 pgTAP

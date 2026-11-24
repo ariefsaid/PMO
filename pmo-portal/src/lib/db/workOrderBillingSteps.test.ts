@@ -5,8 +5,8 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.fr
 
 import {
   addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getWaitingWorkOrderSteps, getWorkOrderChecklistEnabled,
-  listWorkOrderSteps, saveWorkOrderChecklistAsTemplate, setDefaultStepTemplate, setWorkOrderChecklistEnabled,
-  skipWorkOrderStep,
+  getWorkOrderEvidenceReuseEnabled, listWorkOrderSteps, saveWorkOrderChecklistAsTemplate, setDefaultStepTemplate, setWorkOrderChecklistEnabled,
+  setWorkOrderEvidenceReuseEnabled, skipWorkOrderStep,
 } from './workOrderBillingSteps';
 
 beforeEach(() => { h.rpc.mockReset().mockResolvedValue({ data: null, error: null }); h.from.mockReset(); });
@@ -68,6 +68,19 @@ describe('work-order billing steps DAL (migrations 1770-1774)', () => {
     expect(chain.select).toHaveBeenCalledWith('work_order_checklist_enabled');
     await setWorkOrderChecklistEnabled(false);
     expect(h.rpc).toHaveBeenCalledWith('set_org_work_order_checklist_edit', { p_enabled: false });
+  });
+
+  it('AC-WQE-004 reads work-order evidence reuse and fails closed when the organisation is unavailable', async () => {
+    const chain = { select: vi.fn().mockReturnThis(), limit: vi.fn() };
+    chain.limit.mockResolvedValue({ data: [{ work_order_evidence_reuse_enabled: false }], error: null });
+    h.from.mockReturnValue(chain);
+    await expect(getWorkOrderEvidenceReuseEnabled()).resolves.toBe(false);
+    expect(h.from).toHaveBeenCalledWith('organizations');
+    expect(chain.select).toHaveBeenCalledWith('work_order_evidence_reuse_enabled');
+    chain.limit.mockResolvedValue({ data: [], error: null });
+    await expect(getWorkOrderEvidenceReuseEnabled()).resolves.toBe(false);
+    await setWorkOrderEvidenceReuseEnabled(true);
+    expect(h.rpc).toHaveBeenCalledWith('set_org_work_order_evidence_reuse', { p_enabled: true });
   });
 
   it('AC-WCE-003 a refusal keeps its code for the refusals catalogue', async () => {

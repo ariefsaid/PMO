@@ -873,6 +873,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             : claims.isError || (!claims.isPending && !evidenceClaim) ? t('projectDetail.billing.evidence.claimError', "Couldn't load the claim") : null}
           onRetry={() => { if (documents.isError) void documents.refetch(); if (claims.isError || !evidenceClaim) void claims.refetch(); }}
           attachedDocumentIds={(evidenceClaim?.evidence ?? []).map((e) => e.document_id)}
+          earlierDocumentIds={(() => {
+            if (!evidenceClaim?.work_order_id) return [];
+            return [...new Set(claimRows.filter((c) => c.id !== evidenceClaim.id && c.work_order_id === evidenceClaim.work_order_id)
+              .flatMap((c) => c.evidence.map((e) => e.document_id)))];
+          })()}
           onClose={() => setEvidenceFor(null)} onAttach={attachEvidence} onError={fail} />
       )}
       {raiseInvoiceDialog}

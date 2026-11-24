@@ -9,8 +9,8 @@ import {
 } from '@/src/lib/db/billingSteps';
 import {
   addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getDefaultStepTemplateId, getWaitingWorkOrderSteps,
-  getWorkOrderChecklistEnabled, listBoardWorkOrderSteps, listWorkOrderSteps, saveWorkOrderChecklistAsTemplate,
-  setDefaultStepTemplate, setWorkOrderChecklistEnabled, skipWorkOrderStep,
+  getWorkOrderChecklistEnabled, getWorkOrderEvidenceReuseEnabled, listBoardWorkOrderSteps, listWorkOrderSteps, saveWorkOrderChecklistAsTemplate,
+  setDefaultStepTemplate, setWorkOrderChecklistEnabled, setWorkOrderEvidenceReuseEnabled, skipWorkOrderStep,
 } from '@/src/lib/db/workOrderBillingSteps';
 import { getBillingBoard } from '@/src/lib/db/billingBoard';
 import { getPlanCandidates, getPlanSettings, getUnacceptedProgressCandidates, saveMonthTarget, savePlanReminder, savePlanSettings } from '@/src/lib/db/billingPlan';
@@ -66,6 +66,8 @@ export const billingStagesRepository: BillingStagesRepository = {
   saveWorkOrderChecklistAsTemplate: (workOrderId, name) => wrap(() => saveWorkOrderChecklistAsTemplate(workOrderId, name)),
   workOrderChecklistEnabled: () => wrap(() => getWorkOrderChecklistEnabled()),
   setWorkOrderChecklistEnabled: (enabled) => wrap(() => setWorkOrderChecklistEnabled(enabled)),
+  workOrderEvidenceReuseEnabled: () => wrap(() => getWorkOrderEvidenceReuseEnabled()),
+  setWorkOrderEvidenceReuseEnabled: (enabled) => wrap(() => setWorkOrderEvidenceReuseEnabled(enabled)),
   attachWorkOrderStepDocument: (stepId, slotId, documentId) => wrap(() => attachWorkOrderStepDocument(stepId, slotId, documentId)),
   defaultStepTemplateId: () => wrap(() => getDefaultStepTemplateId()),
   setDefaultStepTemplate: (templateId) => wrap(() => setDefaultStepTemplate(templateId)),

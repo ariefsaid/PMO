@@ -152,6 +152,19 @@ export async function setWorkOrderChecklistEnabled(enabled: boolean): Promise<vo
   if (error) fail(error);
 }
 
+/** Whether work-order billing-step documents are automatically reused as claim evidence (migration 2600); default true. */
+export async function getWorkOrderEvidenceReuseEnabled(): Promise<boolean> {
+  const { data, error } = await supabase.from('organizations').select('work_order_evidence_reuse_enabled').limit(1);
+  if (error) fail(error);
+  return data?.[0]?.work_order_evidence_reuse_enabled === true;
+}
+
+/** Only an Admin may change the work-order evidence reuse switch; the database writes and audits the organisation setting. */
+export async function setWorkOrderEvidenceReuseEnabled(enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_org_work_order_evidence_reuse', { p_enabled: enabled });
+  if (error) fail(error);
+}
+
 /** Saves the complete checklist, including steps the caller cannot see, through the database copy function (migration 2181). */
 export async function saveWorkOrderChecklistAsTemplate(workOrderId: string, name: string): Promise<string> {
   const { data, error } = await supabase.rpc('save_work_order_steps_as_template', { p_work_order: workOrderId, p_name: name });
