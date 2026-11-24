@@ -33,9 +33,16 @@ const failed: Read = { data: undefined, isPending: false, isError: true };
 const h = vi.hoisted(() => ({
   reads: {} as Record<string, { data: unknown; isPending: boolean; isError: boolean }>,
   role: 'Executive' as 'Executive' | 'Admin' | 'Finance',
+  managementViews: false,
+  portfolioIds: [] as string[][],
+  projectListEnabled: false,
+  projectListPending: false,
   checkInRequests: () => Promise.resolve([] as unknown[]),
 }));
-const read = (name: string) => ({ ...h.reads[name], isLoading: h.reads[name].isPending, refetch: vi.fn() });
+const read = (name: string) => {
+  const result = h.reads[name] ?? ok({});
+  return { ...result, isLoading: result.isPending, refetch: vi.fn() };
+};
 
 vi.mock('@/src/lib/repositories/phoneCheckIn', () => ({
   phoneCheckInRepository: {
@@ -86,16 +93,28 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useWinRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjectsDelivery', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useProjectsDelivery')>()),
+  useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectManagementOverview: (ids: string[]) => { h.portfolioIds.push(ids); return read('portfolioMilestones'); },
+  useProjectsDeliverySummary: (ids: string[]) => { h.portfolioIds.push(ids); return read('portfolioDelivery'); },
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => read('procurements') }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjectIdentity: () => ({ data: [] }),
+  useProjects: (opts?: { enabled?: boolean }) => {
+    h.projectListEnabled = opts?.enabled === true;
+    return { data: [], isPending: h.projectListEnabled ? h.projectListPending : true, isError: false, refetch: vi.fn() };
+  },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }) }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key === 'management_views' && h.managementViews }));
 
 import { CompanyDashboard } from './CompanyDashboard';
 
@@ -124,8 +143,39 @@ const tile = (label: string) => within(band()).getByText(label, { exact: true })
 beforeEach(() => {
   localStorage.removeItem('home-layout');
   h.role = 'Executive';
+  h.managementViews = false;
+  h.portfolioIds = [];
+  h.projectListEnabled = false;
+  h.projectListPending = false;
   h.checkInRequests = () => Promise.resolve([]);
   h.reads = { dashboard: ok(dash), pack: ok(pack), invoices: ok([invoice]), salesInvoices: ok([]), payments: ok([]), procurements: ok([]) };
+});
+
+it('AC-MV-007 keeps the new portfolio hidden and its project reads disabled until the organisation opts in', () => {
+  renderExec();
+  expect(screen.queryByTestId('project-portfolio-table')).toBeNull();
+  expect(h.projectListEnabled).toBe(false);
+  expect(h.portfolioIds).toEqual([[], []]);
+  expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
+  expect(within(screen.getByTestId('project-health')).getByRole('link', { name: /River project/ })).toBeInTheDocument();
+});
+
+it('AC-MV-001 shows the cold empty portfolio instead of a skeleton when disabled empty-ID queries are pending', () => {
+  h.managementViews = true;
+  h.reads.portfolioMilestones = pending;
+  h.reads.portfolioDelivery = pending;
+  renderExec();
+  expect(h.projectListEnabled).toBe(true);
+  const portfolio = screen.getByTestId('project-portfolio-table');
+  expect(within(portfolio).getByText('No active delivery projects')).toBeInTheDocument();
+  expect(within(portfolio).queryByTestId('liststate-loading')).toBeNull();
+});
+
+it('AC-MV-001 keeps the portfolio loading while its enabled project list is still pending', () => {
+  h.managementViews = true;
+  h.projectListPending = true;
+  renderExec();
+  expect(within(screen.getByTestId('project-portfolio-table')).getByTestId('liststate-loading')).toBeInTheDocument();
 });
 
 it('AC-2077 finance company-home overdue rows keep the existing list destination as real links', async () => {

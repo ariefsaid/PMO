@@ -43,6 +43,7 @@ export type Action =
   | 'view_financial_directory'
   | 'manage'
   | 'viewPeople'
+  | 'viewAssigned'
   | 'push_timesheet'
   | 'confirm_employee_link'
   | 'upload'
@@ -173,6 +174,7 @@ export type Entity =
   | 'odooLedgerLines'
   | 'odooLedgerBasis'
   | 'finance'
+  | 'workInHand'
   | 'stockItem'
   | 'stockUnit'
   | 'warehouse'
@@ -771,6 +773,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(ADMIN),
   },
   finance: { view: allow(MONEY_AUTHORITY), act: allow(REVENUE_WRITE) },
+  // Work in hand is server scoped to a PM's assigned projects; company-wide readers retain the finance roles.
+  workInHand: {
+    view: allow([...MONEY_AUTHORITY, 'Project Manager']),
+    viewAssigned: allow(['Project Manager']),
+  },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
   /**
    * #895 manual journals (owner ruling 2). The desk is Finance-or-above; `approve` (and Return) is for a

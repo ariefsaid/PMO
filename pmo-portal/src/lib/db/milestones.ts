@@ -29,6 +29,15 @@ export interface ProjectDeliverySummary {
   budget: number;
 }
 
+export interface ProjectMilestoneOverview {
+  projectId: string;
+  plannedPct: number | null;
+  doneCount: number;
+  lateCount: number;
+  totalCount: number;
+  today: string;
+}
+
 /** Create form fields. org_id is NEVER among them — RLS stamps it. */
 export interface MilestoneInput {
   name: string;
@@ -114,6 +123,26 @@ export async function getProjectsDeliverySummary(
     }
   }
   return map;
+}
+
+/** Batched milestone schedule/count read for the executive portfolio; one paged RPC for all requested projects. */
+export async function getProjectMilestoneOverview(ids: string[]): Promise<Record<string, ProjectMilestoneOverview>> {
+  if (ids.length === 0) return {};
+  const data = await fetchAllPages((from, to) => supabase.rpc('project_management_overview', { p_ids: ids })
+    .order('project_id', { ascending: true }).range(from, to));
+  const result: Record<string, ProjectMilestoneOverview> = {};
+  for (const row of data ?? []) {
+    if (!row.project_id) continue;
+    result[row.project_id] = {
+      projectId: row.project_id,
+      plannedPct: row.planned_pct === null ? null : Number(row.planned_pct),
+      doneCount: Number(row.done_count),
+      lateCount: Number(row.late_count),
+      totalCount: Number(row.total_count),
+      today: row.today,
+    };
+  }
+  return result;
 }
 
 /**

@@ -467,13 +467,17 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
 
-**Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
+**Billing board** — a read-only screen listing each open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with days on the step and an overdue chip. Each column shows its claim count and exact total by currency; individual cards omit the amount. Nothing is stored for the board, and a claim moves on only by completing its step on the claim. Finance, Executive and Admin can read the board. Bahasa Indonesia: Papan penagihan (#2681).
 
 **Billed month** — a calendar month in the work-order page's "Billed per month" list: the billed work (submitted invoices, excluding tax, no down payments, in the work order's currency) dated in that organisation-local month, the same figure as the work-in-hand screen. The current month reads "to date". Drafts and claims not yet invoiced are not in it. Bahasa Indonesia: Bulan penagihan.
 
 **Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
 
-**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left. "Progress not yet client-certified" in the ticket words (#2682).
+**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left (#2682).
+
+**Unaccepted progress** — measured quantity on a bill-of-quantities line above the quantity confirmed by the client's acceptance; shown separately from accepted work that is not yet claimed (management views round, 24 November 2026).
+
+**Management views switch** — an Operator-managed per-organisation entitlement for the new home portfolio and unaccepted-progress group; existing plan defaults leave both surfaces off until an organisation is opted in (management views round, 24 November 2026).
 
 **Monthly target** — the amount the organisation aims to bill in a calendar month, with its currency; a default plus optional per-month overrides, set by Admin or Finance. Other currencies are listed apart, not converted (#2682).
 
@@ -507,7 +511,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 ---
 
-**Work in hand** — **Left to bill** on the Contract on hand set and on its issued work orders, ranked per currency. A contract and its work orders are shown as a hierarchy and never added together (#2575).
+**Work in hand** — **Left to bill** on the Contract on hand set and on its issued work orders, ranked per currency. A contract and its work orders are shown as a hierarchy and never added together; a Project Manager sees only assigned projects while Finance, Executive and Admin see the organization-wide position (#2575, management views round).
 
 **Billed to date** (of a contract or work order) — the pack's *invoiced to date*: billed work (the single definition shared by the billing summary and the management pack: submitted, unpaid or paid invoices, net of tax, plus the down-payment recovery; a down payment counts zero) summed over a contract or a work order.
 
@@ -1218,8 +1222,9 @@ an account holder's phone with their name typed). The organisation chooses which
 **Daily target** — a figure entered per work order for a day or a month and spread evenly over working days unless edited. PMO does not
 calculate it from crews or productivity; the daily report's revenue is read against it.
 
-**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card. It holds
-no data of its own. A step waiting on a role shows in that person's needs-you list and clears when the step completes.
+**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card and a
+per-currency value total at the column. It holds no data of its own. A step waiting on a role shows in that person's needs-you list and
+clears when the step completes.
 
 **Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
 manager accepts or rejects it, with the reason recorded.

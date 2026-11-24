@@ -5,8 +5,8 @@ import { Card, CardHead, CardPad, ListState, PageHeader, ViewToggle } from '@/sr
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { useFigureReport, type HiddenFigure } from '@/src/components/ui/useFigureScope';
-import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
-import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
+import { AccessDenied } from '@/src/components/ui';
+import { usePermission } from '@/src/auth/usePermission';
 import { useWorkInHand } from '@/src/hooks/useWorkInHand';
 import { formatExactCents } from '@/src/lib/exactDecimal';
 import { formatDay, formatExactMoney, formatMonthYearShort } from '@/src/lib/format';
@@ -174,7 +174,9 @@ const GroupTable: React.FC<{ group: WipCurrencyGroup }> = ({ group }) => {
 const WorkInHand: React.FC = () => {
   const { t } = useTranslation('workInHand');
   const navigate = useNavigate();
-  const { canView } = useFinanceAccess();
+  const may = usePermission();
+  const canView = may('view', 'workInHand');
+  const isProjectManager = may('viewAssigned', 'workInHand');
   const query = useWorkInHand(canView);
   const [order, setOrder] = React.useState<WipOrder>('leftToBill');
   const noRateCause = useNoRateCause();
@@ -185,7 +187,7 @@ const WorkInHand: React.FC = () => {
   const incompleteRows = React.useMemo(() => rows.filter((r) => r.state === 'incomplete'), [rows]);
   const hidden = React.useMemo(() => (facts ? hiddenFigures(rows, { noValueContractCount: facts.noValueContractCount, undatedInvoiceCount: facts.undatedInvoiceCount, truncated: facts.truncated }) : null), [facts, rows]);
 
-  if (!canView) return <FinanceAccessDenied />;
+  if (!canView) return <AccessDenied title={t('title', 'Work in hand')} sub={t('access.denied', 'Work in hand is available to Finance, Executive, Admin, and Project Managers for their assigned projects.')} onBack={() => navigate('/')} />;
 
   const hiddenFigureList: HiddenFigure[] = [];
   if (hidden && facts) {
@@ -219,7 +221,7 @@ const WorkInHand: React.FC = () => {
 
   const header = (
     <PageHeader
-      title={t('title', 'Work in hand')}
+      title={isProjectManager ? t('titleManaged', 'My work in hand') : t('title', 'Work in hand')}
       count={facts ? <span data-testid="wih-as-of">{t('asOf', { date: formatDay(facts.asOf), defaultValue: 'As of {{date}}' })}</span> : undefined}
       help={<>
         <p>{t('help.leftToBill', 'Left to bill is the value not yet invoiced: the contract or work-order value less invoiced work, before tax. Draft and cancelled invoices do not count.')}</p>
@@ -231,12 +233,13 @@ const WorkInHand: React.FC = () => {
   );
 
   if (query.isLoading) {
-    return <div className="min-w-0">{header}<ListState variant="loading" shape="table" rows={5} loadingLabel={t('loading', 'Loading work in hand')} /></div>;
+    return <div className="min-w-0">{header}{isProjectManager && <p className="mb-3 text-control text-muted-foreground">{t('managedScope', 'These figures cover only projects assigned to you.')}</p>}<ListState variant="loading" shape="table" rows={5} loadingLabel={t('loading', 'Loading work in hand')} /></div>;
   }
   if (query.isError || !facts || !hidden) {
     return (
       <div className="min-w-0">
         {header}
+        {isProjectManager && <p className="mb-3 text-control text-muted-foreground">{t('managedScope', 'These figures cover only projects assigned to you.')}</p>}
         <ListState variant="error" title={t('error.title', "Couldn't load work in hand")} retryLabel={t('error.retry', 'Try again')} onRetry={() => void query.refetch()} />
       </div>
     );
@@ -248,6 +251,7 @@ const WorkInHand: React.FC = () => {
     <FigureScope>
       <div className="min-w-0">
         {header}
+        {isProjectManager && <p className="mb-3 text-control text-muted-foreground">{t('managedScope', 'These figures cover only projects assigned to you.')}</p>}
         <HiddenReport figures={hiddenFigureList} />
         <div className="mb-3"><FigureHiddenLine compact /></div>
         {nothingRanked ? (
