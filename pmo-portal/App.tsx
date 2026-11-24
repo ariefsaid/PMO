@@ -177,7 +177,7 @@ const StockOnHandPage = lazyWithPreload(() => import('./pages/stock/StockOnHand'
 const StockDocumentsPage = lazyWithPreload(() => import('./pages/stock/StockDocuments'));
 const StockDocumentDetailPage = lazyWithPreload(() => import('./pages/stock/StockDocumentDetail'));
 const StockLedgerPage = lazyWithPreload(() => import('./pages/stock/StockLedger'));
-const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockMovementForm'));
+const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockNewEntry'));
 const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
 const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
 const StockTransfersPage = lazyWithPreload(() => import('./pages/stock/StockTransfers'));

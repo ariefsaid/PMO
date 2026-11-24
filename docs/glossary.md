@@ -4,6 +4,12 @@ Canonical domain language for the PMO Portal. Terms here are binding across spec
 conversation — when everyday usage conflicts with a definition below, the definition wins.
 Implementation details do not belong in this file.
 
+**Blind receipt** (*penerimaan tanpa jumlah pesanan*) — a warehouse keeper records the quantity physically counted without seeing ordered or outstanding quantities or prices. Purchasing links the order line to a stock item before the count.
+
+**Receiving excess** (*kelebihan penerimaan*) — a counted quantity greater than the outstanding quantity on an order line. A different purchasing user approves that exact count before the receiver posts it to stock.
+
+**Receipt reversal** (*pembalikan penerimaan*) — a new correcting stock movement that preserves the original receipt and its valuation evidence while removing its quantity from the order's received total and the three-way match's available receipts.
+
 ---
 
 **Delivery** — the post-win, pre-handover execution of a project. Finite: it ends at

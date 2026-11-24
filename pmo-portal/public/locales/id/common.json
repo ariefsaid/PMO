@@ -187,6 +187,14 @@
         "name": "Biaya pengeluaran stok",
         "summary": "Menghitung stok yang dikeluarkan sebagai biaya perintah kerja mulai tanggal yang dipilih."
       },
+      "orderReceiving": {
+        "name": "Terima berdasarkan pesanan",
+        "summary": "Mencatat jumlah barang yang dihitung terhadap pesanan pembelian terkirim."
+      },
+      "managementViews": {
+        "name": "Tampilan manajemen",
+        "summary": "Menampilkan portofolio proyek dan progres yang belum diterima oleh klien."
+      },
       "orderNeededBy": {
         "name": "Tanggal dibutuhkan pada pesanan",
         "summary": "Mewajibkan tanggal dibutuhkan sebelum pesanan dikirim ke pemasok."
@@ -194,10 +202,6 @@
       "setupWorkflows": {
         "name": "Alur penyiapan",
         "summary": "Mengaktifkan impor perintah kerja dan ringkasan saldo awal."
-      },
-      "managementViews": {
-        "name": "Tampilan manajemen",
-        "summary": "Menampilkan portofolio proyek dan progres yang belum diterima oleh klien."
       }
     },
     "paletteGroup": "Pengaturan"

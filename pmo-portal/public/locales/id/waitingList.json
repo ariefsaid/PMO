@@ -12,7 +12,8 @@
     "quantity_change": "Perubahan kuantitas untuk diputuskan ({{count}})",
     "transfer_receipt": "Transfer barang untuk diterima ({{count}})",
     "work_order_issue": "Work order untuk diterbitkan ({{count}})",
-    "work_order_acceptance": "BAST klien untuk dikonfirmasi ({{count}})"
+    "work_order_acceptance": "BAST klien untuk dikonfirmasi ({{count}})",
+    "order_receiving": "Kelebihan penerimaan untuk disetujui ({{count}})"
   },
   "scope": {
     "leave": "Permohonan cuti",
@@ -28,7 +29,8 @@
     "check_in": "Absen masuk yang harus diputuskan",
     "stock_writeoff": "Penghapusan stok untuk diposting",
     "attendance_decision": "Kehadiran untuk diputuskan",
-    "work_order_acceptance": "BAST klien untuk dikonfirmasi"
+    "work_order_acceptance": "BAST klien untuk dikonfirmasi",
+    "order_receiving": "Kelebihan penerimaan untuk disetujui"
   },
   "since": "Menunggu sejak {{date}}",
   "bast": {

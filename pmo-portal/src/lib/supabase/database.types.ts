@@ -32479,6 +32479,14 @@ export type Database = {
         Args: { p_document_id: string }
         Returns: Json
       }
+      get_order_receiving_enabled: { Args: Record<PropertyKey, never>; Returns: boolean }
+      set_order_receiving_enabled: { Args: { p_enabled: boolean }; Returns: undefined }
+      list_receiving_orders: { Args: Record<PropertyKey, never>; Returns: Json }
+      read_order_receiving: { Args: { p_po: string }; Returns: Json }
+      map_order_stock: { Args: { p_item: string; p_stock_item: string | null }; Returns: undefined }
+      receive_order_goods: { Args: { p_po: string; p_warehouse: string; p_date: string; p_lines: Json; p_request: string }; Returns: Json }
+      approve_order_receiving: { Args: { p_request: string; p_reason: string }; Returns: undefined }
+      reverse_order_receiving: { Args: { p_request: string; p_reason: string }; Returns: string }
       get_stock_erp_value: { Args: { p_document_id: string }; Returns: number }
       get_stock_free_reserved: {
         Args: { p_item_id?: string; p_warehouse_id?: string }

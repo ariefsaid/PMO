@@ -68,6 +68,9 @@ select set_eq(
             -- src/lib/db/workOrderBillingSteps.ts). Any future embed must name its constraint.
             ('work_order_billing_steps -> profiles'),
             ('credits -> profiles'),
+            -- Receiving reads through RPCs; no profile embeds in the DAL, repositories, edge functions or e2e.
+            ('order_receiving_requests -> profiles'),
+            ('order_receiving_excess_approvals -> profiles'),
             -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
             -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or
             -- e2e code embeds profiles from either (names resolve by id through the users list), so nothing broke.
