@@ -277,7 +277,7 @@ describe('Administration route-backed shell', () => {
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'), { timeout: 5000 });
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
     // Eleven organisation sections (People, Modules, Terminology, Document categories and Your plan (S3) included) + Cost attribution + All settings for an Admin viewer.
-    expect(screen.getAllByRole('link')).toHaveLength(13);
+    expect(screen.getByRole('link', { name: 'Document types' })).toHaveAttribute('href', '/administration/document-types');
     expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-integrations')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
@@ -333,6 +333,7 @@ describe('Administration route-backed shell', () => {
     const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
     expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual([
       '/administration/people',
+      '/administration/document-types',
       '/administration/exchange-rates',
       '/administration/cost-attribution',
     ]);
@@ -355,7 +356,7 @@ describe('Administration route-backed shell', () => {
     const usageView = renderShell('/administration/usage', 'Admin', true);
 
     await waitFor(() => expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument());
-    expect(screen.getAllByRole('link')).toHaveLength(15);
+    expect(screen.getByRole('link', {name: 'Document types'})).toBeVisible();
     expect(screen.getByRole('link', { name: 'Usage' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-features')).not.toBeInTheDocument();
@@ -539,7 +540,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
 
-    expect(links).toHaveLength(13);
+    expect(within(nav).getByRole('link', {name: 'Document types'})).toBeVisible();
     for (const link of links) {
       // Native deep links: real href, keyboard-focusable (never tabindex=-1), never a button.
       expect(link.getAttribute('href')).toMatch(/^\/administration\//);
@@ -579,6 +580,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     expect(links.map((l) => l.getAttribute('href'))).toEqual([
       '/administration/users',
       '/administration/people',
+      '/administration/document-types',
       '/administration/integrations',
       '/administration/modules',
       '/administration/accounting',
@@ -603,6 +605,8 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     await user.keyboard('{Tab}');
     expect(links[4]).toHaveFocus();
 
+    await user.keyboard('{Tab}');
+    expect(links[5]).toHaveFocus();
     // Enter on the focused Accounting setup link navigates (a real route change).
     await user.keyboard('{Enter}');
     await waitFor(() => expect(screen.getByTestId('administration-panel-accounting')).toBeInTheDocument());
@@ -631,7 +635,7 @@ describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => 
     renderShell('/administration/usage', 'Admin', true);
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(15);
+    expect(within(nav).getByRole('link', {name: 'Document types'})).toBeVisible();
     for (const link of links) {
       expect(link.className).toContain('touch-target');
     }

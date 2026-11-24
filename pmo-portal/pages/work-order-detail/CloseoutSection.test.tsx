@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   closer: null as { closedAt: string | null; closedByName: string | null } | null,
   attach: vi.fn(),
   complete: vi.fn(),
+  assignOwner: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
@@ -25,6 +26,7 @@ vi.mock('@/src/hooks/useCloseoutChecklist', () => ({
   useWorkOrderCloseoutItems: () => ({ data: h.items, ...h.state }),
   useWorkOrderCloser: () => ({ data: h.closer }),
   useCloseoutItemMutations: () => ({
+    assignOwner: { mutateAsync: h.assignOwner, isPending: false },
     attachDocument: { mutateAsync: h.attach, isPending: false },
     completeItem: { mutateAsync: h.complete, isPending: false },
   }),
@@ -173,4 +175,12 @@ describe('CloseoutSection', () => {
     expect(screen.queryByTestId('closeout-due-i2')).toBeNull();
     expect(screen.getByTestId('closeout-summary')).toHaveTextContent('Required items not done: 1');
   });
+});
+
+it('AC-SITE-012 Admin can name the owner on an already issued checklist item', async () => {
+ h.role='Admin';
+ const user=renderIt();
+ const row=screen.getByRole('listitem',{name:'Item two'});
+ await user.selectOptions(within(row).getByRole('combobox',{name:'Owner job role'}),'construction_manager');
+ expect(h.assignOwner).toHaveBeenCalledWith({itemId:'i2',ownerRole:'construction_manager'});
 });

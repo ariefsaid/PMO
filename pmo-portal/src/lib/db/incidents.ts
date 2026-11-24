@@ -308,8 +308,8 @@ export async function createTaskFromIncident(incidentId: string): Promise<string
 }
 
 /** Whether the signed-in person may add a task to an issue on this work order (actor_may_task_issue, 2041). */
-export async function mayTaskOnWorkOrder(workOrderId: string): Promise<boolean> {
-  const { data, error } = await supabase.rpc('actor_may_task_issue', { p_work_order: workOrderId });
+export async function mayTaskOnWorkOrder(incidentId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('actor_may_task_incident', { p_incident: incidentId });
   if (error) throw error;
   return data === true;
 }

@@ -85,6 +85,15 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
       {due && status === 'current' && ` · ${t('due', 'Due {{date}}', { date: formatIsoDay(due) })}`}
       {age !== null && status === 'current' && ` · ${t('age', '{{count}} days on this step', { count: age })}`}
     </p>
+    {canAttach && <div className="mt-2 flex flex-wrap items-end gap-2">
+      <SelectField label={t('extraDocument', 'Additional document')} placeholder={t('pick', 'Choose a document')}
+        value={picked.extra ?? ''} onChange={(v) => setPicked((p) => ({ ...p, extra: v }))}
+        options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} />
+      <Button variant="outline" size="sm" disabled={!picked.extra || attach.isPending}
+        onClick={() => void run(() => attach.mutateAsync({ stepId: step.id, slotId: null, documentId: picked.extra }))}>
+        {t('attachExtra', 'Attach additional document')}
+      </Button>
+    </div>}
     {step.documents.length > 0 && <ul className="mt-2 space-y-2 text-control" aria-label={t('documents', 'Documents for {{step}}', { step: step.name })}>
       {step.documents.map((d) => <li key={d.id} className="flex flex-wrap items-center justify-between gap-2">
         <span>{d.name}<span className="ml-2 text-muted-foreground">{d.required ? t('required', 'required') : t('optional', 'optional')}</span></span>

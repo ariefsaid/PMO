@@ -43,5 +43,7 @@
   "claimTitle": "Work order billing steps",
   "claimProgress": "{{done}} of {{total}} steps finished",
   "claimCurrent": "now: {{name}}",
-  "claimOpen": "Open the work order's billing steps"
+  "claimOpen": "Open the work order's billing steps",
+  "extraDocument": "Additional document",
+  "attachExtra": "Attach additional document"
 }

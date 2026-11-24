@@ -1297,7 +1297,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // database (actor_may_lend_workers) limits the supervisor to its own crew's workers, for one day.
   crewLoan: {
     manage: (role, ctx) => ctx.record?.viewOnly !== true
-      && (has(DELIVERY, role) || (holds(ctx, 'site_supervisor') && ctx.record?.leadsACrew === true)),
+      && (has(DELIVERY, role) || (holds(ctx, 'site_supervisor') && (ctx.record?.leadsACrew === true || ctx.record?.supervisesACrew === true))),
   },
   attendance: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (

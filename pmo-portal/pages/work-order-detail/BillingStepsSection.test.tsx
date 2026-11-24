@@ -130,3 +130,12 @@ describe('BillingStepsSection', () => {
     expect(h.skip).toHaveBeenCalledWith('s8');
   });
 });
+
+it('AC-SITE-BQ10 an inspector files evidence on an owned step with no template slots', async () => {
+ h.role='Engineer'; h.key='quality_inspector';
+ h.steps=[step({id:'quality',position:1,name:'Quality',ownerRoleKey:'quality_inspector',startedOn:'2026-03-10',documents:[]})];
+ const user=renderIt();
+ await user.selectOptions(screen.getByRole('combobox',{name:'Additional document'}),'d1');
+ await user.click(screen.getByRole('button',{name:'Attach additional document'}));
+ expect(h.attach).toHaveBeenCalledWith({stepId:'quality',slotId:null,documentId:'d1'});
+});

@@ -155,3 +155,10 @@ describe('stockTransfers reads and setup (#2685/#2690)', () => {
     await setItemQualityCheck('i1', false);
   });
 });
+
+it('AC-SITE-009 receiver reads item identity and quality requirement without master access', async () => {
+ h.queue.push({data:{id:'tr',number:'T',stock_transfer_lines:[{id:'ln',line_no:1,item_id:'it',qty_sent:10}]},error:null});
+ h.queue.push({data:[{item_id:'it',item_code:'GOODS',item_name:'Delivery goods',needs_quality_check:true,from_name:'Origin',to_name:'Site'}],error:null});
+ const transfer=await getStockTransfer('tr');
+ expect(transfer?.lines[0]).toMatchObject({itemName:'GOODS - Delivery goods',needsQualityCheck:true});
+});

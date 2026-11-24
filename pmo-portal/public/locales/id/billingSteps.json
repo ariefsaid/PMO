@@ -43,5 +43,7 @@
   "claimTitle": "Langkah penagihan surat perintah kerja",
   "claimProgress": "{{done}} dari {{total}} langkah selesai",
   "claimCurrent": "sekarang: {{name}}",
-  "claimOpen": "Buka langkah penagihan surat perintah kerja"
+  "claimOpen": "Buka langkah penagihan surat perintah kerja",
+  "extraDocument": "Dokumen tambahan",
+  "attachExtra": "Lampirkan dokumen tambahan"
 }

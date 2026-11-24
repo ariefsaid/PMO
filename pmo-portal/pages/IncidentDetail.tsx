@@ -80,7 +80,7 @@ const IncidentDetail: React.FC = () => {
   const isAssignee = Boolean(currentUser?.id && query.data?.assignee_id === currentUser.id);
   const canMakeTask = canEdit;
   // The Site Supervisor job role adds tasks to an issue on a work order it supervises (add_task_to_incident, 2041).
-  const supervisorMayTask = useSupervisorMayTask(query.data?.work_order_id, !canEdit && currentUser?.built_in_role === 'site_supervisor'
+  const supervisorMayTask = useSupervisorMayTask(query.data?.id, !canEdit && currentUser?.built_in_role === 'site_supervisor'
     && realRole === effectiveRole);
   // The root cause may be written by a manager or the person in charge (the issue guard decides).
   const canEditRootCause = canEdit || isAssignee;

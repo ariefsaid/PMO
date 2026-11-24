@@ -8,7 +8,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCrewMembers, useCrewSchedule, useCrewWorkers, useCrews } from '@/src/hooks/useCrews';
-import { useCrewLoanMutations, useCrewLoans } from '@/src/hooks/useCrewLoans';
+import { useCrewLoanMutations, useCrewLoans, useSupervisorLoanCrews } from '@/src/hooks/useCrewLoans';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import type { CrewLoanRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
@@ -17,7 +17,7 @@ import { uncoveredLoanDays } from '@/src/lib/crewLoanCoverage';
 import { useCrewErrorText } from './crewErrors';
 
 /** Lend a worker from their home crew to another crew for a period (FR-LOAN-001/002). */
-const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const LendWorkerModal: React.FC<{ onClose: () => void; allowedCrewIds?: string[] }> = ({ onClose, allowedCrewIds }) => {
   const { t } = useTranslation('crews');
   const writeError = useCrewErrorText();
   const { toast } = useToast();
@@ -43,7 +43,7 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const spanDays = form.values.from && form.values.to && form.values.to >= form.values.from
     ? Math.round((Date.parse(form.values.to) - Date.parse(form.values.from)) / 86_400_000) + 1 : 0;
   const hostNeverScheduled = uncovered.length > 0 && uncovered.length === spanDays;
-  const live = (crews.data ?? []).filter((c) => !c.archived_at);
+  const live = (crews.data ?? []).filter((c) => !c.archived_at && (!allowedCrewIds || allowedCrewIds.includes(c.id)));
   const crewOptions = (exclude?: string) => [{ value: '', label: t('crews:loans.chooseCrew', 'Choose a crew') },
     ...live.filter((c) => c.id !== exclude).map((c) => ({ value: c.id, label: `${c.code} ${c.name}` }))];
   const people = useMemo(() => {
@@ -110,7 +110,8 @@ export const CrewLoans: React.FC = () => {
   const crews = useCrews();
   const userId = useContext(AuthContext)?.currentUser?.id ?? null;
   const leadsACrew = !!userId && (crews.data ?? []).some((c) => c.field_controller_id === userId && !c.archived_at);
-  const canManage = may('manage', 'crewLoan', { record: { viewOnly: realRole !== effectiveRole, leadsACrew } });
+  const scope = useSupervisorLoanCrews();
+  const canManage = may('manage', 'crewLoan', { record: { viewOnly: realRole !== effectiveRole, leadsACrew, supervisesACrew: (scope.data?.length ?? 0) > 0 } });
   const workers = useCrewWorkers();
   const { endLoan } = useCrewLoanMutations();
   const [lending, setLending] = useState(false);
@@ -161,7 +162,7 @@ export const CrewLoans: React.FC = () => {
             emptyActionVariant="outline" />
         )}
       </CardPad>
-      {lending && <LendWorkerModal onClose={() => setLending(false)} />}
+      {lending && <LendWorkerModal allowedCrewIds={['Admin', 'Executive', 'Project Manager'].includes(realRole ?? '') ? undefined : scope.data ?? []} onClose={() => setLending(false)} />}
       <ConfirmDialog open={ending !== null} title={t('crews:loans.endTitle', 'End this loan?')}
         description={t('crews:loans.endBody', '{{name}} returns to the home crew after today. Recorded attendance stays.', { name: ending ? workerName(ending.worker_id) : '' })}
         confirmLabel={t('crews:loans.end', 'End loan')} onCancel={() => setEnding(null)} onConfirm={() => void end()} />

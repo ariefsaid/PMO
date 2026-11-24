@@ -9,6 +9,7 @@ import { SelectField } from '@/src/components/ui/FormFields';
 import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCloseoutItemMutations, useWorkOrderCloser, useWorkOrderCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { closeoutItemActionable, closeoutItemAgeDays, closeoutRemaining } from '@/src/lib/closeoutChecklist';
 import { isChecklistItemOverdue, orgToday } from '@/src/lib/checklistDue';
@@ -47,11 +48,12 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
   const query = useWorkOrderCloseoutItems(workOrderId);
   const closer = useWorkOrderCloser(workOrderId, status === 'Closed');
   const documents = useDocuments(projectId);
-  const { attachDocument, completeItem } = useCloseoutItemMutations(workOrderId);
+  const { attachDocument, completeItem, assignOwner } = useCloseoutItemMutations(workOrderId);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [doneOn, setDoneOn] = useState(today);
   const [refusal, setRefusal] = useState<string | null>(null);
 
+  const ownerOptions = useJobRoleOptions(t('admin.noOwner', 'No owner job role'));
   const title = t('title', 'Close-out checklist');
   if (query.isError) {
     return <RecordSection title={title}>
@@ -125,6 +127,10 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
               </StatusPill>
             </span>
           </div>
+          {!item.doneOn && status === 'Issued' && may('edit', 'closeoutChecklist') && <div className="mt-2">
+            <SelectField label={t('admin.owner', 'Owner job role')} value={item.ownerJobRole ?? ''} options={ownerOptions}
+              onChange={(ownerRole) => { setRefusal(null); void assignOwner.mutateAsync({ itemId: item.id, ownerRole }).catch(explain); }} />
+          </div>}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control">
             {item.documentId
               ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(item.documentId)}`}

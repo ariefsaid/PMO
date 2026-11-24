@@ -2,6 +2,7 @@
 import type { CloseoutTemplateItem, WorkOrderCloseoutItem, WorkOrderCloser, OpenCloseoutDueRow } from '@/src/lib/db/closeoutChecklist';
 
 export interface CloseoutChecklistRepository {
+  assignOwner(itemId: string, ownerRole: string): Promise<void>;
   getTemplate(): Promise<CloseoutTemplateItem[]>;
   setTemplate(items: CloseoutTemplateItem[]): Promise<number>;
   listItems(workOrderId: string): Promise<WorkOrderCloseoutItem[]>;
