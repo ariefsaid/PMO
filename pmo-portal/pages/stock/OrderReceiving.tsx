@@ -89,7 +89,7 @@ export default function OrderReceiving() {
     {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => { void orders.refetch(); void warehouses.refetch(); void keepers.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField id="receipt-order" label={t('receiving.order')} value={orderId} onChange={(id) => { setSearch(id ? { order: id } : {}); setQuantities({}); setRequestId(crypto.randomUUID()); }} options={(orders.data ?? []).map((o) => ({ value: o.id, label: o.number }))} placeholder={t('receiving.chooseOrder')} />
-        <SelectField id="receipt-warehouse" label={t('form.warehouse')} value={warehouse} onChange={setWarehouse} options={(warehouses.data ?? []).filter((w) => !w.archived_at).map((w) => ({ value: w.id, label: w.name }))} />
+        <SelectField id="receipt-warehouse" label={t('form.warehouse')} placeholder={t('form.warehousePlaceholder')} value={warehouse} onChange={setWarehouse} options={(warehouses.data ?? []).filter((w) => !w.archived_at).map((w) => ({ value: w.id, label: w.name }))} />
         <DateField id="receipt-date" label={t('receiving.date')} value={date || day.day || ''} onChange={setDate} />
       </div>
       {orders.data?.length === 0 && <p className="text-control text-muted-foreground">{t('receiving.noOrders')}</p>}

@@ -73,6 +73,7 @@ export function parseRefusal(err: unknown): Refusal | null {
   const code = `${m[1]}_${m[2]}`;
   const text = m[3];
   const values = { ...FIGURES[code]?.(text), ...detailsValues(details) };
+  if (code === 'RGO_FX_MISSING' && values.date) values.date = day(values.date);
   // RSV and STK figures: the first number of the sentence is the one the copy names.
   if (m[1] === 'RSV') values.n = qty(/\d+(?:\.\d+)?/.exec(text)?.[0]);
   else if (values.available !== undefined && values.requested !== undefined) {

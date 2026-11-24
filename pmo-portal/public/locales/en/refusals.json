@@ -513,5 +513,6 @@
   "RGO_NOT_POSTED": "This receipt has not posted.",
   "RGO_REVERSE_REASON": "Give a reason for reversing this receipt.",
   "RGO_USE_ORDER": "Receive these goods against their purchase order.",
-  "RGO_FX_MISSING": "No exchange rate for {{base}}/{{quote}} on {{date}}."
+  "RGO_FX_MISSING": "No exchange rate for {{base}}/{{quote}} on {{date}}.",
+  "RGO_BLIND_COPY": "Enter your own request quantities; a blind receiver cannot copy ordered quantities."
 }

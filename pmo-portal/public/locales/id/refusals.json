@@ -513,5 +513,6 @@
   "RGO_NOT_POSTED": "Penerimaan ini belum dicatat ke stok.",
   "RGO_REVERSE_REASON": "Berikan alasan membalikkan penerimaan ini.",
   "RGO_USE_ORDER": "Terima barang ini sesuai pesanan pembeliannya.",
-  "RGO_FX_MISSING": "Tidak ada kurs {{base}}/{{quote}} pada {{date}}."
+  "RGO_FX_MISSING": "Tidak ada kurs {{base}}/{{quote}} pada {{date}}.",
+  "RGO_BLIND_COPY": "Masukkan jumlah permintaan sendiri; penerima tanpa jumlah pesanan tidak dapat menyalin jumlah pesanan."
 }

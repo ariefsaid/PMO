@@ -16,18 +16,20 @@ insert into profiles(id,org_id,full_name,email,role,status,built_in_role) values
  (pg_temp.rid(13),pg_temp.rid(2),'Other purchaser','receive-test-13@example.com','Admin','active',null);
 insert into procurements(id,org_id,title,status,currency,requested_by_id,total_value,approved_total_value,approved_by_id) values
  (pg_temp.rid(20),pg_temp.rid(1),'Goods','Ordered','USD',pg_temp.rid(11),100,100,pg_temp.rid(10)),
- (pg_temp.rid(21),pg_temp.rid(2),'Other goods','Ordered','IDR',pg_temp.rid(13),100,100,pg_temp.rid(13));
+ (pg_temp.rid(21),pg_temp.rid(2),'Other goods','Ordered','IDR',pg_temp.rid(13),100,100,pg_temp.rid(13)),
+ (pg_temp.rid(22),pg_temp.rid(1),'Draft request','Draft','IDR',pg_temp.rid(11),10,null,null);
 insert into procurement_items(id,org_id,procurement_id,name,quantity,rate) values
  (pg_temp.rid(30),pg_temp.rid(1),pg_temp.rid(20),'Counted goods',10,2),
  (pg_temp.rid(31),pg_temp.rid(1),pg_temp.rid(20),'Service',1,1),
- (pg_temp.rid(32),pg_temp.rid(2),pg_temp.rid(21),'Other line',10,2);
+ (pg_temp.rid(32),pg_temp.rid(2),pg_temp.rid(21),'Other line',10,2),
+ (pg_temp.rid(33),pg_temp.rid(1),pg_temp.rid(22),'Own draft line',5,2);
 insert into purchase_orders(id,org_id,procurement_id,po_number,status,currency) values
  (pg_temp.rid(40),pg_temp.rid(1),pg_temp.rid(20),'PO-TEST','Issued','USD'),
  (pg_temp.rid(41),pg_temp.rid(2),pg_temp.rid(21),'PO-OTHER','Issued','IDR');
 insert into stock_units(id,org_id,code,name) values(pg_temp.rid(50),pg_temp.rid(1),'pc','Piece'),(pg_temp.rid(51),pg_temp.rid(2),'pc','Piece');
 insert into stock_items(id,org_id,code,name,unit_id) values
  (pg_temp.rid(60),pg_temp.rid(1),'GOODS','Goods',pg_temp.rid(50)),(pg_temp.rid(61),pg_temp.rid(2),'OTHER','Other',pg_temp.rid(51));
-insert into stock_warehouses(id,org_id,code,name,kind) values(pg_temp.rid(70),pg_temp.rid(1),'WH','Warehouse','central');
+insert into stock_warehouses(id,org_id,code,name,kind) values(pg_temp.rid(70),pg_temp.rid(1),'WH','Warehouse','central'),(pg_temp.rid(71),pg_temp.rid(2),'WH','Other warehouse','central');
 insert into stock_warehouse_keepers(org_id,warehouse_id,user_id) values(pg_temp.rid(1),pg_temp.rid(70),pg_temp.rid(11));
 create function pg_temp.actor(n int) returns void language sql as $$select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.rid(n),'role','authenticated')::text,true)$$;
 create function pg_temp.lines(q numeric) returns jsonb language sql as $$select jsonb_build_array(jsonb_build_object('item_id',pg_temp.rid(30),'quantity',q))$$;
@@ -44,9 +46,15 @@ set local role authenticated;
 select throws_ok($$select map_order_stock(pg_temp.rid(30),pg_temp.rid(60))$$,'42501',null,'AC-RGO-002 receiver cannot set or alter mapping');
 select is((select count(*)::int from procurement_items where procurement_id=pg_temp.rid(20)),0,'AC-RGO-004 raw ordered lines hidden even on own request');
 select is((select count(*)::int from procurement_items_masked where procurement_id=pg_temp.rid(20)),0,'AC-RGO-004 masked ordered lines hidden');
+select is((select count(*)::int from procurement_items where procurement_id=pg_temp.rid(22)),1,'AC-RGO-004 keeper retains own draft request authoring');
 select is((read_order_receiving(pg_temp.rid(40))->'lines'->0 ?| array['ordered','outstanding','rate','price']),false,'AC-RGO-004 receiving read omits ordered, outstanding and prices');
 select throws_ok($$select get_bill_match(pg_temp.rid(99))$$,'42501',null,'AC-RGO-004 bill match reader refuses storekeeper');
 select is(actor_may_see_prices_now(),false,'AC-RGO-004 blind receiving also hides stock valuation when the general price setting is off');
+select throws_ok($$select extend_rental_procurement(pg_temp.rid(95),pg_temp.rid(20),current_date,current_date+1)$$,
+ '42501','RGO_BLIND_COPY: Enter your own request quantities; a blind receiver cannot copy ordered quantities.',
+ 'AC-RGO-004 blind receiver cannot copy ordered quantities through the granted extension function');
+select is(has_table_privilege('authenticated','public.order_stock_mappings','INSERT'),false,'AC-RGO-002 receiver has no direct mapping insert grant');
+select is(has_table_privilege('authenticated','public.order_receiving_requests','UPDATE'),false,'AC-RGO-008 receiver cannot write approval witnesses directly');
 select throws_ok($$select pg_temp.receive(4,80)$$,'23514','RGO_FX_MISSING: No exchange rate for USD/IDR on '||current_date||'.','AC-RGO-006 missing exchange rate names pair/date');
 reset role;
 select is((select count(*)::int from order_receiving_requests),0,'AC-RGO-006 missing rate leaves no partial receipt');
@@ -79,12 +87,20 @@ set local role authenticated;
 select is(pg_temp.receive(7,81)->>'status','posted','AC-RGO-008 receiver posts approved excess');
 reset role;
 select is((select qty_on_hand::numeric from stock_balances where item_id=pg_temp.rid(60)),11::numeric,'AC-RGO-008 only approved quantity enters stock');
+select pg_temp.actor(10);
+set local role authenticated;
+select lives_ok($$select set_three_way_match_settings(true,0,0)$$,'AC-RGO-009 matching is enabled without changing the receiving rule');
+select set_config('rgo.bill',(create_procurement_invoice(p_procurement_id=>pg_temp.rid(20),p_status=>'Received',p_invoice_date=>current_date,p_amount=>20,p_tax_treatment=>'exclusive',p_tax_amount=>0)).id::text,true);
+select lives_ok($$select record_bill_match_lines(current_setting('rgo.bill')::uuid,jsonb_build_array(jsonb_build_object('item_id',pg_temp.rid(30),'quantity',10,'rate',2)))$$,'AC-RGO-009 bill records the order-currency line');
+select is(get_bill_match(current_setting('rgo.bill')::uuid)->>'status','matched','AC-RGO-009 bill matches the counted receipts in purchase currency');
+reset role;
 select throws_ok($$update procurement_receipt_lines set quantity=1 where receipt_id=(select receipt_id from order_receiving_requests where id=pg_temp.rid(80))$$,'23514',null,'AC-RGO-010 receipt lines cannot be edited');
 select throws_ok($$delete from procurement_receipts where id=(select receipt_id from order_receiving_requests where id=pg_temp.rid(80))$$,'23514',null,'AC-RGO-010 original receipt cannot be deleted');
 select pg_temp.actor(10);
 set local role authenticated;
 select lives_ok($$select reverse_order_receiving(pg_temp.rid(80),'Correction of count')$$,'AC-RGO-010 reverse by a new movement');
 select is(read_order_receiving(pg_temp.rid(40))->'lines'->0->>'received','7.000','AC-RGO-010 reversal reduces received without editing history');
+select is(get_bill_match(current_setting('rgo.bill')::uuid)->>'status','held','AC-RGO-009 reversal removes the original quantity from bill matching');
 reset role;
 select is((select qty_on_hand::numeric from stock_balances where item_id=pg_temp.rid(60)),7::numeric,'AC-RGO-010 reversal adjusts stock');
 select is((select quantity::numeric from procurement_receipt_lines where receipt_id=(select receipt_id from order_receiving_requests where id=pg_temp.rid(80))),4::numeric,'AC-RGO-010 reversal preserves original count');
@@ -93,7 +109,13 @@ set local role authenticated;
 select throws_ok($$select read_order_receiving(pg_temp.rid(40))$$,'P0002',null,'AC-RGO-011 other organisation cannot read counts');
 select throws_ok($$select approve_order_receiving(pg_temp.rid(81),'Other')$$,'P0002',null,'AC-RGO-011 other organisation cannot approve counts');
 select throws_ok($$select map_order_stock(pg_temp.rid(30),pg_temp.rid(61))$$,'P0002',null,'AC-RGO-011 other organisation cannot map lines');
+select lives_ok($$select set_order_receiving_enabled(true)$$,'AC-RGO-001 native second organisation enables receiving');
+select lives_ok($$select map_order_stock(pg_temp.rid(32),pg_temp.rid(61))$$,'AC-RGO-002 native second organisation maps its own line');
+select is(receive_order_goods(pg_temp.rid(41),pg_temp.rid(71),current_date,jsonb_build_array(jsonb_build_object('item_id',pg_temp.rid(32),'quantity','2')),pg_temp.rid(83))->>'status','posted','AC-RGO-005 same-currency receipt needs no exchange-rate row');
+select lives_ok($$select set_order_receiving_enabled(false)$$,'AC-RGO-001 Admin can switch back to the existing receiving path');
 reset role;
+select is((select fx_rate from order_receiving_requests where id=pg_temp.rid(83)),1::numeric,'AC-RGO-005 same currency snapshots rate one');
+select is((select value_on_hand::numeric from stock_balances where item_id=pg_temp.rid(61)),4::numeric,'AC-RGO-005 same-currency stock value equals quantity times order rate');
 insert into external_domain_ownership(org_id,external_tier,domain) values(pg_temp.rid(2),'erpnext','procurement');
 select pg_temp.actor(13);
 set local role authenticated;
@@ -163,6 +185,14 @@ select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid
 select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
  'round(v_item.rate * v_fx,4)','round(v_item.rate * 1,4)',
  $$select pg_temp.cost_oracle()$$),'AC-RGO-005 mutation: ignoring FX fails the stock value oracle');
+create function pg_temp.missing_fx_oracle() returns boolean language plpgsql as $$
+begin
+ delete from public.fx_rates where org_id=pg_temp.rid(1);
+ return not pg_temp.allowed(11,'select pg_temp.receive(1,94)');
+end $$;
+select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
+ 'if v_fx is null then','if v_fx is null then v_fx:=1; v_fx_date:=p_date; end if; if false then',
+ $$select pg_temp.missing_fx_oracle()$$),'AC-RGO-006 mutation: substituting rate one fails the missing-rate refusal oracle');
 select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
  'if v_excess and v_r.approved_by is null then','if false then',
  $$select pg_temp.value(11,$q$select pg_temp.receive(20,91)->>'status'$q$)='awaiting_approval'$$),
@@ -182,6 +212,12 @@ select ok(pg_temp.mutation('public.guard_order_receipt_immutable()',
  $q$raise exception 'RGO_IMMUTABLE: An order receipt is immutable; record a reversing movement.' using errcode='23514';$q$,'null;',
  $$select not pg_temp.allowed(10,format('select record_receipt_match_lines(%L,%L::jsonb)',(select receipt_id from order_receiving_requests where id=pg_temp.rid(80)),pg_temp.lines(1)))$$),
  'AC-RGO-010 mutation: removing immutability fails the receipt edit oracle');
+select ok(pg_temp.mutation('public.bill_match_evaluate(uuid)',
+ $target$         and not exists (select 1 from public.order_receiving_requests req
+                           join public.order_receiving_reversals rev on rev.request_id=req.id
+                          where req.receipt_id=r.id)$target$,'',
+ $$select pg_temp.value(10,$q$select get_bill_match(current_setting('rgo.bill')::uuid)->>'status'$q$)='held'$$),
+ 'AC-RGO-009 mutation: counting a reversed receipt fails the held-bill oracle');
 select pg_temp.actor(10);
 set local role authenticated;
 select is(pg_temp.receive(20,92)->>'status','awaiting_approval','AC-RGO-008 a purchaser who receives also needs someone else to approve');
