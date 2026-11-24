@@ -19,7 +19,9 @@
     "clientTakeoff": "baris take-off",
     "clientTakeoffLine": "baris take-off",
     "personDocuments": "dokumen personel",
-    "personDocument": "dokumen personel"
+    "personDocument": "dokumen personel",
+    "workOrders": "perintah kerja",
+    "workOrder": "perintah kerja"
   },
   "wizard": {
     "title": "Impor {{entity}}",
@@ -392,6 +394,53 @@
       "quantity": "Jumlah harus di atas 0, paling banyak 3 desimal.",
       "unitCost": "Biaya satuan harus 0 atau lebih, paling banyak 4 desimal.",
       "reference": "Referensi terlalu panjang (paling banyak 100 karakter)."
+    }
+  },
+  "workOrders": {
+    "title": "Judul",
+    "clientPoNumber": "Referensi klien",
+    "area": "Area",
+    "startDate": "Tanggal mulai",
+    "endDate": "Tanggal selesai",
+    "orderValue": "Nilai order",
+    "taxTreatment": "Perlakuan pajak",
+    "taxAmount": "Jumlah pajak",
+    "currency": "Mata uang",
+    "referenceHint": "Nomor order dari klien. Setiap referensi dipakai sekali di proyek ini; baris lingkup menyebutnya.",
+    "areaHint": "Kode atau nama salah satu area Anda. Kosongkan jika tidak ada.",
+    "valueHint": "Dalam mata uang proyek. Gunakan titik untuk desimal.",
+    "taxHint": "Apakah nilai order sudah termasuk pajak? Tulis inclusive atau exclusive.",
+    "taxAmountHint": "Opsional. Kosong berarti 0.",
+    "currencyHint": "Opsional. Perintah kerja memakai mata uang proyek.",
+    "exampleTitle": "Pekerjaan sipil dudukan pompa",
+    "alreadyThere": "Referensi klien ini sudah ada di proyek ini.",
+    "existingUnavailable": "Tidak dapat memeriksa referensi klien yang sudah ada di proyek ini.",
+    "nothingNew": "Tidak ada yang diimpor: setiap perintah kerja sudah ada di proyek ini.",
+    "blocked": "Tidak ada yang diimpor selama ada baris bermasalah. Perbaiki baris yang ditandai tidak valid atau sudah ada, lalu unggah file lagi.",
+    "scope": {
+      "sheet": "Baris lingkup",
+      "workOrder": "Referensi klien",
+      "itemCode": "Kode item",
+      "quantity": "Kuantitas"
+    },
+    "error": {
+      "title": "Judul wajib diisi.",
+      "titleLong": "Judul maksimal 200 karakter.",
+      "reference": "Referensi klien maksimal 100 karakter.",
+      "referenceTwice": "Referensi klien \"{{value}}\" muncul dua kali (baris {{first}} dan {{second}}).",
+      "area": "Area \"{{value}}\" bukan salah satu area Anda.",
+      "date": "{{field}} harus berupa tanggal tahun-bulan-hari, misalnya 2026-12-31.",
+      "dateOrder": "Tanggal selesai tidak boleh sebelum tanggal mulai.",
+      "value": "Nilai order harus berupa angka 0 atau lebih (maksimal 2 desimal).",
+      "tax": "Perlakuan pajak harus exclusive atau inclusive.",
+      "taxAmount": "Jumlah pajak harus berupa angka 0 atau lebih (maksimal 2 desimal).",
+      "currency": "Mata uang harus {{code}}, mata uang proyek ini.",
+      "scopeOrphan": "Lembar lingkup baris {{row}}: tidak ada perintah kerja dengan referensi klien \"{{value}}\".",
+      "scopeColumn": "Lembar lingkup membutuhkan kolom \"{{label}}\".",
+      "scopeItem": "Lembar lingkup baris {{row}}: \"{{code}}\" bukan baris kontrak proyek ini.",
+      "scopeQuantity": "Lembar lingkup baris {{row}}: kuantitas harus berupa angka di atas 0 (maksimal 3 desimal).",
+      "scopeOver": "Lembar lingkup baris {{row}}: kuantitas {{qty}} melebihi baris kontrak ({{max}}).",
+      "scopeTwice": "Lembar lingkup baris {{row}}: \"{{code}}\" muncul dua kali untuk perintah kerja ini."
     }
   }
 }

@@ -1404,7 +1404,8 @@
         "editOrder": "Edit order",
         "orderMenuLabel": "Actions for {{order}}",
         "viewPo": "View customer PO",
-        "cancelGeneric": "Cancel"
+        "cancelGeneric": "Cancel",
+        "import": "Import work orders"
       },
       "filter": {
         "orders": "Order",
@@ -1444,7 +1445,8 @@
         "noGroup": "No group"
       },
       "areaLabel": "Area",
-      "groupLabel": "Group"
+      "groupLabel": "Group",
+      "importLoadFailed": "Could not open the import. Try again."
     },
     "contract": {
       "orders": "Customer orders",

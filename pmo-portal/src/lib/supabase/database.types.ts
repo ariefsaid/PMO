@@ -32636,6 +32636,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: boolean
       }
+      import_work_orders: {
+        Args: { p_project: string; p_rows: Json }
+        Returns: Json
+      }
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }

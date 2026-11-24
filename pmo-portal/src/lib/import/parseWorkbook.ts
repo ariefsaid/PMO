@@ -26,3 +26,25 @@ export async function parseWorkbook(buf: ArrayBuffer, maxRows: number = MAX_IMPO
   }
   return { headers, rows, templateMarker: grid.marker ?? null };
 }
+
+/**
+ * The file's SECOND worksheet as headers + rows (an optional child sheet, e.g. a work order's scope lines).
+ * `null` when the file has no second sheet or it holds only a header; a sheet with rows over the cap refuses the file.
+ */
+export async function parseSecondSheet(buf: ArrayBuffer, maxRows: number = MAX_IMPORT_ROWS * 10): Promise<{ headers: string[]; rows: string[][] } | null> {
+  let grid;
+  try {
+    grid = await readWorkbookGrid(buf, { maxRows: maxRows + 1, maxColumns: 100, sheetIndex: 1 });
+  } catch (err) {
+    if (err instanceof ImportParseError && err.code === 'not_xlsx') return null; // no second worksheet
+    throw err;
+  }
+  const headers = (grid.rows[0] ?? []).map((cell) => cell.text);
+  const rows: string[][] = [];
+  for (const row of grid.rows.slice(1)) {
+    const cells = headers.map((_, index) => row[index]?.text ?? '');
+    if (cells.some((value) => value !== '')) rows.push(cells);
+  }
+  if (rows.length > maxRows) throw new ImportParseError('too_many_rows', `Too many rows on the second sheet: ${rows.length}. At most ${maxRows}.`);
+  return rows.length === 0 || headers.length === 0 ? null : { headers, rows };
+}
