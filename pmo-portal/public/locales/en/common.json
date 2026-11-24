@@ -187,6 +187,14 @@
         "name": "Stock issue costing",
         "summary": "Counts issued stock as work-order cost from a chosen date."
       },
+      "orderReceiving": {
+        "name": "Receive against order",
+        "summary": "Records counted goods against sent purchase orders."
+      },
+      "managementViews": {
+        "name": "Management views",
+        "summary": "Shows the project portfolio and progress not yet accepted by the client."
+      },
       "orderNeededBy": {
         "name": "Order needed-by date",
         "summary": "Requires a needed-by date before an order is sent to the supplier."
@@ -194,10 +202,6 @@
       "setupWorkflows": {
         "name": "Setup workflows",
         "summary": "Enables work-order imports and the opening balances overview."
-      },
-      "managementViews": {
-        "name": "Management views",
-        "summary": "Shows the project portfolio and progress not yet accepted by the client."
       }
     },
     "paletteGroup": "Settings"

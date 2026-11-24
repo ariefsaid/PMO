@@ -7,7 +7,7 @@ import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 const EXPECTED = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
   'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
-  'certificate', 'equipment_plan', 'check_in', 'medical_release', 'stock_writeoff', 'attendance_decision',
+  'certificate', 'equipment_plan', 'check_in', 'medical_release', 'stock_writeoff', 'attendance_decision', 'order_receiving',
 ];
 
 /** The translation stub these assertions read through: the English default with its `{{placeholders}}` filled. */
