@@ -1462,3 +1462,12 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.
 **Reported absent** (*melaporkan tidak masuk*) — a field worker's own statement, from the phone home, that they are not coming in today (sick or other). The roster shows it; it is not attendance and not leave. Written only by `report_absence` (migration 1631).
+
+**Area rate** (*tarif wilayah*) — a rate a hand-priced contract line carries for one work-order area (#1124). A daily site report priced from that line uses the area's rate when the report names an area (else its work order's area) and the area has a rate for the line; otherwise the line's own rate. Frozen at validation with the rest of the line's rate. A catalogue-priced line has none (the catalogue prices by work location).
+
+**Report area** (*wilayah laporan*) — an optional area a daily site report names to override its work order's area for the rate. Left empty, the report follows its work order's area.
+
+**Report crew link** (*kaitan regu laporan*) — an optional link from a daily site report to one crew, or to one named person when no crew applies; never both. A foreman's new report defaults to the crew they lead. Existing reports carry none.
+
+**Head count evidence** (*bukti jumlah orang*) — a photo or document the recorder attaches to a head count line and the approver reads before approving. The file is a project document of the work order's project; the line only cites it. Final once the line is approved.
+
