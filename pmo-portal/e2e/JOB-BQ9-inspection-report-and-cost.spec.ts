@@ -8,7 +8,7 @@
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
 import { createJobRoleUser } from './support/jobRoleUser';
-import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
+import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
 
 test.setTimeout(180_000);
 
