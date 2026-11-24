@@ -84,6 +84,7 @@ test("JOB-PC24 a request of 120 against a plan of 100 asks for a reason and wait
       }
     }
     if (requestId) await admin.from('material_requests').delete().eq('id', requestId);
+    await admin.from('stock_warehouses').delete().eq('code', `E2E-S${sfx}`);
     await cleanupAll(admin, [
       ['boq_material_allowances', 'boq_item_id', boqId ? [boqId] : []],
       ['work_order_lines', 'work_order_id', woIds],
@@ -91,7 +92,6 @@ test("JOB-PC24 a request of 120 against a plan of 100 asks for a reason and wait
       ['work_orders', 'id', woIds],
       ['projects', 'id', ownProjectId ? [ownProjectId] : []],
     ]).catch(() => undefined);
-    await admin.from('stock_warehouses').delete().eq('code', `E2E-S${sfx}`);
     await engineer.cleanup();
     await requester.cleanup();
   }
