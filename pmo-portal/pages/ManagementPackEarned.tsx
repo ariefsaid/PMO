@@ -1,20 +1,18 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
-import { usePackEarned, usePackRollups } from '@/src/hooks/useEarnedBilled';
-import { useProjects } from '@/src/hooks/useProjects';
-import { projectEarnedBilled, type Figure } from '@/src/lib/earnedBilledProfit';
+import { usePackEarned } from '@/src/hooks/useEarnedBilled';
+import { projectEarnedBilledFromTotals, type Figure } from '@/src/lib/earnedBilledProfit';
 import { moneyUnits, type ExactMoney } from '@/src/lib/projectFinances';
 import { EarnedBilledTable, type EbCell, type EbTableRow } from '@/src/components/finance/EarnedBilledTable';
 
 /**
  * Management pack: earned and billed revenue with the gap and margin on each basis, per project (#2733, FR-EBR-021).
- * Earned comes from `management_pack_earned`; cost and billed from the SAME plan-versus-actual roll-up the project tab uses
- * (same query and cache key), so the pack and the tab never disagree. Existing pack columns and totals are untouched.
+ * The report totals RPC supplies the project's billed and cost totals on the same bases as the project tab.
  * Nothing renders while the organisation setting is off or the role may not read work-order money.
  */
 const ManagementPackEarned: React.FC = () => {
@@ -24,11 +22,7 @@ const ManagementPackEarned: React.FC = () => {
   const setting = useOrgSwitch('disciplineProfit', canView);
   const on = canView && setting.data === true;
   const earned = usePackEarned(on);
-  const projects = useProjects({ enabled: on });
-  const rows = useMemo(() => earned.data ?? [], [earned.data]);
-  const projectIds = useMemo(() => [...new Set(rows.map((r) => r.projectId))].sort(), [rows]);
-  const rollups = usePackRollups(projectIds, on && projectIds.length > 0);
-  const nameOf = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
+  const rows = earned.data ?? [];
 
   if (!on) return null;
   const title = t('earnedBilled.packTitle', 'Earned and billed revenue by project');
@@ -72,16 +66,13 @@ const ManagementPackEarned: React.FC = () => {
     { key: 'marginBilled', label: t('earnedBilled.col.marginBilled', 'Margin on billed') },
   ];
   const tableRows: EbTableRow[] = rows.map((r) => {
-    const q = rollups[projectIds.indexOf(r.projectId)];
-    const label = nameOf.get(r.projectId) ?? r.projectId;
+    const label = r.projectName ?? r.projectId;
     const testId = `pack-earned-row-${r.projectId}-${r.currency}`;
-    if (!q || q.isPending) return { key: testId, testId, label, cells: columns.map(() => ({ text: '…', words: true })) };
-    if (q.isError || !q.data) return { key: testId, testId, label, cells: columns.map(() => ({ text: t('earnedBilled.notAvailable', 'Not available'), words: true })) };
-    const tot = projectEarnedBilled(q.data.rollup, r.currency, {
+    const tot = projectEarnedBilledFromTotals(r.currency, {
       earned: r.earned, unratedLines: r.unratedLines, workOrders: r.workOrders, withoutProgress: r.workOrdersWithoutProgress,
-    });
+    }, r.billed, r.cost, r.comparable);
     const restricted: Figure = { amount: null, reason: 'restricted' };
-    const f = q.data.rollup.restricted ? { earned: restricted, billed: restricted, gap: restricted, marginEarned: restricted, marginBilled: restricted } : tot;
+    const f = r.restricted ? { earned: restricted, billed: restricted, gap: restricted, marginEarned: restricted, marginBilled: restricted } : tot;
     return {
       key: testId, testId, label,
       cells: [cell(f.earned, r.currency), cell(f.billed, r.currency), cell(f.gap, r.currency), cell(f.marginEarned, r.currency, true), cell(f.marginBilled, r.currency, true)],

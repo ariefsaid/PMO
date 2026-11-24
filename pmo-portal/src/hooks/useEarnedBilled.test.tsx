@@ -4,12 +4,11 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  workOrders: vi.fn(), packEarned: vi.fn(), projectPlanVsActual: vi.fn(),
+  workOrders: vi.fn(), packEarned: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories/earnedBilled', () => ({ earnedBilledRepository: { workOrders: h.workOrders, packEarned: h.packEarned } }));
-vi.mock('@/src/lib/repositories/workOrderFinance', () => ({ workOrderFinanceRepository: { projectPlanVsActual: h.projectPlanVsActual } }));
-import { usePackEarned, usePackRollups, useWorkOrderEarnedBilled } from './useEarnedBilled';
+import { usePackEarned, useWorkOrderEarnedBilled } from './useEarnedBilled';
 
 const wrapper = () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -37,13 +36,10 @@ it('the pack earned read is org-scoped and gated on the flag', async () => {
   expect(h.packEarned).toHaveBeenCalledOnce();
 });
 
-it('the pack margin reads the SAME plan-vs-actual query as the project tab, one per project', async () => {
-  h.projectPlanVsActual.mockResolvedValue({ earned: 1 });
-  const { result } = renderHook(() => usePackRollups(['p1', 'p2'], true), { wrapper: wrapper() });
-  await waitFor(() => expect(result.current.every((r) => r.isSuccess)).toBe(true));
-  expect(h.projectPlanVsActual).toHaveBeenCalledTimes(2);
-  expect(h.projectPlanVsActual).toHaveBeenCalledWith('p1');
-  expect(h.projectPlanVsActual).toHaveBeenCalledWith('p2');
-  const off = renderHook(() => usePackRollups(['p1'], false), { wrapper: wrapper() });
-  expect(off.result.current[0]?.fetchStatus).toBe('idle');
+it('the pack loads the project margin inputs together in its own query', async () => {
+  const rows = [{ projectId: 'p1', cost: '1.00' }, { projectId: 'p2', cost: '2.00' }];
+  h.packEarned.mockResolvedValue(rows);
+  const { result } = renderHook(() => usePackEarned(true), { wrapper: wrapper() });
+  await waitFor(() => expect(result.current.data).toEqual(rows));
+  expect(h.packEarned).toHaveBeenCalledOnce();
 });

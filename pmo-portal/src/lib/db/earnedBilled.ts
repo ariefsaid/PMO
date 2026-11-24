@@ -32,19 +32,41 @@ export async function listWorkOrderEarnedBilled(projectId: string): Promise<Work
 
 export interface PackEarnedRow {
   projectId: string;
+  projectName: string | null;
   currency: string;
-  earned: ExactMoney;
+  earned: ExactMoney | null;
+  billed: ExactMoney | null;
+  cost: ExactMoney | null;
+  comparable: boolean;
+  restricted: boolean;
   unratedLines: number;
   workOrders: number;
   workOrdersWithoutProgress: number;
 }
 
-/** Earned revenue per project for the management pack; only projects whose revenue the caller may see. */
+/** A single scalar response keeps the full project set outside PostgREST's row cap. */
 export async function listPackEarned(): Promise<PackEarnedRow[]> {
-  const { data, error } = await supabase.rpc('management_pack_earned');
+  const { data, error } = await supabase.rpc('management_pack_project_totals');
   if (error) throw new AppError(error.message, error.code);
-  return (data ?? []).map((r) => ({
-    projectId: r.project_id, currency: r.currency, earned: money(r.earned), unratedLines: Number(r.unrated_lines),
-    workOrders: Number(r.work_orders), workOrdersWithoutProgress: Number(r.work_orders_without_progress),
-  }));
+  if (!Array.isArray(data)) throw new AppError('Earned and billed read: unexpected response', 'malformed-response');
+  return data.map((r) => {
+    if (!r || typeof r !== 'object' || Array.isArray(r)
+      || typeof r.project_id !== 'string' || typeof r.currency !== 'string'
+      || (r.project_name !== null && typeof r.project_name !== 'string')
+      || (r.earned !== null && typeof r.earned !== 'number')
+      || (r.billed !== null && typeof r.billed !== 'string')
+      || (r.cost !== null && typeof r.cost !== 'string')
+      || typeof r.comparable !== 'boolean' || typeof r.restricted !== 'boolean'
+      || typeof r.unrated_lines !== 'number' || typeof r.work_orders !== 'number'
+      || typeof r.work_orders_without_progress !== 'number') {
+      throw new AppError('Earned and billed read: unexpected row', 'malformed-response');
+    }
+    return {
+      projectId: r.project_id, projectName: r.project_name, currency: r.currency,
+      earned: r.earned === null ? null : money(r.earned), billed: r.billed, cost: r.cost,
+      comparable: r.comparable, restricted: r.restricted,
+      unratedLines: r.unrated_lines, workOrders: r.work_orders,
+      workOrdersWithoutProgress: r.work_orders_without_progress,
+    };
+  });
 }

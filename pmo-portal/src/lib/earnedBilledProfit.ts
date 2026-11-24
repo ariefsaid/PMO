@@ -91,12 +91,22 @@ export interface EarnedAggregate {
 export function projectEarnedBilled(rollup: ProjectRollup, currency: string, agg: EarnedAggregate): EarnedBilledTotal {
   const t = rollup.totals.find((x) => x.currency === currency);
   const comparable = !rollup.workOrders.some((w) => w.currency === currency && w.otherCurrency.length > 0);
+  return projectEarnedBilledFromTotals(currency, agg, t?.revenue ?? null, t?.total ?? null, comparable);
+}
+
+export function projectEarnedBilledFromTotals(
+  currency: string,
+  agg: EarnedAggregate,
+  revenue: ExactMoney | null,
+  total: ExactMoney | null,
+  comparable: boolean,
+): EarnedBilledTotal {
   let earned: Figure;
   if (agg.workOrders === 0 || agg.withoutProgress >= agg.workOrders) earned = no('not-available');
   else if (agg.withoutProgress > 0 || agg.unratedLines > 0 || agg.earned === null) earned = no('incomplete');
   else earned = { amount: agg.earned, reason: null };
-  const billed: Figure = t?.revenue != null ? { amount: t.revenue, reason: null } : no('not-available');
-  const cost = moneyUnits(t?.total ?? null);
+  const billed: Figure = revenue === null ? no('not-available') : { amount: revenue, reason: null };
+  const cost = moneyUnits(total);
   return {
     key: `${currency}|total`, workOrderId: null, currency, earned, billed, gap: diff(earned, billed),
     marginEarned: marginOn(earned, cost, comparable), marginBilled: marginOn(billed, cost, comparable),

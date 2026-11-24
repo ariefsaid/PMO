@@ -33738,6 +33738,7 @@ export type Database = {
           work_orders_without_progress: number
         }[]
       }
+      management_pack_project_totals: { Args: never; Returns: Json }
       manpower_can_manage: { Args: never; Returns: boolean }
       manpower_need_progress: {
         Args: never
