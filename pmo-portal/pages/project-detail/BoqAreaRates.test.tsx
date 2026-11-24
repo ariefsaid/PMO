@@ -34,6 +34,25 @@ describe('BoqAreaRates', () => {
     await waitFor(() => expect(h.set).toHaveBeenCalledWith('b1', 'a2', '9.25'));
   });
 
+  it.each(['10', '100'])('AC-ARA-002 reopening and saving the integer rate %s preserves its value', async (rate) => {
+    h.rates = [{ areaId: 'a1', rate }];
+    const user = userEvent.setup();
+    renderIt();
+    const north = await screen.findByRole('textbox', { name: 'Rate for North' });
+    await waitFor(() => expect(north).toHaveValue(rate));
+    await user.click(within(north.closest('li') as HTMLElement).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.set).toHaveBeenCalledWith('b1', 'a1', rate));
+  });
+
+  it('AC-ARA-002 accepts the full eight decimal places promised for an area rate', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    const south = await screen.findByRole('textbox', { name: 'Rate for South' });
+    await user.type(south, '0.12345678');
+    await user.click(within(south.closest('li') as HTMLElement).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.set).toHaveBeenCalledWith('b1', 'a2', '0.12345678'));
+  });
+
   it('AC-ARA-002 an empty field removes the area\'s rate', async () => {
     const user = userEvent.setup();
     renderIt();

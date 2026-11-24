@@ -20,6 +20,13 @@ describe('SiteReportsSection', () => {
     expect(screen.getAllByRole('link')[0]).toHaveAttribute('href', '/site-reports/r1');
   });
 
+  it('AC-SRC-006 shows the named person on a work-order report', () => {
+    h.q = { data: { rows: [{ id: 'r3', work_date: '2026-03-08', crew_name: null, person_name: 'Roster person', author_name: 'Report author', status: 'draft' }] }, isPending: false, isError: false, refetch: vi.fn() };
+    renderIt();
+    expect(screen.getByTestId('wo-dsr-person')).toHaveTextContent('Person Roster person');
+    expect(screen.getByText('Report author')).toBeInTheDocument();
+  });
+
   it('says so when there are none', () => {
     h.q = { data: { rows: [] }, isPending: false, isError: false, refetch: vi.fn() };
     renderIt();

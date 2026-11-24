@@ -399,6 +399,10 @@
     "clearConfirm": "Hapus jumlah orang",
     "evidence": {
       "none": "Belum ada foto atau dokumen terlampir.",
+      "loading": "Memuat bukti jumlah orang…",
+      "refreshing": "Memperbarui bukti jumlah orang…",
+      "error": "Bukti jumlah orang tidak dapat dimuat.",
+      "retry": "Coba lagi",
       "list": "Berkas terlampir",
       "untitled": "Berkas",
       "remove": "Hapus {{name}}",

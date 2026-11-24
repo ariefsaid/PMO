@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
   day: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   classes: { data: [{ id: 'k1', code: 'guard', name: 'Guard', archivedAt: null }, { id: 'k2', code: 'old', name: 'Old class', archivedAt: '2026-01-01' }] as unknown[] },
   record: vi.fn(), approve: vi.fn(), clear: vi.fn(),
-  evidence: { data: [] as unknown[] }, attach: vi.fn(), detach: vi.fn(),
+  evidence: {} as { data?: unknown[]; isPending?: boolean; isFetching?: boolean; isError?: boolean; refetch?: ReturnType<typeof vi.fn> }, attach: vi.fn(), detach: vi.fn(),
   categories: [{ id: 'cat1', name: 'Site photo' }] as unknown[],
 }));
 vi.mock('@/src/hooks/useHeadcount', () => ({
@@ -162,6 +162,59 @@ describe('HeadCountSection', () => {
     const evidence = screen.getByTestId('headcount-evidence-l1');
     expect(within(evidence).getByRole('button', { name: 'gate.jpg' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
+  });
+
+  it('AC-HCE-007 approval waits for the initial evidence read instead of claiming there are no files', () => {
+    h.uid = 'adm1'; h.role = 'Admin';
+    h.day = { data: [line()], isPending: false, isError: false, refetch: vi.fn() };
+    h.evidence = { data: undefined, isPending: true, isError: false, isFetching: true, refetch: vi.fn() };
+    renderIt();
+    expect(screen.getByText('Loading head count evidence…')).toBeInTheDocument();
+    expect(screen.queryByText('No photo or document attached.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  });
+
+  it('AC-HCE-007 a failed evidence read keeps known files visible, offers retry, and blocks approval', async () => {
+    h.uid = 'adm1'; h.role = 'Admin';
+    h.day = { data: [line()], isPending: false, isError: false, refetch: vi.fn() };
+    h.evidence = {
+      data: [{ id: 'x1', headcountId: 'l1', documentId: 'd1', title: 'gate.jpg', filePath: 'o/p/d1/gate.jpg' }],
+      isPending: false, isError: true, isFetching: false, refetch: vi.fn(),
+    };
+    const user = userEvent.setup();
+    renderIt();
+    const evidence = screen.getByTestId('headcount-evidence-l1');
+    expect(within(evidence).getByRole('button', { name: 'gate.jpg' })).toBeInTheDocument();
+    expect(within(evidence).getByRole('alert')).toHaveTextContent("Couldn't load head count evidence.");
+    expect(within(evidence).queryByText('No photo or document attached.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    await user.click(within(evidence).getByRole('button', { name: 'Retry' }));
+    expect(h.evidence.refetch).toHaveBeenCalled();
+  });
+
+  it('AC-HCE-007 a refresh shows the known files and blocks approval until the read finishes', () => {
+    h.uid = 'adm1'; h.role = 'Admin';
+    h.day = { data: [line()], isPending: false, isError: false, refetch: vi.fn() };
+    h.evidence = {
+      data: [{ id: 'x1', headcountId: 'l1', documentId: 'd1', title: 'gate.jpg', filePath: 'o/p/d1/gate.jpg' }],
+      isPending: false, isError: false, isFetching: true, refetch: vi.fn(),
+    };
+    renderIt();
+    const evidence = screen.getByTestId('headcount-evidence-l1');
+    expect(within(evidence).getByRole('button', { name: 'gate.jpg' })).toBeInTheDocument();
+    expect(within(evidence).getByText('Updating head count evidence…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  });
+
+  it('AC-HCE-007 a refresh does not claim there are no files while the evidence read is unresolved', () => {
+    h.uid = 'adm1'; h.role = 'Admin';
+    h.day = { data: [line()], isPending: false, isError: false, refetch: vi.fn() };
+    h.evidence = { data: [], isPending: false, isError: false, isFetching: true, refetch: vi.fn() };
+    renderIt();
+    const evidence = screen.getByTestId('headcount-evidence-l1');
+    expect(within(evidence).getByText('Updating head count evidence…')).toBeInTheDocument();
+    expect(within(evidence).queryByText('No photo or document attached.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
   });
 
   it('AC-HCE-004 an approved line shows its files and offers no attach or remove', () => {

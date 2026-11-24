@@ -16,7 +16,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
  */
 interface Props { boqItemId: string; catalogueItemId: string | null; currency?: string }
 
-const RATE = /^\d{1,7}(\.\d{1,6})?$/;
+const RATE = /^\d{1,16}(\.\d{1,8})?$/;
+const trimFractionalZeroes = (rate: string) => rate.includes('.') ? rate.replace(/0+$/, '').replace(/\.$/, '') : rate;
 
 const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
   const { t } = useTranslation('project');
@@ -35,7 +36,7 @@ const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
   });
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  useEffect(() => { setDraft(Object.fromEntries((rates.data ?? []).map((r) => [r.areaId, r.rate.replace(/\.?0+$/, '')]))); }, [rates.data]);
+  useEffect(() => { setDraft(Object.fromEntries((rates.data ?? []).map((r) => [r.areaId, trimFractionalZeroes(r.rate)]))); }, [rates.data]);
   if (!allowed || live.length === 0) return null;
 
   const run = async (areaId: string, name: string) => {

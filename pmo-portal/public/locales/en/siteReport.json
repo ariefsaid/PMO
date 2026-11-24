@@ -129,7 +129,8 @@
     "title": "Reports",
     "crew": "Crew",
     "allCrews": "All crews",
-    "crewLabel": "Crew {{name}}"
+    "crewLabel": "Crew {{name}}",
+    "personLabel": "Person {{name}}"
   },
   "lost": {
     "archived": "Archived",
@@ -149,7 +150,12 @@
     "project": "Project",
     "workOrder": "Work order",
     "crew": "Crew (optional)",
-    "noCrew": "No crew"
+    "noCrew": "No crew",
+    "person": "Person (when no crew applies)",
+    "noPerson": "No person",
+    "loadingPeople": "Loading people…",
+    "peopleError": "Couldn't load people.",
+    "retryPeople": "Retry"
   },
   "newReport": "New report",
   "note": {

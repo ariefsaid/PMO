@@ -15,6 +15,10 @@ interface Props {
   files: HeadcountEvidence[];
   /** The recorder may attach and detach while the line is not approved; everyone who reads the line may open a file. */
   canAttach: boolean;
+  isPending: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  onRetry: () => void;
 }
 
 /**
@@ -22,7 +26,7 @@ interface Props {
  * work order's project, so the organisation's own document rules decide who may file one; the database decides who may cite it on
  * the line (the recorder only, never after approval). The approver reads the same list before approving.
  */
-export const HeadCountEvidence: React.FC<Props> = ({ headcountId, workOrderId, files, canAttach }) => {
+export const HeadCountEvidence: React.FC<Props> = ({ headcountId, workOrderId, files, canAttach, isPending, isFetching, isError, onRetry }) => {
   const { t } = useTranslation('crews');
   const refusal = useRefusalText();
   const { toast } = useToast();
@@ -56,9 +60,17 @@ export const HeadCountEvidence: React.FC<Props> = ({ headcountId, workOrderId, f
 
   return (
     <div className="mt-2 text-control" data-testid={`headcount-evidence-${headcountId}`}>
-      {files.length === 0
+      {isPending && <p role="status" className="text-muted-foreground">{t('headCount.evidence.loading', 'Loading head count evidence…')}</p>}
+      {isFetching && !isPending && !isError && <p role="status" className="text-muted-foreground">{t('headCount.evidence.refreshing', 'Updating head count evidence…')}</p>}
+      {isError && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-destructive-text">
+          <span>{t('headCount.evidence.error', "Couldn't load head count evidence.")}</span>
+          <Button variant="ghost" size="sm" onClick={onRetry}>{t('headCount.evidence.retry', 'Retry')}</Button>
+        </div>
+      )}
+      {files.length === 0 && !isPending && !isFetching && !isError
         ? <p className="text-muted-foreground">{t('headCount.evidence.none', 'No photo or document attached.')}</p>
-        : (
+        : files.length > 0 && (
           <ul className="space-y-1" aria-label={t('headCount.evidence.list', 'Attached files')}>
             {files.map((f) => (
               <li key={f.id} className="flex flex-wrap items-center gap-2">

@@ -123,6 +123,7 @@ const SiteReports: React.FC = () => {
                     <span className="tabular-nums text-foreground">{formatDay(r.work_date)}</span>
                     <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.work_order_label}</span>
                     {r.crew_name && <span className="text-muted-foreground" data-testid="dsr-crew">{t('list.crewLabel', { defaultValue: 'Crew {{name}}', name: r.crew_name })}</span>}
+                    {r.person_name && <span className="text-muted-foreground" data-testid="dsr-person">{t('list.personLabel', { defaultValue: 'Person {{name}}', name: r.person_name })}</span>}
                     <span className="text-muted-foreground">{r.author_name ?? '—'}</span>
                     {stockFlags?.has(r.id) && <StatusPill variant="warn" data-testid="dsr-stock-flag">{t('stock.flag', 'Stock flagged')}</StatusPill>}
                     <StatusPill record="siteReport" state={r.status} />

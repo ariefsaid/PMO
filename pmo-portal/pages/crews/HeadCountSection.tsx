@@ -47,6 +47,7 @@ export const HeadCountSection: React.FC<Props> = ({ crewId, fieldControllerId, w
   const className = (id: string) => classes.data?.find((c) => c.id === id)?.name ?? '—';
   const lines = (day.data ?? []).filter((l) => l.crewId === crewId);
   const evidence = useHeadcountEvidence(lines.map((l) => l.id));
+  const evidenceUnresolved = evidence.isPending || evidence.isFetching || evidence.isError;
   const text = (err: unknown) => String((err as { message?: string })?.message ?? '').startsWith('separation of duties')
     ? t('headCount.sod', 'You entered this head count, so someone else approves it.')
     : refusalLine(refusal(err));
@@ -114,7 +115,7 @@ export const HeadCountSection: React.FC<Props> = ({ crewId, fieldControllerId, w
                       {!l.approvedAt && (
                         <div className="inline-flex flex-wrap items-center justify-end gap-2">
                           {canApproveRole && entrant && <span className="text-control text-muted-foreground">{t('headCount.differentApprover', 'A different approver must approve this line.')}</span>}
-                          {canApproveRole && <Button variant="primary" size="sm" disabled={entrant || viewOnly} onClick={() => void approveLine(l)}>{t('headCount.approve', 'Approve')}</Button>}
+                          {canApproveRole && <Button variant="primary" size="sm" disabled={entrant || viewOnly || evidenceUnresolved} onClick={() => void approveLine(l)}>{t('headCount.approve', 'Approve')}</Button>}
                           {canRecord && <Button variant="outline" size="sm" onClick={() => setClearing(l)}>{t('headCount.clear', 'Clear')}</Button>}
                         </div>
                       )}
@@ -122,7 +123,9 @@ export const HeadCountSection: React.FC<Props> = ({ crewId, fieldControllerId, w
                   </tr>
                   <tr>
                     <td colSpan={4} className="pb-3">
-                      <HeadCountEvidence headcountId={l.id} workOrderId={workOrderId} files={files} canAttach={canRecord && !l.approvedAt && !viewOnly} />
+                      <HeadCountEvidence headcountId={l.id} workOrderId={workOrderId} files={files} canAttach={canRecord && !l.approvedAt && !viewOnly}
+                        isPending={Boolean(evidence.isPending)} isFetching={Boolean(evidence.isFetching)} isError={Boolean(evidence.isError)}
+                        onRetry={() => { void evidence.refetch(); }} />
                     </td>
                   </tr>
                   </React.Fragment>

@@ -42,8 +42,8 @@ export interface DsrReport {
   /** Optional area that overrides the work order's area for the rate (migration 2132). */
   area_id: string | null;
 }
-/** A list row: the header plus the work order and author it names (embeds qualified: two FKs reach profiles). */
-export interface DsrReportListRow extends DsrReport { work_order_label: string; author_name: string | null; crew_name: string | null }
+/** A list row: the header plus the work order, author and safe directory label of its optional person link. */
+export interface DsrReportListRow extends DsrReport { work_order_label: string; author_name: string | null; crew_name: string | null; person_name: string | null }
 export interface DsrProgressLine { id: string; position: number; work_order_line_id: string; sub_stage: string | null; quantity: number; unit: string }
 export interface DsrIdlePeriod { id: string; position: number; minutes: number; reason_id: string }
 export interface DsrConsumable { id: string; position: number; stock_item_id: string; quantity: number; unit: string; work_order_line_id?: string | null }
@@ -123,8 +123,15 @@ export async function listReports(filter: DsrListFilter, page = 0): Promise<{ ro
   const from = page * DSR_PAGE_SIZE;
   type Raw = DsrReport & { work_orders: { title: string; wo_number: string | null } | null; author: { full_name: string | null } | null; crew: { name: string } | null };
   const data = await rows<Raw>(q.order('work_date', { ascending: false }).order('id', { ascending: false }).range(from, from + DSR_PAGE_SIZE));
-  const list = data.slice(0, DSR_PAGE_SIZE).map(({ work_orders: wo, author, crew, ...r }) => ({
-    ...r, work_order_label: wo ? [wo.wo_number, wo.title].filter(Boolean).join(' · ') : '', author_name: author?.full_name ?? null, crew_name: crew?.name ?? null,
+  const pageRows = data.slice(0, DSR_PAGE_SIZE);
+  const personIds = [...new Set(pageRows.flatMap((r) => r.person_id ? [r.person_id] : []))];
+  const people = personIds.length > 0
+    ? await rows<{ id: string; name: string }>(db.from('people_directory').select('id, name').in('id', personIds).limit(DSR_PAGE_SIZE))
+    : [];
+  const personNames = new Map(people.map((p) => [p.id, p.name]));
+  const list = pageRows.map(({ work_orders: wo, author, crew, ...r }) => ({
+    ...r, work_order_label: wo ? [wo.wo_number, wo.title].filter(Boolean).join(' · ') : '', author_name: author?.full_name ?? null,
+    crew_name: crew?.name ?? null, person_name: r.person_id ? personNames.get(r.person_id) ?? null : null,
   }));
   return { rows: list, hasMore: data.length > DSR_PAGE_SIZE };
 }

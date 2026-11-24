@@ -6,13 +6,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 /** AC-SRC-007: a foreman's new report defaults to the crew they lead; any crew or none can be chosen (docs/specs/site-report-crew-link.spec.md). */
 const h = vi.hoisted(() => ({
   userId: 'u1', save: vi.fn(),
+  people: [{ id: 'p1', name: 'Roster person', code: 'P-1' }] as unknown[],
   crews: [{ id: 'c1', code: 'CR-1', name: 'Other crew', field_controller_id: 'u9' }, { id: 'c2', code: 'CR-2', name: 'Own crew', field_controller_id: 'u1' }] as unknown[],
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
 vi.mock('@/src/hooks/useCrews', () => ({ useCrews: () => ({ data: h.crews }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Pipeline', short_name: null, project_code: null }] }) }));
 vi.mock('@/src/hooks/useDailySiteReports', () => ({ useDailySiteReportMutations: () => ({ save: { mutateAsync: h.save, isPending: false } }) }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrder: { list: async () => [{ id: 'w1', wo_number: 'WO-1', title: 'Pipe run', status: 'Issued' }] } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: {
+  workOrder: { list: async () => [{ id: 'w1', wo_number: 'WO-1', title: 'Pipe run', status: 'Issued' }] },
+  dailySiteReport: { listLinkPeople: async () => h.people },
+} }));
 
 import { NewSiteReportDialog } from './NewSiteReportDialog';
 
@@ -48,5 +52,15 @@ describe('NewSiteReportDialog crew', () => {
     h.userId = 'u2';
     await open();
     expect(screen.getByRole('combobox', { name: /Crew/ })).toHaveValue('');
+  });
+
+  it('AC-SRC-008 a new report can name a person when no crew applies', async () => {
+    const { user } = await open();
+    await user.selectOptions(screen.getByRole('combobox', { name: /Crew/ }), '');
+    const person = await screen.findByRole('combobox', { name: /Person/ });
+    await user.selectOptions(person, 'p1');
+    await user.click(screen.getByRole('button', { name: 'Start report' }));
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ workOrderId: 'w1', personId: 'p1' })));
+    expect(h.save.mock.calls[0][0]).not.toHaveProperty('crewId');
   });
 });

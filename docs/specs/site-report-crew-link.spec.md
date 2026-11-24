@@ -21,8 +21,9 @@ no crew applies, so I can find a crew's reports and read them next to its work o
   explicit empty value clears it.
 - **FR-SRC-004** Existing reports stay valid with no link; no existing organisation sees a change until someone chooses a crew.
 - **FR-SRC-005** A correction of a validated report shall carry the link of the report it corrects.
-- **FR-SRC-006** The site-report list shall show each report's crew, filter by crew (the choice lives in the address), and the work
-  order page shall list its latest site reports with their crew. An organisation with no crews sees no crew filter.
+- **FR-SRC-006** The site-report list shall show each report's crew or named person, filter by crew (the choice lives in the address),
+  and the work order page shall list its latest site reports with the same crew or named person. Labels use the member-readable
+  directory; the report author remains separately identified. An organisation with no crews sees no crew filter.
 - **FR-SRC-007** When a person who leads a crew (is its field controller) starts a report, the crew shall default to the crew they lead;
   they may pick another crew or none.
 - **FR-SRC-008** The report page shall show a "Crew and area" section: a crew choice, a person choice (disabled while a crew is chosen,
@@ -34,8 +35,10 @@ no crew applies, so I can find a crew's reports and read them next to its work o
 - **AC-SRC-003** Given a crew or person of another organisation, the save is refused. [pgTAP `2130`]
 - **AC-SRC-004** Given an edit with no link keys, the stored crew stays. [pgTAP `2130`; unit `dailySiteReports.test`]
 - **AC-SRC-005** Given a validated report with a crew, its correction names the same crew. [pgTAP `2130`]
-- **AC-SRC-006** Given reports with crews, the list shows the crew and filters by it; the work order page lists its reports. [unit `SiteReports.test`, `SiteReportsSection.test`, `dailySiteReports.test`]
+- **AC-SRC-006** Given reports with crews or named people, each list shows its link and the site-report list filters by crew; the work order page lists its reports. [unit `SiteReports.test`, `SiteReportsSection.test`, `dailySiteReports.test`]
 - **AC-SRC-007** Given a foreman who leads a crew, a new report starts with that crew; they may change it or clear it. [unit `NewSiteReportDialog.test`]
+- **AC-SRC-008** Given a report started without a crew, when a named person is chosen during creation, the person is saved and shown
+  separately from the author. [unit `NewSiteReportDialog.test`]
 
 ## 4. Not in scope
 Pay or cost by crew from the report (the crew's cost already comes from attendance); a crew history; a person's private details on the report (the directory carries name and code only).

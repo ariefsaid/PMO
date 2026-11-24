@@ -24,7 +24,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 import SiteReports from './SiteReports';
 
-const row = (id: string, status: string, crew_name: string | null = null) => ({ id, work_date: '2026-03-10', work_order_label: `WO ${id}`, author_name: 'Field One', status, crew_name });
+const row = (id: string, status: string, crew_name: string | null = null, person_name: string | null = null) => ({ id, work_date: '2026-03-10', work_order_label: `WO ${id}`, author_name: 'Field One', status, crew_name, person_name });
 const renderAt = (url = '/site-reports') => render(<MemoryRouter initialEntries={[url]}><SiteReports /></MemoryRouter>);
 
 beforeEach(() => { h.realRole = 'Finance'; h.rows = []; h.hasMore = false; h.queue = []; h.calls.length = 0; h.crews = [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }]; });
@@ -37,6 +37,14 @@ describe('site reports list', () => {
     expect(screen.getByTestId('dsr-crew')).toHaveTextContent('Crew Pipe crew');
     expect(screen.getAllByTestId('dsr-crew')).toHaveLength(1);
     expect(screen.getByRole('combobox', { name: 'Crew' })).toHaveValue('c1');
+  });
+
+  it('AC-SRC-006 the list identifies a named person separately from the report author', () => {
+    h.rows = [row('person-report', 'draft', null, 'Roster person')];
+    renderAt();
+    expect(screen.getByTestId('dsr-person')).toHaveTextContent('Person Roster person');
+    expect(screen.queryByTestId('dsr-crew')).toBeNull();
+    expect(screen.getByText('Field One')).toBeInTheDocument();
   });
 
   it('AC-SRC-006 an organisation with no crews sees no crew filter', () => {

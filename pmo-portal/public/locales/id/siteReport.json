@@ -129,7 +129,8 @@
     "title": "Laporan",
     "crew": "Regu",
     "allCrews": "Semua regu",
-    "crewLabel": "Regu {{name}}"
+    "crewLabel": "Regu {{name}}",
+    "personLabel": "Orang {{name}}"
   },
   "lost": {
     "archived": "Diarsipkan",
@@ -149,7 +150,12 @@
     "project": "Proyek",
     "workOrder": "$t(common:terms.clientWorkOrder)",
     "crew": "Regu (opsional)",
-    "noCrew": "Tanpa regu"
+    "noCrew": "Tanpa regu",
+    "person": "Orang (jika tanpa regu)",
+    "noPerson": "Tanpa orang",
+    "loadingPeople": "Memuat daftar orang…",
+    "peopleError": "Daftar orang tidak dapat dimuat.",
+    "retryPeople": "Coba lagi"
   },
   "newReport": "Laporan baru",
   "note": {

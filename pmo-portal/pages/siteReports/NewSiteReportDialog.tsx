@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { DateField, EntityFormModal, SelectField } from '@/src/components/ui';
+import { Button, DateField, EntityFormModal, SelectField } from '@/src/components/ui';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
@@ -28,11 +28,18 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
   const [workOrderId, setWorkOrderId] = useState('');
   const [workDate, setWorkDate] = useState(todayIso());
   const [pickedCrew, setPickedCrew] = useState<string | null>(null);
+  const [pickedPerson, setPickedPerson] = useState('');
   const [error, setError] = useState<string | null>(null);
   const workOrders = useQuery({
     queryKey: ['daily-site-reports', orgId, 'new', 'work-orders', projectId],
     queryFn: () => repositories.workOrder.list(projectId),
     enabled: Boolean(orgId && projectId),
+  });
+  const people = useQuery({
+    queryKey: ['daily-site-reports', orgId, 'new', 'link-people'],
+    queryFn: () => repositories.dailySiteReport.listLinkPeople(),
+    enabled: Boolean(orgId),
+    staleTime: 300_000,
   });
   const projectOptions = useMemo(() => (projects.data ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects.data]);
   const workOrderOptions = useMemo(() => (workOrders.data ?? [])
@@ -43,12 +50,14 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
   const ownCrew = useMemo(() => (crews.data ?? []).find((c) => c.field_controller_id === (currentUser?.id ?? null))?.id ?? '', [crews.data, currentUser?.id]);
   const crewId = pickedCrew ?? ownCrew;
   const crewOptions = useMemo(() => (crews.data ?? []).map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` })), [crews.data]);
+  const personOptions = useMemo(() => (people.data ?? []).map((p) => ({ value: p.id, label: p.name })), [people.data]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      const id = await save.mutateAsync({ clientRequestId: requestId.current, workOrderId, workDate, ...(crewId ? { crewId } : {}), progress: [], idle: [], consumables: [] });
+      const id = await save.mutateAsync({ clientRequestId: requestId.current, workOrderId, workDate,
+        ...(crewId ? { crewId } : {}), ...(!crewId && pickedPerson ? { personId: pickedPerson } : {}), progress: [], idle: [], consumables: [] });
       onCreated(id);
     } catch (err) {
       const code = (err as { code?: string }).code;
@@ -85,9 +94,16 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
       />
       <DateField label={t('new.date', 'Work date')} required value={workDate} onChange={setWorkDate} max={todayIso()} />
       {crewOptions.length > 0 && (
-        <SelectField label={t('new.crew', 'Crew (optional)')} value={crewId} onChange={setPickedCrew}
+        <SelectField label={t('new.crew', 'Crew (optional)')} value={crewId} onChange={(v) => { setPickedCrew(v); if (v) setPickedPerson(''); }}
           options={[{ value: '', label: t('new.noCrew', 'No crew') }, ...crewOptions]} />
       )}
+      <SelectField label={t('new.person', 'Person (when no crew applies)')} value={pickedPerson}
+        onChange={(v) => { setPickedPerson(v); if (v) setPickedCrew(''); }}
+        disabled={Boolean(crewId) || people.isPending || people.isError}
+        options={[{ value: '', label: people.isPending ? t('new.loadingPeople', 'Loading people…') : people.isError ? t('new.peopleError', "Couldn't load people") : t('new.noPerson', 'No person') }, ...personOptions]} />
+      {people.isError && <p role="alert" className="text-sm text-destructive-text">
+        {t('new.peopleError', "Couldn't load people.")} <Button variant="ghost" size="sm" onClick={() => void people.refetch()}>{t('new.retryPeople', 'Retry')}</Button>
+      </p>}
     </EntityFormModal>
   );
 };

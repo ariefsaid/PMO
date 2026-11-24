@@ -2,7 +2,8 @@
 -- sees before approving (docs/specs/headcount-evidence.spec.md, FR-HCE-001..006). Plan: docs/plans/2026-11-24-site-evidence-areas.md.
 -- The file is an existing project document of the head count's work order's project (the organisation's document storage and its
 -- own policies decide who may create or read it); this table only cites it, as the close-out checklist does (1400/1401).
--- Authority to attach or detach is exactly the authority to record the head count (attendance_can_record(crew); never a field account)
+-- Authority to attach or detach is exactly the authority to record the head count (attendance_can_record(crew) or the Project
+-- Administrator job role; never a field account)
 -- and only while the line is not approved. Reads follow the head count's own policy.
 -- Reversal: rollback/2131_headcount_evidence_down.sql (drops the table: the citations are lost, the documents stay).
 -- Proven by supabase/tests/2131_headcount_evidence.test.sql.
@@ -49,7 +50,8 @@ begin
   if v_uid is null or v_org is null then raise exception 'not authenticated' using errcode = '42501'; end if;
   select * into v_h from public.headcount_days h where h.id = p_headcount and h.org_id = v_org for update;
   if not found then raise exception 'head count not found' using errcode = 'P0002'; end if;
-  if not public.attendance_can_record(v_h.crew_id) then raise exception 'not authorized' using errcode = '42501'; end if;
+  if not (public.attendance_can_record(v_h.crew_id) or public.actor_holds_job_role('project_administrator')) then
+    raise exception 'not authorized' using errcode = '42501'; end if;
   if v_h.approved_at is not null then
     raise exception 'HC_LOCKED: this head count is approved and final' using errcode = '23514';
   end if;
@@ -89,7 +91,8 @@ begin
   select * into v_x from public.headcount_day_documents x where x.id = p_id and x.org_id = v_org;
   if not found then raise exception 'attachment not found' using errcode = 'P0002'; end if;
   select * into v_h from public.headcount_days h where h.id = v_x.headcount_id for update;
-  if not public.attendance_can_record(v_h.crew_id) then raise exception 'not authorized' using errcode = '42501'; end if;
+  if not (public.attendance_can_record(v_h.crew_id) or public.actor_holds_job_role('project_administrator')) then
+    raise exception 'not authorized' using errcode = '42501'; end if;
   if v_h.approved_at is not null then
     raise exception 'HC_LOCKED: this head count is approved and final' using errcode = '23514';
   end if;
