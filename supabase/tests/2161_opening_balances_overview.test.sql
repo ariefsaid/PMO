@@ -8,6 +8,9 @@ select plan(23);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('21610000-0000-0000-0000-000000000001', 'OBS Org',   'USD', 'UTC'),
   ('21610000-0000-0000-0000-000000000002', 'OBS Other', 'USD', 'UTC');
+-- The cross-organisation read check needs the function to pass its per-org opt-in gate first.
+insert into org_setup_workflow_settings (org_id, enabled)
+values ('21610000-0000-0000-0000-000000000002', true);
 insert into auth.users (id, email) values
   ('21610000-0000-0000-0000-0000000000a1', 'obs-admin@example.invalid'),
   ('21610000-0000-0000-0000-0000000000a2', 'obs-fin@example.invalid'),
