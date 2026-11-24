@@ -3,7 +3,7 @@
  *  Partly landed: the quoted route exists; the direct-purchase shortcut (no quotes, buy from a shop) is not offered and is not tested. */
 import { expect } from '@playwright/test';
 import { buyerTest as test } from '../support/buyerOrdering';
-import { recordOrderWithConfirm } from '../helpers';
+import { recordOrderWithConfirm, signIn } from '../helpers';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 
 test.setTimeout(150_000);
@@ -15,12 +15,19 @@ test.beforeEach(async () => { buyer = await moneyJobRole("buyer"); fixture = awa
 test.afterEach(async () => { await fixture?.cleanup(); await buyer?.cleanup(); });
 
 test('JOB-PU4 two quotes are added, one is chosen, and the order follows the chosen quote', async ({ page }) => {
+  // Admin requests quotations; the buyer then sources and orders within its shipped right.
+  await signIn(page, 'admin@acme.test');
+  await page.goto(fixture.url);
+  await page.getByRole('tab', { name: /^quotations/i }).click();
+  await expect(page.getByTestId('add-quotation')).toHaveCount(0);
+  await page.getByTestId('quote-next-step').getByRole('button', { name: 'Request quotations' }).click();
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Quoted');
+  await page.context().clearCookies();
+  await page.evaluate(() => localStorage.clear());
   await buyer.login(page);
   await page.goto(fixture.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await page.getByRole("tab", { name: /^quotations/i }).click();
-  await expect(page.getByTestId("add-quotation")).toHaveCount(0);
-  await page.getByTestId("quote-next-step").getByRole("button", { name: "Request quotations" }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Quoted', { timeout: 15_000 });
 
   await page.getByRole('tab', { name: /^quotations/i }).click();

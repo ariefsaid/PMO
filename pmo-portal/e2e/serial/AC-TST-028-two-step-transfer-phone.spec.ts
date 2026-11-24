@@ -68,7 +68,7 @@ test('AC-TST-028 AC-WAIT-076 a keeper sends, the receiver counts short on a phon
 
   // The shortfall is recorded: 3 still in transit, 7 at the destination, and it is listed as open.
   await page.goto('/stock/transfers');
-  await expect(page.getByText(/1 shortfall open/)).toBeVisible();
+  await expect(page.locator(`a[href="/stock/transfers/${transferId}"]`).getByText(/1 shortfall open/)).toBeVisible();
   const line = await admin.from('stock_transfer_lines').select('id').eq('transfer_id', transferId).single();
   shortLine = line.data?.id;
   expect(shortLine).toBeTruthy();

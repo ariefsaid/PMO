@@ -52,6 +52,7 @@ const EXPECTED_ORGANIZATION_LINKS = [
   ...ORGANIZATION_SECTIONS.map(({ name }) => name),
   // #2746: Modules front door for an Admin.
   'Modules',
+  'Document types',
   'Your plan',
   // #2529 deliberately adds the org terminology settings.
   'Terminology',
