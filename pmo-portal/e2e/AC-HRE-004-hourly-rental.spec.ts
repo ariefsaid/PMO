@@ -38,7 +38,7 @@ test('AC-HRE-004 AC-HRE-005 Officer disputes an invoice and Finance recovers the
       await page.getByLabel('Broken hours', { exact: true }).nth(i).fill(hours);
     }
     await page.getByRole('button', { name: 'Mark disputed' }).click();
-    await expect(page.getByRole('status')).toHaveText('Disputed');
+    await expect(page.getByRole('status').filter({ hasText: /^Disputed$/ })).toBeVisible();
     const panel = page.getByRole('region', { name: 'Hourly rental' });
     await expect(panel.getByText('160.00', { exact: true })).toBeVisible();
     await expect(panel.getByText('IDR 4,000', { exact: true })).toBeVisible();
@@ -50,7 +50,7 @@ test('AC-HRE-004 AC-HRE-005 Officer disputes an invoice and Finance recovers the
     await page.getByRole('button', { name: 'Rental invoice check', exact: true }).click();
     await page.getByLabel('Rented machine').selectOption(asset);
     await page.getByLabel('Hourly rental', { exact: true }).check();
-    await expect(page.getByRole('alert')).toContainText('Supplier billed the 40 broken hours');
+    await expect(page.getByRole('region', { name: 'Saved rental checks' }).getByRole('alert')).toContainText('Supplier billed the 40 broken hours');
     await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.goto(`/procurement/${purchase}`);

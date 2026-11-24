@@ -6,6 +6,7 @@ import { formatIsoDay, formatInstantDate, formatInstantTime } from '@/src/lib/fo
 export default function RentalCheckHistory({ assetId, procurementId }: { assetId?: string; procurementId?: string }) {
   const { t } = useTranslation('equipment');
   const query = useSavedRentalChecks(assetId, procurementId);
+  if (!assetId && !procurementId) return null;
   if (query.isPending) return <p role="status">{t('hourly.loadingChecks', 'Loading saved rental checks…')}</p>;
   if (query.isError) return <p role="alert">{t('hourly.checksFailed', 'Saved rental checks could not be loaded. Retry before reviewing this invoice.')}</p>;
   if (!query.data?.length) return null;
