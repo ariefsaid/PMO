@@ -49,8 +49,8 @@ insert into incident_reports (id, org_id, incident_date, type, severity, project
 
 
 update work_orders set status='Issued';
-update profiles set role='Project Manager',built_in_role='construction_manager' where id='20410000-0000-0000-0000000000a6';
-insert into work_order_closeout_items(id,org_id,work_order_id,project_id,position,name,required,started_on) values('20410000-0000-0000-0000-000000009001','20410000-0000-0000-0000-00000000000a','20410000-0000-0000-000000000031','20410000-0000-0000-0000-0000000000c1',1,'Physical completion',true,current_date);
+update profiles set role='Project Manager',built_in_role='construction_manager' where id='20410000-0000-0000-0000-0000000000a6';
+insert into work_order_closeout_items(id,org_id,work_order_id,project_id,position,name,required,started_on) values('20410000-0000-0000-0000-000000009001','20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-000000000031','20410000-0000-0000-0000-0000000000c1',1,'Physical completion',true,current_date);
 insert into project_documents(id,org_id,project_id,category,title,status,author_id,file_path) values('20410000-0000-0000-0000-000000009002','20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-0000000000c1','Acceptance','Completion proof','Approved','20410000-0000-0000-0000-0000000000a1','proof.pdf');
 select set_config('request.jwt.claims','{"sub":"20410000-0000-0000-0000-0000000000a1","role":"authenticated"}',true);set local role authenticated;
 select lives_ok($$select assign_closeout_item_owner('20410000-0000-0000-0000-000000009001','construction_manager')$$,'AC-SITE-012 Admin names the item owner');

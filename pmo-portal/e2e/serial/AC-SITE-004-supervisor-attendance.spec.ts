@@ -7,7 +7,7 @@ test('AC-SITE-004 a supervisor sees attendance saved by the separate foreman', a
  const run = crypto.randomUUID(); const email = `site-${run}@example.invalid`; const password = `${run}-Aa1!`;
  const created = await db.auth.admin.createUser({ email, password, email_confirm: true }); if(created.error || !created.data.user) throw new Error(created.error?.message ?? 'User not created'); const user = created.data.user;
  const setting = must('setting', await db.from('organizations').select('crew_loans_enabled').eq('id', ORG_ID).single());
- const crews: string[] = []; let project = ''; let wo = ''; let worker = '';
+ const extraWorkers: string[] = []; const crews: string[] = []; let project = ''; let wo = ''; let worker = '';
  try {
   must('profile', await db.from('profiles').insert({ id:user.id, org_id:ORG_ID, email, full_name:'Site supervisor', role:'Engineer', built_in_role:'site_supervisor' }).select('id').single());
   must('enable loans', await db.from('organizations').update({crew_loans_enabled:true}).eq('id',ORG_ID).select('id').single());
@@ -20,12 +20,19 @@ test('AC-SITE-004 a supervisor sees attendance saved by the separate foreman', a
   worker=must('worker',await db.from('people').insert({org_id:ORG_ID,name:`${run} Worker`,kind:'own'}).select('id').single()).id;
   must('placement',await db.from('crew_members').insert({org_id:ORG_ID,crew_id:crews[0],worker_id:worker,valid_from:inDays(-1)}).select('id').single());
   await page.goto('/login'); await page.getByLabel(/email/i).fill(email); await page.getByLabel(/password/i).fill(password); await page.getByRole('button',{name:/sign in/i}).click(); await expect(page).toHaveURL(/\/$/);
-  must('foreman attendance',await db.from('attendance_days').insert({org_id:ORG_ID,worker_id:worker,crew_id:crews[0],work_order_id:wo,work_date:inDays(0),status:'present',hours:8,recorded_by:ENGINEER_ID}).select('id').single());
+  for(let index=2;index<=3;index++) {
+   const id=must('extra person',await db.from('people').insert({org_id:ORG_ID,name:`${run} Person${index}`,kind:'own'}).select('id').single()).id;extraWorkers.push(id);
+   must('extra placement',await db.from('crew_members').insert({org_id:ORG_ID,worker_id:id,crew_id:crews[0],valid_from:inDays(-1)}).select('id').single());
+  }
+  must('foreman attendance',await db.from('attendance_days').insert([worker,...extraWorkers].map((id,index)=>({org_id:ORG_ID,worker_id:id,crew_id:crews[0],work_order_id:wo,work_date:inDays(0),status:index===2?'absent':'present',hours:index===2?null:8,source:'roster_tick',project_id:project,recorded_by:ENGINEER_ID}))).select('id'));
   await page.goto(`/crews?view=attendance&wo=${wo}`);
   await expect(page.getByRole('row',{name:new RegExp(`${run} Worker`)})).toContainText('Present');
+  await expect(page.getByRole('row',{name:new RegExp(`${run} Person2`)})).toContainText('Present');
+  await expect(page.getByRole('row',{name:new RegExp(`${run} Person3`)})).toContainText('Absent');
   await page.reload(); await expect(page.getByRole('row',{name:new RegExp(`${run} Worker`)})).toContainText('Present');
  } finally {
   await db.from('organizations').update({crew_loans_enabled:setting.crew_loans_enabled}).eq('id',ORG_ID);
+  for(const id of extraWorkers){await db.from('attendance_days').delete().eq('worker_id',id);await db.from('crew_members').delete().eq('worker_id',id);await db.from('people').delete().eq('id',id);}
   if(worker) await db.from('attendance_days').delete().eq('worker_id',worker);
   if(worker) { await db.from('crew_loans').delete().eq('worker_id',worker); await db.from('crew_members').delete().eq('worker_id',worker); }
   if(wo) await db.from('work_order_crews').delete().eq('work_order_id',wo);

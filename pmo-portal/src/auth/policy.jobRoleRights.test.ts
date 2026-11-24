@@ -117,3 +117,11 @@ describe('job-role rights (2040–2047)', () => {
     expect(can('create', 'headcount', as('Engineer', null))).toBe(false);
   });
 });
+
+it('AC-SITE-017 supervisor adds issue tasks only when the database scope read permits it',()=>{
+ const record={project_id:'project',status:'Open',mayTaskIssue:true};
+ expect(can('act','incident',as('Engineer','site_supervisor',{record}))).toBe(true);
+ expect(can('act','incident',as('Engineer','site_supervisor',{record:{...record,mayTaskIssue:false}}))).toBe(false);
+ expect(can('act','incident',as('Engineer','quality_inspector',{record}))).toBe(false);
+ expect(can('act','incident',as('Engineer','site_supervisor',{record:{...record,viewOnly:true}}))).toBe(false);
+});

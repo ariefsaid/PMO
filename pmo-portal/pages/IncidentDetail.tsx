@@ -180,7 +180,7 @@ const IncidentDetail: React.FC = () => {
   const taskLines = incident.incident_tasks ?? [];
   const showTaskList = taskLines.length > 0;
   // The form that takes a name, a person and a day is there from the start, not only once a first task exists.
-  const canAddTask = (canMakeTask || supervisorMayTask) && Boolean(incident.project_id) && incident.status !== 'Closed';
+  const canAddTask = may('act', 'incident', {record: {project_id: incident.project_id, status: incident.status, mayTaskIssue: supervisorMayTask, viewOnly: realRole !== effectiveRole}});
 
   const onMakeTask = async () => {
     try {

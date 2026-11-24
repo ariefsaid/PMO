@@ -51,13 +51,13 @@ insert into incident_reports (id, org_id, incident_date, type, severity, project
 update crews set field_controller_id = null;
 update work_orders set responsible_person_id = '20410000-0000-0000-0000-0000000000a4',
  start_date = current_date - 1, end_date = current_date + 1;
-insert into attendance_days(org_id,worker_id,crew_id,work_order_id,work_date,status,hours,recorded_by) values ('20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-000000000051','20410000-0000-0000-0000-000000000041','20410000-0000-0000-0000-000000000031',current_date,'present',8,'20410000-0000-0000-0000-0000000000a7');
+insert into attendance_days(org_id,worker_id,crew_id,work_order_id,work_date,status,hours,source,project_id,recorded_by) values ('20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-000000000051','20410000-0000-0000-0000-000000000041','20410000-0000-0000-0000-000000000031',current_date,'present',8,'roster_tick','20410000-0000-0000-0000-0000000000c1','20410000-0000-0000-0000-0000000000a7');
 select set_config('request.jwt.claims', '{"sub":"20410000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
 set local role authenticated;
 select is((select count(*) from attendance_days),1::bigint,'AC-SITE-004 supervisor reads attendance recorded by foreman');
 select ok(actor_may_lend_workers('20410000-0000-0000-0000-000000000041',current_date,current_date), 'AC-SITE-006 supervisor lends from a roster with a separate controller');
 select ok(actor_may_task_issue('20410000-0000-0000-0000-000000000031'), 'AC-SITE-017 assigned supervisor may task');
-select lives_ok($$insert into crew_loans(worker_id,home_crew_id,host_crew_id,valid_from,valid_to) values('20410000-0000-0000-0000-000000000051','20410000-0000-0000-000000000041','20410000-0000-0000-0000-000000000042',current_date,current_date)$$,'AC-SITE-006 supervisor records the loan');
+select lives_ok($$insert into crew_loans(worker_id,home_crew_id,host_crew_id,valid_from,valid_to) values('20410000-0000-0000-0000-000000000051','20410000-0000-0000-0000-000000000041','20410000-0000-0000-0000-000000000042',current_date,current_date)$$,'AC-SITE-006 supervisor records the loan');
 select is((select created_by from crew_loans limit 1),'20410000-0000-0000-0000-0000000000a4'::uuid,'AC-SITE-006 loan retains its author');
 select ok(not supervisor_may_lend_crew(gen_random_uuid()),'AC-SITE-006 unknown or foreign crew refused');
 reset role;

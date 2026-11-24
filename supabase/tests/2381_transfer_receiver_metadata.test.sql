@@ -47,7 +47,7 @@ insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values
 update profiles set built_in_role='field_user' where id in ('26920000-0000-0000-0000-0000000000a3','26920000-0000-0000-0000-0000000000a4');
 insert into stock_transfers(id,org_id,number,from_warehouse_id,to_warehouse_id,transit_warehouse_id,to_user_id,sent_by)
 values('26920000-0000-0000-0000-000000009001','26920000-0000-0000-0000-00000000000a','METADATA','26920000-0000-0000-0000-000000002001','26920000-0000-0000-0000-000000002002','26920000-0000-0000-0000-000000002003','26920000-0000-0000-0000-0000000000a3','26920000-0000-0000-0000-0000000000a2');
-insert into stock_transfer_lines(org_id,transfer_id,line_no,item_id,qty_sent) values('26920000-0000-0000-0000-00000000000a','26920000-0000-0000-000000009001',1,'26920000-0000-0000-000000001003',10);
+insert into stock_transfer_lines(org_id,transfer_id,line_no,item_id,qty_sent) values('26920000-0000-0000-0000-00000000000a','26920000-0000-0000-0000-000000009001',1,'26920000-0000-0000-0000-000000001003',10);
 select set_config('request.jwt.claims','{"sub":"26920000-0000-0000-0000-0000000000a3","role":"authenticated"}',true);
 set local role authenticated;
 select is((select item_name from stock_transfer_receiving_items('26920000-0000-0000-0000-000000009001')),'Checked valve','AC-SITE-009 field recipient reads goods identity');

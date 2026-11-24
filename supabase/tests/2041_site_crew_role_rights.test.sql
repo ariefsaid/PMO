@@ -38,7 +38,8 @@ insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values
   ('20410000-0000-0000-0000-00000000000a', '20410000-0000-0000-0000-000000002001', '20410000-0000-0000-0000-0000000000a6');
 insert into crews (id, org_id, code, name, field_controller_id) values
   ('20410000-0000-0000-0000-000000000041', '20410000-0000-0000-0000-00000000000a', 'CA', 'Crew A', '20410000-0000-0000-0000-0000000000a4'),
-  ('20410000-0000-0000-0000-000000000042', '20410000-0000-0000-0000-00000000000a', 'CB', 'Crew B', '20410000-0000-0000-0000-0000000000a4');
+  ('20410000-0000-0000-0000-000000000042', '20410000-0000-0000-0000-00000000000a', 'CB', 'Crew B', null),
+  ('20410000-0000-0000-0000-000000000043', '20410000-0000-0000-0000-00000000000a', 'CH', 'Loan host', '20410000-0000-0000-0000-0000000000a4');
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
   ('20410000-0000-0000-0000-00000000000a', '20410000-0000-0000-0000-000000000031', '20410000-0000-0000-0000-000000000041', current_date - 10),
   ('20410000-0000-0000-0000-00000000000a', '20410000-0000-0000-0000-000000000032', '20410000-0000-0000-0000-000000000042', current_date - 10);
@@ -72,7 +73,7 @@ create function pg_temp.tool(p_name text, p_crew text default '41') returns text
 create function pg_temp.loan(p_days int) returns text language sql as $$
   select format('insert into crew_loans (worker_id, home_crew_id, host_crew_id, valid_from, valid_to) values (%L, %L, %L, current_date, current_date + %s)',
                 '20410000-0000-0000-0000-000000000051', '20410000-0000-0000-0000-000000000041',
-                '20410000-0000-0000-0000-000000000042', p_days) $$;
+                '20410000-0000-0000-0000-000000000043', p_days) $$;
 
 -- ── crew tools ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 select is(pg_temp.err('a2', pg_temp.tool('Grinder')), 'ok', 'RR-CR-01 the Storekeeper of the crew''s site store adds a tool line');
