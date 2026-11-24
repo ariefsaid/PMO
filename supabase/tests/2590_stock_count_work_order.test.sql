@@ -302,8 +302,7 @@ select pg_temp.act_as('25900000-0000-0000-0000-0000000000a3');
 select throws_ok($$select save_stock_draft(current_setting('tst.rollback_draft')::uuid,'{}','[]')$$,
  '42501','only the author edits a draft','AC-SCW-007 another same-org user cannot edit the count');
 reset role;
-\ir ../migrations/rollback/2591_stock_count_cost_records_down.sql
-\ir ../migrations/rollback/2590_stock_count_work_order_down.sql
+\ir 2590_stock_count_rollback.inc
 select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
 select is((select count(*) from work_order_cost_lines where record_id=current_setting('tst.gain')::uuid),0::bigint,'AC-SCW-008 rollback restores prior count-record behavior');
 select is((select sum(amount) from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1')),100::numeric,'AC-SCW-008 rollback retains issue cost and excludes count cost');
