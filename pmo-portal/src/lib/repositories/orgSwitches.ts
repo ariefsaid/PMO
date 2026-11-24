@@ -14,6 +14,7 @@ import { builtInRolesRepository } from './builtInRoles';
 import { disciplineProfitRepository } from './disciplineProfit';
 import { safetyDayRepository } from './safetyDays';
 import { stockWorkOrderTransferRepository } from './stockWorkOrderTransfer';
+import { billingStagesRepository } from './billingStages';
 
 // ponytail: a literal until database.types.ts is regenerated (typed-client ticket); then derive it from the organizations Row.
 type OrgColumn =
@@ -42,6 +43,7 @@ export const ORG_SWITCHES = {
   disciplineProfit: { source: { read: disciplineProfitRepository.isEnabled, write: disciplineProfitRepository.setEnabled }, module: 'moduleBillingExtras', manage: 'orgAccounting', writers: ['Admin'] },
   safetyRecords: { source: { read: safetyDayRepository.isEnabled, write: safetyDayRepository.setEnabled }, module: 'moduleSiteDay', manage: 'safetyLists', writers: ['Admin'], refreshes: ['safety-days'] },
   stockWoTransfers: { source: { read: stockWorkOrderTransferRepository.enabled, write: stockWorkOrderTransferRepository.setEnabled }, module: 'moduleStock', pmoStockOnly: true, manage: 'warehouse', writers: ['Admin'] },
+  workOrderChecklist: { source: { read: billingStagesRepository.workOrderChecklistEnabled, write: billingStagesRepository.setWorkOrderChecklistEnabled }, manage: 'orgAccounting', writers: ['Admin'] },
   // The five modules (#2746): UI only, one check per module; no database guard reads them.
   modulePeopleCrews: { source: { column: 'module_people_crews' }, manage: 'orgAccounting', writers: ['Admin'] },
   moduleSiteDay: { source: { column: 'module_site_day' }, manage: 'orgAccounting', writers: ['Admin'] },

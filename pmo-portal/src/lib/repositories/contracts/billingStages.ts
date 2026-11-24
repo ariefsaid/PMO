@@ -61,6 +61,11 @@ export interface BillingStagesRepository {
   completeWorkOrderStep(stepId: string, doneOn: string): Promise<void>;
   skipWorkOrderStep(stepId: string): Promise<void>;
   assignWorkOrderStep(stepId: string, personId: string | null): Promise<void>;
+  /** Adds a step to one work order's own checklist after the given position (null = database-resolved end); migration 2181. */
+  addWorkOrderStep(workOrderId: string, afterPosition: number | null, step: StepInput): Promise<string>;
+  saveWorkOrderChecklistAsTemplate(workOrderId: string, name: string): Promise<string>;
+  workOrderChecklistEnabled(): Promise<boolean>;
+  setWorkOrderChecklistEnabled(enabled: boolean): Promise<void>;
   attachWorkOrderStepDocument(stepId: string, slotId: string | null, documentId: string): Promise<void>;
   defaultStepTemplateId(): Promise<string | null>;
   setDefaultStepTemplate(templateId: string | null): Promise<void>;

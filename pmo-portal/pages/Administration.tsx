@@ -55,6 +55,7 @@ import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgAttendanceTimeRoles from './admin/OrgAttendanceTimeRoles';
 import OrgModules from './admin/OrgModules';
 import { ModuleGate } from '@/src/components/admin/ModuleGate';
+import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
 import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
 import SafetyLists from './admin/SafetyLists';
@@ -281,6 +282,7 @@ const SelectedAdministrationPanel: React.FC<{
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
 }> = ({ section, orgId, isOperator, label }) => {
+  const { t } = useTranslation('billingSteps');
   switch (section) {
     case 'users':
       return (
@@ -336,6 +338,11 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgDownPaymentItem />
             <OrgClaimOverCap />
             <OrgProcurementGates />
+            <div id="work-order-checklist" className="scroll-mt-4">
+              <OrgSwitchSetting setting="workOrderChecklist"
+                label={t('billingSteps:settings.workOrderChecklist.label', 'Edit issued work-order checklists')}
+                helper={t('billingSteps:settings.workOrderChecklist.helper', 'When on, billing-step runners can add steps to issued work orders, and Finance or an Admin can save a checklist as a template for new work orders.')} />
+            </div>
             <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /><OrderJobRolesSection /></ModuleGate>
             <OrgThreeWayMatch />
             <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>

@@ -14428,6 +14428,7 @@ export type Database = {
           stock_transfer_mode: string
           stock_wo_transfers: boolean
           tax_prepaid_account: string | null
+          work_order_checklist_enabled: boolean
         }
         Insert: {
           attendance_backdate_days?: number
@@ -14494,6 +14495,7 @@ export type Database = {
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_order_checklist_enabled?: boolean
         }
         Update: {
           attendance_backdate_days?: number
@@ -14560,6 +14562,7 @@ export type Database = {
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_order_checklist_enabled?: boolean
         }
         Relationships: [
           {
@@ -29224,6 +29227,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_work_order_step: {
+        Args: { p_after_position: number | null; p_step: Json; p_work_order: string }
+        Returns: string
+      }
       add_task_to_incident: {
         Args: {
           p_assignee?: string
@@ -37190,9 +37197,17 @@ export type Database = {
         Args: { p_enabled: boolean }
         Returns: boolean
       }
+      set_org_work_order_checklist_edit: {
+        Args: { p_enabled: boolean }
+        Returns: boolean
+      }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number }
         Returns: number
+      }
+      save_work_order_steps_as_template: {
+        Args: { p_name: string; p_work_order: string }
+        Returns: string
       }
       set_payment_channel_settings: {
         Args: { p_enabled: boolean }

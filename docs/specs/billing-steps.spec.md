@@ -64,6 +64,9 @@ names can act on their own steps. A role the organisation names does not see a s
 - **FR-WBS-010** Setting the default template, editing owner role key and hidden-from roles on a template step are Admin/Finance (settings),
   with English and Bahasa Indonesia refusals; a disabled control says why.
 - **FR-WBS-011** Nothing of one customer's process is in code: step names, days, roles and hidden-from lists are template data.
+- **FR-WBS-012** (wo-checklist-edit.spec.md, migration 2180) While the work order is Issued, a person who may run billing steps may add a
+  step to that work order's own list; Finance or an Admin may save the list as it stands as a new template. Requirements and acceptance:
+  `FR-WCE-001..005`, `AC-WCE-001..005`.
 
 ## 2a. How the two layers combine (approved)
 A step is READ by a person when, in order: (1) they are the step's named person (always); else (2) their built-in role is not in the step's
