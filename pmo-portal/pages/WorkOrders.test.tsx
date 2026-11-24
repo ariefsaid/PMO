@@ -1,19 +1,27 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { ImpersonationProvider } from '@/src/auth/impersonation';
+import type { Role } from '@/src/auth/AuthContext';
+import { renderWithQueryClient } from '@/test/renderWithQueryClient';
 import type { DashboardRow } from '@/src/lib/workOrderDashboard';
 
 /** #2805: the work-order dashboard lists every work order with its figures; filters narrow it; a row opens the work order. */
 const h = vi.hoisted(() => ({
   exportXlsx: vi.fn(),
+  revenue: false,
   state: {
     rows: [] as unknown[], isPending: false, isError: false, refetch: () => undefined, figuresPending: false, figuresError: false,
     retryFigures: () => undefined, canBilling: true, costState: 'shown' as string, disciplines: [] as unknown[],
   },
 }));
 vi.mock('@/src/hooks/useWorkOrderDashboard', () => ({ COST_PROJECT_CAP: 6, useWorkOrderDashboard: () => h.state }));
+vi.mock('@/src/hooks/useOrgFeatures', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/hooks/useOrgFeatures')>(),
+  useOrgFeatures: () => ({ data: { revenue: h.revenue } }),
+}));
 
 vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx: h.exportXlsx, busy: false }) }));
 
@@ -24,14 +32,30 @@ const row = (over: Partial<DashboardRow>): DashboardRow => ({
   disciplineIds: [], progress: 40, billing: { currency: 'USD', invoiced: 1000, orderNet: 5000, complete: true },
   cost: { currency: 'USD', direct: '900.00', plan: '800.00' }, openSteps: 0, late: 0, ...over,
 });
-const renderPage = (path = '/work-orders') => render(<MemoryRouter initialEntries={[path]}><WorkOrders /></MemoryRouter>);
+const renderPage = (path = '/work-orders', role: Role = 'Engineer') => renderWithQueryClient(
+  <ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[path]}><WorkOrders /></MemoryRouter></ImpersonationProvider>,
+);
 const rowFor = (label: string) => screen.getByRole('row', { name: new RegExp(label) });
 
 beforeEach(() => {
+  h.revenue = false;
   h.state = { ...h.state, rows: [], isPending: false, isError: false, canBilling: true, costState: 'shown', disciplines: [], figuresError: false };
 });
 
 describe('Work orders dashboard', () => {
+  it('offers work in hand only to a finance reader when revenue is enabled', () => {
+    h.revenue = true;
+    const page = renderPage('/work-orders', 'Finance');
+    expect(screen.getByRole('link', { name: 'Work in hand' })).toHaveAttribute('href', '/finance/work-in-hand');
+    page.unmount();
+    renderPage('/work-orders', 'Engineer');
+    expect(screen.queryByRole('link', { name: 'Work in hand' })).toBeNull();
+  });
+
+  it('does not offer work in hand when revenue is disabled', () => {
+    renderPage('/work-orders', 'Finance');
+    expect(screen.queryByRole('link', { name: 'Work in hand' })).toBeNull();
+  });
   it('PC20 exports the listed work orders to Excel with the columns shown', async () => {
     h.state = { ...h.state, rows: [row({}), row({ id: 'w2', wo_number: 'WO-2', title: 'Fencing' })] };
     renderPage();
