@@ -1,11 +1,4 @@
--- 2241_work_order_plan_vs_actual.test.sql — #2519 (docs/specs/work-order-plan-vs-actual.spec.md).
--- Migrations under test: 0997_work_order_plan_lines.sql, 0998_project_shared_cost_splits.sql, 0999_work_order_cost_amounts.sql.
--- AC-WPVA-001 plan figures: Engineer refused, Finance saves with one audit row · AC-WPVA-002 another org, another project,
--- an archived discipline, a cancelled work order are refused · AC-WPVA-003 a work order's actuals come from its source rows ·
--- AC-WPVA-004 direct cost per work order and the shared pool · AC-WPVA-006 a split not summing to 100 is refused ·
--- AC-WPVA-009 a role that cannot read the money is refused (the screens show "restricted") · AC-WPVA-012 the project
--- total is every counted line once, unchanged by attribution · AC-WPVA-015 a Project Manager cannot set a split.
--- Every denial asserts the errcode AND the message.
+-- Stock cutover date sequence (AC-ISC-006); fixture writes are privileged, assertions use authenticated readers.
 begin;
 create extension if not exists pgtap;
 select no_plan();
