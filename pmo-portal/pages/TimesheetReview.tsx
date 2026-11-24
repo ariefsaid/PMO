@@ -290,7 +290,13 @@ const ReviewSheetItem: React.FC<{
   const weekDates = useMemo(() => datesInWeek(localDayFromIso(sheet.week_start_date)), [sheet.week_start_date]);
   const gridDays = useMemo(() => gridDaysForWeek(weekDates), [weekDates]);
   const gridRows = useMemo(
-    () => entriesToGridRows(visibleEntries, weekDates, t('timesheets:approvalQueue.unknownProject', 'Unknown Project')),
+    () =>
+      entriesToGridRows(
+        visibleEntries,
+        weekDates,
+        t('timesheets:approvalQueue.unknownProject', 'Unknown Project'),
+        { groupByWorkOrder: true },
+      ),
     [visibleEntries, weekDates, t],
   );
 
