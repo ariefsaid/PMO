@@ -49,9 +49,9 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('26000000-0000-0000-0000-0000000000e1', '26000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-0000000000c1', 'QC-01', 'Piping weld', 'm', 100, 1000);
 
-insert into work_orders (id, org_id, project_id, wo_number, title, status, order_value, currency, issued_at) values
-  ('26000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-0000000000c1', 'WO-WQE-1', 'Work order 1', 'Issued', 50000, 'IDR', now()),
-  ('26000000-0000-0000-0000-000000000012', '26000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-0000000000c1', 'WO-WQE-2', 'Work order 2', 'Issued', 50000, 'IDR', now());
+insert into work_orders (id, org_id, project_id, wo_number, title, status, order_value, currency, issued_at, tax_treatment, tax_amount) values
+  ('26000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-0000000000c1', 'WO-WQE-1', 'Work order 1', 'Issued', 50000, 'IDR', now(), 'exclusive', 0),
+  ('26000000-0000-0000-0000-000000000012', '26000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-0000000000c1', 'WO-WQE-2', 'Work order 2', 'Issued', 50000, 'IDR', now(), 'exclusive', 0);
 
 insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values
   ('26000000-0000-0000-0000-000000000001', '26000000-0000-0000-0000-000000000011', '26000000-0000-0000-0000-0000000000e1', 50),
