@@ -484,7 +484,7 @@ const Administration: React.FC = () => {
   // AdministrationEntryRedirect) — a section-less render here is otherwise unreachable, so it
   // falls through to the same destination logic below without a competing redirect copy.
   if (!section) {
-    return <Navigate to={isFinance ? '/administration/exchange-rates' : '/administration/users'} replace />;
+    return <Navigate to={isFinance ? '/administration/exchange-rates' : isAdminViewer ? '/administration/users' : '/administration/people'} replace />;
   }
 
   return (

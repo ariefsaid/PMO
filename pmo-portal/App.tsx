@@ -429,7 +429,10 @@ const AdministrationEntryRedirect: React.FC = () => {
       ? '/administration/projects#org-project-number-pattern'
       : role === 'Finance'
         ? '/administration/exchange-rates'
-        : '/administration/users';
+        // Walk G9: only Admin and Executive manage users; every other role's Administration is the people register (the rail's own target).
+        : role === 'Admin' || role === 'Executive'
+          ? '/administration/users'
+          : '/administration/people';
   return <Navigate to={target} replace />;
 };
 

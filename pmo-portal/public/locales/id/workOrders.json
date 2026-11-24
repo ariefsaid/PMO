@@ -377,6 +377,25 @@
     "openRow": "Buka {{label}}",
     "costTooMany": "Biaya langsung tampil untuk paling banyak {{count}} proyek. Pilih proyek.",
     "figuresError": "Sebagian angka gagal dimuat.",
-    "searchShort": "Cari"
+    "searchShort": "Cari",
+    "workInHand": "Pekerjaan dalam tangan"
+  },
+  "pageIndex": {
+    "label": "Bagian work order ini",
+    "scope": "Lokasi dan lingkup",
+    "cost": "Biaya dan rencana",
+    "material": "Material",
+    "billing": "Penagihan",
+    "inspections": "Inspeksi",
+    "closeout": "Penutupan",
+    "documents": "Dokumen dan keselamatan",
+    "issues": "Masalah dan tugas"
+  },
+  "crewsToday": {
+    "title": "Regu hari ini",
+    "open": "Buka jadwal kru",
+    "loadError": "Regu hari ini tidak dapat dimuat",
+    "none": "Tidak ada regu terjadwal hari ini",
+    "people_other": "{{count}} orang"
   }
 }

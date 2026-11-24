@@ -377,6 +377,26 @@
     "openRow": "Open {{label}}",
     "costTooMany": "Direct cost shows for up to {{count}} projects. Choose a project.",
     "figuresError": "Some figures couldn't load.",
-    "searchShort": "Search"
+    "searchShort": "Search",
+    "workInHand": "Work in hand"
+  },
+  "pageIndex": {
+    "label": "Sections of this work order",
+    "scope": "Site and scope",
+    "cost": "Cost and plan",
+    "material": "Material",
+    "billing": "Billing",
+    "inspections": "Inspections",
+    "closeout": "Close-out",
+    "documents": "Documents and safety",
+    "issues": "Issues and tasks"
+  },
+  "crewsToday": {
+    "title": "Crews today",
+    "open": "Open crew roster",
+    "loadError": "Couldn't load today's crews",
+    "none": "No crew rostered today",
+    "people_one": "{{count}} person",
+    "people_other": "{{count}} people"
   }
 }
