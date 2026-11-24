@@ -153,6 +153,26 @@ begin
        and not exists (select 1 from jsonb_array_elements(p_steps) x where x ? 'template_step_id') then
       raise exception 'WBS_EVIDENCE_MARK: reopen the template before editing its marked steps' using errcode = '42501';
     end if;
+    -- A designation belongs to the named step and its document requirements, not
+    -- merely to a caller-supplied UUID. Finance may reorder it, but may not
+    -- remove it or change what that designation means.
+    if v_role <> 'Admin' and exists (
+      select 1 from public.billing_step_template_steps marked
+       where marked.template_id = v_id and marked.org_id = v_org and marked.claim_evidence_enabled
+         and not exists (
+           select 1 from jsonb_array_elements(p_steps) candidate
+            where candidate ->> 'template_step_id' = marked.id::text
+              and btrim(coalesce(candidate ->> 'name', '')) = marked.name
+              and (select coalesce(jsonb_agg(jsonb_build_object('name', d.name, 'required', d.required) order by d.position), '[]'::jsonb)
+                     from public.billing_step_template_documents d where d.step_id = marked.id)
+                  = (select coalesce(jsonb_agg(jsonb_build_object('name', btrim(coalesce(doc ->> 'name', '')),
+                            'required', coalesce((doc ->> 'required')::boolean, true)) order by ord), '[]'::jsonb)
+                       from jsonb_array_elements(case when jsonb_typeof(candidate -> 'documents') = 'array'
+                          then candidate -> 'documents' else '[]'::jsonb end) with ordinality as docs(doc, ord))
+         )
+    ) then
+      raise exception 'WBS_EVIDENCE_MARK: only an Admin can remove or repurpose a designated step' using errcode = '42501';
+    end if;
     update public.billing_step_templates set name = v_name where id = v_id;
     delete from public.billing_step_template_steps where template_id = v_id;
   end if;
