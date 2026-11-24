@@ -4161,3 +4161,6 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   (DD-R1124-1). Reason: the role's job is to oversee buying across projects, so it must see every case and not only those of the projects
   it manages. Not a setting: it follows the job role.
 
+
+- **DD-R1124-17 A Quantity Surveyor reads the priced progress of one validated daily site report in their organisation.** An Admin can turn this report-only read off in Administration; its default is on. The frozen quantity × contract rate keeps its meaning. Cost, work-order revenue totals, other revenue reads and all writes keep their existing gates.
+- **DD-R1124-18 Equipment plan approval and rental purchase creation remain one operation.** Procurement orders the resulting purchases through the existing purchase approval and ordering path; the Buyer gains no plan approval or author impersonation right. Self-approval rules remain unchanged.
