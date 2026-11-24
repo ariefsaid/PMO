@@ -50,12 +50,10 @@ test.afterEach(async () => {
 test('AC-EPS-006 Buyer submits the equipment officer’s two generated rental purchases for normal approval', async ({ page }) => {
   await buyer.signIn(page);
   for (const purchase of purchases) {
-    await page.goto('/procurement');
-    await page.getByRole('link', { name: purchase.title, exact: true }).click();
+    await page.goto('/procurement?view=table');
+    await page.getByRole('button', { name: `Open ${purchase.title}`, exact: true }).click();
+    await page.getByRole('link', { name: 'Open full page', exact: true }).click();
     await page.getByRole('button', { name: 'Submit for approval', exact: true }).click();
-    const confirm = page.getByRole('dialog');
-    await expect(confirm).toBeVisible();
-    await confirm.getByRole('button', { name: /submit/i }).click();
     await expect.poll(async () => need('submitted purchase', await db.from('procurements').select('status,requested_by_id').eq('id', purchase.id).single())).toEqual({ status: 'Requested', requested_by_id: officer.id });
     await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
   }
