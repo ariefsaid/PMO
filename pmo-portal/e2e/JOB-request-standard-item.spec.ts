@@ -13,7 +13,7 @@ test('AC-PSI-001 requester chooses a standard item and saves its identity on a d
   let itemId = '';
   let requestId = '';
   try {
-    unitId = need('unit', await admin.from('stock_units').insert({ org_id: ORG_ID, code: run, name: run }).select('id').single()).id;
+    unitId = need('unit', await admin.from('stock_units').insert({ org_id: ORG_ID, code: `U${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`, name: run }).select('id').single()).id;
     itemId = need('item', await admin.from('stock_items').insert({ org_id: ORG_ID, code: run, name: `${run} bolts`, unit_id: unitId }).select('id').single()).id;
     await requester.signIn(page);
     await page.goto('/procurement/new?have=need');
