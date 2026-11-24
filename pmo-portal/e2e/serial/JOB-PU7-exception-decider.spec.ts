@@ -23,7 +23,7 @@ test('JOB-PU7 Finance Officer sees who approved the invoice exception and why', 
     await officer.login(page);
     await page.goto(purchase.url);
     await page.getByRole('tab', { name: /^Files/ }).click();
-    const bill = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'VI', exact: true }) });
+    const bill = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Invoice', exact: true }) });
     await bill.getByRole('button', { name: /Row actions/ }).click();
     await page.getByRole('menuitem', { name: 'Three-way match', exact: true }).click();
     const decision = page.getByTestId('bill-match-exception');

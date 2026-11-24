@@ -388,11 +388,16 @@ const ProcurementDetails: React.FC = () => {
   // A person the database lets order purchases (actor_may_order_purchases, the same gate the record read uses) opens any purchase
   // of the organisation; money stays behind the access-level views below.
   const namedApprover = p.status === 'Requested' && Boolean(currentUser?.id && p.approvalRoute?.approvers.some((a) => a.id === currentUser.id));
-  const recordInScope = namedApprover || mayOrderByRole || (role === 'Engineer'
+  const ordinaryRecordScope = namedApprover || mayOrderByRole || (role === 'Engineer'
     ? raisedByMe
     : role === 'Project Manager'
       ? raisedByMe || Boolean(p.project_id && p.project != null && managerId === currentUser?.id)
       : true);
+  // A recorded decision remains readable after routing stops attaching Requested-only approvers.
+  const decidedByMe = Boolean(currentUser?.id && (p.approved_by_id === currentUser.id
+    || p.statusEvents.some((event) => event.actor_id === currentUser.id && event.from_status === 'Requested' && ['Approved', 'Rejected'].includes(event.to_status))));
+  const readOnlyDecision = decidedByMe && !ordinaryRecordScope;
+  const recordInScope = ordinaryRecordScope || decidedByMe;
   const inspectionOnly = mayReadAllCases && !recordInScope;
   if (!recordInScope && !inspectionOnly) {
     return <>
@@ -411,7 +416,7 @@ const ProcurementDetails: React.FC = () => {
       ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
       : null;
   const hasValue = purchaseHasValue(p);
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue, mayOrderByRole));
+  const actions = readOnlyDecision ? [] : sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue, mayOrderByRole));
   const actionFor = (to: ProcurementStatus) => actions.find((action) => action.to === to);
   const stateMain = stateMainAction(p.status, actions, t);
   const transitionMainAction = stateMain?.transition;
@@ -481,16 +486,16 @@ const ProcurementDetails: React.FC = () => {
   // procurements and only to an authorized requester or an Admin. No archive/delete — Cancel is a lifecycle
   // transition in the action zone. RLS remains the enforcement authority.
   const canEditHeader =
-    (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
+    !readOnlyDecision && ((isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement'));
   // #2698: the payment channel (shown only where the org switched it on). Requester or Admin while Draft/Rejected (the header
   // rule), or Finance/Admin until Paid or Cancelled. UX only: set_procurement_payment_channel (1356) is the authority.
-  const canSetPaymentChannel = may('setPaymentChannel', 'procurement', {
+  const canSetPaymentChannel = !readOnlyDecision && (may('setPaymentChannel', 'procurement', {
     record: { status: p.status, requested_by_id: p.requested_by_id, viewOnly: realRole !== effectiveRole },
     currentUserId: currentUser?.id,
-  });
+  }));
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
-  const canEditItems = ownershipReady && isDraft && (isRequester || may('edit', 'procItem'));
+  const canEditItems = !readOnlyDecision && (ownershipReady && isDraft && (isRequester || may('edit', 'procItem')));
   const casePushInFlight = ownership.mode === 'external' && (
     mutations.pendingPush?.status === 'pushing' || recordMutations.pendingPush?.status === 'pushing'
     || mutations.createQuotation.isPending || mutations.createReceipt.isPending || mutations.createInvoice.isPending
@@ -500,28 +505,28 @@ const ProcurementDetails: React.FC = () => {
   const canEditItemValues = ownership.mode === 'pmo' || (ownership.mode === 'external' && !casePushInFlight && itemEligibility.data === true && !itemEligibility.isError && !itemEligibility.isFetching);
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
   // A person who orders purchases (roles-that-decide) also adds and selects quotes (create_procurement_quotation / select_procurement_quote).
-  const canAddQuote = may('create', 'quotation') || mayOrderByRole;
+  const canAddQuote = !readOnlyDecision && (may('create', 'quotation') || mayOrderByRole);
   const canSelectQuote = canAddQuote && p.status === 'Vendor Quoted';
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
-  const canManageFiles = may('create', 'procFile');
+  const canManageFiles = !readOnlyDecision && (may('create', 'procFile'));
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
-  const canRecordEfaktur = may('record_efaktur', 'procurementInvoice');
+  const canRecordEfaktur = !readOnlyDecision && (may('record_efaktur', 'procurementInvoice'));
   // #1671: voiding a mistyped subcontract bill is offered only while PMO owns procurement (no ERP); the
   // void_subcontract_bill RPC is the authority for role, author separation and the ERP boundary.
   // Hidden while the organisation has an active external binding (or that is not yet known): the server always refuses there.
-  const canVoidBill = ownership.mode === 'pmo' && ownership.orgBound === false && may('void', 'procurementInvoice');
-  const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
+  const canVoidBill = !readOnlyDecision && (ownership.mode === 'pmo' && ownership.orgBound === false && may('void', 'procurementInvoice'));
+  const canWriteWithholdingSlip = !readOnlyDecision && (may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } }));
   // 0002_rls.sql defines procurements_update for Admin, Executive, Project Manager, and Finance;
   // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
-  const canSetVendorAsManager = !p.vendor_id
+  const canSetVendorAsManager = !readOnlyDecision && (!p.vendor_id
     && effectiveRole === realRole
     && realRole != null
     && ['Admin', 'Executive', 'Project Manager', 'Finance'].includes(realRole)
-    && may('edit', 'procurement');
+    && may('edit', 'procurement'));
   // A person who orders purchases names the supplier of an approved purchase (set_procurement_supplier); amounts stay closed.
   const canSetVendorAsBuyer = !canSetVendorAsManager && !p.vendor_id && mayOrderByRole && p.status === 'Approved';
   const canSetVendor = canSetVendorAsManager || canSetVendorAsBuyer;
-  const canLinkAccounting = role === 'Admin' || role === 'Finance';
+  const canLinkAccounting = !readOnlyDecision && (role === 'Admin' || role === 'Finance');
   const currentUserId = currentUser?.id ?? null;
 
 
@@ -533,7 +538,7 @@ const ProcurementDetails: React.FC = () => {
   // 0349: where payment is blocked because the billed amount exceeds the approved amount, an eligible
   // approver (the Approve role set, never the requester) may approve the higher amount. UX only — the
   // server decides eligibility from the approval route and refuses the quote selector / bill recorder.
-  const canApproveAmount = canApproveReject(role) && !isRequester;
+  const canApproveAmount = !readOnlyDecision && (canApproveReject(role) && !isRequester);
   const currentAmountApproval = canApproveAmount && !detailQuery.isPending && !detailQuery.isFetching && !detailQuery.isError && p.paymentEligibility === 'allowed';
   const approveHigherAmount = async (amount: number) => {
     if (!currentAmountApproval) return;
@@ -580,14 +585,14 @@ const ProcurementDetails: React.FC = () => {
   // AC-AUTHZ: mirror the Ordered→Received transition authority from the RPC — requester OR PM,
   // plus Admin break-glass. Finance and Executive are NOT in the GR-creation role set (0018).
   const canShowGRForm =
-    (p.status === 'Ordered' || p.status === 'Received') &&
-    (isRequester || RECEIPT_ROLES.has(role));
+    !readOnlyDecision && ((p.status === 'Ordered' || p.status === 'Received') &&
+    (isRequester || RECEIPT_ROLES.has(role)));
   // O3 (review): the after-form is now the RECOVERY surface — it shows only when the PR is at
   // Vendor Invoiced but NO invoice record exists yet (e.g. the inline capture's transition
   // succeeded but the invoice-create failed). On the happy path the inline capture already created
   // the VI, so `p.invoices.length > 0` hides this form — no redundant second-create.
   const canShowVIForm =
-    p.status === 'Vendor Invoiced' && (p.invoices?.length ?? 0) === 0 && INVOICE_PAY_ROLES.has(role);
+    !readOnlyDecision && (p.status === 'Vendor Invoiced' && (p.invoices?.length ?? 0) === 0 && INVOICE_PAY_ROLES.has(role));
 
   // Rule 13 (one-type): the record title is the only heavy text in the header — the sub-line's
   // project and supplier links render regular weight (the meta wrapper forces `[&_a]:font-normal`
@@ -610,7 +615,7 @@ const ProcurementDetails: React.FC = () => {
   const procTabs = procurementTabs(p, t, documentsCount, ledgerRows);
   // AC-IXD-PROC-005: a closed procurement (Paid, Cancelled, Rejected) takes no new documents — same rule as the Files-tab capture row.
   const isClosed = p.status === 'Paid' || p.status === 'Cancelled' || p.status === 'Rejected';
-  const recordKinds = isClosed ? [] : recordableFirstKinds({
+  const recordKinds = isClosed || readOnlyDecision ? [] : recordableFirstKinds({
     canSource: canSource(role),
     canReceive: isRequester || RECEIPT_ROLES.has(role),
     canInvoicePay: INVOICE_PAY_ROLES.has(role),
@@ -867,7 +872,7 @@ const ProcurementDetails: React.FC = () => {
           without purchase types renders exactly what it did before. */}
       {p.purchase_type_id && (
         <div className="mb-3">
-          <RentalPanel procurementId={p.id} title={p.title} status={p.status} purchaseTypeId={p.purchase_type_id}
+          <RentalPanel readOnly={readOnlyDecision} procurementId={p.id} title={p.title} status={p.status} purchaseTypeId={p.purchase_type_id}
             rentalFrom={p.rental_from} rentalTo={p.rental_to} extendsId={p.extends_procurement_id}
             lines={(p.items ?? []).map((i) => ({ id: i.id, name: i.name, description: i.description ?? null, quantity: Number(i.quantity), rate: Number(i.rate) }))} />
         </div>
@@ -904,8 +909,7 @@ const ProcurementDetails: React.FC = () => {
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
-        {tab === 'items' && <><ProcurementItemsTab p={p} stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><OrderNeededByPanel procurementId={p.id} items={p.items} editable={['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager'} /></>}
-
+        {tab === 'items' && <><ProcurementItemsTab readOnly={readOnlyDecision} p={p} stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><OrderNeededByPanel procurementId={p.id} items={p.items} editable={!readOnlyDecision && ['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={!readOnlyDecision && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /></>}
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
@@ -938,7 +942,7 @@ const ProcurementDetails: React.FC = () => {
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
               onWithholdingHistory={withholding.openHistory}
               isApprover={isApprover}
-              firstDocumentKinds={recordableFirstKinds({
+              firstDocumentKinds={readOnlyDecision ? [] : recordableFirstKinds({
                 canSource: canSource(role),
                 canReceive: isRequester || RECEIPT_ROLES.has(role),
                 canInvoicePay: INVOICE_PAY_ROLES.has(role),
@@ -1081,7 +1085,7 @@ const ProcurementDetails: React.FC = () => {
       {withholding.historyInvoiceId && <VendorWithholdingSlipHistory invoiceId={withholding.historyInvoiceId} onClose={withholding.closeHistory} onView={(id) => { withholding.dismissHistory(); setBupotSelection(id); }} />}
       {bupotId && <VendorWithholdingSlipDetails
         slipId={bupotId}
-        canWrite={may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
+        canWrite={!readOnlyDecision && may('edit', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } })}
         onClose={() => setBupotSelection(null)}
         suppressArrivalFocus={Boolean(targetInvoiceId)}
         onOpenProcurement={(id, slipId, invoiceId) => {

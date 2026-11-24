@@ -20,6 +20,7 @@ import { VendorQuotesTab } from './VendorQuotesTab';
  *  permission facts, and report back through the page's own mutation-error handler. */
 
 export interface ItemsTabProps {
+  readOnly?: boolean;
   p: ProcurementDetail;
   stockItems?: StockItemOption[];
   ownership: ReturnType<typeof useDomainOwnershipMode>;
@@ -35,7 +36,7 @@ export interface ItemsTabProps {
   managerId: string | null | undefined;
 }
 
-export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ p, stockItems, ownership, ownershipReady, casePushInFlight, canEditItems, canEditItemValues, itemEligibility, erpItems, crud, onMutationError, currentUserId, managerId }) => {
+export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ readOnly = false, p, stockItems, ownership, ownershipReady, casePushInFlight, canEditItems, canEditItemValues, itemEligibility, erpItems, crud, onMutationError, currentUserId, managerId }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   return (
@@ -67,6 +68,7 @@ export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ p, stockItems, ow
     />
     {p.is_subcontract && p.project_id && p.purchase_orders[0] && (
       <SubcontractLinesSection
+        readOnly={readOnly}
         poId={p.purchase_orders[0].id}
         procurementId={p.id}
         projectId={p.project_id}
