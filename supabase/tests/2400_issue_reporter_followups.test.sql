@@ -62,8 +62,10 @@ set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a5","r
 select throws_ok($$select public.add_task_to_incident('26770000-0000-0000-0000-000000000a01','Unrelated')$$,'42501',null,'JOB-PC17 same-level non-author refuses task');
 select is((select count(*) from tasks where name='Reporter followup' and assignee_id=auth.uid()),1::bigint,'JOB-PC17 assigned task appears in normal task read');
 reset role;
+select set_config('request.jwt.claims','{}',true);
 update incident_reports set assignee_id=null, reported_by=null where id='26770000-0000-0000-0000-000000000a03';
 set local role authenticated;
+set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok($$select public.add_task_to_incident('26770000-0000-0000-0000-000000000a03','Imported')$$,'42501',null,'JOB-PC17 an imported issue gives no reporter authority');
 update incident_reports set root_cause='Unrelated' where id='26770000-0000-0000-0000-000000000a03';
 select is((select root_cause from incident_reports where id='26770000-0000-0000-0000-000000000a03'),null,'JOB-PC17 same-level non-author cannot save root cause');
