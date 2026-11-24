@@ -375,6 +375,9 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectClassificationOptions />
             <SiteReportLists />
             <DailyReportValidateRoles />
+            <OrgSwitchSetting setting="qsReportRevenue"
+              label={t('siteReport:revenue.qsAccess', 'Quantity Surveyors see validated daily report revenue')}
+              helper={t('siteReport:revenue.qsAccessHelp', 'Shows frozen rates and amounts for one validated report. Other revenue and cost permissions stay unchanged.')} />
             <OrgIssueTypes />
             <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
             <NonWorkingDatesCard />

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(12);
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('15220000-0000-0000-0000-0000000000a1', 'DSR Org A', 'USD', 'UTC', true),
   ('15220000-0000-0000-0000-0000000000a2', 'DSR Org B', 'USD', 'UTC', true);
@@ -59,7 +59,8 @@ select lives_ok($$select * from dsr_report_revenue('25700000-0000-0000-0000-0000
 select is((select sum(amount) from dsr_report_revenue('25700000-0000-0000-0000-000000000001')),50::numeric,'AC-QSR-002 frozen quantity times rate');
 select is(dsr_may_see_revenue('15220000-0000-0000-0000-0000000000c1'),false,'AC-QSR-003 general revenue stays refused');
 select throws_ok($$select work_order_validated_revenue('15220000-0000-0000-0000-0000000000e1')$$,'42501',null,'AC-QSR-003 WO total stays refused');
-select throws_ok($$update organizations set qs_report_revenue_enabled=false$$,'42501',null,'AC-QSR-004 QS cannot change setting');
+update organizations set qs_report_revenue_enabled=false;
+select is((select qs_report_revenue_enabled from organizations limit 1),true,'AC-QSR-004 QS cannot change setting');
 reset role;
 update daily_site_reports set status='submitted',validated_by=null,validated_at=null where id='25700000-0000-0000-0000-000000000001';
 set local role authenticated;
@@ -73,5 +74,20 @@ set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b5","r
 select throws_ok($$select * from dsr_report_revenue('25700000-0000-0000-0000-000000000001')$$,'P0002',null,'AC-QSR-003 foreign report absent');
 reset role;
 select ok(has_function_privilege('authenticated','public.dsr_report_revenue(uuid)','EXECUTE'),'AC-QSR-002 authenticated execute grant');
+update profiles set role='Admin' where id='15220000-0000-0000-0000-0000000000b3';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+update organizations set qs_report_revenue_enabled=true;
+select is((select qs_report_revenue_enabled from organizations limit 1),true,'AC-QSR-004 Admin restores read setting');
+reset role;
+update profiles set status='inactive' where id='15220000-0000-0000-0000-0000000000b1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$select * from dsr_report_revenue('25700000-0000-0000-0000-000000000001')$$,'42501',null,'AC-QSR-003 inactive member refused');
+reset role;
+update profiles set status='active',built_in_role='field_user' where id='15220000-0000-0000-0000-0000000000b1';
+set local role authenticated;
+select throws_ok($$select * from dsr_report_revenue('25700000-0000-0000-0000-000000000001')$$,'42501',null,'AC-QSR-003 field account refused');
+reset role;
 select * from finish();
 rollback;

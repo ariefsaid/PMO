@@ -36,6 +36,7 @@ import { SiteReportWho } from './SiteReportWho';
 import { SiteCheckpoints } from './SiteCheckpoints';
 import SiteReportPeopleHours from './SiteReportPeopleHours';
 import { SiteReportStock } from './SiteReportStock';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useDsrStockSettings } from '@/src/hooks/useDsrStockIssue';
 
 type Dialog = 'return' | 'correct' | null;
@@ -74,13 +75,15 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const { report } = detail;
   const sections = useWorkOrderSectionRollup(report.work_order_id);
   const project = useProject(report.project_id).data ?? null;
-  const ctx = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
+  const qsReportRevenue = useOrgSwitch('qsReportRevenue').data === true;
+  const ctx = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { status: report.status, qs_report_revenue_enabled: qsReportRevenue, author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
   const editable = (report.status === 'draft' || report.status === 'returned')
     && (report.author_id === userId || can('create', 'dailySiteReport', ctx));
   const mayWithdraw = report.status === 'submitted' && report.author_id === userId;
   const mayValidate = report.status === 'submitted' && can('approve', 'dailySiteReport', ctx);
   const mayCorrect = report.status === 'validated' && !report.superseded_at && can('revise', 'dailySiteReport', ctx);
   const seeRevenue = can('view', 'dailySiteReportRevenue', ctx);
+  const seeWorkOrderRevenue = can('view', 'dailySiteReportRevenue', { ...ctx, record: { ...ctx.record, qs_report_revenue_enabled: false } });
 
   // fix-waiting item 3: who the submitted report waits for, from the server's own route. The route is
   // SECURITY INVOKER over the existing report/project/profile policies and binds ONE visible Submitted
@@ -114,7 +117,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const lookups = useDsrLookups(report.work_order_id, report.id);
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
   const revenue = useDailySiteReportRevenue(report.id, seeRevenue);
-  const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeRevenue);
+  const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeWorkOrderRevenue);
   const m = useDailySiteReportMutations();
   const stockOn = useDsrStockSettings().data?.enabled === true;
 
@@ -213,7 +216,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
         }
         stats={seeRevenue ? [
           { label: t('revenue.day', 'Day revenue'), value: <span data-testid="dsr-total">{money(lineRevenue.total)}</span> },
-          ...(woRevenue.data !== undefined && detail.workOrder ? [{ label: t('revenue.toDate', 'Validated to date'), value: `${money(woRevenue.data)} / ${money(detail.workOrder.orderValue)}` }] : []),
+          ...(seeWorkOrderRevenue && woRevenue.data !== undefined && detail.workOrder ? [{ label: t('revenue.toDate', 'Validated to date'), value: `${money(woRevenue.data)} / ${money(detail.workOrder.orderValue)}` }] : []),
         ] : undefined}
         actions={narrow ? undefined : (
           <div className="flex flex-wrap gap-2">

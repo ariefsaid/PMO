@@ -524,7 +524,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     revise: (role, ctx) => ctx.record?.viewOnly !== true && dsrValidator(role, ctx),
   },
   // 2046: the Project Control Manager reads revenue on every project of its organisation (dsr_may_see_revenue); it writes none.
-  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) || holds(ctx, 'project_control_manager') },
+  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) || holds(ctx, 'project_control_manager') || (holds(ctx, 'quantity_surveyor') && ctx.record?.status === 'validated' && ctx.record?.qs_report_revenue_enabled === true) },
   /**
    * Daily safety records (#2596, 1410-1414). UX ONLY. Mirrors safety_may_enter: Admin, Engineer, or the project's own PM
    * enter, submit and correct; every active member reads counts; worker names and photos follow OD-DSF-6
