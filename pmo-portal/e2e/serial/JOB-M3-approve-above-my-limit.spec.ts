@@ -3,17 +3,18 @@
 // while a within-budget request on the same project never appears in their list.
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { signIn } from '../helpers';
 import { need, ok, ORG_ID, PM_ID, runId, serviceClient } from '../support/jobFixtures';
+import { roleJobUser } from '../support/roleJobUser';
 
 test.describe.configure({ retries: 0 });
 test.setTimeout(120_000);
 
 const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4'; // the buyer
 const FINANCE_ID = '00000000-0000-0000-0000-0000000000a3'; // the project's named approver
-const EXEC_ID = '00000000-0000-0000-0000-0000000000a1';    // the director
 
+type Actor = Awaited<ReturnType<typeof roleJobUser>>;
 let admin: SupabaseClient;
+let director: Actor | undefined;
 let projectId = ''; let procIds: string[] = []; let seniorRowId = '';
 
 test.afterEach(async () => {
@@ -29,18 +30,20 @@ test.afterEach(async () => {
     await admin.from('budget_versions').delete().eq('project_id', projectId);
     await admin.from('projects').delete().eq('id', projectId);
   }
-  projectId = ''; procIds = []; seniorRowId = '';
+  await director?.cleanup();
+  projectId = ''; procIds = []; seniorRowId = ''; director = undefined;
 });
 
 test('JOB-M3 the director approves the over-budget request from Approvals; the within-budget one never reaches them', async ({ page }) => {
   admin = serviceClient('JOB-M3');
   const run = runId('JOBM3');
+  director = await roleJobUser(admin, 'executive', run);
   projectId = need('project', await admin.from('projects').insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
   const version = need('version', await admin.from('budget_versions').insert({ org_id: ORG_ID, project_id: projectId, name: run, version: 1, status: 'Draft' }).select('id').single());
   ok('line', await admin.from('budget_line_items').insert({ org_id: ORG_ID, budget_version_id: version.id, category: 'Materials', budgeted_amount: 1_000_000 }));
   ok('activate', await admin.from('budget_versions').update({ status: 'Active' }).eq('id', version.id));
   ok('project approver', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: projectId, profile_id: FINANCE_ID }));
-  seniorRowId = need('senior set', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: null, profile_id: EXEC_ID }).select('id').single()).id;
+  seniorRowId = need('senior set', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: null, profile_id: director.id }).select('id').single()).id;
   // The seed org is ERP-ledger-backed, so PMO Paid rows are not this route's recorded-spend source.
   // Add this project to the current generation with a known Materials actual. Reusing the generation
   // preserves the seed projects' ledger rows while the journey runs.
@@ -56,7 +59,7 @@ test('JOB-M3 the director approves the over-budget request from Approvals; the w
   const within = `${run} within budget`; const over = `${run} over budget`;
   procIds = [await mk(within, 400_000), await mk(over, 1_500_000)];
 
-  await signIn(page, 'exec@acme.test');
+  await director.signIn(page);
   await page.goto('/approvals?scope=procurement');
   const queue = page.getByTestId('approvals-queue-region');
   const overRow = queue.locator('button[aria-pressed]').filter({ hasText: over });
