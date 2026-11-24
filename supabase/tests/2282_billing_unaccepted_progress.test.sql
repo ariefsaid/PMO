@@ -39,10 +39,10 @@ insert into progress_assessment_quantities (org_id, entry_id, boq_item_id, quant
   ('22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000f1', '22820000-0000-0000-0000-0000000000d3', 2),
   ('22820000-0000-0000-0000-0000000000a2', '22820000-0000-0000-0000-0000000000f2', '22820000-0000-0000-0000-0000000000d4', 99);
 insert into work_order_acceptances (id, org_id, project_id, work_order_id, acceptance_date, is_final, status, prepared_by, confirmed_by, confirmed_at, confirm_basis) values
-  ('22820000-0000-0000-0000-0000000000g1', '22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000c1', '22820000-0000-0000-0000-0000000000e1', current_date, false, 'Confirmed', '22820000-0000-0000-0000-0000000000b1', '22820000-0000-0000-0000-0000000000b1', now(), 'standard');
+  ('22820000-0000-0000-0000-0000000000f3', '22820000-0000-0000-0000-0000000000a1', '22820000-0000-0000-0000-0000000000c1', '22820000-0000-0000-0000-0000000000e1', current_date, false, 'Confirmed', '22820000-0000-0000-0000-0000000000b1', '22820000-0000-0000-0000-0000000000b1', now(), 'standard');
 insert into work_order_acceptance_lines (acceptance_id, boq_item_id, quantity) values
-  ('22820000-0000-0000-0000-0000000000g1', '22820000-0000-0000-0000-0000000000d1', 4),
-  ('22820000-0000-0000-0000-0000000000g1', '22820000-0000-0000-0000-0000000000d2', 4);
+  ('22820000-0000-0000-0000-0000000000f3', '22820000-0000-0000-0000-0000000000d1', 4),
+  ('22820000-0000-0000-0000-0000000000f3', '22820000-0000-0000-0000-0000000000d2', 4);
 
 select has_function('public', 'billing_unaccepted_progress', ARRAY['uuid'], 'AC-MV-004 progress read exists');
 select is((select prosecdef from pg_proc where oid = 'public.billing_unaccepted_progress(uuid)'::regprocedure), false, 'AC-MV-004 read remains security invoker');
