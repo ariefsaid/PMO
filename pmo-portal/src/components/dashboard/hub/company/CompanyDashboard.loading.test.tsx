@@ -156,6 +156,8 @@ it('AC-MV-007 keeps the new portfolio hidden and its project reads disabled unti
   expect(screen.queryByTestId('project-portfolio-table')).toBeNull();
   expect(h.projectListEnabled).toBe(false);
   expect(h.portfolioIds).toEqual([[], []]);
+  expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
+  expect(within(screen.getByTestId('project-health')).getByRole('link', { name: /River project/ })).toBeInTheDocument();
 });
 
 it('AC-MV-001 shows the cold empty portfolio instead of a skeleton when disabled empty-ID queries are pending', () => {

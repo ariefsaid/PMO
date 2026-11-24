@@ -192,7 +192,7 @@ const BillingPlan: React.FC = () => {
 
       {query.isPending && <ListState variant="loading" shape="cards" rows={3} />}
       {query.isError && <ListState variant="error" onRetry={() => { void query.refetch(); }} title={t('billingPlan.error', 'The billing plan could not be loaded')} />}
-      {query.isSuccess && unacceptedQuery.isSuccess && rows.length === 0 && unacceptedRows.length === 0 && (
+      {query.isSuccess && rows.length === 0 && (!managementViewsEnabled || (unacceptedQuery.isSuccess && unacceptedRows.length === 0)) && (
         <ListState variant="empty" title={t('billingPlan.empty', 'No candidates to show')} sub={t('billingPlan.emptySub', 'Work appears here once it is accepted and not yet claimed.')} />
       )}
       {query.isSuccess && query.data.truncated && (

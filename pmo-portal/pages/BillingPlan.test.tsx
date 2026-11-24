@@ -115,6 +115,16 @@ describe('BillingPlan', () => {
     expect(state.unacceptedEnabled.every((enabled) => enabled === false)).toBe(true);
   });
 
+  it('AC-MV-007 preserves the existing empty candidates state while management views are off', () => {
+    state.managementViews = false;
+    setRows([]);
+    setUnacceptedRows([]);
+    renderPlan();
+    expect(screen.getByText('No candidates to show')).toBeInTheDocument();
+    expect(screen.queryByTestId('billing-plan-unaccepted-group')).toBeNull();
+    expect(state.unacceptedEnabled.every((enabled) => enabled === false)).toBe(true);
+  });
+
   it('AC-MBP-010 other-currency picks are listed apart and not counted', () => {
     setRows([line({ key: 'a', value: 100, currency: 'USD' })]);
     renderPlan();
