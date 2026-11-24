@@ -1,8 +1,8 @@
-// @e2e-isolation: self-isolated — owns its HR Officer login, person and medical document type; removes only its own records.
+// @e2e-isolation: serial — required clearance items affect every person in the organisation; removes its items and owned fixtures in finally.
 import { test, expect } from '@playwright/test';
-import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
-import { roleJobUser } from './support/roleJobUser';
-import { userClient } from './support/stockFixture';
+import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
+import { roleJobUser } from '../support/roleJobUser';
+import { userClient } from '../support/stockFixture';
 
 test('AC-HRM-001 HR Officer records a person’s medical clearance and expiry on their record', async ({ page }) => {
   const svc = serviceClient('AC-HRM-001');
