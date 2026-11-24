@@ -1,6 +1,6 @@
 -- drops: actor_may_lend_workers wraps its existing scope in a field-account CASE; actor_may_task_incident, supervisor_loan_crews and supervisor_may_lend_crew retain their queries inside PL/pgSQL with explicit account checks; run_document_expiry_warnings sends all medical notices owner-only and keeps document links only for their authorized recipients.
 -- Compose site reads, account paths and recipient delivery.
-alter policy supervisor_attendance_read on public.attendance_days using (public.is_active_member() and org_id=(select public.auth_org_id()) and public.actor_holds_job_role('site_supervisor') and public.actor_may_task_issue(work_order_id)); -- mut:site_attendance_member
+alter policy supervisor_attendance_read on public.attendance_days using ((select public.is_active_member()) and org_id=(select public.auth_org_id()) and public.actor_holds_job_role('site_supervisor') and public.actor_may_task_issue(work_order_id)); -- mut:site_attendance_member
 
 create or replace function public.supervisor_may_lend_crew(p_crew uuid) returns boolean
 language plpgsql stable security definer set search_path=public,pg_temp as $$
