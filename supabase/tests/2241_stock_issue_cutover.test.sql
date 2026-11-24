@@ -130,19 +130,21 @@ select '25190000-0000-0000-0000-000000000824',org_id,'25190000-0000-0000-0000-00
 insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
 select org_id,'25190000-0000-0000-0000-000000000810','25190000-0000-0000-0000-000000000824',item_id,warehouse_id,'receive',99.9,999,99.9,999,'2026-11-15',posted_by from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
 set local session_replication_role=origin;
+create temp table cutover_stock_remainder as select sum(value_delta) as amount from stock_ledger where org_id='25190000-0000-0000-0000-00000000000a';
+grant select on cutover_stock_remainder to authenticated;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
 select is(purchase_costs_as_stock('25190000-0000-0000-0000-000000000604'),true,'AC-ISC-006 later billed receipt uses stock basis');
 select is(set_stock_issue_cost_date('2026-11-16'),'2026-11-16'::date,'AC-ISC-006 later billing permits same cutover');
-select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric-1100+969,999::numeric,'AC-ISC-006 partial project cost plus stock equals bill');
-select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and reason='counted')+969,999::numeric,'AC-ISC-006 partial work order cost plus stock equals bill');
+select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric-1100+(select amount from cutover_stock_remainder),999::numeric,'AC-ISC-006 partial project cost plus stock equals bill');
+select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and reason='counted')+(select amount from cutover_stock_remainder),999::numeric,'AC-ISC-006 partial work order cost plus stock equals bill');
 reset role;
 set local session_replication_role=replica;
 update stock_ledger set qty_delta=-99.9,value_delta=-999,qty_after=0,value_after=0 where line_id='25190000-0000-0000-0000-000000000821';
 set local session_replication_role=origin;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
-select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric-1100,999::numeric,'AC-ISC-006 fully issued project cost equals bill');
+select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric-1100+(select amount from cutover_stock_remainder),999::numeric,'AC-ISC-006 fully issued project cost equals bill');
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and reason='counted' and work_order_id='25190000-0000-0000-0000-000000000401'),999::numeric,'AC-ISC-006 fully issued work order cost equals bill');
 reset role;
 create temp table cutover_function_backup as select pg_get_functiondef('public.purchase_costs_as_stock(uuid)'::regprocedure) as body;
