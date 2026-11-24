@@ -73,7 +73,9 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
     await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 });
     await page.goto('/finance/opening-balances');
     await expect(page.getByRole('heading', { name: 'Opening balances' })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId('ob-total-stock')).toContainText('12');
+    await expect(page.getByTestId('ob-total-stock')).toContainText('1 location');
+    await expect(page.getByTestId('ob-total-certified')).toContainText('1 work order');
+    await expect(page.getByTestId('ob-total-claimed')).toBeVisible();
     const orderCard = page.getByRole('region', { name: new RegExp(wo.wo_number) });
     await expect(orderCard).toContainText(`OPN-${run.slice(-5)}`, { timeout: 20_000 });
     await expect(orderCard).toContainText('40');

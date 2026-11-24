@@ -72,8 +72,9 @@ test('JOB-PC8 a project control manager raises, revises and submits a quantity c
     await expect(page.getByTestId('qcr-line').first()).toContainText('Contract quantity 100');
     await expect(page.getByTestId('qcr-line').first()).toContainText('Requested 130');
     const history = page.getByRole('region', { name: 'History' });
-    await expect(history).toContainText('Edit', { timeout: 20_000 });
-    await expect(history).toContainText('Submit', { timeout: 20_000 });
+    await expect(history).toContainText('Raised', { timeout: 20_000 });
+    await expect(history).toContainText('Edited', { timeout: 20_000 });
+    await expect(history).toContainText('Submitted for approval', { timeout: 20_000 });
 
     // 2. The project manager raises the next two requests on the same work order.
     await pm.signIn(page);
