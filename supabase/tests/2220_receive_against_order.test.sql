@@ -44,6 +44,7 @@ reset role;
 select pg_temp.actor(11);
 set local role authenticated;
 select throws_ok($$select map_order_stock(pg_temp.rid(30),pg_temp.rid(60))$$,'42501',null,'AC-RGO-002 receiver cannot set or alter mapping');
+select throws_ok($$select set_order_receiving_enabled(false)$$,'42501',null,'AC-RGO-001 receiver cannot change organisation receiving settings');
 select is((select count(*)::int from procurement_items where procurement_id=pg_temp.rid(20)),0,'AC-RGO-004 raw ordered lines hidden even on own request');
 select is((select count(*)::int from procurement_items_masked where procurement_id=pg_temp.rid(20)),0,'AC-RGO-004 masked ordered lines hidden');
 select is((select count(*)::int from procurement_items where procurement_id=pg_temp.rid(22)),1,'AC-RGO-004 keeper retains own draft request authoring');
@@ -179,6 +180,14 @@ select ok(pg_temp.mutation('public.map_order_stock(uuid,uuid)',
  'i.id = p_item and i.org_id = v_org','i.id = p_item',
  $$select not pg_temp.allowed(13,'select map_order_stock(pg_temp.rid(31),pg_temp.rid(61))')$$),
  'AC-RGO-011 mutation: removing mapping tenancy makes the owning refusal oracle fail');
+select ok(pg_temp.mutation('public.set_order_receiving_enabled(boolean)',
+ $$if public.auth_role() is distinct from 'Admin' then$$,'if false then',
+ $$select not pg_temp.allowed(11,'select set_order_receiving_enabled(false)')$$),
+ 'AC-RGO-001 mutation: removing Admin authority fails the setting refusal oracle');
+select ok(pg_temp.mutation('public.guard_order_receiving_setting()',
+ $q$raise exception 'RGO_EXTERNAL: Receiving against an order requires PMO to own purchasing and inventory. Continue receiving in your accounting system.' using errcode = '23514';$q$,'null;',
+ $$select not pg_temp.allowed(13,'select set_order_receiving_enabled(true)')$$),
+ 'AC-RGO-001 mutation: removing ownership guard fails the ERP enablement refusal oracle');
 select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
  'round(v_item.rate * v_fx,4)','round(0 * v_fx,4)',
  $$select pg_temp.cost_oracle()$$),'AC-RGO-005 mutation: ignoring order price fails the stock value oracle');
