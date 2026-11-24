@@ -53,7 +53,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }, { id: 'pj2', name: 'EQU P2', short_name: null, project_manager_id: 'u-other' }] }),
 }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useLatestStatusDays: () => ({ data: h.latest }) }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-12', title: 'Pile cap', status: 'Active' }], isLoading: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-12', title: 'Pile cap', status: 'Active' }, { id: 'wo2', wo_number: 'WO-13', title: 'Frame', status: 'Active' }], isLoading: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'd1', code: 'CIV', name: 'Civil' }] }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Engineer' }, { id: 'u-pm', full_name: 'Reviewer' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org1' } }) }));
@@ -570,6 +570,47 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     h.entries = [{ ...entry({}), work_order_id: 'wo1', discipline_id: 'd1' }];
     renderPage();
     expect(screen.getByTestId('row-attribution')).toHaveTextContent('Work order WO-12 · Discipline Civil');
+  });
+
+  it('AC-EQU-SPLIT names the work order and discipline on approval rows and both decision confirmations', async () => {
+    h.userId = 'u-pm';
+    h.entries = [
+      { ...entry({ id: 'first', status: 'Submitted' }), work_order_id: 'wo1', discipline_id: 'd1' },
+      { ...entry({ id: 'second', status: 'Submitted' }), work_order_id: 'wo2', discipline_id: 'd1' },
+    ];
+    const user = userEvent.setup();
+    renderPage('Project Manager', '/equipment/usage?tab=approvals');
+    const rows = screen.getAllByRole('row').filter((row) => within(row).queryByText('EQU P1'));
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText('Work order WO-12 · Discipline Civil')).toBeVisible();
+    expect(within(rows[1]).getByText('Work order WO-13 · Discipline Civil')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /Approve Loader 1.*WO-12.*Civil/ }));
+    let dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Work order WO-12 · Discipline Civil');
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(h.transition).toHaveBeenCalledWith({ id: 'first', to: 'Approved' }));
+    await user.click(screen.getByRole('button', { name: /Return Loader 1.*WO-13.*Civil/ }));
+    dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Work order WO-13 · Discipline Civil');
+    await user.type(within(dialog).getByRole('textbox'), 'Correct these hours');
+    await user.click(within(dialog).getByRole('button', { name: 'Return' }));
+    await waitFor(() => expect(h.transition).toHaveBeenCalledWith({ id: 'second', to: 'Rejected', notes: 'Correct these hours' }));
+  });
+
+  it('AC-EQU-SPLIT distinguishes day inputs and fuel/trips toggles by work order and discipline', async () => {
+    h.entries = [
+      { ...entry({}), work_order_id: 'wo1', discipline_id: 'd1' },
+      { ...entry({ id: 'second', quantity: 2 }), work_order_id: 'wo2', discipline_id: 'd1' },
+    ];
+    renderPage();
+    expect(screen.getByRole('textbox', { name: /8 Sep.*hours.*WO-12.*Civil/ })).toHaveValue('4');
+    expect(screen.getByRole('textbox', { name: /8 Sep.*hours.*WO-13.*Civil/ })).toHaveValue('2');
+    const firstToggle = screen.getByRole('button', { name: /Fuel and trips.*WO-12.*Civil/ });
+    const secondToggle = screen.getByRole('button', { name: /Fuel and trips.*WO-13.*Civil/ });
+    await userEvent.click(firstToggle);
+    expect(firstToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(secondToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('textbox', { name: /8 Sep.*fuel litres.*WO-12.*Civil/ })).toBeEnabled();
   });
 
   it('AC-EQU-SPLIT keeps two work orders on the same machine-day separate and saves attribution with the hours', async () => {

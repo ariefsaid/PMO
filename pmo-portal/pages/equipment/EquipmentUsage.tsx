@@ -58,7 +58,7 @@ const UsageCell: React.FC<{ label: string; stored: string; disabled: boolean; on
 /** The work order and discipline a row's hours are charged to, shown on the row so a person sees where the hours go. */
 const RowAttribution: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) =>
   attribution.workOrderId || attribution.disciplineId ? <RowAttributionLine projectId={projectId} attribution={attribution} /> : null;
-const RowAttributionLine: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) => {
+function useAttributionLabel(projectId: string, attribution: CostAttribution): string {
   const { t } = useTranslation();
   const workOrders = useProjectWorkOrders(attribution.workOrderId ? projectId : '');
   const disciplines = useCostDisciplines(Boolean(attribution.disciplineId));
@@ -68,8 +68,29 @@ const RowAttributionLine: React.FC<{ projectId: string; attribution: CostAttribu
     attribution.workOrderId ? t('equipment:usage.workOrderLine', 'Work order {{name}}', { name: wo ? (wo.wo_number ?? wo.title) : '…' }) : null,
     attribution.disciplineId ? t('equipment:usage.disciplineLine', 'Discipline {{name}}', { name: discipline?.name ?? '…' }) : null,
   ].filter(Boolean);
-  if (parts.length === 0) return null;
-  return <span className="block text-sm text-muted-foreground" data-testid="row-attribution">{parts.join(' · ')}</span>;
+  return parts.join(' · ');
+}
+const RowAttributionLine: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) => {
+  const label = useAttributionLabel(projectId, attribution);
+  return <span className="block text-sm text-muted-foreground" data-testid="row-attribution">{label}</span>;
+};
+
+type AttributionLabelProps = { projectId: string; attribution: CostAttribution; children: (label: string) => React.ReactNode };
+/** Unattributed rows need no lookup; attributed controls share the row's translated identity. */
+const AttributionLabel: React.FC<AttributionLabelProps> = (props) => props.attribution.workOrderId || props.attribution.disciplineId
+  ? <ResolvedAttributionLabel {...props} /> : props.children('');
+const ResolvedAttributionLabel: React.FC<AttributionLabelProps> = ({ projectId, attribution, children }) => children(useAttributionLabel(projectId, attribution));
+
+const EntryDecisionActions: React.FC<{ entry: EquipmentUsageRow; label: string; onApprove: (choice: NonNullable<Pending>) => void; onReturn: (choice: NonNullable<Pending>) => void }> = ({ entry, label, onApprove, onReturn }) => {
+  const { t } = useTranslation();
+  return <AttributionLabel projectId={entry.project_id} attribution={entryAttribution(entry)}>{(attributionLabel) => {
+    const who = [label, attributionLabel].filter(Boolean).join(' · ');
+    const choice = { id: entry.id, label: who };
+    return <span className="flex gap-1">
+      <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => onReturn(choice)}>{t('equipment:usage.reject', 'Return')}</Button>
+      <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => onApprove(choice)}>{t('equipment:usage.approve', 'Approve')}</Button>
+    </span>;
+  }}</AttributionLabel>;
 };
 
 /** Equipment → Usage: a week grid to log, submit and approve (FR-EQU-071). RPCs enforce; `can()` only hides. */
@@ -287,8 +308,9 @@ const EquipmentUsagePage: React.FC = () => {
         const suffix = r.field === 'quantity' ? unit : r.field === 'fuel_litres' ? t('equipment:usage.fuelUnit', 'fuel litres') : t('equipment:usage.trips', 'Trips').toLowerCase();
         const stored = !entry ? '' : r.field === 'quantity' ? String(Number(entry.quantity)) : entry[r.field] == null ? '' : String(Number(entry[r.field]));
         const locked = !canLog || !isEditable(entry) || d > today || (r.field !== 'quantity' && !entry);
-        return <UsageCell label={`${assetName(r.assetId)} · ${projectName(r.projectId)} · ${dayLabel(d)}, ${suffix}`} stored={stored} disabled={locked}
-          onCommit={(text) => void commit(r, d, text)} />;
+        return <AttributionLabel projectId={r.projectId} attribution={r.attribution}>{(attributionLabel) =>
+          <UsageCell label={[`${assetName(r.assetId)} · ${projectName(r.projectId)} · ${dayLabel(d)}, ${suffix}`, attributionLabel].filter(Boolean).join(' · ')} stored={stored} disabled={locked}
+            onCommit={(text) => void commit(r, d, text)} />}</AttributionLabel>;
       } })),
     { key: 'total', header: t('equipment:usage.columns.total', 'Total'), align: 'num', size: 84,
       cell: (r) => {
@@ -306,11 +328,11 @@ const EquipmentUsagePage: React.FC = () => {
       } },
     { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
-        <Button variant="ghost" size="sm" aria-expanded={opened.has(r.key)}
-          aria-label={t('equipment:usage.fuelTripsToggle', 'Fuel and trips for {{asset}} · {{project}}', { asset: assetName(r.assetId), project: projectName(r.projectId) })}
-          onClick={() => setOpened((st) => { const n = new Set(st); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })}>
-          <Icon name="chev" />
-        </Button>) },
+        <AttributionLabel projectId={r.projectId} attribution={r.attribution}>{(attributionLabel) =>
+          <Button variant="ghost" size="sm" aria-expanded={opened.has(r.key)}
+            aria-label={[t('equipment:usage.fuelTripsToggle', 'Fuel and trips for {{asset}} · {{project}}', { asset: assetName(r.assetId), project: projectName(r.projectId) }), attributionLabel].filter(Boolean).join(' · ')}
+            onClick={() => setOpened((st) => { const n = new Set(st); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })}><Icon name="chev" /></Button>
+        }</AttributionLabel>) },
   ];
 
   const addRow = (confirmed = false) => {
@@ -361,7 +383,7 @@ const EquipmentUsagePage: React.FC = () => {
   };
   const approvalColumns: Column<EquipmentUsageRow>[] = [
     { key: 'date', header: t('equipment:usage.columns.date', 'Date'), kind: 'primary', rowHeader: true, cell: (e) => dayLabel(e.work_date) },
-    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), cell: (e) => projectName(e.project_id) },
+    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), cell: (e) => <>{projectName(e.project_id)}<RowAttribution projectId={e.project_id} attribution={entryAttribution(e)} /></> },
     { key: 'author', header: t('equipment:usage.columns.loggedBy', 'Logged by'), cell: (e) => userName.get(e.author_id) ?? '—' },
     { key: 'qty', header: t('equipment:usage.columns.quantity', 'Quantity'), align: 'num',
       cell: (e) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(Number(e.quantity))} {e.unit}{e.kind === 'standby' ? ` · ${t('equipment:usage.standby', 'standby')}` : ''}</span> },
@@ -371,13 +393,9 @@ const EquipmentUsagePage: React.FC = () => {
       cell: (e) => {
         if (e.author_id === userId) return <span className="text-sm text-muted-foreground">{t('equipment:usage.ownEntry', 'Your own entry')}</span>;
         if (!mayDecide(e)) return <span className="text-sm text-muted-foreground">{t('equipment:usage.notYours', 'Another manager approves this')}</span>;
-        const who = `${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`;
-        return (
-          <span className="flex gap-1">
-            <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => { setDecisionError(null); setRejecting({ id: e.id, label: who }); }}>{t('equipment:usage.reject', 'Return')}</Button>
-            <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => { setDecisionError(null); setApproving({ id: e.id, label: who }); }}>{t('equipment:usage.approve', 'Approve')}</Button>
-          </span>
-        );
+        return <EntryDecisionActions entry={e} label={`${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`}
+          onReturn={(choice) => { setDecisionError(null); setRejecting(choice); }}
+          onApprove={(choice) => { setDecisionError(null); setApproving(choice); }} />;
       } },
   ];
 
