@@ -85,7 +85,7 @@
       },
       "stockTransfers": {
         "name": "Transfer stok dan bukti",
-        "summary": "Memilih transfer satu langkah atau dua langkah dan kapan bukti dilampirkan."
+        "summary": "Memilih transfer satu atau dua langkah, kapan bukti dilampirkan, dan apakah pengeluaran juga perlu serah terima bertanda tangan."
       },
       "stockWoTransfers": {
         "name": "Transfer antar perintah kerja",
@@ -186,6 +186,14 @@
       "stockIssueCost": {
         "name": "Biaya pengeluaran stok",
         "summary": "Menghitung stok yang dikeluarkan sebagai biaya perintah kerja mulai tanggal yang dipilih."
+      },
+      "orderNeededBy": {
+        "name": "Tanggal dibutuhkan pada pesanan",
+        "summary": "Mewajibkan tanggal dibutuhkan sebelum pesanan dikirim ke pemasok."
+      },
+      "setupWorkflows": {
+        "name": "Alur penyiapan",
+        "summary": "Mengaktifkan impor perintah kerja dan ringkasan saldo awal."
       },
       "managementViews": {
         "name": "Tampilan manajemen",

@@ -87,6 +87,13 @@ vi.mock('@/src/hooks/useOrderJobRoles', () => ({
   useOrderJobRolesMutation: () => ({ mutateAsync: async () => [], isPending: false }),
 }));
 
+// 2290: the site-report validator job-role list is read on SiteReports and SiteReportDetail, whose existing suites render without a QueryClient.
+vi.mock('@/src/hooks/useDailyReportValidateRoles', () => ({
+  DAILY_REPORT_VALIDATE_ROLES_KEY: 'daily-report-validate-roles',
+  useDailyReportValidateRoles: () => ({ data: [], isPending: false, isError: false, refetch: () => Promise.resolve() }),
+  useSaveDailyReportValidateRoles: () => ({ mutateAsync: async () => [], isPending: false }),
+}));
+
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({

@@ -9,6 +9,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
+vi.mock('@/src/hooks/useSetupWorkflows', () => ({ useSetupWorkflows: () => ({ enabled: false, isLoading: false, isError: false, isSaving: false, setEnabled: vi.fn(), refetch: vi.fn() }) }));
+
 const w = vi.hoisted(() => ({ list: { entries: [] as unknown[], count: 0 as number | undefined, isPending: false, isError: false, refetch: () => undefined } }));
 vi.mock('@/src/hooks/useWaitingForYou', () => ({ useWaitingForYou: () => w.list }));
 const h = vi.hoisted(() => ({

@@ -31,6 +31,9 @@ export interface DailySiteReportRepository {
   queue(): Promise<DsrQueueRow[]>;
   /** fix-waiting item 3 (FR-WAIT-006): the server-computed validator route of ONE visible Submitted report. */
   validationRoute(reportId: string): Promise<DsrValidationRoute>;
+  /** 2290: built-in job role keys whose holders may validate daily site reports in this organisation. */
+  validateRoles(): Promise<string[]>;
+  setValidateRoles(roles: string[]): Promise<string[]>;
   uploadPhoto(report: Pick<DsrReport, 'id' | 'org_id'>, file: File, kind?: DsrPhoto['kind']): Promise<void>;
   photoUrl(path: string): Promise<string>;
 }

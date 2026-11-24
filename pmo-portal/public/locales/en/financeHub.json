@@ -192,7 +192,8 @@
       "help": "Choose the purchase this supplier bill is for. The next screen shows whether the order and receipt hold the bill.",
       "button": "New vendor bill"
     },
-    "openBills": "Open bills and match"
+    "openBills": "Open bills and match",
+    "openingBalances": "Opening balances"
   },
   "nav": {
     "finance": "Finance",
@@ -310,5 +311,50 @@
     "nothingSent": "{{count}} activated but nothing was sent to ERPNext (no budget lines); add lines and activate a new version to enforce one.",
     "activatedErpPending": "Activated, ERPNext update queued behind an earlier cancellation",
     "erpPushQueued": "{{count}} activated with the ERPNext push queued behind an earlier budget cancellation; it is pushed automatically once that settles."
+  },
+  "openingBalances": {
+    "title": "Opening balances",
+    "setupDisabled": "Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows.",
+    "loading": "Loading opening balances",
+    "error": "Couldn't load opening balances",
+    "retry": "Try again",
+    "empty": "No opening balances are loaded",
+    "help": {
+      "what": "What was loaded when you went live: where each running work order stood and what each stock location held. Nothing here can be changed on this screen.",
+      "how": "Opening balances are loaded and reversed with the pmo command line tool. Check the totals below against your source file."
+    },
+    "loadedLine": "Go-live {{asOf}} · loaded {{loadedAt}} by {{who}}",
+    "unknownUser": "a former member",
+    "item": "Item",
+    "quantity": "Quantity",
+    "value": "Value",
+    "total": "Total",
+    "line": "Contract line",
+    "certified": "Certified quantity",
+    "claimedQuantity": "Claimed quantity",
+    "claimedAmount": "Claimed value",
+    "certifiedValue": "Certified value",
+    "totalsTitle": "Totals to check against your source file",
+    "kind": "What",
+    "count": "Loaded",
+    "totalValue": "Value",
+    "stockTotal": "Stock (value at cost)",
+    "certifiedTotal": "Work orders: certified value",
+    "claimedTotal": "Work orders: already invoiced",
+    "locations_one": "{{count}} location",
+    "locations_other": "{{count}} locations",
+    "orders_one": "{{count}} work order",
+    "orders_other": "{{count}} work orders",
+    "sourceNote": "The totals of the source file are not kept with the load. Compare these with your file. Receivables, payables and site cash floats are not loaded by the command line tool, so none are shown.",
+    "stockHeading": "Stock by location",
+    "ordersHeading": "Running work orders",
+    "back": "Back to Finance"
+  },
+  "setupWorkflows": {
+    "title": "Setup workflows",
+    "label": "Enable setup workflows",
+    "help": "Allow work-order imports and show the opening balances overview for this organisation.",
+    "loading": "Checking setup workflow access",
+    "error": "Could not load or save this setting. Try again."
   }
 }

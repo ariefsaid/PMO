@@ -68,5 +68,32 @@
     "submitted": {
       "detailTo": "{{hours}} hours for {{week}} sent to {{name}} for approval"
     }
+  },
+  "review": {
+    "navLink": "Review timesheets",
+    "title": "Timesheet review",
+    "deniedTitle": "You don't have access to timesheet review",
+    "deniedSub": "Timesheet review is available to the HR Officer and Admin.",
+    "from": "From",
+    "to": "To",
+    "project": "Project",
+    "person": "Person",
+    "allProjects": "All projects",
+    "allPeople": "All people",
+    "clearFilters": "Clear filters",
+    "errorTitle": "Couldn't load timesheets",
+    "errorSub": "Check your connection and try again.",
+    "empty": "No timesheets recorded yet",
+    "filteredEmpty": "No timesheets match these filters",
+    "unknownPerson": "Team member",
+    "hoursTotal": "{{hours}} h",
+    "showEntries": "Show entries",
+    "hideEntries": "Hide entries",
+    "showEntriesFor": "Show entries for {{name}}",
+    "hideEntriesFor": "Hide entries for {{name}}",
+    "pagination": "Timesheet pages",
+    "showingRange": "Showing {{from}}–{{to}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next"
   }
 }

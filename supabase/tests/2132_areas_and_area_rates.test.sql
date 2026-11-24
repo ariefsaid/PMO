@@ -7,7 +7,7 @@
 -- policy boq_item_area_rates_select: drop the dsr_may_see_revenue clause -> 'AC-ARA-007' red.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(19);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('21320000-0000-0000-0000-0000000000a1', 'ARA Org', 'USD', 'UTC'), ('21320000-0000-0000-0000-0000000000a2', 'ARA Other', 'USD', 'UTC');
@@ -78,6 +78,15 @@ insert into dsr_photos (org_id, report_id, kind, file_path)
 update daily_site_reports set author_id = '21320000-0000-0000-0000-0000000000b1' where id = (select v from ids where k = 'north');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21320000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+-- The report area must also govern the submitted queue, alongside the validator-role rules.
+reset role;
+update daily_site_reports set area_id = '21320000-0000-0000-0000-000000000a02' where id = (select v from ids where k = 'north');
+set local role authenticated;
+select is((select total_revenue from public.dsr_validation_queue() where report_id = (select v from ids where k = 'north')), 50::numeric,
+  'AC-ARA-004 the validation queue uses the report area instead of its work order area');
+reset role;
+update daily_site_reports set area_id = null where id = (select v from ids where k = 'north');
+set local role authenticated;
 select lives_ok($$select public.dsr_validate((select v from ids where k = 'north'))$$, 'AC-ARA-006 an eligible user validates');
 reset role;
 select is((select frozen_rate::numeric from dsr_progress_lines where report_id = (select v from ids where k = 'north')), 8.5::numeric, 'AC-ARA-006 the line froze the North rate');

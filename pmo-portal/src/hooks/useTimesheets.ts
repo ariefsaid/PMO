@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns/format';
 import { startOfWeek } from 'date-fns/startOfWeek';
-import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
+import type { TimesheetForReview, TimesheetReviewFilters, TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { repositories } from '@/src/lib/repositories';
 import { addDays } from '@/src/lib/reports/months';
 import { useAuth } from '@/src/auth/useAuth';
@@ -41,6 +41,18 @@ export function useTimesheets(enabled = true, windowWeek?: string, windowWeeks: 
     queryFn: () => (fromWeek
       ? repositories.timesheet.list(userId as string, { fromWeek })
       : repositories.timesheet.list(userId as string)),
+    enabled: enabled && Boolean(orgId && userId),
+  });
+}
+
+/** 1124d-rolescreens: org-scoped read-only timesheet review query (RLS scopes to HR Officer / Admin). */
+export function useTimesheetsForReview(filters?: TimesheetReviewFilters, enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
+  return useQuery<TimesheetForReview[]>({
+    queryKey: ['timesheets', 'review', orgId, userId, filters ?? null],
+    queryFn: () => repositories.timesheet.listForReview(filters),
     enabled: enabled && Boolean(orgId && userId),
   });
 }

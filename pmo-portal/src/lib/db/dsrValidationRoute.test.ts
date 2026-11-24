@@ -37,6 +37,32 @@ describe('FR-WAIT-006 site report validation-route DAL', () => {
     });
   });
 
+  it('AC-DRVR-008 parses assigned validator job roles on job_roles, finance_admin and project_manager routes, and rejects empty job_roles', () => {
+    expect(parseDsrValidationRoute({
+      approvers: [],
+      route_kind: 'job_roles',
+      validate_roles: ['site_supervisor'],
+    })).toEqual({
+      approvers: [],
+      routeKind: 'job_roles',
+      validateRoles: ['site_supervisor'],
+    });
+
+    expect(parseDsrValidationRoute({
+      approvers: [],
+      route_kind: 'finance_admin',
+      validate_roles: ['site_supervisor'],
+    })).toEqual({
+      approvers: [],
+      routeKind: 'finance_admin',
+      validateRoles: ['site_supervisor'],
+    });
+
+    expect(() => parseDsrValidationRoute({ approvers: [], route_kind: 'job_roles' })).toThrow(AppError);
+    expect(() => parseDsrValidationRoute({ approvers: [], route_kind: 'job_roles', validate_roles: [] })).toThrow(AppError);
+    expect(() => parseDsrValidationRoute({ approvers: [], route_kind: 'job_roles', validate_roles: [''] })).toThrow(AppError);
+  });
+
   it('surfaces an RPC error as a code-bearing AppError (the screen can retry)', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'not authorized', code: '42501' } });
 

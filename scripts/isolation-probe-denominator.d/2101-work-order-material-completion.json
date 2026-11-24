@@ -1,0 +1,4 @@
+{
+  "tables": [],
+  "definer_functions": ["get_work_order_material_completion(uuid)"]
+}

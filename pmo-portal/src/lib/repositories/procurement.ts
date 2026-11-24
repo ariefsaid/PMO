@@ -61,6 +61,7 @@ import {
 } from '@/src/lib/db/procurementFiles';
 import { getPurchaseOrderSettings, setPurchaseOrderSettings } from '@/src/lib/db/purchaseOrderSettings';
 import { getMayOrderPurchases, getOrderJobRoles, setOrderJobRoles } from '@/src/lib/db/orderJobRoles';
+import { getPoNeededByRequired, setPoNeededByRequired, getProcurementNeededBy, setProcurementNeededBy } from '@/src/lib/db/procurementNeededBy';
 import { wrap } from './repositoryErrors';
 import { dispatchCreate } from './repositoryDispatch';
 import type { ProcurementFileRepository, ProcurementListOptions, ProcurementRepository } from './contracts/procurement';
@@ -99,6 +100,10 @@ export const procurementRepository: ProcurementRepository = {
   listByProject: (projectId) => wrap(() => listProcurementsByProject(projectId)),
   getProjectCommittedSpend: (projectId) => wrap(() => getProjectCommittedSpend(projectId)),
   getProjectReservedSpend: (projectId) => wrap(() => getProjectReservedSpend(projectId)),
+  getPoNeededByRequired: () => wrap(() => getPoNeededByRequired()),
+  setPoNeededByRequired: (on) => wrap(() => setPoNeededByRequired(on)),
+  getNeededBy: (id) => wrap(() => getProcurementNeededBy(id)),
+  setNeededBy: (id, neededBy, lines) => wrap(() => setProcurementNeededBy(id, neededBy, lines)),
   captureVendorInvoice: (input) => wrap(() => captureVendorInvoice(input)),
   listByVendor: (vendorId) => wrap(() => listProcurementsByVendor(vendorId)),
   get: (id) =>

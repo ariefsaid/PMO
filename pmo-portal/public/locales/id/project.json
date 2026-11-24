@@ -1414,7 +1414,8 @@
         "editOrder": "Ubah pesanan",
         "orderMenuLabel": "Tindakan untuk {{order}}",
         "viewPo": "Lihat PO pelanggan",
-        "cancelGeneric": "Batal"
+        "cancelGeneric": "Batal",
+        "import": "Impor perintah kerja"
       },
       "filter": {
         "orders": "Pesanan",
@@ -1454,7 +1455,8 @@
         "noGroup": "Tanpa grup"
       },
       "areaLabel": "Wilayah",
-      "groupLabel": "Grup"
+      "groupLabel": "Grup",
+      "importLoadFailed": "Tidak dapat membuka impor. Coba lagi."
     },
     "contract": {
       "orders": "Pesanan pelanggan",
