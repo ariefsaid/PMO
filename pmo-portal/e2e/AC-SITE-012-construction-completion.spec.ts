@@ -7,7 +7,7 @@ test('AC-SITE-012 Admin names the CM owner and the CM files proof and confirms p
  const actor=await siteRole('construction_manager','Project Manager');const db=actor.db;const fixture=await siteWorkOrder(db);const must=need('AC-SITE-012');
  try{
   const item=must('item',await db.from('work_order_closeout_items').insert({org_id:ORG_ID,work_order_id:fixture.wo,project_id:fixture.project,position:1,name:'Physical completion',required:true,started_on:inDays(0)}).select('id').single()).id;
-  must('proof',await db.from('project_documents').insert({org_id:ORG_ID,project_id:fixture.project,category:'Acceptance',title:`Proof ${fixture.run}`,status:'Approved',author_id:PM_ID,file_path:`${ORG_ID}/${fixture.project}/${fixture.run}/proof.pdf`}).select('id').single());
+  must('proof',await db.from('project_documents').insert({id:fixture.run,org_id:ORG_ID,project_id:fixture.project,category:'Acceptance',title:`Proof ${fixture.run}`,status:'Approved',author_id:PM_ID,file_path:`${ORG_ID}/${fixture.project}/${fixture.run}/proof.pdf`}).select('id').single());
   await signIn(page,'admin@acme.test');await page.goto(`/work-orders/${fixture.wo}`);
   await page.getByRole('listitem',{name:'Physical completion'}).getByRole('combobox',{name:'Owner job role'}).selectOption('construction_manager');
   await expect.poll(async()=> (await db.from('work_order_closeout_items').select('owner_job_role').eq('id',item).single()).data?.owner_job_role).toBe('construction_manager');

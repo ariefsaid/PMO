@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { serviceClient, need, ORG_ID } from '../support/jobJourney';
 const db=serviceClient('AC-SITE-009'); const must=need('AC-SITE-009');
 test('AC-SITE-009 the field receiver counts nine of ten and records the required quality result', async ({page}) => {
+ await page.setViewportSize({width:390,height:844});
  const run=crypto.randomUUID(); const password=`${run}-Aa1!`; const users:string[]=[];
  const setting=must('setting',await db.from('organizations').select('stock_transfer_mode').eq('id',ORG_ID).single());
  try {
@@ -19,7 +20,7 @@ test('AC-SITE-009 the field receiver counts nine of ten and records the required
   must('opening stock',await sender.rpc('create_stock_document',{p_header:{kind:'receive',warehouse_id:wh[0]},p_lines:[{item_id:item,quantity:10,unit_cost:0}],p_post:true}));
   const transfer=must('send',await sender.rpc('send_stock_transfer',{p_header:{warehouse_id:wh[0],to_warehouse_id:wh[1],to_user_id:users[1]},p_lines:[{item_id:item,quantity:10}],p_client_request_id:crypto.randomUUID()}));
   await page.goto('/login'); await page.getByLabel(/email/i).fill(`receiver-${run}@example.invalid`); await page.getByLabel(/password/i).fill(password); await page.getByRole('button',{name:/sign in/i}).click(); await expect(page).toHaveURL(/\/my$/);
-  await page.goto(`/stock/transfers/${transfer}`); await expect(page.getByText(`Goods ${run}`,{exact:false})).toBeVisible();
+  await page.locator('#my-deliveries').getByRole('link',{name:/Count and confirm/}).click(); await expect(page).toHaveURL(new RegExp(`/stock/transfers/${transfer}$`)); await expect(page.getByText(`Goods ${run}`,{exact:false})).toBeVisible();
   await page.getByLabel('Counted',{exact:true}).fill('9'); await page.getByLabel('Accepted',{exact:true}).fill('9');
   await page.getByRole('combobox',{name:/quality/i}).selectOption('pass'); await page.getByRole('button',{name:/confirm receipt|receive/i}).click();
   await page.reload(); await expect(page.getByText(/Short.*1|1.*short/i).first()).toBeVisible();

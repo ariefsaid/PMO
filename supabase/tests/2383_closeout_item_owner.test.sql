@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(6);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20410000-0000-0000-0000-00000000000a', 'RR CR Org', 'IDR', 'UTC', true);
@@ -51,7 +51,7 @@ insert into incident_reports (id, org_id, incident_date, type, severity, project
 update work_orders set status='Issued';
 update profiles set role='Project Manager',built_in_role='construction_manager' where id='20410000-0000-0000-0000-0000000000a6';
 insert into work_order_closeout_items(id,org_id,work_order_id,project_id,position,name,required,started_on) values('20410000-0000-0000-0000-000000009001','20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-000000000031','20410000-0000-0000-0000-0000000000c1',1,'Physical completion',true,current_date);
-insert into project_documents(id,org_id,project_id,category,title,status,author_id,file_path) values('20410000-0000-0000-0000-000000009002','20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-0000000000c1','Acceptance','Completion proof','Approved','20410000-0000-0000-0000-0000000000a1','proof.pdf');
+insert into project_documents(id,org_id,project_id,category,title,status,author_id,file_path) values('20410000-0000-0000-0000-000000009002','20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-0000000000c1','Acceptance','Completion proof','Approved','20410000-0000-0000-0000-0000000000a1','20410000-0000-0000-0000-00000000000a/20410000-0000-0000-0000-0000000000c1/20410000-0000-0000-0000-000000009002/proof.pdf');
 select set_config('request.jwt.claims','{"sub":"20410000-0000-0000-0000-0000000000a1","role":"authenticated"}',true);set local role authenticated;
 select lives_ok($$select assign_closeout_item_owner('20410000-0000-0000-0000-000000009001','construction_manager')$$,'AC-SITE-012 Admin names the item owner');
 reset role;
@@ -60,4 +60,6 @@ select throws_ok($$select assign_closeout_item_owner('20410000-0000-0000-0000-00
 select lives_ok($$select attach_closeout_item_document('20410000-0000-0000-0000-000000009001','20410000-0000-0000-0000-000000009002')$$,'AC-SITE-012 CM owner attaches valid proof');
 select lives_ok($$select complete_closeout_item('20410000-0000-0000-0000-000000009001',current_date)$$,'AC-SITE-012 CM owner completes the item');
 select is((select done_by from work_order_closeout_items where id='20410000-0000-0000-0000-000000009001'),'20410000-0000-0000-0000-0000000000a6'::uuid,'AC-SITE-012 the item names the CM who completed it');
+reset role;select set_config('request.jwt.claims','{"sub":"20410000-0000-0000-0000-0000000000a1","role":"authenticated"}',true);set local role authenticated;
+select throws_ok($$select assign_closeout_item_owner('20410000-0000-0000-0000-000000009001','quality_inspector')$$,'55000','this close-out item is already done','AC-SITE-012 completed ownership cannot be rewritten');
 select * from finish();rollback;

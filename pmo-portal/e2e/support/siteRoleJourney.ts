@@ -7,7 +7,7 @@ export async function siteRole(jobRole: string, role: 'Engineer' | 'Project Mana
  must('profile',await db.from('profiles').insert({id:user.id,org_id:ORG_ID,email,full_name:`Test ${jobRole}`,role,built_in_role:jobRole}).select('id').single());
  return {id:user.id, db, async login(page:Page) {
   await page.goto('/login'); await page.getByLabel(/email/i).fill(email); await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button',{name:/sign in/i}).click(); await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('button',{name:/sign in/i}).click(); await expect(page).toHaveURL(jobRole === 'foreman' ? /\/my$/ : /\/$/);
  }, async cleanup() { await db.from('profiles').delete().eq('id',user.id); await db.auth.admin.deleteUser(user.id); }};
 }
 
