@@ -7,6 +7,8 @@ create table public.equipment_accounting_cutover (
 );
 alter table public.equipment_accounting_cutover enable row level security;
 alter table public.equipment_accounting_cutover force row level security;
+create policy light_account_deny_select on public.equipment_accounting_cutover as restrictive for select to authenticated
+  using ((select public.actor_is_light()) is not true);
 revoke all on public.equipment_accounting_cutover from public, anon, authenticated;
 grant all on public.equipment_accounting_cutover to service_role;
 
