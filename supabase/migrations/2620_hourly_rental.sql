@@ -17,7 +17,7 @@ create policy hourly_rental_checks_read on public.hourly_rental_checks for selec
 using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
   and ((select public.auth_role()) in ('Admin','Finance') or (select public.actor_built_in_role()) in ('equipment_officer','equipment_manager')
     or ((select public.auth_role()) = 'Project Manager' and (select public.actor_built_in_role()) is null)));
-create policy hourly_rental_checks_field on public.hourly_rental_checks as restrictive for select to authenticated
+create policy light_account_deny_select on public.hourly_rental_checks as restrictive for select to authenticated
 using ((select public.actor_is_light()) is not true);
 revoke all on public.hourly_rental_checks from public, anon, authenticated;
 grant select on public.hourly_rental_checks to authenticated;
