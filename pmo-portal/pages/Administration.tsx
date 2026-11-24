@@ -49,6 +49,7 @@ import OrgPurchaseLines from './admin/OrgPurchaseLines';
 import SiteReportLists from './admin/SiteReportLists';
 import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
+import StockIssueCostSettings from './admin/StockIssueCostSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgAttendanceTimeRoles from './admin/OrgAttendanceTimeRoles';
@@ -326,6 +327,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <SectionName name={label('accounting')} />
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
+            <StockIssueCostSettings />
             <OrgTaxDefault />
             <OrgFiscalYearStart />
             <SpendApprovers />

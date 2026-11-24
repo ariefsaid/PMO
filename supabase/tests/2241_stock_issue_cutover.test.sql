@@ -145,6 +145,14 @@ select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
 select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric-1100,999::numeric,'AC-ISC-006 fully issued project cost equals bill');
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and reason='counted' and work_order_id='25190000-0000-0000-0000-000000000401'),999::numeric,'AC-ISC-006 fully issued work order cost equals bill');
 reset role;
+create temp table cutover_function_backup as select pg_get_functiondef('public.purchase_costs_as_stock(uuid)'::regprocedure) as body;
+do $mut$ begin execute replace((select body from cutover_function_backup),
+ 'or not public.purchase_had_cost_before(d.procurement_id,s.effective_on)',''); end $mut$;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
+select isnt((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric-1100,999::numeric,'AC-ISC-006 mutation of dated-cost predicate changes the conservation oracle');
+reset role;
+do $restore$ begin execute (select body from cutover_function_backup); end $restore$;
 set local session_replication_role=replica;
 update procurement_invoices set invoice_date='2026-11-15' where id='25190000-0000-0000-0000-000000000626';
 set local session_replication_role=origin;

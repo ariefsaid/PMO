@@ -15,3 +15,8 @@ FR-ISC-005: While enabled, every work-order money reader and project total shall
 
 ## Director decisions and known limits
 Effective date applies to issue/return dates. Purchases received before cutover keep current treatment. Mixed stocked/direct lines in one purchase use whole-purchase exclusion; the classifier is one replaceable function. ERP reconciliation and migration of historically costed stock are follow-ups. No dependency on the receive-against-order branch.
+
+FR-ISC-006: When a purchase has a Posted procurement-linked receive, the system shall classify it as stock if its receipt is on/after cutover or it has no valid bill or Paid payment dated before cutover. Later billing shall retain that stock basis.
+FR-ISC-007: When an Admin opens Administration Accounting, the system shall show the saved switch and effective date, allow enable/disable, and show translated plain-language refusals.
+- AC-ISC-006 (pgTAP): Given a receive on the 15th and enablement on the 16th before billing, when billed and paid later and issued partially or fully, then project cost, work-order cost and remaining stock reconcile to the bill once.
+- AC-ISC-007 (RTL): Given an Admin, when reading or saving the setting, then saved state, on/off and effective date are reflected, and ERP/migration refusals appear in plain language.
