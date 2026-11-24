@@ -4,6 +4,7 @@
     "daily_report": "Laporan harian untuk divalidasi ({{count}})",
     "delivery_record": "Pengiriman untuk dikonfirmasi ({{count}})",
     "equipment_plan": "Rencana peralatan untuk disetujui ({{count}})",
+    "check_in": "Absen masuk yang harus diputuskan ({{count}})",
     "imprest": "Kas lapangan menunggu Anda ({{count}})",
     "leave": "Permohonan cuti menunggu Anda ({{count}})",
     "quantity_change": "Perubahan kuantitas untuk diputuskan ({{count}})",
@@ -22,6 +23,7 @@
     "quantity_change": "Perubahan kuantitas",
     "certificate": "Sertifikat subkontraktor",
     "equipment_plan": "Rencana peralatan",
+    "check_in": "Absen masuk yang harus diputuskan",
     "work_order_acceptance": "BAST klien untuk dikonfirmasi"
   },
   "since": "Menunggu sejak {{date}}",

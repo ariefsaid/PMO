@@ -8,13 +8,13 @@
 export const WAITING_KINDS = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
   'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
-  'certificate', 'equipment_plan', 'medical_release',
+  'certificate', 'equipment_plan', 'check_in', 'medical_release',
 ] as const;
 
 export type WaitingKind = (typeof WAITING_KINDS)[number];
 
 /** Kinds answered by the database function `my_waiting_decisions()`; the rest keep the read their own screen already uses. */
-export const DATABASE_LISTED_KINDS = ['daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan'] as const;
+export const DATABASE_LISTED_KINDS = ['daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan', 'check_in'] as const;
 export type DatabaseListedKind = (typeof DATABASE_LISTED_KINDS)[number];
 
 export interface WaitingKindMeta {
@@ -47,6 +47,8 @@ export const WAITING_KIND_META: Record<WaitingKind, WaitingKindMeta> = {
   quantity_change: { scopeKey: 'waitingList:scope.quantity_change', scopeLabel: 'Quantity changes', href: (id) => `/quantity-changes/${id}`, inboxSection: 'section' },
   certificate: { scopeKey: 'waitingList:scope.certificate', scopeLabel: 'Subcontract certificates', href: (id) => `/subcontract-certificates/${id}`, inboxSection: 'section' },
   equipment_plan: { scopeKey: 'waitingList:scope.equipment_plan', scopeLabel: 'Equipment plans', href: () => '/equipment-plans', inboxSection: 'section' },
+  // An outside-area phone clock-in waits for the supervisor named to decide it; the cards live at the top of Crews.
+  check_in: { scopeKey: 'waitingList:scope.check_in', scopeLabel: 'Clock-ins to decide', href: () => '/crews', inboxSection: 'section' },
   // Read by the medical-releases section's own read (`can_decide` rows still Pending); that section on /approvals is where it is decided.
   medical_release: { scopeKey: 'waitingList:scope.medical_release', scopeLabel: 'Medical releases', inboxSection: 'section' },
 };
@@ -74,6 +76,7 @@ export function scopeLabelText(kind: WaitingKind, t: Translate): string {
     case 'quantity_change': return t('waitingList:scope.quantity_change', 'Quantity changes');
     case 'certificate': return t('waitingList:scope.certificate', 'Subcontract certificates');
     case 'equipment_plan': return t('waitingList:scope.equipment_plan', 'Equipment plans');
+    case 'check_in': return t('waitingList:scope.check_in', 'Clock-ins to decide');
     case 'medical_release': return t('waitingList:scope.medical_release', 'Medical releases');
     default: return t(WAITING_KIND_META[kind].scopeKey, WAITING_KIND_META[kind].scopeLabel);
   }
@@ -92,5 +95,6 @@ export function waitingHeadingText(kind: DatabaseListedKind | 'leave' | 'imprest
     case 'quantity_change': return t('waitingList:heading.quantity_change', 'Quantity changes to decide ({{count}})', { count });
     case 'certificate': return t('waitingList:heading.certificate', 'Subcontract certificates to approve ({{count}})', { count });
     case 'equipment_plan': return t('waitingList:heading.equipment_plan', 'Equipment plans to approve ({{count}})', { count });
+    case 'check_in': return t('waitingList:heading.check_in', 'Clock-ins to decide ({{count}})', { count });
   }
 }
