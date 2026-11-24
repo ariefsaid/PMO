@@ -153,13 +153,15 @@ select org_id,'25190000-0000-0000-0000-000000000812','25190000-0000-0000-0000-00
 insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,project_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
 select org_id,'25190000-0000-0000-0000-000000000813','25190000-0000-0000-0000-000000000823',item_id,warehouse_id,project_id,'return',5,50,54.9,549,occurred_on,posted_by from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
 set local session_replication_role=origin;
+create temp table issue_cost_remaining_stock as select sum(value_delta) as amount from stock_ledger where org_id='25190000-0000-0000-0000-00000000000a';
+grant select on issue_cost_remaining_stock to authenticated;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
 select throws_ok($$select set_stock_issue_cost_date('2026-11-17')$$,'23514','this organisation needs a stock-cost migration first','AC-ISC-003 refuses historically costed purchase');
 select is(set_stock_issue_cost_date('2026-11-16'),'2026-11-16'::date,'AC-ISC-002 enable at receipt date');
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and work_order_id='25190000-0000-0000-0000-000000000401' and reason='counted'),250::numeric,'AC-ISC-002 work order A issue less return');
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and work_order_id='25190000-0000-0000-0000-000000000402' and reason='counted'),200::numeric,'AC-ISC-002 work order B issue');
-select is((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1'))+(select sum(value_delta) from stock_ledger where org_id='25190000-0000-0000-0000-00000000000a'),999::numeric,'AC-ISC-002 consumed plus remaining stock equals bill once');
+select is((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1'))+(select amount from issue_cost_remaining_stock),999::numeric,'AC-ISC-002 consumed plus remaining stock equals bill once');
 select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric,1550::numeric,'AC-ISC-002 project excludes stocked bill and includes 450 consumed plus direct delivery 1100');
 select is((select spent from project_pmo_positions(array['25190000-0000-0000-0000-0000000000d1']::uuid[])),1550::numeric,'AC-ISC-002 dashboard same source');
 select is((select amount from project_pmo_spent_position('25190000-0000-0000-0000-0000000000d1')),1550::numeric,'AC-ISC-002 single-project position same source');
