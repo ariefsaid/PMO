@@ -14,14 +14,22 @@ const rows: BoardRow[] = [
     dueOn: null, allDone: true, today: '2026-01-11' },
 ];
 
+const board = vi.hoisted(() => ({ empty: false }));
 vi.mock('@/src/hooks/useBillingBoard', () => ({
-  useBillingBoard: () => ({ isPending: false, isError: false, isSuccess: true, data: { rows, truncated: true }, refetch: vi.fn() }),
+  useBillingBoard: () => ({ isPending: false, isError: false, isSuccess: true, data: board.empty ? { rows: [], truncated: false } : { rows, truncated: true }, refetch: vi.fn() }),
 }));
 
 import BillingBoard from './BillingBoard';
 
 describe('BillingBoard in Bahasa Indonesia', () => {
-  afterEach(() => cleanup());
+  afterEach(() => { cleanup(); board.empty = false; });
+
+  it('BQ13 the empty board sends the person to the project tab that exists: Kontrak', () => {
+    board.empty = true;
+    render(<BahasaProvider><MemoryRouter><BillingBoard /></MemoryRouter></BahasaProvider>);
+    expect(screen.getByText(/tab Kontrak proyek/)).toBeTruthy();
+    expect(screen.queryByText(/tab Penagihan/)).toBeNull();
+  });
 
   it('AC-BBD-014 title, columns, ages, overdue chip and notices read as Bahasa', () => {
     render(<BahasaProvider><MemoryRouter><BillingBoard /></MemoryRouter></BahasaProvider>);

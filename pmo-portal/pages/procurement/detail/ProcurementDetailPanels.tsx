@@ -91,8 +91,6 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
     receive: null,
     pay: totalAmount(invoices.length > 0 ? invoices : payments),
   };
-  const orderCount = orders.length;
-  const receivedCount = receipts;
   const partialReceive = procurement.receipts.some((receipt) => receipt.status === 'Partial');
 
   return (
@@ -107,7 +105,8 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
             const date = dates[stage.key];
             const stageLabel = t(`stage.${stage.key}`, stage.label);
             const state = partial
-              ? t('stage.partialReceipt', { defaultValue: '{{received}} of {{orders}} orders received', received: receivedCount, orders: Math.max(orderCount, receivedCount) })
+              // A receipt count says nothing about how much of the order arrived (PU14): one partial receipt is not "1 of 1 received".
+              ? t('stage.partlyReceived', 'Partly received')
               : count > 0
                 ? (() => {
                     const document = stage.key === 'request'

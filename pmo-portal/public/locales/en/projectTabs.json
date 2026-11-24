@@ -43,6 +43,7 @@
       },
       "claimForm": {
         "prefillBast": "Start from the accepted BAST quantities",
+        "prefillSurvey": "Start from the surveyed quantities",
         "percentLine": "{{item}}: % to bill",
         "overClaimAccepted": "Warning: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first. You can still raise the claim.",
         "overClaimOrdered": "Warning: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first. You can still raise the claim.",

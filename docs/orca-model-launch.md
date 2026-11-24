@@ -28,6 +28,8 @@ slice one rung up the intelligence ranking after two failed attempts.
 orca worktree create --repo path:<repo> --name <name> --base-branch origin/dev --setup skip --json
 orca terminal create --worktree path:<that worktree> --title "GLM" \
   --command "pi --provider zai --model glm-5.3-flash:max" --json        # → handle
+# GLM-5.4 (Z.AI, added 2026-11-24, pi 1.6.0 or newer: `pi update self && pi update --models`): same recipe with
+#   --model glm-5.4:max  (no `glm-5.4-flash` id exists). Smoke test: pi --provider zai --model glm-5.4 -p --no-session --no-tools "Reply with exactly: OK" < /dev/null
 orca orchestration worker-start --run <run> --spec "<brief>" \
   --terminal <handle> --worktree path:<that worktree> --json
 ```
