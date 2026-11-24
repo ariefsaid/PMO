@@ -19,9 +19,9 @@ describe('AC-RTD-015 Generate Purchase Order for a person who orders by built-in
     expect(ordered('Approved', 'Engineer', false)).toBe(false);
     expect(ordered('Approved', 'Project Manager', false)).toBe(true);
   });
-  it('the ordering role offers no approval and no quotation request', () => {
+  it('AC-BQS-001 the ordering role offers quotations without approval', () => {
     const actions = allowedActions('Requested', 'Engineer', false, false, t, true, false, true, true).map((a) => a.to);
     expect(actions).not.toContain('Approved');
-    expect(allowedActions('Approved', 'Engineer', false, false, t, true, false, true, true).map((a) => a.to)).not.toContain('Vendor Quoted');
+    expect(allowedActions('Approved', 'Engineer', false, false, t, true, false, true, true).map((a) => a.to)).toContain('Vendor Quoted');
   });
 });

@@ -8,11 +8,12 @@ const base = {
 };
 
 describe('AC-RTD-015 the Procurement entry for a person who orders by built-in role', () => {
-  it('appears only when the database gate says the person may order', () => {
-    expect(visibleNavItems(base).some((i) => i.to === '/procurement')).toBe(false);
+  it('appears for requesters as well as people who may order', () => {
+    expect(visibleNavItems(base).some((i) => i.to === '/procurement')).toBe(true);
     expect(visibleNavItems({ ...base, mayOrderPurchases: true }).some((i) => i.to === '/procurement')).toBe(true);
   });
-  it('never appears through viewing as another role', () => {
-    expect(visibleNavItems({ ...base, realRole: UserRole.Admin, mayOrderPurchases: true }).some((i) => i.to === '/procurement')).toBe(false);
+  it('keeps the requester destination when viewing as Engineer and respects the module switch', () => {
+    expect(visibleNavItems({ ...base, realRole: UserRole.Admin, mayOrderPurchases: true }).some((i) => i.to === '/procurement')).toBe(true);
+    expect(visibleNavItems({ ...base, realRole: UserRole.Admin, mayOrderPurchases: true, featureEnabled: () => false }).some((i) => i.to === '/procurement')).toBe(false);
   });
 });

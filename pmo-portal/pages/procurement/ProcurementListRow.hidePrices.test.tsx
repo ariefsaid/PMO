@@ -30,6 +30,7 @@ describe('AC-009 procurement list without prices', () => {
     const { container } = renderRow();
     expect(container.querySelector('[data-procurement-value]')).toBeNull();
     expect(screen.queryByText('Value')).toBeNull();
+    expect(screen.queryByText(/Bright Supply/)).toBeNull();
     expect(screen.getByText('Lighting package')).toBeInTheDocument();
   });
 });
