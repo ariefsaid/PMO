@@ -62,4 +62,17 @@ select is(pg_temp.val('a9', $$select count(*)::text from rate_catalogue_items$$)
 select is(pg_temp.val('b1', $$select count(*)::text from rate_catalogue_items$$), '0', 'AC-GR-002 denied catalogue b1');
 select is(pg_temp.val('b2', $$select count(*)::text from rate_catalogue_items$$), '0', 'AC-GR-002 denied catalogue b2');
 select is(pg_temp.val('b9', $$select count(*)::text from rate_catalogue_items$$), '0', 'AC-GR-002 denied catalogue b9');
+select isnt(pg_temp.err('a6', $$insert into equipment_assets(code,name) values ('deny-a6','Denied')$$), 'ok', 'AC-GR-001 other job cannot register a6');
+select isnt(pg_temp.err('a8', $$insert into equipment_assets(code,name) values ('deny-a8','Denied')$$), 'ok', 'AC-GR-001 other job cannot register a8');
+select isnt(pg_temp.err('a9', $$insert into equipment_assets(code,name) values ('deny-a9','Denied')$$), 'ok', 'AC-GR-001 other job cannot register a9');
+select isnt(pg_temp.err('b1', $$insert into equipment_assets(code,name) values ('deny-b1','Denied')$$), 'ok', 'AC-GR-001 other job cannot register b1');
+select isnt(pg_temp.err('b2', $$insert into equipment_assets(code,name) values ('deny-b2','Denied')$$), 'ok', 'AC-GR-001 other job cannot register b2');
+select is(pg_temp.val('b9', $$select count(*)::text from equipment_assets where code='GR'$$), '0', 'AC-GR-001 other org cannot see asset');
+select isnt(pg_temp.err('a7', $$insert into equipment_assets(code,name,org_id) values ('spoof','Denied','25600000-0000-0000-0000-00000000000b')$$), 'ok', 'AC-GR-001 column grants prohibit org spoof');
+select ok(exists(select 1 from information_schema.role_table_grants where grantee='authenticated' and table_name='rate_catalogue_items' and privilege_type='SELECT'), 'catalogue SELECT reachable');
+select ok(not has_table_privilege('authenticated','rate_catalogue_items','INSERT'), 'catalogue direct writes remain refused');
+select ok(has_function_privilege('authenticated','public.rate_catalogue_rate_at(uuid,uuid,date)','EXECUTE'), 'price invoker remains reachable');
+select ok(not has_function_privilege('anon','public.rate_catalogue_rate_at(uuid,uuid,date)','EXECUTE'), 'anonymous routine refused');
+select is((select count(*)::integer from pg_policies where schemaname='public' and policyname in ('equipment_officer_insert','equipment_officer_update','rate_catalogue_items_pcm_read','rate_catalogue_variants_pcm_read')),4, 'four scoped policies installed');
+select ok(exists(select 1 from pg_policies where tablename='rate_catalogue_items' and policyname='light_account_deny_select' and permissive='RESTRICTIVE'), 'field read restriction retained');
 select * from finish(); rollback;
