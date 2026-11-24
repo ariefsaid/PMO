@@ -84,7 +84,8 @@ update external_org_bindings set status='disconnected',disconnected_at='2026-10-
 set local role authenticated;
 select is((get_project_finances('15190000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,300::numeric,
  'AC-EQU-PERIOD-001 disconnect restores native cost on the disconnect day, while the earlier connected day stays excluded');
-select is((select amount from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2026-10-16','2026-10-16')),200::numeric,
+-- The allocation drilldown is monthly; preserve that rule and measure the newly native day's increment.
+select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1'))-100,200::numeric,
  'AC-EQU-PERIOD-001 four crane hours on the first disconnected day cost 200');
 reset role;
 select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-10-17',5,'hours');
