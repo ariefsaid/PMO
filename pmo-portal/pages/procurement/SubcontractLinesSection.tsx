@@ -25,6 +25,7 @@ import { PoVariationsList } from './PoVariationsList';
  * figures, and a `null` billed/payable (a role that may not read invoices) is a dash, never 0.
  */
 export interface SubcontractLinesSectionProps {
+  readOnly?: boolean;
   poId: string;
   procurementId: string;
   projectId: string;
@@ -37,10 +38,11 @@ const DAY_MS = 86_400_000;
 const value = (qty: number, rate: number) => Math.round(qty * rate * 100) / 100;
 
 export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = ({
-  poId, procurementId, projectId, currency, currentUserId, projectManagerId = null,
+  readOnly = false, poId, procurementId, projectId, currency, currentUserId, projectManagerId = null,
 }) => {
   const { t } = useTranslation('procurement');
-  const may = usePermission();
+  const permission = usePermission();
+  const may: typeof permission = (...args) => !readOnly && permission(...args);
   const { toast } = useToast();
   const position = usePoPosition(poId);
   const issued = (position.data ?? []).length > 0;
@@ -281,7 +283,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
             )}
           </div>
         )}
-        {issued && <PoVariationsList poId={poId} projectId={projectId} currency={currency} />}
+        {issued && <PoVariationsList readOnly={readOnly} poId={poId} projectId={projectId} currency={currency} />}
       </CardPad>
 
       <ConfirmDialog
