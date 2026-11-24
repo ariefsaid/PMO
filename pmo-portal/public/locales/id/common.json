@@ -182,6 +182,10 @@
       "feedbackSurveys": {
         "name": "Survei umpan balik",
         "summary": "Mengajukan pertanyaan umpan balik singkat kepada orang di dalam aplikasi."
+      },
+      "stockIssueCost": {
+        "name": "Biaya pengeluaran stok",
+        "summary": "Menghitung stok yang dikeluarkan sebagai biaya perintah kerja mulai tanggal yang dipilih."
       }
     },
     "paletteGroup": "Pengaturan"

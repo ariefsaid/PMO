@@ -182,6 +182,10 @@
       "feedbackSurveys": {
         "name": "Feedback surveys",
         "summary": "Asks people short in-app feedback questions."
+      },
+      "stockIssueCost": {
+        "name": "Stock issue costing",
+        "summary": "Counts issued stock as work-order cost from a chosen date."
       }
     },
     "paletteGroup": "Settings"
