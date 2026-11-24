@@ -864,7 +864,6 @@ const ProcurementDetails: React.FC = () => {
         ariaLabel={t('procurementDetail.tabsLabel', 'Procurement sections')}
         idBase="procurement-detail"
         insetFirstTab
-        wrapOnPhone
         className="mb-0!"
       />
 

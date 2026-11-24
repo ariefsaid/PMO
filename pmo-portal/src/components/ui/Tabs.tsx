@@ -77,6 +77,7 @@ export function Tabs<V extends string = string>({
     const active = list.querySelector<HTMLElement>('[aria-selected="true"]');
     if (!active) return;
     const strip = list.getBoundingClientRect();
+    if (strip.right <= strip.left) return;
     const tab = active.getBoundingClientRect();
     const style = getComputedStyle(active);
     const left = tab.left - (parseFloat(style.scrollMarginLeft) || 0);
