@@ -31,7 +31,7 @@ test('AC-SITE-006 a supervisor lends between work-order crews controlled by a se
   await page.goto(`/crews?view=roster&wo=${hostWo}`);await expect(page.getByText(`${run} Worker`,{exact:true})).toBeVisible();
   await page.goto(`/crews?view=roster&wo=${wo}`);await expect(page.getByText(`${run} Worker`,{exact:true})).toHaveCount(0);
   await page.evaluate(()=>localStorage.clear());await page.context().clearCookies();await foreman.login(page);
-  const host=page.locator('#my-crew').getByText(`${run} Host work`,{exact:true}).locator('..');
+  const host=page.getByRole('region', { name: 'My crew today' }).getByText(`${run} Host work`,{exact:true}).locator('..');
   await host.getByRole('textbox',{name:'Hours for the crew'}).fill('8');await host.getByRole('button',{name:'Save attendance'}).click();
   await expect.poll(async()=> (await db.from('attendance_days').select('hours').eq('worker_id',worker).eq('work_order_id',hostWo).single()).data?.hours).toBe(8);
   const homeDays=must('home hours',await db.from('attendance_days').select('id').eq('worker_id',worker).eq('work_order_id',wo));expect(homeDays).toHaveLength(0);

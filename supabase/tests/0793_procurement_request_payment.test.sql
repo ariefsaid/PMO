@@ -26,6 +26,13 @@ insert into payments(org_id,procurement_id,status,amount,currency,date) values
 insert into procurement_invoices(id,org_id,procurement_id,status,amount,tax_treatment,tax_amount,currency) values
  ('07930000-0000-0000-0000-000000001204','07930000-0000-0000-0000-000000000001','07930000-0000-0000-0000-000000000204','Received',5000,'exclusive',0,'IDR');
 
+-- Force opposite calendar days at every execution hour (UTC session, UTC+14 or UTC-12 org).
+set local timezone = 'UTC';
+update organizations set default_timezone = case
+  when extract(hour from now() at time zone 'UTC') >= 10 then 'Pacific/Kiritimati'
+  else 'Etc/GMT+12' end
+where id = '07930000-0000-0000-0000-000000000001';
+
 set local role authenticated;
 set local request.jwt.claims='{"sub":"07930000-0000-0000-0000-000000000011","role":"authenticated"}';
 
@@ -70,7 +77,7 @@ select transition_procurement(('07930000-0000-0000-0000-000000000' || n::text)::
 reset role;
 update purchase_requests set external_ref = 'EXT-1' where procurement_id='07930000-0000-0000-0000-000000000105';
 update purchase_requests set status = 'Draft' where procurement_id='07930000-0000-0000-0000-000000000106';
-update purchase_requests set date = current_date - 1 where procurement_id='07930000-0000-0000-0000-000000000107';
+update purchase_requests set date = public.native_org_today('07930000-0000-0000-0000-000000000001') - 1 where procurement_id='07930000-0000-0000-0000-000000000107';
 set local role authenticated;
 select create_purchase_request(('07930000-0000-0000-0000-000000000' || n::text)::uuid,'REF-X','Draft',current_date,9) from unnest(array[105,106,107]) n;
 select is((select count(*)::int from purchase_requests where procurement_id='07930000-0000-0000-0000-000000000105' and reference_number is null),1,

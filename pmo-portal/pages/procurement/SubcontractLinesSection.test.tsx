@@ -59,7 +59,7 @@ const TWO = [
   row({ boq_item_id: 'e2', item_code: 'L2', unit: 'm', rate: 40000, po_qty: 50, verified: 30, verified_not_on_po: 0, billed: 10, payable: 20 }),
 ];
 
-function renderSection(open?: DocumentViewerApi['open']) {
+function renderSection(open?: DocumentViewerApi['open'], readOnly = false) {
   const i18n = createInstance();
   void i18n.init({
     lng: 'en', fallbackLng: 'en', ns: ['procurement'], defaultNS: 'procurement', interpolation: { escapeValue: false },
@@ -68,8 +68,8 @@ function renderSection(open?: DocumentViewerApi['open']) {
   return render(
     <I18nextProvider i18n={i18n}>
       <MemoryRouter><ToastProvider>{open
-        ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}><SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" /></DocumentViewerContext.Provider>
-        : <SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />}
+        ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}><SubcontractLinesSection readOnly={readOnly} poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" /></DocumentViewerContext.Provider>
+        : <SubcontractLinesSection readOnly={readOnly} poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />}
       </ToastProvider></MemoryRouter>
     </I18nextProvider>,
   );
@@ -88,6 +88,12 @@ beforeEach(() => {
 });
 
 describe('SubcontractLinesSection', () => {
+  it('JOB-PU4-READ a historical decider reads subcontract quantities without recording acceptance or variations', () => {
+    renderSection(undefined, true);
+    expect(screen.getByText('L1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record acceptance' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Request variation/i })).not.toBeInTheDocument();
+  });
   it('#2584 an issued subcontract offers the progress certificates screen', () => {
     renderSection();
     expect(screen.getByRole('link', { name: 'Progress certificates' })).toHaveAttribute('href', '/subcontract-certificates');
