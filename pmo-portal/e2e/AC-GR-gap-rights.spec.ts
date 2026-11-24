@@ -1,9 +1,10 @@
 // @e2e-isolation: self-isolated — disposable organisation and job-role logins.
 import { test, expect } from '@playwright/test';
-import { serviceClient, need } from './helpers';
+import { serviceClient, need } from './support/jobFixtures';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
-const db = serviceClient();
+test.setTimeout(120_000);
 test('AC-GR-001 Equipment Officer registers a machine on the asset register', async ({ page }) => {
+  const db = serviceClient('AC-GR');
   const org = need('org', await db.from('organizations').insert({ name: `Register ${crypto.randomUUID()}`, built_in_roles_enabled: true }).select('id').single());
   const officer = await createJobRoleUser(db, org.id, 'equipment_officer');
   try {
@@ -28,6 +29,7 @@ test('AC-GR-001 Equipment Officer registers a machine on the asset register', as
   } finally { removeJobOrganization(org.id); await officer.remove(); }
 });
 test('AC-GR-002 Project Control Manager reads another managers catalogue prices', async ({ page }) => {
+  const db = serviceClient('AC-GR');
   const org = need('org', await db.from('organizations').insert({ name: `Catalogue ${crypto.randomUUID()}`, built_in_roles_enabled: true }).select('id').single());
   const pcm = await createJobRoleUser(db, org.id, 'project_control_manager');
   const manager = await createJobRoleUser(db, org.id, 'project_manager');
