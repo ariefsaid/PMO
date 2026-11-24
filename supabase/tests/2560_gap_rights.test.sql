@@ -94,6 +94,6 @@ select is(pg_temp.val('a2', $$select rate::text from rate_catalogue_rates$$)::nu
 select is(pg_temp.val('a2', $$select count(*)::text from rate_catalogue_stage_weights$$), '1', 'AC-GR-002 PCM reads stage weights');
 select is(pg_temp.val('b2', $$select count(*)::text from rate_catalogue_rates$$), '0', 'AC-GR-002 field account reads no prices');
 select is(pg_temp.val('b9', $$select count(*)::text from rate_catalogue_rates$$), '0', 'AC-GR-002 other organisation reads no prices');
-update profiles set status='inactive' where id='25600000-0000-0000-0000-0000000000a7';
+update profiles set status='disabled' where id='25600000-0000-0000-0000-0000000000a7';
 select isnt(pg_temp.err('a7', $$insert into equipment_assets(code,name) values ('INACTIVE','Denied')$$), 'ok', 'AC-GR-001 inactive officer refused');
 select * from finish(); rollback;
