@@ -6,9 +6,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Checkbox, FieldError, ListState } from '@/src/components/ui';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
-import { getPoNeededByRequired, setPoNeededByRequired } from '@/src/lib/db/procurementNeededBy';
-
-const KEY = 'org-po-needed-by-required';
+import { repositories } from '@/src/lib/repositories';
+import { PO_NEEDED_BY_REQUIRED_QUERY_KEY } from '@/src/hooks/usePoNeededBy';
 
 /** 1124d — Administration: require a needed-by date before an order is sent to the supplier. Off by default; orders created before it is turned on are never blocked. Only an Admin changes it (the RPC is the authority). */
 export default function OrgOrderNeededBy() {
@@ -16,8 +15,8 @@ export default function OrgOrderNeededBy() {
   const orgId = useAuth().currentUser?.org_id;
   const canManage = usePermission()('manage', 'orgAccounting');
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: [KEY, orgId], queryFn: getPoNeededByRequired, enabled: Boolean(orgId), ...SESSION_QUERY_OPTIONS });
-  const set = useMutation({ mutationFn: (on: boolean) => setPoNeededByRequired(on), onSuccess: () => { void qc.invalidateQueries({ queryKey: [KEY, orgId] }); } });
+  const q = useQuery({ queryKey: [PO_NEEDED_BY_REQUIRED_QUERY_KEY, orgId], queryFn: () => repositories.procurement.getPoNeededByRequired(), enabled: Boolean(orgId), ...SESSION_QUERY_OPTIONS });
+  const set = useMutation({ mutationFn: (on: boolean) => repositories.procurement.setPoNeededByRequired(on), onSuccess: () => { void qc.invalidateQueries({ queryKey: [PO_NEEDED_BY_REQUIRED_QUERY_KEY, orgId] }); } });
   const error = set.isError ? classifyMutationError(set.error) : null;
   return (
     <section aria-labelledby="order-needed-by-heading">

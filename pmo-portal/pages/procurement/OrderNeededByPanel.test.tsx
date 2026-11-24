@@ -6,20 +6,20 @@ import React from 'react';
 const h = vi.hoisted(() => ({
   required: { data: true as boolean | undefined, isPending: false, isError: false, refetch: vi.fn() },
   header: { data: null as string | null | undefined, isPending: false, isError: false, refetch: vi.fn() },
-  set: vi.fn(async () => undefined), reload: vi.fn(),
+  repo: { procurement: { setNeededBy: vi.fn(async () => undefined) } },
 }));
 vi.mock('@/src/hooks/usePoNeededBy', () => ({
   usePoNeededByRequired: () => h.required,
-  useProcurementNeededBy: () => ({ ...h.header, value: h.header.data ?? null, reload: h.reload }),
+  useProcurementNeededBy: () => ({ ...h.header, value: h.header.data ?? null }),
 }));
-vi.mock('@/src/lib/db/procurementNeededBy', () => ({ setProcurementNeededBy: h.set }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: h.repo }));
 import { OrderNeededByPanel } from './OrderNeededByPanel';
 
 const items = [{ id: 'i1', name: 'Pipe', needed_by: null }, { id: 'i2', name: 'Valve', needed_by: null }];
 beforeEach(() => {
   h.required = { data: true, isPending: false, isError: false, refetch: vi.fn() };
   h.header = { data: null, isPending: false, isError: false, refetch: vi.fn() };
-  h.set.mockClear(); h.reload.mockClear();
+  h.repo.procurement.setNeededBy.mockClear();
 });
 
 describe('OrderNeededByPanel (1124d)', () => {
@@ -32,14 +32,14 @@ describe('OrderNeededByPanel (1124d)', () => {
     render(<OrderNeededByPanel procurementId="p1" items={items} editable />);
     await userEvent.type(screen.getByLabelText('Order needed by'), '2026-12-31');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(h.set).toHaveBeenCalledWith('p1', '2026-12-31', []));
+    await waitFor(() => expect(h.repo.procurement.setNeededBy).toHaveBeenCalledWith('p1', '2026-12-31', []));
   });
   it('AC-NBY-009 a line with its own date is sent as its own date', async () => {
     render(<OrderNeededByPanel procurementId="p1" items={items} editable />);
     await userEvent.type(screen.getByLabelText('Order needed by'), '2026-12-31');
     await userEvent.type(screen.getAllByLabelText('Line needed by')[1], '2026-12-15');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(h.set).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: '2026-12-15' }]));
+    await waitFor(() => expect(h.repo.procurement.setNeededBy).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: '2026-12-15' }]));
   });
   it('AC-NBY-009 clearing a line override explicitly restores the header date', async () => {
     h.header.data = '2026-12-31';
@@ -47,7 +47,7 @@ describe('OrderNeededByPanel (1124d)', () => {
     render(<OrderNeededByPanel procurementId="p1" items={lineItems} editable />);
     await userEvent.clear(screen.getAllByLabelText('Line needed by')[1]);
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(h.set).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: null }]));
+    await waitFor(() => expect(h.repo.procurement.setNeededBy).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: null }]));
   });
   it('AC-NBY-009 setting a line date to the header date removes its exception', async () => {
     h.header.data = '2026-12-31';
@@ -57,7 +57,7 @@ describe('OrderNeededByPanel (1124d)', () => {
     await userEvent.clear(lineDate);
     await userEvent.type(lineDate, '2026-12-31');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(h.set).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: null }]));
+    await waitFor(() => expect(h.repo.procurement.setNeededBy).toHaveBeenCalledWith('p1', '2026-12-31', [{ itemId: 'i2', neededBy: null }]));
   });
   it('AC-NBY-009 a pending organisation setting is shown as loading, not treated as off', () => {
     h.required = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };

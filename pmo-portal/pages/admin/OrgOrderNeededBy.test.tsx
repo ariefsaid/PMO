@@ -7,7 +7,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const h = vi.hoisted(() => ({ on: false, can: true, set: vi.fn(async () => true) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.can }));
-vi.mock('@/src/lib/db/procurementNeededBy', () => ({ getPoNeededByRequired: async () => h.on, setPoNeededByRequired: h.set }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: {
+  getPoNeededByRequired: async () => h.on,
+  setPoNeededByRequired: h.set,
+} } }));
 import OrgOrderNeededBy from './OrgOrderNeededBy';
 
 beforeEach(() => { h.on = false; h.can = true; h.set.mockClear(); });

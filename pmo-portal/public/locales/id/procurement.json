@@ -1135,6 +1135,7 @@
     "settingHeading": "Tanggal dibutuhkan pada pesanan",
     "settingHelp": "Bila aktif, pesanan tidak dapat dikirim ke pemasok sebelum punya tanggal dibutuhkan. Pesanan yang dibuat sebelum ini diaktifkan tidak diblokir.",
     "settingLabel": "Wajibkan tanggal dibutuhkan sebelum pesanan dikirim",
-    "loadError": "Tidak dapat memuat pengaturan ini"
+    "loadError": "Tidak dapat memuat pengaturan ini",
+    "valueLoadError": "Tidak dapat memuat tanggal kebutuhan pesanan ini"
   }
 }

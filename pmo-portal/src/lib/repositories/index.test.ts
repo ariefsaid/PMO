@@ -379,6 +379,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
+      // needed-by accessors added with 1124d so purchasing pages stay behind this seam.
       [
         'approveAmount',
         'captureVendorInvoice',
@@ -398,6 +399,8 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'deleteDocument',
         'deleteItem',
         'get',
+        'getNeededBy',
+        'getPoNeededByRequired',
         'getProjectCommittedSpend',
         'getProjectReservedSpend',
         'itemValuesEditable',
@@ -411,7 +414,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'purchaseOrderSettings',
         'selectQuote',
         'setEfaktur',
+        'setNeededBy',
         'setOrderJobRoles',
+        'setPoNeededByRequired',
         'setPurchaseOrderSettings',
         'transition',
         'unlinkMicrosoftDocument',

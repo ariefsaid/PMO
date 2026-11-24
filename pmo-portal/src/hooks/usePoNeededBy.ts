@@ -1,26 +1,28 @@
-import { useEffect, useState } from 'react';
-import { getPoNeededByRequired, getProcurementNeededBy } from '@/src/lib/db/procurementNeededBy';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/src/auth/useAuth';
+import { repositories } from '@/src/lib/repositories';
+import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
-/** 1124d — whether this organisation needs a needed-by date before an order is sent (default off). Plain effect: pending or failed reads mean OFF, so no purchase screen changes unless an Admin turned it on. */
-export function usePoNeededByRequired(): boolean {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    let live = true;
-    getPoNeededByRequired().then((v) => { if (live) setOn(v); }, () => { if (live) setOn(false); });
-    return () => { live = false; };
-  }, []);
-  return on;
+export const PO_NEEDED_BY_REQUIRED_QUERY_KEY = 'org-po-needed-by-required';
+
+/** 1124d — preserve pending and failed reads so callers can show loading/retry instead of treating them as off. */
+export function usePoNeededByRequired() {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: [PO_NEEDED_BY_REQUIRED_QUERY_KEY, orgId],
+    queryFn: () => repositories.procurement.getPoNeededByRequired(),
+    enabled: Boolean(orgId),
+    ...SESSION_QUERY_OPTIONS,
+  });
 }
 
-/** The order's header date; `reload` after a save. Reads only while `enabled`. */
-export function useProcurementNeededBy(id: string, enabled: boolean): { value: string | null; reload: () => void } {
-  const [value, setValue] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!enabled) return undefined;
-    let live = true;
-    getProcurementNeededBy(id).then((v) => { if (live) setValue(v); }, () => { if (live) setValue(null); });
-    return () => { live = false; };
-  }, [id, enabled, tick]);
-  return { value, reload: () => setTick((n) => n + 1) };
+/** The order's header date; errors stay distinct from an empty date. */
+export function useProcurementNeededBy(id: string, enabled: boolean) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['procurement-needed-by', orgId, id],
+    queryFn: () => repositories.procurement.getNeededBy(id),
+    enabled: Boolean(orgId) && enabled,
+    ...SESSION_QUERY_OPTIONS,
+  });
 }

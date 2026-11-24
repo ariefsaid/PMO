@@ -1135,6 +1135,7 @@
     "settingHeading": "Order needed-by date",
     "settingHelp": "When on, an order cannot be sent to the supplier until it has a needed-by date. Orders created before you turn this on are not blocked.",
     "settingLabel": "Require a needed-by date before an order is sent",
-    "loadError": "Couldn’t load this setting"
+    "loadError": "Couldn’t load this setting",
+    "valueLoadError": "Couldn’t load this order’s needed-by date"
   }
 }
