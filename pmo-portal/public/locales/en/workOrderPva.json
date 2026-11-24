@@ -226,7 +226,10 @@
     "incompleteWorkOrders": "Incomplete: some work orders have no validated progress or a missing rate",
     "withoutProgress": "{{count}} of {{total}} work orders have no validated progress yet.",
     "empty": "No Issued or Closed work orders yet.",
-    "loadError": "Couldn't load earned and billed revenue"
+    "loadError": "Couldn't load earned and billed revenue",
+    "invoicedLabel": "Invoiced",
+    "claimedLabel": "Claimed",
+    "missingProgress": "Incomplete: some work orders have no validated progress"
   },
   "idle": {
     "title": "Idle time cost by reason",

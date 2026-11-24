@@ -230,7 +230,9 @@
     "stage": "Sub-stage",
     "title": "Progress",
     "unrated_one": "{{count}} line without a rate",
-    "unrated_other": "{{count}} lines without a rate"
+    "unrated_other": "{{count}} lines without a rate",
+    "section": "Section",
+    "outsideSections": "Outside sections"
   },
   "queue": {
     "due_one": "Due {{count}} day",

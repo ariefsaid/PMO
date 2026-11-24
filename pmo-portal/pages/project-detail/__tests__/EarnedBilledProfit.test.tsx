@@ -91,3 +91,18 @@ describe('EarnedBilledProfit', () => {
     expect(h.asked.every((a) => a === false)).toBe(true);
   });
 });
+
+it('JOB-M12 an executive sees invoiced and claimed amounts labelled on the project total', () => {
+  h.role = 'Executive';
+  setData([ebRow({ billed: '80.00' })], [rev('billed_claims', 'civ', '70.00'), rev('billed_unitemised', null, '10.00')]);
+  render(<EarnedBilledProfit projectId="p1" />);
+  const total = screen.getByTestId('earned-billed-row-total-billed');
+  expect(total).toHaveTextContent(/Invoiced.*60/);
+  expect(total).toHaveTextContent(/Claimed.*80/);
+  expect(screen.getByTestId('earned-billed-row-A-billed')).toHaveTextContent(/80/);
+});
+it('JOB-M12 missing work-order progress has its own explanation, distinct from unrated work', () => {
+  setData([ebRow(), ebRow({ workOrderId: 'B', earned: null, earnedLines: 0 })]);
+  render(<EarnedBilledProfit projectId="p1" />);
+  expect(screen.getByTestId('earned-billed-row-total-earned')).toHaveTextContent('Incomplete: some work orders have no validated progress');
+});
