@@ -20,7 +20,6 @@ test('JOB-PC17 Engineer reporter assigns cross-team follow-ups, records the caus
     const project = must('project', await db.from('projects').insert({ org_id: org.id, name: 'Coordination project', status: 'Ongoing Project', project_manager_id: manager.id }).select('id').single());
     await reporter.signIn(page);
     await page.goto(`/incidents?project=${project.id}`);
-    // The list header carries the primary action; the empty-state also offers one, so name the header's.
     await page.getByTestId('list-page-header').getByRole('button', { name: /file incident/i }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel(/^type/i).selectOption({ label: 'Coordination' });

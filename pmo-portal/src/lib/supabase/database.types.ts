@@ -1383,6 +1383,7 @@ export type Database = {
       }
       billing_step_template_steps: {
         Row: {
+          claim_evidence_enabled: boolean
           client_side: boolean
           hidden_from_role_keys: string[]
           id: string
@@ -1396,6 +1397,7 @@ export type Database = {
           template_id: string
         }
         Insert: {
+          claim_evidence_enabled?: boolean
           client_side?: boolean
           hidden_from_role_keys?: string[]
           id?: string
@@ -1409,6 +1411,7 @@ export type Database = {
           template_id: string
         }
         Update: {
+          claim_evidence_enabled?: boolean
           client_side?: boolean
           hidden_from_role_keys?: string[]
           id?: string
@@ -16337,6 +16340,7 @@ export type Database = {
           procurement_id: string
           quantity: number
           rate: number
+          stock_item_id: string | null
           work_order_id: string | null
         }
         Insert: {
@@ -16354,6 +16358,7 @@ export type Database = {
           procurement_id: string
           quantity?: number
           rate?: number
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Update: {
@@ -16371,6 +16376,7 @@ export type Database = {
           procurement_id?: string
           quantity?: number
           rate?: number
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Relationships: [
@@ -25607,6 +25613,7 @@ export type Database = {
       work_order_billing_steps: {
         Row: {
           assignee_id: string | null
+          claim_evidence_enabled: boolean
           created_at: string
           done_at: string | null
           done_by: string | null
@@ -25627,6 +25634,7 @@ export type Database = {
         }
         Insert: {
           assignee_id?: string | null
+          claim_evidence_enabled?: boolean
           created_at?: string
           done_at?: string | null
           done_by?: string | null
@@ -25647,6 +25655,7 @@ export type Database = {
         }
         Update: {
           assignee_id?: string | null
+          claim_evidence_enabled?: boolean
           created_at?: string
           done_at?: string | null
           done_by?: string | null
@@ -27862,6 +27871,7 @@ export type Database = {
           procurement_id: string | null
           quantity: number | null
           rate: number | null
+          stock_item_id: string | null
           work_order_id: string | null
         }
         Insert: {
@@ -27877,6 +27887,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Update: {
@@ -27892,6 +27903,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Relationships: [
@@ -31766,6 +31778,10 @@ export type Database = {
         }[]
       }
       equipment_org_today: { Args: { p_org: string }; Returns: string }
+      equipment_plan_purchase_submit_context: {
+        Args: { p_purchase: string }
+        Returns: Json
+      }
       equipment_plan_approver_ok: {
         Args: { p_plan_id: string }
         Returns: boolean
@@ -37282,6 +37298,10 @@ export type Database = {
       set_org_work_order_checklist_edit: {
         Args: { p_enabled: boolean }
         Returns: boolean
+      }
+      set_work_order_step_claim_evidence: {
+        Args: { p_step: string; p_enabled: boolean }
+        Returns: undefined
       }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number }

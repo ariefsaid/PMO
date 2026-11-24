@@ -68,7 +68,6 @@
     "src/components/ui/useExitPresence.ts",
     "src/hooks/usePMOverdueTasks.ts",
     "src/lib/adapterSeam/applyEngine.ts",
-    "src/lib/adapterSeam/capabilityMap.ts",
     "src/lib/adapterSeam/captureAdapter.ts",
     "src/lib/adapterSeam/captureHistory.ts",
     "src/lib/adapterSeam/clickup/adapter.ts",
@@ -94,7 +93,6 @@
     "src/lib/adapterSeam/connect/fiscalYearOutbox.ts",
     "src/lib/adapterSeam/connect/run.ts",
     "src/lib/adapterSeam/connect/sendViaOutbox.ts",
-    "src/lib/adapterSeam/connect/workflows.ts",
     "src/lib/adapterSeam/constantTimeEquals.ts",
     "src/lib/adapterSeam/cutoverGate.ts",
     "src/lib/adapterSeam/dispatch.ts",
@@ -188,7 +186,6 @@
     "src/lib/adapterSeam/erpnext/watermark.ts",
     "src/lib/adapterSeam/erpnext/webhookEvent.ts",
     "src/lib/adapterSeam/erpnext/webhookSignature.ts",
-    "src/lib/adapterSeam/erpnext/workflowDeclarations.ts",
     "src/lib/adapterSeam/externalItemCatalog.ts",
     "src/lib/adapterSeam/fiscalYearEnsure.ts",
     "src/lib/adapterSeam/imprestTransfer.ts",
@@ -254,7 +251,6 @@
     "src/lib/adapterSeam/odoo/stock/stockAdapter.ts",
     "src/lib/adapterSeam/odoo/stock/verdict.ts",
     "src/lib/adapterSeam/odoo/sweep.ts",
-    "src/lib/adapterSeam/odoo/workflowDeclarations.ts",
     "src/lib/adapterSeam/purchaseOrderRevise.ts",
     "src/lib/adapterSeam/referenceAdapter.ts",
     "src/lib/adapterSeam/refs.ts",
@@ -270,6 +266,6 @@
     "src/lib/import/failedRows.ts",
     "src/lib/invite/inviteHandler.ts",
     "src/lib/m365/graphPkce.ts",
-    "src/lib/m365/graphTokenCrypto.ts",
+    "src/lib/m365/graphTokenCrypto.ts"
   ]
 }

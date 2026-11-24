@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // CI test scope (#1584): decide which test layers a PR to `dev` can affect.
 //
-//   node scripts/ci-test-scope.mjs --base origin/dev   → {"unit":"full"|"affected","pgtap":bool,"deno":bool,"reason":"…"}
+//   node scripts/ci-test-scope.mjs --base origin/dev [--affected-test-count N]   → {"unit":"full"|"affected","pgtap":bool,"deno":bool,"reason":"…"}
 //   node scripts/ci-test-scope.mjs --release-please --target-base main --head-branch <name> --base origin/main
 //   node scripts/ci-test-scope.mjs --fs-coupled        → vitest test files that read repo files (one per line)
 //   node scripts/ci-test-scope.mjs --self-test
@@ -25,13 +25,17 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const FILE_THRESHOLD = 60;
 
 // Above this many changed files an affected run is split across the same SHARDS runners the full run
-// uses. The affected test count is only known after `npm ci` + `vitest list`, so changed files are the
-// proxy: the data above gives ~8 affected tests per changed file (20 files -> 158 tests, 69 -> ~590). A
+// uses. Before dependencies are installed, changed files are a preliminary proxy; the scope job
+// then measures the actual affected union and promotes oversized selections to full x4. The data: the data above gives ~8 affected tests per changed file (20 files -> 158 tests, 69 -> ~590). A
 // full run is ~1,410 files in ~26 min of one runner (2 shards measured ~10/~16 min), ~1.1 s per file,
 // plus ~2 min of install per runner. Sharding wins once the run outlasts the extra installs: ~200 tests
 // (~4 min) is ~25 files. At or below it one job is cheaper in runner-minutes and just as fast.
 export const SHARD_FILE_THRESHOLD = 25;
 export const SHARDS = 4;
+
+// Run 45442245877 completed 736 of 1023 selected files in ~38.5 min before the 40-min
+// cap: ~19 files/min. 400 files leaves ~19 min for setup, coverage and slower runs.
+export const AFFECTED_TEST_THRESHOLD = 400;
 
 const TEST_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
 // Paths the Vitest module graph cannot see (setup files are added from vite.config.ts at run time).
@@ -76,9 +80,12 @@ const any = (res, p) => res.some((re) => re.test(p));
 /**
  * Pure rule engine.
  * @param {{status: string, path: string}[]} changes `git diff --name-status --no-renames` entries
- * @param {{setupFiles?: string[], edgeImports?: Set<string>, threshold?: number, shardThreshold?: number}} ctx
+ * @param {{setupFiles?: string[], edgeImports?: Set<string>, threshold?: number, shardThreshold?: number, affectedTestCount?: number}} ctx
  */
-export function scope(changes, { setupFiles = [], edgeImports = new Set(), threshold = FILE_THRESHOLD, shardThreshold = SHARD_FILE_THRESHOLD } = {}) {
+export function scope(changes, { setupFiles = [], edgeImports = new Set(), threshold = FILE_THRESHOLD, shardThreshold = SHARD_FILE_THRESHOLD, affectedTestCount } = {}) {
+  if (affectedTestCount !== undefined && (!Number.isSafeInteger(affectedTestCount) || affectedTestCount < 0)) {
+    throw new Error('affected test count must be a non-negative integer');
+  }
   const paths = changes.map((c) => c.path);
   const reasons = [];
   const full = (why) => reasons.push(why);
@@ -90,6 +97,8 @@ export function scope(changes, { setupFiles = [], edgeImports = new Set(), thres
   );
   if (gone) full(`${gone.path} deleted (importers leave the graph)`);
   if (paths.length > threshold) full(`${paths.length} files > ${threshold}`);
+
+  if (affectedTestCount > AFFECTED_TEST_THRESHOLD) full(`${affectedTestCount} affected tests > ${AFFECTED_TEST_THRESHOLD}`);
 
   const edge = paths.find((p) => edgeImports.has(p));
   const isFull = reasons.length > 0;
@@ -385,7 +394,9 @@ function cli(argv) {
       const [status, ...rest] = l.split('\t');
       return { status, path: rest.join('\t') };
     });
-  console.log(JSON.stringify(scope(changes, { setupFiles: setupFilesFromConfig(), edgeImports: edgeImportedPortalFiles() })));
+  const countIndex = argv.indexOf('--affected-test-count');
+  const affectedTestCount = countIndex === -1 ? undefined : Number(argv[countIndex + 1]);
+  console.log(JSON.stringify(scope(changes, { setupFiles: setupFilesFromConfig(), edgeImports: edgeImportedPortalFiles(), affectedTestCount })));
 }
 
 // ── self-test ───────────────────────────────────────────────────────────────
@@ -426,6 +437,16 @@ async function selfTest() {
     assert.equal(s(many(FILE_THRESHOLD)).unit, 'affected');
     assert.equal(s(many(FILE_THRESHOLD + 1)).unit, 'full');
     assert.equal(s(many(5), { threshold: 4 }).unit, 'full');
+  });
+  test('actual affected count keeps 400 files unchanged and routes 401 to full x4', () => {
+    const files = ['pmo-portal/src/lib/example.ts'];
+    assert.deepEqual(s(files, { affectedTestCount: 400 }), s(files));
+    const broad = s(files, { affectedTestCount: 401 });
+    assert.deepEqual([broad.unit, broad.shards], ['full', 4]);
+    assert.match(broad.reason, /401 affected tests > 400/);
+    for (const affectedTestCount of [-1, NaN, 1.5]) {
+      assert.throws(() => s(files, { affectedTestCount }), /non-negative integer/);
+    }
   });
   test('shards: a small affected set stays one job', () => {
     const r = s(Array.from({ length: 25 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));

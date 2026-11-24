@@ -14,8 +14,7 @@ test('JOB-PU5 Buyer extends a rental with requester prices hidden and sees the s
   try {
     ok('hide prices', await admin.from('organizations').update({ hide_prices_from_requesters: true }).eq('id', ORG_ID));
     const rental = need('rental type', await admin.from('purchase_types').select('id').eq('org_id', ORG_ID).eq('is_rental', true).eq('active', true).limit(1).single());
-    fixture = await createProcurementFixture({ status: 'Draft', title: 'Rental journey' });
-    ok('rental period', await admin.from('procurements').update({ purchase_type_id: rental.id, rental_from: '2026-01-01', rental_to: '2026-01-31', status: 'Ordered', approved_by_id: '00000000-0000-0000-0000-0000000000a1' }).eq('id', fixture.id));
+    fixture = await createProcurementFixture({ status: 'Ordered', title: 'Rental journey', purchaseTypeId: rental.id, rentalFrom: '2026-01-01', rentalTo: '2026-01-31' });
     await buyer.login(page);
     await page.goto(fixture.url);
     await page.getByTestId('rental-panel').getByRole('button', { name: 'Extend rental' }).click();

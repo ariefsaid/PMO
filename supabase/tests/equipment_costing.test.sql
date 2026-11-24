@@ -3,7 +3,7 @@
 -- Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(52);
+select plan(54);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -26,6 +26,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15190000-0000-0000-0000-0000000000a6', '15190000-0000-0000-0000-00000000000a', 'EQU Eng1',  'equ-eng1@example.com',  'Engineer', 'active'),
   ('15190000-0000-0000-0000-0000000000a7', '15190000-0000-0000-0000-00000000000a', 'EQU Eng2',  'equ-eng2@example.com',  'Engineer', 'active'),
   ('15190000-0000-0000-0000-0000000000b1', '15190000-0000-0000-0000-00000000000b', 'EQU XOrg',  'equ-xorg@example.com',  'Admin', 'active');
+insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
+values ('15190000-0000-0000-0000-00000000000a','erpnext','https://erp.example.test','test-ref','active','15190000-0000-0000-0000-0000000000a1',now());
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('15190000-0000-0000-0000-0000000000c1', '15190000-0000-0000-0000-00000000000a', 'EQU P1', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a3'),
   ('15190000-0000-0000-0000-0000000000c2', '15190000-0000-0000-0000-00000000000a', 'EQU P2', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a4'),
@@ -274,5 +276,19 @@ select is(array(select version::text || ':' || voided::text || ':' || coalesce(w
                   from list_equipment_costing(true) where setting_key = (select (v->>'setting_key')::uuid from _s where k='vd') order by version),
   array['1:true:open','2:false:open'], 'AC-EQU-008 a version replaced on its own start day reads voided, the open-ended current one does not');
 
+reset role;
+delete from external_org_bindings where org_id = '15190000-0000-0000-0000-00000000000a';
+delete from budget_category_account_map where org_id = '15190000-0000-0000-0000-00000000000a';
+insert into equipment_assets (id,org_id,code,name,default_unit) values
+('15190000-0000-0000-0000-0000000000d8','15190000-0000-0000-0000-00000000000a','CRN-N','Native crane','hours');
+set local role authenticated;
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');
+select lives_ok($$select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d8","basis":"hire_rate","work_rate":50,"rate_unit":"hours","effective_from":"2026-01-01"}')$$,
+ 'AC-NATIVE-EQU-001 a company with no accounting system connected saves a native crane rate without mapping');
+reset role;
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d8','15190000-0000-0000-0000-0000000000c1','2026-10-05',3,'hours');
+set local role authenticated;
+select is((select amount from list_equipment_allocations('15190000-0000-0000-0000-0000000000d8','2026-10-01','2026-10-31')),150.00::numeric,
+ 'AC-NATIVE-EQU-002 native crane hours cost at the saved rate without mapping');
 select * from finish();
 rollback;

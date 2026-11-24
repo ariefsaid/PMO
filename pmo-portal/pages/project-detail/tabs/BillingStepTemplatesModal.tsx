@@ -10,6 +10,8 @@ import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useRefusalLine, useRefusalText } from '@/src/lib/refusals';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
+import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import type { StepInput, StepTemplate } from '@/src/lib/db/billingSteps';
 
 /**
@@ -17,18 +19,19 @@ import type { StepInput, StepTemplate } from '@/src/lib/db/billingSteps';
  * client's team defines themselves (step names, owner roles, target days, documents). Nothing is supplied by PMO. Finance or an
  * Admin writes; loading a template onto a project or a claim copies it, so editing a template later changes nothing already made.
  */
-interface Row { key: number; name: string; ownerRole: string; ownerRoleKey: string; hiddenFrom: string[]; target: string; clientSide: boolean; optionalStep: boolean; required: string; optional: string }
+interface Row { key: number; templateStepId?: string; claimEvidenceEnabled: boolean; name: string; ownerRole: string; ownerRoleKey: string; hiddenFrom: string[]; target: string; clientSide: boolean; optionalStep: boolean; required: string; optional: string }
 /** Field accounts own no step and are never named in a hidden-from list: the database refuses them, so they are not offered. */
 const FULL_ROLE_KEYS = BUILT_IN_ROLES.filter((r) => r.tier !== 'field').map((r) => r.key);
 
 const lines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 const toRow = (s: StepTemplate['steps'][number], key: number): Row => ({
-  key, name: s.name, ownerRole: s.ownerRole ?? '', ownerRoleKey: s.ownerRoleKey ?? '', hiddenFrom: s.hiddenFromRoleKeys ?? [], target: s.targetDays == null ? '' : String(s.targetDays), clientSide: Boolean(s.clientSide),
+  key, templateStepId: s.templateStepId, claimEvidenceEnabled: s.claimEvidenceEnabled === true, name: s.name, ownerRole: s.ownerRole ?? '', ownerRoleKey: s.ownerRoleKey ?? '', hiddenFrom: s.hiddenFromRoleKeys ?? [], target: s.targetDays == null ? '' : String(s.targetDays), clientSide: Boolean(s.clientSide),
   optionalStep: Boolean(s.optional), required: (s.documents ?? []).filter((d) => d.required).map((d) => d.name).join('\n'),
   optional: (s.documents ?? []).filter((d) => !d.required).map((d) => d.name).join('\n'),
 });
 const toStep = (r: Row): StepInput => ({
   name: r.name.trim(), ownerRole: r.ownerRole === '' ? null : r.ownerRole,
+  ...(r.templateStepId ? { templateStepId: r.templateStepId, claimEvidenceEnabled: r.claimEvidenceEnabled } : r.claimEvidenceEnabled ? { claimEvidenceEnabled: true } : {}),
   ownerRoleKey: r.ownerRoleKey === '' ? null : r.ownerRoleKey, hiddenFromRoleKeys: r.hiddenFrom, targetDays: r.target.trim() === '' ? null : Number(r.target),
   clientSide: r.clientSide, optional: r.optionalStep,
   documents: [...lines(r.required).map((name) => ({ name, required: true })), ...lines(r.optional).map((name) => ({ name, required: false }))],
@@ -37,6 +40,8 @@ const validTarget = (v: string) => v.trim() === '' || (/^\d+$/.test(v.trim()) &&
 
 const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => void }> = ({ template, onClose }) => {
   const { t } = useTranslation('project');
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const may = usePermission();
   const roles = useRoleOptions();
   const roleName = useBuiltInRoleName();
   const refusalText = useRefusalText();
@@ -101,6 +106,11 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
             </li>)}
           </ul>}
           <div className="mt-3 flex flex-wrap gap-4">
+            <Checkbox checked={row.claimEvidenceEnabled} disabled={!may('manage', 'orgAccounting') || effectiveRole !== realRole}
+              onChange={(v) => update(row.key, { claimEvidenceEnabled: v })}
+              label={t('projectDetail.billing.templates.claimEvidence', 'Documents here count as claim evidence')}>
+              {t('projectDetail.billing.templates.claimEvidence', 'Documents here count as claim evidence')}
+            </Checkbox>
             <Checkbox checked={row.clientSide} onChange={(v) => update(row.key, { clientSide: v })} label={t('projectDetail.billing.stages.clientSide', "In the client's system")}>
               {t('projectDetail.billing.stages.clientSide', "In the client's system")}
             </Checkbox>
@@ -116,7 +126,7 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
       </li>)}
     </ol>
     <Button type="button" variant="outline" size="sm" className="mt-3"
-      onClick={() => { setRows((rs) => [...rs, { key: nextKey.current++, name: '', ownerRole: '', ownerRoleKey: '', hiddenFrom: [], target: '', clientSide: false, optionalStep: false, required: '', optional: '' }]); setDirty(true); }}>
+      onClick={() => { setRows((rs) => [...rs, { key: nextKey.current++, claimEvidenceEnabled: false, name: '', ownerRole: '', ownerRoleKey: '', hiddenFrom: [], target: '', clientSide: false, optionalStep: false, required: '', optional: '' }]); setDirty(true); }}>
       {t('projectDetail.billing.templates.addStep', 'Add step')}
     </Button>
   </EntityFormModal>;

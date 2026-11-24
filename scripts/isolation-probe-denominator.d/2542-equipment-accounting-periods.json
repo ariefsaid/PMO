@@ -1,0 +1,13 @@
+{
+  "tables": [
+    {
+      "table": "equipment_accounting_periods",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: composite primary key starts with org_id; no client SELECT grant"
+    }
+  ],
+  "definer_functions": []
+}

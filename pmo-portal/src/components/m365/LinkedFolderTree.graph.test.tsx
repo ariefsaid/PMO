@@ -230,7 +230,9 @@ describe('#1124 the folder tree against documented Graph /children answers (ship
     await userEvent.click(drawings);
     await userEvent.click(drawings);
     await screen.findByText('Deep file.pdf');
-    expect(graphFetch).toHaveBeenCalledTimes(3);
+    // Cached rows render before the reopened level finishes its read; keep that read inside this test.
+    await waitFor(() => expect(graphFetch).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(client.isFetching()).toBe(0));
   });
 
   it('a later page that fails leaves the pages already shown and Show more still there to try again', async () => {

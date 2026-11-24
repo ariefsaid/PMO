@@ -1363,3 +1363,14 @@ describe('#2751 candidate C10: page-level role comparisons into policy.ts', () =
     expect(can('setPaymentChannel', 'procurement', { realRole: 'Admin', record: { status: 'Requested', viewOnly: true } })).toBe(false);
   });
 });
+
+
+describe('AC-QSR-001 validated report-only revenue for Quantity Surveyor', () => {
+  const ctx = { realRole: 'Engineer' as const, builtInRoleKey: 'quantity_surveyor', record: { status: 'validated', qs_report_revenue_enabled: true } };
+  it('admits the QS to the validated report only when enabled', () => {
+    expect(can('view', 'dailySiteReportRevenue', ctx)).toBe(true);
+    expect(can('view', 'dailySiteReportRevenue', { ...ctx, record: { ...ctx.record, status: 'submitted' } })).toBe(false);
+    expect(can('view', 'dailySiteReportRevenue', { ...ctx, record: { ...ctx.record, qs_report_revenue_enabled: false } })).toBe(false);
+    expect(can('view', 'dailySiteReportRevenue', { ...ctx, builtInRoleKey: 'planner' })).toBe(false);
+  });
+});

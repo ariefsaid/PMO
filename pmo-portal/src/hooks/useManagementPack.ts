@@ -13,6 +13,7 @@ export function useManagementPack(range: ManagementPackRange, enabled = true) {
     queryFn: () => repositories.reports.managementPack(range),
     select: buildManagementPack,
     enabled: Boolean(orgId) && enabled,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === orgId ? previous : undefined,
   });
 }
 

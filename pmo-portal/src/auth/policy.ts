@@ -507,7 +507,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
-  rateCatalogue: { view: allow(MASTER_DATA), create: allowUnlessViewOnly(REVENUE_WRITE) },
+  rateCatalogue: { view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'project_control_manager'), create: allowUnlessViewOnly(REVENUE_WRITE) },
   /**
    * Daily site report (#1522, 1005). UX ONLY — dsr_save_draft/dsr_submit/dsr_validate/dsr_return/dsr_correct and
    * dsr_report_revenue are the authority (ADR-0016). Until #902 adds the field-controller and QS roles, the field role
@@ -524,7 +524,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     revise: (role, ctx) => ctx.record?.viewOnly !== true && dsrValidator(role, ctx),
   },
   // 2046: the Project Control Manager reads revenue on every project of its organisation (dsr_may_see_revenue); it writes none.
-  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) || holds(ctx, 'project_control_manager') },
+  dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) || holds(ctx, 'project_control_manager') || (holds(ctx, 'quantity_surveyor') && ctx.record?.status === 'validated' && ctx.record?.qs_report_revenue_enabled === true) },
   /**
    * Daily safety records (#2596, 1410-1414). UX ONLY. Mirrors safety_may_enter: Admin, Engineer, or the project's own PM
    * enter, submit and correct; every active member reads counts; worker names and photos follow OD-DSF-6
@@ -1283,8 +1283,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    */
   equipmentAsset: {
     view: allow(ALL),
-    create: allowUnlessViewOnly(['Admin', 'Project Manager']),
-    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Project Manager'], role) || holds(ctx, 'equipment_officer')),
+    edit: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Project Manager'], role) || holds(ctx, 'equipment_officer')),
     delete: allowUnlessViewOnly(ADMIN),
   },
   equipmentUsage: {
@@ -1312,6 +1312,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *   approve ← stating a reason to include unproven days in the invoice check (a stored, audited record): Admin, Finance.
      */
   equipmentAvailability: {
+    transition: (role, ctx) => ctx.record?.viewOnly !== true && (role === 'Finance' || equipmentManagerRights(role, ctx) || holds(ctx, 'equipment_officer')),
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
     manage: (role, ctx) => ctx.record?.viewOnly !== true && (role === 'Finance' || equipmentManagerRights(role, ctx)),

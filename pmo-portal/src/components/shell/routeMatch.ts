@@ -55,8 +55,8 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.procurement',
     path: '/procurement',
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
-    // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Procurement nav — rbac-visibility §E).
-    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    // Mirror Rail, including requesters opening their own purchases.
+    roles: [UserRole.Engineer, UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
     feature: 'procurement',
   },
   {

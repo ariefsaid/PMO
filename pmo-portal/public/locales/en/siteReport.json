@@ -244,7 +244,9 @@
   },
   "revenue": {
     "day": "Day revenue",
-    "toDate": "Validated to date"
+    "toDate": "Validated to date",
+    "qsAccess": "Quantity Surveyors see validated daily report revenue",
+    "qsAccessHelp": "Shows frozen rates and amounts for one validated report. Other revenue and cost permissions stay unchanged."
   },
   "stock": {
     "title": "Stock",

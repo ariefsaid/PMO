@@ -4,26 +4,23 @@
 import { expect } from '@playwright/test';
 import { buyerTest as test } from '../support/buyerOrdering';
 import { recordOrderWithConfirm } from '../helpers';
-import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
-import { roleJobUser } from '../support/roleJobUser';
-import { runId, serviceClient } from '../support/jobFixtures';
+import { createProcurementFixture, serviceClient, type ProcurementFixture } from '../procurement-fixture';
 
 test.setTimeout(150_000);
 
-let buyer: Awaited<ReturnType<typeof roleJobUser>>;
+import { moneyJobRole } from "../support/moneyJobRole";
+let buyer: Awaited<ReturnType<typeof moneyJobRole>>;
 let fixture: ProcurementFixture;
-test.beforeEach(async () => { buyer = await roleJobUser(serviceClient('JOB-PU4'), 'buyer', runId('pu4-buyer')); fixture = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU4' }); });
+test.beforeEach(async () => { buyer = await moneyJobRole("buyer"); fixture = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU4' }); });
 test.afterEach(async () => { await fixture?.cleanup(); await buyer?.cleanup(); });
 
 test('JOB-PU4 two quotes are added, one is chosen, and the order follows the chosen quote', async ({ page }) => {
-  await buyer.signIn(page);
+  await buyer.login(page);
   await page.goto(fixture.url);
-  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await page.getByRole("tab", { name: /^quotations/i }).click();
-  await expect(page.getByTestId("add-quotation")).toHaveCount(0);
-  await page.getByTestId("quote-next-step").getByRole("button", { name: "Request quotations" }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Quoted', { timeout: 15_000 });
-
+  await page.getByRole('tab', { name: /^quotations/i }).click();
+  await expect(page.getByTestId('add-quotation')).toHaveCount(0);
+  await page.getByTestId('quote-next-step').getByRole('button', { name: 'Request quotations' }).click();
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Quoted');
   await page.getByRole('tab', { name: /^quotations/i }).click();
   const vendorNames: string[] = [];
   for (const [index, total] of [[0, '9000'], [1, '8500']] as const) {
@@ -46,9 +43,10 @@ test('JOB-PU4 two quotes are added, one is chosen, and the order follows the cho
   await expect(chosen).toContainText('Selected', { timeout: 15_000 });
   await expect(chosen).toContainText(/8[.,]500/);
 
-  // The order is raised on the chosen quote: the record now carries that supplier and that price.
-  await recordOrderWithConfirm(page);
+  // The order is raised on the chosen quote.
+  await recordOrderWithConfirm(page, vendorNames[1]);
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
-  await expect(page.getByText(vendorNames[1], { exact: false }).first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/8[.,]500/).first()).toBeVisible();
+  const order = await serviceClient().from('purchase_orders').select('amount').eq('procurement_id', fixture.id).single();
+  expect(order.error).toBeNull();
+  expect(Number(order.data?.amount)).toBe(8500);
 });

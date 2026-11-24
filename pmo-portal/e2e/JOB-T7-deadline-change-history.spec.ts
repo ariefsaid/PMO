@@ -28,14 +28,12 @@ test('JOB-T7 a changed deadline shows its old and new date and who changed it in
 
   await worker.signIn(page);
   await page.goto(`/projects/${projectId}/tasks?open=${task.id}`);
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('dialog', { name: `Pour slab ${sfx}` }).getByRole('button', { name: 'Edit', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: /edit task/i });
   await dialog.getByLabel(/due date/i).fill('2030-01-15');
   await dialog.getByRole('button', { name: /save task/i }).click();
   await expect(dialog).toBeHidden({ timeout: 15_000 });
 
-  // Read the task's own history fresh (the open drawer's history query is not invalidated by the edit).
-  await page.reload();
   const event = page.getByTestId('history-event').filter({ hasText: 'Task updated' }).first();
   await expect(event).toContainText(managerName, { timeout: 20_000 });
   await event.getByRole('button', { name: /view details/i }).click();

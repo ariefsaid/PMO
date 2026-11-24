@@ -4,7 +4,7 @@
 -- b8 foreign admin (org a2), b9 the only member of org a3 (sole-operator case).
 begin;
 create extension if not exists pgtap;
-select plan(108);
+select plan(109);
 
 -- ── Fixture F1 ──────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -73,6 +73,14 @@ insert into project_documents (id, org_id, project_id, category, title, status, 
 insert into work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount, currency) values
   ('15140000-0000-0000-0000-0000000000f3', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000c1', 'TM WO small', 'Issued', 'WO-TM-3', 5000000, 'exclusive', 0, 'IDR'),
   ('15140000-0000-0000-0000-0000000000f4', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000c1', 'TM WO large', 'Issued', 'WO-TM-4', 10000000, 'exclusive', 0, 'IDR');
+
+-- A work-order quality document also serves later time-and-materials claims.
+insert into project_documents (id, org_id, project_id, category, title, status, author_id, file_path)
+values ('15140000-0000-0000-0000-0000000000f9', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000c1', 'Acceptance', 'Quality record', 'Approved', '15140000-0000-0000-0000-0000000000b1', '15140000-0000-0000-0000-0000000000a1/15140000-0000-0000-0000-0000000000c1/15140000-0000-0000-0000-0000000000f9/qc.pdf');
+insert into work_order_billing_steps (id, org_id, work_order_id, project_id, position, name, claim_evidence_enabled)
+values ('15140000-0000-0000-0000-000000000a01', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000f4', '15140000-0000-0000-0000-0000000000c1', 1, 'Quality', true);
+insert into work_order_billing_step_documents (org_id, step_id, work_order_id, position, name, document_id, attached_by)
+values ('15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-000000000a01', '15140000-0000-0000-0000-0000000000f4', 1, 'Quality', '15140000-0000-0000-0000-0000000000f9', '15140000-0000-0000-0000-0000000000b1');
 
 create temp table _state (k text primary key, v text not null) on commit drop;
 grant all on _state to authenticated;
@@ -177,6 +185,8 @@ select is((select kind || ' ' || gross_amount::text || ' ' || dp_recovery_amount
   'time_materials 6000000.00 0.00 IDR true true', 'FR-TM-030 confirm creates the progress claim record: kind, gross, no recovery, work order');
 select is((select count(*)::int from progress_claim_evidence where claim_id = pg_temp.st('claimA')::uuid and document_id = '15140000-0000-0000-0000-0000000000f1'
               and attached_by = '15140000-0000-0000-0000-0000000000b2'), 1, 'FR-TM-030 the signed document is attached as billing evidence');
+select is((select count(*)::int from progress_claim_evidence where claim_id = pg_temp.st('claimA')::uuid and document_id = '15140000-0000-0000-0000-0000000000f9'), 1,
+  'AC-WQE-005 the signed time-and-materials claim reuses the work-order quality document');
 select is((select count(*)::int from audit_events where action = 'tm_signoff.prepare' and entity_id = pg_temp.st('claimA')::uuid), 1, 'FR-TM-025 the prepare is audited');
 select is((select detail ->> 'basis' from audit_events where action = 'tm_signoff.confirm' and entity_id = pg_temp.st('claimA')::uuid), 'standard',
   'FR-TM-025 the confirm is audited with its basis');

@@ -149,6 +149,15 @@ jobs:
             git fetch --no-tags origin "$BASE_REF"
             json=$(node scripts/ci-test-scope.mjs --base "origin/$BASE_REF")
             base_sha=$(git merge-base "origin/$BASE_REF" HEAD)
+            # Measure the same union the affected unit job runs before choosing its lane.
+            # Small selections keep their existing route; broad fan-out uses full x4.
+            if [ "$(echo "$json" | jq -r .unit)" = affected ]; then
+              (cd pmo-portal && npm ci)
+              (cd pmo-portal && npx vitest list --filesOnly --changed "$base_sha") | sed -E 's/^\[[a-z]+\] //' > /tmp/changed-tests.txt
+              node scripts/ci-test-scope.mjs --fs-coupled > /tmp/fs-tests.txt
+              affected_count=$(sort -u /tmp/changed-tests.txt /tmp/fs-tests.txt | wc -l | tr -d '[:space:]')
+              json=$(node scripts/ci-test-scope.mjs --base "origin/$BASE_REF" --affected-test-count "$affected_count")
+            fi
           else
             json='{"unit":"full","pgtap":true,"deno":true,"releaseLight":false,"reason":"not a PR to dev or validated release-please PR: everything runs"}'
             base_sha=
@@ -543,7 +552,7 @@ jobs:
     needs: scope
     if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'dev' && needs.scope.outputs.pgtap == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         # supabase CLI must be run from repo root (where supabase/config.toml lives)

@@ -404,6 +404,11 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                     {r.code}
                   </div>
                 )}
+                {!editable && r.workOrderLabel && (
+                  <div className="break-words text-control text-muted-foreground">
+                    {r.workOrderLabel}
+                  </div>
+                )}
               </div>
               {editable && (
                 <Button

@@ -2,11 +2,11 @@
 /**
  * JOB-PU9 — requesters do not see prices: with the setting on, the Requester opens their own request and reads its title, lines and
  * status but no unit price, line total or amount.
- * Recorded gap (not asserted here, see the lane table): the case also expects no vendor to show; the supplier's name still renders on
- * the request. That is a copy/read decision for the owner, not something this journey bends around.
+ * The supplier follows the price visibility setting.
  */
 import { expect, test } from '@playwright/test';
-import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
+import { readFile } from 'node:fs/promises';
+import { createProcurementFixture, SEED_SUPPLIER_NAME, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { ok, runId, serviceClient } from '../support/jobFixtures';
 import { userClient } from '../support/stockFixture';
@@ -39,9 +39,12 @@ test.afterAll(async () => {
   }
 });
 
-test('JOB-PU9 the requester opens their request and no price is shown anywhere on it', async ({ page }) => {
+test('JOB-PU9 the requester opens My requests and no price or supplier shows', async ({ page }) => {
   await requester.signIn(page);
-  await page.goto(purchase.url);
+  await page.goto('/');
+  await page.getByRole('link', { name: /Purchasing|Procurement/ }).first().click();
+  await expect(page.getByText(SEED_SUPPLIER_NAME, { exact: true })).toHaveCount(0);
+  await page.getByText('JOB-PU9 prices hidden', { exact: true }).first().click();
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
 
   // The request itself is there — title, status, its line.
@@ -54,4 +57,13 @@ test('JOB-PU9 the requester opens their request and no price is shown anywhere o
   await expect(page.getByRole('columnheader', { name: /Line total/i })).toHaveCount(0);
   await expect(page.getByText(/^Money ·/)).toHaveCount(0);
   await expect(page.getByText(/12[.,]000/)).toHaveCount(0);
+  await expect(page.getByText(SEED_SUPPLIER_NAME, { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'More actions', exact: true }).first().click();
+  const downloaded = page.waitForEvent('download');
+  await page.getByRole('menuitem', { name: 'Export', exact: true }).click();
+  const path = await (await downloaded).path();
+  if (!path) throw new Error('The request export did not produce a file');
+  const csv = await readFile(path, 'utf8');
+  expect(csv).not.toContain(SEED_SUPPLIER_NAME);
+  expect(csv.split('\n')[0]).toBe('number,title,status,project');
 });

@@ -11,12 +11,13 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import stockEn from '@/public/locales/en/stock.json';
 
-const { master, documents, reports } = vi.hoisted(() => ({
+const { master, documents, reports, workOrder } = vi.hoisted(() => ({
   master: { listUnits: vi.fn(), listItems: vi.fn(), listWarehouses: vi.fn(), listKeepers: vi.fn() },
   documents: { create: vi.fn(), saveDraft: vi.fn(), post: vi.fn(), get: vi.fn(), costs: vi.fn() },
   reports: { onHand: vi.fn() },
+  workOrder: { list: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, documents, reports } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, documents, reports }, workOrder } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 let realRole: Role = 'Engineer';
 let effectiveRole: Role = 'Engineer';
@@ -78,6 +79,10 @@ beforeEach(() => {
   documents.post.mockResolvedValue(undefined);
   documents.get.mockResolvedValue(draft());
   documents.costs.mockResolvedValue([]);
+  workOrder.list.mockResolvedValue([
+    { id: 'wo-1', wo_number: 'WO-001', title: 'Pipeline Tie-in', status: 'Issued', client_po_number: null },
+    { id: 'wo-c', wo_number: 'WO-CAN', title: 'Cancelled WO', status: 'Cancelled', client_po_number: null },
+  ]);
 });
 
 describe('StockCount', () => {
@@ -313,5 +318,51 @@ describe('StockCount', () => {
     renderAt('/stock/new/count', 'Admin', 'Engineer');
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
     expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
+  });
+
+  it('AC-SCW-004 optional work-order picker appears for project site warehouses, excludes cancelled WOs, hides on central, and sends workOrderId', async () => {
+    master.listWarehouses.mockResolvedValue([
+      { id: 'w-site', code: 'SITE-1', name: 'Site 1', kind: 'site', project_id: 'proj-1', archived_at: null },
+      { id: 'w-cen', code: 'CEN', name: 'Central', kind: 'central', project_id: null, archived_at: null },
+    ]);
+    master.listKeepers.mockResolvedValue([
+      { warehouse_id: 'w-site', user_id: 'me', org_id: 'org-1' },
+      { warehouse_id: 'w-cen', user_id: 'me', org_id: 'org-1' },
+    ]);
+    reports.onHand.mockResolvedValue([{ ...onHand('i2', 'CAB', '100'), warehouseId: 'w-site' }]);
+    renderAt('/stock/new/count');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w-cen');
+    expect(screen.queryByRole('combobox', { name: /^Work order/i })).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText(/^Warehouse/), 'w-site');
+    const woCombo = await screen.findByRole('combobox', { name: /^Work order/i });
+    await userEvent.click(woCombo);
+    expect(await screen.findByRole('option', { name: /WO-001/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /WO-CAN/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('option', { name: /WO-001/ }));
+
+    await pickItem('cab', /CAB - Cable 4mm/);
+    await userEvent.type(screen.getByLabelText(/^Counted/), '92');
+    await userEvent.type(screen.getByLabelText(/^Reason/), 'joint count shortage');
+    await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(1));
+    expect(documents.create.mock.calls[0][0]).toEqual({
+      kind: 'count', warehouseId: 'w-site', workOrderId: 'wo-1', reason: 'joint count shortage',
+      lines: [{ itemId: 'i2', countedQuantity: '92' }],
+    });
+  });
+
+  it('AC-SCW-004 reopening a draft count loads its workOrderId and clearing it sends null on save', async () => {
+    master.listWarehouses.mockResolvedValue([
+      { id: 'w1', code: 'SITE-A', name: 'Site A', kind: 'site', project_id: 'proj-1', archived_at: null },
+    ]);
+    documents.get.mockResolvedValue(draft({ work_order_id: 'wo-1', reason: 'closeout' }));
+    renderAt('/stock/documents/d1/edit');
+    const woCombo = await screen.findByRole('combobox', { name: /^Work order/i });
+    await waitFor(() => expect(woCombo).toHaveTextContent(/WO-001/));
+    await userEvent.click(screen.getByRole('button', { name: /clear/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(documents.saveDraft).toHaveBeenCalledTimes(1));
+    expect(documents.saveDraft.mock.calls[0][1]).toMatchObject({ kind: 'count', warehouseId: 'w1', workOrderId: null });
   });
 });
