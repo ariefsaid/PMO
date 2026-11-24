@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, DateField, ListState, ReasonDialog, RecordSection, SelectField, TextField } from '@/src/components/ui';
+import { Link } from 'react-router';
+import { Button, Checkbox, ConfirmDialog, DateField, ListState, ReasonDialog, RecordSection, SelectField, TextField } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import {
@@ -35,6 +36,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
   const files = useInspectionFiles(i.status === 'executed' || i.status === 'reported' ? i.id : null);
   const [err, setErr] = useState<string | null>(null);
   const [reason, setReason] = useState<'waive' | 'cancel' | null>(null);
+  const [confirmRaise, setConfirmRaise] = useState(false);
   const [on, setOn] = useState(today);
   const [who, setWho] = useState('');
   const [how, setHow] = useState('');
@@ -46,6 +48,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
   const mayRaise = can('raise_purchase', 'thirdPartyInspection', ctx);
   const mayWaive = can('waive', 'thirdPartyInspection', ctx);
   const mayCancel = can('cancel', 'thirdPartyInspection', ctx);
+  const mayOpenPurchase = can('view', 'procurement');
   const mayAttach = can('create', 'thirdPartyInspection'); // the same roles; a reported inspection still takes a new file (FR-TPI-015)
   const liveFiles = files.data ?? [];
   const fail = (e: unknown) => { const r = refusal(e, { context: { suppressCapture: true } }); setErr(r.detail || r.headline); };
@@ -92,11 +95,14 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
       {i.cancel_reason && <p className="text-control text-muted-foreground">{t('inspections.cancelReason', 'Cancelled: {{reason}}', { reason: i.cancel_reason })}</p>}
       {i.procurement_id
         ? <p className="text-control" data-testid="inspection-cost">
-            {money.length === 0
-              ? t('inspections.noCostYet', 'Purchase raised, no cost yet')
-              : money.map((c) => t('inspections.cost', '{{committed}} committed, {{billed}} billed', {
-                  committed: formatCurrency(c.committed ?? 0, c.currency as string), billed: formatCurrency(c.billed ?? 0, c.currency as string),
-                })).join(' · ')}
+            {(() => {
+              const text = money.length === 0
+                ? t('inspections.noCostYet', 'Purchase raised, no cost yet')
+                : money.map((c) => t('inspections.cost', '{{committed}} committed, {{billed}} billed', {
+                    committed: formatCurrency(c.committed ?? 0, c.currency as string), billed: formatCurrency(c.billed ?? 0, c.currency as string),
+                  })).join(' · ');
+              return mayOpenPurchase ? <Link className="underline" to={`/procurement/${encodeURIComponent(i.procurement_id)}`}>{text}</Link> : text;
+            })()}
           </p>
         : <p className="text-control text-muted-foreground">{t('inspections.noPurchase', 'No purchase')}</p>}
       {estimate && estimate.estimate != null && estimate.estimate_currency && (
@@ -114,7 +120,12 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
       {/* the next step, by status */}
       {i.status === 'requested' && mayRaise && (
         <div><Button variant="primary" type="button" size="sm" disabled={m.raisePurchase.isPending}
-          onClick={() => run(m.raisePurchase.mutateAsync({ id: i.id }))}>{t('inspections.raisePurchase', 'Raise purchase')}</Button></div>
+          onClick={() => setConfirmRaise(true)}>{t('inspections.raisePurchase', 'Raise purchase')}</Button>
+          <ConfirmDialog open={confirmRaise} title={t('inspections.raiseTitle', 'Raise a purchase for {{title}}', { title: i.title })}
+            description={t('inspections.raiseHelp', 'Creates a draft purchase for this inspection. It opens from here once raised.')}
+            confirmLabel={t('inspections.raisePurchase', 'Raise purchase')} loading={m.raisePurchase.isPending}
+            onConfirm={() => { setConfirmRaise(false); run(m.raisePurchase.mutateAsync({ id: i.id })); }} onCancel={() => setConfirmRaise(false)} />
+        </div>
       )}
       {i.status === 'purchase_raised' && mayAdvance && (
         <div className="flex flex-wrap items-end gap-2">

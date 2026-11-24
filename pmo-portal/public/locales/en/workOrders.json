@@ -163,6 +163,8 @@
     "estimate": "Estimate {{amount}} (a planning figure, not a cost)",
     "files": "Report files",
     "raisePurchase": "Raise purchase",
+    "raiseTitle": "Raise a purchase for {{title}}",
+    "raiseHelp": "Creates a draft purchase for this inspection. It opens from here once raised.",
     "invitedOn": "Invitation date",
     "invitedWho": "Who was invited",
     "invitedHow": "How",

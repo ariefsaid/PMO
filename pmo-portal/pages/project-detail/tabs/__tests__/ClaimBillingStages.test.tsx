@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   stepRemove: vi.fn(),
   stepMove: vi.fn(),
   stepLoad: vi.fn(),
+  templates: [] as unknown[],
 }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
@@ -39,7 +40,7 @@ vi.mock('@/src/hooks/useBillingSteps', () => ({
     move: { mutateAsync: h.stepMove, isPending: false },
     loadTemplate: { mutateAsync: h.stepLoad, isPending: false },
   }),
-  useStepTemplates: () => ({ data: [] }),
+  useStepTemplates: () => ({ data: h.templates }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 
@@ -80,6 +81,7 @@ beforeEach(() => {
   h.stepRemove.mockReset().mockResolvedValue(undefined);
   h.stepMove.mockReset().mockResolvedValue(undefined);
   h.stepLoad.mockReset().mockResolvedValue(undefined);
+  h.templates = [];
 });
 
 describe('ClaimBillingStages', () => {
@@ -175,6 +177,17 @@ describe('ClaimBillingStages', () => {
     h.trace = { stages: [], deadline: null, retention: null };
     const { container } = render(<MemoryRouter><ClaimBillingStages claimId="c1" projectId="p1" currency="IDR" invoiced={false} withdrawn={false} today="2026-03-20" /></MemoryRouter>);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('AC-CBS-014 Finance loads a template onto a claim made before the terms, which has no steps (#2680)', async () => {
+    h.role = 'Finance';
+    h.trace = { stages: [], deadline: null, retention: null };
+    h.templates = [{ id: 't1', name: 'Standard', steps: [] }];
+    const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Load steps from a template' }));
+    await user.selectOptions(screen.getByLabelText('Template'), 't1');
+    await user.click(screen.getByRole('button', { name: 'Load steps' }));
+    expect(h.stepLoad).toHaveBeenCalledWith('t1');
   });
 
   it('a failed read says so and offers a retry, never an empty plan', async () => {

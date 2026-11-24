@@ -264,6 +264,20 @@ describe('Procurement list restructure', () => {
     expect(screen.queryByText('Other project work')).not.toBeInTheDocument();
   });
 
+  it('#2584 the subcontract certificates are reached from the procurement list, not only from inside a subcontract purchase', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /^more$/i })[0]);
+    await user.click(screen.getByRole('button', { name: 'Subcontract certificates' }));
+    expect(screen.getByTestId('route-path')).toHaveTextContent('/subcontract-certificates');
+  });
+
+  it('#2584 an Engineer is not offered the subcontract certificates', () => {
+    roleState.role = 'Engineer';
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Subcontract certificates' })).not.toBeInTheDocument();
+  });
+
   it('Engineers do not see the Not in a procurement tab', () => {
     roleState.role = 'Engineer';
     authState.userId = 'u-engineer';

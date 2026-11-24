@@ -497,6 +497,8 @@
         "template": "Templat",
         "pickTemplate": "Pilih templat",
         "load": "Ganti langkah dengan templat",
+        "loadFirst": "Muat langkah dari templat",
+        "loadEmpty": "Muat langkah",
         "loadTemplateTerms": "Ganti tahap dengan templat",
         "loadTemplateError": "Templat tidak dapat dimuat.",
         "name": "Nama langkah",
