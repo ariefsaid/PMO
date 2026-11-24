@@ -8,6 +8,7 @@ import { formatDayRange } from '@/src/lib/format';
 import RentalExtensionModal, { type ExtensionLine } from './RentalExtensionModal';
 
 export interface RentalPanelProps {
+  readOnly?: boolean;
   procurementId: string;
   title: string;
   status: string;
@@ -21,7 +22,7 @@ export interface RentalPanelProps {
 const DEAD = new Set(['Cancelled', 'Rejected']);
 
 /** The purchase's type, rental period, links both ways and the guided "Extend rental" step (FR-PTR-008/009/013). Mounted only on a typed purchase. */
-const RentalPanel: React.FC<RentalPanelProps> = ({ procurementId, title, status, purchaseTypeId, rentalFrom, rentalTo, extendsId, lines }) => {
+const RentalPanel: React.FC<RentalPanelProps> = ({ readOnly = false, procurementId, title, status, purchaseTypeId, rentalFrom, rentalTo, extendsId, lines }) => {
   const { t, i18n } = useTranslation('purchaseTypes');
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -33,7 +34,7 @@ const RentalPanel: React.FC<RentalPanelProps> = ({ procurementId, title, status,
   const extend = useExtendRental();
   const [open, setOpen] = useState(false);
   const typeName = type ? (i18n.language.startsWith('id') && type.nameId ? type.nameId : type.name) : null;
-  const canExtend = isRental && !DEAD.has(status) && may('create', 'procurement');
+  const canExtend = !readOnly && isRental && !DEAD.has(status) && may('create', 'procurement');
   if (!typeName) return null;
   return (
     <RecordSection data-testid="rental-panel" title={t('panel.title', 'Purchase type')}

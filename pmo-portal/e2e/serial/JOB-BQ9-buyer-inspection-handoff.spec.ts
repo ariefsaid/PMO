@@ -15,7 +15,7 @@ test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the 
   let purchase: Awaited<ReturnType<typeof createProcurementFixture>> | undefined;
   let inspectionId = '';
   try {
-    purchase = await createProcurementFixture({ status: 'Approved', title: run, projectId: project.projectId, requestedBy: quality.id, withSupplier: true });
+    purchase = await createProcurementFixture({ status: 'Approved', title: run, projectId: project.projectId, workOrderId: project.workOrders[0].id, requestedBy: quality.id, withSupplier: true });
     inspectionId = need('inspection', await admin.from('third_party_inspections').insert({
       org_id: ORG_ID, project_id: project.projectId, work_order_id: project.workOrders[0].id,
       title: run, planned_date: '2026-11-24', required_for: ['billing'], status: 'purchase_raised',

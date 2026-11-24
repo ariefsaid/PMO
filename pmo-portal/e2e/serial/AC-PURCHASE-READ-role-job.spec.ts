@@ -27,7 +27,7 @@ test('AC-PURCHASE-READ Procurement Manager marks a supplier at risk and sees tha
   try {
     for (const id of [purchase.id, oldBillCase.id]) ok('set supplier', await service.from('procurements').update({ vendor_id: vendor.id }).eq('id', id));
     ok('Admin prepares old payable', await service.from('procurement_invoices').insert({ org_id: ORG_ID, procurement_id: oldBillCase.id, invoice_date: new Date(Date.now() - 100 * 86_400_000).toISOString().slice(0, 10), status: 'Received', amount: 100, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0 }));
-    const po = need('Admin prepares other manager order', await service.from('purchase_orders').insert({ org_id: ORG_ID, procurement_id: purchase.id, status: 'Issued', amount: 100, currency: 'USD', work_order_id: setup.workOrders[0].id }).select('po_number').single());
+    const po = need('Admin records other manager order', await (await userClient('admin@acme.test')).rpc('create_purchase_order', { p_procurement_id: purchase.id, p_reference_number: null, p_status: 'Issued', p_date: new Date().toISOString().slice(0, 10), p_amount: 100 }));
     await role.login(page);
     await page.goto(`/companies/${vendor.id}`);
     await page.getByTestId('supply-risk-set-suggested').click();

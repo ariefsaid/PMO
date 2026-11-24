@@ -33,7 +33,7 @@ test('JOB-F14 HR manager configures expiry recipients and warning days and the d
 
     // 1. HR manager adds a non-medical Person document type with Project Manager notified.
     await hrManager.signIn(page);
-    await page.goto('/administration/people');
+    await page.goto('/administration/document-types');
     const section = page.locator('#document-types');
     await expect(section).toBeVisible({ timeout: 20_000 });
     await section.getByRole('button', { name: 'Add document type' }).click();

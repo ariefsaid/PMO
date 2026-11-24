@@ -62,6 +62,12 @@ describe('rental panel and the guided extension (#2697)', () => {
     view({ status: 'Cancelled' });
     expect(screen.queryByRole('button', { name: 'Extend rental' })).not.toBeInTheDocument();
   });
+  it('JOB-PU4-READ a historical decider reads rental dates without creating an extension', () => {
+    view({ readOnly: true });
+    expect(screen.getByText('Hire')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Extend rental' })).not.toBeInTheDocument();
+  });
+
   it('FR-PTR-009 a caller who cannot create purchases has no Extend action', () => {
     h.mayCreate = false;
     view();

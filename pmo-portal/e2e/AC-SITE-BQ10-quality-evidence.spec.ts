@@ -16,7 +16,7 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
   // QC owns filing; Finance owns opening each claim and following its evidence doorway.
   await signIn(page,'finance@acme.test');
   for(const claim of claims){
-   await page.goto(`/projects/${fixture.project}?tab=billing&open=${claim.id}&openType=billingClaim`);
+   await page.goto(`/projects/${fixture.project}/contract?open=${claim.id}&openType=billingClaim`);
    await expect(page).toHaveURL(new RegExp(`open=${claim.id}`));
    const claimSection=page.locator(`[aria-labelledby="billing-stages-${claim.id}"]`);
    await expect(claimSection).toBeVisible();
