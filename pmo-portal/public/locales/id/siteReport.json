@@ -230,7 +230,9 @@
     "stage": "Sub-tahap",
     "title": "Progres",
     "unrated_one": "{{count}} baris tanpa tarif",
-    "unrated_other": "{{count}} baris tanpa tarif"
+    "unrated_other": "{{count}} baris tanpa tarif",
+    "section": "Bagian",
+    "outsideSections": "Di luar bagian"
   },
   "queue": {
     "due_one": "Jatuh tempo {{count}} hari",

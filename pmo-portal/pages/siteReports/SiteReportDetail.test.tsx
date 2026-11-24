@@ -54,6 +54,9 @@ const h = vi.hoisted(() => ({
     correct: { mutateAsync: vi.fn(), isPending: false }, uploadPhoto: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
+vi.mock('@/src/hooks/useWorkOrderSections', () => ({
+  useWorkOrderSectionRollup: () => ({ data: [{ sectionId: 'section-a', code: 'A', name: 'Front A', archivedAt: null }] }),
+}));
 vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useDailySiteReport: () => ({ data: h.detail, isPending: false, isError: false, refetch: vi.fn() }),
   useDailySiteReportRevenue: (_id: string, enabled: boolean) => ({ data: enabled ? h.revenue : undefined }),
@@ -394,4 +397,13 @@ describe('site report record', () => {
       }
     });
   });
+});
+
+it('JOB-PC6 the field recorder selects the section when recording progress', async () => {
+  h.detail = make('draft');
+  const user = userEvent.setup();
+  renderPage();
+  const sections = screen.getAllByLabelText('Section');
+  await user.selectOptions(sections[0], 'section-a');
+  expect(sections[0]).toHaveValue('section-a');
 });

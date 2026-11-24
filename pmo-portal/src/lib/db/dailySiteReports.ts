@@ -44,7 +44,7 @@ export interface DsrReport {
 }
 /** A list row: the header plus the work order, author and safe directory label of its optional person link. */
 export interface DsrReportListRow extends DsrReport { work_order_label: string; author_name: string | null; crew_name: string | null; person_name: string | null }
-export interface DsrProgressLine { id: string; position: number; work_order_line_id: string; sub_stage: string | null; quantity: number; unit: string }
+export interface DsrProgressLine { id: string; position: number; work_order_line_id: string; sub_stage: string | null; quantity: number; unit: string; section_id?: string | null }
 export interface DsrIdlePeriod { id: string; position: number; minutes: number; reason_id: string }
 export interface DsrConsumable { id: string; position: number; stock_item_id: string; quantity: number; unit: string; work_order_line_id?: string | null }
 export interface DsrPhoto { id: string; kind: 'paper_form' | 'other'; file_path: string; created_at: string }
@@ -79,7 +79,7 @@ export interface DsrDraftInput {
   crewId?: string | null;
   personId?: string | null;
   areaId?: string | null;
-  progress: { workOrderLineId: string; subStage?: string | null; quantity: string }[];
+  progress: { workOrderLineId: string; subStage?: string | null; quantity: string; sectionId?: string | null }[];
   idle: { minutes: number; reasonId: string }[];
   consumables: { stockItemId: string; quantity: string; workOrderLineId?: string }[];
 }
@@ -143,7 +143,7 @@ export async function getReport(id: string): Promise<DsrReportDetail | null> {
   if (!data) return null;
   const { work_orders: wo, ...report } = data as DsrReport & { work_orders: { title: string; wo_number: string | null; currency: string; order_value: number } | null };
   const [progress, idle, consumables, photos, events] = await Promise.all([
-    fetchAllPages<DsrProgressLine>((f, t) => db.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages<DsrProgressLine>((f, t) => db.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit, section_id').eq('report_id', id).order('position').range(f, t)),
     fetchAllPages<DsrIdlePeriod>((f, t) => db.from('dsr_idle_periods').select('id, position, minutes, reason_id').eq('report_id', id).order('position').range(f, t)),
     fetchAllPages<DsrConsumable>((f, t) => db.from('dsr_consumables').select('id, position, stock_item_id, quantity, unit, work_order_line_id').eq('report_id', id).order('position').range(f, t)),
     fetchAllPages<DsrPhoto>((f, t) => db.from('dsr_photos').select('id, kind, file_path, created_at').eq('report_id', id).order('created_at').order('id').range(f, t)),
@@ -233,7 +233,7 @@ export async function saveDraft(input: DsrDraftInput): Promise<string> {
       ...(input.crewId !== undefined ? { crew_id: input.crewId } : {}),
       ...(input.personId !== undefined ? { person_id: input.personId } : {}),
       ...(input.areaId !== undefined ? { area_id: input.areaId } : {}),
-      progress: input.progress.map((l) => ({ work_order_line_id: l.workOrderLineId, sub_stage: l.subStage || null, quantity: l.quantity })),
+      progress: input.progress.map((l) => ({ work_order_line_id: l.workOrderLineId, sub_stage: l.subStage || null, quantity: l.quantity, ...(l.sectionId !== undefined ? { section_id: l.sectionId || null } : {}) })),
       idle: input.idle.map((l) => ({ minutes: l.minutes, reason_id: l.reasonId })),
       consumables: input.consumables.map((l) => ({ stock_item_id: l.stockItemId, quantity: l.quantity, ...(l.workOrderLineId ? { work_order_line_id: l.workOrderLineId } : {}) })),
     },

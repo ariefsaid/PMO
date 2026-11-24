@@ -1,6 +1,19 @@
 import { moneyText, moneyUnits, type ExactMoney } from './projectFinances';
 import type { ProjectRollup } from './workOrderPlanVsActual';
 
+/** Claims-basis project revenue includes billing that has no discipline or work order. */
+export function projectClaimedRevenue(rows: ReadonlyArray<{ basis: string; currency: string; revenue: ExactMoney }> | 'restricted', currency: string): ExactMoney | null {
+  if (rows === 'restricted') return null;
+  let total = 0n;
+  for (const row of rows) {
+    if (row.currency !== currency || !['billed_claims', 'billed_unitemised'].includes(row.basis)) continue;
+    const amount = moneyUnits(row.revenue);
+    if (amount === null) return null;
+    total += amount;
+  }
+  return moneyText(total);
+}
+
 /**
  * Earned and billed revenue side by side (#2733, docs/specs/earned-billed-revenue.spec.md). Pure join: cost comes from the
  * plan-versus-actual roll-up (never re-summed), revenue from two reads that already exist. Earned = validated progress at the

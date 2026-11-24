@@ -1,15 +1,14 @@
 -- 0052_incidents_crud.test.sql — the Incident register CRUD write contract (CRUD+RBAC program, Incidents slice).
--- Proves the RLS write contract for incident_reports on top of the EXISTING policies (migration 0002):
+-- Proves the incident register write contract, including reporter follow-up scope (2400):
 --   incident_reports_select : org_id = auth_org_id()                              (read scoped to org)
 --   incident_reports_insert : WITH CHECK (org_id = auth_org_id())                 (ANY member may file)
 --   incident_reports_update : USING (org_id = auth_org_id() AND auth_role() IN     (managers update/close)
 --                                     ('Admin','Executive','Project Manager','Finance'))
 --                             WITH CHECK (org_id = auth_org_id())
--- NO new migration is required for this slice — the policies above already exist; this test
--- documents and locks the contract the Incidents UI relies on.
+-- Reporter root-cause updates are additionally allowed by 2400; the field guard keeps status manager/assignee-only.
 --   AC-IN-101  ANY member (an Engineer) CAN INSERT an incident (org_id defaulted from auth_org_id(), never sent).
 --   AC-IN-102  a manager (PM) CAN UPDATE an incident's status (Open→Investigating) in its own org — and it persists.
---   AC-IN-103  an Engineer (non-manager) CANNOT UPDATE/close an incident (USING role gate hides it → 0-row no-op).
+--   AC-IN-103  an Engineer reporter CANNOT advance/close an incident (the field guard refuses it).
 --   AC-IN-104  cross-org write denied: org-B PM cannot INSERT an org-A incident (WITH CHECK → 42501) and an
 --              org-B PM UPDATE of an org-A incident is a silent 0-row no-op (USING hides the row).
 --   AC-IN-105  the org_id stamped on an Engineer-filed incident is the caller's org (column default; not spoofable).
@@ -55,12 +54,12 @@ select lives_ok(
        values ('2026-06-08','Spill','High') $$,
   'AC-IN-101: any member (Engineer) can file an incident (org_id defaulted, never sent)');
 
--- AC-IN-103: Engineer UPDATE of an incident's status runs without error but the USING role gate hides the
--- row (Engineer not in the manager set) → 0-row no-op (RLS silences it, no 42501 on UPDATE).
-select lives_ok(
+-- AC-IN-103: a reporter may record root cause, but cannot advance the issue's status.
+select throws_ok(
   $$ update incident_reports set status = 'Investigating'
        where id = '00520000-0000-0000-0000-000000000010' $$,
-  'AC-IN-103: Engineer UPDATE incident status runs without error (USING role gate hides the row → RLS no-op)');
+  '42501', 'a reporter may change only the root cause of an open issue',
+  'AC-IN-103: Engineer reporter cannot advance incident status');
 
 reset role;
 
@@ -74,7 +73,7 @@ select is(
 select is(
   (select status::text from incident_reports where id = '00520000-0000-0000-0000-000000000010'),
   'Open',
-  'AC-IN-103: Engineer UPDATE affected 0 rows (status unchanged, still Open)');
+  'AC-IN-103: refused Engineer status change leaves the issue Open');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-IN-104: cross-org write denied — org-B PM, before any org-A manager mutation.

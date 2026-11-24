@@ -11,6 +11,7 @@ import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { useWorkOrderSectionRollup } from '@/src/hooks/useWorkOrderSections';
 import { useProject } from '@/src/hooks/useProjects';
 import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
@@ -71,6 +72,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const roleLabels = useRoleLabels();
   const jobRoleLabel = useBuiltInRoleName();
   const { report } = detail;
+  const sections = useWorkOrderSectionRollup(report.work_order_id);
   const project = useProject(report.project_id).data ?? null;
   const ctx = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
   const editable = (report.status === 'draft' || report.status === 'returned')
@@ -256,13 +258,19 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
               const saved = detail.progress[i];
               const rated = saved && saved.work_order_line_id === line.workOrderLineId ? lineRevenue.lines[i] : undefined;
               const item = itemById.get(line.workOrderLineId);
+              const hasSection = (sections.data ?? []).some(s => s.sectionId) || Boolean(line.sectionId);
               return (
-                <li key={i} className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                <li key={i} className={`grid gap-2 sm:items-end ${hasSection ? 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]' : 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]'}`}>
                   {editable ? (
                     <>
                       <SelectField label={t('progress.item', 'Contract item')} value={line.workOrderLineId} error={errText(`progress.${i}.item`)}
                         onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, workOrderLineId: v } : p)) })}
                         options={[{ value: '', label: t('progress.pickItem', 'Choose an item') }, ...items.map((it) => ({ value: it.id, label: `${it.item_code} · ${it.description}` }))]} />
+                      {hasSection && <SelectField label={t('progress.section', 'Section')} value={line.sectionId ?? ''}
+                        onChange={(v) => update({ progress: form.progress.map((p, j) => j === i ? { ...p, sectionId: v } : p) })}
+                        options={[{ value: '', label: t('progress.outsideSections', 'Outside sections') },
+                          ...(sections.data ?? []).filter(s => s.sectionId && (!s.archivedAt || s.sectionId === line.sectionId))
+                            .map(s => ({ value: s.sectionId as string, label: `${s.code} · ${s.name}` }))]} />}
                       {/* A hand-priced line has no stages: a sub-stage there removes its rate (dsr_line_rate). Kept when a draft already holds one. */}
                       {(item?.catalogue_item_id || line.subStage)
                         ? <TextField label={t('progress.stage', 'Sub-stage')} value={line.subStage}
@@ -274,7 +282,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
                     </>
                   ) : (
                     <>
-                      <span className="text-foreground">{item ? `${item.item_code} · ${item.description}` : '—'}{line.subStage ? ` · ${line.subStage}` : ''}</span>
+                      <span className="text-foreground">{item ? `${item.item_code} · ${item.description}` : '—'}{line.subStage ? ` · ${line.subStage}` : ''}{line.sectionId ? ` · ${sections.data?.find(s => s.sectionId === line.sectionId)?.name ?? t('progress.section', 'Section')}` : ''}</span>
                       <span className="tabular-nums text-foreground">{line.quantity} {saved?.unit ?? item?.unit ?? ''}</span>
                     </>
                   )}

@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn(),
   },
+  waitingStep: false,
   role: 'Executive' as 'Executive' | 'Admin' | 'Finance',
 }));
 
@@ -83,7 +84,7 @@ vi.mock('@/src/components/dashboard/restructure/useCompanyFigures', () => ({
 
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
   useNeedsYou: () => ({
-    items: [],
+    items: h.waitingStep ? [{ id: 'work-order-steps-waiting', label: 'Work-order billing step waiting for you', href: '/work-orders/w1', count: 1, tone: 'warn' }] : [],
     approvals: [],
     overdueInvoices: 0,
     approvalsPending: false,
@@ -166,6 +167,7 @@ function renderDashboard(role: 'Executive' | 'Admin' | 'Finance') {
 
 describe('CompanyDashboard work orders entry (JOB-NAV-WO, Defect 4)', () => {
   beforeEach(() => {
+    h.waitingStep = false;
     localStorage.removeItem('home-layout');
     h.workOrders = {
       data: [],
@@ -300,3 +302,8 @@ describe('CompanyDashboard work orders entry (JOB-NAV-WO, Defect 4)', () => {
 });
 
 vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));
+it('JOB-T3 Finance sees its current work-order billing step on the home dashboard', () => {
+  h.waitingStep = true;
+  renderDashboard('Finance');
+  expect(screen.getByRole('link', { name: /Work-order billing step waiting for you/i })).toHaveAttribute('href', '/work-orders/w1');
+});

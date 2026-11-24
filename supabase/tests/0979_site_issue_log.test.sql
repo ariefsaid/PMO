@@ -7,7 +7,7 @@
 -- Fixtures are written as the table owner (no auth.uid(), the privileged path); every client check runs as `authenticated` with a JWT.
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(68);
 
 insert into organizations (id, name, default_currency) values
   ('25210000-0000-0000-0000-00000000000a', 'SIL Org',   'IDR'),
@@ -83,8 +83,10 @@ select is((select count(*) from audit_events where action = 'incident.reopened' 
 -- ── AC-SIL-003 reporter vs assignee vs manager ───────────────────────────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"25210000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-update incident_reports set assignee_id = '25210000-0000-0000-0000-0000000000a4', due_at = now() + interval '3 days'
- where id = '25210000-0000-0000-0000-000000000a04';
+select throws_ok($$ update incident_reports set assignee_id = '25210000-0000-0000-0000-0000000000a4', due_at = now() + interval '3 days'
+ where id = '25210000-0000-0000-0000-000000000a04' $$,
+ '42501', 'a reporter may change only the root cause of an open issue',
+ 'AC-SIL-003: reporter follow-up rights do not allow reassignment or due-time changes');
 select throws_ok($$ insert into incident_reports (org_id, incident_date, type, severity, due_at) values
   ('25210000-0000-0000-0000-00000000000a', '2026-11-18', 'Defect', 'Low', now() - interval '1 day') $$,
   '23514', 'due time cannot be in the past', 'AC-SIL-003: a due time in the past is refused on creation');
