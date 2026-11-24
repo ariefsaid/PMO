@@ -21,14 +21,16 @@ let manager: Awaited<ReturnType<typeof roleJobUser>>;
 let purchase: ProcurementFixture;
 let itemId = '';
 let invoiceId = '';
-let before: Record<string, unknown> | null = null;
+type MatchSettings = { enabled: boolean; enabled_at: string | null; quantity_tolerance_pct: number; amount_tolerance_pct: number; updated_by: string | null };
+let before: MatchSettings | null = null;
 
 test.beforeAll(async () => {
   const svc = serviceClient('JOB-PU7');
   const admin = await userClient('admin@acme.test');
-  const current = await svc.from('org_three_way_match_settings').select('*').eq('org_id', ORG_ID).maybeSingle();
+  const current = await svc.from('org_three_way_match_settings')
+    .select('enabled,enabled_at,quantity_tolerance_pct,amount_tolerance_pct,updated_by').eq('org_id', ORG_ID).maybeSingle();
   ok('match settings read', current);
-  before = (current.data as Record<string, unknown> | null) ?? null;
+  before = (current.data as MatchSettings | null) ?? null;
   ok('match on', await admin.from('org_three_way_match_settings').upsert({
     org_id: ORG_ID, enabled: true, enabled_at: new Date().toISOString(), updated_by: '00000000-0000-0000-0000-0000000000a5',
     quantity_tolerance_pct: 0, amount_tolerance_pct: 0,
@@ -63,7 +65,7 @@ test.afterAll(async () => {
   }
   await purchase?.cleanup();
   const admin = await userClient('admin@acme.test');
-  if (before) ok('match restore', await admin.from('org_three_way_match_settings').upsert(before));
+  if (before) ok('match restore', await admin.from('org_three_way_match_settings').upsert({ org_id: ORG_ID, ...before }));
   else ok('match off', await admin.from('org_three_way_match_settings').delete().eq('org_id', ORG_ID));
   await officer?.cleanup(); await manager?.cleanup();
 });

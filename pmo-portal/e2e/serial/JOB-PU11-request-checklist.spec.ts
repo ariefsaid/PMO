@@ -19,7 +19,7 @@ let paymentId = '';
 test.beforeAll(async () => {
   const svc = serviceClient('JOB-PU11');
   buyer = await roleJobUser(svc, 'buyer', runId('pu11-buyer'));
-  purchase = await createProcurementFixture({ status: 'Vendor Invoiced', title: 'JOB-PU11 checklist', withSupplier: true });
+  purchase = await createProcurementFixture({ status: 'Received', title: 'JOB-PU11 checklist', withSupplier: true });
   const po = need('order', await svc.from('purchase_orders').insert({
     org_id: ORG_ID, procurement_id: purchase.id, po_number: `PO-11-${Date.now()}`,
     status: 'Issued', date: orgToday(), amount: 12000, currency: 'USD',

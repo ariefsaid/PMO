@@ -24,7 +24,7 @@ let switchWasOn = false;
 
 async function withDocuments(title: string, opts: { receipt: boolean; invoice: boolean }): Promise<Purchase> {
   const svc = serviceClient('JOB-PU6');
-  const fixture = await createProcurementFixture({ status: 'Vendor Invoiced', title, withSupplier: true });
+  const fixture = await createProcurementFixture({ status: 'Received', title, withSupplier: true });
   const po = need('order', await svc.from('purchase_orders').insert({
     org_id: ORG_ID, procurement_id: fixture.id, po_number: `PO-${title}-${Date.now()}`,
     status: 'Issued', date: orgToday(), amount: 12000, currency: 'USD',
