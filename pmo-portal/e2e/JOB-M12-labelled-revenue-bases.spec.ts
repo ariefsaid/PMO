@@ -28,6 +28,9 @@ test('JOB-M12 executive reconciles claimed work with invoices while missing prog
     const panel = page.getByTestId('earned-billed');
     const fmt = (value: string) => formatExactMoney(value, 'EUR', 'en-US')!;
     await expect(panel.getByTestId(`earned-billed-row-${wo.id}-billed`)).toHaveText(fmt('80.00'));
+    // The gap sits beside them: earned 125.00 less billed 80.00 = 45.00.
+    await expect(panel.getByTestId(`earned-billed-row-${wo.id}-earned`)).toHaveText(fmt('125.00'));
+    await expect(panel.getByTestId(`earned-billed-row-${wo.id}-gap`)).toHaveText(fmt('45.00'));
     const total = panel.getByTestId('earned-billed-row-total-billed');
     await expect(total).toContainText(`Invoiced: ${fmt('50.00')}`);
     await expect(total).toContainText(`Claimed: ${fmt('80.00')}`);

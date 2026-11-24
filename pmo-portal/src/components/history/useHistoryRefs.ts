@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { repositories } from '@/src/lib/repositories';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { useTasks } from '@/src/hooks/useTasks';
@@ -19,6 +20,8 @@ import type { HistoryNameKind } from '@/src/lib/repositories/types';
 export type RefMaps = Record<RefSource | NameSource, Map<string, string>>;
 export interface HistoryRefsResult {
   refs: RefMaps;
+  /** actor id → the job role they held when the record's history is read (M7: name, role, date, time). */
+  roles: Map<string, string>;
   nameLookupFailed: boolean;
 }
 
@@ -41,6 +44,7 @@ export function useHistoryRefs(args: {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const roleName = useBuiltInRoleName();
 
   const profiles = useQuery({
     queryKey: ['org-profiles', orgId],
@@ -128,10 +132,15 @@ export function useHistoryRefs(args: {
         procurementInvoices: eventNamesData?.procurement_invoice ?? new Map(),
         withholdingSlipBills: eventNamesData?.vendor_withholding_slip_bill ?? new Map(),
       },
+      // M7: each history event names the person's job role, so "who did it" is complete on screen.
+      roles: new Map((profiles.data ?? []).flatMap((p) => {
+        const label = p.built_in_role ? roleName(p.built_in_role) : (p.role ?? '');
+        return label ? [[p.id, label] as const] : [];
+      })),
       nameLookupFailed: eventNames.isError,
     };
   }, [
     t, archivedCompanies, profiles.data, companies.data, tasks.data, milestones.data, procurements.data,
-    workOrders.data, budgetVersions.data, procDetail.data, eventNamesData, eventNames.isError,
+    workOrders.data, budgetVersions.data, procDetail.data, eventNamesData, eventNames.isError, roleName,
   ]);
 }
