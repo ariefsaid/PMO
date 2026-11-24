@@ -1,3 +1,5 @@
+const ledgerMock = vi.hoisted(() => vi.fn().mockResolvedValue([{ external_tier: 'erpnext', status: 'active' }]));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listBindings: ledgerMock } } }));
 /**
  * AC-BUD-011/012 — pages/admin/BudgetAccountMap.tsx: the Admin CRUD surface for the category↔account
  * BIJECTION (FR-BUD-110..113). Mirrors AdminUsers.test.tsx's "react-query + the repository seam
@@ -98,6 +100,7 @@ const renderPage = (role: Role = 'Admin', initial = '/administration/accounting'
 };
 
 beforeEach(() => {
+  ledgerMock.mockResolvedValue([{ external_tier: 'erpnext', status: 'active' }]);
   listMock.mockReset();
   catalogueMock.mockReset();
   createMock.mockReset();
@@ -143,7 +146,7 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
     renderPage(role);
     await waitFor(() => expect(listMock).toHaveBeenCalled());
     // map still unresolved: the chart read must already be in flight
-    expect(catalogueMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(catalogueMock).toHaveBeenCalledTimes(1));
     await act(async () => { releaseMap([]); });
     expect(await screen.findByText('Loading the account chart…')).toBeInTheDocument();
   });
@@ -628,4 +631,12 @@ describe('BudgetAccountMap T5 DataTable adoption', () => {
       window.matchMedia = original;
     }
   });
+});
+
+it('AC-NATIVE-EQU-003 native costing needs no accounting catalogue', async () => {
+  ledgerMock.mockResolvedValue([]);
+  renderPage('Admin');
+  expect(await screen.findByText(/Equipment hire uses native rates/)).toBeVisible();
+  expect(screen.queryByRole('region', { name: 'Suggested posting accounts' })).not.toBeInTheDocument();
+  expect(catalogueMock).not.toHaveBeenCalled();
 });

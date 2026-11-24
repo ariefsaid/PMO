@@ -144,16 +144,21 @@ insert into public.equipment_usage_entries (org_id, asset_id, project_id, work_d
    'a0300000-0000-0000-0000-0000000000d0', '2026-10-10', 4, 'hours', 'work', 'Approved',
    'a0300000-0000-0000-0000-0000000000a7', 'a0300000-0000-0000-0000-0000000000a3', now());
 
+-- Connection now validates all saved hire categories. Admin supplies the required maps before connecting;
+-- T-S03-02 then models Admin removing Labor's map: Finance must still count the pre-connection hire history.
+insert into public.budget_category_account_map (org_id, category, erp_account, is_push_target)
+values
+  ('a0300000-0000-0000-0000-000000000002', 'Equipment', 'S03 actual account', false),
+  ('a0300000-0000-0000-0000-000000000004', 'Equipment', 'S03 EUR actual account', false),
+  ('a0300000-0000-0000-0000-000000000002', 'Labor', 'S03 historical hire account', false);
 insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
 values ('a0300000-0000-0000-0000-000000000002', 'erpnext', 'https://s03.example.test', 's03-test-ref', 'active',
         'a0300000-0000-0000-0000-0000000000a3', now());
 insert into public.external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at)
 values ('a0300000-0000-0000-0000-000000000004', 'erpnext', 'https://s03-currency.example.test', 's03-test-ref', 'active',
         'a0300000-0000-0000-0000-0000000000a5', now());
-insert into public.budget_category_account_map (org_id, category, erp_account, is_push_target)
-values
-  ('a0300000-0000-0000-0000-000000000002', 'Equipment', 'S03 actual account', false),
-  ('a0300000-0000-0000-0000-000000000004', 'Equipment', 'S03 EUR actual account', false);
+delete from public.budget_category_account_map
+ where org_id='a0300000-0000-0000-0000-000000000002' and category='Labor';
 insert into public.external_master_records (org_id, external_tier, kind, external_id, name, attrs, source_write_date)
 values ('a0300000-0000-0000-0000-000000000004', 'odoo', 'company', 's03-company', 'S03 company EUR', '{"currency":"EUR"}', '2026-10-10 00:00:00');
 insert into public.erp_actuals_snapshot (org_id, project_id, cost_center, account, fiscal_year, debit, credit, net, snapshot_id)
@@ -314,7 +319,7 @@ select results_eq(
       from public.project_budget_positions(array['a0300000-0000-0000-0000-0000000000df'::uuid])
      where project_id = 'a0300000-0000-0000-0000-0000000000df'$$,
   $$values (1000::numeric, 900::numeric, 900::numeric, true, 0.9::numeric, 90::numeric, -100::numeric, true, true)$$,
-  'T-S03-02 comparable unmapped Labor hire charge is added once to the 700 ERP actual');
+  'T-S03-02 after Admin removes its map, Finance still counts historical Labor hire once beside the 700 ERP actual');
 select is((select mapped from public.project_mapped_actuals_all(null)
             where project_id = 'a0300000-0000-0000-0000-0000000000df' and category = 'Labor'), false,
           'T-S03-02 category coverage still marks Labor unmapped while project consumption includes its charge');
