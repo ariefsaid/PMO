@@ -87,6 +87,13 @@ brief and answered `ONE-LINE-OK` on `deepseek/deepseek-v4.1-flash`):
   a real session exits after ~3 s. Use pi for GLM until a ZCode release ships the CLI standalone.
 - **Never use NVIDIA NIM models for GLM** (slow enough to read as a hang); Z.AI only.
 - **Antigravity print mode** needs the prompt attached: `agy --model gemini-4-argon-high -p='<prompt>'`.
+- **Parallel limits seen on 25 Nov 2026.** GLM at `:max`: two workers at most (four emptied the five-hour
+  allowance in 25 minutes). Gemini: eleven parallel middle-tier workers emptied the window in minutes, and a
+  weekly cap exists across all tiers. DeepSeek Go: concurrency limit 20, then rate limits it retries by itself;
+  the free id has a daily quota.
+- **Model habits.** Terra and Luna report "incomplete" and stop on takeovers and long diagnoses: say in the
+  brief that it is the only continuation and that incomplete is not an outcome. DeepSeek ignores "do not run
+  this locally": enforce it mechanically, not in prose.
 - **Fresh worker per task**, own child worktree off `origin/dev`; never reuse a worker for another job.
 - **Never stop a running worker** except on the owner's explicit "stop": its tokens (and any agents
   it spawned) are lost.
