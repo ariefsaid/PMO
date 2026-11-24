@@ -3966,9 +3966,8 @@ Owner rulings (changing one needs the owner):
 - **OD-R1122-1 New features are on for every organisation.** A feature no longer ships behind its own switch. Five module switches per organisation (people and crews, site day, stock, purchasing extras, billing extras) let an Admin turn a module off; a module starts off for an existing organisation only when it has no data in it. Settings that change who can see, approve or pay, or that change a money figure, stay individual and off (price visibility, labour cost, approval by amount, monthly equipment plan, site reports posting stock, email per event). The older per-feature switches are deleted in a later release (#2796).
 - **OD-R1122-2 Price visibility is a promise the database keeps.** When the setting ships, a person who may not see prices reads none by any route. It covers purchases, orders, vendor bills, payments, stock values, quotations, request-for-quotation amounts, order changes, equipment rental rates, contract and rate-catalogue rates and subcontract certificate rates. Budgets, bills of quantity and revenue stay visible. The settings card stays held until then (#2699, #2788 to #2790).
 - **OD-R1122-3 People documents.** The HR Manager and HR Officer see the status and dates of medical documents, in the app and by email, and read, add and renew every person's other documents. Everyone else is unchanged.
-  - **Revised by the owner, 24 November:** for a medical document type the person's direct manager also receives the expiry warning, as a
-    *plain notice*: the person, the document type and the date only, with no link and no access to the document. Reading the document
-    stays behind the medical right. This amends the notice rule of DD-R1123-1; the write right on medical documents is DD-R1124-7.
+  - **Read with DD-R1124-15 (Director, 24 November; the owner may revisit it):** for a medical document type the person's direct manager
+    also receives the expiry warning, as a plain notice that carries no access to the document. OD-R1122-3's own text is unchanged.
 - **OD-R1122-4 Five role rights that nothing used are removed** (stock post, stock approve, crew time approve, billing-stage run, invoice raise). A right is added back with its rule when a ticket needs it.
 - **OD-R1122-5 The gap round is built now** (map #2755, 26 items), including a manager's approval of a medical release in a minimal form, brought forward from the later-quarter list (#2770). Two items wait for a customer answer: who enters and validates a site report (#2756), and whether a crew may work several work orders in one day (#2757; OD-CRW-2 stands until then, #2767).
 
@@ -4131,7 +4130,7 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   and the template's own contents are kept, and the change is recorded. Reason: an issued checklist is a snapshot (OD-WCO-3), so an
   item that should have named a role is corrected on the work order, not by re-issuing it.
 - **DD-R1124-10 A medical document's expiry warning reaches the holders of the medical right whether or not their access level is on
-  the document type's notify list.** The person's direct manager still receives the plain notice only (OD-R1122-3, revised 24 November).
+  the document type's notify list.** The person's direct manager still receives the plain notice only (DD-R1124-15).
   Other document types keep their notify list.
 - **DD-R1124-11 The project total labels Invoiced and Claimed apart.** Invoiced is submitted invoices; Claimed also counts live claims
   not yet invoiced, including billing not assigned to a work order. The wording for missing progress is distinct from the wording for
@@ -4156,4 +4155,14 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   figures; today the Equipment Manager does. (k) A history of requested quantity revisions; until then a contract version records an
   accepted change only, never a saved request. The build-level limits of the same round are in the lanes' open lists under
   `docs/briefs/decisions-1124/`.
+- **DD-R1124-15 For a medical document type the person's direct manager also receives the expiry warning, as a *plain notice*:** the
+  person, the document type and the date only, with no link and no access to the document; reading the document stays behind the medical
+  right (OD-R1122-3). This amends the notice rule of DD-R1123-1, which sends a medical expiry notice to the person and to holders of the
+  medical right only. Reason: the manager is warned early for every other document type and needs the date to plan work; a plain notice
+  gives the date and nothing of the medical content. A Director decision of 24 November, not recorded as an owner ruling; the owner may
+  revisit it.
+- **DD-R1124-16 The Procurement Manager reads every purchase case in their own organisation, read only:** the case with its quotations,
+  order, receipts and bill. The right adds no ordering, approval or edit authority; those stay with the roles that hold them today
+  (DD-R1124-1). Reason: the role's job is to oversee buying across projects, so it must see every case and not only those of the projects
+  it manages. Not a setting: it follows the job role.
 
