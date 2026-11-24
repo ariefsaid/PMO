@@ -1,8 +1,9 @@
--- Latest bodies: create_stock_document 0534; stock_apply_receive 0413; bill_match_evaluate 1018. Additive guards and reversal exclusion only.
+-- Latest bodies: create_stock_document 0534 + 1461; stock_apply_receive 0413; bill_match_evaluate 1018. Additive guards and reversal exclusion only.
 create or replace function public.create_stock_document(p_header jsonb, p_lines jsonb, p_post boolean default false, p_client_request_id uuid default null)
   returns uuid language plpgsql volatile security definer set search_path = public as $$
 declare v_org uuid; v_uid uuid := auth.uid(); v_kind text; v_wh uuid; v_occ date; v_doc public.stock_documents; v_id uuid; v_override boolean;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   perform public.assert_feature_on(public.auth_org_id(), 'stock');
   v_org := public.auth_org_id();
