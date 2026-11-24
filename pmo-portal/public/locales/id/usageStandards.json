@@ -79,8 +79,20 @@
     "reverted": "Kembali ke jumlah hasil hitung",
     "empty": "Belum ada rencana bahan habis pakai. Buat dari standar pemakaian.",
     "emptyClosed": "Tidak ada rencana bahan habis pakai untuk $t(common:terms.clientWorkOrder) ini.",
-    "outOfDate": "Pekerjaan atau standar pemakaian berubah sejak rencana ini dibuat. Permintaan tetap memakai rencana yang tersimpan.",
-    "outOfDateAction": "Buat ulang agar sesuai terbaru.",
+    "outOfDate": "Pekerjaan atau standar pemakaian berubah sejak rencana ini dibuat. Permintaan material memakai alokasi sampai rencana dibuat ulang dan disetujui.",
+    "outOfDateAction": "Buat ulang agar sesuai terbaru, lalu minta persetujuan.",
+    "approval": {
+      "approved": "Disetujui",
+      "required": "Memerlukan persetujuan",
+      "approvedMessage": "Disetujui untuk permintaan material.",
+      "unknownAuthor": "Rencana lama ini perlu diubah atau dibuat ulang sebelum dapat disetujui.",
+      "stale": "Masukan berubah sejak disetujui. Buat ulang rencana dan minta persetujuan lagi.",
+      "waiting": "Menunggu keputusan {{approver}}.",
+      "pcmRoute": "Project Control Manager",
+      "pcmAuthorRoute": "Admin atau Manajer Proyek ini",
+      "approve": "Setujui rencana",
+      "approvedToast": "Rencana disetujui untuk permintaan material"
+    },
     "noPlan": "Tidak ada rencana",
     "planned": "Rencana {{qty}} {{unit}}",
     "requested": "Diminta {{qty}}",
@@ -113,7 +125,11 @@
       "CUS_WORK_ORDER": "$t(common:terms.clientWorkOrder) sudah ditutup atau dibatalkan.",
       "CUS_REASON": "Isi alasan (maksimal 500 karakter).",
       "CUS_ITEM": "Pilih barang yang aktif.",
-      "CUS_INVALID": "Isi nol atau lebih."
+      "CUS_INVALID": "Isi nol atau lebih.",
+      "CUS_SOD": "Orang yang membuat rencana tidak dapat menyetujuinya.",
+      "CUS_APPROVER": "Anda tidak berwenang menyetujui rencana ini.",
+      "CUS_PLAN_MISSING": "Buat atau ubah rencana sebelum meminta persetujuan.",
+      "CUS_PLAN_STALE": "Buat ulang rencana sebelum meminta persetujuan."
     },
     "form": {
       "addTitle": "Tambah barang ke rencana",

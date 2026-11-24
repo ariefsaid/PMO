@@ -126,7 +126,11 @@
     "pages": "Halaman",
     "previous": "Sebelumnya",
     "status": "Status",
-    "title": "Laporan"
+    "title": "Laporan",
+    "crew": "Regu",
+    "allCrews": "Semua regu",
+    "crewLabel": "Regu {{name}}",
+    "personLabel": "Orang {{name}}"
   },
   "lost": {
     "archived": "Diarsipkan",
@@ -144,7 +148,14 @@
     "pickProject": "Pilih proyek",
     "pickWorkOrder": "Pilih $t(common:terms.clientWorkOrder)",
     "project": "Proyek",
-    "workOrder": "$t(common:terms.clientWorkOrder)"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "crew": "Regu (opsional)",
+    "noCrew": "Tanpa regu",
+    "person": "Orang (jika tanpa regu)",
+    "noPerson": "Tanpa orang",
+    "loadingPeople": "Memuat daftar orang…",
+    "peopleError": "Daftar orang tidak dapat dimuat.",
+    "retryPeople": "Coba lagi"
   },
   "newReport": "Laporan baru",
   "note": {
@@ -273,5 +284,22 @@
     "hours": "jam mulai dan selesai",
     "photo": "foto",
     "progress": "kemajuan pekerjaan"
+  },
+  "who": {
+    "title": "Regu dan wilayah",
+    "crew": "Regu",
+    "noCrew": "Tanpa regu",
+    "person": "Orang (bila tidak ada regu)",
+    "noPerson": "Tanpa orang",
+    "personHelp": "Laporan menyebut satu regu atau satu orang, bukan keduanya. Kosongkan regu untuk menyebut orang.",
+    "area": "Wilayah tarif",
+    "areaDefault": "Wilayah perintah kerja",
+    "areaHelp": "Menghargai baris laporan dengan tarif wilayah itu. Biarkan kosong untuk memakai wilayah perintah kerja."
+  },
+  "woSection": {
+    "title": "Laporan lapangan",
+    "empty": "Belum ada laporan lapangan pada perintah kerja ini.",
+    "error": "Laporan lapangan tidak dapat dimuat",
+    "more": "Semua laporan lapangan"
   }
 }

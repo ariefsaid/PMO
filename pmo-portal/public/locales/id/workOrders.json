@@ -214,7 +214,8 @@
     "duplicateCode": "Entri aktif lain sudah memakai kode ini.",
     "adminOnly": "Hanya Admin yang dapat mengubah daftar ini.",
     "tooLong": "Gunakan paling banyak {{max}} karakter.",
-    "hint": "Daftar milik organisasi Anda sendiri. $t(common:terms.clientWorkOrder) dapat menyebutnya; daftar dapat dikelompokkan menurutnya."
+    "hint": "Daftar milik organisasi Anda sendiri. $t(common:terms.clientWorkOrder) dapat menyebutnya; daftar dapat dikelompokkan menurutnya.",
+    "description": "Deskripsi (opsional)"
   },
   "clientMaterial": {
     "awaiting": "Menunggu reservasi",

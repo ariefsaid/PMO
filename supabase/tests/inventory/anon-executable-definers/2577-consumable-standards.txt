@@ -1,3 +1,5 @@
 # #2577 (2577-consumable-standards), carried from the branch's own array at integration
 cus_adjust_plan_line
 cus_generate_plan
+cus_approve_plan
+cus_plan_approval_status

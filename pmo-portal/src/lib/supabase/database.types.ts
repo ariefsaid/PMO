@@ -1480,6 +1480,75 @@ export type Database = {
           },
         ]
       }
+      boq_item_area_rates: {
+        Row: {
+          area_id: string
+          boq_item_id: string
+          id: string
+          org_id: string
+          project_id: string
+          rate: number
+          set_at: string
+          set_by: string | null
+        }
+        Insert: {
+          area_id: string
+          boq_item_id: string
+          id?: string
+          org_id?: string
+          project_id: string
+          rate: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Update: {
+          area_id?: string
+          boq_item_id?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+          rate?: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boq_item_area_rates_area_same_org"
+            columns: ["org_id", "area_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_areas"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       boq_items: {
         Row: {
           catalogue_item_id: string | null
@@ -4576,6 +4645,9 @@ export type Database = {
           weather_note: string | null
           work_date: string
           work_order_id: string
+          area_id: string | null
+          crew_id: string | null
+          person_id: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -4604,6 +4676,9 @@ export type Database = {
           weather_note?: string | null
           work_date: string
           work_order_id: string
+          area_id?: string | null
+          crew_id?: string | null
+          person_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -4632,6 +4707,9 @@ export type Database = {
           weather_note?: string | null
           work_date?: string
           work_order_id?: string
+          area_id?: string | null
+          crew_id?: string | null
+          person_id?: string | null
         }
         Relationships: [
           {
@@ -9969,6 +10047,62 @@ export type Database = {
           },
         ]
       }
+      headcount_day_documents: {
+        Row: {
+          attached_at: string
+          attached_by: string
+          document_id: string
+          headcount_id: string
+          id: string
+          org_id: string
+        }
+        Insert: {
+          attached_at?: string
+          attached_by?: string
+          document_id: string
+          headcount_id: string
+          id?: string
+          org_id?: string
+        }
+        Update: {
+          attached_at?: string
+          attached_by?: string
+          document_id?: string
+          headcount_id?: string
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "headcount_day_documents_attached_by_fkey"
+            columns: ["attached_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_day_documents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_day_documents_headcount_id_fkey"
+            columns: ["headcount_id"]
+            isOneToOne: false
+            referencedRelation: "headcount_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_day_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       headcount_days: {
         Row: {
           approved_at: string | null
@@ -14119,6 +14253,29 @@ export type Database = {
           },
         ]
       }
+      org_setup_workflow_settings: {
+        Row: {
+          enabled: boolean
+          org_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Update: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_setup_workflow_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_term_keys: {
         Row: {
           term_key: string
@@ -14240,6 +14397,7 @@ export type Database = {
           clearance_checklist_enabled: boolean
           created_at: string
           crew_loans_enabled: boolean
+          daily_report_validate_roles: string[]
           default_currency: string
           default_locale: string
           default_number_locale: string | null
@@ -14261,6 +14419,7 @@ export type Database = {
           leave_approver_role: string | null
           leave_requests_enabled: boolean
           lifecycle_state: string | null
+          management_views_enabled: boolean
           module_billing_extras: boolean
           module_people_crews: boolean
           module_purchasing_extras: boolean
@@ -14288,11 +14447,14 @@ export type Database = {
           safety_records_enabled: boolean
           sector_options: string[]
           service_line_options: string[]
+          po_needed_by_required_from: string | null
+          stock_handover_scope: string
           stock_proof_timing: string
           stock_reservations: boolean
           stock_transfer_mode: string
           stock_wo_transfers: boolean
           tax_prepaid_account: string | null
+          work_order_checklist_enabled: boolean
         }
         Insert: {
           attendance_backdate_days?: number
@@ -14305,6 +14467,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14326,6 +14489,7 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          management_views_enabled?: boolean
           module_billing_extras?: boolean
           module_people_crews?: boolean
           module_purchasing_extras?: boolean
@@ -14353,11 +14517,14 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
+          stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_order_checklist_enabled?: boolean
         }
         Update: {
           attendance_backdate_days?: number
@@ -14370,6 +14537,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14391,6 +14559,7 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          management_views_enabled?: boolean
           module_billing_extras?: boolean
           module_people_crews?: boolean
           module_purchasing_extras?: boolean
@@ -14418,11 +14587,14 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
+          stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_order_checklist_enabled?: boolean
         }
         Relationships: [
           {
@@ -25301,6 +25473,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          description: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -25310,6 +25483,7 @@ export type Database = {
           id?: string
           name: string
           org_id?: string
+          description?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -25319,6 +25493,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          description?: string | null
         }
         Relationships: [
           {
@@ -29084,6 +29259,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_work_order_step: {
+        Args: { p_after_position: number | null; p_step: Json; p_work_order: string }
+        Returns: string
+      }
       add_task_to_incident: {
         Args: {
           p_assignee?: string
@@ -29411,6 +29590,10 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_rows: Json }
         Returns: Json
       }
+      attach_headcount_document: {
+        Args: { p_document: string; p_headcount: string }
+        Returns: string
+      }
       attach_survey_document: {
         Args: { p_document: string; p_id: string }
         Returns: undefined
@@ -29550,6 +29733,8 @@ export type Database = {
           all_done: boolean
           claim_created_at: string
           claim_id: string
+          claim_value: string
+          currency: string
           current_name: string
           current_position: number
           current_stage_id: string
@@ -29566,6 +29751,19 @@ export type Database = {
           today: string
           wo_number: string
           work_order_id: string
+        }[]
+      }
+      billing_unaccepted_progress: {
+        Args: { p_project?: string }
+        Returns: {
+          boq_item_id: string
+          description: string | null
+          item_code: string | null
+          project_id: string
+          project_name: string
+          quantity: string
+          today: string
+          unit: string | null
         }[]
       }
       billing_claim_invoiced: { Args: { p_claim: string }; Returns: boolean }
@@ -31189,6 +31387,8 @@ export type Database = {
       }
       cus_generate_plan: { Args: { p_work_order_id: string }; Returns: number }
       cus_get_plan: { Args: { p_work_order_id: string }; Returns: Json }
+      cus_approve_plan: { Args: { p_work_order_id: string }; Returns: undefined }
+      cus_plan_approval_status: { Args: { p_work_order_id: string }; Returns: Json }
       cus_item_ok: { Args: { p_item_id: string }; Returns: boolean }
       cus_plan_fingerprint: {
         Args: { p_work_order_id: string }
@@ -31255,6 +31455,7 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: undefined
       }
+      detach_headcount_document: { Args: { p_id: string }; Returns: undefined }
       discard_odoo_mirror: {
         Args: { p_actor_id: string; p_org_id: string }
         Returns: undefined
@@ -31293,6 +31494,7 @@ export type Database = {
       }
       dsr_line_rate: {
         Args: {
+          p_area?: string
           p_as_of: string
           p_sub_stage: string
           p_variant: string
@@ -31358,7 +31560,7 @@ export type Database = {
           project_id: string
           report_id: string
           submitted_at: string
-          total_revenue: number
+          total_revenue: number | null
           unrated_lines: number
           waiting_for_validator: boolean
           work_date: string
@@ -32642,6 +32844,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: boolean
       }
+      import_work_orders: {
+        Args: { p_project: string; p_rows: Json }
+        Returns: Json
+      }
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
@@ -32859,6 +33065,7 @@ export type Database = {
           start_date: string
           status: string
           type_name: string
+          waiting_for_names: string[]
         }[]
       }
       light_can_see_crew: { Args: { p_crew: string }; Returns: boolean }
@@ -34464,6 +34671,26 @@ export type Database = {
           work_order_id: string
         }[]
       }
+      opening_balances_overview: {
+        Args: never
+        Returns: {
+          as_of: string
+          certified_value: number
+          claimed_value: number
+          currency: string
+          id: string
+          kind: string
+          label: string
+          line_count: number
+          lines: Json
+          loaded_at: string
+          loaded_by_name: string
+          note: string
+          stock_quantity: number
+          stock_value: number
+          sub_label: string
+        }[]
+      }
       opening_history_plan: {
         Args: { p_as_of: string; p_lines: Json; p_org: string }
         Returns: {
@@ -35345,6 +35572,17 @@ export type Database = {
           earned_quantity: number
           earned_value: number
           rate: number
+        }[]
+      }
+      project_management_overview: {
+        Args: { p_ids: string[] }
+        Returns: {
+          done_count: number
+          late_count: number
+          planned_pct: number | null
+          project_id: string
+          today: string
+          total_count: number
         }[]
       }
       project_mapped_actuals: {
@@ -36771,6 +37009,10 @@ export type Database = {
         Args: { p_decider_roles: string[]; p_second_record_roles: string[] }
         Returns: undefined
       }
+      set_daily_report_validate_roles: {
+        Args: { p_roles: string[] }
+        Returns: string[]
+      }
       set_billing_plan_month_target: {
         Args: { p_month: string; p_target: number }
         Returns: undefined
@@ -36818,6 +37060,10 @@ export type Database = {
       set_billing_step_template_roles: {
         Args: { p_roles: Json; p_template: string }
         Returns: number
+      }
+      set_boq_item_area_rate: {
+        Args: { p_area: string; p_boq_item: string; p_rate?: number }
+        Returns: undefined
       }
       set_boq_item_discipline: {
         Args: { p_discipline: string; p_item: string }
@@ -37014,9 +37260,17 @@ export type Database = {
         Args: { p_enabled: boolean }
         Returns: boolean
       }
+      set_org_work_order_checklist_edit: {
+        Args: { p_enabled: boolean }
+        Returns: boolean
+      }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number }
         Returns: number
+      }
+      save_work_order_steps_as_template: {
+        Args: { p_name: string; p_work_order: string }
+        Returns: string
       }
       set_payment_channel_settings: {
         Args: { p_enabled: boolean }
@@ -37298,7 +37552,13 @@ export type Database = {
         Returns: number
       }
       set_site_checkpoint_list: { Args: { p_items: Json }; Returns: number }
+      get_work_order_material_completion: { Args: { p_work_order_id: string }; Returns: Json }
+      set_po_needed_by_required: { Args: { p_on: boolean }; Returns: boolean }
+      set_procurement_needed_by: { Args: { p_id: string; p_needed_by: string | null; p_lines?: Json | null }; Returns: boolean }
+      po_needed_by_required_from_of: { Args: { p_org: string }; Returns: string }
+      set_stock_handover_scope: { Args: { p_scope: string }; Returns: string }
       set_stock_proof_timing: { Args: { p_timing: string }; Returns: string }
+      stock_handover_scope_of: { Args: { p_org: string }; Returns: string }
       set_stock_reorder_level: {
         Args: {
           p_item_id: string

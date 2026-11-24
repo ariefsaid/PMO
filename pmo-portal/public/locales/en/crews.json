@@ -182,9 +182,7 @@
     "adminOnly": "Only an Admin can change leave settings",
     "approve": "Approve",
     "approved": "Leave approved",
-    "approverDefault": "Line manager, or Admin",
-    "approverHelp": "The person's line manager can always decide. Empty means Admin.",
-    "approverRole": "Who approves",
+    "approvalRouting": "A pending request goes to the active manager on the person record. If missing or inactive, it goes to an HR Manager, then an Admin. The person on leave and the person who entered the request cannot decide it.",
     "backToLeave": "Back to leave",
     "cancel": "Cancel request",
     "cancelled": "Request cancelled",
@@ -229,12 +227,12 @@
     "typesHeading": "Leave types",
     "waiting": "Waiting for your decision ({{count}})",
     "pickPerson": "Choose a person",
-    "waitingManager": "Waiting for {{manager}} or any {{role}} to decide",
-    "waitingRole": "Waiting for any {{role}} to decide",
+    "waitingFor": "Waiting for {{names}} to decide",
+    "waitingNoDecider": "No active approver is available.",
     "approvedBy": "Approved by {{name}}",
     "rejectedBy": "Rejected by {{name}}",
     "nobodyToFileFor": "You can file leave only for yourself and the people you manage. Ask your line manager or an Admin to file it.",
-    "goesTo": "Your line manager or any {{role}} approves this. You get a notification with the result."
+    "goesTo": "Your person record manager decides. If that manager is missing or inactive, an HR Manager decides, then an Admin. The person who enters the request cannot decide it. You get a notification with the result."
   },
   "checkIn": {
     "requestsTitle": "Check-ins waiting for you",
@@ -396,7 +394,22 @@
     "sod": "You entered this head count, so someone else approves it.",
     "clearTitle": "Clear this head count?",
     "clearBody": "The number for this class and day is removed. You can enter it again.",
-    "clearConfirm": "Clear head count"
+    "clearConfirm": "Clear head count",
+    "evidence": {
+      "none": "No photo or document attached.",
+      "loading": "Loading head count evidence…",
+      "refreshing": "Updating head count evidence…",
+      "error": "Couldn't load head count evidence.",
+      "retry": "Retry",
+      "list": "Attached files",
+      "untitled": "File",
+      "remove": "Remove {{name}}",
+      "removeShort": "Remove",
+      "attach": "Attach a photo or document",
+      "category": "Document category",
+      "choose": "Choose a photo or document",
+      "attached": "File attached"
+    }
   },
   "savedExcept": "Saved for everyone except: {{people}}",
   "roleNotSet": "Crew role not set",

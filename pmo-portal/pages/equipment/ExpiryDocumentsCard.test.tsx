@@ -140,7 +140,7 @@ describe('ExpiryDocumentsCard (#2542)', () => {
     expect(screen.getAllByText('Expiry date must be on or after the issue date').length).toBeGreaterThan(0);
   });
 
-  it('AC-RCG-023 a holder of the people-documents capability adds and edits non-medical person documents, with no medical type to choose', async () => {
+  it('AC-HRM-001 HR Officer can choose and edit medical person documents', async () => {
     const user = userEvent.setup();
     h.role = 'Engineer';
     h.key = 'hr_officer';
@@ -148,11 +148,16 @@ describe('ExpiryDocumentsCard (#2542)', () => {
     h.types = { data: [type({ id: 't1', name: 'Work permit', applies_to: 'person' }), type({ id: 't2', name: 'Medical check', is_medical: true, applies_to: 'person' })] };
     renderCard('person');
     expect(screen.getByRole('button', { name: /Edit WP-1/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Edit Medical check/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Edit Medical check/ })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add document' }));
     const options = within(screen.getByLabelText(/Document type/)).getAllByRole('option').map((o) => o.textContent);
     expect(options).toContain('Work permit');
-    expect(options).not.toContain('Medical check');
+    expect(options).toContain('Medical check');
+    await user.selectOptions(screen.getByLabelText(/Document type/), 't2');
+    await user.selectOptions(screen.getByLabelText(/Medical status/), 'fit');
+    await typeDate(user, /Expiry date/, '2028-12-31');
+    await user.click(screen.getByRole('button', { name: 'Save document' }));
+    expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ type_id: 't2', medical_status: 'fit', number: null, location_note: null, file: null }));
   });
 
   it('AC-RCG-023 an Engineer with another built-in role gets no document actions on a person', () => {

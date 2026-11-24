@@ -21,10 +21,11 @@ import { LeaveRequestForm } from './LeaveRequestForm';
 const mount = () => render(<ToastProvider><LeaveRequestForm onClose={() => {}} /></ToastProvider>);
 
 describe('LeaveRequestForm person default', () => {
-  it('names who approves it and promises the result', () => {
+  it('explains the person-record manager route and promises the result', () => {
     h.people = [{ id: 'p9', name: 'Own', is_self: true }];
     mount();
-    expect(screen.getByText(/Your line manager or any Admin approves this/)).toBeInTheDocument();
+    expect(screen.getByText(/Your person record manager decides/)).toBeInTheDocument();
+    expect(screen.getByText(/The person who enters the request cannot decide it/)).toBeInTheDocument();
   });
 
   beforeEach(() => { h.submit.mockReset().mockResolvedValue('r1'); });

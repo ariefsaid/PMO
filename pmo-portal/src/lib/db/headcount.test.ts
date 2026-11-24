@@ -7,10 +7,10 @@ import { AppError } from '@/src/lib/appError';
  */
 const h = vi.hoisted(() => {
   const result = { value: {} as { data: unknown; error: unknown } };
-  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, select: [] as unknown[], eq: [] as unknown[], order: [] as unknown[], gt: [] as unknown[], limit: [] as unknown[] };
+  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, select: [] as unknown[], eq: [] as unknown[], order: [] as unknown[], gt: [] as unknown[], in: [] as unknown[], limit: [] as unknown[] };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...a: unknown[]) => { (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'eq', 'order', 'gt', 'limit'] as const) builder[k] = chain(k);
+  for (const k of ['select', 'eq', 'in', 'order', 'gt', 'limit'] as const) builder[k] = chain(k);
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
   const rpc = vi.fn((n: string, a?: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(result.value); });
@@ -61,5 +61,33 @@ describe('head count DAL', () => {
     await expect(hc.recordHeadcount({ workOrderId: 'wo1', crewId: 'c1', workDate: '2026-11-20', classId: 'k1', count: 0 })).rejects.toMatchObject({ code: 'validation' });
     await expect(hc.recordHeadcount({ workOrderId: 'wo1', crewId: 'c1', workDate: '2026-11-20', classId: 'k1', count: 2.5 })).rejects.toMatchObject({ code: 'validation' });
     expect(h.calls.rpc).toEqual([]);
+  });
+});
+
+describe('head count evidence (docs/specs/headcount-evidence.spec.md, migration 2131)', () => {
+  it('AC-HCE-005 reads the files cited on the given lines, with the document title and path', async () => {
+    h.result.value = { data: [{ id: 'x1', headcount_id: 'l1', document_id: 'd1', project_documents: { title: 'gate.jpg', file_path: 'o/p/d1/gate.jpg' } }], error: null };
+    const rows = await hc.listHeadcountEvidence(['l1', 'l2']);
+    expect(rows).toEqual([{ id: 'x1', headcountId: 'l1', documentId: 'd1', title: 'gate.jpg', filePath: 'o/p/d1/gate.jpg' }]);
+    expect(h.calls.from).toEqual(['headcount_day_documents']);
+  });
+
+  it('reads nothing, and asks nothing, when there are no lines', async () => {
+    await expect(hc.listHeadcountEvidence([])).resolves.toEqual([]);
+    expect(h.calls.from).toEqual([]);
+  });
+
+  it('AC-HCE-001 attaches and detaches through the two RPCs and sends no org_id or user', async () => {
+    h.result.value = { data: 'x1', error: null };
+    await expect(hc.attachHeadcountDocument('l1', 'd1')).resolves.toBe('x1');
+    await hc.detachHeadcountDocument('x1');
+    expect(h.calls.rpc).toEqual([['attach_headcount_document', { p_headcount: 'l1', p_document: 'd1' }], ['detach_headcount_document', { p_id: 'x1' }]]);
+  });
+
+  it('AC-HCE-004 a refusal keeps its Postgres code', async () => {
+    h.result.value = { data: null, error: { message: 'HC_LOCKED: this head count is approved and final', code: '23514' } };
+    const err = await hc.attachHeadcountDocument('l1', 'd1').catch((e) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.code).toBe('23514');
   });
 });

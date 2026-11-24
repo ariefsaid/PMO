@@ -3,6 +3,7 @@ import { checkTemplateMarker } from '@/src/lib/import/templateVersion';
 import {
   autoMap,
   parseWorkbook,
+  parseSecondSheet,
   parsePastedRows,
   rowToCells,
   validateRows,
@@ -69,6 +70,39 @@ export interface UseImportWizard {
 /** True when the sheet is exactly the template: every field's header is the template's own column name (its label, not an old name
  *  or an alias) and no column is left over. Such a file has nothing to match, so the wizard goes straight to the preview (the
  *  person can still go Back to the matching). */
+
+/** The fields a person's file supplies: `internal` ones are filled by the wizard (the folded second sheet). */
+const userFields = <Input,>(fields: ImportField<Input>[]) => fields.filter((f) => !f.internal);
+
+/**
+ * Fold the file's second sheet onto its first-sheet rows (FR-WOI-002): each child row is matched to a parent row by the
+ * descriptor's keys and stored, as JSON text of the child's cells, in the parent's internal column (appended after the
+ * file's own columns). A child row naming no parent refuses the file with its sheet row, never dropped silently.
+ */
+export function foldExtraSheet<Input>(sheet: ParsedSheet, descriptor: ImportDescriptor<Input>, extra: { headers: string[]; rows: string[][] } | null): { sheet: ParsedSheet; scopeColumn: number } {
+  const spec = descriptor.extraSheet;
+  const scopeColumn = sheet.headers.length;
+  if (!spec) return { sheet, scopeColumn };
+  const parentMapping = autoMap(sheet.headers, userFields(descriptor.fields));
+  const parentCol = parentMapping[spec.parentKey];
+  const children = new Map<string, Record<string, string>[]>();
+  if (extra) {
+    const childMapping = autoMap(extra.headers, spec.fields as ImportField<unknown>[]);
+    for (const f of spec.fields) {
+      if (f.required && childMapping[f.key] == null) throw new ImportParseError('not_xlsx', spec.missingColumn(f.label));
+    }
+    const parents = new Set(parentCol == null ? [] : sheet.rows.map((r) => (r[parentCol] ?? '').trim().toLowerCase()).filter(Boolean));
+    extra.rows.forEach((row, i) => {
+      const cells = rowToCells(row, spec.fields as ImportField<unknown>[], childMapping);
+      const key = (cells[spec.childKey] ?? '').trim().toLowerCase();
+      if (!parents.has(key)) throw new ImportParseError('not_xlsx', spec.orphan(i + 2, (cells[spec.childKey] ?? '').trim()));
+      children.set(key, [...(children.get(key) ?? []), { ...cells, __row: String(i + 2) }]);
+    });
+  }
+  const rows = sheet.rows.map((r) => [...r, JSON.stringify(children.get((parentCol == null ? '' : (r[parentCol] ?? '')).trim().toLowerCase()) ?? [])]);
+  return { sheet: { ...sheet, headers: [...sheet.headers, ''], rows }, scopeColumn };
+}
+
 export function isTemplateMatch<Input>(headers: string[], fields: ImportField<Input>[], mapping: Mapping): boolean {
   const norm = (v: string) => v.toLowerCase().replace(/\s+/g, ' ').trim();
   const used = fields.map((f) => mapping[f.key]);
@@ -113,7 +147,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   }, [parsed, descriptor.fields, descriptor.validateRow, descriptor.validateSheet, mapping, existingKeys, matchExisting, existing]);
 
   const allRequiredMapped = useMemo(
-    () => descriptor.fields.every((f) => !f.required || mapping[f.key] != null),
+    () => userFields(descriptor.fields).every((f) => !f.required || mapping[f.key] != null),
     [descriptor.fields, mapping],
   );
 
@@ -162,6 +196,19 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     loadExisting();
   }, [loadExisting]);
 
+  /** One path for upload and paste: match columns on the file's own fields, fold the second sheet in, then preview or map. */
+  const acceptSheet = useCallback((sheet: ParsedSheet, extra: { headers: string[]; rows: string[][] } | null) => {
+    const own = userFields(descriptor.fields);
+    const mapped = autoMap(sheet.headers, own);
+    const exact = isTemplateMatch(sheet.headers, own, mapped);
+    const folded = foldExtraSheet(sheet, descriptor, extra);
+    if (descriptor.extraSheet) mapped[descriptor.extraSheet.target] = folded.scopeColumn;
+    setParsed(folded.sheet);
+    setMapping(mapped);
+    if (exact) openPreview();
+    else setStep('mapping');
+  }, [descriptor, openPreview]);
+
   const selectFile = useCallback(
     async (file: File) => {
       const generation = ++parseGeneration.current;
@@ -175,12 +222,10 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         if (checkTemplateMarker(descriptor, sheet.templateMarker) === 'outOfDate') {
           throw new ImportParseError('not_xlsx', 'This template is out of date. Download a new template and copy your rows into it.');
         }
-        setParsed(sheet);
+        const extra = descriptor.extraSheet ? await parseSecondSheet(buf) : null;
+        if (generation !== parseGeneration.current) return;
+        acceptSheet(sheet, extra);
         setFileName(file.name);
-        const mapped = autoMap(sheet.headers, descriptor.fields);
-        setMapping(mapped);
-        if (isTemplateMatch(sheet.headers, descriptor.fields, mapped)) openPreview();
-        else setStep('mapping');
       } catch (err) {
         if (generation !== parseGeneration.current) return;
         // Typed parse rejections (bad/empty/oversized) surface their message; anything
@@ -194,7 +239,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         if (generation === parseGeneration.current) setParsing(false);
       }
     },
-    [descriptor, openPreview],
+    [descriptor, acceptSheet],
   );
 
   const selectPaste = useCallback(
@@ -203,18 +248,14 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
       setParseError(null);
       try {
         const sheet = parsePastedRows(text, descriptor.maxRows);
-        setParsed(sheet);
+        acceptSheet(sheet, null);
         setFileName(null);
-        const mapped = autoMap(sheet.headers, descriptor.fields);
-        setMapping(mapped);
-        if (isTemplateMatch(sheet.headers, descriptor.fields, mapped)) openPreview();
-        else setStep('mapping');
       } catch (err) {
         setParsed(null);
         setParseError(err instanceof ImportParseError ? err.message : 'Could not read the pasted rows.');
       }
     },
-    [descriptor.fields, descriptor.maxRows, openPreview],
+    [descriptor.maxRows, acceptSheet],
   );
 
   const setFieldMapping = useCallback((fieldKey: string, headerIndex: number | null) => {
@@ -241,8 +282,28 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
       .filter((v) => v.valid)
       .map((v) => ({ index: v.index, action: v.action, cells: rowToCells(parsed.rows[v.index], descriptor.fields, mapping) }));
 
+    const whole = descriptor.allOrNothing;
+    // All or nothing: a single row that is not valid (or already there) refuses the whole file; nothing is sent.
+    if (whole && (counts.invalid > 0 || alreadyCount > 0 || validRows.length === 0)) return;
+
     setStep('committing');
     setProgress({ done: 0, total: validRows.length });
+
+    if (whole) {
+      try {
+        await whole.createAll(validRows.map((r) => descriptor.toInput(r.cells)));
+        setProgress({ done: validRows.length, total: validRows.length });
+        setResult({ created: validRows.length, updated: 0, skipped: 0, skippedIndexes: [], failed: [] });
+      } catch (err) {
+        const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+        trackBatchSaveFailed(descriptor.entity.toLowerCase() as AnalyticsModule, { [classification]: validRows.length });
+        // The database names the row it refused ("IMPORT_ROW 3: …"); nothing was saved, so every row is reported as not created.
+        const why = [classification === 'unclassified' ? '' : headline, detail && detail !== headline ? detail : ''].filter(Boolean).join(' ');
+        setResult({ created: 0, updated: 0, skipped: 0, skippedIndexes: [], failed: validRows.map((r) => ({ index: r.index, reason: why })) });
+      }
+      setStep('result');
+      return;
+    }
 
     let created = 0;
     let updated = 0;
@@ -287,7 +348,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
 
     setResult({ created, updated, skipped, skippedIndexes, failed });
     setStep('result');
-  }, [parsed, validation, descriptor, mapping, matchExisting, existing]);
+  }, [parsed, validation, descriptor, mapping, matchExisting, existing, counts, alreadyCount]);
 
   return {
     step,

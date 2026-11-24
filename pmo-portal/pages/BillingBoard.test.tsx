@@ -24,6 +24,7 @@ import BillingBoard from './BillingBoard';
 
 const row = (over: Partial<BoardRow>): BoardRow => ({
   claimId: 'c1', projectId: 'p1', projectName: 'North project', workOrderId: null, woNumber: null, claimCreatedAt: '2026-01-01T00:00:00Z',
+  claimValue: '1250.00', currency: 'IDR',
   stepCount: 3, stepsDone: 1, currentPosition: 2, currentName: 'Approve', ownerRole: null, startedOn: '2026-01-01', lastCompletedOn: null,
   dueOn: null, allDone: false, today: '2026-01-11', ...over,
 });
@@ -45,7 +46,7 @@ describe('BillingBoard', () => {
   it('AC-BBD-011 cards show no amount and link to the claim', () => {
     setRows([
       row({ claimId: 'c1', woNumber: 'WO-7', ownerRole: 'Finance', dueOn: '2026-01-08' }),
-      row({ claimId: 'c2', projectId: 'p2', projectName: 'South project', allDone: true, currentName: null, currentPosition: null, startedOn: null, lastCompletedOn: '2026-01-06' }),
+      row({ claimId: 'c2', projectId: 'p2', projectName: 'South project', claimValue: '25.50', currency: 'USD', allDone: true, currentName: null, currentPosition: null, startedOn: null, lastCompletedOn: '2026-01-06' }),
     ]);
     renderBoard();
     const cards = screen.getAllByTestId('billing-board-card');
@@ -55,7 +56,11 @@ describe('BillingBoard', () => {
     expect(within(cards[0]).getByText(/1 of 3 steps/)).toBeTruthy();
     expect(within(cards[0]).getByText(/10 days on this step/)).toBeTruthy();
     expect(within(cards[0]).getByText(/3 days past target/)).toBeTruthy();
-    expect(screen.queryByText(/IDR|Rp|\$/)).toBeNull();
+    expect(cards.every((card) => !/IDR|USD|Rp|\$|1,250/.test(card.textContent ?? ''))).toBe(true);
+    const totals = screen.getAllByTestId('billing-board-column-totals');
+    expect(totals).toHaveLength(2);
+    expect(totals[0].textContent).toContain('IDR total');
+    expect(totals[1].textContent).toContain('USD total');
     expect(screen.getByRole('heading', { name: /All steps done/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /complete|move/i })).toBeNull();
   });

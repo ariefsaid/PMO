@@ -58,8 +58,13 @@ const Column: React.FC<{ column: BoardColumn }> = ({ column }) => {
     <section aria-label={title ?? undefined} data-testid="billing-board-column" className="min-w-0 md:w-72 md:shrink-0">
       <h2 className="mb-2 flex items-baseline justify-between gap-2 text-[14px] font-semibold">
         <span className="truncate">{title}</span>
-        <span className="tabular-nums text-muted-foreground">{column.cards.length}</span>
+        <span className="tabular-nums text-muted-foreground">{column.claimCount}</span>
       </h2>
+      <div data-testid="billing-board-column-totals" className="mb-2 space-y-0.5 text-control tabular-nums text-muted-foreground">
+        {column.totals.map((total) => (
+          <p key={total.currency}>{t('billingBoard.columnTotal', { defaultValue: '{{amount}} {{currency}} total', amount: total.amount ?? '—', currency: total.currency })}</p>
+        ))}
+      </div>
       {column.allDone && <p className="mb-2 text-control text-muted-foreground">{t('billingBoard.allDoneHint', 'Ready to invoice. Age counts from the last step.')}</p>}
       <ul className="flex flex-col gap-2">
         {column.cards.map((card) => <ClaimCard key={card.claimId} card={card} />)}

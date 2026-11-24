@@ -404,6 +404,16 @@
         "prefill": "Mulai dari penilaian {{month}}",
         "kindProgress": "Progres: kuantitas terhadap bill of quantities"
       },
+      "areaRates": {
+        "title": "Tarif per wilayah",
+        "hint": "Laporan harian pada perintah kerja di suatu wilayah dihargai dengan tarif wilayah itu. Wilayah tanpa tarif memakai tarif baris.",
+        "loadError": "Tarif wilayah tidak dapat dimuat.",
+        "rate": "Tarif untuk {{name}}",
+        "save": "Simpan",
+        "saved": "Tarif wilayah disimpan",
+        "removed": "Tarif wilayah dihapus",
+        "invalid": "Isi tarif di atas 0, atau kosongkan untuk menghapusnya."
+      },
       "boqForm": {
         "quantity": "Kuantitas",
         "subtitle": "Harga belum termasuk pajak. $t(common:terms.clientWorkOrder) mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
@@ -1404,7 +1414,8 @@
         "editOrder": "Ubah pesanan",
         "orderMenuLabel": "Tindakan untuk {{order}}",
         "viewPo": "Lihat PO pelanggan",
-        "cancelGeneric": "Batal"
+        "cancelGeneric": "Batal",
+        "import": "Impor perintah kerja"
       },
       "filter": {
         "orders": "Pesanan",
@@ -1444,7 +1455,8 @@
         "noGroup": "Tanpa grup"
       },
       "areaLabel": "Wilayah",
-      "groupLabel": "Grup"
+      "groupLabel": "Grup",
+      "importLoadFailed": "Tidak dapat membuka impor. Coba lagi."
     },
     "contract": {
       "orders": "Pesanan pelanggan",

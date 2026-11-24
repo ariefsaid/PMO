@@ -3,7 +3,7 @@ import * as db from '@/src/lib/db/stockTransfers';
 import { wrap } from './repositoryErrors';
 
 export type {
-  TransferSettings, TransferMode, ProofTiming, ProofRule, StockTransfer, StockTransferLine, HandoverConfirmation, SendTransferInput, ReceiveLineInput,
+  TransferSettings, TransferMode, ProofTiming, HandoverScope, ProofRule, StockTransfer, StockTransferLine, HandoverConfirmation, SendTransferInput, ReceiveLineInput,
   ConfirmationPayload, ProofStatusRow, TransferStatus, ShortResolution, QualityResult, SignerKind, HandoverProofType, HandoverStage,
 } from '@/src/lib/db/stockTransfers';
 
@@ -12,6 +12,7 @@ export const stockTransfersRepository = {
     get: () => wrap(() => db.getTransferSettings()),
     setMode: (m: db.TransferMode) => wrap(() => db.setTransferMode(m)),
     setTiming: (t: db.ProofTiming) => wrap(() => db.setProofTiming(t)),
+    setScope: (s: db.HandoverScope) => wrap(() => db.setHandoverScope(s)),
     setTagProof: (tagId: string, rule: db.ProofRule) => wrap(() => db.setTagProofRule(tagId, rule)),
     setItemQuality: (itemId: string, needs: boolean) => wrap(() => db.setItemQualityCheck(itemId, needs)),
   },

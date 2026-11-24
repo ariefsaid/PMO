@@ -19,7 +19,9 @@
     "clientTakeoff": "take-off lines",
     "clientTakeoffLine": "take-off line",
     "personDocuments": "person documents",
-    "personDocument": "person document"
+    "personDocument": "person document",
+    "workOrders": "work orders",
+    "workOrder": "work order"
   },
   "wizard": {
     "title": "Import {{entity}}",
@@ -392,6 +394,53 @@
       "quantity": "Quantity must be above 0, with at most 3 decimals.",
       "unitCost": "Unit cost must be 0 or more, with at most 4 decimals.",
       "reference": "The reference is too long (100 characters at most)."
+    }
+  },
+  "workOrders": {
+    "title": "Title",
+    "clientPoNumber": "Client reference",
+    "area": "Area",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "orderValue": "Order value",
+    "taxTreatment": "Tax treatment",
+    "taxAmount": "Tax amount",
+    "currency": "Currency",
+    "referenceHint": "The client's own number for the order. Each reference is used once on this project; scope lines name it.",
+    "areaHint": "The code or name of one of your areas. Leave blank for none.",
+    "valueHint": "In the project currency. Written with a dot for decimals.",
+    "taxHint": "Does the order value already include tax? Write inclusive or exclusive.",
+    "taxAmountHint": "Optional. Blank means 0.",
+    "currencyHint": "Optional. Work orders take the project currency.",
+    "exampleTitle": "Pump pad civil works",
+    "alreadyThere": "This client reference is already on this project.",
+    "existingUnavailable": "Could not check for client references already on this project.",
+    "nothingNew": "Nothing to import: every work order is already on this project.",
+    "blocked": "Nothing is imported while any row has a problem. Fix the rows marked invalid or already there, then upload the file again.",
+    "scope": {
+      "sheet": "Scope lines",
+      "workOrder": "Client reference",
+      "itemCode": "Item code",
+      "quantity": "Quantity"
+    },
+    "error": {
+      "title": "Title is required.",
+      "titleLong": "Title must be at most 200 characters.",
+      "reference": "Client reference must be at most 100 characters.",
+      "referenceTwice": "Client reference \"{{value}}\" appears twice (rows {{first}} and {{second}}).",
+      "area": "Area \"{{value}}\" is not one of your areas.",
+      "date": "{{field}} must be a date written year-month-day, like 2026-12-31.",
+      "dateOrder": "End date must not be before the start date.",
+      "value": "Order value must be a number of 0 or more (up to 2 decimals).",
+      "tax": "Tax treatment must be exclusive or inclusive.",
+      "taxAmount": "Tax amount must be a number of 0 or more (up to 2 decimals).",
+      "currency": "Currency must be {{code}}, the currency of this project.",
+      "scopeOrphan": "Scope sheet row {{row}}: no work order has client reference \"{{value}}\".",
+      "scopeColumn": "The scope sheet needs a \"{{label}}\" column.",
+      "scopeItem": "Scope sheet row {{row}}: \"{{code}}\" is not a contract line of this project.",
+      "scopeQuantity": "Scope sheet row {{row}}: quantity must be a number above 0 (up to 3 decimals).",
+      "scopeOver": "Scope sheet row {{row}}: quantity {{qty}} is more than the contract line holds ({{max}}).",
+      "scopeTwice": "Scope sheet row {{row}}: \"{{code}}\" appears twice for this work order."
     }
   }
 }

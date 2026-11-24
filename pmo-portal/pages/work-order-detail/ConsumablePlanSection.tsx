@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, EntityFormModal, FormGrid, ListState, RecordSection, SelectField, StatusPill, TextArea, TextField, useEntityForm, useToast, type SubmitError } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useAuth } from '@/src/auth/useAuth';
 import { useStockItems } from '@/src/hooks/useStock';
 import { useConsumablePlan, useConsumablePlanMutations, usePlanInputs } from '@/src/hooks/useUsageStandards';
 import { consumablePlanRefusal, type ConsumablePlanLine } from '@/src/lib/repositories/usageStandards';
@@ -27,6 +28,7 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
   const { t } = useTranslation('usageStandards');
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
+  const currentUserId = useAuth().currentUser?.id ?? null;
   const { toast } = useToast();
   const plan = useConsumablePlan(workOrderId);
   const m = useConsumablePlanMutations(workOrderId);
@@ -44,7 +46,7 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
   const sourceLabel = (s: SourceKey) => t(`plan.source.${s}`, { standard: 'From standards', adjusted: 'Adjusted', allowance: 'From material allowance', none: 'No plan' }[s]);
   const refusal = (err: unknown): string => {
     const key = consumablePlanRefusal(err);
-    if (key) return t(`plan.errors.${key}`, { CUS_NOT_FOUND: 'This work order is not available.', CUS_FORBIDDEN: 'You cannot plan consumables for this work order.', CUS_WORK_ORDER: 'The work order is closed or cancelled.', CUS_REASON: 'Give a reason (up to 500 characters).', CUS_ITEM: 'Choose an active item.', CUS_INVALID: 'Enter zero or more.' }[key]);
+    if (key) return t(`plan.errors.${key}`, { CUS_NOT_FOUND: 'This work order is not available.', CUS_FORBIDDEN: 'You cannot plan consumables for this work order.', CUS_WORK_ORDER: 'The work order is closed or cancelled.', CUS_REASON: 'Give a reason (up to 500 characters).', CUS_ITEM: 'Choose an active item.', CUS_INVALID: 'Enter zero or more.', CUS_SOD: 'The person who made the plan cannot approve it.', CUS_APPROVER: 'You are not an approver for this plan.', CUS_PLAN_MISSING: 'Generate or edit the plan before asking for approval.', CUS_PLAN_STALE: 'Regenerate the plan before asking for approval.' }[key]);
     return classifyMutationError(err, undefined, { operation: 'update', suppressCapture: true }).headline;
   };
 
@@ -60,6 +62,19 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
   }
   const p = plan.data;
   const hasPlan = p.lines.length > 0 || p.generatedAt !== null;
+  const approvalCtx = { currentUserId, record: { ...(project ?? {}), viewOnly: realRole !== effectiveRole,
+    author_id: p.approval.authorId, author_is_pcm: p.approval.authorIsPcm } };
+  const canApprove = open && hasPlan && !p.outOfDate && !p.approval.approved && may('approve', 'consumablePlan', approvalCtx);
+  const approvalRoute = p.approval.authorIsPcm
+    ? t('plan.approval.pcmAuthorRoute', 'an Admin or this project’s Project Manager')
+    : t('plan.approval.pcmRoute', 'a Project Control Manager');
+  const approvalMessage = p.approval.approved
+    ? t('plan.approval.approvedMessage', 'Approved for material requests.')
+    : p.approval.authorId === null
+      ? t('plan.approval.unknownAuthor', 'This older plan needs to be edited or regenerated before it can be approved.')
+      : p.approval.approvedBy
+        ? t('plan.approval.stale', 'The inputs changed since approval. Regenerate and request approval again.')
+        : t('plan.approval.waiting', 'Waiting for {{approver}}.', { approver: approvalRoute });
   const itemName = (id: string) => [...p.lines, ...p.unplanned].find((x) => x.itemId === id);
 
   const confirmGenerate = async () => {
@@ -72,6 +87,13 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
   const revert = async (l: ConsumablePlanLine) => {
     try { await m.adjust.mutateAsync({ itemId: l.itemId, adjustedQty: null, reason: null }); toast(t('plan.reverted', 'Back to the generated quantity'), undefined, 'success'); }
     catch (err) { toast(refusal(err), undefined, 'warning'); }
+  };
+  const approve = async () => {
+    setError(null);
+    try {
+      await m.approve.mutateAsync();
+      toast(t('plan.approval.approvedToast', 'Plan approved for material requests'), undefined, 'success');
+    } catch (err) { setError(refusal(err)); }
   };
 
   const row = (id: string, label: React.ReactNode, planned: string, requested: string, unit: string, source: SourceKey, extra?: React.ReactNode, actions?: React.ReactNode) => {
@@ -103,13 +125,19 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
         {canAdjust && <Button variant="outline" size="sm" onClick={() => setEditing({ line: null })}>{t('plan.addItem', 'Add item')}</Button>}
         {canGenerate && <Button variant={hasPlan ? 'outline' : 'primary'} size="sm" onClick={() => { setError(null); if (hasPlan) setPreviewing(true); else void confirmGenerate(); }} loading={m.generate.isPending && !previewing}>
           {hasPlan ? t('plan.regenerate', 'Regenerate') : t('plan.generate', 'Generate plan')}</Button>}
+        {canApprove && <Button variant="primary" size="sm" onClick={() => void approve()} loading={m.approve.isPending}>{t('plan.approval.approve', 'Approve plan')}</Button>}
       </span>}
     >
       {error && !previewing && <p role="alert" className="mb-2 text-control text-destructive-text">{error}</p>}
+      {hasPlan && <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-control" data-testid="consumable-approval">
+        <StatusPill variant={p.approval.approved ? 'won' : 'warn'}>{p.approval.approved
+          ? t('plan.approval.approved', 'Approved') : t('plan.approval.required', 'Approval required')}</StatusPill>
+        <span className="text-muted-foreground">{approvalMessage}</span>
+      </div>}
       {p.outOfDate && (
         <p role="status" className="mb-3 rounded-md border border-warning/40 bg-warning-subtle p-3 text-control" data-testid="consumable-out-of-date">
-          {t('plan.outOfDate', 'The work or the usage standards changed since this plan was made. Requests still use the stored plan.')}
-          {canGenerate ? ` ${t('plan.outOfDateAction', 'Regenerate to bring it up to date.')}` : ''}
+          {t('plan.outOfDate', 'The work or the usage standards changed since this plan was made. Material requests use the allowance until the plan is regenerated and approved.')}
+          {canGenerate ? ` ${t('plan.outOfDateAction', 'Regenerate to bring it up to date, then request approval.')}` : ''}
         </p>
       )}
       {!hasPlan && p.unplanned.length === 0 && (

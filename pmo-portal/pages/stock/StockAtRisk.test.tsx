@@ -75,6 +75,22 @@ describe('StockAtRisk (#2694)', () => {
     expect(screen.queryByRole('figure')).not.toBeInTheDocument();
   });
 
+  it('AC-SAR-305 the coordinator sees guard cover on a phone without money', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      matches: false, media, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    reports.atRisk.mockResolvedValue([
+      { warehouseId: 'w1', warehouseCode: 'SITE-A', warehouseName: 'Site A', warehouseKind: 'site', uncovered: true },
+      { warehouseId: 'w2', warehouseCode: 'SITE-B', warehouseName: 'Site B', warehouseKind: 'site', uncovered: false },
+    ]);
+    renderPage('Engineer');
+    const cards = await screen.findByTestId('dt-card-branch');
+    expect(within(cards).getByText(stockEn.atRisk.noGuardCover)).toBeInTheDocument();
+    expect(within(cards).getByText(stockEn.atRisk.guardCovered)).toBeInTheDocument();
+    expect(within(cards).queryByText('Stock value')).not.toBeInTheDocument();
+  });
+
   it('AC-SAR-303 a location with no cover recorded shows Not recorded, never a fabricated 0', async () => {
     renderPage();
     await screen.findByText('SITE-C');

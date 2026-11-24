@@ -467,13 +467,17 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
 
-**Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
+**Billing board** — a read-only screen listing each open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with days on the step and an overdue chip. Each column shows its claim count and exact total by currency; individual cards omit the amount. Nothing is stored for the board, and a claim moves on only by completing its step on the claim. Finance, Executive and Admin can read the board. Bahasa Indonesia: Papan penagihan (#2681).
 
 **Billed month** — a calendar month in the work-order page's "Billed per month" list: the billed work (submitted invoices, excluding tax, no down payments, in the work order's currency) dated in that organisation-local month, the same figure as the work-in-hand screen. The current month reads "to date". Drafts and claims not yet invoiced are not in it. Bahasa Indonesia: Bulan penagihan.
 
 **Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
 
-**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left. "Progress not yet client-certified" in the ticket words (#2682).
+**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left (#2682).
+
+**Unaccepted progress** — measured quantity on a bill-of-quantities line above the quantity confirmed by the client's acceptance; shown separately from accepted work that is not yet claimed (management views round, 24 November 2026).
+
+**Management views switch** — an Operator-managed per-organisation entitlement for the new home portfolio and unaccepted-progress group; existing plan defaults leave both surfaces off until an organisation is opted in (management views round, 24 November 2026).
 
 **Monthly target** — the amount the organisation aims to bill in a calendar month, with its currency; a default plus optional per-month overrides, set by Admin or Finance. Other currencies are listed apart, not converted (#2682).
 
@@ -507,7 +511,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 ---
 
-**Work in hand** — **Left to bill** on the Contract on hand set and on its issued work orders, ranked per currency. A contract and its work orders are shown as a hierarchy and never added together (#2575).
+**Work in hand** — **Left to bill** on the Contract on hand set and on its issued work orders, ranked per currency. A contract and its work orders are shown as a hierarchy and never added together; a Project Manager sees only assigned projects while Finance, Executive and Admin see the organization-wide position (#2575, management views round).
 
 **Billed to date** (of a contract or work order) — the pack's *invoiced to date*: billed work (the single definition shared by the billing summary and the management pack: submitted, unpaid or paid invoices, net of tax, plus the down-payment recovery; a down payment counts zero) summed over a contract or a work order.
 
@@ -668,9 +672,12 @@ margin %. Where several standards of one item match a line, the longest prefix w
 
 **Consumable plan** (*rencana bahan habis pakai*) — the stock items a work order is expected to use, generated on request
 from its contract-line allocations and the active usage standards, and stored as a snapshot with the basis of each quantity.
-A planner may adjust a quantity, or add an item no standard covers, with a reason. It goes **out of date** when the work or
-the standards change after it was made and is regenerated only on request. Quantities of stock items only: it is not the
-cost plan of a work order.
+A planner may adjust a quantity, or add an item no standard covers, with a reason. A material request uses this plan before
+contract allowances only after its current version has been approved. Generation records the generator as creator; later line
+edits retain that creator and role route. A Project Control Manager approves an Engineer-authored plan; a PCM-authored plan
+needs approval from an Admin or that project's manager, and its creator cannot approve it. It goes **out of date** when the
+work or standards change and must be regenerated and approved again. Quantities of stock items only: it is not the cost plan
+of a work order.
 
 ## Work orders down to the cost line (#2516)
 
@@ -768,7 +775,7 @@ before it closes (the organisation names the items; PMO ships none). A work orde
 it closes only when every required item is done. A material joint count, loss report or completion report is an item of
 the same list, not a separate mechanism.
 
-**Work-order billing steps** (*langkah penagihan surat perintah kerja*) — an advisory list copied onto a work order when it is issued, from the organisation's default billing step template (none chosen: no list). Each step has an owner role (a built-in role), an optional named person, target days, attachments and a status; it never gates an invoice (the claim's own billing stages do). Read through *see billing steps*, acted on through *run billing steps* (or as the step's owner role or named person); a role the template hides a step from does not see it, and the named person is exempt (billing-steps.spec.md).
+**Work-order billing steps** (*langkah penagihan surat perintah kerja*) — an advisory list copied onto a work order when it is issued, from the organisation's default billing step template (none chosen: no list). Each step has an owner role (a built-in role), an optional named person, target days, attachments and a status; it never gates an invoice (the claim's own billing stages do). Read through *see billing steps*, acted on through *run billing steps* (or as the step's owner role or named person); a role the template hides a step from does not see it, and the named person is exempt (billing-steps.spec.md). Checklist editing is an organisation setting, off by default and enabled by an Admin under Administration › Accounting. While it is on and the work order is issued, a person who runs billing steps may add a step to that work order's own list (after the current step), and Finance or an Admin may save the complete list as a new *step template* for the next work orders (wo-checklist-edit.spec.md).
 
 **Close-out item** (*butir penutupan*) — one line of a work order's checklist: required or optional, with an attached
 issued or approved project document, a done date and who marked it. Items are done in order; an item's age counts from the
@@ -1157,10 +1164,12 @@ one **work order** of its own project, so a work order lists its open tasks.
 **Rental downtime deduction** — proven down days in the invoice period times the daily rate (a monthly rate divided by the calendar days of that month), never more than the period's rental amount. The invoice check compares the vendor's bill with rent minus this deduction; it never edits, posts or pays the bill.
 
 ## Expiring document
-A certificate, permit or similar record with an expiry date that belongs to a person or an equipment asset, of an org-defined document type. Added, edited and archived on the subject's record (#2542); warned about at the org's thresholds and listed on the expiring-documents screen (#2527). A medical type holds a status (fit / unfit) and dates only.
+A certificate, permit or similar record with an expiry date that belongs to a person or an equipment asset, of an org-defined document type. Added, edited and archived on the subject's record (#2542); warned about at the org's thresholds and listed on the expiring-documents screen (#2527). A medical type holds a status (fit / unfit) and dates only. Admin, HR Officer and HR Manager may add, edit and archive these person records; medical visibility, notices and file restrictions follow their existing rules.
 
 ## People register
 The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018); **former staff** (*mantan personel*, #2703) are those archived people, kept on record and shown only in the register's Former staff view.
+
+**Leave approval routing** — a pending request goes to the active manager assigned on the person's record. If that manager is missing or inactive, an active HR Manager decides; if none is active, an Admin decides. The person on leave and the person who entered the request cannot decide it, so a manager who entered a request hands it to the fallback route (24 Nov decisions round).
 
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
@@ -1172,7 +1181,6 @@ the wording shown, never the data or the code identifier. Generic terms are not 
 access level and stored data never change; with none, the catalogue default name shows.
 **Usage standard** — an organisation rule of how much of a consumable stock item one unit of planned work uses (for example welding rod per dia-inch), matched on the contract line's unit, with an optional code prefix and a waste margin (#2577).
 
-**Consumable plan** — a work order's stored list of consumable quantities, generated from its work-order lines and the usage standards and adjustable with a reason; material requests are checked against it before the contract allowances (#2577).
 **Client material requisition** — a request to the client to release client-supplied material for one work order, tracked
 from the **take-off** (the quantity the work order needs) through the client's **reservation** (their confirmation that a
 quantity is set aside) to **pickup** (collection, which posts a zero-cost stock receipt). The work order shows reserved,
@@ -1218,8 +1226,9 @@ an account holder's phone with their name typed). The organisation chooses which
 **Daily target** — a figure entered per work order for a day or a month and spread evenly over working days unless edited. PMO does not
 calculate it from crews or productivity; the daily report's revenue is read against it.
 
-**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card. It holds
-no data of its own. A step waiting on a role shows in that person's needs-you list and clears when the step completes.
+**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card and a
+per-currency value total at the column. It holds no data of its own. A step waiting on a role shows in that person's needs-you list and
+clears when the step completes.
 
 **Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
 manager accepts or rejects it, with the reason recorded.
@@ -1243,6 +1252,10 @@ is the one the role is built on. A person who holds a built-in role is judged by
 **Roles that order** — the built-in roles an organisation names (Administration › Accounting, "Who can order purchases") whose
 holders (holding the role, not only an access level it is built on) may also raise and send purchase orders, for approved purchases only, beside the four levels that always can. Empty by
 default, which changes nothing.
+
+**Roles that validate site reports** — the manager and officer built-in roles an Admin names per organisation (Administration › Project setup, "Validate daily site reports") whose holders gain the `daily_report_validate` capability and may validate, return and correct another person's daily site report beside Admin, Finance and the project's own Project Manager. Empty by default, and a field role is never named.
+
+**Timesheet review** — the HR Officer's read-only list of the organisation's timesheets and their entries (`/timesheets/review`), filtered by period, project and person, with no approval or return action.
 
 **Held job role** — the person holds this built-in role by key (`actor_holds_job_role`). Unlike *fills a built-in role*, a person
 with no built-in role never holds one, so a right given to a held job role widens no one else at the same access level.
@@ -1268,12 +1281,14 @@ document type and the date only, with no link and no access to the document; rea
 ## Leave requests (#2708)
 
 **Leave request** — a request by or for a person to be away for an inclusive range of days, of a type from the organisation's own list.
-It is Pending until the person's line manager, or a user holding the organisation's approver role, approves or rejects it. Nobody
-decides a request they made, are the subject of, or entered, whatever their role.
+It is Pending until the active manager on the person's record approves or rejects it. If that manager is missing, inactive, the person,
+or the request entrant, it goes to active HR Managers, then active Admins if no HR Manager is available. Nobody decides a request they
+made, are the subject of, or entered, whatever their role.
 
 **Leave type** — an entry on the organisation's own list of reasons for being away (leave, sickness, and so on). PMO ships none.
 
-**Leave approver role** — the organisation setting naming which role decides leave requests besides the line manager; empty means Admin.
+**Leave approver role** — a former organisation setting retained for compatibility; current leave routing uses the person's active record manager,
+then HR Manager and Admin fallback.
 
 **Medical release** — a decision, for one person and a return date, that the person may be rostered again after sickness or injury. The people team opens it; the person's direct manager approves it or defers it with a reason. While it is pending or deferred the database refuses to roster the person (crew placement, loan, attendance) on or after that date. It holds a decision and a short note, never medical content; the manager sees the state only.
 
@@ -1463,9 +1478,30 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.
 **Reported absent** (*melaporkan tidak masuk*) — a field worker's own statement, from the phone home, that they are not coming in today (sick or other). The roster shows it; it is not attendance and not leave. Written only by `report_absence` (migration 1631).
 
+**Area rate** (*tarif wilayah*) — a rate a hand-priced contract line carries for one work-order area (#1124). A daily site report priced from that line uses the area's rate when the report names an area (else its work order's area) and the area has a rate for the line; otherwise the line's own rate. Frozen at validation with the rest of the line's rate. A catalogue-priced line has none (the catalogue prices by work location).
+
+**Report area** (*wilayah laporan*) — an optional area a daily site report names to override its work order's area for the rate. Left empty, the report follows its work order's area.
+
+**Report crew link** (*kaitan regu laporan*) — an optional link from a daily site report to one crew, or to one named person when no crew applies; never both. A foreman's new report defaults to the crew they lead. Existing reports carry none.
+
+**Head count evidence** (*bukti jumlah orang*) — a photo or document the recorder attaches to a head count line and the approver reads before approving. The file is a project document of the work order's project; the line only cites it. Final once the line is approved.
+
 ### Stock issue cost cutover
 The organisation's chosen first date for counting stock issues and returns in PMO-paid work-order cost. A purchase received into stock from that date contributes cost through consumption rather than its bill/payment. Whole-purchase classification currently applies to mixed deliveries.
 
 A pre-cutover purchase receipt with no bill or Paid payment dated before the cutover also uses the stock issue basis; later billing keeps that basis.
 
 The pre-cutover purchase set is captured at switch-on and stored until the next accepted settings change; later bill dates never recompute that saved basis.
+## Added by the 1124d stock lane
+- **Handover scope** — the organisation's choice of which stock movements need a signed handover document: transfers between locations only (default), or also issues to a project or work order. Timing (before posting, or may follow) is the separate proof timing setting. See `docs/specs/stock-handover-scope.spec.md`.
+- **Proof still owed** — a posted movement whose required handover document has not yet been attached; listed for the storekeeper and stock manager until it is.
+- **Material completion** — the printable, read-only page of one work order's materials: issued, returned, moved in and out, counted difference and balance, with totals; attached to the close-out item as its document. See `docs/specs/work-order-material-completion.spec.md`.
+- **Needed by (order)** — the one date on an order's header by which the goods are needed; it fills every line, and a line may carry its own. See `docs/specs/order-needed-by.spec.md`.
+## Work-order import
+A spreadsheet upload that creates a project's work orders as Drafts in one step: a template (work orders, optional scope lines on a second sheet), a preview that checks every row, and one confirm that saves all rows or none. See `docs/specs/work-order-import.spec.md`.
+
+## Setup workflows
+The per-organisation, Admin-controlled switch for the work-order import and opening-balances overview. Existing organisations start with the switch off; the database refuses the import and opening-balance read until an Admin enables it.
+
+## Opening balances screen
+The read-only Finance screen listing what the CLI loaded at go-live (stock per location and item, running work orders' certified and claimed figures), with the go-live date, who loaded each and totals to check against the source file. See `docs/specs/opening-balances-screen.spec.md`.

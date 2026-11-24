@@ -1,10 +1,11 @@
 -- cus_mrq_plan.test.sql — #2577 consumable usage standards: the plan figure a material request is checked against (migration 1156).
 -- Spec docs/specs/consumable-usage-standards.spec.md. AC-CUS-008 precedence and source (plan line, adjusted, adjusted to 0,
 -- allowance fallback, none; mrq_plan_for agrees) · AC-CUS-009 the over-plan reason rule on both figures · AC-CUS-010 a
--- submitted request keeps the figure it snapshotted. Existing mrq_* files cover the rest of the request flow unchanged.
+-- submitted request keeps the figure it snapshotted. Migration 2261 now requires a separate PCM approval before the plan
+-- can be used, so the fixture approves each authored plan before testing its precedence. Existing mrq_* files cover the rest unchanged.
 begin;
 create extension if not exists pgtap;
-select plan(31);
+select plan(33);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25770000-0000-0000-0000-00000000030a', 'CUSM Org', 'IDR', 'Asia/Jakarta');
@@ -12,10 +13,10 @@ insert into auth.users (id, email) values
   ('25770000-0000-0000-0000-0000000003a1', 'cusm-admin@example.com'),
   ('25770000-0000-0000-0000-0000000003a2', 'cusm-req@example.com'),
   ('25770000-0000-0000-0000-0000000003a3', 'cusm-pm@example.com');
-insert into profiles (id, org_id, full_name, email, role, status) values
-  ('25770000-0000-0000-0000-0000000003a1', '25770000-0000-0000-0000-00000000030a', 'CUSM Admin', 'cusm-admin@example.com', 'Admin', 'active'),
-  ('25770000-0000-0000-0000-0000000003a2', '25770000-0000-0000-0000-00000000030a', 'CUSM Req',   'cusm-req@example.com',   'Engineer', 'active'),
-  ('25770000-0000-0000-0000-0000000003a3', '25770000-0000-0000-0000-00000000030a', 'CUSM PM',    'cusm-pm@example.com',    'Project Manager', 'active');
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
+  ('25770000-0000-0000-0000-0000000003a1', '25770000-0000-0000-0000-00000000030a', 'CUSM Admin', 'cusm-admin@example.com', 'Admin', 'active', null),
+  ('25770000-0000-0000-0000-0000000003a2', '25770000-0000-0000-0000-00000000030a', 'CUSM Req',   'cusm-req@example.com',   'Engineer', 'active', null),
+  ('25770000-0000-0000-0000-0000000003a3', '25770000-0000-0000-0000-00000000030a', 'CUSM PM',    'cusm-pm@example.com',    'Project Manager', 'active', 'project_control_manager');
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('25770000-0000-0000-0000-0000000003d1', '25770000-0000-0000-0000-00000000030a', 'CUSM Site', 'Ongoing Project', '25770000-0000-0000-0000-0000000003a3');
 -- six work orders, one per scenario, so a request in one never counts as "already requested" in another
@@ -65,6 +66,9 @@ select lives_ok($$ select public.cus_generate_plan(pg_temp._wo(n)) from generate
 select lives_ok($$ select public.cus_adjust_plan_line(pg_temp._wo(3), '25770000-0000-0000-0000-000000003311', 12, 'extra spools') $$, 'WO3 rod adjusted to 12');
 select lives_ok($$ select public.cus_adjust_plan_line(pg_temp._wo(4), '25770000-0000-0000-0000-000000003311', 0, 'supplied by the client') $$, 'WO4 rod adjusted to 0');
 select lives_ok($$ select public.cus_adjust_plan_line(pg_temp._wo(5), '25770000-0000-0000-0000-000000003312', 2, 'gas only') $$, 'WO5 has a plan line for gas but none for rod');
+select pg_temp._as('25770000-0000-0000-0000-0000000003a3');
+select lives_ok($$ select public.cus_approve_plan(pg_temp._wo(n)) from generate_series(1, 5) n $$,
+  'each plan is approved by a separate project control manager before material requests use it');
 
 -- ── AC-CUS-008: the figure and its source, on the form (mrq_plan_for) ───────────────────────────────────────────
 select pg_temp._as('25770000-0000-0000-0000-0000000003a2');
@@ -120,6 +124,8 @@ select is((select plan_qty::text || '/' || plan_source from material_request_lin
 select pg_temp._as('25770000-0000-0000-0000-0000000003a1');
 select lives_ok($$ select public.cus_adjust_plan_line(pg_temp._wo(1), '25770000-0000-0000-0000-000000003311', 20, 'scope grew') $$, 'AC-CUS-010 the plan of WO1 is adjusted after the request was submitted');
 select lives_ok($$ select public.cus_generate_plan(pg_temp._wo(1)) $$, 'AC-CUS-010 and regenerated');
+select pg_temp._as('25770000-0000-0000-0000-0000000003a3');
+select lives_ok($$ select public.cus_approve_plan(pg_temp._wo(1)) $$, 'AC-CUS-010 the revised plan is approved before new requests use it');
 select is((select plan_qty::text || '/' || plan_source from material_request_lines where request_id = (select v from t_ids where k = 'o1')),
   '8.800/standard', 'AC-CUS-010 the request still shows the figure it was judged against');
 select pg_temp._as('25770000-0000-0000-0000-0000000003a2');

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   repositories,
   type WorkOrderInput,
@@ -51,6 +51,17 @@ interface TransitionArgs {
   overCommitAck?: boolean;
 }
 
+/** Every derived surface that reads a project's work-order allocations or billing facts. */
+export function invalidateWorkOrderQueries(qc: QueryClient, orgId: string | undefined, projectId: string) {
+  void qc.invalidateQueries({ queryKey: ['work-orders', orgId, projectId] });
+  void qc.invalidateQueries({ queryKey: ['project-drawdown', orgId, projectId] });
+  void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
+  void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
+  void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
+  void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId] });
+  void qc.invalidateQueries({ queryKey: ['work-order-acceptances', orgId, projectId] });
+}
+
 /**
  * The four write paths, each invalidating BOTH the list and the drawdown.
  *
@@ -65,17 +76,10 @@ export function useWorkOrderMutations(projectId: string) {
   const orgId = currentUser?.org_id;
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['work-orders', orgId, projectId] });
-    void qc.invalidateQueries({ queryKey: ['project-drawdown', orgId, projectId] });
     // OD-BILL-1: a status move changes whether a work order can be invoiced.
-    void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
-    // …and the org-wide still-to-invoice card on the dashboards, which reads the same fact.
-    void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
     // Contract quantities (ADR-0091): ordered/balance facts count Issued and Closed allocations only, and a
     // status move freezes or releases the allocation list and BAST actions.
-    void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
-    void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId] });
-    void qc.invalidateQueries({ queryKey: ['work-order-acceptances', orgId, projectId] });
+    invalidateWorkOrderQueries(qc, orgId, projectId);
   };
 
   const create = useMutation({

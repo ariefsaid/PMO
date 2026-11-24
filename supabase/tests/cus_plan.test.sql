@@ -1,14 +1,16 @@
--- cus_plan.test.sql — #2577 consumable usage standards: the consumable plan of a work order (migration 1155).
+-- cus_plan.test.sql — #2577 consumable usage standards and #1124d approval routing (migrations 1155, 2261, 2262).
 -- Spec docs/specs/consumable-usage-standards.spec.md. AC-CUS-001 hand-worked generation · AC-CUS-003 longest prefix wins ·
 -- AC-CUS-004 closed refused · AC-CUS-005 regeneration keeps adjustments · AC-CUS-006 out of date · AC-CUS-007 reason and actor ·
 -- AC-CUS-011 who may plan · AC-CUS-012 other organisation · AC-CUS-014 added line item rules · FR-CUS-010 "no standard".
+-- Mutation checks: `plan_approve_author`, `plan_pcm_project_manager_guard`, and `plan_creator_stays` each have a named denial/provenance assertion below;
+-- remove `approved_plan_first` and the unapproved/stale plan source assertions below must fail.
 begin;
 create extension if not exists pgtap;
-select plan(50);
+select plan(72);
 
-insert into organizations (id, name) values
-  ('25770000-0000-0000-0000-00000000020a', 'CUSP Org A'),
-  ('25770000-0000-0000-0000-00000000020b', 'CUSP Org B');
+insert into organizations (id, name, built_in_roles_enabled) values
+  ('25770000-0000-0000-0000-00000000020a', 'CUSP Org A', true),
+  ('25770000-0000-0000-0000-00000000020b', 'CUSP Org B', false);
 insert into auth.users (id, email) values
   ('25770000-0000-0000-0000-0000000002a1', 'cusp-admin@example.com'),
   ('25770000-0000-0000-0000-0000000002a2', 'cusp-eng@example.com'),
@@ -16,15 +18,17 @@ insert into auth.users (id, email) values
   ('25770000-0000-0000-0000-0000000002a4', 'cusp-pm2@example.com'),
   ('25770000-0000-0000-0000-0000000002a5', 'cusp-fin@example.com'),
   ('25770000-0000-0000-0000-0000000002a6', 'cusp-exec@example.com'),
+  ('25770000-0000-0000-0000-0000000002a7', 'cusp-pcm2@example.com'),
   ('25770000-0000-0000-0000-0000000002b1', 'cusp-badmin@example.com');
-insert into profiles (id, org_id, full_name, email, role, status) values
-  ('25770000-0000-0000-0000-0000000002a1', '25770000-0000-0000-0000-00000000020a', 'CUSP Admin', 'cusp-admin@example.com', 'Admin', 'active'),
-  ('25770000-0000-0000-0000-0000000002a2', '25770000-0000-0000-0000-00000000020a', 'CUSP Eng',   'cusp-eng@example.com',   'Engineer', 'active'),
-  ('25770000-0000-0000-0000-0000000002a3', '25770000-0000-0000-0000-00000000020a', 'CUSP PM1',   'cusp-pm1@example.com',   'Project Manager', 'active'),
-  ('25770000-0000-0000-0000-0000000002a4', '25770000-0000-0000-0000-00000000020a', 'CUSP PM2',   'cusp-pm2@example.com',   'Project Manager', 'active'),
-  ('25770000-0000-0000-0000-0000000002a5', '25770000-0000-0000-0000-00000000020a', 'CUSP Fin',   'cusp-fin@example.com',   'Finance', 'active'),
-  ('25770000-0000-0000-0000-0000000002a6', '25770000-0000-0000-0000-00000000020a', 'CUSP Exec',  'cusp-exec@example.com',  'Executive', 'active'),
-  ('25770000-0000-0000-0000-0000000002b1', '25770000-0000-0000-0000-00000000020b', 'CUSP BAdmin', 'cusp-badmin@example.com', 'Admin', 'active');
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
+  ('25770000-0000-0000-0000-0000000002a1', '25770000-0000-0000-0000-00000000020a', 'CUSP Admin', 'cusp-admin@example.com', 'Admin', 'active', null),
+  ('25770000-0000-0000-0000-0000000002a2', '25770000-0000-0000-0000-00000000020a', 'CUSP Eng',   'cusp-eng@example.com',   'Engineer', 'active', 'engineer'),
+  ('25770000-0000-0000-0000-0000000002a3', '25770000-0000-0000-0000-00000000020a', 'CUSP PCM',   'cusp-pm1@example.com',   'Project Manager', 'active', 'project_control_manager'),
+  ('25770000-0000-0000-0000-0000000002a4', '25770000-0000-0000-0000-00000000020a', 'CUSP PM2',   'cusp-pm2@example.com',   'Project Manager', 'active', null),
+  ('25770000-0000-0000-0000-0000000002a5', '25770000-0000-0000-0000-00000000020a', 'CUSP Fin',   'cusp-fin@example.com',   'Finance', 'active', null),
+  ('25770000-0000-0000-0000-0000000002a6', '25770000-0000-0000-0000-00000000020a', 'CUSP Exec',  'cusp-exec@example.com',  'Executive', 'active', null),
+  ('25770000-0000-0000-0000-0000000002a7', '25770000-0000-0000-0000-00000000020a', 'CUSP PCM 2', 'cusp-pcm2@example.com', 'Project Manager', 'active', 'project_control_manager'),
+  ('25770000-0000-0000-0000-0000000002b1', '25770000-0000-0000-0000-00000000020b', 'CUSP BAdmin', 'cusp-badmin@example.com', 'Admin', 'active', null);
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('25770000-0000-0000-0000-0000000002d1', '25770000-0000-0000-0000-00000000020a', 'CUSP Site 1', 'Ongoing Project', '25770000-0000-0000-0000-0000000002a3'),
   ('25770000-0000-0000-0000-0000000002d2', '25770000-0000-0000-0000-00000000020a', 'CUSP Site 2', 'Ongoing Project', '25770000-0000-0000-0000-0000000002a4');
@@ -73,12 +77,12 @@ set local role authenticated;
 
 -- ── AC-CUS-011: who may generate ───────────────────────────────────────────────────────────────────────────────
 select pg_temp._as('25770000-0000-0000-0000-0000000002a2');
-select throws_ok($$ select public.cus_generate_plan('25770000-0000-0000-0000-000000002401') $$, '42501', null,
-  'AC-CUS-011 an Engineer cannot generate a plan');
+select is(public.cus_generate_plan('25770000-0000-0000-0000-000000002401'), 2,
+  'AC-CUS-011 an Engineer can generate a plan');
 select pg_temp._as('25770000-0000-0000-0000-0000000002a4');
 select throws_ok($$ select public.cus_generate_plan('25770000-0000-0000-0000-000000002401') $$, '42501', null,
   'AC-CUS-011 a Project Manager of a different project cannot generate a plan');
-select is((select count(*)::int from work_order_consumable_plan_lines), 0, 'AC-CUS-011 nothing was generated by the refused calls');
+select is((select count(*)::int from work_order_consumable_plan_lines), 2, 'AC-CUS-011 the Engineer plan is stored');
 
 -- ── AC-CUS-001: the hand-worked work order ─────────────────────────────────────────────────────────────────────
 select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
@@ -112,8 +116,10 @@ select pg_temp._as('25770000-0000-0000-0000-0000000002a1');
 select lives_ok($$ select public.cus_generate_plan('25770000-0000-0000-0000-000000002401') $$, 'AC-CUS-011 an Admin may generate');
 select pg_temp._as('25770000-0000-0000-0000-0000000002a2');
 select is(pg_temp._ln('25770000-0000-0000-0000-000000002401', 'ROD'), '8.800/-/8.800/standard', 'AC-CUS-011 a same-organisation Engineer can read the plan');
-select throws_ok($$ select public.cus_adjust_plan_line('25770000-0000-0000-0000-000000002401', '25770000-0000-0000-0000-000000002311', 9, 'need more') $$,
-  '42501', null, 'AC-CUS-011 an Engineer cannot adjust a plan line');
+select lives_ok($$ select public.cus_adjust_plan_line('25770000-0000-0000-0000-000000002401', '25770000-0000-0000-0000-000000002312', 33, 'engineering update') $$,
+  'AC-CUS-011 an Engineer can edit a plan line');
+select lives_ok($$ select public.cus_adjust_plan_line('25770000-0000-0000-0000-000000002401', '25770000-0000-0000-0000-000000002312', null, null) $$,
+  'AC-CUS-011 an Engineer can revert a plan edit');
 
 -- ── AC-CUS-004: a closed work order ────────────────────────────────────────────────────────────────────────────
 select pg_temp._as('25770000-0000-0000-0000-0000000002a1');
@@ -192,10 +198,109 @@ update consumable_usage_standards set archived_at = null where id = '25770000-00
 insert into consumable_usage_standards (org_id, item_id, work_unit, boq_code_prefix, qty_per_unit, margin_pct) values
   ('25770000-0000-0000-0000-00000000020a', '25770000-0000-0000-0000-000000002311', 'dia-inch', 'WLD-01', 0.1, 0);
 set local role authenticated;
-select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select pg_temp._as('25770000-0000-0000-0000-0000000002a2');
 select lives_ok($$ select public.cus_generate_plan('25770000-0000-0000-0000-000000002402') $$, 'AC-CUS-003 generate for the work order with one WLD-01-B line');
 select is(pg_temp._ln('25770000-0000-0000-0000-000000002402', 'ROD'), '1.000/-/1.000/standard',
   'AC-CUS-003 the longer prefix wins: 10 x 0.10 = 1.000, not 10 x 0.05 x 1.10');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  '42501', 'CUS_SOD: the plan author cannot approve it', 'AC-PEO-003 the Engineer who created the plan cannot approve it');
+reset role;
+select is((select plan_source from public.mrq_plan_figure('25770000-0000-0000-0000-000000002402', '25770000-0000-0000-0000-000000002311')),
+  'none', 'AC-PEO-003 material requests ignore a plan until it is approved');
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select lives_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  'AC-PEO-003 a PCM approves an Engineer-authored plan');
+select is((public.cus_plan_approval_status('25770000-0000-0000-0000-000000002402')->>'approved')::boolean, true,
+  'AC-PEO-003 the approved plan state is visible');
+reset role;
+select is((select plan_source from public.mrq_plan_figure('25770000-0000-0000-0000-000000002402', '25770000-0000-0000-0000-000000002311')),
+  'standard', 'AC-PEO-003 material requests use the approved plan');
+update work_order_lines set quantity = 11 where work_order_id = '25770000-0000-0000-0000-000000002402';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  'P0001', 'CUS_PLAN_STALE: regenerate the plan before approval', 'AC-PEO-003 a changed plan cannot be approved until it is regenerated');
+reset role;
+select is((select plan_source from public.mrq_plan_figure('25770000-0000-0000-0000-000000002402', '25770000-0000-0000-0000-000000002311')),
+  'none', 'AC-PEO-003 material requests ignore a plan after its inputs change');
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select lives_ok($$ select public.cus_generate_plan('25770000-0000-0000-0000-000000002401') $$,
+  'AC-PEO-003 the PCM author updates its plan');
+reset role;
+update projects set project_manager_id = null where id = '25770000-0000-0000-0000-0000000002d1';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a4');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002401') $$,
+  '42501', 'CUS_APPROVER: only an Admin or this project''s manager may approve a PCM-authored plan',
+  'AC-PEO-006 an unassigned project does not let a PM approve a PCM-authored plan');
+reset role;
+update work_orders set consumable_plan_approved_by = null, consumable_plan_approved_at = null,
+       consumable_plan_approved_fingerprint = null where id = '25770000-0000-0000-0000-000000002401';
+update projects set org_id = '25770000-0000-0000-0000-00000000020b' where id = '25770000-0000-0000-0000-0000000002d1';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a4');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002401') $$,
+  '42501', 'CUS_APPROVER: only an Admin or this project''s manager may approve a PCM-authored plan',
+  'AC-PEO-006 an unmatched project lookup does not grant approval to a PM');
+reset role;
+update work_orders set consumable_plan_approved_by = null, consumable_plan_approved_at = null,
+       consumable_plan_approved_fingerprint = null where id = '25770000-0000-0000-0000-000000002401';
+update projects set org_id = '25770000-0000-0000-0000-00000000020a', project_manager_id = '25770000-0000-0000-0000-0000000002a3'
+ where id = '25770000-0000-0000-0000-0000000002d1';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002401') $$,
+  '42501', 'CUS_SOD: the plan author cannot approve it', 'AC-PEO-003 a PCM cannot approve its own plan');
+select pg_temp._as('25770000-0000-0000-0000-0000000002a1');
+select lives_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002401') $$,
+  'AC-PEO-003 Admin may approve a PCM-authored plan');
+
+-- A PCM-authored plan may also be approved by the project manager, but not an unrelated PM.
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select lives_ok($$ select public.cus_generate_plan('25770000-0000-0000-0000-000000002402') $$,
+  'AC-PEO-003 the PCM authors a second plan');
+select pg_temp._as('25770000-0000-0000-0000-0000000002a2');
+select lives_ok($$ select public.cus_adjust_plan_line('25770000-0000-0000-0000-000000002402', '25770000-0000-0000-0000-000000002311', 2, 'engineering update after PCM plan') $$,
+  'AC-PEO-007 an Engineer edits the PCM-authored plan');
+reset role;
+select is((select consumable_plan_author_id from work_orders where id = '25770000-0000-0000-0000-000000002402'),
+  '25770000-0000-0000-0000-0000000002a3'::uuid,
+  'AC-PEO-007 an edit retains the original plan creator');
+select is((select consumable_plan_author_is_pcm from work_orders where id = '25770000-0000-0000-0000-000000002402'), true,
+  'AC-PEO-007 an edit retains the original PCM approval route');
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  '42501', 'CUS_SOD: the plan author cannot approve it',
+  'AC-PEO-007 the original PCM creator cannot approve after an Engineer edits the plan');
+select pg_temp._as('25770000-0000-0000-0000-0000000002a7');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  '42501', 'CUS_APPROVER: only an Admin or this project''s manager may approve a PCM-authored plan',
+  'AC-PEO-007 another PCM cannot approve after an Engineer edits a PCM-authored plan');
+reset role;
+update work_orders set consumable_plan_approved_by = null, consumable_plan_approved_at = null,
+       consumable_plan_approved_fingerprint = null where id = '25770000-0000-0000-0000-000000002402';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a1');
+select lives_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  'AC-PEO-007 Admin can approve a PCM-authored plan after an Engineer edits it');
+reset role;
+update work_orders set consumable_plan_approved_by = null, consumable_plan_approved_at = null,
+       consumable_plan_approved_fingerprint = null where id = '25770000-0000-0000-0000-000000002402';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a4');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  '42501', 'CUS_APPROVER: only an Admin or this project''s manager may approve a PCM-authored plan',
+  'AC-PEO-003 a PM of a different project cannot approve a PCM-authored plan');
+reset role;
+update projects set project_manager_id = '25770000-0000-0000-0000-0000000002a4'
+ where id = '25770000-0000-0000-0000-0000000002d1';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a4');
+select lives_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  'AC-PEO-003 the project manager approves a PCM-authored plan');
 
 -- ── AC-CUS-012: another organisation ───────────────────────────────────────────────────────────────────────────
 select pg_temp._as('25770000-0000-0000-0000-0000000002b1');

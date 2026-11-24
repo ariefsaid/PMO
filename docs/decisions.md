@@ -3956,6 +3956,10 @@ Managers sit at Project Manager rank or above (Finance Manager at Finance, Execu
   [Orca dispatch — Batch integration](orca-dispatch.md#batch-integration-owner-2026-11-23).
   Existing acceptance, explicit safety stops and production approval requirements remain intact.
 
+## Decisions for the 24 November management views round
+
+- **DD-MV-1 Billing board column totals.** A billing-board column shows its open-claim count and exact total claim value grouped by currency. Each claim card continues to omit the amount. This supersedes the board-wide reading of OD-BBD-4 that amounts stay only on claims; it preserves OD-BBD-4's per-card rule. The board read remains limited to Finance, Executive and Admin at the database boundary (`docs/specs/billing-board.spec.md`, migrations 2283).
+
 ## Decisions from the 22 November fix round and gap round (2026-11-22)
 
 Owner rulings (changing one needs the owner):

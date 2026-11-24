@@ -194,7 +194,7 @@ async function preflightWorkbook(buf: ArrayBuffer, limits: { maxRows: number; ma
 /** Read a worksheet as bounded, untrusted raw cells. ExcelJS is loaded only when called. */
 export async function readWorkbookGrid(
   buf: ArrayBuffer,
-  limits?: { maxRows: number; maxColumns: number },
+  limits?: { maxRows: number; maxColumns: number; sheetIndex?: number },
 ): Promise<WorkbookGrid> {
   if (buf.byteLength > 5 * 1024 * 1024) throw new ImportParseError('fileTooLarge', 'File exceeds 5 MiB.');
   await preflightWorkbook(buf, limits ?? DEFAULT_LIMITS);
@@ -205,7 +205,7 @@ export async function readWorkbookGrid(
   } catch {
     throw new ImportParseError('not_xlsx', 'That file is not a valid .xlsx workbook.');
   }
-  const ws = wb.worksheets[0];
+  const ws = wb.worksheets[limits?.sheetIndex ?? 0];
   if (!ws) throw new ImportParseError('not_xlsx', 'That file is not a valid .xlsx workbook.');
   if (limits && ws.rowCount > limits.maxRows) {
     throw new ImportParseError('too_many_rows', `Too many worksheet rows: ${ws.rowCount}.`);
