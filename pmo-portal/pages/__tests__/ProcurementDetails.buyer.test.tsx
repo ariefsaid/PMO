@@ -118,3 +118,16 @@ describe('a Buyer (job role at Engineer access level) on an approved purchase it
     expect(screen.queryByTestId('buyer-set-supplier')).not.toBeInTheDocument();
   });
 });
+
+it("a named routed approver can inspect the request before deciding", () => {
+  h.mayOrder = false; h.realRole = "Project Manager"; h.effectiveRole = "Project Manager";
+  h.detail.data = { ...procurement, status: "Requested", approvalRoute: { route: "org", approvers: [{ id: "buyer", fullName: "Reviewer" }] } };
+  renderAt("/procurement/proc-001/overview");
+  expect(screen.queryByTestId("procurement-no-access")).not.toBeInTheDocument();
+});
+
+it("JOB-PU4 an Approved purchase explains sourcing and offers Request quotations before adding quotes", async () => {
+  renderAt("/procurement/proc-001/quotes");
+  expect(await screen.findByTestId("quote-next-step")).toHaveTextContent("Request quotations");
+  expect(screen.queryByTestId("add-quotation")).not.toBeInTheDocument();
+});

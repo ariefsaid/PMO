@@ -2,21 +2,24 @@
 /** JOB-PU4 — a buyer sources by quotation: from an approved request they ask for quotes, add two, pick one, and the order is recorded at the chosen vendor and price.
  *  Partly landed: the quoted route exists; the direct-purchase shortcut (no quotes, buy from a shop) is not offered and is not tested. */
 import { test, expect } from '@playwright/test';
-import { login, recordOrderWithConfirm } from './helpers';
+import { recordOrderWithConfirm } from './helpers';
 import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
 
 test.setTimeout(150_000);
 
+import { moneyJobRole } from "./support/moneyJobRole";
+let buyer: Awaited<ReturnType<typeof moneyJobRole>>;
 let fixture: ProcurementFixture;
-test.beforeAll(async () => { fixture = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU4' }); });
-test.afterAll(async () => { await fixture?.cleanup(); });
+test.beforeAll(async () => { buyer = await moneyJobRole("buyer"); fixture = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU4' }); });
+test.afterAll(async () => { await fixture?.cleanup(); await buyer?.cleanup(); });
 
 test('JOB-PU4 two quotes are added, one is chosen, and the order follows the chosen quote', async ({ page }) => {
-  await login(page, 'finance@acme.test');
+  await buyer.login(page);
   await page.goto(fixture.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('record-header-actions').getByRole('button', { name: 'More procurement actions' }).click();
-  await page.getByRole('menuitem', { name: 'Request quotations' }).click();
+  await page.getByRole("tab", { name: /^quotations/i }).click();
+  await expect(page.getByTestId("add-quotation")).toHaveCount(0);
+  await page.getByTestId("quote-next-step").getByRole("button", { name: "Request quotations" }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Quoted', { timeout: 15_000 });
 
   await page.getByRole('tab', { name: /^quotations/i }).click();

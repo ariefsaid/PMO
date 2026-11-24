@@ -136,7 +136,7 @@ const TimelineWithReadableOrders: React.FC<TimelineWithOrdersProps & { records: 
 };
 
 const ProcurementDetails: React.FC = () => {
-  const { t } = useTranslation(['common', 'waitingList']);
+  const { t } = useTranslation(['common', 'waitingList', 'walkMoney']);
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
   const tab = tabFromParam(tabParam);
@@ -381,7 +381,8 @@ const ProcurementDetails: React.FC = () => {
   const raisedByMe = !!currentUser?.id && p.requested_by_id === currentUser.id;
   // A person the database lets order purchases (actor_may_order_purchases, the same gate the record read uses) opens any purchase
   // of the organisation; money stays behind the access-level views below.
-  const recordInScope = mayOrderByRole || (role === 'Engineer'
+  const namedApprover = p.status === 'Requested' && Boolean(currentUser?.id && p.approvalRoute?.approvers.some((a) => a.id === currentUser.id));
+  const recordInScope = namedApprover || mayOrderByRole || (role === 'Engineer'
     ? raisedByMe
     : role === 'Project Manager'
       ? raisedByMe || Boolean(p.project_id && p.project != null && managerId === currentUser?.id)
@@ -988,7 +989,8 @@ const ProcurementDetails: React.FC = () => {
         {/* #878: PR/RFQ/PO/payment are filed under their PROCUREMENT (0277), so the document
             children roll up here — the project reaches them on read through this procurement. */}
 
-        {tab === 'quotes' && <ProcurementQuotesTab p={p} selectedQuote={selectedQuote} vendorMap={vendorMap} mutations={mutations} crud={crud} canAddQuote={canAddQuote} canSelectQuote={canSelectQuote} canManageFiles={canManageFiles} currentUserId={currentUserId} onMutationError={onMutationError} />}
+        {tab === 'quotes' && p.status === 'Approved' && <div data-testid="quote-next-step" className="mb-3 space-y-3"><p>{t('walkMoney:quotes.next', 'Request quotations before adding and selecting supplier quotes.')}</p>{actionFor('Vendor Quoted') && <Button variant="outline" onClick={() => onActionClick(actionFor('Vendor Quoted')!)}>{actionFor('Vendor Quoted')!.label}</Button>}</div>}
+        {tab === 'quotes' && <ProcurementQuotesTab p={p} selectedQuote={selectedQuote} vendorMap={vendorMap} mutations={mutations} crud={crud} canAddQuote={canAddQuote && p.status === 'Vendor Quoted'} canSelectQuote={canSelectQuote} canManageFiles={canManageFiles} currentUserId={currentUserId} onMutationError={onMutationError} />}
         {tab === 'details' && <ProcurementDetailsTab rows={detailRows} canEditHeader={canEditHeader} onEdit={() => setHeaderEditOpen(true)} />}
         {tab === 'details' && <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />}
       </div>

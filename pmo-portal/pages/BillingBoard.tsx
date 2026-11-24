@@ -18,7 +18,7 @@ import { BillingBoardWorkOrderSteps } from './BillingBoardWorkOrderSteps';
  */
 
 const claimHref = (c: BoardCard) =>
-  `/projects/${c.projectId}?tab=billing&open=${c.claimId}&openType=billingClaim`;
+  `/projects/${c.projectId}/contract?open=${c.claimId}&openType=billingClaim`;
 
 const ClaimCard: React.FC<{ card: BoardCard }> = ({ card }) => {
   const { t } = useTranslation('finance');

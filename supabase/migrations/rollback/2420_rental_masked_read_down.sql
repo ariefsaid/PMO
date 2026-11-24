@@ -1,0 +1,32 @@
+-- Restore the earlier reader behavior without dropping dependent view types.
+create or replace view public.procurements_masked with (security_invoker = true) as
+select
+  x.amount_approved_by_id,
+  x.approval_notes,
+  x.approved_by_id,
+  case when (select public.actor_may_see_prices_now()) then x.approved_total_value end as approved_total_value,
+  x.budget_category,
+  x.code,
+  x.created_at,
+  x.currency,
+  x.id,
+  x.import_batch_id,
+  x.import_key,
+  x.import_normalized_ref,
+  x.imported_at,
+  x.is_subcontract,
+  x.org_id,
+  x.origin,
+  x.po_number,
+  x.pr_number,
+  x.project_id,
+  x.rejection_notes,
+  x.requested_by_id,
+  x.status,
+  x.title,
+  case when (select public.actor_may_see_prices_now()) then x.total_value end as total_value,
+  x.updated_at,
+  x.vendor_id,
+  x.vendor_invoiced_at,
+  null::uuid as purchase_type_id, null::date as rental_from, null::date as rental_to, null::uuid as extends_procurement_id
+from public.procurements x;

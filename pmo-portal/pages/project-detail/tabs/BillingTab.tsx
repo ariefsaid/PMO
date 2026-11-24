@@ -156,6 +156,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     return () => { active = false; };
   }, [boqRows, projectId]);
   const canViewMoney = may('view', 'salesInvoice');
+  const canReadClaims = may('view', 'progressClaim');
   const openRecordId = searchParams.get('open');
   const openRecordType = searchParams.get('openType');
   const setOpenRecord = (id: string, type: 'billingBoq' | 'billingClaim') => {
@@ -178,14 +179,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     if (openRecordType === 'billingBoq') {
       setBoqDetailFor(boqRows.find((row) => row.id === openRecordId) ?? null);
       setClaimDetailFor(null);
-    } else if (openRecordType === 'billingClaim' && canViewMoney) {
+    } else if (openRecordType === 'billingClaim' && canReadClaims) {
       setClaimDetailFor(claimRows.find((row) => row.id === openRecordId) ?? null);
       setBoqDetailFor(null);
     } else {
       setBoqDetailFor(null);
       setClaimDetailFor(null);
     }
-  }, [openRecordId, openRecordType, boqRows, claimRows, canViewMoney]);
+  }, [openRecordId, openRecordType, boqRows, claimRows, canReadClaims]);
   const summary = billing.data ? summarizeBilling(billing.data) : null;
   const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
   // C5: no padded .00, but a real fraction is money and is never rounded away. In-page figures are bare (the
@@ -618,7 +619,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </Card>
   );
 
-  const claimDetailDrawer = canViewMoney && claimDetailFor && <Drawer open width="lg"
+  const claimDetailDrawer = canReadClaims && claimDetailFor && <Drawer open width="lg"
     title={claimDetailFor.kind === 'down_payment'
       ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
       : claimDetailFor.kind === 'time_materials'
@@ -826,13 +827,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           </summary>
           <div className="mt-3 space-y-6">
             {boqCard}
-            {canViewMoney && claimsCard}
+            {canReadClaims && claimsCard}
           </div>
         </details>
       ) : (
         <>
           {boqCard}
-          {canViewMoney && claimsCard}
+          {canReadClaims && claimsCard}
         </>
       )}
 
