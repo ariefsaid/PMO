@@ -491,5 +491,11 @@
   "PRC_SUPPLIER_INVALID": "Pilih pemasok aktif dari organisasi Anda.",
   "PRC_SUPPLIER_SET": "Pembelian ini sudah menentukan pemasoknya.",
   "PRC_SUPPLIER_STEP": "Tentukan pemasok setelah pembelian disetujui.",
-  "PPL_PROFILE_SELF": "Hanya Admin yang dapat menautkan atau melepas tautan data dirinya sendiri."
+  "PPL_PROFILE_SELF": "Hanya Admin yang dapat menautkan atau melepas tautan data dirinya sendiri.",
+  "SR_LINK": "Kaitkan laporan lapangan ke satu regu atau satu orang, bukan keduanya, dan pilih dari organisasi Anda.",
+  "HCE_DOCUMENT": "Pilih berkas milik proyek perintah kerja ini yang sudah berisi file.",
+  "HCE_LIMIT": "Satu jumlah orang membawa paling banyak 10 berkas. Hapus satu dulu.",
+  "AREA_UNKNOWN": "Pilih wilayah dari daftar organisasi Anda.",
+  "AREA_RATE": "Isi tarif di atas nol, atau kosongkan kolom untuk menghapus tarif wilayah.",
+  "AREA_RATE_CATALOGUE": "Baris ini dihargai dari katalog tarif, jadi tarifnya berasal dari katalog, bukan dari wilayah."
 }

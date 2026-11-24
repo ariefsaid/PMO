@@ -396,7 +396,22 @@
     "sod": "Anda yang mengisi jumlah orang ini, jadi orang lain yang menyetujuinya.",
     "clearTitle": "Hapus jumlah orang ini?",
     "clearBody": "Jumlah untuk kelas dan hari ini dihapus. Anda bisa mengisinya lagi.",
-    "clearConfirm": "Hapus jumlah orang"
+    "clearConfirm": "Hapus jumlah orang",
+    "evidence": {
+      "none": "Belum ada foto atau dokumen terlampir.",
+      "loading": "Memuat bukti jumlah orang…",
+      "refreshing": "Memperbarui bukti jumlah orang…",
+      "error": "Bukti jumlah orang tidak dapat dimuat.",
+      "retry": "Coba lagi",
+      "list": "Berkas terlampir",
+      "untitled": "Berkas",
+      "remove": "Hapus {{name}}",
+      "removeShort": "Hapus",
+      "attach": "Lampirkan foto atau dokumen",
+      "category": "Kategori dokumen",
+      "choose": "Pilih foto atau dokumen",
+      "attached": "Berkas terlampir"
+    }
   },
   "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}",
   "roleNotSet": "Posisi kru belum diisi",
