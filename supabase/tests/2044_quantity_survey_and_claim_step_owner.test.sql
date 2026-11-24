@@ -101,10 +101,18 @@ select is(pg_temp.err('a6', pg_temp.note('73')), 'ok', 'RR-BS-04 the creator rec
 select is(pg_temp.err('a6', pg_temp.note('72')), 'ok', 'RR-BS-04 the creator still records a step with no owner');
 select is(pg_temp.err('a8', pg_temp.note('71')), 'ok', 'RR-BS-04 a Project Manager still records a step, as before');
 
-update progress_claims set created_by = '20440000-0000-0000-0000-0000000000a1';
-select is(pg_temp.err('a1', pg_temp.note('71')), 'ok', 'RR-BS-06 Admin creator records another owner step');
-update progress_claims set created_by = '20440000-0000-0000-0000-0000000000a8';
-select is(pg_temp.err('a8', pg_temp.note('71')), 'ok', 'RR-BS-07 Project Manager creator records another owner step');
+insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, created_by)
+select ('20440000-0000-0000-0000-0000000000' || k)::uuid, org_id, project_id, kind, currency, gross_amount,
+  ('20440000-0000-0000-0000-0000000000' || u)::uuid
+from progress_claims cross join (values ('62', 'a1'), ('63', 'a8')) as creators(k,u)
+where id = '20440000-0000-0000-0000-000000000061';
+delete from claim_billing_stages where claim_id in ('20440000-0000-0000-0000-000000000062', '20440000-0000-0000-0000-000000000063');
+insert into claim_billing_stages (id, org_id, claim_id, project_id, position, name, client_side, owner_role, started_on)
+select ('20440000-0000-0000-0000-0000000000' || k)::uuid, org_id, id, project_id, 1, 'Review', false, 'Engineer', current_date
+from progress_claims cross join (values ('62', '74'), ('63', '75')) as stages(c,k)
+where id = ('20440000-0000-0000-0000-0000000000' || c)::uuid;
+select is(pg_temp.err('a1', pg_temp.note('74')), 'ok', 'RR-BS-06 Admin creator records another owner step');
+select is(pg_temp.err('a8', pg_temp.note('75')), 'ok', 'RR-BS-07 Project Manager creator records another owner step');
 
 select * from finish();
 rollback;
