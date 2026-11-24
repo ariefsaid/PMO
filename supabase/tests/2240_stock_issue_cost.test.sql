@@ -120,5 +120,41 @@ select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actual
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a4');
 select throws_ok($$select set_stock_issue_cost_date('2026-11-16')$$,'42501',null,'AC-ISC-004 Engineer cannot change');
 select throws_ok($$select * from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')$$,'42501',null,'AC-ISC-004 Engineer cannot read');
+
+reset role;
+set local session_replication_role=replica;
+-- Stock purchase 999 paid once. Two issues (300, 200) and a return (50) leave stock 549.
+insert into payments(id,org_id,procurement_id,invoice_id,status,amount,currency) values
+ ('25190000-0000-0000-0000-000000000645','25190000-0000-0000-0000-00000000000a','25190000-0000-0000-0000-000000000604','25190000-0000-0000-0000-000000000626','Paid',999,'IDR');
+update stock_documents set work_order_id='25190000-0000-0000-0000-000000000401' where id='25190000-0000-0000-0000-000000000811';
+update stock_ledger set qty_delta=-30,value_delta=-300 where line_id='25190000-0000-0000-0000-000000000821';
+insert into stock_documents(id,org_id,number,kind,status,warehouse_id,project_id,occurred_on,created_by,posted_by,posted_at,work_order_id)
+select '25190000-0000-0000-0000-000000000812',org_id,'SI-2','issue','Posted',warehouse_id,project_id,occurred_on,created_by,posted_by,posted_at,'25190000-0000-0000-0000-000000000402' from stock_documents where id='25190000-0000-0000-0000-000000000811';
+insert into stock_documents(id,org_id,number,kind,status,warehouse_id,project_id,occurred_on,created_by,posted_by,posted_at,work_order_id)
+select '25190000-0000-0000-0000-000000000813',org_id,'RT-1','return','Posted',warehouse_id,project_id,occurred_on,created_by,posted_by,posted_at,work_order_id from stock_documents where id='25190000-0000-0000-0000-000000000811';
+insert into stock_document_lines(id,org_id,document_id,line_no,item_id,quantity,direction)
+select '25190000-0000-0000-0000-000000000822',org_id,'25190000-0000-0000-0000-000000000812',1,item_id,20,'out' from stock_document_lines where id='25190000-0000-0000-0000-000000000821';
+insert into stock_document_lines(id,org_id,document_id,line_no,item_id,quantity,source_line_id)
+select '25190000-0000-0000-0000-000000000823',org_id,'25190000-0000-0000-0000-000000000813',1,item_id,5,id from stock_document_lines where id='25190000-0000-0000-0000-000000000821';
+insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,project_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
+select org_id,'25190000-0000-0000-0000-000000000812','25190000-0000-0000-0000-000000000822',item_id,warehouse_id,project_id,'issue',-20,-200,49.9,499,occurred_on,posted_by from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
+insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,project_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
+select org_id,'25190000-0000-0000-0000-000000000813','25190000-0000-0000-0000-000000000823',item_id,warehouse_id,project_id,'return',5,50,54.9,549,occurred_on,posted_by from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
+set local session_replication_role=origin;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
+select throws_ok($$select set_stock_issue_cost_date('2026-11-17')$$,'23514','this organisation needs a stock-cost migration first','AC-ISC-003 refuses historically costed purchase');
+select is(set_stock_issue_cost_date('2026-11-16'),'2026-11-16'::date,'AC-ISC-002 enable at receipt date');
+select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and work_order_id='25190000-0000-0000-0000-000000000401' and reason='counted'),250::numeric,'AC-ISC-002 work order A issue less return');
+select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and work_order_id='25190000-0000-0000-0000-000000000402' and reason='counted'),200::numeric,'AC-ISC-002 work order B issue');
+select is((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1'))+549,999::numeric,'AC-ISC-002 consumed plus remaining stock equals bill once');
+select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric,1550::numeric,'AC-ISC-002 project excludes stocked bill and includes 450 consumed plus direct delivery 1100');
+select is((select spent from project_pmo_positions(array['25190000-0000-0000-0000-0000000000d1']::uuid[])),1550::numeric,'AC-ISC-002 dashboard same source');
+select is((select amount from project_pmo_spent_position('25190000-0000-0000-0000-0000000000d1')),1550::numeric,'AC-ISC-002 single-project position same source');
+select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where reason in ('counted','unassigned','split-when-custom')),1550::numeric,'AC-ISC-002 work order totals reconcile project');
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000b1');
+select is((select count(*) from stock_issue_cost_settings),0::bigint,'AC-ISC-004 settings isolated');
+select throws_ok($$select * from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')$$,'P0002','project not found','AC-ISC-004 costs isolated');
+
 select * from finish();
 rollback;
