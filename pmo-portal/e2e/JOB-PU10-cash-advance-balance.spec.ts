@@ -7,8 +7,9 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
-import { signIn, requireServiceRoleKey, SEED_PASSWORD } from './helpers';
+import { requireServiceRoleKey, SEED_PASSWORD } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { roleJobUser } from './support/roleJobUser';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PM_ID = '00000000-0000-0000-0000-0000000000a2'; // project manager and float custodian
@@ -24,6 +25,7 @@ const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON
 test.setTimeout(240_000);
 
 let admin: SupabaseClient | undefined;
+let officer: Awaited<ReturnType<typeof roleJobUser>> | undefined;
 let projectId = '';
 let floatId = '';
 let limitInserted = false;
@@ -53,6 +55,8 @@ test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('JOB-PU10 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
+  // The case's reader: the Finance Officer opens the float and reads its balance.
+  officer = await roleJobUser(admin, 'finance_officer', `pu10-officer-${Date.now()}`, 'Finance');
   tag = `JOB-PU10 ${Date.now()}`;
 
   const project = need('project', await admin.from('projects')
@@ -119,11 +123,14 @@ test.afterEach(async () => {
   fail('project', (await admin.from('projects').delete().eq('id', projectId)).error);
   if (limitInserted) fail('limit', (await admin.from('org_imprest_settings').delete().eq('org_id', ORG_ID)).error);
   projectId = ''; floatId = ''; limitInserted = false;
+  await officer?.cleanup();
+  officer = undefined;
 });
 
 
-test('JOB-PU10 the float reads the advance minus the two purchases recorded against it', async ({ page }) => {
-  await signIn(page, 'pm@acme.test');
+test('JOB-PU10 the finance officer reads the float as the advance minus the two purchases recorded against it', async ({ page }) => {
+  if (!officer) throw new Error('JOB-PU10 needs its Finance Officer login');
+  await officer.signIn(page);
   await page.goto(`/imprest/${floatId}`);
   await expect(page.getByTestId('figure-receipts')).toContainText(/\b800\b/, { timeout: 20_000 });
   await expect(page.getByTestId('figure-cash')).toContainText(/9[.,]200/);

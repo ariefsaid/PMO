@@ -2,15 +2,16 @@ import { expect, type Page } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok } from './jobFixtures';
 
-/** Disposable real job-role login: parallel journeys never change a shared user's role. */
-export async function roleJobUser(service: SupabaseClient, key: string, run: string) {
+/** Disposable real job-role login: parallel journeys never change a shared user's role.
+ *  `baseRole` is the access level the job role sits on (most officer roles are Engineer; the finance jobs are Finance). */
+export async function roleJobUser(service: SupabaseClient, key: string, run: string, baseRole = 'Engineer') {
   const email = `${run}@example.test`;
   const password = `${crypto.randomUUID()}-Aa1!`;
   const created = await service.auth.admin.createUser({ email, password, email_confirm: true });
   if (created.error || !created.data.user) throw created.error ?? new Error('No user created');
   const id = created.data.user.id;
   try {
-    need('job profile', await service.from('profiles').insert({ id, org_id: ORG_ID, email, full_name: run, role: 'Engineer', status: 'active', built_in_role: key, locale: 'en', number_locale: 'en-US' }).select('id').single());
+    need('job profile', await service.from('profiles').insert({ id, org_id: ORG_ID, email, full_name: run, role: baseRole, status: 'active', built_in_role: key, locale: 'en', number_locale: 'en-US' }).select('id').single());
   } catch (error) { await service.auth.admin.deleteUser(id); throw error; }
   return {
     id,
