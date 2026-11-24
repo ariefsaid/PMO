@@ -287,7 +287,7 @@ const SelectedAdministrationPanel: React.FC<{
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
 }> = ({ section, orgId, isOperator, label }) => {
-  const { t } = useTranslation('billingSteps');
+  const { t } = useTranslation(['billingSteps', 'siteReport']);
   switch (section) {
     case 'users':
       return (
