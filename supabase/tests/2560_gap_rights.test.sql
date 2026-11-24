@@ -75,4 +75,25 @@ select ok(has_function_privilege('authenticated','public.rate_catalogue_rate_at(
 select ok(not has_function_privilege('anon','public.rate_catalogue_rate_at(uuid,uuid,date)','EXECUTE'), 'anonymous routine refused');
 select is((select count(*)::integer from pg_policies where schemaname='public' and policyname in ('equipment_officer_insert','equipment_officer_update','rate_catalogue_items_pcm_read','rate_catalogue_variants_pcm_read')),4, 'four scoped policies installed');
 select ok(exists(select 1 from pg_policies where tablename='rate_catalogue_items' and policyname='light_account_deny_select' and permissive='RESTRICTIVE'), 'field read restriction retained');
+select isnt(pg_temp.err('a6', $$insert into equipment_assets(code,name) values ('DENY-a6','Denied')$$), 'ok', 'AC-GR-001 other role a6 cannot register');
+select is(pg_temp.val('a6', $$with u as (update equipment_assets set name='Denied' where code='GR' returning id) select count(*)::text from u$$), '0', 'AC-GR-001 other role a6 cannot edit');
+select isnt(pg_temp.err('a8', $$insert into equipment_assets(code,name) values ('DENY-a8','Denied')$$), 'ok', 'AC-GR-001 other role a8 cannot register');
+select is(pg_temp.val('a8', $$with u as (update equipment_assets set name='Denied' where code='GR' returning id) select count(*)::text from u$$), '0', 'AC-GR-001 other role a8 cannot edit');
+select isnt(pg_temp.err('a9', $$insert into equipment_assets(code,name) values ('DENY-a9','Denied')$$), 'ok', 'AC-GR-001 other role a9 cannot register');
+select is(pg_temp.val('a9', $$with u as (update equipment_assets set name='Denied' where code='GR' returning id) select count(*)::text from u$$), '0', 'AC-GR-001 other role a9 cannot edit');
+select isnt(pg_temp.err('b1', $$insert into equipment_assets(code,name) values ('DENY-b1','Denied')$$), 'ok', 'AC-GR-001 other role b1 cannot register');
+select is(pg_temp.val('b1', $$with u as (update equipment_assets set name='Denied' where code='GR' returning id) select count(*)::text from u$$), '0', 'AC-GR-001 other role b1 cannot edit');
+select isnt(pg_temp.err('b2', $$insert into equipment_assets(code,name) values ('DENY-b2','Denied')$$), 'ok', 'AC-GR-001 other role b2 cannot register');
+select is(pg_temp.val('b2', $$with u as (update equipment_assets set name='Denied' where code='GR' returning id) select count(*)::text from u$$), '0', 'AC-GR-001 other role b2 cannot edit');
+
+insert into rate_catalogue_variants(id,org_id,project_id,name) values ('25600000-0000-0000-0000-0000000000d1','25600000-0000-0000-0000-00000000000a','25600000-0000-0000-0000-0000000000c1','Location');
+insert into rate_catalogue_rates(org_id,item_id,variant_id,rate,effective_from) select org_id,id,'25600000-0000-0000-0000-0000000000d1',120,current_date from rate_catalogue_items;
+insert into rate_catalogue_stage_weights(org_id,item_id,effective_from,position,stage,weight_pct) select org_id,id,current_date,1,'Complete',100 from rate_catalogue_items;
+select is(pg_temp.val('a2', $$select count(*)::text from rate_catalogue_variants$$), '1', 'AC-GR-002 PCM reads locations');
+select is(pg_temp.val('a2', $$select rate::text from rate_catalogue_rates$$)::numeric,120::numeric, 'AC-GR-002 PCM reads rate');
+select is(pg_temp.val('a2', $$select count(*)::text from rate_catalogue_stage_weights$$), '1', 'AC-GR-002 PCM reads stage weights');
+select is(pg_temp.val('b2', $$select count(*)::text from rate_catalogue_rates$$), '0', 'AC-GR-002 field account reads no prices');
+select is(pg_temp.val('b9', $$select count(*)::text from rate_catalogue_rates$$), '0', 'AC-GR-002 other organisation reads no prices');
+update profiles set status='inactive' where id='25600000-0000-0000-0000-0000000000a7';
+select isnt(pg_temp.err('a7', $$insert into equipment_assets(code,name) values ('INACTIVE','Denied')$$), 'ok', 'AC-GR-001 inactive officer refused');
 select * from finish(); rollback;
