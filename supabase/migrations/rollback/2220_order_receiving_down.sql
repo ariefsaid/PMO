@@ -1,4 +1,4 @@
--- Apply 2226 through 2221 rollback first. Refuse removal when receipt history exists; export history before any deliberate dismantling.
+-- Apply 2227 through 2221 rollback first. Refuse removal when receipt history exists; export history before any deliberate dismantling.
 do $$ begin
   if exists(select 1 from public.order_receiving_requests) then raise exception 'Retain order receipt history before removing receiving.'; end if;
 end $$;

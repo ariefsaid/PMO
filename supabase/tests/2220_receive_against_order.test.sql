@@ -203,7 +203,7 @@ select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid
  'if v_fx is null then','if v_fx is null then v_fx:=1; v_fx_date:=p_date; end if; if false then',
  $$select pg_temp.missing_fx_oracle()$$),'AC-RGO-006 mutation: substituting rate one fails the missing-rate refusal oracle');
 select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
- 'if v_excess and v_r.approved_by is null then','if false then',
+ 'if v_excess and not public.order_receiving_approval_current(p_request) then','if false then',
  $$select pg_temp.value(11,$q$select pg_temp.receive(20,91)->>'status'$q$)='awaiting_approval'$$),
  'AC-RGO-008 mutation: bypassing excess approval fails the pending-count oracle');
 select ok(pg_temp.mutation('public.read_order_receiving(uuid)',
@@ -234,9 +234,9 @@ select throws_ok($$select approve_order_receiving(pg_temp.rid(92),'My own excess
 reset role;
 select ok(pg_temp.kill(
  replace(pg_get_functiondef('public.approve_order_receiving(uuid,text)'::regprocedure),' or r.receiver_id = auth.uid()','')
- || '; alter table public.order_receiving_requests drop constraint order_receiving_requests_check',
+ || '; alter table public.order_receiving_requests drop constraint order_receiving_requests_check; alter table public.order_receiving_excess_approvals drop constraint order_receiving_excess_distinct',
  $$select not pg_temp.allowed(10,'select approve_order_receiving(pg_temp.rid(92),''My own excess'')')$$),
- 'AC-RGO-008 mutation: removing both self-approval defences fails the same-person oracle');
+ 'AC-RGO-008 mutation: removing self-approval defences fails the same-person oracle');
 -- A different receipt can consume the remaining order quantity after an excess was reviewed.
 select pg_temp.actor(11);
 set local role authenticated;
@@ -252,13 +252,21 @@ set local role authenticated;
 select is(pg_temp.receive(5,96)->>'status','awaiting_approval','AC-RGO-008 increased excess requires a fresh approval');
 select is((select (x->>'approved')::boolean from jsonb_array_elements(read_order_receiving(pg_temp.rid(40))->'requests') x where x->>'id'=pg_temp.rid(96)::text),false,'AC-RGO-008 stale approval is shown as waiting');
 reset role;
+select ok(pg_temp.mutation('public.order_receiving_approval_current(uuid)',
+ '<= coalesce((a.excess_quantities->>i.id::text)::numeric,0)','<= 100000000000000000',
+ $$select pg_temp.value(11,$q$select pg_temp.receive(5,96)->>'status'$q$)='awaiting_approval'$$),
+ 'AC-RGO-008 mutation: widening an approved excess fails the fresh-review oracle');
 select pg_temp.actor(10);
 set local role authenticated;
+select is((select count(*)::int from my_waiting_decisions() where kind='order_receiving' and record_id=pg_temp.rid(40)),1,'AC-RGO-008 changed excess returns to the purchasing inbox');
 select lives_ok($$select approve_order_receiving(pg_temp.rid(96),'Accept the revised excess')$$,'AC-RGO-008 purchasing can review the changed excess');
 reset role;
 select pg_temp.actor(11);
 set local role authenticated;
 select is(pg_temp.receive(5,96)->>'status','posted','AC-RGO-008 the newly approved excess posts once');
 reset role;
+select is((select array_agg((excess_quantities->>pg_temp.rid(30)::text)::numeric order by seq) from order_receiving_excess_approvals where request_id=pg_temp.rid(96)),array[2,3]::numeric[],'AC-RGO-008 both reviewed excess snapshots remain as evidence');
+select throws_ok($$update order_receiving_excess_approvals set excess_quantities='{}' where request_id=pg_temp.rid(96)$$,'23514',null,'AC-RGO-008 approval witnesses cannot be changed');
+select throws_ok($$delete from order_receiving_excess_approvals where request_id=pg_temp.rid(96)$$,'23514',null,'AC-RGO-008 approval witnesses cannot be deleted');
 select * from finish();
 rollback;

@@ -514,5 +514,6 @@
   "RGO_REVERSE_REASON": "Give a reason for reversing this receipt.",
   "RGO_USE_ORDER": "Receive these goods against their purchase order.",
   "RGO_FX_MISSING": "No exchange rate for {{base}}/{{quote}} on {{date}}.",
-  "RGO_BLIND_COPY": "Enter your own request quantities; a blind receiver cannot copy ordered quantities."
+  "RGO_BLIND_COPY": "Enter your own request quantities; a blind receiver cannot copy ordered quantities.",
+  "RGO_APPROVAL_IMMUTABLE": "Excess approval snapshots cannot be changed."
 }
