@@ -42,18 +42,25 @@ const ID_STOCK = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/
 
 const EN_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/administration.json'), 'utf8'));
 const ID_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/administration.json'), 'utf8'));
+const EN_TIMESHEETS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/timesheets.json'), 'utf8'));
+const ID_TIMESHEETS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/timesheets.json'), 'utf8'));
+const EN_REFUSALS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/refusals.json'), 'utf8'));
+const ID_REFUSALS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/refusals.json'), 'utf8'));
+
+const EN_CREWS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/crews.json'), 'utf8'));
+const ID_CREWS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/crews.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
   void i18n.init({
     lng: locale,
     fallbackLng: 'en',
-    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project', 'projects', 'sales', 'lostReason', 'status', 'incidents', 'administration', 'stock'],
+    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project', 'projects', 'sales', 'lostReason', 'status', 'incidents', 'administration', 'stock', 'timesheets', 'refusals', 'crews'],
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT, projects: ID_PROJECTS, sales: ID_SALES, lostReason: ID_LOST_REASON, status: ID_STATUS, incidents: ID_INCIDENTS, administration: ID_ADMINISTRATION, stock: ID_STOCK },
-      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT, projects: EN_PROJECTS, sales: EN_SALES, lostReason: EN_LOST_REASON, status: EN_STATUS, incidents: EN_INCIDENTS, administration: EN_ADMINISTRATION, stock: EN_STOCK },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT, projects: ID_PROJECTS, sales: ID_SALES, lostReason: ID_LOST_REASON, status: ID_STATUS, incidents: ID_INCIDENTS, administration: ID_ADMINISTRATION, stock: ID_STOCK, timesheets: ID_TIMESHEETS, refusals: ID_REFUSALS, crews: ID_CREWS },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT, projects: EN_PROJECTS, sales: EN_SALES, lostReason: EN_LOST_REASON, status: EN_STATUS, incidents: EN_INCIDENTS, administration: EN_ADMINISTRATION, stock: EN_STOCK, timesheets: EN_TIMESHEETS, refusals: EN_REFUSALS, crews: EN_CREWS },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

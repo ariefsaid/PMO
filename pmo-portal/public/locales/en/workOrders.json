@@ -214,7 +214,8 @@
     "duplicateCode": "Another live entry already uses this code.",
     "adminOnly": "Only an Admin can change this list.",
     "tooLong": "Use {{max}} characters or fewer.",
-    "hint": "Your organisation’s own list. Work orders can name one; the work-order list can be grouped by it."
+    "hint": "Your organisation’s own list. Work orders can name one; the work-order list can be grouped by it.",
+    "description": "Description (optional)"
   },
   "clientMaterial": {
     "title": "Client material",

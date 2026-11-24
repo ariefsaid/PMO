@@ -49,6 +49,8 @@ export function useDsrValidationRoute(reportId: string | null | undefined) {
 export interface DsrWaitingRoleLabels {
   /** The localized word for a coarse user_role ("Project Manager", "Finance", …), from the role-label seam. */
   role: (role: string) => string;
+  /** The localized/custom word for a built-in job role key ("Site Supervisor", …), from useBuiltInRoleName. */
+  jobRole?: (key: string) => string;
   /** The Admin/Finance alternative (waitingList:waitingFor.roleFinanceAdmin). */
   financeAdmin: string;
   /** The proven-empty route (siteReport:detail.nobodyCanValidate). */
@@ -60,9 +62,9 @@ export interface DsrWaitingRoleLabels {
 /**
  * Words the route for the requester. The named project manager is spoken with the database's own
  * role word ("Project Manager") through the existing role-label seam, never a generic relabel;
- * Admin/Finance are spoken as the true role-level alternatives. Loading/pending is the caller's
- * concern; this only turns COMPLETE server facts into the shared sentence. `unavailable` is not a
- * route to show (the page is not on a Submitted report).
+ * Admin/Finance and any configured validator job roles are spoken as true role-level alternatives.
+ * Loading/pending is the caller's concern; this only turns COMPLETE server facts into the shared
+ * sentence. `unavailable` is not a route to show (the page is not on a Submitted report).
  *
  * A known empty route says, in the reader's language, that nobody active can validate right now — it
  * never invents a project approver for a project with no (eligible) PM.
@@ -74,8 +76,15 @@ export function dsrWaitingForText(
 ): string | null {
   if (!route || route.routeKind === 'unavailable') return null;
   if (route.routeKind === 'nobody') return labels.nobody;
+  const roleNames = (route.validateRoles ?? [])
+    .map((key) => labels.jobRole?.(key)?.trim() || key)
+    .filter((label) => label !== '');
+  if (route.routeKind === 'job_roles') {
+    if (roleNames.length === 0) return null;
+    return waitingForText({ names: [], role: roleNames[0], alternativeRoles: roleNames.slice(1) }, t);
+  }
   if (route.routeKind === 'finance_admin') {
-    return waitingForText({ names: [], role: labels.financeAdmin }, t);
+    return waitingForText({ names: [], role: labels.financeAdmin, alternativeRoles: roleNames }, t);
   }
   const pm = route.approvers[0] ?? null;
   // The server always names the PM on a project-manager route; a body without one is not a route to
@@ -86,6 +95,6 @@ export function dsrWaitingForText(
   return waitingForText({
     names: [pm.name],
     role: roleWord,
-    alternativeRoles: [labels.financeAdmin],
+    alternativeRoles: [labels.financeAdmin, ...roleNames],
   }, t);
 }

@@ -582,6 +582,17 @@ insert into public.project_documents (id, org_id, project_id, code, category, ca
 insert into public.survey_record_documents (record_id, document_id, org_id, attached_by)
   select 'a6120000-0000-4000-8000-000000000335', 'a6120000-0000-4000-8000-000000000337',
          'a6120000-0000-4000-8000-00000000000a', profile from _iso_a;
+-- Disposable site evidence and area rates make their by-id/read and update probes executable.
+insert into public.headcount_days (id, org_id, work_order_id, crew_id, class_id, work_date, head_count)
+  select 'a6120000-0000-4000-8000-000000000350', 'a6120000-0000-4000-8000-00000000000a', wo, crew,
+         (select id from public.labour_cost_classes where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1),
+         current_date, 1 from _iso_a;
+insert into public.headcount_day_documents (id, org_id, headcount_id, document_id, attached_by)
+  select 'a6120000-0000-4000-8000-000000000351', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000350', 'a6120000-0000-4000-8000-000000000337', profile from _iso_a;
+insert into public.boq_item_area_rates (id, org_id, project_id, boq_item_id, area_id, rate, set_by)
+  select 'a6120000-0000-4000-8000-000000000352', 'a6120000-0000-4000-8000-00000000000a', project,
+         'a6120000-0000-4000-8000-0000000000d3', 'a6120000-0000-4000-8000-00000000032b', 1, profile from _iso_a;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

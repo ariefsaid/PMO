@@ -29,6 +29,7 @@ const OPENING_STOCK_CODES = ['OPN_ROW_INVALID', 'OPN_UNKNOWN_ITEM', 'OPN_UNKNOWN
  * ponytail: remove an entry when its migration moves the figure into `details` (stock already does).
  */
 const FIGURES: Record<string, (text: string) => Record<string, string>> = {
+  IMPORT_ROW: (s) => ({ row: first(/^row (\d+)/, s)[0] ?? '', reason: s.replace(/^row \d+:\s*/, '') }),
   ATT_DAY_CEILING: (s) => { const [hours = '', workOrder = ''] = first(/already has ([\d.]+) hours on (.+) that day/, s); return { hours, workOrder }; },
   ATT_DATE_WINDOW: (s) => ({ date: day(s) }),
   ATT_TS_MANUAL_ENTRY: (s) => ({ date: day(s) }),
@@ -73,6 +74,7 @@ export function parseRefusal(err: unknown): Refusal | null {
   const code = `${m[1]}_${m[2]}`;
   const text = m[3];
   const values = { ...FIGURES[code]?.(text), ...detailsValues(details) };
+  if (code === 'RGO_FX_MISSING' && values.date) values.date = day(values.date);
   // RSV and STK figures: the first number of the sentence is the one the copy names.
   if (m[1] === 'RSV') values.n = qty(/\d+(?:\.\d+)?/.exec(text)?.[0]);
   else if (values.available !== undefined && values.requested !== undefined) {

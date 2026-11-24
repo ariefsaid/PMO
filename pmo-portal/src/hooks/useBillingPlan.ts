@@ -7,6 +7,11 @@ export function useBillingPlanCandidates(projectId: string | null, enabled = tru
   return useOrgQuery(['billing-plan-candidates', projectId], () => repositories.billingStages.readPlanCandidates(projectId), { enabled });
 }
 
+/** Assessed but not yet client-accepted quantities, shown in a separate billing-plan group. */
+export function useBillingUnacceptedProgress(projectId: string | null, enabled = true) {
+  return useOrgQuery(['billing-unaccepted-progress', projectId], () => repositories.billingStages.readUnacceptedProgress(projectId), { enabled });
+}
+
 /** The plan's settings (target, currency, month overrides, reminder switch). #2675 reuses this hook for the reminder. */
 export function useBillingPlanSettings(enabled = true) {
   return useOrgQuery(['billing-plan-settings'], () => repositories.billingStages.getPlanSettings(), { enabled });

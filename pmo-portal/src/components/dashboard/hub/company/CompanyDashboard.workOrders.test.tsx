@@ -118,7 +118,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectManagementOverview: () => ({ data: [], isPending: false, isError: false }), useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }),
   useProjectsDelivery: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
@@ -301,6 +301,7 @@ describe('CompanyDashboard work orders entry (JOB-NAV-WO, Defect 4)', () => {
   });
 });
 
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));
 it('JOB-T3 Finance sees its current work-order billing step on the home dashboard', () => {
   h.waitingStep = true;
   renderDashboard('Finance');

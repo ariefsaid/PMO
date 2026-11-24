@@ -1,0 +1,5 @@
+{
+  "tables": [
+    { "table": "org_setup_workflow_settings", "has_org": true, "pk": "org_id", "columns": "org_id,enabled", "b_read": "own-org-only", "by_id": "applicable" }
+  ]
+}

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SelectField } from '@/src/components/ui';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useStockTransfers, useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
-import { stockTransfersRepository as repo, type ProofTiming, type TransferMode } from '@/src/lib/repositories/stockTransfers';
+import { stockTransfersRepository as repo, type HandoverScope, type ProofTiming, type TransferMode } from '@/src/lib/repositories/stockTransfers';
 
 /**
  * Admin: one-step or two-step stock transfers, and when proof is demanded (#2690). One-step stays the default: two-step adds a receive
@@ -34,6 +34,8 @@ export const TransferModeSettings: React.FC = () => {
         options={[{ value: 'one_step', label: t('transferSettings.oneStep') }, { value: 'two_step', label: t('transferSettings.twoStep') }]} helper={t('transferSettings.modeHelp')} />
       <SelectField label={t('transferSettings.timing')} value={settings.data.proofTiming} onChange={(v) => change.mutate(() => repo.settings.setTiming(v as ProofTiming))}
         options={[{ value: 'before_posting', label: t('transferSettings.beforePosting') }, { value: 'may_follow', label: t('transferSettings.mayFollow') }]} helper={t('transferSettings.timingHelp')} />
+      <SelectField label={t('transferSettings.scope')} value={settings.data.handoverScope} onChange={(v) => change.mutate(() => repo.settings.setScope(v as HandoverScope))}
+        options={[{ value: 'transfers', label: t('transferSettings.scopeTransfers') }, { value: 'transfers_and_issues', label: t('transferSettings.scopeIssues') }]} helper={t('transferSettings.scopeHelp')} />
       {error && <p role="alert">{error}</p>}
     </div>
   );

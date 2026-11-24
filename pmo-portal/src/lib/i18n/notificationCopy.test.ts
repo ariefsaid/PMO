@@ -56,6 +56,16 @@ describe('notification wording', () => {
     expect(body).toContain('Dokumen kurang');
     expect(notificationBody({ body: 'stored', message_key: 'leaveApproved', message_params: { ...params, note: null } }, t)).toContain('disetujui');
   });
+  it('AC-PEO-002 a routed leave request notice is translated for its decider', async () => {
+    const inst = i18next.createInstance();
+    await inst.use(orgTermsPlugin).init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', interpolation: { escapeValue: false }, resources: { en: { notifications: en }, id: { notifications: id } } });
+    const t = inst.t.bind(inst);
+    const row = { body: 'stored', title: 'Leave request needs your decision', message_key: 'leaveRequestPending', message_params: { person: 'Worker without login', type: 'Annual', from: '2026-11-24', to: '2026-11-25' } };
+    expect(NOTIFICATION_TITLE_KEYS[row.title]).toBe('leaveRequestPending');
+    expect(notificationTitle(row, t)).toBe('Permintaan cuti menunggu keputusan Anda');
+    expect(notificationBody(row, t)).toContain('Worker without login');
+    expect(notificationBody(row, t)).toContain('memerlukan keputusan Anda');
+  });
 
   describe('fix-waiting item 4: titles the database writes reach the reader in their language', () => {
     it('fix1122 renders the four migrated titles in both languages and keeps legacy and dynamic matches', async () => {

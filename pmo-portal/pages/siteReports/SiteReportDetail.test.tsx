@@ -98,7 +98,7 @@ const make = (status: string, extra: Partial<DsrReportDetail['report']> = {}): D
     id: 'r1', org_id: 'o1', project_id: 'p1', work_order_id: 'w1', work_date: '2026-03-10', status: status as DsrReportDetail['report']['status'],
     version: 1, supersedes_id: null, superseded_at: null, correction_reason: null, author_id: 'eng', submitted_at: null, validated_by: null,
     validated_at: null, returned_reason: null, variant_id: null, start_time: '07:00:00', end_time: '17:30:00', total_minutes: 630,
-    weather_id: null, weather_note: null, note: null, ...extra,
+    weather_id: null, weather_note: null, note: null, crew_id: null, person_id: null, area_id: null, ...extra,
   },
   workOrder: { label: 'WO-1 · Pipe run', currency: 'USD', orderValue: 1000 },
   progress: [
@@ -321,6 +321,22 @@ describe('site report record', () => {
 
       renderPage('id');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Saat ini tidak ada anggota aktif yang dapat memvalidasi laporan ini.');
+    });
+
+    it('AC-DRVR-008 sole-Admin author with no PM and an assigned validator job role shows that job role instead of nobody, EN and ID', () => {
+      h.detail = make('submitted', { author_id: 'adm' });
+      h.userId = 'adm';
+      h.realRole = 'Admin';
+      h.pm = null;
+      h.pmName = null;
+      h.route = { routeKind: 'job_roles', approvers: [], validateRoles: ['site_supervisor'] };
+      const first = renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Site Supervisor');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Nobody active can validate');
+      first.unmount();
+
+      renderPage('id');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Pengawas Lapangan');
     });
 
     it('the non-leaking unavailable shape, and a still-loading read, show no waiting claim at all', () => {

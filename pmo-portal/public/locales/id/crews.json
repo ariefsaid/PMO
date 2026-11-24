@@ -182,9 +182,7 @@
     "adminOnly": "Hanya Admin yang dapat mengubah pengaturan cuti",
     "approve": "Setujui",
     "approved": "Cuti disetujui",
-    "approverDefault": "Atasan langsung, atau Admin",
-    "approverHelp": "Atasan langsung selalu dapat memutuskan. Kosong berarti Admin.",
-    "approverRole": "Siapa yang menyetujui",
+    "approvalRouting": "Permintaan menunggu keputusan manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang mengajukan cuti dan orang yang memasukkan permintaan tidak boleh memutuskan.",
     "backToLeave": "Kembali ke cuti",
     "cancel": "Batalkan permintaan",
     "cancelled": "Permintaan dibatalkan",
@@ -229,12 +227,12 @@
     "typesHeading": "Jenis cuti",
     "waiting": "Menunggu keputusan Anda ({{count}})",
     "pickPerson": "Pilih orangnya",
-    "waitingManager": "Menunggu keputusan {{manager}} atau {{role}} mana pun",
-    "waitingRole": "Menunggu keputusan {{role}} mana pun",
+    "waitingFor": "Menunggu keputusan {{names}}",
+    "waitingNoDecider": "Tidak ada penyetuju aktif.",
     "approvedBy": "Disetujui oleh {{name}}",
     "rejectedBy": "Ditolak oleh {{name}}",
     "nobodyToFileFor": "Anda hanya dapat mengajukan cuti untuk diri sendiri dan orang yang Anda kelola. Minta atasan langsung atau Admin yang mengajukannya.",
-    "goesTo": "Atasan langsung Anda atau {{role}} mana pun yang menyetujui. Hasilnya akan masuk ke notifikasi Anda."
+    "goesTo": "Permintaan Anda diputuskan oleh manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang memasukkan permintaan tidak boleh memutuskan. Hasilnya akan masuk ke notifikasi Anda."
   },
   "checkIn": {
     "requestsTitle": "Absen menunggu Anda",
@@ -396,7 +394,22 @@
     "sod": "Anda yang mengisi jumlah orang ini, jadi orang lain yang menyetujuinya.",
     "clearTitle": "Hapus jumlah orang ini?",
     "clearBody": "Jumlah untuk kelas dan hari ini dihapus. Anda bisa mengisinya lagi.",
-    "clearConfirm": "Hapus jumlah orang"
+    "clearConfirm": "Hapus jumlah orang",
+    "evidence": {
+      "none": "Belum ada foto atau dokumen terlampir.",
+      "loading": "Memuat bukti jumlah orang…",
+      "refreshing": "Memperbarui bukti jumlah orang…",
+      "error": "Bukti jumlah orang tidak dapat dimuat.",
+      "retry": "Coba lagi",
+      "list": "Berkas terlampir",
+      "untitled": "Berkas",
+      "remove": "Hapus {{name}}",
+      "removeShort": "Hapus",
+      "attach": "Lampirkan foto atau dokumen",
+      "category": "Kategori dokumen",
+      "choose": "Pilih foto atau dokumen",
+      "attached": "Berkas terlampir"
+    }
   },
   "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}",
   "roleNotSet": "Posisi kru belum diisi",

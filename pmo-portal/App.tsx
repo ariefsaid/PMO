@@ -102,6 +102,7 @@ const ProcurementPage = lazyWithPreload(() => import('./pages/Procurement'));
 const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDetails'));
 const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
+const TimesheetReviewPage = lazyWithPreload(() => import('./pages/TimesheetReview'));
 const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
 const WorkOrdersPage = lazyWithPreload(() => import('./pages/WorkOrders'));
 const WorkOrderDetailPage = lazyWithPreload(() => import('./pages/WorkOrderDetail'));
@@ -169,18 +170,20 @@ const BillingBoardPage = lazyWithPreload(() => import('./pages/BillingBoard'));
 const BillingPlanPage = lazyWithPreload(() => import('./pages/BillingPlan'));
 const PayablesPage = lazyWithPreload(() => import('./pages/finance/PayablesPage'));
 const WorkInHandPage = lazyWithPreload(() => import('./pages/finance/WorkInHand'));
+const OpeningBalancesPage = lazyWithPreload(() => import('./pages/finance/OpeningBalances'));
 const ProfileSettingsPage = lazyWithPreload(() => import('./pages/ProfileSettings'));
 const StockSetupPage = lazyWithPreload(() => import('./pages/stock/StockSetup'));
 const StockOnHandPage = lazyWithPreload(() => import('./pages/stock/StockOnHand'));
 const StockDocumentsPage = lazyWithPreload(() => import('./pages/stock/StockDocuments'));
 const StockDocumentDetailPage = lazyWithPreload(() => import('./pages/stock/StockDocumentDetail'));
 const StockLedgerPage = lazyWithPreload(() => import('./pages/stock/StockLedger'));
-const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockMovementForm'));
+const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockNewEntry'));
 const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
 const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
 const StockTransfersPage = lazyWithPreload(() => import('./pages/stock/StockTransfers'));
 const StockTransferSendPage = lazyWithPreload(() => import('./pages/stock/StockTransferSend'));
 const StockTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockTransferDetail'));
+const WorkOrderMaterialCompletionPage = lazyWithPreload(() => import('./pages/stock/WorkOrderMaterialCompletion'));
 const StockTransferPrintPage = lazyWithPreload(() => import('./pages/stock/StockTransferPrint'));
 const StockWorkOrderTransferPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransfer'));
 const StockWorkOrderTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransferDetail'));
@@ -265,6 +268,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/purchase-types/settings', chunks: [PurchaseTypeSettingsPage], namespaces: ['purchaseTypes'] },
   { path: '/equipment-plans', chunks: [EquipmentPlansPage], namespaces: ['equipmentPlans'] },
   { path: '/equipment-plans/settings', chunks: [EquipmentPlanSettingsPage], namespaces: ['equipmentPlans'] },
+  { path: '/timesheets/review', chunks: [TimesheetReviewPage], namespaces: ['timesheets'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
   { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests', 'waitingList'] },
@@ -323,6 +327,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/work-in-hand', chunks: [WorkInHandPage], namespaces: ['workInHand', 'financeHub'] },
+  { path: '/finance/opening-balances', chunks: [OpeningBalancesPage], namespaces: ['financeHub'] },
   { path: '/finance/statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
   { path: '/journals', chunks: [JournalsPage], namespaces: ['journals'] },
   { path: '/sales-invoices/:invoiceId', chunks: [SalesInvoicesPage], namespaces: ['finance'] },
@@ -348,6 +353,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
   { path: '/stock/transfers/new', chunks: [StockTransferSendPage], namespaces: ['stock'] },
   { path: '/stock/transfers/:transferId/print', chunks: [StockTransferPrintPage], namespaces: ['stock'] },
+  { path: '/work-orders/:id/material-completion', chunks: [WorkOrderMaterialCompletionPage], namespaces: ['stock', 'workOrders'] },
   { path: '/stock/transfers/:transferId', chunks: [StockTransferDetailPage], namespaces: ['stock'] },
   { path: '/stock/transfers', chunks: [StockTransfersPage], namespaces: ['stock'] },
   { path: '/stock/work-order-transfer/:transferId', chunks: [StockWorkOrderTransferDetailPage], namespaces: ['stock', 'workOrders'] },
@@ -448,6 +454,16 @@ export const FinanceAccessRoute: React.FC<{ children: React.ReactNode }> = ({ ch
   return <>{children}</>;
 };
 
+const WorkInHandAccessRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation('workInHand');
+  const navigate = useNavigate();
+  const may = usePermission();
+  if (!may('view', 'workInHand')) {
+    return <AccessDenied title={t('title', 'Work in hand')} sub={t('access.denied', 'Work in hand is available to Finance, Executive, Admin, and Project Managers for their assigned projects.')} onBack={() => navigate('/')} />;
+  }
+  return <>{children}</>;
+};
+
 export const FinanceLegacyRedirect: React.FC<{ to: string; paymentsView?: boolean }> = ({ to, paymentsView = false }) => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -502,6 +518,7 @@ export const appRouteConfig: RouteObject[] = [
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: gated('procurement', <ProcurementDetails />) },
   { path: '/procurement/:procurementId/:tab', element: gated('procurement', <ProcurementDetails />) },
+  { path: '/timesheets/review', element: gated('timesheets', <TimesheetReviewPage />) },
   { path: '/timesheets', element: gated('timesheets', <TimesheetsPage />) },
   { path: '/approvals', element: <ApprovalsPage /> },
   { path: '/companies', element: gated('crm', <CompaniesPage />) },
@@ -594,7 +611,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/finance/billing-plan', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<BillingPlanPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
-  { path: '/finance/work-in-hand', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<WorkInHandPage />} /></FinanceAccessRoute> },
+  { path: '/finance/work-in-hand', element: <WorkInHandAccessRoute><FeatureRoute feature="revenue" element={<WorkInHandPage />} /></WorkInHandAccessRoute> },
+  { path: '/finance/opening-balances', element: <FinanceAccessRoute><OpeningBalancesPage /></FinanceAccessRoute> },
   { path: '/finance/statements', element: <FinanceAccessRoute>{gated('financial_statements', <FinancialStatementsPage />)}</FinanceAccessRoute> },
   // #895 manual journals: role-gated like the Finance hub (Finance·Executive·Admin); the RPCs re-check the role.
   { path: '/journals', element: <FinanceAccessRoute><JournalsPage /></FinanceAccessRoute> },
@@ -632,6 +650,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/transfers', element: gated('stock', <StockTransfersPage />) },
   { path: '/stock/transfers/new', element: gated('stock', <StockTransferSendPage />) },
   { path: '/stock/transfers/:transferId/print', element: gated('stock', <StockTransferPrintPage />) },
+  { path: '/work-orders/:id/material-completion', element: gated('stock', <WorkOrderMaterialCompletionPage />) },
   { path: '/stock/transfers/:transferId', element: gated('stock', <StockTransferDetailPage />) },
   { path: '/stock/work-order-transfer', element: gated('stock', <StockWorkOrderTransferPage />) },
   { path: '/stock/work-order-transfer/:transferId', element: gated('stock', <StockWorkOrderTransferDetailPage />) },

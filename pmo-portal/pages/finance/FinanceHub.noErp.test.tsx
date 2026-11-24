@@ -4,6 +4,8 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 
+vi.mock('@/src/hooks/useSetupWorkflows', () => ({ useSetupWorkflows: () => ({ enabled: false, isLoading: false, isError: false, isSaving: false, setEnabled: vi.fn(), refetch: vi.fn() }) }));
+
 const state = vi.hoisted(() => ({
   role: 'Finance',
   currency: 'IDR',

@@ -59,7 +59,8 @@
     "retry": "Coba lagi",
     "readOnlyNote": "Hanya Admin yang dapat mengubah daftar periksa.",
     "limit": "Paling banyak 20 butir.",
-    "generic": "Daftar periksa tidak dapat disimpan. Coba lagi."
+    "generic": "Daftar periksa tidak dapat disimpan. Coba lagi.",
+    "noOwnerHelp": "Tanpa peran penanggung jawab, hanya Admin, Finance, atau manajer proyek yang dapat menyelesaikan item ini."
   },
   "projectDocuments": "Dokumen proyek"
 }

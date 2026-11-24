@@ -128,6 +128,7 @@ import type { BillingStagesRepository } from './contracts/billingStages';
 import type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
 import type { SurveyRecordRepository } from './contracts/surveyRecords';
 import type { WorkInHandRepository } from './contracts/workInHand';
+import type { OpeningBalanceRepository } from './contracts/openingBalances';
 import type { SupplyRiskRepository } from './contracts/supplyRisk';
 
 import type { OdooRepository } from './contracts/odoo';
@@ -170,6 +171,7 @@ export interface Repositories {
   closeoutChecklist: CloseoutChecklistRepository;
   surveyRecord: SurveyRecordRepository;
   workInHand: WorkInHandRepository;
+  openingBalances: OpeningBalanceRepository;
   stock: StockRepository;
   stockOpening: StockOpeningRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
@@ -242,6 +244,7 @@ export type { BillingStagesRepository } from './contracts/billingStages';
 export type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
 export type { SurveyRecordRepository } from './contracts/surveyRecords';
 export type { WorkInHandRepository } from './contracts/workInHand';
+export type { OpeningBalanceRepository } from './contracts/openingBalances';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';
 export type { JournalRepository } from './contracts/journals';

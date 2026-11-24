@@ -59,7 +59,8 @@
     "retry": "Retry",
     "readOnlyNote": "Only an Admin can change the checklist.",
     "limit": "At most 20 items.",
-    "generic": "The checklist could not be saved. Try again."
+    "generic": "The checklist could not be saved. Try again.",
+    "noOwnerHelp": "Without an owner job role, only an Admin, Finance, or the project manager can complete this item."
   },
   "projectDocuments": "Project documents"
 }

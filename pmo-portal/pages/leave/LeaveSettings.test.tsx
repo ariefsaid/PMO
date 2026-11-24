@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router';
 import { toast as sonnerToast } from 'sonner';
 import { act } from '@testing-library/react';
 
-/** #2708 `/leave?view=settings`: only an Admin gets in; the switch + approver role save, the leave-type
+/** #2708 `/leave?view=settings`: only an Admin gets in; the fixed route is visible, the leave-type
  * list (add/archive), and each refused write surfaced through the LV_ error mapper. */
 const h = vi.hoisted(() => ({
   isAdmin: true,
@@ -47,26 +47,22 @@ describe('LeaveSettings', () => {
     expect(screen.queryByText('Leave types')).not.toBeInTheDocument();
   });
 
-  it('an admin sees the approver role and no on/off switch (leave is on for everyone, #2746)', () => {
+  it('an admin sees the fixed approval route and no on/off switch (leave is on for everyone, #2746)', () => {
     view();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Who approves')).toHaveValue('Finance');
+    expect(screen.queryByLabelText('Who approves')).not.toBeInTheDocument();
+    expect(screen.getByText(/active manager on the person record/)).toBeInTheDocument();
   });
 
-  it('FR-TR-010 the approver choices show the localised access role names in Bahasa', () => {
+  it('AC-PEO-001 the fixed route is explained in Bahasa', () => {
     render(<MemoryRouter><ToastProvider><BahasaProvider><LeaveSettingsPage /></BahasaProvider></ToastProvider></MemoryRouter>);
-    const select = screen.getByLabelText('Who approves');
-    expect(screen.getByRole('option', { name: 'Keuangan' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Manajer proyek' })).toBeInTheDocument();
-    // The stored access level stays the enum value, never the translated label.
-    expect(select).toHaveValue('Finance');
-    expect(screen.queryByRole('option', { name: 'Finance' })).not.toBeInTheDocument();
+    expect(screen.getAllByText(/manajer aktif pada data orang/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/HR Manager memutuskan, lalu Admin/).length).toBeGreaterThan(0);
   });
 
   it('saving sends the whole settings record, with leave on', async () => {
     const user = userEvent.setup();
     view();
-    await user.selectOptions(screen.getByLabelText('Who approves'), '');
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith({ enabled: true, approver_role: null }));
     expect((await screen.findAllByText('Settings saved')).length).toBeGreaterThan(0);

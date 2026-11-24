@@ -1,0 +1,22 @@
+{
+  "tables": [
+    {"table":"order_receiving_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"order_stock_mappings","has_org":true,"pk":"item_id","columns":"*","b_read":"none","by_id":"applicable"},
+    {"table":"order_receiving_requests","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"},
+    {"table":"order_receiving_reversals","has_org":true,"pk":"request_id","columns":"*","b_read":"none","by_id":"applicable"},
+    {"table":"order_receiving_excess_approvals","has_org":true,"pk":"id","columns":"*","b_read":"none","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "map_order_stock(uuid,uuid)",
+    "receiving_lock_order(uuid)",
+    "receive_order_goods(uuid,uuid,date,jsonb,uuid)",
+    "approve_order_receiving(uuid,text)",
+    "read_order_receiving(uuid)",
+    "list_receiving_orders()",
+    "order_receiving_blind()",
+    "set_order_receiving_enabled(boolean)",
+    "reverse_order_receiving(uuid,text)",
+    "order_receiving_line_blind(uuid)",
+    "order_receiving_approval_current(uuid)"
+  ]
+}

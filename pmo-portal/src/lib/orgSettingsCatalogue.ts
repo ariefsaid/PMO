@@ -38,6 +38,7 @@ export interface OrgSettingEntry {
 
 export const ORG_SETTINGS = {
   // The five modules (#2746): one switch each; off hides the module's screens, nothing is deleted.
+  managementViews: { group: 'money', writers: ['Admin'], route: '/administration/modules#management-views', manage: 'orgAccounting', switch: 'managementViews', covers: ['organizations.management_views_enabled'] },
   modulePeopleCrews: { group: 'people', writers: ['Admin'], route: '/administration/modules#module-people-crews', manage: 'orgAccounting', switch: 'modulePeopleCrews', covers: ['organizations.module_people_crews'] },
   moduleSiteDay: { group: 'site', writers: ['Admin'], route: '/administration/modules#module-site-day', manage: 'orgAccounting', switch: 'moduleSiteDay', covers: ['organizations.module_site_day'] },
   moduleStock: { group: 'stock', writers: ['Admin'], route: '/administration/modules#module-stock', manage: 'orgAccounting', switch: 'moduleStock', covers: ['organizations.module_stock'] },
@@ -55,12 +56,14 @@ export const ORG_SETTINGS = {
   revenuePlan: { group: 'site', alwaysOn: true, writers: ['Admin'], route: '/administration/projects#revenue-plan-settings', manage: 'revenuePlanSettings', covers: ['org_revenue_plan_settings', 'useRevenuePlanSettings'] },
   issueClosingReport: { group: 'site', alwaysOn: true, writers: ['Admin', 'Executive', 'Project Manager'], route: '/administration/projects#issue-closing-report-settings', covers: ['issue_closing_report_settings', 'useIssueClosingReportSettings'] },
   quantityChangeLimit: { group: 'site', writers: ['Admin'], route: '/quantity-changes', manage: 'quantityChange', covers: ['organizations.quantity_change_limit'] },
-  stockTransfers: { group: 'stock', writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', covers: ['organizations.stock_transfer_mode', 'organizations.stock_proof_timing', 'useTransferSettings'] },
+  orderReceiving: { group: 'stock', writers: ['Admin'], route: '/stock/new/receive', manage: 'orderReceiving', covers: ['order_receiving_settings', 'useOrderReceivingEnabled'] },
+  stockTransfers: { group: 'stock', writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', covers: ['organizations.stock_transfer_mode', 'organizations.stock_proof_timing', 'organizations.stock_handover_scope', 'useTransferSettings'] },
   stockWoTransfers: { group: 'stock', alwaysOn: true, writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', switch: 'stockWoTransfers', covers: ['organizations.stock_wo_transfers'] },
   stockReservations: { group: 'stock', alwaysOn: true, writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', covers: ['organizations.stock_reservations', 'organizations.reservation_borrow_mode', 'organizations.reservation_borrow_role', 'organizations.reservation_borrow_label', 'useReservationSettings', 'useReservationsEnabled'] },
   dsrStockIssue: { group: 'stock', writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', covers: ['organizations.dsr_stock_issue', 'organizations.dsr_stock_issue_items', 'useDsrStockSettings'] },
   woIssueThreshold: { group: 'stock', writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', covers: ['work_order_stock_settings'] },
   purchaseTypes: { group: 'purchasing', alwaysOn: true, writers: ['Admin'], route: '/purchase-types/settings', manage: 'purchaseType', covers: ['org_purchase_type_settings', 'usePurchaseTypesEnabled'] },
+  orderNeededBy: { group: 'purchasing', writers: ['Admin'], route: '/administration/accounting#order-needed-by-heading', manage: 'orgAccounting', covers: ['organizations.po_needed_by_required_from', 'usePoNeededByRequired'] },
   purchaseLinePlanning: { group: 'purchasing', alwaysOn: true, writers: ['Admin'], route: '/administration/accounting#line-planning-heading', manage: 'orgAccounting', covers: ['organizations.purchase_line_planning', 'useLinePlanningEnabled'] },
   threeWayMatch: { group: 'purchasing', writers: ['Admin'], route: '/administration/accounting#org-three-way-match', manage: 'threeWayMatchSettings', covers: ['org_three_way_match_settings', 'useThreeWayMatchSettings'] },
   purchaseOrderPrint: { group: 'purchasing', alwaysOn: true, writers: ['Admin'], route: '/administration/accounting#po-print-settings-heading', manage: 'orgAccounting', covers: ['purchase_order_settings', 'usePurchaseOrderSettings'] },
@@ -71,7 +74,9 @@ export const ORG_SETTINGS = {
   procurementGates: { group: 'purchasing', writers: ['Admin'], route: '/administration/accounting#procurement-gates-heading', manage: 'orgAccounting', covers: [] },
   billingPlan: { group: 'money', writers: ['Admin', 'Finance'], route: '/finance/billing-plan', covers: ['org_billing_plan_settings', 'useBillingPlanSettings'] },
   billingSteps: { group: 'money', writers: ['Admin', 'Finance'], route: '/finance/billing-board', covers: ['org_billing_step_settings'] },
+  setupWorkflows: { group: 'money', writers: ['Admin'], route: '/finance', covers: ['org_setup_workflow_settings', 'useSetupWorkflows'] },
   stockIssueCost: { group: 'money', writers: ['Admin'], route: '/administration/accounting#stock-issue-cost-heading', manage: 'stockIssueCostSettings', covers: ['stock_issue_cost_settings', 'useStockIssueCostSettings'] },
+  workOrderChecklist: { group: 'money', writers: ['Admin'], route: '/administration/accounting#work-order-checklist', manage: 'orgAccounting', switch: 'workOrderChecklist', covers: ['organizations.work_order_checklist_enabled'] },
   labourCost: { group: 'money', writers: ['Admin', 'Finance'], route: '/administration/cost-attribution#labour-cost-settings', manage: 'labourCost', covers: ['labour_cost_settings', 'useLabourCostEnabled'] },
   idleCost: { group: 'money', alwaysOn: true, writers: ['Admin', 'Finance'], route: '/administration/modules#module-billing-extras', manage: 'labourCost', covers: ['idle_cost_settings', 'useIdleCostEnabled'] },
   disciplineProfit: { group: 'money', alwaysOn: true, writers: ['Admin'], route: '/administration/modules#module-billing-extras', manage: 'orgAccounting', switch: 'disciplineProfit', covers: ['organizations.discipline_profit_enabled'] },

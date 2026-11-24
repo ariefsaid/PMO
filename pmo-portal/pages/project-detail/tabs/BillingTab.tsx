@@ -23,6 +23,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { ImportButton, ImportWizard } from '@/src/components/import';
 import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
+import BoqAreaRates from '../BoqAreaRates';
 import BoqDisciplinePicker from '../BoqDisciplinePicker';
 import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
@@ -731,7 +732,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {boqFormFor !== undefined && (
           <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
-            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
+            extra={boqFormFor ? <><BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /><BoqAreaRates boqItemId={boqFormFor.id} catalogueItemId={boqFormFor.catalogue_item_id ?? null} /></> : undefined} />
         )}
         {assessOpen && (
           <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
@@ -845,7 +846,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {boqFormFor !== undefined && (
         <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
-            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
+            extra={boqFormFor ? <><BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /><BoqAreaRates boqItemId={boqFormFor.id} catalogueItemId={boqFormFor.catalogue_item_id ?? null} /></> : undefined} />
       )}
       {boqDetailDrawer}
       {claimDetailDrawer}

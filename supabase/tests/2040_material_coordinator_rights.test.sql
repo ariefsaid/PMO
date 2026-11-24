@@ -10,7 +10,7 @@
 --   mut:selfapprove (0416, kept) ................................. 'RR-MC-03 the Material Coordinator never posts a write-off they drafted'
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(25);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20400000-0000-0000-0000-00000000000a', 'RR MC Org', 'IDR', 'UTC', true);
@@ -137,9 +137,11 @@ select pg_temp.as_user('a5');
 select is(pg_temp.err(format('select attach_closeout_item_document(%L, %L)', pg_temp.item(1), '20400000-0000-0000-0000-000000000f01')),
   '42501 LIGHT_ACCOUNT', 'RR-MC-11 a field account cannot record it');
 select pg_temp.as_user('a2');
+select is(pg_temp.err(format('select complete_closeout_item(%L, current_date)', pg_temp.item(1))),
+  '55000 attach a document before marking this item done', 'AC-PEO-005 the owner job role cannot complete an item without a document');
 select is(pg_temp.err(format('select attach_closeout_item_document(%L, %L)', pg_temp.item(1), '20400000-0000-0000-0000-000000000f01')),
-  'ok', 'RR-MC-10 the item''s owner job role attaches its document');
-select is(pg_temp.err(format('select complete_closeout_item(%L, current_date)', pg_temp.item(1))), 'ok', 'RR-MC-10 and marks it done');
+  'ok', 'AC-PEO-005 the item''s owner job role attaches its document');
+select is(pg_temp.err(format('select complete_closeout_item(%L, current_date)', pg_temp.item(1))), 'ok', 'AC-PEO-005 the owner completes it after attaching the document');
 select is(pg_temp.err(format('select attach_closeout_item_document(%L, %L)', pg_temp.item(2), '20400000-0000-0000-0000-000000000f01')),
   '42501 only Finance, an Admin or the project''s manager can record close-out items', 'RR-MC-12 the Material Coordinator cannot record an item it does not own');
 reset role;

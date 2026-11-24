@@ -638,6 +638,10 @@
         "noticesHeading": "Notices (off until you choose)",
         "label": "Billing extras",
         "helper": "Revenue per discipline, the revenue plan, idle time as cost, and the reminder for work that is done but not claimed."
+      },
+      "managementViews": {
+        "label": "Management views",
+        "helper": "Show the project portfolio and progress not yet accepted by the client."
       }
     },
     "modulesNav": "Modules",
@@ -872,6 +876,17 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
+    },
+    "dsrValidateRoles": {
+      "title": "Validate daily site reports",
+      "intro": "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Tick job roles whose active holders may also validate reports across your organisation.",
+      "legend": "Job roles that validate daily site reports",
+      "loadError": "Couldn't load site report validator roles",
+      "adminOnly": "Only an Admin can change this.",
+      "viewOnly": "Exit view-as mode to change this setting.",
+      "turnOn": "Turn on built-in roles in Administration > People to assign this capability.",
+      "save": "Save",
+      "saved": "Site report validator roles saved"
     },
     "attendanceRoles": {
       "title": "Time records",

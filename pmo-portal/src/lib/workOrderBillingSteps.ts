@@ -48,6 +48,31 @@ export function mayActOnStep(actor: StepActor, step: Pick<WorkOrderStep, 'assign
   return legacyMayRunBillingSteps(actor.role);
 }
 
+/**
+ * Whether to show "Add step" on the list (FR-WCE-001): a holder of "run billing steps" — the checklist's writers, the same callers the
+ * database accepts — or (no built-in role) one of today's claim-step writers. A UX affordance only: the database re-checks and refuses,
+ * among others a Project Manager level person on a project they do not manage (WBS_STEP_ADD_PM).
+ */
+export function mayChangeStepList(actor: StepActor): boolean {
+  if (actor.builtInRoleKey) return roleHasCapability(actor.builtInRoleKey, 'billing_steps_run');
+  return legacyMayRunBillingSteps(actor.role);
+}
+
+/** Where a new step may go: `afterPosition` is the position of the step it follows (0 = first; a list with no open step has one place, the end). */
+export interface StepInsertPlace { afterPosition: number | null; after: string | null }
+
+/**
+ * The places offered for a new step (FR-WCE-001): after the current step and after each later one. The current step stays current and
+ * finished steps keep their place (the database refuses anything earlier, WBS_STEP_CLOSED).
+ */
+export function stepInsertPlaces(
+  steps: ReadonlyArray<Pick<WorkOrderStep, 'position' | 'name' | 'startedOn' | 'doneOn' | 'skippedOn'>>,
+): StepInsertPlace[] {
+  const first = steps.findIndex((s) => stepStatus(s) === 'current' || stepStatus(s) === 'open');
+  if (first < 0) return [{ afterPosition: null, after: null }];
+  return steps.slice(first).map((s) => ({ afterPosition: s.position, after: s.name }));
+}
+
 export interface WaitingWorkOrderStepsFact {
   count: number;
   overdue: number;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '../../test/companyDashboardHarness';
 import { pinHomeLayout } from '@/test/homeLayout';
@@ -42,3 +42,5 @@ describe('AC-UXA-003 redesigned company dashboard Bahasa coverage', () => {
     expect(screen.getByRole('link', { name: /2\s*Persetujuan/ })).toHaveAttribute('href', '/approvals');
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

@@ -1,5 +1,8 @@
 {
   "definer_functions": [
+    "cus_approve_plan(uuid)",
+    "cus_plan_approval_status(uuid)",
+    "cus_plan_is_approved(uuid)",
     "mrq_plan_figure(uuid,uuid)"
   ]
 }

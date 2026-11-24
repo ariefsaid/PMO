@@ -1,0 +1,7 @@
+{
+  "definer_functions": [
+    "add_work_order_step(uuid,integer,jsonb)",
+    "save_work_order_steps_as_template(uuid,text)",
+    "set_org_work_order_checklist_edit(boolean)"
+  ]
+}

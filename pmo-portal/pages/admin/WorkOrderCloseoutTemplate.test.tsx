@@ -125,3 +125,8 @@ describe('AC-CTD-010 the editor takes a target in days', () => {
     expect(await screen.findByText('A target is a whole number of days from 1 to 365.')).toBeVisible();
   });
 });
+
+it('AC-WCO-040 explains who completes an item without an owner role', () => {
+  setup();
+  expect(itemField(1).getByText('Without an owner job role, only an Admin, Finance, or the project manager can complete this item.')).toBeVisible();
+});

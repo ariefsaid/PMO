@@ -1,4 +1,5 @@
 import { stageAgeDays, stageDaysPastTargetDate } from '@/src/lib/billingStages';
+import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
 
 /**
  * #2681 — the billing board: a pure view over the rows of `billing_board()` (migration 1370). No board data is stored. Columns are the
@@ -14,6 +15,8 @@ export interface BoardRow {
   workOrderId: string | null;
   woNumber: string | null;
   claimCreatedAt: string;
+  claimValue: string;
+  currency: string;
   stepCount: number;
   stepsDone: number;
   currentPosition: number | null;
@@ -47,6 +50,8 @@ export interface BoardColumn {
   /** The first-seen spelling; null for the all-done column. */
   name: string | null;
   allDone: boolean;
+  claimCount: number;
+  totals: Array<{ currency: string; amount: string | null }>;
   cards: BoardCard[];
 }
 
@@ -87,7 +92,7 @@ function byAge(a: BoardCard, b: BoardCard): number {
 }
 
 export function groupBoard(rows: ReadonlyArray<BoardRow>): BoardColumn[] {
-  const stepRows = new Map<string, { name: string; positions: number[]; cards: BoardCard[] }>();
+  const stepRows = new Map<string, { name: string; positions: number[]; rows: BoardRow[]; cards: BoardCard[] }>();
   const doneCards: BoardCard[] = [];
   for (const row of rows) {
     if (row.allDone || !row.currentName) {
@@ -95,15 +100,32 @@ export function groupBoard(rows: ReadonlyArray<BoardRow>): BoardColumn[] {
       continue;
     }
     const key = normalise(row.currentName);
-    const entry = stepRows.get(key) ?? { name: row.currentName.trim(), positions: [], cards: [] };
+    const entry = stepRows.get(key) ?? { name: row.currentName.trim(), positions: [], rows: [], cards: [] };
     if (row.currentPosition !== null) entry.positions.push(row.currentPosition);
+    entry.rows.push(row);
     entry.cards.push(toCard(row));
     stepRows.set(key, entry);
   }
   const columns: BoardColumn[] = [...stepRows.entries()]
-    .map(([key, e]) => ({ key, name: e.name, allDone: false, cards: e.cards.sort(byAge), at: e.positions.length ? median(e.positions) : Number.MAX_SAFE_INTEGER }))
+    .map(([key, e]) => ({ key, name: e.name, allDone: false, claimCount: e.rows.length, totals: columnTotals(e.rows), cards: e.cards.sort(byAge), at: e.positions.length ? median(e.positions) : Number.MAX_SAFE_INTEGER }))
     .sort((a, b) => a.at - b.at || a.name.localeCompare(b.name))
     .map(({ at: _at, ...c }) => c);
-  if (doneCards.length) columns.push({ key: '', name: null, allDone: true, cards: doneCards.sort(byAge) });
+  const doneRows = rows.filter((row) => row.allDone || !row.currentName);
+  if (doneCards.length) columns.push({ key: '', name: null, allDone: true, claimCount: doneCards.length, totals: columnTotals(doneRows), cards: doneCards.sort(byAge) });
   return columns;
+}
+
+function columnTotals(rows: ReadonlyArray<BoardRow>): Array<{ currency: string; amount: string | null }> {
+  const sums = new Map<string, { cents: bigint; complete: boolean }>();
+  for (const row of rows) {
+    const current = sums.get(row.currency) ?? { cents: 0n, complete: true };
+    const cents = parseExactCents(row.claimValue);
+    if (cents === null) current.complete = false;
+    else current.cents += cents;
+    sums.set(row.currency, current);
+  }
+  return [...sums.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([currency, total]) => ({
+    currency,
+    amount: total.complete ? formatExactCents(total.cents) : null,
+  }));
 }

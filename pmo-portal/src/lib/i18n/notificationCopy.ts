@@ -113,6 +113,12 @@ function notificationBodyText(row: NotificationCopy, t: TFunction): string | nul
         : t('notifications:leaveRejected', 'Your leave request was rejected: {{type}}, {{from}} to {{to}}.', what);
       return what.note ? t('notifications:leaveNote', '{{base}} Note: {{note}}', { base, note: what.note }) : base;
     }
+    case 'leaveRequestPending': {
+      const day = (key: string) => { const v = text(key, ''); return v ? formatIsoDay(v) : ''; };
+      return t('notifications:leaveRequestPending', 'A leave request needs your decision: {{person}}, {{type}}, {{from}} to {{to}}.', {
+        person: text('person', ''), type: text('type', ''), from: day('from'), to: day('to'),
+      });
+    }
     case 'literal': {
       if (row.body === null) return null;
       const rawBody = text('body', row.body);
@@ -136,6 +142,7 @@ export const NOTIFICATION_TITLE_KEYS: Record<string, string> = {
   "Checkpoint is late": "checkpointLate",
   "Customer invoice awaiting your approval": "invoiceAwaiting",
   "Inspection overdue": "inspectionOverdue",
+  "Leave request needs your decision": "leaveRequestPending",
   "Material usage threshold reached": "usageThreshold",
   "Out-of-plan site cash item awaiting your approval": "imprestOutOfPlan",
   "Procurement awaiting your approval": "procurementAwaiting",

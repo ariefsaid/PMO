@@ -17,7 +17,8 @@ export type HandoverStage = 'send' | 'receive';
 export type HandoverProofType = 'in_app' | 'paper';
 export type SignerKind = 'account' | 'guest';
 
-export interface TransferSettings { mode: TransferMode; proofTiming: ProofTiming }
+export type HandoverScope = 'transfers' | 'transfers_and_issues';
+export interface TransferSettings { mode: TransferMode; proofTiming: ProofTiming; handoverScope: HandoverScope }
 export interface StockTransferLine {
   id: string; lineNo: number; itemId: string; qtySent: string; qtyCounted: string | null; qtyAccepted: string | null; qtyRejected: string | null;
   rejectReason: string | null; qualityResult: QualityResult | null; shortResolution: ShortResolution | null; shortReason: string | null;
@@ -49,9 +50,10 @@ export interface ProofStatusRow {
 }
 
 export async function getTransferSettings(): Promise<TransferSettings> {
-  const { data, error } = await supabase.from('organizations').select('stock_transfer_mode, stock_proof_timing').limit(1).maybeSingle();
+  const { data, error } = await supabase.from('organizations').select('stock_transfer_mode, stock_proof_timing, stock_handover_scope').limit(1).maybeSingle();
   if (error) throw toAppError(error);
-  return { mode: data?.stock_transfer_mode === 'two_step' ? 'two_step' : 'one_step', proofTiming: data?.stock_proof_timing === 'may_follow' ? 'may_follow' : 'before_posting' };
+  return { mode: data?.stock_transfer_mode === 'two_step' ? 'two_step' : 'one_step', proofTiming: data?.stock_proof_timing === 'may_follow' ? 'may_follow' : 'before_posting',
+    handoverScope: data?.stock_handover_scope === 'transfers_and_issues' ? 'transfers_and_issues' : 'transfers' };
 }
 export async function setTransferMode(mode: TransferMode): Promise<void> {
   const { error } = await supabase.rpc('set_stock_transfer_mode', { p_mode: mode });
@@ -59,6 +61,11 @@ export async function setTransferMode(mode: TransferMode): Promise<void> {
 }
 export async function setProofTiming(timing: ProofTiming): Promise<void> {
   const { error } = await supabase.rpc('set_stock_proof_timing', { p_timing: timing });
+  if (error) throw toAppError(error);
+}
+
+export async function setHandoverScope(scope: HandoverScope): Promise<void> {
+  const { error } = await supabase.rpc('set_stock_handover_scope', { p_scope: scope });
   if (error) throw toAppError(error);
 }
 

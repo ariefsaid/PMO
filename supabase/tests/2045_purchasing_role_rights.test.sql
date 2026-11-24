@@ -9,7 +9,7 @@
 --   mut:rr_qi_raise ......... 'RR-PU-10 the Quality Inspector raises an inspection''s purchase request'
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(29);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20450000-0000-0000-0000-00000000000a', 'RR PU Org', 'IDR', 'UTC', true);
@@ -110,6 +110,14 @@ select is(pg_temp.err('a9', $$select tpi_raise_purchase('20450000-0000-0000-0000
 select is((select p.status::text || '/' || (p.requested_by_id = '20450000-0000-0000-0000-0000000000a9')::text
              from third_party_inspections i join procurements p on p.id = i.procurement_id where i.id = '20450000-0000-0000-0000-000000000051'),
   'Draft/true', 'RR-PU-10 the request is a Draft whose requester is the inspector, so its approval chain is unchanged');
+select is(pg_temp.err('a9', $$select transition_procurement((select procurement_id from third_party_inspections where id = '20450000-0000-0000-0000-000000000051'), 'Requested', null)$$),
+  'ok', 'AC-PEO-004 the Quality Inspector submits the inspection purchase for approval');
+select is(pg_temp.err('a9', $$select transition_procurement((select procurement_id from third_party_inspections where id = '20450000-0000-0000-0000-000000000051'), 'Approved', null)$$),
+  '42501 separation of duties', 'AC-PEO-004 the inspector cannot approve the purchase they raised');
+select is(pg_temp.err('a8', $$select transition_procurement((select procurement_id from third_party_inspections where id = '20450000-0000-0000-0000-000000000051'), 'Approved', null)$$),
+  'ok', 'AC-PEO-004 the Quality Manager approves the inspection purchase');
+select is((select p.status::text from third_party_inspections i join procurements p on p.id = i.procurement_id where i.id = '20450000-0000-0000-0000-000000000051'),
+  'Approved', 'AC-PEO-004 the approved purchase remains linked to the inspection');
 
 select * from finish();
 rollback;
