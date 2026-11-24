@@ -1,0 +1,2 @@
+alter policy work_order_crews_insert on public.work_order_crews with check (org_id=(select public.auth_org_id()) and (select public.is_active_member()) and (select public.crew_can_manage()));
+alter policy work_order_crews_update on public.work_order_crews using (org_id=(select public.auth_org_id()) and (select public.is_active_member()) and (select public.crew_can_manage())) with check (org_id=(select public.auth_org_id()) and (select public.is_active_member()));

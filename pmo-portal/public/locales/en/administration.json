@@ -1108,7 +1108,8 @@
     "daysInvalid": "Enter 1 to 5 whole numbers of days, from 1 to 365, separated by commas.",
     "daysLabel": "Warn this many days before expiry",
     "daysHelp": "Up to 5 values, for example 30, 14, 7.",
-    "daysSave": "Save warning days"
+    "daysSave": "Save warning days",
+    "medicalNotice": "Expiry warnings go to the people team and direct manager. The worker is told after release is approved."
   },
   "labourCost": {
     "title": "Labour cost",

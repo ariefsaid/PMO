@@ -3980,7 +3980,7 @@ Director decisions (binding until revised):
 - **DD-R1122-6 One writer per branch.** After an app restart, list live workers before starting a replacement; a worktree made from a non-`dev` base has its upstream unset, and every push names its branch. Temporary rule-breaking commits for mutation checks go to throwaway `mut/` branches.
 - **DD-R1122-7 A browser journey is not deleted because its setup step went away.** It is re-aimed at its goal.
 - **DD-R1122-8 Gap-round defaults, each a setting where a customer may differ:** over-claim is a warning, refusal is optional (#2775); the work order's billing checklist is advisory and the claim's own steps keep gating the invoice (#2774, pending the owner's reading of OD-SCOPE-6); a purchase line may name its work order, cost is not split per line (#2785, #2762); a Buyer orders only approved purchases (#2781); class rates price crew members with no login only (#2764).
-- **DD-R1123-1 Review rulings on both rounds (23 November), all proven in the database:** a person's manager link is set by an Admin or the people team, and only an Admin names themselves; a medical document's expiry notice goes to the person and to holders of the medical right (other document types still notify the manager); nobody enters the second time record for, or decides the hours of, their own day; a Project Manager-level reader sees labour-class and head-count cost per work order and discipline, without class or quantity; a medical release can be withdrawn by an Admin or the people team and its decider reassigned by an Admin, and is refused at creation when its only decider would be its creator; equipment rights follow the Equipment Manager job role (a Project Manager with no job role keeps them); the browser location permission is site-wide; a billing step's owner is found by the one deciding function, so a person at the matching access level with no job role yet counts.
+- **DD-R1123-1 Review rulings on both rounds (23 November), all proven in the database:** a person's manager link is set by an Admin or the people team, and only an Admin names themselves; a medical document's expiry warning goes to holders of the medical right and the direct manager, excluding the worker before release approval (other document types keep their per-type person switch); nobody enters the second time record for, or decides the hours of, their own day; a Project Manager-level reader sees labour-class and head-count cost per work order and discipline, without class or quantity; a medical release can be withdrawn by an Admin or the people team and its decider reassigned by an Admin, and is refused at creation when its only decider would be its creator; equipment rights follow the Equipment Manager job role (a Project Manager with no job role keeps them); the browser location permission is site-wide; a billing step's owner is found by the one deciding function, so a person at the matching access level with no job role yet counts.
 - **DD-R1123-2 A test count that changes because a rule deliberately changed is updated with the reason recorded;** its who-is-affected oracle stays.
 - **DD-R1123-3 Task progress counts leaves (#2807):** a task counts toward milestone, delivery and dashboard figures when it has no live subtask; a parent shows a roll-up only. Regrouping never moves a figure; a project that already has subtasks sees its figure change once. A parent's own status and due date feed no overdue figure; a subtask with no phase or group takes its parent's; a group is its own named container and need not be a milestone.
 
@@ -4100,12 +4100,9 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   Surveyor records a quantity survey and reads surveys and claims, and still cannot confirm one; the Buyer adds and selects supplier
   quotes on a purchase assigned for ordering and names the supplier on an approved purchase before ordering, and cannot approve or
   change an amount after approval; the Procurement Manager sets a vendor's supply-risk status; the Planner creates work-order sections
-  and no money; the Project Control Manager reads checkpoint days and the missed-checkpoint view on every work order; a document
+  and prepares revenue targets (DD-R1124-2); the Project Control Manager reads checkpoint days and the missed-checkpoint view on every work order; a document
   category can be hidden from named job roles (glossary: *Job-role right*, *Held job role*, *Hidden from job roles*).
-- **DD-R1124-2 A holder of the Project Control Manager job role reads revenue, plan and cost performance on every project of the
-  organisation,** and changes none of it: writing a revenue plan keeps today's rule. A Project Manager-level person without that job
-  role keeps the own-projects scope; the Planner and the Engineer read no amounts. Reason: the job checks every project's plan against
-  actual. A money-visibility call, told to the owner.
+- **DD-R1124-2 Project Control Manager reads revenue, plans and cost performance across the organisation and writes work-order revenue targets.** Planner writes monthly and daily targets and reads the work-order revenue plan only; general revenue and cost reads stay unchanged. These target writes use the existing organisation scope; project-role assignment is a later refinement. Contract-item edits retain their existing rule. Existing approval routes retain their accountable approver.
 - **DD-R1124-3 Who validates a daily site report is a setting.** An Admin names the manager and officer job roles that may validate,
   return and correct another person's report (Administration, Project setup). Pending customer confirmation (#2756); built default: no
   job role holds it, so the validators are today's, Admin, Finance and the project's own Project Manager. The author never validates
@@ -4130,7 +4127,7 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   and the template's own contents are kept, and the change is recorded. Reason: an issued checklist is a snapshot (OD-WCO-3), so an
   item that should have named a role is corrected on the work order, not by re-issuing it.
 - **DD-R1124-10 A medical document's expiry warning reaches the holders of the medical right whether or not their access level is on
-  the document type's notify list.** The person's direct manager still receives the plain notice only (DD-R1124-15).
+  the document type's notify list.** The worker is excluded before release approval; the direct manager receives a plain notice only (DD-R1124-15). Other document types retain the Admin-controlled person switch.
   Other document types keep their notify list.
 - **DD-R1124-11 The project total labels Invoiced and Claimed apart.** Invoiced is submitted invoices; Claimed also counts live claims
   not yet invoiced, including billing not assigned to a work order. The wording for missing progress is distinct from the wording for
@@ -4141,24 +4138,22 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   the receiver never changes it; a line with no mapping keeps the service or direct-use path. The receipt's cost is the order line's
   rate converted at the receipt date, with the rate recorded on the receipt (ADR-0124); no rate for that day refuses the receipt. The
   switch is refused while a connected accounting system owns purchasing or inventory.
-- **DD-R1124-14 Questions parked for the owner; the shipped rule stands and nothing is built until each is answered.** (a) The Planner
-  and the daily target: the target carries revenue-plan amounts, which the Planner does not read; a quantity-only target is the option.
+- **DD-R1124-14 Questions parked for the owner; the shipped rule stands and nothing is built until each is answered.** (a) Resolved: Planner prepares monthly and daily revenue targets under DD-R1124-2; other revenue and cost reads stay unchanged.
   (b) Whether the Quantity Surveyor may create a progress claim: today Admin, Finance and the project's Project Manager; the surveyor
   records surveys and reads claims, and widening would let the recorder of a survey author the claim built on it. (c) Whether the Buyer
   may prepare a subcontract certificate: today Finance, Admin and the owning Project Manager. (d) Material the client supplies itself:
   PMO records it as a pickup on the work order with the slip; whether stock Receive also offers that path. (e) A daily-rate money check
   that the customer assigns to the HR Officer, who reads no cost figures: another role for it, or that one figure for the HR Officer.
   (f) Two time records for one day are settled on the daily site report; whether timesheet approvals become a second doorway to that
-  decision. (g) The Planner writing rosters: today the Planner creates sections only. (h) Whether lost-time timestamps and checkpoint
+  decision. (g) Resolved: Planner writes work-order crew placements, without worker membership rights. (h) Whether lost-time timestamps and checkpoint
   times also move into the daily report; today they live on the work order's checkpoints and crew punctuality. (i) Whether the Projects
-  page also links to work in hand; today it is reached through Finance. (j) Whether an equipment officer reads the monthly equipment
-  figures; today the Equipment Manager does. (k) A history of requested quantity revisions; until then a contract version records an
+  page also links to work in hand; today it is reached through Finance. (j) Resolved: Equipment Officer reads monthly availability and use figures, without cost rights. (k) A history of requested quantity revisions; until then a contract version records an
   accepted change only, never a saved request. The build-level limits of the same round are in the lanes' open lists under
   `docs/briefs/decisions-1124/`.
 - **DD-R1124-15 For a medical document type the person's direct manager also receives the expiry warning, as a *plain notice*:** the
   person, the document type and the date only, with no link and no access to the document; reading the document stays behind the medical
-  right (OD-R1122-3). This amends the notice rule of DD-R1123-1, which sends a medical expiry notice to the person and to holders of the
-  medical right only. Reason: the manager is warned early for every other document type and needs the date to plan work; a plain notice
+  right (OD-R1122-3). This amends the notice rule of DD-R1123-1: the worker is excluded before release approval, holders of the
+  medical right continue to receive it. Reason: the manager is warned early for every other document type and needs the date to plan work; a plain notice
   gives the date and nothing of the medical content. A Director decision of 24 November, not recorded as an owner ruling; the owner may
   revisit it.
 - **DD-R1124-16 The Procurement Manager reads every purchase case in their own organisation, read only:** the case with its quotations,
