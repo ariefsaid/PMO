@@ -431,6 +431,7 @@
         "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
         "title": "Lampirkan bukti penagihan",
         "revision": "rev {{revision}}",
+        "earlier": "Dipakai pada klaim sebelumnya untuk pekerjaan ini",
         "document": "Dokumen bukti"
       },
       "stages": {

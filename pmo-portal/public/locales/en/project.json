@@ -431,6 +431,7 @@
         "none": "No issued or approved document with a file on this project.",
         "title": "Attach billing evidence",
         "revision": "rev {{revision}}",
+        "earlier": "Used on earlier claims of this work order",
         "document": "Evidence document"
       },
       "stages": {
