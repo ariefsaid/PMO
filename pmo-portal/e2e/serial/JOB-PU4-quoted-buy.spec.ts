@@ -11,8 +11,8 @@ test.setTimeout(150_000);
 import { moneyJobRole } from "../support/moneyJobRole";
 let buyer: Awaited<ReturnType<typeof moneyJobRole>>;
 let fixture: ProcurementFixture;
-test.beforeAll(async () => { buyer = await moneyJobRole("buyer"); fixture = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU4' }); });
-test.afterAll(async () => { await fixture?.cleanup(); await buyer?.cleanup(); });
+test.beforeEach(async () => { buyer = await moneyJobRole("buyer"); fixture = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU4' }); });
+test.afterEach(async () => { await fixture?.cleanup(); await buyer?.cleanup(); });
 
 test('JOB-PU4 two quotes are added, one is chosen, and the order follows the chosen quote', async ({ page }) => {
   await buyer.login(page);
