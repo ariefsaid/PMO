@@ -20,7 +20,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('25900000-0000-0000-0000-0000000000a3', '25900000-0000-0000-0000-00000000000a', 'SCW MatCoord', 'scw-mc@example.com', 'Engineer', 'active'),
   ('25900000-0000-0000-0000-0000000000a4', '25900000-0000-0000-0000-00000000000a', 'SCW Plain', 'scw-plain@example.com', 'Engineer', 'active'),
   ('25900000-0000-0000-0000-0000000000b1', '25900000-0000-0000-0000-00000000000b', 'SCW Other Admin', 'scw-other-admin@example.com', 'Admin', 'active');
-update profiles set built_in_role_key = 'material_coordinator' where id = '25900000-0000-0000-0000-0000000000a3';
+update profiles set built_in_role = 'material_coordinator' where id = '25900000-0000-0000-0000-0000000000a3';
 
 insert into companies (id, org_id, name, type) values
   ('25900000-0000-0000-0000-0000000000f1', '25900000-0000-0000-0000-00000000000a', 'SCW Client', 'Client');
