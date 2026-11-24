@@ -1,7 +1,7 @@
 // @e2e-isolation: serial — sets the org-wide daily cut-off (cleared in afterEach) that every material-request submit reads.
 /** JOB-PU15 — after the daily cut-off a request for tomorrow is refused and the refusal names the earliest date; that date (one day
  *  further on) is accepted, so the earliest needed-by date the requester can have is a day later. */
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { pickComboboxOption } from '../helpers';
 import { mrqSetup, sendForApproval } from '../support/mrqJobFixture';
 import { roleJobUser } from '../support/roleJobUser';

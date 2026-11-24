@@ -5,7 +5,7 @@
  * Recorded gap (not asserted here, see the lane table): the case also expects no vendor to show; the supplier's name still renders on
  * the request. That is a copy/read decision for the owner, not something this journey bends around.
  */
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { ok, runId, serviceClient } from '../support/jobFixtures';

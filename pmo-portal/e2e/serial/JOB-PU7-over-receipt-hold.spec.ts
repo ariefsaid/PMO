@@ -4,7 +4,7 @@
  * flags it as billed more than received and holds it from payment. The officer cannot approve their own bill; the Finance Manager
  * approves the exception with a reason, the hold lifts, and the record shows who approved it and why.
  */
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';

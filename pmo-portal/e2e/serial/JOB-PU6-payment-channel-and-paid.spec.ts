@@ -4,7 +4,7 @@
  * how it will be paid and records the payment; the request's stages read sourced, received and paid, and a purchase with no
  * receipt still reads "Not recorded" for receive (received only after the receipt).
  */
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
