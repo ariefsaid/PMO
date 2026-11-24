@@ -1251,6 +1251,7 @@
       "prioritySource": "Sumber: bidang prioritas tugas",
       "commentsOpenHint": "Buka tugas untuk membaca atau menambahkan komentar",
       "dueTooltip": "Tenggat berasal dari catatan tugas. Hari keterlambatan dihitung dengan membandingkan tenggat dengan hari ini menurut zona waktu organisasi.",
+      "noDueDate": "Tanpa tenggat",
       "dayLate": "hari terlambat",
       "daysLate": "hari terlambat",
       "column": {

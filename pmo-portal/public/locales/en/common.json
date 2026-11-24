@@ -2843,7 +2843,6 @@
       "newTask": "New task",
       "phaseNoun": "phase",
       "noPriority": "No priority",
-      "noDueDate": "No due date",
       "noTasksInGroup": "No tasks in this phase yet.",
       "showArchived": "Show archived",
       "statusFor": "Status for",

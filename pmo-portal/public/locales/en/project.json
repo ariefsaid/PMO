@@ -1251,6 +1251,7 @@
       "prioritySource": "Source: task priority field",
       "commentsOpenHint": "Open the task to read or add comments",
       "dueTooltip": "Due date from the task record. Overdue days compare the due date with today in the organization timezone.",
+      "noDueDate": "No due date",
       "dayLate": "day overdue",
       "daysLate": "days overdue",
       "column": {
