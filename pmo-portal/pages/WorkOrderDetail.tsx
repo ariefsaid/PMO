@@ -50,6 +50,12 @@ import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
 import { ResponsiblePersonSection } from './work-order-detail/ResponsiblePersonSection';
 import { WorkOrderAheadBadge } from './project-detail/tabs/WorkOrderAheadBadge';
+import { PageGroup, PageIndex } from './work-order-detail/PageIndex';
+import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
+
+/** The page's groups in reading order (walk T-G1): the index names them and jumps between them. */
+const PAGE_GROUPS = ['scope', 'cost', 'material', 'billing', 'inspections', 'closeout', 'documents', 'issues'] as const;
+type PageGroupKey = typeof PAGE_GROUPS[number];
 
 /**
  * `/work-orders/:id` (#2518): one page for a work order — scope and progress, costs, billing and
@@ -115,6 +121,16 @@ const WorkOrderDetail: React.FC = () => {
     [allocations.data, boq.data],
   );
 
+  const groupLabels: Record<PageGroupKey, string> = {
+    scope: t('pageIndex.scope', 'Site and scope'),
+    cost: t('pageIndex.cost', 'Cost and plan'),
+    material: t('pageIndex.material', 'Materials'),
+    billing: t('pageIndex.billing', 'Billing'),
+    inspections: t('pageIndex.inspections', 'Inspections'),
+    closeout: t('pageIndex.closeout', 'Close-out'),
+    documents: t('pageIndex.documents', 'Documents and safety'),
+    issues: t('pageIndex.issues', 'Issues and tasks'),
+  };
   const backLabel = t('back', 'Work orders');
   const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/projects');
 
@@ -144,6 +160,8 @@ const WorkOrderDetail: React.FC = () => {
   }
   const billingRow = (billing.data ?? []).find((b) => b.workOrderId === row.id) ?? null;
   const issueWaitingText = operationalWaitingForText(issueWaiting.data, t, { roleLabel, empty: 'none' });
+  const hasMaterial = stockOn || may('view', 'clientRequisition');
+  const indexEntries = PAGE_GROUPS.filter((key) => key !== 'material' || hasMaterial).map((key) => ({ id: `wo-${key}`, label: groupLabels[key] }));
   return (
     <>
       <BackBar label={backLabel} phoneOnly onBack={goBack} />
@@ -176,69 +194,89 @@ const WorkOrderDetail: React.FC = () => {
       )}
       <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
+      <PageIndex entries={indexEntries} />
       <RecordStack>
-        <SiteCheckpointFlag workOrderId={row.id} />
-        <WorkOrderCheckpoints workOrderId={row.id} projectManagerId={project.data?.project_manager_id ?? null} status={row.status} />
-        <SiteLocationSection workOrderId={row.id} projectId={row.project_id} />
-        <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
-          onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
-        <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
-        <CostSection reasons={costReasons} labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
-          onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
-        {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
-        {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
-        {canPlanView && <PlanVsActualSection workOrderId={row.id} projectId={projectId} query={pva} disciplines={disciplines.data ?? []} />}
-        {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}
-        <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
-        <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
-        {/* #2672: the daily target view; same switch and role gate as the plan above. */}
-        <DailyTargetGate workOrderId={row.id} />
-        <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
-          perMonth={canBilling ? { months: billedMonths.data, isPending: billedMonths.isPending, isError: billedMonths.isError, onRetry: () => void billedMonths.refetch() } : null}
-          acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()}
-          confirm={{
-            canConfirm: (a) => row.status === 'Issued' && may('confirm', 'workOrderAcceptance', { currentUserId: currentUser?.id ?? null, record: { status: a.status, prepared_by: a.prepared_by } }),
-            onConfirm: (a) => setConfirmFor({ acceptance: a, error: null }),
-          }} />
-        {confirmFor && (
-          <ConfirmDialog
-            open
-            title={confirmFor.acceptance.is_final ? t('billing.confirmFinalTitle', 'Confirm the final BAST?') : t('billing.confirmTitle', 'Confirm this BAST?')}
-            description={<div className="flex flex-col gap-2">
-              <p>{confirmFor.acceptance.is_final
-                ? t('billing.confirmFinalBody', 'Confirming a final BAST closes the work order at the accepted quantities. This cannot be undone.')
-                : t('billing.confirmBody', 'The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.')}</p>
-              {confirmFor.error && <p role="alert" className="font-medium text-destructive-text">{confirmFor.error}</p>}
-            </div>}
-            confirmLabel={t('billing.confirmAction', 'Confirm BAST')}
-            loading={bastMutations.confirm.isPending}
-            onConfirm={() => {
-              void bastMutations.confirm.mutateAsync(confirmFor.acceptance.id).then(
-                () => { toast(t('billing.confirmedToast', 'BAST confirmed'), undefined, 'success'); setConfirmFor(null); },
-                (err: unknown) => {
-                  const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
-                  setConfirmFor({ acceptance: confirmFor.acceptance, error: detail ? `${headline} ${detail}` : headline });
-                },
-              );
-            }}
-            onCancel={() => setConfirmFor(null)}
-          />
+        <PageGroup id="wo-scope" label={groupLabels.scope}>
+          <SiteCheckpointFlag workOrderId={row.id} />
+          <WorkOrderCheckpoints workOrderId={row.id} projectManagerId={project.data?.project_manager_id ?? null} status={row.status} />
+          <SiteLocationSection workOrderId={row.id} projectId={row.project_id} />
+          <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
+            onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
+          <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
+          <WorkOrderCrewLink workOrderId={row.id} />
+        </PageGroup>
+        <PageGroup id="wo-cost" label={groupLabels.cost}>
+          <CostSection reasons={costReasons} labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
+            onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
+          {canPlanView && <PlanVsActualSection workOrderId={row.id} projectId={projectId} query={pva} disciplines={disciplines.data ?? []} canPlan={may('manage', 'workOrderPlan')} />}
+          {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}
+          <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
+          <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
+          {/* #2672: the daily target view; same switch and role gate as the plan above. */}
+          <DailyTargetGate workOrderId={row.id} />
+        </PageGroup>
+        {hasMaterial && (
+          <PageGroup id="wo-material" label={groupLabels.material}>
+            {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
+            {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
+          </PageGroup>
         )}
-        <BillingStepsSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
-        {may('view', 'surveyRecord') && <SurveySection workOrderId={row.id} projectId={row.project_id} status={row.status}
-          projectManagerId={project.data?.project_manager_id ?? null} lines={surveyLines} />}
-        <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
-        <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
-          steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
-          scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}
-          scopeError={allocations.isError || boq.isError || bastList.isError} />
-        {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
-        <InspectionsSection workOrderId={row.id} />
-        <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
-        <SafetySection workOrderId={row.id} projectId={row.project_id} status={row.status} />
-        {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
-        <ResponsiblePersonSection workOrderId={row.id} />
-        <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
+        <PageGroup id="wo-billing" label={groupLabels.billing}>
+          <BillingSection contractHref={canBilling ? `/projects/${row.project_id}/contract?wo=${row.id}` : null} billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
+            perMonth={canBilling ? { months: billedMonths.data, isPending: billedMonths.isPending, isError: billedMonths.isError, onRetry: () => void billedMonths.refetch() } : null}
+            acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()}
+            confirm={{
+              canConfirm: (a) => row.status === 'Issued' && may('confirm', 'workOrderAcceptance', { currentUserId: currentUser?.id ?? null, record: { status: a.status, prepared_by: a.prepared_by } }),
+              onConfirm: (a) => setConfirmFor({ acceptance: a, error: null }),
+            }} />
+          {confirmFor && (
+            <ConfirmDialog
+              open
+              title={confirmFor.acceptance.is_final ? t('billing.confirmFinalTitle', 'Confirm the final BAST?') : t('billing.confirmTitle', 'Confirm this BAST?')}
+              description={<div className="flex flex-col gap-2">
+                <p>{confirmFor.acceptance.is_final
+                  ? t('billing.confirmFinalBody', 'Confirming a final BAST closes the work order at the accepted quantities. This cannot be undone.')
+                  : t('billing.confirmBody', 'The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.')}</p>
+                {confirmFor.error && <p role="alert" className="font-medium text-destructive-text">{confirmFor.error}</p>}
+              </div>}
+              confirmLabel={t('billing.confirmAction', 'Confirm BAST')}
+              loading={bastMutations.confirm.isPending}
+              onConfirm={() => {
+                void bastMutations.confirm.mutateAsync(confirmFor.acceptance.id).then(
+                  () => { toast(t('billing.confirmedToast', 'BAST confirmed'), undefined, 'success'); setConfirmFor(null); },
+                  (err: unknown) => {
+                    const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+                    setConfirmFor({ acceptance: confirmFor.acceptance, error: detail ? `${headline} ${detail}` : headline });
+                  },
+                );
+              }}
+              onCancel={() => setConfirmFor(null)}
+            />
+          )}
+          <BillingStepsSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+          {may('view', 'surveyRecord') && <SurveySection workOrderId={row.id} projectId={row.project_id} status={row.status}
+            projectManagerId={project.data?.project_manager_id ?? null} lines={surveyLines} />}
+          {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
+        </PageGroup>
+        <PageGroup id="wo-inspections" label={groupLabels.inspections}>
+          <InspectionsSection workOrderId={row.id} />
+        </PageGroup>
+        <PageGroup id="wo-closeout" label={groupLabels.closeout}>
+          <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+          <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
+            steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
+            scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}
+            scopeError={allocations.isError || boq.isError || bastList.isError} />
+        </PageGroup>
+        <PageGroup id="wo-documents" label={groupLabels.documents}>
+          <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
+          <SafetySection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+        </PageGroup>
+        <PageGroup id="wo-issues" label={groupLabels.issues}>
+          {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
+          <ResponsiblePersonSection workOrderId={row.id} />
+          <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
+        </PageGroup>
       </RecordStack>
     </>
   );

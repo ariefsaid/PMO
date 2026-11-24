@@ -19,6 +19,10 @@ export function useStockTransfer(id: string | undefined) {
 export function useTransferConfirmations(id: string | undefined) {
   return useOrgQuery(['stock-transfer-confirmations', id], () => repo.confirmations(id!), { enabled: Boolean(id) });
 }
+/** A short-lived link to one handover photo; no link while it loads or if the file cannot be read. */
+export function useHandoverPhotoUrl(path: string | null) {
+  return useQuery({ queryKey: ['stock-handover-photo', path], queryFn: () => repo.photos.url(path!), enabled: Boolean(path), staleTime: 240_000, retry: false });
+}
 export function useProofStatus(status?: 'outstanding' | 'complete', enabled = true) {
   // react-query refetches on window focus by default; the explicit true below was that default restated.
   return useOrgQuery(['stock-proof-status', status ?? 'all'], () => repo.proofStatus({ status }), { enabled });

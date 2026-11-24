@@ -191,7 +191,8 @@
       "none": "Belum ada pembelian yang siap ditagih. Pembelian bisa ditagih setelah disetujui atau dipesan.",
       "help": "Pilih pembelian untuk invoice supplier ini. Layar berikutnya menunjukkan apakah pesanan dan penerimaan barang menahan tagihan.",
       "button": "Invoice supplier baru"
-    }
+    },
+    "openBills": "Buka tagihan dan pencocokan"
   },
   "nav": {
     "finance": "Keuangan",
@@ -242,7 +243,7 @@
     "col": {
       "period": "Periode",
       "progress": "Progres",
-      "earned": "Diperoleh",
+      "earned": "Diakui",
       "invoices": "Invoice",
       "doneNotYetBilled": "Selesai, belum ditagih",
       "leftToBill": "Sisa yang harus ditagih"

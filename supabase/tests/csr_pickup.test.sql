@@ -11,7 +11,7 @@
 begin;
 create extension if not exists pgtap;
 create extension if not exists dblink;
-select plan(41);
+select plan(42);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25850000-0000-0000-0000-00000000030a', 'CSR Pickup Org', 'IDR', 'Asia/Jakarta'),
@@ -115,6 +115,8 @@ select is(pg_temp._q(format($q$select sum(g.value_delta)::text || '/' || sum(g.q
 select is(pg_temp._q($q$select qty_on_hand::text || '/' || value_on_hand::text from stock_balances where item_id = '25850000-0000-0000-0000-000000003311' and warehouse_id = '25850000-0000-0000-0000-000000003802'$q$),
   '50.000/0.00', 'AC-CSR-008 quantity on hand at the location is up by 50, at value 0');
 select is((select count(*)::int from client_requisition_events where line_id = pg_temp._ln('l1') and kind = 'pickup'), 1, 'FR-CSR-023 the pickup is logged');
+select ok((select d.note like '%DN-77%' and d.note like '%Driver Budi%' and d.note not like 'Client requisition%' from client_requisition_pickups p join stock_documents d on d.id = p.stock_document_id where p.id = pg_temp._ln('p1')),
+  'AC-CSR-008 the receipt note carries the delivery slip number and the collector, with no English sentence');
 
 -- AC-CSR-001: the rollup of the hand calculation.
 select is((select reserved::text || '/' || collected::text || '/' || still_to_collect::text || '/' || awaiting_reservation::text

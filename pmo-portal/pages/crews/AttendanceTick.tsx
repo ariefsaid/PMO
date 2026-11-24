@@ -205,10 +205,14 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td role="cell" className="py-2 pr-2 max-sm:col-span-2 max-sm:p-0">
-                    <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
+                    {/* The tick starts everyone as present for the person who will confirm it. A reader who cannot tick must not see that
+                        starting value as a fact: someone nobody has recorded yet is not recorded. */}
+                    {!canRecord && p.status === 'present' && !held.some((d) => d.worker_id === m.worker_id)
+                      ? <span className="text-control text-muted-foreground">{t('crews:status.notRecorded', 'Not recorded')}</span>
+                      : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
                       className={phoneControl}
                       value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as AttendanceStatus })} disabled={locked}
-                      options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />
+                      options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />}
                   </td>
                   <td role="cell" className="py-2 pr-2 max-sm:p-0">
                     <TextField label={t('crews:hoursFor', 'Hours for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"

@@ -16,7 +16,7 @@
 --   mut:usage_source_admin (1861): replace the role test with `false`                                                  -> AC-UW-008 red
 begin;
 create extension if not exists pgtap;
-select plan(46);
+select plan(47);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26860000-0000-0000-0000-00000000010a', 'UW Org', 'IDR', 'Asia/Jakarta'), ('26860000-0000-0000-0000-00000000010b', 'UW Other Org', 'IDR', 'Asia/Jakarta');
@@ -174,6 +174,7 @@ select is(pg_temp._told('26860000-0000-0000-0000-0000000001a3'), 2, 'AC-UW-003 a
 select pg_temp._rep('26860000-0000-0000-0000-000000002010', '26860000-0000-0000-0000-0000000001a4', date '2026-12-08', '26860000-0000-0000-0000-00000000131a', 1);
 select pg_temp._val('26860000-0000-0000-0000-000000002010');
 select is((select plan_qty from public.material_installed_usage_alerts where item_id = '26860000-0000-0000-0000-00000000131a'), 0::numeric, 'AC-UW-006 an item with no plan and any installed quantity is past the share');
+select ok(exists (select 1 from public.notifications where title = 'Installed material usage reached' and body like '%used with no plan%') and not exists (select 1 from public.notifications where title = 'Installed material usage reached' and body like '% of 0 %'), 'AC-UW-006 the warning on an item with no plan says it was used with no plan, not "x of 0 planned"');
 
 -- ── AC-UW-002 a responsible person who is no longer active: the project manager is told ─────────────
 set local role authenticated;

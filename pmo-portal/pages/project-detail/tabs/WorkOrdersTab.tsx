@@ -57,11 +57,6 @@ import {
   WorkOrderPoDrawer,
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
-import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
-import DisciplineProfit from '../DisciplineProfit';
-import RevenuePlanRollup from '../RevenuePlanRollup';
-import EarnedBilledProfit from '../EarnedBilledProfit';
-import DailyTargetRollup from '../DailyTargetRollup';
 import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
 import { WorkOrderListsProvider } from '@/src/components/WorkOrderListsProvider';
 import { bucketWorkOrders, type WorkOrderGroupBy } from '@/src/lib/workOrderGrouping';
@@ -867,6 +862,12 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
         projectName={projectName}
         liveDownPayment={liveDownPayment}
         evidenceAttachedIds={(claimRows.find((claim) => claim.id === evidenceFor)?.evidence ?? []).map((evidence) => evidence.document_id)}
+        evidenceEarlierIds={(() => {
+          const current = claimRows.find((claim) => claim.id === evidenceFor);
+          if (!current?.work_order_id) return [];
+          return [...new Set(claimRows.filter((claim) => claim.id !== current.id && claim.work_order_id === current.work_order_id)
+            .flatMap((claim) => claim.evidence.map((evidence) => evidence.document_id)))];
+        })()}
         linesSources={[
           { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
           { query: projectBilling, name: t('projectDetail.billing.sources.billing', 'billing figures') },
@@ -941,17 +942,6 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
         onCloseOverCommit={() => setOverCommit(null)}
       />
 
-      {/* #2519: plan vs actual and profit per work order — renders nothing for a role that cannot read work-order money. */}
-      <WorkOrderPlanVsActual projectId={projectId} />
-      {/* #2669: revenue next to cost per discipline; renders nothing while the organisation setting is off. */}
-      <DisciplineProfit projectId={projectId} />
-
-      {/* #2671: dated revenue plan roll-up — renders nothing while the organisation's switch is off. */}
-      <RevenuePlanRollup projectId={projectId} />
-      {/* #2733: earned and billed revenue side by side; renders nothing while the organisation setting is off. */}
-      <EarnedBilledProfit projectId={projectId} />
-      {/* #2672: month-to-date target, actual and projection; same switch and role gate. */}
-      <DailyTargetRollup projectId={projectId} />
     </div>
   );
 };

@@ -206,6 +206,8 @@
     "filters": {
       "warehouse": "Gudang",
       "allWarehouses": "Semua gudang",
+      "tag": "Label",
+      "allTags": "Semua label",
       "search": "Cari barang",
       "belowReorder": "Di bawah level pemesanan ulang",
       "includeZero": "Tampilkan sisa stok nol"
@@ -453,7 +455,8 @@
       "undo": "Setelah diposting, kesalahan dikoreksi dengan entri koreksi, bukan diubah.",
       "confirm": "Posting"
     },
-    "clientMaterialCost": "Dipasok klien: biaya ditetapkan nol."
+    "clientMaterialCost": "Dipasok klien: biaya ditetapkan nol.",
+    "clientMaterialWorkOrder": "Untuk $t(common:terms.clientWorkOrder)? Catat pengambilan di $t(common:terms.clientWorkOrder)."
   },
   "count": {
     "sections": {
@@ -967,6 +970,7 @@
       "expiresHelp": "Setelah tanggal ini stok bebas kembali.",
       "note": "Catatan (opsional)",
       "errWorkOrder": "Pilih $t(common:terms.clientWorkOrder) yang memerlukan stok ini",
+      "free": "{{qty}} {{unit}} bebas di sini",
       "errQuantity": "Isi jumlah di atas nol, maksimal tiga desimal",
       "saved": "Stok dicadangkan"
     },

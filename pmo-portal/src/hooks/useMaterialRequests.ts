@@ -20,6 +20,12 @@ export function useMaterialRequest(id: string | undefined) {
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'one', id], queryFn: () => repo.get(id as string), enabled: Boolean(orgId) && Boolean(id) });
 }
 
+/** The headers of the given requests in one batched read (the approvals inbox). */
+export function useMaterialRequestHeaders(ids: string[]) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'headers', ids], queryFn: () => repo.headers(ids), enabled: Boolean(orgId) && ids.length > 0 });
+}
+
 /** FR-MRQ-017: the caller's open steps. The server already applies role, stand-in window and one-step-per-person. */
 export function useWaitingForMe(enabled = true) {
   const orgId = useOrgId();

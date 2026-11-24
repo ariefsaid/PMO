@@ -156,12 +156,13 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
     return ok;
   };
   const submit = async () => {
+    // A sent report is locked, photos included, so a report without the paper-form photo is not sent: the author adds it first.
+    if (!detail.photos.some((p) => p.kind === 'paper_form')) {
+      toast(t('toast.needsPhotoFirst', 'Not sent: add a photo of the paper form first'), t('detail.needsPhotoAuthor', 'Add a photo of the paper form before you send. The validator cannot accept the report without it.'), 'warning');
+      return;
+    }
     if (!(await save())) return;
-    // The author is told at send what the validator will still need (the rule is the validator's, shown to both).
-    const missingPhoto = !detail.photos.some((p) => p.kind === 'paper_form');
-    await run(() => m.submit.mutateAsync(report.id), missingPhoto
-      ? t('toast.submittedNeedsPhoto', 'Sent for validation. The validator needs a photo of the paper form: add it.')
-      : t('toast.submitted', 'Sent for validation'));
+    await run(() => m.submit.mutateAsync(report.id), t('toast.submitted', 'Sent for validation'));
   };
   const withdraw = () => run(() => m.withdraw.mutateAsync(report.id), t('toast.withdrawn', 'Report taken back. You can edit it again.'));
   const validate = () => run(() => m.validate.mutateAsync(report.id), t('toast.validated', 'Report validated'));
@@ -254,8 +255,11 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
                       <SelectField label={t('progress.item', 'Contract item')} value={line.workOrderLineId} error={errText(`progress.${i}.item`)}
                         onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, workOrderLineId: v } : p)) })}
                         options={[{ value: '', label: t('progress.pickItem', 'Choose an item') }, ...items.map((it) => ({ value: it.id, label: `${it.item_code} · ${it.description}` }))]} />
-                      <TextField label={t('progress.stage', 'Sub-stage')} value={line.subStage}
-                        onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, subStage: v } : p)) })} />
+                      {/* A hand-priced line has no stages: a sub-stage there removes its rate (dsr_line_rate). Kept when a draft already holds one. */}
+                      {(item?.catalogue_item_id || line.subStage)
+                        ? <TextField label={t('progress.stage', 'Sub-stage')} value={line.subStage}
+                          onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, subStage: v } : p)) })} />
+                        : <span aria-hidden />}
                       <TextField label={`${t('progress.quantity', 'Quantity')}${item ? ` (${item.unit})` : ''}`} inputMode="decimal" value={line.quantity} error={errText(`progress.${i}.quantity`)}
                         onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, quantity: v } : p)) })} />
                       <Button variant="ghost" onClick={() => update({ progress: form.progress.filter((_, j) => j !== i) })}>{t('form.remove', 'Remove')}</Button>

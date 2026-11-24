@@ -1,10 +1,13 @@
 import React, { useMemo } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { usePermission } from '@/src/auth/usePermission';
+import { useFeature } from '@/src/auth/useFeature';
 import { useTranslation } from 'react-i18next';
 import {
-  cn, DataTable, FilterBar, ListPage, ProgressBar, StatTiles, StatusPill, useUrlFilters,
+  buttonClasses, cn, DataTable, FilterBar, ListPage, ProgressBar, StatTiles, StatusPill, useUrlFilters,
   type Column, type FilterBarFilter, type StatTile,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export/ExportButton';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
@@ -12,6 +15,7 @@ import { planVariance } from '@/src/lib/workOrderPlanVsActual';
 import { COST_PROJECT_CAP, useWorkOrderDashboard } from '@/src/hooks/useWorkOrderDashboard';
 import type { DashboardRow } from '@/src/lib/workOrderDashboard';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
+import { WorkOrderProjectPanels } from './WorkOrderProjectPanels';
 
 const STATUSES: WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
 const FILTER_KEYS = ['q', 'status', 'project', 'discipline'] as const;
@@ -39,6 +43,12 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   const terms = useTerms();
   const navigate = useNavigate();
   const { values, setFilters, clear } = useUrlFilters(FILTER_KEYS);
+  // Walk M8: work in hand (the company's order book in months) is reached from the work orders, for the roles its route admits.
+  const may = usePermission();
+  const revenueOn = useFeature('revenue');
+  const workInHand = !projectId && revenueOn && may('view', 'finance')
+    ? <Link to="/finance/work-in-hand" className={buttonClasses('outline')} data-testid="work-orders-work-in-hand">{t('all.workInHand', 'Work in hand')}</Link>
+    : undefined;
 
   // Cost reads follow the projects in view, so the project filter is applied before the reads are chosen.
   const all = useWorkOrderDashboard(projectId, values.project ? [values.project] : undefined);
@@ -151,8 +161,10 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
     <ListPage
       title={terms.clientWorkOrder}
       hideHeader={Boolean(projectId)}
+      primaryAction={workInHand}
       headingLevel={projectId ? 2 : 1}
       count={all.isPending ? undefined : rows.length}
+      exportAction={<ExportButton rows={filtered} columns={columns} entity="WorkOrders" />}
       banner={rows.length > 0 ? <StatTiles tiles={tiles} columns={tiles.length} frameClassName={cn('mb-4', projectId && '[--space-content-inset:var(--panel-inset)]')} /> : undefined}
       filters={(
         <FilterBar
@@ -198,6 +210,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
           <button type="button" className="font-medium text-primary-text hover:underline" onClick={all.retryFigures}>{ts('ui.listState.retry', 'Retry')}</button>
         </p>
       )}
+      {(projectId || values.project) && <WorkOrderProjectPanels projectId={projectId ?? values.project} />}
     </ListPage>
   );
 };

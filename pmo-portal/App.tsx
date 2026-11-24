@@ -52,7 +52,8 @@ import { useCachedRecordLists } from '@/src/hooks/useCachedRecordLists';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
-import { usePermission } from '@/src/auth/usePermission';
+import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
+import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { UserRole } from './types';
 import { AccessDenied, ToastProvider, TOOLTIP_OPEN_DELAY_MS } from '@/src/components/ui';
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
@@ -423,13 +424,17 @@ const SalesDetailRedirect: React.FC = () => {
 const AdministrationEntryRedirect: React.FC = () => {
   const { hash } = useLocation();
   const { role } = useAuth();
+  const holdsPersonDocuments = roleHasCapability(useBuiltInRoleKey(), 'people_documents_view');
   const target = hash === '#budget-account-map'
     ? '/administration/accounting#budget-account-map'
     : hash === '#org-project-number-pattern'
       ? '/administration/projects#org-project-number-pattern'
       : role === 'Finance'
         ? '/administration/exchange-rates'
-        : '/administration/users';
+        // Walk G9: the roles the menu sends to the people register land there, not on Users (which refuses them).
+        : role === 'Project Manager' || (role === 'Engineer' && holdsPersonDocuments)
+          ? '/administration/people'
+          : '/administration/users';
   return <Navigate to={target} replace />;
 };
 

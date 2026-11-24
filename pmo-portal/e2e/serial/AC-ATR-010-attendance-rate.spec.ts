@@ -3,7 +3,7 @@
  * AC-ATR-010 — a reviewer reads a crew's attendance rate against the organisation's target (#2706).
  *
  * Journey: with a 90 % target set, a crew of three on one rostered day (one present, one absent, one with no record)
- * is opened by the Project Manager under Crews › Rate. The crew reads expected 3, present 1, absent 1, no record 1,
+ * is opened by the Project Manager under Crews › Attendance rate. The crew reads expected 3, present 1, absent 1, no record 1,
  * rate 33.33 % (1 of 3 countable) against a 90 % target, marked below target. Goal oracle: the rate, the target and the mark agree with the
  * records the database holds — no separate number anyone typed.
  *

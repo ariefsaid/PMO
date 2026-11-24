@@ -426,8 +426,22 @@ describe('AC-STK-032 floor: every control on the balance list still works', () =
     const cable = { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm' };
     reports.onHand.mockResolvedValue([{ ...row, tagName: 'Client supplied' }, cable]);
     renderPage();
-    expect(await screen.findByText('Client supplied')).toBeInTheDocument();
+    expect(await screen.findByTestId('stock-item-tag')).toHaveTextContent('Client supplied');
     expect(screen.getAllByTestId('stock-item-tag')).toHaveLength(1);
+  });
+
+  it('PC25 filters the balances to one item tag, and the search also finds a tag by its name', async () => {
+    const cable = { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm' };
+    reports.onHand.mockResolvedValue([{ ...row, tagName: 'Client supplied' }, cable]);
+    renderPage();
+    await screen.findByText('CEM');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tag' }), 'Client supplied');
+    expect(screen.getByText('CEM')).toBeInTheDocument();
+    expect(screen.queryByText('CAB')).toBeNull();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tag' }), '');
+    await userEvent.type(screen.getByLabelText('Search items'), 'client');
+    expect(screen.getByText('CEM')).toBeInTheDocument();
+    expect(screen.queryByText('CAB')).toBeNull();
   });
 
   it('each movement in the More menu opens its own new-movement route', async () => {

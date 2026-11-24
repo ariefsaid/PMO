@@ -179,7 +179,8 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
           : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
             ? t('projectDetail.money.cashInvalidShort', 'Cash received (receipt reading not verified)')
             : t('projectDetail.money.cashUnavailable', 'Receipt-backed cash is not available yet.'),
-      link: { to: '/finance/receivables?view=payments', label: t('projectDetail.money.matchPayments', 'Match payments') },
+      // Walk G9: the fix lives on Receivables, so only a role Finance admits is sent there.
+      link: may('view', 'finance') ? { to: '/finance/receivables?view=payments', label: t('projectDetail.money.matchPayments', 'Match payments') } : undefined,
     }] : []),
   ];
   const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;

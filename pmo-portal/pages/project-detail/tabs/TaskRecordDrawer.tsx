@@ -103,7 +103,24 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
               )}
             </dd>
           </>}
-          <dt className="text-muted-foreground">{t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}</dt><dd className="min-w-0 break-words">{task.dependencies.length ? task.dependencies.map((dependency) => allTasks.find((candidate) => candidate.id === dependency.depends_on_id)?.name ?? dependency.depends_on_id).join(', ') : t('projectDetail.tasks.drawer.noDependencies', 'No dependencies are linked.')}</dd>
+          <dt className="text-muted-foreground">{t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}</dt><dd className="min-w-0 break-words">{task.dependencies.length ? (
+            <ul className="space-y-1">
+              {task.dependencies.map((dependency) => {
+                const upstream = allTasks.find((candidate) => candidate.id === dependency.depends_on_id);
+                return (
+                  <li key={dependency.depends_on_id}>
+                    <span>{upstream?.name ?? dependency.depends_on_id}</span>
+                    {upstream && (
+                      <span className="block text-muted-foreground">
+                        {upstream.assignee?.full_name ?? t('projectDetail.tasks.unassigned', 'Unassigned')}
+                        {' · '}{upstream.end_date ? formatDay(upstream.end_date) : t('projectDetail.tasks.noDueDate', 'No due date')}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : t('projectDetail.tasks.drawer.noDependencies', 'No dependencies are linked.')}</dd>
         </dl>
       </section>
       {!externallyOwned && (

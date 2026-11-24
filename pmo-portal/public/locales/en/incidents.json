@@ -87,6 +87,7 @@
     "task": "Task",
     "taskLinked": "A task was created for this issue.",
     "makeTask": "Make a task",
+    "needsProject": "Choose a project for this issue before you make a task.",
     "photos": "Photos",
     "openTask": "Open task"
   },

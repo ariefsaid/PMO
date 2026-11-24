@@ -3,11 +3,15 @@
  * or inactive. Informational only: it never blocks issuing, receiving or billing (OD-VSR-4). The warning is in words,
  * not colour alone (NFR-VSR-002). One project-scoped read serves every row of a project (shared query key).
  */
-import React from 'react';
+import React, { useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
+
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { supplyRiskLabel } from '@/src/lib/supplyRiskLabels';
 import { useSupplyRiskWarnings } from '@/src/hooks/useSupplyRisk';
+import { useCompany } from '@/src/hooks/useCompanies';
 
 export const WorkOrderSupplyWarning: React.FC<{ workOrderId: string; projectId: string }> = ({ workOrderId, projectId }) => {
   const { t } = useTranslation('supplyRisk');
@@ -29,4 +33,29 @@ export const WorkOrderSupplyWarning: React.FC<{ workOrderId: string; projectId: 
       ))}
     </ul>
   );
+};
+
+/** Walk PU18: the same warning on a purchase from a supplier marked at risk or inactive (the record the buyer opens). */
+const SupplierRiskNoteBody: React.FC<{ supplierId: string }> = ({ supplierId }) => {
+  const { t } = useTranslation('supplyRisk');
+  const supplier = useCompany(supplierId).data;
+  const status = supplier?.supply_risk_status;
+  if (!supplier || (status !== 'at_risk' && status !== 'inactive')) return null;
+  return (
+    <p role="note" className="text-control text-warning-foreground" data-testid="supply-risk-purchase-warning">
+      <strong className="font-semibold">{t('warning.lead', 'Supplier warning')}</strong>
+      {': '}
+      <Link to={`/companies/${supplier.id}`} className="underline underline-offset-2">{supplier.name}</Link>
+      {' '}
+      {t('warning.purchaseBody', 'is {{status}}.', { status: supplyRiskLabel(t as never, status).toLowerCase() })}
+    </p>
+  );
+};
+
+/** Renders nothing outside the auth and query providers (bare renders of the page in unit tests). */
+export const SupplierRiskNote: React.FC<{ supplierId: string }> = (props) => {
+  const auth = useContext(AuthContext);
+  const queryClient = useContext(QueryClientContext);
+  if (!auth || !queryClient) return null;
+  return <SupplierRiskNoteBody {...props} />;
 };

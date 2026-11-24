@@ -139,7 +139,7 @@ function canDecideTimesheet(sheet: TimesheetAwaitingApproval, selfId: string, ro
 }
 
 const AWAITING_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))';
+  '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code), work_order:work_orders(wo_number,title))';
 
 /**
  * Returns Submitted timesheets visible to the caller (via RLS) excluding their own (SoD).

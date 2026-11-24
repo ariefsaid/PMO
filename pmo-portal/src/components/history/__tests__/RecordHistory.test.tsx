@@ -460,21 +460,17 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     const time = row.querySelector('time');
     expect(time).toBeVisible();
     expect(time).toHaveAttribute('datetime', createdAt);
-    expect(time).toHaveAttribute('title', formatDateTime(new Date(createdAt)));
+    expect(time).toHaveTextContent(formatDateTime(new Date(createdAt)));
     expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
   });
 
-  it('SUB-G shows relative time only in the row; the exact minute lives in the tooltip', async () => {
+  it('M7 shows the exact date and time in the row itself, not only on hover (a phone has no hover)', async () => {
     const at = '2026-10-06T09:41:00Z';
     repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert', createdAt: at })], nextCursor: null });
     renderIt();
     await screen.findByText('Created');
     const time = screen.getByTestId('history-event').querySelector('time')!;
-    const expected = formatDateTime(new Date(at));
-    expect(time).toHaveTextContent(/ago$/);
-    expect(time).not.toHaveTextContent(expected);
-    expect(time).not.toHaveTextContent('·');
-    expect(time).toHaveAttribute('title', expected);
+    expect(time).toHaveTextContent(formatDateTime(new Date(at)));
     expect(time).toHaveAttribute('dateTime', at);
   });
 });

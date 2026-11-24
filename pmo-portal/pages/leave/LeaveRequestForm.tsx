@@ -63,7 +63,9 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
     <EntityFormModal open title={t('crews:leave.formTitle', 'Request leave or report sickness')} submitLabel={t('crews:leave.send', 'Send request')}
       onSubmit={(e) => void send(e)} onClose={onClose} loading={submit.isPending} dirty={Boolean(typeId || reason)}
       submitDisabled={!effectivePerson || !typeId || !start} submitError={error}>
-      <FormGrid>
+      {!people.isPending && !people.isError && (people.data ?? []).length === 0
+        ? <p className="text-control text-muted-foreground" data-testid="leave-nobody">{t('crews:leave.nobodyToFileFor', 'You can file leave only for yourself and the people you manage. Ask your line manager or an Admin to file it.')}</p>
+        : <FormGrid>
         {(people.data ?? []).length > 1 && (
           <SelectField label={t('crews:leave.person', 'Person')} required value={effectivePerson} onChange={setPersonId}
             placeholder={t('crews:leave.pickPerson', 'Choose a person')}
@@ -79,7 +81,7 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
         <p className="col-span-full text-sm text-muted-foreground">
           {t('crews:leave.goesTo', 'Your line manager or any {{role}} approves this. You get a notification with the result.', { role: approver })}
         </p>
-      </FormGrid>
+      </FormGrid>}
     </EntityFormModal>
   );
 };

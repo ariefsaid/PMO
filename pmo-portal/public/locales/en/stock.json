@@ -206,6 +206,8 @@
     "filters": {
       "warehouse": "Warehouse",
       "allWarehouses": "All warehouses",
+      "tag": "Tag",
+      "allTags": "All tags",
       "search": "Search items",
       "belowReorder": "Below reorder level",
       "includeZero": "Show zero balances"
@@ -453,7 +455,8 @@
       "undo": "Once posted, a mistake is corrected with a correcting entry, not by editing.",
       "confirm": "Post"
     },
-    "clientMaterialCost": "Client-supplied: the cost is fixed at zero."
+    "clientMaterialCost": "Client-supplied: the cost is fixed at zero.",
+    "clientMaterialWorkOrder": "For a $t(common:terms.clientWorkOrder)? Record the pickup on the $t(common:terms.clientWorkOrder)."
   },
   "count": {
     "sections": {
@@ -967,6 +970,7 @@
       "expiresHelp": "After this date the stock is free again.",
       "note": "Note (optional)",
       "errWorkOrder": "Choose the work order the stock is for",
+      "free": "{{qty}} {{unit}} free here",
       "errQuantity": "Enter a quantity above zero, with up to three decimals",
       "saved": "Stock reserved"
     },
