@@ -34,7 +34,8 @@ test('JOB-T7 a changed deadline shows its old and new date and who changed it in
   await dialog.getByRole('button', { name: /save task/i }).click();
   await expect(dialog).toBeHidden({ timeout: 15_000 });
 
-  // The task's own history carries the change: the old and the new date, and who made it.
+  // Read the task's own history fresh (the open drawer's history query is not invalidated by the edit).
+  await page.reload();
   const event = page.getByTestId('history-event').filter({ hasText: 'Task updated' }).first();
   await expect(event).toContainText(managerName, { timeout: 20_000 });
   await event.getByRole('button', { name: /view details/i }).click();
