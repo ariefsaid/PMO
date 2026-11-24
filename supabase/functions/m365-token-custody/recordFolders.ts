@@ -17,7 +17,6 @@ import {
   openCallerRecordFolderAccess,
   type RecordFolderEnsureAccess,
   type RecordFolderLibrary,
-  type RecordFolderReadAccess,
 } from "./graphRead.ts";
 import { createGraphBudget, type GraphBudget } from "./folderBudget.ts";
 import { createFolderDiscovery, type FolderDiscovery } from "./recordFolderSearch.ts";

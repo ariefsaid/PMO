@@ -223,7 +223,6 @@ Deno.test("document-preview AC-007 upload transport", async (t) => {
 // ── served handler ───────────────────────────────────────────────────────────────────────────────
 const DOC_ID = "10200000-0000-0000-0000-0000000000d2";
 const PARENT_ID = "synthetic-parent-id";
-const NOT_RECORD = "This record is not available.";
 const docRow = (over: Record<string, unknown> = {}) => ({
   id: DOC_ID, org_id: ORG, project_id: PROJECT_ID, status: "Draft", author_id: USER, source: null, ...over,
 });

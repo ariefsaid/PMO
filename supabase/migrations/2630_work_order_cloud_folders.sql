@@ -174,6 +174,7 @@ create policy storage_objects_project_doc_wo_pa_insert on storage.objects
          and pd.project_id::text = split_part(objects.name, '/'::text, 2)
          and pd.work_order_id is not null                                                               -- mut:pa_storage_wo_only
          and pd.status = 'Draft'::public.doc_status
+         and pd.author_id = (select auth.uid())
          and public.actor_may_write_work_order_document(pd.org_id, pd.project_id, pd.work_order_id)
     )
   );
@@ -193,6 +194,7 @@ create policy storage_objects_project_doc_wo_pa_update on storage.objects
          and pd.project_id::text = split_part(objects.name, '/'::text, 2)
          and pd.work_order_id is not null
          and pd.status = 'Draft'::public.doc_status
+         and pd.author_id = (select auth.uid())
          and public.actor_may_write_work_order_document(pd.org_id, pd.project_id, pd.work_order_id)
     )
   )
@@ -209,6 +211,7 @@ create policy storage_objects_project_doc_wo_pa_update on storage.objects
          and pd.project_id::text = split_part(objects.name, '/'::text, 2)
          and pd.work_order_id is not null
          and pd.status = 'Draft'::public.doc_status
+         and pd.author_id = (select auth.uid())
          and public.actor_may_write_work_order_document(pd.org_id, pd.project_id, pd.work_order_id)
     )
   );
@@ -518,3 +521,13 @@ end;
 $$;
 revoke all on function public.link_m365_documents_batch(jsonb,boolean) from public,anon;
 grant execute on function public.link_m365_documents_batch(jsonb,boolean) to authenticated;
+
+create function public.m365_folder_category_visible(p_org_id uuid)
+returns boolean language sql stable security invoker set search_path = public as $$
+  select p_org_id = public.auth_org_id() and public.is_active_member()
+    and exists (select 1 from public.document_categories c
+      where c.org_id = p_org_id and lower(c.name) = 'reference' and c.archived_at is null
+        and public.document_category_visible(c.id, p_org_id));
+$$;
+revoke all on function public.m365_folder_category_visible(uuid) from public, anon;
+grant execute on function public.m365_folder_category_visible(uuid) to authenticated, service_role;

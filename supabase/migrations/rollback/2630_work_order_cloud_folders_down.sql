@@ -1,3 +1,4 @@
+drop function if exists public.m365_folder_category_visible(uuid);
 -- Rollback 2630_work_order_cloud_folders.sql
 
 drop policy if exists storage_objects_project_doc_wo_pa_insert on storage.objects;
