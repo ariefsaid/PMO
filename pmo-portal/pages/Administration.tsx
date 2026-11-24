@@ -458,7 +458,8 @@ const Administration: React.FC = () => {
   const operatorRoute = section !== undefined && isOperatorSection(section);
   const fxRoute = section === 'exchange-rates';
   const costAttributionRoute = section === 'cost-attribution';
-  const peopleRoute = (section === 'people' || section === 'document-types') && may('view', 'person');
+  const canViewPeople = may('view', 'person');
+  const peopleRoute = (section === 'people' || section === 'document-types') && canViewPeople;
   // #2707: the Clearance section exists only while the organisation setting is on (default off: Administration is unchanged).
   const clearanceEnabled = useOrgSwitch('clearance').data === true;
   const clearanceRoute = section === 'clearance' && may('view', 'personClearance');
@@ -468,7 +469,7 @@ const Administration: React.FC = () => {
   const navigationSections: AdministrationSection[] = !isAdminViewer && !isFinance && !isOperator
     ? ['people', 'document-types', ...(showClearance ? ['clearance' as const] : [])]
     : isFinance
-    ? [...FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution), ...(showClearance ? ['clearance' as const] : [])]
+    ? [...FINANCE_SECTIONS.filter((id) => (id !== 'cost-attribution' || canManageCostAttribution) && (id !== 'document-types' || canViewPeople)), ...(showClearance ? ['clearance' as const] : [])]
     : [
       ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)
         // "Your plan" is the org Admin's read-only page (FR-PLN-014); an Operator reaches it too.
