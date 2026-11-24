@@ -1,7 +1,8 @@
+-- Mutation: remove 2451 composed_supervisor_task; the real project-only task RPC must fail.
 -- Mutation: remove 2384 site_helper_light guards; the three real field-account calls must fail their refusal assertions.
 begin;
 create extension if not exists pgtap;
-select plan(20);
+select plan(22);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20410000-0000-0000-0000-00000000000a', 'RR CR Org', 'IDR', 'UTC', true);
@@ -74,6 +75,7 @@ reset role;
 
 set local role authenticated;
 select ok(actor_may_task_incident('20410000-0000-0000-0000-000000000063'),'AC-SITE-017 project-only issue in assigned project allowed');
+select lives_ok($$select add_task_to_incident('20410000-0000-0000-0000-000000000063','Supervisor follow-up')$$,'AC-SITE-017 assigned supervisor creates a task from the project-only issue through the real RPC');
 
 reset role;
 update work_orders set end_date = current_date - 1;
@@ -90,6 +92,7 @@ set local role authenticated;
 select is((select count(*) from attendance_days),0::bigint,'AC-SITE-004 unrelated supervisor cannot read attendance');
 select ok(not actor_may_lend_workers('20410000-0000-0000-0000-000000000041',current_date,current_date), 'AC-SITE-006 same-level unassigned supervisor refused');
 select ok(not actor_may_task_incident('20410000-0000-0000-0000-000000000063'),'AC-SITE-017 project-only issue outside scope refused');
+select throws_ok($$select add_task_to_incident('20410000-0000-0000-0000-000000000063','Unrelated follow-up')$$,'42501',null,'AC-SITE-017 unrelated supervisor cannot create a task through the real RPC');
 select ok(not actor_may_task_issue('20410000-0000-0000-0000-000000000031'), 'AC-SITE-017 same-level unassigned supervisor refused');
 reset role;
 select set_config('request.jwt.claims', '{"sub":"20410000-0000-0000-0000-0000000000a8","role":"authenticated"}',true);

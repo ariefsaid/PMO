@@ -346,12 +346,18 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
   });
 
-  it('ineligible role Finance never renders check-ins waiting row even when pending requests exist per real hook contract', async () => {
+  it('Finance sees a check-in pointer when the caller-scoped read authorizes a decision', async () => {
     h.checkInRequests = () => Promise.resolve([pendingCheckIn]);
+    renderFinance();
+    expect(await screen.findByRole('link', { name: /1 check-in waiting for your decision/i })).toHaveAttribute('href', '/crews');
+  });
+
+  it('Finance sees no check-in pointer when the caller-scoped read returns no decisions for them', async () => {
+    h.checkInRequests = () => Promise.resolve([]);
     renderFinance();
 
     await waitFor(() => expect(screen.getByTestId('check-in-probe')).toHaveTextContent('success'));
-    expect(screen.getByTestId('check-in-probe')).toHaveAttribute('data-count', '1');
+    expect(screen.getByTestId('check-in-probe')).toHaveAttribute('data-count', '0');
 
     expect(screen.queryByText(/check-in.*waiting for your decision/i)).not.toBeInTheDocument();
   });

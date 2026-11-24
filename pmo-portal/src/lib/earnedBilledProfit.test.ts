@@ -1,3 +1,4 @@
+import { projectClaimedRevenue } from './earnedBilledProfit';
 import { describe, expect, it } from 'vitest';
 import { earnedBilledProfit, projectEarnedBilled, type WorkOrderEarnedBilledRow } from './earnedBilledProfit';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder } from './workOrderPlanVsActual';
@@ -90,4 +91,13 @@ describe('earnedBilledProfit', () => {
       projectRevenue: [{ currency: 'USD', work_revenue: '60.00', missing_work: 0 }, { currency: 'EUR', work_revenue: '0.00', missing_work: 0 }] });
     expect(earnedBilledProfit(r, [row()]).currencies.map((c) => c.currency)).toEqual(['USD']);
   });
+});
+
+it('JOB-M12 claimed total includes discipline claims and unassigned billing without mixing earned revenue', () => {
+  expect(projectClaimedRevenue([
+    { basis: 'billed_claims', currency: 'USD', revenue: '70.00' },
+    { basis: 'billed_unitemised', currency: 'USD', revenue: '10.00' },
+    { basis: 'validated_progress', currency: 'USD', revenue: '100.00' },
+    { basis: 'billed_claims', currency: 'EUR', revenue: '900.00' },
+  ], 'USD')).toBe('80.00');
 });

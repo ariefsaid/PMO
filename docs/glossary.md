@@ -1348,6 +1348,8 @@ top-level, non-archived tasks count toward the phase's calculated progress, once
 phase. A phase with no linked group is measured exactly as before. Only Admin and Project Manager manage groups (#2679).
 
 **Issue task** — a task linked to a site issue through `incident_tasks`; one issue has many, one task serves one issue (#2677).
+An active full-account reporter may add follow-up tasks and record the root cause on their own open issue.
+Assigned follow-ups appear in the normal task list of each assignee; reporting does not transfer the authority to close the issue.
 
 **Root cause** — the cause of an issue, recorded apart from the visible problem (description) and the close note (#2677).
 
@@ -1420,6 +1422,8 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Earned revenue** — a work order's validated daily progress at the contract rate frozen at validation (the same figure as discipline revenue, taken per work order or project). A work order with no validated progress has earned revenue "not available", never zero; a project where only some work orders have it reads "incomplete", with the count of those without (#2733).
 
 **Billed revenue** — claims and invoices excluding tax, as the work-order billing derivation gives them: a down payment bills zero, a withdrawn claim and a cancelled invoice do not count. Per discipline it is the amount of live claim lines by the contract item's discipline; billed work no claim line itemises is shown as "Not itemised" (#2733).
+
+**Project revenue comparisons** — the earned-and-billed project total labels **Invoiced** separately from **Claimed**. Invoiced keeps the project invoice figure; Claimed includes live claims and invoices, including billing without a discipline. Missing validated progress is explained separately from a validated line without a rate.
 
 **Gap between earned and billed** — earned less billed: positive is work done and not yet billed, negative is billed ahead of validated work. Shown only when both figures exist in one currency. Margin is shown on each basis (earned, billed) with the same cost; it is a management view, not revenue recognition (#2733).
 

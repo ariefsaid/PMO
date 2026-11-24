@@ -137,3 +137,11 @@ it('AC-SITE-017 supervisor adds issue tasks only when the database scope read pe
  expect(can('act','incident',as('Engineer','quality_inspector',{record}))).toBe(false);
  expect(can('act','incident',as('Engineer','site_supervisor',{record:{...record,viewOnly:true}}))).toBe(false);
 });
+
+it('JOB-PC17 reporter follow-up composes with scoped supervisor actions and view-only limits',()=>{
+ const record={project_id:'project',status:'Open',reporterMayFollowUp:true};
+ expect(can('act','incident',as('Engineer',null,{record}))).toBe(true);
+ expect(can('act','incident',as('Engineer',null,{record:{...record,reporterMayFollowUp:false}}))).toBe(false);
+ expect(can('act','incident',as('Engineer',null,{record:{...record,status:'Closed'}}))).toBe(false);
+ expect(can('act','incident',as('Admin',null,{record:{...record,viewOnly:true}}))).toBe(false);
+});
