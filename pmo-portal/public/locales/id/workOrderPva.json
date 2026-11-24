@@ -226,7 +226,10 @@
     "incompleteWorkOrders": "Belum lengkap: sebagian $t(common:terms.clientWorkOrder) belum punya progres tervalidasi atau tarif",
     "withoutProgress": "{{count}} dari {{total}} $t(common:terms.clientWorkOrder) belum punya progres tervalidasi.",
     "empty": "Belum ada $t(common:terms.clientWorkOrder) berstatus Diterbitkan atau Ditutup.",
-    "loadError": "Pendapatan yang dihasilkan dan ditagih tidak dapat dimuat"
+    "loadError": "Pendapatan yang dihasilkan dan ditagih tidak dapat dimuat",
+    "invoicedLabel": "Difakturkan",
+    "claimedLabel": "Diklaim",
+    "missingProgress": "Belum lengkap: sebagian perintah kerja belum memiliki progres tervalidasi"
   },
   "idle": {
     "title": "Biaya waktu menganggur per alasan",

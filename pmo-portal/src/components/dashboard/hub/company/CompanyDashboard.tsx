@@ -160,7 +160,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   }
 
   // "Waits on you": one row per kind, each a link to the fix.
-  const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => needs.items.filter((item) => item.id === id)).map((item) => ({
+  const orderedNeeds = [
+    ...WAIT_ORDER[role].flatMap((id) => needs.items.filter((item) => item.id === id)),
+    ...needs.items.filter((item) => !WAIT_ORDER[role].includes(item.id)),
+  ];
+  const waitRows: WaitRow[] = orderedNeeds.map((item) => ({
     id: item.id,
     count: item.countLabel ?? item.count,
     label: item.id === 'approvals' ? t('home.approvalsCompact', 'Approvals') : item.label,

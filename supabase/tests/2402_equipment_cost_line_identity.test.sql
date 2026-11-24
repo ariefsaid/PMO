@@ -1,7 +1,4 @@
--- 1390_issue_tasks_root_cause.test.sql — #2677 (docs/specs/issue-tasks-root-cause.spec.md).
--- Migrations under test: 1390_incident_tasks, 1391_incident_root_cause, 1392_add_task_to_incident.
--- AC-ITR-001 several tasks · 002 who may add · 003 no client write · 004 legacy link mirrored · 005 reads · 006 root cause · 007 independence.
--- Fixtures are written as the table owner; every client check runs as `authenticated` with a JWT.
+-- Equipment identity on the invoker cost-line view; the same source and asset row permissions apply.
 begin;
 create extension if not exists pgtap;
 select plan(4);

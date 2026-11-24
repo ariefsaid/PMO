@@ -1,10 +1,7 @@
--- 1390_issue_tasks_root_cause.test.sql — #2677 (docs/specs/issue-tasks-root-cause.spec.md).
--- Migrations under test: 1390_incident_tasks, 1391_incident_root_cause, 1392_add_task_to_incident.
--- AC-ITR-001 several tasks · 002 who may add · 003 no client write · 004 legacy link mirrored · 005 reads · 006 root cause · 007 independence.
--- Fixtures are written as the table owner; every client check runs as `authenticated` with a JWT.
+-- Reporter follow-ups: author scope, root-cause-only changes, normal task assignment and existing field-account rules.
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(11);
 
 insert into organizations (id, name, default_currency) values
   ('26770000-0000-0000-0000-00000000000a', 'ITR Org',   'IDR'),
@@ -74,6 +71,8 @@ update profiles set built_in_role='field_user' where id='26770000-0000-0000-0000
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26770000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$select public.add_task_to_incident('26770000-0000-0000-0000-000000000a01','Field')$$,'42501',null,'JOB-PC17 field-account rules retained');
+update incident_reports set root_cause='Field overwrite' where id='26770000-0000-0000-0000-000000000a01';
+select is((select root_cause from incident_reports where id='26770000-0000-0000-0000-000000000a01'),'Coordination','JOB-PC17 field-account root-cause update remains refused');
 reset role;
 select * from finish();
 rollback;

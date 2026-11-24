@@ -53,3 +53,10 @@ describe('site report form', () => {
     expect(workingMinutes('', '06:00')).toBeNull();
   });
 });
+
+it('JOB-PC6 a progress section survives editing and draft submission', () => {
+  const scoped = { ...detail, progress: detail.progress.map(l => ({ ...l, section_id: 'section-a' })) };
+  const form = siteReportFormFromDetail(scoped);
+  expect(form.progress[0]).toHaveProperty('sectionId', 'section-a');
+  expect(siteReportDraftInput(form, { workOrderId: 'w1', workDate: '2026-11-24' }).progress[0]).toHaveProperty('sectionId', 'section-a');
+});
