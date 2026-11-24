@@ -96,6 +96,13 @@ begin
      and public.attendance_second_record_may_decide()
      and public.attendance_day_undecided(asr.worker_id, asr.work_order_id, asr.work_date)
    group by dr.id, dr.project_id, aw.wo_number, aw.title, dr.work_date
+  union all
+  -- check_in: an outside-area phone clock-in waiting for the supervisor named to decide it (the same gate the Crews cards use)
+  select 'check_in'::text, q.id, w.project_id, (pe.name || ' · ' || w.title)::text, q.checked_in_at
+    from public.phone_check_ins q
+    join public.work_orders w on w.id = q.work_order_id
+    join public.people pe on pe.id = q.worker_id
+   where q.org_id = v_org and q.status = 'pending' and public.phone_check_in_may_decide(q.id)
     ) as waiting(kind, record_id, project_id, title, created_at)
    order by waiting.created_at asc nulls last, waiting.kind asc, waiting.record_id asc;
 end; $$;

@@ -45,3 +45,5 @@ The Director explicitly assigned captures and `ux-proof` to the integration work
 No unfinished implementation item or product decision remains within the signed lane. ERP-connected receiving and valuation reconciliation remain the approved separate follow-up. Rendered integration acceptance remains with the assigned integration executor; this report does not claim those captures were run locally. No PR, merge or deployment was performed.
 
 DONE: 1124d-receive
+
+Rollback order: 2450 → 2229 → 2228 → 2227 → 2226 → 2225 → 2224 → 2223 → 2222 → 2221 → 2220, using each matching down migration. The 2450 down migration restores the preceding 2227 body and 2220 policy set; the 2224 down migration restores the pre-receiving 2090 waiting body, including clock-in decisions.

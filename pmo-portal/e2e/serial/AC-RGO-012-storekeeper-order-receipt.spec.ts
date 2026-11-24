@@ -1,4 +1,4 @@
-// @e2e-isolation: serial — enables shared receiving and assigns the seed Engineer the storekeeper job; restores both settings and the job.
+// @e2e-isolation: serial — enables shared receiving and assigns the seed Engineer storekeeper and buyer jobs; restores both settings and the job.
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { signIn } from '../helpers';
@@ -41,7 +41,8 @@ test('AC-RGO-012 storekeeper counts blind and buyer sees received and outstandin
     await expect(page.getByRole('status')).toHaveText('Receipt posted', { timeout: 20_000 });
     await expect(page.getByText(/Ordered 40/)).toHaveCount(0);
 
-    await signIn(page, 'admin@acme.test');
+    await db.from('profiles').update({ built_in_role: 'buyer' }).eq('id', ENGINEER_ID).throwOnError();
+    await signIn(page, 'engineer@acme.test');
     await page.goto(`/stock/new/receive?order=${po}`);
     await expect(page.getByText('Ordered 40 · Received 37 · Outstanding 3')).toBeVisible();
   } finally {
