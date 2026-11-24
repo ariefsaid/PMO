@@ -47,7 +47,9 @@ test('JOB-W16 storekeeper drafts a work-order count variance and material coordi
     await keeperOf(admin, site.id, storekeeper.id);
     receiptId = await postReceive(admin, site.id, item.id, '10', '25');
     // Attribute the site receipt to the work order so the starting balance is 10 on this work order.
-    ok('attribute receipt', await svc.from('stock_documents').update({ work_order_id: workOrderId }).eq('id', receiptId));
+    ok('attribute receipt', await admin.rpc('set_cost_attribution', {
+      p_source: 'stock_document', p_ids: [receiptId], p_work_order_id: workOrderId, p_discipline_id: null,
+    }));
 
     // 1. Storekeeper drafts the count for the work order (7 vs 10 = -3) with a reason.
     await storekeeper.signIn(page);
@@ -67,7 +69,7 @@ test('JOB-W16 storekeeper drafts a work-order count variance and material coordi
     countDocId = documentUrl.split('/').pop() ?? '';
 
     // Separation of duties: the author cannot post a count with variance; work order link is visible.
-    await expect(page.getByText('Draft', { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('record-header').getByText('Draft', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: 'Post', exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: wo.number })).toBeVisible();
 
