@@ -57,7 +57,7 @@ create temp table lv_ids (k text primary key, id uuid);
 grant all on lv_ids to authenticated;
 create temp table lv_d (k text primary key, d date);
 insert into lv_d values ('t', pg_temp.today()), ('y', pg_temp.today() - 1), ('p10', pg_temp.today() + 10), ('p11', pg_temp.today() + 11),
-  ('p12', pg_temp.today() + 12), ('p13', pg_temp.today() + 13), ('p14', pg_temp.today() + 14), ('p20', pg_temp.today() + 20),
+  ('p12', pg_temp.today() + 12), ('p13', pg_temp.today() + 13), ('p14', pg_temp.today() + 14), ('p15', pg_temp.today() + 15), ('p20', pg_temp.today() + 20),
   ('p21', pg_temp.today() + 21), ('p30', pg_temp.today() + 30), ('p40', pg_temp.today() + 40);
 grant select on lv_d to authenticated;
 create function pg_temp.d(p text) returns date language sql stable as $$ select d from lv_d where k = p $$;
@@ -165,7 +165,7 @@ select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
 select is(leave_request_decide((select id from lv_ids where k = 'v1'), 'Approved', null), 'Approved',
   'AC-PEO-002 HR Manager decides a request when no manager is set');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
-insert into lv_ids select 'no-login-managed', leave_request_submit('27080000-0000-0000-0000-000000001f05', (select id from lv_ids where k = 'ta'), pg_temp.d('p13'), pg_temp.d('p13'), null);
+insert into lv_ids select 'no-login-managed', leave_request_submit('27080000-0000-0000-0000-000000001f05', (select id from lv_ids where k = 'ta'), pg_temp.d('p15'), pg_temp.d('p15'), null);
 reset role;
 select is((select count(*)::int from notifications where owner_id = '27080000-0000-0000-0000-0000000001a2'
              and message_key = 'leaveRequestPending' and metadata->>'leave_request_id' = (select id::text from lv_ids where k = 'no-login-managed')),
