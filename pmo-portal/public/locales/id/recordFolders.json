@@ -56,6 +56,7 @@
     "modified": "Diubah",
     "size": "Ukuran",
     "empty": "Folder kosong",
+    "hidden": "Beberapa item di folder ini tidak dapat ditampilkan di sini.",
     "more": "Tampilkan lebih banyak",
     "openNamed": "Buka {{name}} di SharePoint"
   }

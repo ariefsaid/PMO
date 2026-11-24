@@ -158,16 +158,21 @@ function FolderChildren({ item, level }: { item: NodeItem; level: number }) {
     );
   }
   const items = (query.data?.pages ?? []).flatMap((page) => page.value);
+  // Microsoft items that are neither a file nor a folder (a OneNote notebook) are not listed: say so rather than "Empty folder".
+  const hidden = (query.data?.pages ?? []).reduce((sum, page) => sum + (page.unsupported_count ?? 0), 0) > 0;
   const folders = items.filter((child) => child.item_kind === 'folder');
   const files = items.filter((child) => child.item_kind !== 'folder');
   return (
     <ul className="min-w-0">
-      {items.length === 0 && (
+      {items.length === 0 && !hidden && (
         <StateRow level={level}><span className="text-muted-foreground">{t('folderTree.empty', 'Empty folder')}</span></StateRow>
       )}
       {[...folders, ...files].map((child) => child.item_kind === 'folder'
         ? <FolderNode key={child.item_id} item={child} level={level} />
         : <FileRow key={child.item_id} item={child} level={level} />)}
+      {hidden && (
+        <StateRow level={level}><span className="text-muted-foreground">{t('folderTree.hidden', "Some items in this folder can't be shown here.")}</span></StateRow>
+      )}
       {query.hasNextPage && (
         <StateRow level={level}>
           <Button variant="ghost" size="sm" loading={query.isFetchingNextPage} onClick={() => { void query.fetchNextPage(); }}>
