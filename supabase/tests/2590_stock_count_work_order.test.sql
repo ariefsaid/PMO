@@ -257,8 +257,10 @@ select is((select sum(a.amount::numeric) from work_order_cost_lines l join work_
  on a.record_id=l.record_id and a.source=l.source where l.work_order_id='25900000-0000-0000-0000-000000000401'),
  (get_project_finances('25900000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric,
  'AC-SCW-007 paid purchase is not double counted and visible lines sum to actuals');
+select set_config('tst.actual_total',get_project_finances('25900000-0000-0000-0000-0000000000c1')->'actuals'->>'total',true);
+reset role;
 select is((select sum(value_delta) from stock_ledger where warehouse_id='25900000-0000-0000-0000-000000002002')
- +(get_project_finances('25900000-0000-0000-0000-0000000000c1')->'actuals'->>'total')::numeric
+ +current_setting('tst.actual_total')::numeric
  -(select sum(value_delta) from stock_ledger where document_id=current_setting('tst.cnt_no_wo')::uuid),1500::numeric,
  'AC-SCW-007 receipt value equals remaining stock plus attributed cost plus unassigned loss');
 -- Money authorization is unchanged for the two cost-review job roles.
