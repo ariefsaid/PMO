@@ -1,3 +1,4 @@
+vi.mock("@/src/hooks/useOrderJobRoles", () => ({ useMayOrderPurchases: () => auth.mayOrder }));
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -21,7 +22,7 @@ import type { Role } from '@/src/auth/AuthContext';
  * sees the manager copy + every requester's rows for their projects + New procurement.
  */
 const { procState, createState, auth } = vi.hoisted(() => ({
-  auth: { role: 'Engineer' as string },
+  auth: { role: 'Engineer' as string, mayOrder: false },
   procState: {
     // Two requesters: u-self (the signed-in Engineer) and u-other. The org-wide RLS read
     // returns both; the page must narrow to u-self's row for an Engineer.
@@ -89,6 +90,7 @@ const renderAs = (realRole: Role) => {
 };
 
 beforeEach(() => {
+  auth.mayOrder = false;
   procState.isPending = false;
   procState.isError = false;
 });
@@ -121,4 +123,11 @@ describe('Procurement — Engineer own-scoped view (A-3)', () => {
     expect(screen.getByText('Crane hire')).toBeInTheDocument();
     expect(screen.getByText('Scaffolding rental')).toBeInTheDocument();
   });
+});
+
+it("JOB-BQ9 Buyer discovers a purchase raised by quality", async () => {
+ auth.role = "Engineer"; auth.mayOrder = true;
+ renderAs('Engineer');
+ await userEvent.click(screen.getByRole('tab', { name: /^All/ }));
+ expect(screen.getByText("Scaffolding rental")).toBeInTheDocument();
 });

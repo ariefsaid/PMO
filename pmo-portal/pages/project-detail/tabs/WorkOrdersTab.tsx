@@ -242,6 +242,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   const revenueMode = useRevenueMode();
   const revenueRouteReady = useRevenueRouteReady(revenueMode);
   const canViewBilling = may('view', 'salesInvoice');
+  const canReadClaims = may('view', 'progressClaim');
   const canInvoice = may('create', 'salesInvoice') && revenueRouteReady && Boolean(clientId);
   const erp = useErpItemOptions('sales');
   const invoicesQuery = useSalesInvoices(projectId, { enabled: canViewBilling });
@@ -545,8 +546,8 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
     setPoDrawerFor(openRecordType === 'workOrder' ? rows.find((row) => row.id === openRecordId) ?? null : null);
     setLineDrawerFor(openRecordType === 'workOrderLine' ? drawerLineRows.find((line) => line.key === openRecordId) ?? null : null);
     setInvoiceDrawerFor(openRecordType === 'workOrderInvoice' ? invoiceRows.find((invoice) => invoice.id === openRecordId) ?? null : null);
-    setClaimDrawerFor(openRecordType === 'workOrderClaim' && canViewBilling ? claimRows.find((claim) => claim.id === openRecordId) ?? null : null);
-  }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canViewBilling]);
+    setClaimDrawerFor(openRecordType === 'workOrderClaim' && canReadClaims ? claimRows.find((claim) => claim.id === openRecordId) ?? null : null);
+  }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canReadClaims]);
 
   // #2668: the draft list and the order cards as functions of the rows they show, so a group heading can wrap each bucket.
   const renderDrafts = (list: WorkOrderRow[]) => list.length > 0 && (
@@ -637,7 +638,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
       {/* The claims come first: billing the work done is what waits on Finance here (screen rules: what waits on you leads). */}
       <WorkOrdersClaimsCard
-        visible={canViewBilling}
+        visible={canReadClaims}
         currency={currency}
         boqRows={boqRows}
         summary={summary}

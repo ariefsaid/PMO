@@ -282,7 +282,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   React.useEffect(() => {
     onCountChange?.(isPending || isError || data == null ? null : data.length);
   }, [data, isError, isPending, onCountChange]);
-  const ownScoped = !projectId && role === 'Engineer';
+  const ownScoped = !projectId && role === 'Engineer' && !mayOrderByRole;
   const scopedRows = useMemo(() => (data ?? []).filter((row) => !ownScoped || row.requested_by_id === currentUser?.id),
     [data, ownScoped, currentUser?.id]);
   const rows = useMemo(() => scopedRows

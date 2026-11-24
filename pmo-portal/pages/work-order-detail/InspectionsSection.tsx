@@ -1,3 +1,4 @@
+import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -48,7 +49,8 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
   const mayRaise = can('raise_purchase', 'thirdPartyInspection', ctx);
   const mayWaive = can('waive', 'thirdPartyInspection', ctx);
   const mayCancel = can('cancel', 'thirdPartyInspection', ctx);
-  const mayOpenPurchase = can('view', 'procurement');
+  const mayOrder = useMayOrderPurchases();
+  const mayOpenPurchase = can('view', 'procurement') || mayOrder;
   const mayAttach = can('create', 'thirdPartyInspection'); // the same roles; a reported inspection still takes a new file (FR-TPI-015)
   const liveFiles = files.data ?? [];
   const fail = (e: unknown) => { const r = refusal(e, { context: { suppressCapture: true } }); setErr(r.detail || r.headline); };

@@ -1,3 +1,4 @@
+vi.mock("@/src/hooks/useUsers", () => ({ useUsers: () => ({ data: [{ id: "u2", full_name: "Reviewing manager" }], isError: false, isPending: false }) }));
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -92,7 +93,7 @@ describe('BillMatchDrawer (#2622)', () => {
     h.match = { ...HELD, status: 'exception_approved', reasons: [], exception: { approvedBy: 'u2', approvedAt: '2026-11-20T02:00:00Z', reason: 'Agreed price' } };
     setup();
     expect(screen.getByText('Exception approved')).toBeVisible();
-    expect(screen.getByTestId('bill-match-exception')).toHaveTextContent(/Agreed price/);
+    expect(screen.getByTestId('bill-match-exception')).toHaveTextContent(/Reviewing manager.*Agreed price/);
     expect(screen.queryByRole('button', { name: 'Approve exception' })).toBeNull();
   });
 
