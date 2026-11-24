@@ -1,12 +1,13 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
 import CostDisciplines from './admin/CostDisciplines';
 import WorkOrderLists from './admin/WorkOrderLists';
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
-import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
@@ -478,7 +479,8 @@ const Administration: React.FC = () => {
   const clearanceEnabled = useOrgSwitch('clearance').data === true;
   const clearanceRoute = section === 'clearance' && may('view', 'personClearance');
   const showClearance = clearanceEnabled && may('view', 'personClearance');
-  const builtInRoleKey = useBuiltInRoleKey();
+  const authCtx = useContext(AuthContext);
+  const builtInRoleKey = currentUser?.built_in_role ?? authCtx?.currentUser?.built_in_role ?? null;
   const viewOnly = realRole !== effectiveRole;
   const pcmScheduledReportsEnabled = useOrgSwitch(
     'pcmScheduledReports',
