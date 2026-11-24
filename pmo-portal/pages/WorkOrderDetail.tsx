@@ -140,6 +140,8 @@ const WorkOrderDetail: React.FC = () => {
     [allocations.data, boq.data, acceptances],
   );
   const groups = useMemo(() => (costLines.data ? buildCostView(flatLines, money.data ?? {}) : null), [costLines.data, flatLines, money.data]);
+  // The cost read's reason per record, so a line says why it carries no amount (PU16), from the one read that decides it.
+  const costReasons = useMemo(() => Object.fromEntries((pva.data?.costLines ?? []).flatMap((l) => l.recordId ? [[`${l.source}:${l.recordId}`, l.reason]] : [])), [pva.data]);
   const documents = useMemo(() => {
     const ids = new Set([...acceptances.map((a) => a.document_id).filter((d): d is string => Boolean(d)), ...(claimDocs.data ?? [])]);
     return (docs.data ?? []).filter((d) => ids.has(d.id));
@@ -204,7 +206,7 @@ const WorkOrderDetail: React.FC = () => {
           <WorkOrderCrewLink workOrderId={row.id} />
         </PageGroup>
         <PageGroup id="wo-cost" label={groupLabels.cost}>
-          <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
+          <CostSection reasons={costReasons} labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
             onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
           {canPlanView && <PlanVsActualSection workOrderId={row.id} projectId={projectId} query={pva} disciplines={disciplines.data ?? []} canPlan={may('manage', 'workOrderPlan')} />}
           {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}

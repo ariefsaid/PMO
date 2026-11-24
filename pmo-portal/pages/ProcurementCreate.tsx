@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Card, CardHead, CardPad, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, Card, Checkbox, CardHead, CardPad, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
 import { useSoleWorkOrder } from '@/src/hooks/useSoleWorkOrder';
@@ -157,6 +157,7 @@ export default function ProcurementCreate() {
   const [budgetCategory, setBudgetCategory] = useState('');
   // #2697: the purchase type and rental period; the fields appear only where the organisation turned purchase types on.
   const [purchaseType, setPurchaseType] = useState<PurchaseTypeValue>(NO_PURCHASE_TYPE);
+  const [subcontract, setSubcontract] = useState(false);
   const [periodTouched, setPeriodTouched] = useState(false);
   const { t: tTypes } = useTranslation('purchaseTypes');
   const periodErrors = purchaseTypePeriodErrors(purchaseType, (key, fallback) => tTypes(key, fallback));
@@ -193,7 +194,7 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== initialTitle || supplierId !== null || budgetCategory !== '' || purchaseType.id !== '' || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
+    title !== initialTitle || supplierId !== null || budgetCategory !== '' || purchaseType.id !== '' || subcontract || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const updateAddRowDirty = useCallback((hasInput: boolean) => {
@@ -328,6 +329,7 @@ export default function ProcurementCreate() {
         ...(have === 'need' && budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
         ...(have === 'need' && attribution.workOrderId ? { workOrderId: attribution.workOrderId } : {}),
         ...(have === 'need' && attribution.disciplineId ? { disciplineId: attribution.disciplineId } : {}),
+        ...(have === 'need' && subcontract ? { isSubcontract: true } : {}),
         ...(have === 'need' && purchaseType.id ? { purchaseTypeId: purchaseType.id, ...(purchaseType.isRental ? { rentalFrom: purchaseType.from, rentalTo: purchaseType.to } : {}) } : {}),
       },
       lines: have === 'need' ? (pendingLine ? [...lines, pendingLine] : lines).map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
@@ -497,6 +499,10 @@ export default function ProcurementCreate() {
                 />
               )}
               {needForm && <PurchaseTypeFields value={purchaseType} onChange={setPurchaseType} showErrors={periodTouched} disabled={saving || Boolean(attempt)} />}
+              {needForm && <Checkbox checked={subcontract} onChange={setSubcontract} disabled={saving || Boolean(attempt)}
+                label={t('subcontract', 'Subcontract work: billed through progress certificates')}>
+                {t('subcontract', 'Subcontract work: billed through progress certificates')}
+              </Checkbox>}
               </FormGrid>
             </fieldset>
           </CardPad>

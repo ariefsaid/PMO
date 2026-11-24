@@ -168,6 +168,14 @@
     "targetsSaved": "Target disimpan",
     "targetNote": "(sasaran {{target}}%)",
     "belowTarget": "Di bawah target",
+    "refusal": {
+      "beforeInService": "Tanggal ini sebelum mesin mulai beroperasi. Pilih tanggal pada atau setelah tanggal mulai operasinya.",
+      "future": "Tanggal status tidak boleh di masa depan.",
+      "noteLength": "Catatan paling banyak 500 karakter.",
+      "status": "Pilih salah satu status yang tersedia.",
+      "assetGone": "Salah satu mesin ini sudah tidak tersedia. Muat ulang halaman."
+    },
+    "daysOf": "{{available}} dari {{inService}} hari",
     "effect": {
       "ready": "Dihitung tersedia. Boleh direncanakan untuk bekerja.",
       "standby": "Dihitung tersedia, tidak bekerja. Rencanakan sebagai cadangan.",

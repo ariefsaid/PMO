@@ -160,6 +160,8 @@ const ProcurementPage: React.FC = () => {
   const isEngineer = realRole === 'Engineer';
   const isProjectManager = realRole === 'Project Manager';
   const canSeeOrphans = realRole === 'Finance' || realRole === 'Admin';
+  // A Project Manager reads the certificates of the projects they manage (the list is RLS-scoped).
+  const canSeeCertificates = !isEngineer && (isProjectManager || may('view', 'subcontractCertificate'));
   const canApprove = realRole != null && APPROVAL_ROLES.has(realRole);
   const canCreate = may('create', 'procurement');
   const canViewOrphans = canSeeOrphans && may('view', 'procurement');
@@ -421,6 +423,7 @@ const ProcurementPage: React.FC = () => {
         panelClassName="absolute left-0 right-auto top-full z-30 sm:left-auto sm:right-0 mt-1 flex w-auto min-w-56 flex-col gap-1 rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
       >
         {tab !== 'orphans' && <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />}
+        {canSeeCertificates && <Button variant="outline" onClick={() => navigate('/subcontract-certificates')} className="w-full justify-start"><Icon name="reports" />{t('moreTools.subcontractCertificates', 'Subcontract certificates')}</Button>}
         {userId && canCreate && <Button variant="outline" disabled={referencesPending || referencesError} onClick={() => void beginImport('bulk')} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importProcurements', 'Import procurements')}</Button>}
         {userId && canCreate && <Button variant="outline" disabled={referencesPending || referencesError} onClick={() => void beginImport('cycle')} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importCycle', 'Import cycle data')}</Button>}
         {userId && canCreate && referencesPending && <div role="status">{t('references.loading', 'Loading references…')}</div>}

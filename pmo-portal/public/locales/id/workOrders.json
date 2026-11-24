@@ -164,6 +164,8 @@
     "estimate": "Perkiraan {{amount}} (angka perencanaan, bukan biaya)",
     "files": "Berkas laporan",
     "raisePurchase": "Buat pembelian",
+    "raiseTitle": "Buat pembelian untuk {{title}}",
+    "raiseHelp": "Membuat draf pembelian untuk inspeksi ini. Setelah dibuat, pembelian dibuka dari sini.",
     "invitedOn": "Tanggal undangan",
     "invitedWho": "Siapa yang diundang",
     "invitedHow": "Cara",

@@ -497,6 +497,8 @@
         "template": "Template",
         "pickTemplate": "Choose a template",
         "load": "Replace steps with template",
+        "loadFirst": "Load steps from a template",
+        "loadEmpty": "Load steps",
         "loadTemplateTerms": "Replace stages with template",
         "loadTemplateError": "The template could not be loaded.",
         "name": "Step name",

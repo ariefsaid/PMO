@@ -107,6 +107,18 @@ describe('WorkOrderDetail', () => {
     renderPage();
     expect(screen.getByTestId('inspections-section').textContent).toBe('w1');
   });
+  it('PU16 a posted stock issue says it is not part of project cost, and a transfer that it is still on hand, never "Not yet costed"', async () => {
+    const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');
+    h.lines = q({ stock_document: [ln('stock_document', 'iss1', null), ln('stock_document', 'trf1', null), ln('stock_document', 'drf1', null)] });
+    const stockLine = (recordId: string, reason: string) => ({ source: 'stock_document', recordId, projectId: 'p1', workOrderId: 'w1', disciplineId: null, occurredOn: null, reference: null, currency: null, amount: null, reason, quantity: null, quantityUnit: null, personId: null });
+    h.pva = { isPending: false, isError: false, refetch: () => undefined,
+      data: { workOrders: [], plans: [], split: null, rollup: rollupProject({ workOrders: [], lines: [], plans: [], split: null, restricted: false } as never), costLines: [stockLine('iss1', 'outside-basis'), stockLine('trf1', 'transfer'), stockLine('drf1', 'not-posted')] } };
+    renderPage();
+    expect(screen.getByTestId('cost-line-iss1')).toHaveTextContent('Not part of project actuals');
+    expect(screen.getByTestId('cost-line-trf1')).toHaveTextContent('Moved to site, still on hand');
+    expect(screen.getByTestId('cost-line-drf1')).toHaveTextContent('Not posted or approved yet');
+    expect(screen.queryByText('Not yet costed')).toBeNull();
+  });
   it('AC-WPVA-016 shows the plan-vs-actual panel for this work order, and hides it from a role that may not view plans', async () => {
     const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');
     const workOrders = [{ id: 'w1', woNumber: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', revenue: '1000.00', revenueComplete: true }];
@@ -167,7 +179,7 @@ describe('WorkOrderDetail', () => {
     h.lines = q({ stock_document: [ln('stock_document', 'stock1', null)] });
     renderPage();
     expect(screen.queryByRole('link', { name: 'stock1' })).toBeNull();
-    expect(screen.getByText('Not yet costed')).toBeTruthy();
+    expect(screen.queryByText('Not yet costed')).toBeNull();
   });
   it('identifies a timesheet by person and week, and uses the standard whole-unit money display', () => {
     h.lines = q({ timesheet_entry: [{ ...ln('timesheet_entry', 'hour1', null), reference: null }], purchase_order: [ln('purchase_order', 'po1', 'd1')] });

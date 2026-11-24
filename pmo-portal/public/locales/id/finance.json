@@ -1175,7 +1175,7 @@
     "truncated": "Menampilkan {{count}} yang tertua. Saring menurut proyek untuk melihat sisanya.",
     "error": "Papan penagihan tidak dapat dimuat",
     "empty": "Tidak ada klaim untuk ditampilkan",
-    "emptySub": "Klaim muncul di sini setelah memiliki langkah penagihan. Buka klaim di tab Penagihan proyek, lalu tambahkan langkahnya.",
+    "emptySub": "Klaim muncul di sini setelah memiliki langkah penagihan. Buka klaim di tab Kontrak proyek, lalu tambahkan langkahnya.",
     "entryLink": "Papan penagihan"
   },
   "billingPlan": {
