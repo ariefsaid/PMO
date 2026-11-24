@@ -5,13 +5,14 @@
 -- MUTATION NOTES (remove the condition tagged in 2042; the named assertion must go red; restore):
 --   mut:rr_hr_people ...... 'RR-HR-01 the HR Officer adds a person to the register'
 --   mut:rr_hr_clear ....... 'RR-HR-05 the HR Officer ticks a worker''s cleared-for-site item'
+--   mut:rr_hr_items ....... 'RR-HR-05 the HR Officer reads the checklist items'
 --   mut:rr_hr_clear_own ... 'RR-HR-06 the HR Officer cannot tick their own cleared-for-site item'
 --   mut:rr_hr_leave ....... 'RR-HR-08 the HR Officer enters leave for a worker'
 --   mut:rr_hr_sheets ...... 'RR-HR-10 the HR Officer reads every timesheet and its entries'
 --   mut:rr_hrm_types ...... 'RR-HR-12 the HR Manager adds a person document type' and 'RR-HR-14 ... sets the warning days'
 begin;
 create extension if not exists pgtap;
-select plan(33);
+select plan(35);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled, leave_requests_enabled) values
   ('20420000-0000-0000-0000-00000000000a', 'RR HR Org', 'IDR', 'UTC', true, true);
@@ -87,6 +88,8 @@ select is(pg_temp.err('a2', $$update people set manager_id = '20420000-0000-0000
 -- ── cleared-for-site checklist ───────────────────────────────────────────────────────────────────────────────────────────────────
 select is(pg_temp.err('a2', pg_temp.tick('51')), 'ok', 'RR-HR-05 the HR Officer ticks a worker''s cleared-for-site item');
 select is(pg_temp.val('a2', 'select count(*)::text from person_clearances'), '1', 'RR-HR-05 and reads the checklist');
+select is(pg_temp.val('a2', 'select count(*)::text from clearance_items'), '1', 'RR-HR-05 the HR Officer reads the checklist items');
+select is(pg_temp.val('a4', 'select count(*)::text from clearance_items'), '0', 'RR-HR-07 a Storekeeper reads no checklist item');
 select is(pg_temp.err('a2', pg_temp.tick('52')), '42501 new row violates row-level security policy for table "person_clearances"',
   'RR-HR-06 the HR Officer cannot tick their own cleared-for-site item');
 select is(pg_temp.err('a4', $$update person_clearances set note = 'x'$$ ), 'ok', 'RR-HR-07 (a Storekeeper''s update touches no row)');

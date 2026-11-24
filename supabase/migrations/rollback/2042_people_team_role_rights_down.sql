@@ -81,6 +81,8 @@ alter policy people_update on public.people
   with check ((org_id = (select public.auth_org_id())) and (select public.is_active_member()));
 alter policy person_clearances_select on public.person_clearances
   using ((org_id = (select public.auth_org_id())) and (select public.is_active_member()) and ((select public.auth_role()) = any (array['Admin'::user_role, 'Project Manager'::user_role, 'Finance'::user_role, 'Executive'::user_role])));
+alter policy clearance_items_select on public.clearance_items
+  using ((org_id = (select public.auth_org_id())) and (select public.is_active_member()) and ((select public.auth_role()) = any (array['Admin'::user_role, 'Project Manager'::user_role, 'Finance'::user_role, 'Executive'::user_role])));
 alter policy person_clearances_insert on public.person_clearances
   with check ((org_id = (select public.auth_org_id())) and (select public.is_active_member()) and ((select public.auth_role()) = any (array['Admin'::user_role, 'Project Manager'::user_role])));
 alter policy person_clearances_update on public.person_clearances

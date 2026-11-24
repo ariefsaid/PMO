@@ -63,6 +63,10 @@ alter policy person_clearances_select on public.person_clearances
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and ((select public.auth_role()) in ('Admin', 'Project Manager', 'Finance', 'Executive')
               or (select public.actor_holds_job_role('hr_officer'))));
+alter policy clearance_items_select on public.clearance_items
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and ((select public.auth_role()) in ('Admin', 'Project Manager', 'Finance', 'Executive')
+              or (select public.actor_holds_job_role('hr_officer'))));  -- mut:rr_hr_items
 alter policy person_clearances_insert on public.person_clearances
   with check (org_id = (select public.auth_org_id()) and public.actor_may_tick_clearances(person_id));
 alter policy person_clearances_update on public.person_clearances
