@@ -168,6 +168,13 @@
     "targetsSaved": "Targets saved",
     "targetNote": "(target {{target}}%)",
     "belowTarget": "Below target",
+    "refusal": {
+      "beforeInService": "This date is before the machine went into service. Pick a date on or after its in-service date.",
+      "future": "The status date cannot be in the future.",
+      "noteLength": "Keep the note to 500 characters or fewer.",
+      "status": "Choose one of the listed statuses.",
+      "assetGone": "One of these machines is no longer available. Reload the page."
+    },
     "daysOf": "{{available}} of {{inService}} days",
     "effect": {
       "ready": "Counts as available. Plan it for work.",
