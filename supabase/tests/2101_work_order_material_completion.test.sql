@@ -105,7 +105,7 @@ select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000
 select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'rows'->0->>'issued'), '10', 'AC-WMC-001 the quantity issued to the work order');
 select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'rows'->0->>'returned'), '0', 'AC-WMC-001 nothing returned yet');
 select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'totals'->0->>'issued'), '10', 'AC-WMC-002 the total per unit adds the rows');
-select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'value_totals'->>'issued'), '40.0000', 'AC-WMC-003 a role with cost access sees the issued value');
+select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'value_totals'->>'issued'), '40.00', 'AC-WMC-003 a role with cost access sees the issued value');
 
 -- Add ledger movements whose figures exercise every independent completion column: a partial return,
 -- transfers into/out of the site, a positive count variance, and a negative variance on another item.
@@ -116,7 +116,15 @@ select set_config('tst.ret', create_stock_document(jsonb_build_object('kind','re
     'source_line_id',(select id from stock_document_lines where document_id = current_setting('tst.i1')::uuid))), true)::text, false);
 select set_config('tst.xin_pipe', tst_xfer('26950000-0000-0000-0000-000000002001','26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000001001',8)::text, false);
 select set_config('tst.xout_pipe', tst_xfer('26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000002001','26950000-0000-0000-0000-000000001001',3)::text, false);
-select set_config('tst.xin_free', tst_xfer('26950000-0000-0000-0000-000000002001','26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000001002',5)::text, false);
+select set_config('tst.xin_free', tst_xfer('26950000-0000-0000-0000-000000002001','26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000001002',5, false)::text, false);
+reset role;
+insert into storage.objects (bucket_id, name) values ('stock-documents', '26950000-0000-0000-0000-00000000000a/' || current_setting('tst.xin_free') || '/26950000-0000-0000-0000-000000004005/slip.pdf');
+select tst_as('26950000-0000-0000-0000-0000000000a1');
+insert into stock_document_files (id, document_id, file_path, label) values
+  ('26950000-0000-0000-0000-000000004005', current_setting('tst.xin_free')::uuid,
+   '26950000-0000-0000-0000-00000000000a/' || current_setting('tst.xin_free') || '/26950000-0000-0000-0000-000000004005/slip.pdf', 'Delivery note');
+select post_stock_document(current_setting('tst.xin_free')::uuid,
+  (select revision from stock_documents where id = current_setting('tst.xin_free')::uuid));
 select set_config('tst.count', create_stock_document(jsonb_build_object('kind','count','warehouse_id','26950000-0000-0000-0000-000000002002'),
   jsonb_build_array(jsonb_build_object('item_id','26950000-0000-0000-0000-000000001001','counted_quantity',6),
                     jsonb_build_object('item_id','26950000-0000-0000-0000-000000001002','counted_quantity',4)), false)::text, false);
