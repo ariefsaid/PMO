@@ -10,7 +10,7 @@ test('AC-GR-001 Equipment Officer registers a machine on the asset register', as
   try {
     await officer.signIn(page);
     await page.goto('/equipment/assets');
-    await page.getByRole('button', { name: 'New asset' }).click();
+    await page.getByTestId('list-page-header').getByRole('button', { name: 'New asset' }).click();
     const form = page.getByRole('dialog');
     await form.getByLabel(/^Code/).fill('GR-001');
     await form.getByLabel(/^Name/).fill('Registered machine');
