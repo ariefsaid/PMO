@@ -1,3 +1,4 @@
+import { useStockItems } from "@/src/hooks/useStock";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +45,8 @@ interface DraftLine {
   rate: number;
   amount: number | null;
   description: string | null;
+  stockItemId?: string | null;
+  stock_item_id?: string | null;
 }
 
 interface IntakeChoice {
@@ -175,6 +178,7 @@ export default function ProcurementCreate() {
   // A work order per line (wo-per-purchase-line): '' = same as the request. A work order belongs to one project, so a project change clears the picks.
   const [lineWorkOrders, setLineWorkOrders] = useState<Record<string, LineAttributionValue>>({});
   const lineDisciplines = useCostDisciplines();
+  const stockItems = useStockItems(true);
   const projectWorkOrders = useProjectWorkOrders(selectedProject ?? '');
   const refusalLine = useRefusalLine();
   useEffect(() => { setLineWorkOrders({}); }, [selectedProject]);
@@ -264,21 +268,22 @@ export default function ProcurementCreate() {
     return standardChoices;
   }, [canCaptureDocuments, realRole, t]);
 
-  const makeDraftLine = (line: { name: string; quantity: number; rate: number; description?: string }): DraftLine => ({
+  const makeDraftLine = (line: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null }): DraftLine => ({
     ...line,
+    stock_item_id: line.stockItemId ?? null,
     id: crypto.randomUUID(),
     amount: itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]),
     description: line.description ?? null,
   });
-  const addLine = async (line: { name: string; quantity: number; rate: number; description?: string }) => {
+  const addLine = async (line: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null }) => {
     const row = makeDraftLine(line);
     setLines((current) => [...current, row]);
     return row;
   };
-  const updateLine = async (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => {
+  const updateLine = async (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string; stockItemId?: string | null }) => {
     setLines((current) => current.map((line) => {
       if (line.id !== id) return line;
-      const updated = { ...line, ...patch, quantity: patch.quantity ?? line.quantity, rate: patch.rate ?? line.rate };
+      const updated = { ...line, ...patch, ...(patch.stockItemId !== undefined ? { stock_item_id: patch.stockItemId } : {}), quantity: patch.quantity ?? line.quantity, rate: patch.rate ?? line.rate };
       return { ...updated, amount: itemsNetTotal([{ quantity: updated.quantity, rate: updated.rate }]) };
     }));
   };
@@ -332,7 +337,7 @@ export default function ProcurementCreate() {
         ...(have === 'need' && subcontract ? { isSubcontract: true } : {}),
         ...(have === 'need' && purchaseType.id ? { purchaseTypeId: purchaseType.id, ...(purchaseType.isRental ? { rentalFrom: purchaseType.from, rentalTo: purchaseType.to } : {}) } : {}),
       },
-      lines: have === 'need' ? (pendingLine ? [...lines, pendingLine] : lines).map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
+      lines: have === 'need' ? (pendingLine ? [...lines, pendingLine] : lines).map(({ id, name, quantity, rate, description, stockItemId }) => ({ id, name, quantity, rate, description, ...(stockItemId ? { stockItemId } : {}) })) : [],
     };
     const attemptHave = attempt?.have ?? have;
     setAttempt({ input, have: attemptHave });
@@ -517,6 +522,7 @@ export default function ProcurementCreate() {
             <LineItemsSection
               ref={lineItemsRef}
               items={lines as unknown as ProcurementItemRow[]}
+              stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))}
               editable
               createFormLayout
               busy={saving || Boolean(attempt)}

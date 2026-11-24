@@ -46,6 +46,8 @@ it('AC-008 keeps Periode when an older English switch finishes after the profile
   await waitFor(() => expect(fetcher.mock.calls.some(([path]) => String(path) === '/locales/en/common.json')).toBe(true));
   state.locale = 'id';
   view.rerender(tree());
+  // Metadata follows the profile while the first catalogue is blocked.
+  await waitFor(() => expect(document.documentElement.lang).toBe('id'));
   await act(async () => { releaseBoot(); await starting; });
   await waitFor(() => expect(screen.getByText('Periode')).toBeInTheDocument());
 
@@ -59,6 +61,7 @@ it('AC-008 keeps Periode when an older English switch finishes after the profile
   await waitFor(() => expect(changeLanguage).toHaveBeenCalledWith('en'));
   state.locale = 'id';
   view.rerender(tree());
+  await waitFor(() => expect(document.documentElement.lang).toBe('id'));
   await act(async () => { releaseEnglish(); await namespaceLoad; });
   await waitFor(() => expect(screen.getByText('Periode')).toBeInTheDocument());
   expect(i18next.language).toBe('id');

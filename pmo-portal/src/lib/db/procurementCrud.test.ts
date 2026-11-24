@@ -233,6 +233,7 @@ describe('AC-PROC-003 line items CRUD (procurement_items, no org_id, no generate
     ['a different quantity', { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: '25.00', rate: '86.00', description: null }],
     ['a different rate', { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: '24.00', rate: '87.00', description: null }],
     ['a different description', { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: '24.00', rate: '86.00', description: 'other' }],
+    ['a different stock item', { id: 'stable-id', procurement_id: 'pr1', name: 'Wire', quantity: '24.00', rate: '86.00', description: null, stock_item_id: 'si-other' }],
   ])('AC-PROC-003 does not treat a duplicate ID with %s as success', async (_case, row) => {
     h.result.queue.push(
       { data: null, error: { message: 'duplicate key', code: '23505' } },
@@ -241,6 +242,16 @@ describe('AC-PROC-003 line items CRUD (procurement_items, no org_id, no generate
     await expect(createProcurementItem('pr1', {
       id: 'stable-id', name: 'Wire', quantity: 24, rate: 86,
     })).rejects.toThrow(/open the saved request to reconcile/i);
+  });
+
+  it('AC-PSI-001 persists stock_item_id on createProcurementItem and updateProcurementItem', async () => {
+    h.result.value = { data: { id: 'it-si', stock_item_id: 'si-1' }, error: null };
+    await createProcurementItem('pr1', { name: 'Welding Electrode E7018', quantity: 5, rate: 10, stockItemId: 'si-1' });
+    expect(h.calls.insert[0]).toMatchObject({ procurement_id: 'pr1', name: 'Welding Electrode E7018', stock_item_id: 'si-1' });
+
+    h.result.value = { data: [{ id: 'it-si' }], error: null };
+    await updateProcurementItem('it-si', { name: 'Custom wire', stockItemId: null });
+    expect(h.calls.update[0]).toEqual({ name: 'Custom wire', stock_item_id: null });
   });
 
   it('AC-PROC-003 requires comparable finite numeric values when reconciling a line', async () => {
