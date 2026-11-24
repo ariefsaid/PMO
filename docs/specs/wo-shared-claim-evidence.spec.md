@@ -1,7 +1,7 @@
 # Work-Order Shared Claim Evidence
 
 **Status:** Implementation
-**Decisions:** DD-R1124-17, DD-R1124-18
+**Decisions:** DD-R1124-23, DD-R1124-24
 **Migration:** 2600_work_order_shared_claim_evidence.sql (rollback in migrations/rollback)
 
 A work order may be billed across multiple claims. An Admin identifies the billing steps whose documents count as claim evidence; quality documents filed once on those steps can then serve later claims.

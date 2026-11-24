@@ -1,5 +1,5 @@
 -- 2600_work_order_shared_claim_evidence.sql — quality/acceptance documents filed once against a work order's billing steps
--- are automatically reused as evidence on claims of that work order (DD-R1124-17; docs/specs/wo-shared-claim-evidence.spec.md).
+-- are automatically reused as evidence on claims of that work order (DD-R1124-23; docs/specs/wo-shared-claim-evidence.spec.md).
 -- Rollback: supabase/migrations/rollback/2600_work_order_shared_claim_evidence_down.sql
 -- No rights or money change.
 -- Restated functions (verbatim from latest bodies at origin/dev + additions only, zero removed checks):
@@ -484,7 +484,7 @@ begin
       using errcode = '22023';
   end if;
 
-  -- ⚑ 2600 (DD-R1124-17): snapshot current work-order billing-step documents onto the new claim when reuse is enabled.
+  -- ⚑ 2600 (DD-R1124-23): snapshot current work-order billing-step documents onto the new claim when reuse is enabled.
   if p_work_order_id is not null then
     perform public.copy_work_order_evidence_to_claim(v_id, p_work_order_id);
   end if;
@@ -548,7 +548,7 @@ begin
   perform public.log_audit('wo_billing_step.document.attach', v_s.org_id, auth.uid(), v_s.work_order_id,
     jsonb_build_object('step_id', v_s.id, 'position', v_s.position, 'slot_id', v_slot, 'document_id', p_document, 'document_status', v_status));
 
-  -- ⚑ 2600 (DD-R1124-17): link a newly attached work-order document onto open claims of this work order.
+  -- ⚑ 2600 (DD-R1124-23): link a newly attached work-order document onto open claims of this work order.
   -- Replacing an existing slot document (v_prev_doc is not null) leaves earlier claims untouched; later claims inherit the replacement.
   if (p_slot is null or v_prev_doc is null)                                                                              -- mut:wqe_no_replace_overwrite
      and v_s.claim_evidence_enabled then                                                                                 -- mut:wqe_quality_step_attach
