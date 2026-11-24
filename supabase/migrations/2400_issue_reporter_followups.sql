@@ -12,7 +12,7 @@ begin
   perform public.assert_is_active_member();
   select * into i from public.incident_reports where id = p_incident and org_id = public.auth_org_id() for update;
   if not found then raise exception 'issue not found' using errcode = '42501'; end if;
-  if not (public.actor_may_task_issue(i.work_order_id) or i.reported_by = auth.uid()) then -- mut:reporter_task
+  if not (public.actor_may_task_issue(i.work_order_id) or coalesce(i.reported_by = auth.uid(), false)) then -- mut:reporter_task
     raise exception 'only a manager, or the site supervisor of its work order, may add a task to an issue' using errcode = '42501';
   end if;
   if not public.org_feature_enabled(i.org_id, 'incidents') then
