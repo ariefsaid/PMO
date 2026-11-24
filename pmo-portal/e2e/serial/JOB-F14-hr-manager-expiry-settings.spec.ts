@@ -36,7 +36,7 @@ test('JOB-F14 HR manager configures expiry recipients and warning days and the d
     await page.goto('/administration/document-types');
     const section = page.locator('#document-types');
     await expect(section).toBeVisible({ timeout: 20_000 });
-    await section.getByRole('button', { name: 'Add document type' }).click();
+    await section.getByRole('button', { name: 'Add document type' }).first().click();
     const dialog = page.getByRole('dialog', { name: 'Add document type' });
     await dialog.locator('#document-type-name').fill(typeName);
     await dialog.getByRole('checkbox', { name: 'Project Manager' }).check();

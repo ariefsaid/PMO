@@ -15,8 +15,13 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
   await expect(row.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();await page.reload();await expect(page.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();
   // QC owns filing; Finance owns opening each claim and following its evidence doorway.
   await signIn(page,'finance@acme.test');
-  for(const claim of claims){
-   await page.goto(`/projects/${fixture.project}/contract?open=${claim.id}&openType=billingClaim`);
+  for(const [index,claim] of claims.entries()){
+   if(index===0) await page.goto(`/projects/${fixture.project}/contract?open=${claim.id}&openType=billingClaim`);
+   else {
+    // Follow the record link back to the cached project and open its other claim.
+    await page.getByRole('link',{name:'Claims and invoices',exact:true}).click();
+    await page.getByRole('row').filter({has:page.getByTestId(`claim-evidence-${claim.id}`)}).click();
+   }
    await expect(page).toHaveURL(new RegExp(`open=${claim.id}`));
    const claimSection=page.locator(`[aria-labelledby="billing-stages-${claim.id}"]`);
    await expect(claimSection).toBeVisible();

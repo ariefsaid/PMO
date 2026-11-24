@@ -68,6 +68,7 @@ test('AC-PPL-010: an Admin creates a person document type and warning days, then
   await expect(typeForm).toHaveCount(0);
   await expect(page.getByRole('row', { name: new RegExp(typeName) })).toBeVisible();
 
+  await page.goto('/administration/people');
   await page.getByRole('button', { name: 'Add person' }).first().click();
   const personForm = page.getByRole('dialog');
   await personForm.getByLabel(/^Name/).fill(personName);
