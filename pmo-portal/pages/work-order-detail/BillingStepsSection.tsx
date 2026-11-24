@@ -8,6 +8,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { Button } from '@/src/components/ui/Button';
+import { Checkbox } from '@/src/components/ui/Checkbox';
 import { DateField } from '@/src/components/ui/DateField';
 import { SelectField, TextField } from '@/src/components/ui/FormFields';
 import { EntityFormModal, type SubmitError } from '@/src/components/ui/EntityFormModal';
@@ -49,10 +50,11 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
   const { t } = useTranslation('billingSteps');
   const auth = useContext(AuthContext);
   const { realRole, effectiveRole } = useEffectiveRole();
+  const may = usePermission();
   const viewOnly = realRole !== effectiveRole;
   const roleName = useBuiltInRoleName();
   const line = useRefusalLine();
-  const { complete, skip, assign, attach } = useWorkOrderStepMutations();
+  const { complete, skip, assign, attach, markEvidence } = useWorkOrderStepMutations();
   const [doneOn, setDoneOn] = useState(today);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const status = stepStatus(step);
@@ -94,6 +96,11 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
       {due && status === 'current' && ` · ${t('due', 'Due {{date}}', { date: formatIsoDay(due) })}`}
       {age !== null && status === 'current' && ` · ${t('age', '{{count}} days on this step', { count: age })}`}
     </p>
+    {!viewOnly && may('manage', 'orgAccounting') && <Checkbox checked={step.claimEvidenceEnabled === true} disabled={markEvidence.isPending}
+      label={t('claimEvidence', 'Documents here count as claim evidence')}
+      onChange={(enabled) => void run(() => markEvidence.mutateAsync({ stepId: step.id, enabled }))}>
+      {t('claimEvidence', 'Documents here count as claim evidence')}
+    </Checkbox>}
     {canAttach && <div className="mt-2 flex flex-wrap items-end gap-2">
       <SelectField label={t('extraDocument', 'Additional document')} placeholder={t('pick', 'Choose a document')}
         value={picked.extra ?? ''} onChange={(v) => setPicked((p) => ({ ...p, extra: v }))}

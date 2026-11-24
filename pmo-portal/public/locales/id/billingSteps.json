@@ -68,14 +68,9 @@
       "summary": "Memungkinkan pelaksana langkah penagihan menambahkan langkah pada daftar perintah kerja yang diterbitkan dan menyimpannya sebagai templat untuk perintah kerja baru.",
       "label": "Edit daftar penagihan perintah kerja yang diterbitkan",
       "helper": "Jika aktif, pelaksana langkah penagihan dapat menambahkan langkah pada perintah kerja terbit, dan Finance atau Admin dapat menyimpan daftar sebagai templat untuk perintah kerja baru."
-    },
-    "workOrderEvidenceReuse": {
-      "name": "Gunakan ulang bukti perintah kerja pada tagihan",
-      "summary": "Menautkan dokumen yang disimpan pada perintah kerja secara otomatis ke setiap tagihan perintah kerja tersebut tanpa unggah ulang.",
-      "label": "Gunakan ulang bukti perintah kerja pada tagihan",
-      "helper": "Jika aktif, dokumen terbit atau disetujui yang disimpan pada perintah kerja otomatis ditautkan sebagai bukti pada setiap tagihan perintah kerja tersebut. Tagihan sebelumnya tetap merujuk ke revisi dokumen saat diajukan."
     }
   },
+  "claimEvidence": "Dokumen di langkah ini dihitung sebagai bukti tagihan",
   "extraDocument": "Dokumen tambahan",
   "attachExtra": "Lampirkan dokumen tambahan"
 }

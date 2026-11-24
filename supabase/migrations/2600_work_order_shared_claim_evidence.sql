@@ -7,46 +7,206 @@
 --   - attach_work_order_step_document: from 1772_wo_billing_step_functions.sql + open-claim propagation on new attachment
 -- drops: attach_work_order_step_document extends the document select with d.revision to snapshot onto progress_claim_evidence; all existing 1772 checks, locks and writes are retained verbatim.
 
--- ── §1 per-organisation setting (existing organisations off, new organisations on; Admin-only; audited) ────────────────────────────────────────
-alter table public.organizations add column work_order_evidence_reuse_enabled boolean not null default false;
-alter table public.organizations alter column work_order_evidence_reuse_enabled set default true;
-comment on column public.organizations.work_order_evidence_reuse_enabled is
-  'On (default): Issued/Approved documents filed on a work order''s billing steps are automatically linked as evidence on its claims without re-upload (2600). Written only through set_org_work_order_evidence_reuse (Admin).';
+-- An explicit per-step designation is the only control; old and new unmarked steps remain off.
+alter table public.work_order_billing_steps add column claim_evidence_enabled boolean not null default false;
+alter table public.billing_step_template_steps add column claim_evidence_enabled boolean not null default false;
 
--- Restated from 2181_wo_checklist_edit_copy.sql (the latest migration that defines it), with the new column appended.
-drop trigger zz_audit_org_setting_change on public.organizations;
-create trigger zz_audit_org_setting_change after update on public.organizations for each row
-  execute function public.audit_org_setting_change(
-    'quantity_change_limit', 'built_in_roles_enabled', 'phone_check_in_supervisor_role', 'hide_prices_from_requesters',
-    'clearance_checklist_enabled', 'leave_requests_enabled', 'leave_approver_role', 'crew_loans_enabled',
-    'discipline_profit_enabled', 'performance_indices_enabled', 'performance_band_low', 'performance_band_high',
-    'stock_transfer_mode', 'stock_proof_timing', 'stock_wo_transfers', 'stock_reservations', 'reservation_borrow_mode',
-    'reservation_borrow_role', 'reservation_borrow_label', 'dsr_stock_issue', 'dsr_stock_issue_items',
-    'purchase_line_planning', 'safety_records_enabled', 'equipment_availability_target_pct',
-    'equipment_utilisation_target_pct', 'equipment_escalation_down_days', 'attendance_target_rate',
-    'module_people_crews', 'module_site_day', 'module_stock', 'module_purchasing_extras', 'module_billing_extras',
-    'work_order_checklist_enabled', 'work_order_evidence_reuse_enabled');
-
-create function public.set_org_work_order_evidence_reuse(p_enabled boolean) returns boolean
+-- Only an Admin can mark a step already on a work order.
+create function public.set_work_order_step_claim_evidence(p_step uuid, p_enabled boolean) returns void
   language plpgsql security definer set search_path = public as $$
-declare
-  v_org  uuid      := public.auth_org_id();
-  v_role user_role := public.auth_role();
+declare v_org uuid := public.auth_org_id(); v_work_order uuid;
 begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
-  if v_role is distinct from 'Admin' then
-    raise exception 'WBS_EVIDENCE_SETTING: only an Admin can switch work-order evidence reuse on or off' using errcode = '42501';
+  if public.auth_role() is distinct from 'Admin' then
+    raise exception 'WBS_EVIDENCE_MARK: only an Admin can choose which step documents count as claim evidence' using errcode = '42501';
   end if;
-  if p_enabled is null then
-    raise exception 'WBS_EVIDENCE_SETTING: work-order evidence reuse is on or off' using errcode = '22023';
-  end if;
-  update public.organizations o set work_order_evidence_reuse_enabled = p_enabled where o.id = v_org;
-  if not found then raise exception 'WBS_ORDER_NOT_FOUND: organisation not found' using errcode = 'P0002'; end if;
-  return p_enabled;
+  if p_enabled is null then raise exception 'WBS_EVIDENCE_MARK: choose on or off' using errcode = '22023'; end if;
+  select s.work_order_id into v_work_order from public.work_order_billing_steps s
+   where s.id = p_step and s.org_id = v_org
+     and public.wo_step_readable(s.assignee_id, s.owner_role_key, s.hidden_from_role_keys);
+  if not found then raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002'; end if;
+  perform 1 from public.organizations o where o.id = v_org for share;
+  perform public.lock_work_order_billing(v_work_order);
+  perform 1 from public.work_orders w where w.id = v_work_order and w.org_id = v_org for update;
+  update public.work_order_billing_steps set claim_evidence_enabled = p_enabled where id = p_step and org_id = v_org;
+  if not found then raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002'; end if;
+  perform public.log_audit('wo_billing_step.claim_evidence', v_org, auth.uid(), v_work_order,
+    jsonb_build_object('step_id', p_step, 'enabled', p_enabled));
 end; $$;
-revoke all on function public.set_org_work_order_evidence_reuse(boolean) from public, anon;
-grant execute on function public.set_org_work_order_evidence_reuse(boolean) to authenticated, service_role;
+revoke all on function public.set_work_order_step_claim_evidence(uuid, boolean) from public, anon;
+grant execute on function public.set_work_order_step_claim_evidence(uuid, boolean) to authenticated, service_role;
+
+
+-- drops: instantiate_work_order_billing_steps extends the copied step column and value lists with the claim-evidence flag.
+create or replace function public.instantiate_work_order_billing_steps() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare v_tpl uuid; v_today date; v_first public.work_order_billing_steps; v_n int;
+begin
+  select s.default_template_id into v_tpl
+    from public.org_billing_step_settings s
+    join public.billing_step_templates t on t.id = s.default_template_id and t.org_id = s.org_id and t.archived_at is null
+   where s.org_id = new.org_id;
+  if v_tpl is null then return new; end if;
+  v_today := public.native_org_today(new.org_id);
+  insert into public.work_order_billing_steps
+    (org_id, work_order_id, project_id, position, name, owner_role_key, target_days, optional, hidden_from_role_keys, claim_evidence_enabled, started_on)
+  select new.org_id, new.id, new.project_id, t.position, t.name, t.owner_role_key, t.target_days, t.optional, t.hidden_from_role_keys, t.claim_evidence_enabled,
+         case when t.position = (select min(t2.position) from public.billing_step_template_steps t2 where t2.template_id = v_tpl) then v_today end
+    from public.billing_step_template_steps t where t.template_id = v_tpl and t.org_id = new.org_id;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then return new; end if;
+  insert into public.work_order_billing_step_documents (org_id, step_id, work_order_id, position, name, required)
+  select new.org_id, ws.id, new.id, d.position, d.name, d.required
+    from public.billing_step_template_steps t
+    join public.work_order_billing_steps ws on ws.work_order_id = new.id and ws.position = t.position
+    join public.billing_step_template_documents d on d.step_id = t.id
+   where t.template_id = v_tpl;
+  select * into v_first from public.work_order_billing_steps s where s.work_order_id = new.id and s.started_on is not null order by s.position limit 1;
+  if v_first.id is not null then perform public.notify_wo_step_opened(v_first); end if;
+  return new;
+end; $$;
+
+-- drops: save_work_order_steps_as_template extends its copied step column and value lists with the claim-evidence flag.
+create or replace function public.save_work_order_steps_as_template(p_work_order uuid, p_name text) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_org   uuid      := public.auth_org_id();
+  v_role  user_role := public.auth_role();
+  v_name  text      := btrim(coalesce(p_name, ''));
+  v_id    uuid;
+  v_n     int; v_docs int;
+begin
+  perform public.assert_not_light();
+  perform public.assert_is_active_member();
+  if v_role is null or v_role not in ('Admin','Finance') then
+    raise exception 'WBS_SETTER_ROLE: only Finance or an Admin can save billing step templates' using errcode = '42501';
+  end if;
+  -- the list cannot change while it is copied: the work-order row lock every step writer takes
+  perform 1 from public.work_orders w where w.id = p_work_order and w.org_id = v_org for update;
+  if not found then raise exception 'WBS_ORDER_NOT_FOUND: work order not found' using errcode = 'P0002'; end if;
+  if not coalesce((select o.work_order_checklist_enabled from public.organizations o where o.id = v_org), false) then
+    raise exception 'WBS_CHECKLIST_OFF: checklist editing is not switched on for this organisation' using errcode = '55000';
+  end if;
+  if v_name = '' or length(v_name) > 120 then
+    raise exception 'WBS_TEMPLATE_NAME: a template needs a name of up to 120 characters' using errcode = '23514';
+  end if;
+  select count(*) into v_n from public.work_order_billing_steps s where s.work_order_id = p_work_order and s.org_id = v_org;
+  if v_n = 0 then
+    raise exception 'WBS_TEMPLATE_EMPTY: this checklist has no steps to save as a template' using errcode = '22023';
+  end if;
+  -- one active template per name in an organisation (the unique index of 1365)
+  begin
+    insert into public.billing_step_templates (org_id, name, created_by) values (v_org, v_name, auth.uid()) returning id into v_id;
+  exception when unique_violation then
+    raise exception 'WBS_TEMPLATE_TAKEN: an active template with this name already exists' using errcode = '23505';
+  end;
+  insert into public.billing_step_template_steps
+    (org_id, template_id, position, name, owner_role_key, hidden_from_role_keys, target_days, client_side, optional, claim_evidence_enabled)
+  select v_org, v_id, s.position, s.name, s.owner_role_key, s.hidden_from_role_keys, s.target_days, false, s.optional, s.claim_evidence_enabled
+    from public.work_order_billing_steps s
+   where s.work_order_id = p_work_order and s.org_id = v_org;
+  insert into public.billing_step_template_documents (org_id, step_id, position, name, required)
+  select v_org, ts.id, d.position, d.name, d.required
+    from public.work_order_billing_step_documents d
+    join public.work_order_billing_steps s on s.id = d.step_id and s.work_order_id = p_work_order and s.org_id = v_org
+    join public.billing_step_template_steps ts on ts.template_id = v_id and ts.position = s.position;
+  get diagnostics v_docs = row_count;
+  perform public.log_audit('wo_billing_steps.save_as_template', v_org, auth.uid(), v_id,
+    jsonb_build_object('work_order_id', p_work_order, 'name', v_name, 'steps', v_n, 'documents', v_docs));
+  return v_id;
+end; $$;
+
+-- drops: save_billing_step_template extends its inserted column and value lists with the Admin-controlled claim-evidence flag.
+create or replace function public.save_billing_step_template(p_template uuid, p_name text, p_steps jsonb) returns uuid
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_org   uuid      := public.auth_org_id();
+  v_role  user_role := public.auth_role();
+  v_id    uuid      := p_template;
+  v_name  text      := btrim(coalesce(p_name, ''));
+  v_stage jsonb; v_doc jsonb; v_pos int := 0; v_dpos int; v_sid uuid; v_days numeric; v_owner user_role;
+  v_old_marks jsonb := '{}'::jsonb; v_seen jsonb := '{}'::jsonb;
+  v_source text; v_old_mark boolean; v_mark boolean;
+begin
+  -- SECURITY: membership, role and org re-assertions MUST stay: a SECURITY DEFINER body bypasses RLS.
+  perform public.assert_not_light();
+  perform public.assert_is_active_member();
+  if v_role is null or v_role not in ('Admin','Finance') then
+    raise exception 'only Finance or an Admin can save a billing step template' using errcode = '42501';
+  end if;
+  if v_name = '' or length(v_name) > 120 then
+    raise exception 'a template needs a name of up to 120 characters' using errcode = '23514', detail = 'template-name-invalid';
+  end if;
+  if p_steps is null or jsonb_typeof(p_steps) <> 'array' or jsonb_array_length(p_steps) > 20 then
+    raise exception 'a template is a list of at most 20 steps' using errcode = '22023', detail = 'stages-shape';
+  end if;
+  if v_id is null then
+    insert into public.billing_step_templates (org_id, name, created_by) values (v_org, v_name, auth.uid()) returning id into v_id;
+  else
+    perform 1 from public.billing_step_templates t where t.id = v_id and t.org_id = v_org and t.archived_at is null for update;
+    if not found then raise exception 'template not found' using errcode = 'P0002', detail = 'template-not-found'; end if;
+    select coalesce(jsonb_object_agg(s.id::text, s.claim_evidence_enabled), '{}'::jsonb) into v_old_marks
+      from public.billing_step_template_steps s where s.template_id = v_id and s.org_id = v_org;
+    if v_role <> 'Admin'
+       and exists (select 1 from jsonb_each_text(v_old_marks) m where m.value = 'true')
+       and not exists (select 1 from jsonb_array_elements(p_steps) x where x ? 'template_step_id') then
+      raise exception 'WBS_EVIDENCE_MARK: reopen the template before editing its marked steps' using errcode = '42501';
+    end if;
+    update public.billing_step_templates set name = v_name where id = v_id;
+    delete from public.billing_step_template_steps where template_id = v_id;
+  end if;
+  for v_stage in select x from jsonb_array_elements(p_steps) x loop
+    v_pos := v_pos + 1;
+    if jsonb_typeof(v_stage) <> 'object' or coalesce(btrim(v_stage ->> 'name'), '') = '' then
+      raise exception 'every step needs a name' using errcode = '23514', detail = 'stage-name-missing';
+    end if;
+    v_days := null;
+    if v_stage ? 'target_days' and jsonb_typeof(v_stage -> 'target_days') <> 'null' then
+      if jsonb_typeof(v_stage -> 'target_days') <> 'number' then
+        raise exception 'a step target is a whole number of days, 1 to 365' using errcode = '23514', detail = 'stage-target-invalid';
+      end if;
+      v_days := (v_stage ->> 'target_days')::numeric;
+      if v_days <> trunc(v_days) or v_days < 1 or v_days > 365 then
+        raise exception 'a step target is a whole number of days, 1 to 365' using errcode = '23514', detail = 'stage-target-invalid';
+      end if;
+    end if;
+    v_owner := nullif(btrim(coalesce(v_stage ->> 'owner_role', '')), '')::user_role;
+    v_source := nullif(v_stage ->> 'template_step_id', '');
+    if v_source is not null and (not (v_old_marks ? v_source) or v_seen ? v_source) then
+      raise exception 'WBS_EVIDENCE_MARK: template step is invalid or repeated' using errcode = '23514';
+    end if;
+    if v_source is not null then v_seen := v_seen || jsonb_build_object(v_source, true); end if;
+    v_old_mark := coalesce((v_old_marks ->> v_source)::boolean, false);
+    if v_stage ? 'claim_evidence_enabled' and jsonb_typeof(v_stage -> 'claim_evidence_enabled') <> 'boolean' then
+      raise exception 'WBS_EVIDENCE_MARK: choose on or off' using errcode = '22023';
+    end if;
+    v_mark := coalesce((v_stage ->> 'claim_evidence_enabled')::boolean, v_old_mark);
+    if v_role <> 'Admin' and v_mark is distinct from v_old_mark then
+      raise exception 'WBS_EVIDENCE_MARK: only an Admin can choose which step documents count as claim evidence' using errcode = '42501';
+    end if;
+    insert into public.billing_step_template_steps (org_id, template_id, position, name, owner_role, target_days, client_side, optional, claim_evidence_enabled)
+    values (v_org, v_id, v_pos, btrim(v_stage ->> 'name'), v_owner, v_days::smallint,
+            coalesce((v_stage ->> 'client_side')::boolean, false), coalesce((v_stage ->> 'optional')::boolean, false), v_mark)
+    returning id into v_sid;
+    v_dpos := 0;
+    if jsonb_typeof(v_stage -> 'documents') = 'array' then
+      if jsonb_array_length(v_stage -> 'documents') > 20 then
+        raise exception 'a step lists at most 20 documents' using errcode = '22023', detail = 'stages-shape';
+      end if;
+      for v_doc in select x from jsonb_array_elements(v_stage -> 'documents') x loop
+        v_dpos := v_dpos + 1;
+        if jsonb_typeof(v_doc) <> 'object' or coalesce(btrim(v_doc ->> 'name'), '') = '' then
+          raise exception 'every checklist document needs a name' using errcode = '23514', detail = 'document-name-missing';
+        end if;
+        insert into public.billing_step_template_documents (org_id, step_id, position, name, required)
+        values (v_org, v_sid, v_dpos, btrim(v_doc ->> 'name'), coalesce((v_doc ->> 'required')::boolean, true));
+      end loop;
+    end if;
+  end loop;
+  perform public.log_audit('billing_step_template.save', v_org, auth.uid(), v_id, jsonb_build_object('steps', v_pos));
+  return v_id;
+end; $$;
 
 -- ── §2 internal helper: snapshot current Issued/Approved WO step documents onto a new claim ──────────────────────────────────
 create or replace function public.copy_work_order_evidence_to_claim(p_claim_id uuid, p_work_order_id uuid) returns void
@@ -59,16 +219,15 @@ declare
 begin
   if p_claim_id is null or p_work_order_id is null then return; end if;
   select pc.org_id, pc.project_id into v_org, v_project
-    from public.progress_claims pc where pc.id = p_claim_id;
+    from public.progress_claims pc where pc.id = p_claim_id and pc.work_order_id = p_work_order_id;
   if not found then return; end if;
-  if not coalesce((select o.work_order_evidence_reuse_enabled from public.organizations o where o.id = v_org), true) then -- mut:wqe_reuse_gate
-    return;
-  end if;
   for v_doc in
     select distinct on (d.id)
            d.id as document_id, d.status as document_status, d.revision as document_revision,
            coalesce(sd.attached_by, auth.uid()) as attached_by
       from public.work_order_billing_step_documents sd
+      join public.work_order_billing_steps ws on ws.id = sd.step_id and ws.org_id = sd.org_id
+       and ws.work_order_id = sd.work_order_id and ws.claim_evidence_enabled -- mut:wqe_quality_step
       join public.project_documents d on d.id = sd.document_id
      where sd.org_id = v_org
        and sd.work_order_id = p_work_order_id
@@ -372,7 +531,7 @@ begin
   -- ⚑ 2600 (DD-R1124-17): link a newly attached work-order document onto open claims of this work order.
   -- Replacing an existing slot document (v_prev_doc is not null) leaves earlier claims untouched; later claims inherit the replacement.
   if (p_slot is null or v_prev_doc is null)                                                                              -- mut:wqe_no_replace_overwrite
-     and coalesce((select o.work_order_evidence_reuse_enabled from public.organizations o where o.id = v_s.org_id), true) then
+     and v_s.claim_evidence_enabled then                                                                                 -- mut:wqe_quality_step_attach
     for v_claim in
       select pc.id
         from public.progress_claims pc

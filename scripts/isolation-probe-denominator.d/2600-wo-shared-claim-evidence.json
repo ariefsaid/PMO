@@ -1,5 +1,6 @@
 {
   "definer_functions": [
-    "set_org_work_order_evidence_reuse(boolean)"
+    "copy_work_order_evidence_to_claim(uuid,uuid)",
+    "set_work_order_step_claim_evidence(uuid,boolean)"
   ]
 }

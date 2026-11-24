@@ -77,8 +77,8 @@ insert into work_orders (id, org_id, project_id, title, status, wo_number, order
 -- A work-order quality document also serves later time-and-materials claims.
 insert into project_documents (id, org_id, project_id, category, title, status, author_id, file_path)
 values ('15140000-0000-0000-0000-0000000000f9', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000c1', 'Acceptance', 'Quality record', 'Approved', '15140000-0000-0000-0000-0000000000b1', '15140000-0000-0000-0000-0000000000a1/15140000-0000-0000-0000-0000000000c1/15140000-0000-0000-0000-0000000000f9/qc.pdf');
-insert into work_order_billing_steps (id, org_id, work_order_id, project_id, position, name)
-values ('15140000-0000-0000-0000-000000000a01', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000f4', '15140000-0000-0000-0000-0000000000c1', 1, 'Quality');
+insert into work_order_billing_steps (id, org_id, work_order_id, project_id, position, name, claim_evidence_enabled)
+values ('15140000-0000-0000-0000-000000000a01', '15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-0000000000f4', '15140000-0000-0000-0000-0000000000c1', 1, 'Quality', true);
 insert into work_order_billing_step_documents (org_id, step_id, work_order_id, position, name, document_id, attached_by)
 values ('15140000-0000-0000-0000-0000000000a1', '15140000-0000-0000-0000-000000000a01', '15140000-0000-0000-0000-0000000000f4', 1, 'Quality', '15140000-0000-0000-0000-0000000000f9', '15140000-0000-0000-0000-0000000000b1');
 

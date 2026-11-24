@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   skip: vi.fn(),
   assign: vi.fn(),
   attach: vi.fn(),
+  markEvidence: vi.fn(),
   add: vi.fn(),
   saveAsTemplate: vi.fn(),
   save: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@/src/hooks/useBillingSteps', () => ({
   useWorkOrderStepMutations: () => ({
     complete: { mutateAsync: h.complete, isPending: false }, skip: { mutateAsync: h.skip, isPending: false },
     assign: { mutateAsync: h.assign, isPending: false }, attach: { mutateAsync: h.attach, isPending: false },
+    markEvidence: { mutateAsync: h.markEvidence, isPending: false },
     add: { mutateAsync: h.add, isPending: false }, saveAsTemplate: { mutateAsync: h.saveAsTemplate, isPending: false },
   }),
   useStepTemplateMutations: () => ({
@@ -76,11 +78,24 @@ function renderIt(props: Partial<React.ComponentProps<typeof BillingStepsSection
 
 beforeEach(() => {
   h.effectiveRole=null; h.role = 'Finance'; h.key = 'billing_officer'; h.steps = steps(); h.checklistEnabled = true; h.state = { isError: false, refetch: vi.fn() };
-  for (const f of [h.complete, h.skip, h.assign, h.attach, h.add, h.saveAsTemplate, h.save]) f.mockReset().mockResolvedValue(undefined);
+  for (const f of [h.complete, h.skip, h.assign, h.attach, h.markEvidence, h.add, h.saveAsTemplate, h.save]) f.mockReset().mockResolvedValue(undefined);
 
 });
 
 describe('BillingStepsSection', () => {
+  it('AC-WQE-006 only Admin can mark an existing work-order step for claim evidence', async () => {
+    h.role = 'Admin';
+    const user = renderIt();
+    const row = screen.getByTestId('wo-billing-steps').querySelector('[aria-label="Step two"]') as HTMLElement;
+    await user.click(within(row).getByRole('checkbox', { name: 'Documents here count as claim evidence' }));
+    expect(h.markEvidence).toHaveBeenCalledWith({ stepId: 's2', enabled: true });
+  });
+
+  it('AC-WQE-006 Finance cannot mark an existing work-order step', () => {
+    renderIt();
+    expect(screen.queryByRole('checkbox', { name: 'Documents here count as claim evidence' })).not.toBeInTheDocument();
+  });
+
   it('AC-WBS-012 shows the chain: step, role, person, target, status, documents', () => {
     renderIt();
     const rows = within(screen.getByRole('list', { name: 'Billing steps' })).getAllByTestId('wo-billing-step');

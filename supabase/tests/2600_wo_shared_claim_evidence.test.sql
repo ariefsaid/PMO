@@ -5,7 +5,7 @@
 --   AC-WQE-002: An open (un-invoiced, un-withdrawn) claim receives a newly attached work-order step document; a withdrawn claim does not.
 --   AC-WQE-003: Replacing a slot document (rev A -> rev B) or superseding a document keeps earlier claims pointing at what they
 --               were submitted with; later claims receive the new revision and skip Superseded rows.
---   AC-WQE-004: Per-organisation setting work_order_evidence_reuse_enabled defaults true, is Admin-only (refuses Finance, PM, QI, field),
+--   AC-WQE-004: The step mark defaults false, is Admin-only (refuses Finance, PM, QI, field),
 --               is audited, and disables automatic reuse when switched off.
 begin;
 create extension if not exists pgtap;
@@ -81,34 +81,36 @@ insert into project_documents (id, org_id, project_id, category, title, status, 
 update project_documents set parent_document_id = '26000000-0000-0000-0000-00000000d003'
  where id = '26000000-0000-0000-0000-00000000d004';
 
--- ── AC-WQE-004: default & setting access ────────────────────────────────────────────────────────────────────────────────────
-select is((select work_order_evidence_reuse_enabled from organizations where id = '26000000-0000-0000-0000-000000000001'), true,
-  'AC-WQE-004 work_order_evidence_reuse_enabled defaults true');                                                               -- 1
-select is(has_function_privilege('anon', 'public.set_org_work_order_evidence_reuse(boolean)', 'execute'), false,
-  'AC-WQE-004 anon cannot call set_org_work_order_evidence_reuse');                                                            -- 2
+-- ── AC-WQE-004: default and Admin-only step designation ──────────────────────────────────────
+select is((select claim_evidence_enabled from work_order_billing_steps where id = '26000000-0000-0000-0000-000000000021'), false,
+  'AC-WQE-004 work-order step is unmarked by default');
+select is(has_function_privilege('anon', 'public.set_work_order_step_claim_evidence(uuid,boolean)', 'execute'), false,
+  'AC-WQE-004 anon cannot mark a step');
 select is(has_function_privilege('authenticated', 'public.copy_work_order_evidence_to_claim(uuid,uuid)', 'execute'), false,
-  'AC-WQE-004 authenticated cannot call internal copy helper');                                                                -- 3
-
+  'AC-WQE-004 authenticated cannot call the internal copy helper');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-select is(pg_temp.err('select public.set_org_work_order_evidence_reuse(false)'), '42501 WBS_EVIDENCE_SETTING',
-  'AC-WQE-004 Finance cannot change the setting');                                                                             -- 4
+select is(pg_temp.err($q$select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',false)$q$), '42501 WBS_EVIDENCE_MARK',
+  'AC-WQE-004 Finance cannot change a mark');
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select is(pg_temp.err('select public.set_org_work_order_evidence_reuse(false)'), '42501 WBS_EVIDENCE_SETTING',
-  'AC-WQE-004 Quality Inspector cannot change the setting');                                                                   -- 5
+select is(pg_temp.err($q$select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',false)$q$), '42501 WBS_EVIDENCE_MARK',
+  'AC-WQE-004 Quality Inspector cannot change a mark');
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a5","role":"authenticated"}';
-select is(pg_temp.err('select public.set_org_work_order_evidence_reuse(false)'), '42501 LIGHT_ACCOUNT',
-  'AC-WQE-004 field account is refused');                                                                                      -- 6
+select is(pg_temp.err($q$select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',false)$q$), '42501 LIGHT_ACCOUNT',
+  'AC-WQE-004 field account is refused');
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is(pg_temp.err('select public.set_org_work_order_evidence_reuse(null)'), '22023 WBS_EVIDENCE_SETTING',
-  'AC-WQE-004 null is refused');                                                                                               -- 7
+select is(pg_temp.err($q$select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',null)$q$), '22023 WBS_EVIDENCE_MARK',
+  'AC-WQE-004 null is refused');
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000b1","role":"authenticated"}';
-select is(pg_temp.err('select public.set_org_work_order_evidence_reuse(false)'), 'ok',
-  'AC-WQE-004 Org B Admin toggles Org B only');                                                                                -- 8
-
+select is(pg_temp.err($q$select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',true)$q$), 'P0002 WBS_NOT_FOUND',
+  'AC-WQE-004 another organisation cannot mark the step');
 reset role;
-select is((select work_order_evidence_reuse_enabled from organizations where id = '26000000-0000-0000-0000-000000000001'), true,
-  'AC-WQE-004 Org A stays enabled');                                                                                           -- 9
+select is((select claim_evidence_enabled from work_order_billing_steps where id = '26000000-0000-0000-0000-000000000021'), false,
+  'AC-WQE-004 another organisation leaves the step unmarked');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',true);
+select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000022',true);
 
 -- ── AC-WQE-001: QI files once on WO 1 -> Claim 1 and Claim 2 both get it & pass evidence gate ──────────────────────────────
 set local role authenticated;
@@ -233,7 +235,7 @@ select is((select string_agg(document_id::text || ':' || document_revision, ',' 
 
 -- ── AC-WQE-004: Switching off stops automatic reuse ────────────────────────────────────────────────────────────────────────
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select public.set_org_work_order_evidence_reuse(false);
+select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',false);
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 do $$ begin
   perform set_config('wqe.c_off', public.create_progress_claim('26000000-0000-0000-0000-0000000000c1', 'progress',
@@ -241,7 +243,7 @@ do $$ begin
     p_lines => '[{"boq_item_id":"26000000-0000-0000-0000-0000000000e1","quantity":5}]'::jsonb)::text, true);
 end $$;
 select is((select count(*)::int from progress_claim_evidence where claim_id = current_setting('wqe.c_off')::uuid), 0,
-  'AC-WQE-004 when switched off, new claim does not auto-copy work-order evidence');                                           -- 27
+  'AC-WQE-004 when the step is unmarked, a new claim does not auto-copy work-order evidence');                                           -- 27
 
 select dblink_disconnect('wqe_race');
 select * from finish();

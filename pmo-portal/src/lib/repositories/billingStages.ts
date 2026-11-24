@@ -9,8 +9,8 @@ import {
 } from '@/src/lib/db/billingSteps';
 import {
   addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getDefaultStepTemplateId, getWaitingWorkOrderSteps,
-  getWorkOrderChecklistEnabled, getWorkOrderEvidenceReuseEnabled, listBoardWorkOrderSteps, listWorkOrderSteps, saveWorkOrderChecklistAsTemplate,
-  setDefaultStepTemplate, setWorkOrderChecklistEnabled, setWorkOrderEvidenceReuseEnabled, skipWorkOrderStep,
+  getWorkOrderChecklistEnabled, listBoardWorkOrderSteps, listWorkOrderSteps, saveWorkOrderChecklistAsTemplate,
+  setDefaultStepTemplate, setWorkOrderChecklistEnabled, setWorkOrderStepClaimEvidence, skipWorkOrderStep,
 } from '@/src/lib/db/workOrderBillingSteps';
 import { getBillingBoard } from '@/src/lib/db/billingBoard';
 import { getPlanCandidates, getPlanSettings, getUnacceptedProgressCandidates, saveMonthTarget, savePlanReminder, savePlanSettings } from '@/src/lib/db/billingPlan';
@@ -62,12 +62,11 @@ export const billingStagesRepository: BillingStagesRepository = {
   completeWorkOrderStep: (stepId, doneOn) => wrap(() => completeWorkOrderStep(stepId, doneOn)),
   skipWorkOrderStep: (stepId) => wrap(() => skipWorkOrderStep(stepId)),
   assignWorkOrderStep: (stepId, personId) => wrap(() => assignWorkOrderStep(stepId, personId)),
+  setWorkOrderStepClaimEvidence: (stepId, enabled) => wrap(() => setWorkOrderStepClaimEvidence(stepId, enabled)),
   addWorkOrderStep: (workOrderId, afterPosition, step) => wrap(() => addWorkOrderStep(workOrderId, afterPosition, step)),
   saveWorkOrderChecklistAsTemplate: (workOrderId, name) => wrap(() => saveWorkOrderChecklistAsTemplate(workOrderId, name)),
   workOrderChecklistEnabled: () => wrap(() => getWorkOrderChecklistEnabled()),
   setWorkOrderChecklistEnabled: (enabled) => wrap(() => setWorkOrderChecklistEnabled(enabled)),
-  workOrderEvidenceReuseEnabled: () => wrap(() => getWorkOrderEvidenceReuseEnabled()),
-  setWorkOrderEvidenceReuseEnabled: (enabled) => wrap(() => setWorkOrderEvidenceReuseEnabled(enabled)),
   attachWorkOrderStepDocument: (stepId, slotId, documentId) => wrap(() => attachWorkOrderStepDocument(stepId, slotId, documentId)),
   defaultStepTemplateId: () => wrap(() => getDefaultStepTemplateId()),
   setDefaultStepTemplate: (templateId) => wrap(() => setDefaultStepTemplate(templateId)),

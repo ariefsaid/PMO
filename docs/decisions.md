@@ -4165,5 +4165,7 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   claim is created or a time-and-materials claim is signed off for that work order, and propagated to existing open (un-withdrawn, un-invoiced) claims on new attachment, so every claim
   shows them and satisfies its invoice evidence gate without re-upload. Replacing a document on a slot or superseding a revision leaves
   earlier claims pointing at the document and revision they were submitted with, while later claims receive the replacement. No rights or
-  money change. Controlled by a per-organisation setting (`work_order_evidence_reuse_enabled`, off for existing organisations and on for new ones; `docs/specs/wo-shared-claim-evidence.spec.md`, migration 2600).
+  money change. Only documents on designated steps of the claim's own work order are reused (migration 2600).
+
+- **DD-R1124-18 An Admin designates which work-order billing steps supply claim evidence.** The designation is stored on a template step and copied to the issued work order; an Admin can also designate an existing work-order step. Unmarked steps default off, and only documents from designated steps of the claim's own work order are automatically reused. There is no separate organisation switch.
 

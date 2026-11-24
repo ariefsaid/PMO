@@ -349,11 +349,6 @@ const SelectedAdministrationPanel: React.FC<{
                 label={t('billingSteps:settings.workOrderChecklist.label', 'Edit issued work-order checklists')}
                 helper={t('billingSteps:settings.workOrderChecklist.helper', 'When on, billing-step runners can add steps to issued work orders, and Finance or an Admin can save a checklist as a template for new work orders.')} />
             </div>
-            <div id="work-order-evidence-reuse" className="scroll-mt-4">
-              <OrgSwitchSetting setting="workOrderEvidenceReuse"
-                label={t('billingSteps:settings.workOrderEvidenceReuse.label', 'Reuse work-order evidence on claims')}
-                helper={t('billingSteps:settings.workOrderEvidenceReuse.helper', 'When on, issued or approved documents filed on a work order are automatically linked as evidence on every claim of that work order. Earlier claims keep the document revision they were submitted with.')} />
-            </div>
             <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /><OrderJobRolesSection /></ModuleGate>
             <OrgThreeWayMatch />
             <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>

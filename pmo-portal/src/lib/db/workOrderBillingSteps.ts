@@ -35,6 +35,7 @@ export interface WorkOrderStep {
   assigneeName: string | null;
   targetDays: number | null;
   optional: boolean;
+  claimEvidenceEnabled?: boolean;
   startedOn: string | null;
   doneOn: string | null;
   skippedOn: string | null;
@@ -65,7 +66,7 @@ export interface TemplateStepRoles {
 
 interface StepRow {
   id: string; work_order_id: string; project_id: string; position: number; name: string; owner_role_key: string | null;
-  assignee_id: string | null; target_days: number | null; optional: boolean; started_on: string | null; done_on: string | null;
+  assignee_id: string | null; target_days: number | null; optional: boolean; claim_evidence_enabled: boolean; started_on: string | null; done_on: string | null;
   skipped_on: string | null; assignee: { full_name: string } | null;
   documents: Array<{ id: string; position: number; name: string; required: boolean; document_id: string | null }>;
 }
@@ -74,7 +75,7 @@ function toStep(r: StepRow): WorkOrderStep {
   return {
     id: r.id, workOrderId: r.work_order_id, projectId: r.project_id, position: r.position, name: r.name, ownerRoleKey: r.owner_role_key,
     assigneeId: r.assignee_id, assigneeName: r.assignee?.full_name ?? null, targetDays: r.target_days, optional: r.optional,
-    startedOn: r.started_on, doneOn: r.done_on, skippedOn: r.skipped_on,
+    claimEvidenceEnabled: r.claim_evidence_enabled, startedOn: r.started_on, doneOn: r.done_on, skippedOn: r.skipped_on,
     documents: [...r.documents].sort((a, b) => a.position - b.position)
       .map((d) => ({ id: d.id, position: d.position, name: d.name, required: d.required, documentId: d.document_id })),
   };
@@ -83,7 +84,7 @@ function toStep(r: StepRow): WorkOrderStep {
 /** One work order's list, in order. Empty when the work order has none or the viewer may see none of it. */
 export async function listWorkOrderSteps(workOrderId: string): Promise<WorkOrderStep[]> {
   const { data, error } = await supabase.from('work_order_billing_steps')
-    .select('id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,started_on,done_on,skipped_on,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id)')
+    .select('id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,claim_evidence_enabled,started_on,done_on,skipped_on,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id)')
     .eq('work_order_id', workOrderId).order('position').limit(STEP_LIMIT);
   if (error) fail(error);
   return (data ?? []).map(toStep);
@@ -92,7 +93,7 @@ export async function listWorkOrderSteps(workOrderId: string): Promise<WorkOrder
 /** The steps of every issued work order the viewer may see (the billing board rows). Optionally one project. */
 export async function listBoardWorkOrderSteps(projectId?: string): Promise<BoardWorkOrderStep[]> {
   let q = supabase.from('work_orders')
-    .select('id,wo_number,title,project_id,project:projects!project_id(name),steps:work_order_billing_steps(id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,started_on,done_on,skipped_on,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id))')
+    .select('id,wo_number,title,project_id,project:projects!project_id(name),steps:work_order_billing_steps(id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,claim_evidence_enabled,started_on,done_on,skipped_on,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id))')
     .eq('status', 'Issued');
   if (projectId) q = q.eq('project_id', projectId);
   const { data, error } = await q.order('created_at', { ascending: false }).limit(BOARD_LIMIT);
@@ -111,6 +112,11 @@ export async function getWaitingWorkOrderSteps(): Promise<WaitingWorkOrderStep[]
 
 export async function completeWorkOrderStep(stepId: string, doneOn: string): Promise<void> {
   const { error } = await supabase.rpc('complete_work_order_step', { p_step: stepId, p_done_on: doneOn });
+  if (error) fail(error);
+}
+
+export async function setWorkOrderStepClaimEvidence(stepId: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_work_order_step_claim_evidence', { p_step: stepId, p_enabled: enabled });
   if (error) fail(error);
 }
 
@@ -149,19 +155,6 @@ export async function getWorkOrderChecklistEnabled(): Promise<boolean> {
 /** Only an Admin may change the checklist-edit switch; the database writes and audits the organisation setting. */
 export async function setWorkOrderChecklistEnabled(enabled: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_org_work_order_checklist_edit', { p_enabled: enabled });
-  if (error) fail(error);
-}
-
-/** Whether work-order billing-step documents are automatically reused as claim evidence (migration 2600); default true. */
-export async function getWorkOrderEvidenceReuseEnabled(): Promise<boolean> {
-  const { data, error } = await supabase.from('organizations').select('work_order_evidence_reuse_enabled').limit(1);
-  if (error) fail(error);
-  return data?.[0]?.work_order_evidence_reuse_enabled === true;
-}
-
-/** Only an Admin may change the work-order evidence reuse switch; the database writes and audits the organisation setting. */
-export async function setWorkOrderEvidenceReuseEnabled(enabled: boolean): Promise<void> {
-  const { error } = await supabase.rpc('set_org_work_order_evidence_reuse', { p_enabled: enabled });
   if (error) fail(error);
 }
 
