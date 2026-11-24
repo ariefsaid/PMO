@@ -4,6 +4,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 const h = vi.hoisted(() => ({ check: vi.fn(), proof: vi.fn() }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { equipmentAvailability: { hourlyRentalCheck: h.check, proofUrl: h.proof } } }));
+vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
+  useRentalInvoiceChoices: () => ({ data: [{ id: 'invoice', label: 'VI-123' }], isPending: false }),
+  useSavedRentalChecks: () => ({ data: [], isPending: false }),
+}));
 import HourlyRentalCheck from './HourlyRentalCheck';
 beforeEach(() => vi.clearAllMocks());
 it('AC-HRE-004 officer compares hours and records a dispute', async () => {
@@ -11,6 +15,8 @@ it('AC-HRE-004 officer compares hours and records a dispute', async () => {
   render(<HourlyRentalCheck assetId="asset" from="2026-09-01" to="2026-09-30" />);
   await userEvent.type(screen.getByLabelText('Contracted hours'), '200');
   await userEvent.type(screen.getByLabelText('Invoice hours'), '170');
+  await userEvent.selectOptions(screen.getByLabelText('Supplier invoice'), 'invoice');
+  await userEvent.type(screen.getByLabelText('Officer note'), 'Supplier billed broken hours');
   await userEvent.click(screen.getByRole('button', { name: 'Mark disputed' }));
   expect(await screen.findByRole('status')).toHaveTextContent('Disputed');
   expect(screen.getByText('160.00')).toBeInTheDocument();
@@ -30,6 +36,7 @@ it('shows the server refusal without claiming that the check was saved', async (
   render(<HourlyRentalCheck assetId="asset" from="2026-09-01" to="2026-09-30" />);
   await userEvent.type(screen.getByLabelText('Contracted hours'), '200');
   await userEvent.type(screen.getByLabelText('Invoice hours'), '160');
+  await userEvent.selectOptions(screen.getByLabelText('Supplier invoice'), 'invoice');
   await userEvent.click(screen.getByRole('button', { name: 'Mark checked' }));
   expect(await screen.findByRole('alert')).toBeInTheDocument();
   expect(screen.queryByRole('status')).not.toBeInTheDocument();

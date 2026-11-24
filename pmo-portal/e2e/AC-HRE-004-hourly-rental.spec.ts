@@ -2,16 +2,19 @@
 import { test, expect } from '@playwright/test';
 import { roleJobUser } from './support/roleJobUser';
 import { need, ORG_ID, serviceClient } from './support/jobJourney';
+import { signIn, pinEnglishLocale } from './helpers';
 
-test('AC-HRE-004 Equipment Officer checks the supplier quantity against contracted hours and proven breakdowns', async ({ page }) => {
+test('AC-HRE-004 AC-HRE-005 Officer disputes an invoice and Finance recovers the warning on its purchase record', async ({ page }) => {
   const db = serviceClient('AC-HRE-004'); const must = need('AC-HRE-004');
   const run = crypto.randomUUID(); const code = `000-HRE-${run.slice(0,8)}`;
   const officer = await roleJobUser(db, 'equipment_officer', `hre-${run}`);
-  let asset = ''; let vendor = ''; const paths: string[] = [];
+  let asset = ''; let vendor = ''; let purchase = ''; let invoice = ''; const paths: string[] = [];
   try {
     vendor = must('vendor', await db.from('companies').insert({ org_id: ORG_ID, name: `Hourly supplier ${run}`, type: 'Vendor' }).select('id').single()).id;
     asset = must('asset', await db.from('equipment_assets').insert({ org_id: ORG_ID, code, name: 'Hourly crane', ownership: 'rented', default_unit: 'hours' }).select('id').single()).id;
     must('term', await db.from('equipment_rental_terms').insert({ org_id: ORG_ID, asset_id: asset, vendor_id: vendor, rate: 100, basis: 'hour', currency: 'IDR', rented_from: '2026-09-01' }).select('id'));
+    purchase = must('purchase', await db.from('procurements').insert({ org_id: ORG_ID, title: `Rental ${run}`, code: `HRE-${run}`, vendor_id: vendor, status: 'Vendor Invoiced', requested_by_id: officer.id, total_value: 17000 }).select('id').single()).id;
+    invoice = must('invoice', await db.from('procurement_invoices').insert({ org_id: ORG_ID, procurement_id: purchase, vi_number: `VI-${run}`, status: 'Received', amount: 17000, tax_treatment: 'exclusive', tax_amount: 0 }).select('id').single()).id;
     for (const date of ['2026-09-01','2026-09-02']) {
       const path = `${ORG_ID}/${asset}/${crypto.randomUUID()}/repair.pdf`; paths.push(path);
       const upload = await db.storage.from('equipment-proof').upload(path, Buffer.from('%PDF-1.4\n% Repair report\n%%EOF'), { contentType: 'application/pdf' });
@@ -27,6 +30,8 @@ test('AC-HRE-004 Equipment Officer checks the supplier quantity against contract
     await page.getByLabel('Hourly rental', { exact: true }).check();
     await page.getByLabel('Contracted hours').fill('200');
     await page.getByLabel('Invoice hours').fill('170');
+    await page.getByLabel('Supplier invoice', { exact: true }).selectOption(invoice);
+    await page.getByLabel('Officer note').fill('Supplier billed the 40 broken hours');
     for (const [i, hours] of ['24','16'].entries()) {
       await page.getByRole('button', { name: 'Add broken hours' }).click();
       await page.getByLabel('Breakdown date').nth(i).fill(`2026-09-0${i+1}`);
@@ -41,6 +46,17 @@ test('AC-HRE-004 Equipment Officer checks the supplier quantity against contract
     await expect(panel.getByRole('button', { name: 'Open repair.pdf' })).toHaveCount(2);
     const saved = must('saved check', await db.from('hourly_rental_checks').select('result,created_by').eq('asset_id',asset).single());
     expect(saved.result.state).toBe('disputed'); expect(saved.created_by).toBe(officer.id);
+    await page.reload();
+    await page.getByRole('button', { name: 'Rental invoice check', exact: true }).click();
+    await page.getByLabel('Rented machine').selectOption(asset);
+    await page.getByLabel('Hourly rental', { exact: true }).check();
+    await expect(page.getByRole('alert')).toContainText('Supplier billed the 40 broken hours');
+    await pinEnglishLocale(page);
+    await signIn(page, 'finance@acme.test');
+    await page.goto(`/procurement/${purchase}`);
+    const warning = page.getByRole('region', { name: 'Saved rental checks' }).getByRole('alert');
+    await expect(warning).toContainText('Supplier billed the 40 broken hours');
+    await expect(warning).toContainText(`VI-${run}`);
   } finally {
     if (asset) {
       await db.from('hourly_rental_checks').delete().eq('asset_id',asset);
@@ -49,6 +65,8 @@ test('AC-HRE-004 Equipment Officer checks the supplier quantity against contract
       await db.from('equipment_rental_terms').delete().eq('asset_id',asset);
       await db.from('equipment_assets').delete().eq('id',asset);
     }
+    if (invoice) await db.from('procurement_invoices').delete().eq('id',invoice);
+    if (purchase) await db.from('procurements').delete().eq('id',purchase);
     if (vendor) await db.from('companies').delete().eq('id',vendor);
     await officer.cleanup();
   }

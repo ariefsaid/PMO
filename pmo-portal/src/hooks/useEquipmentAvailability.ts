@@ -6,6 +6,13 @@ import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 /** Equipment availability (#2526) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 const KEY = 'equipment-availability';
 
+export function useSavedRentalChecks(assetId?: string, procurementId?: string) {
+  return useOrgQuery([KEY, 'saved-checks', assetId, procurementId], () => repositories.equipmentAvailability.savedRentalChecks(assetId, procurementId), { enabled: Boolean(assetId || procurementId) });
+}
+export function useRentalInvoiceChoices(assetId: string) {
+  return useOrgQuery([KEY, 'invoice-choices', assetId], () => repositories.equipmentAvailability.rentalInvoiceChoices(assetId), { enabled: Boolean(assetId) });
+}
+
 export function useStatusDays(from: string, to: string, assetIds: string[]) {
   return useOrgQuery([KEY, 'status', from, to, assetIds], () => repositories.equipmentAvailability.listStatusDays(from, to, assetIds), { enabled: assetIds.length > 0 });
 }

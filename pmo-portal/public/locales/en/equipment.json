@@ -537,6 +537,14 @@
     "disputed": "Disputed",
     "proven": "Proven broken hours",
     "billable": "Billable hours",
-    "rate": "Hourly rate"
+    "rate": "Hourly rate",
+    "loadingChecks": "Loading saved rental checks…",
+    "checksFailed": "Saved rental checks could not be loaded. Retry before reviewing this invoice.",
+    "savedChecks": "Saved rental checks",
+    "unlinked": "Invoice not linked",
+    "warningOnly": "A dispute warns Finance; it does not change approval rights or amounts.",
+    "supplierInvoice": "Supplier invoice",
+    "note": "Officer note",
+    "invoicesFailed": "Supplier invoices could not be loaded."
   }
 }

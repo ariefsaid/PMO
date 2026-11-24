@@ -11,3 +11,7 @@ AC-HRE-003: Given an unrelated role or organisation, when it reads or writes the
 AC-HRE-004: Given the equipment officer on the availability screen, when they enter the period and quantities and mark disputed, then the saved result and evidence are visible without payment or approval actions.
 
 Owning proof: AC-HRE-001..003 pgTAP; AC-HRE-004 browser journey.
+
+FR-005: When a check is saved, the system shall associate it with an own-organisation supplier invoice for the rental vendor; a dispute requires an officer note.
+FR-006: While an invoice has a disputed check, the purchase record shall show its saved warning and note to Finance without blocking approval/payment or altering any money.
+AC-HRE-005: Given an Officer disputes a supplier invoice with a note, when the Officer returns and Finance opens its purchase record, then both recover the persisted warning, invoice identity, period, author and time; another organisation reads none. Owning proofs: browser handoff journey and pgTAP tenancy contract.

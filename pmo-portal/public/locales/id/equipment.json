@@ -537,6 +537,14 @@
     "disputed": "Disengketakan",
     "proven": "Jam rusak terbukti",
     "billable": "Jam yang ditagihkan",
-    "rate": "Tarif per jam"
+    "rate": "Tarif per jam",
+    "loadingChecks": "Memuat pemeriksaan sewa tersimpan…",
+    "checksFailed": "Pemeriksaan sewa tersimpan tidak dapat dimuat. Coba lagi sebelum memeriksa invoice ini.",
+    "savedChecks": "Pemeriksaan sewa tersimpan",
+    "unlinked": "Invoice belum ditautkan",
+    "warningOnly": "Sengketa memberi peringatan kepada Keuangan; hak persetujuan dan nilai tidak berubah.",
+    "supplierInvoice": "Invoice pemasok",
+    "note": "Catatan petugas",
+    "invoicesFailed": "Invoice pemasok tidak dapat dimuat."
   }
 }

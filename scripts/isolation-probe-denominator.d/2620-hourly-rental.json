@@ -10,6 +10,6 @@
     }
   ],
   "definer_functions": [
-    "check_hourly_rental(uuid,date,date,numeric,numeric,jsonb,text)"
+    "check_hourly_rental(uuid,date,date,numeric,numeric,jsonb,text,uuid,text)"
   ]
 }

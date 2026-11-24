@@ -38,13 +38,15 @@ insert into equipment_rental_terms (org_id,asset_id,vendor_id,rate,basis,currenc
 insert into equipment_downtime_proofs (org_id,asset_id,proof_date,file_name,file_path) values ('16910000-0000-0000-0000-00000000000a','16910000-0000-0000-0000-0000000000f1','2026-09-01','repair.pdf','hourly/repair.pdf');
 insert into storage.objects (bucket_id,name) values ('equipment-proof','hourly/repair.pdf');
 insert into equipment_downtime_proofs (org_id,asset_id,proof_date,file_name,file_path) values ('16910000-0000-0000-0000-00000000000a','16910000-0000-0000-0000-0000000000f1','2026-09-02','repair.pdf','hourly/repair.pdf');
+insert into procurements(id,org_id,title,vendor_id) values ('26210000-0000-0000-0000-000000000001','16910000-0000-0000-0000-00000000000a','Rental purchase','16910000-0000-0000-0000-0000000000e1');
+insert into procurement_invoices(id,org_id,procurement_id,vi_number,status,amount,tax_treatment,tax_amount) values ('26210000-0000-0000-0000-000000000002','16910000-0000-0000-0000-00000000000a','26210000-0000-0000-0000-000000000001','VI-RENTAL','Received',17000,'exclusive',0);
 set local role authenticated;
 select pg_temp.act_as('16910000-0000-0000-0000-0000000000a4');
 select is((public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-02","hours":16}]',null))->>'deduction','4000.00','AC-HRE-001 deduction uses explicit hours');
 select is((public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-02","hours":16}]',null))->>'expected_amount','16000.00','AC-HRE-001 expected_amount uses explicit hours');
 select is((public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-02","hours":16}]',null))->>'billable_hours','160.00','AC-HRE-001 billable_hours uses explicit hours');
 select is((public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',20,0,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-02","hours":16}]',null))->>'billable_hours','0.00','AC-HRE-001 billable hours floor zero');
-select lives_ok($$select public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-02","hours":16}]','disputed')$$,'AC-HRE-004 officer records dispute');
+select lives_ok($$select public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-02","hours":16}]','disputed','26210000-0000-0000-0000-000000000002','Billed broken hours')$$,'AC-HRE-004 officer records dispute');
 select is((public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-02","hours":16}]',null))->>'invoice_hours','160.00','AC-HRE-001 invoice quantity remains separate');
 select is((public.check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[{"date":"2026-09-01","hours":24},{"date":"2026-09-03","hours":16}]',null))->>'deduction','2400.00','AC-HRE-002 unproven hours excluded');
 select pg_temp.act_as('16910000-0000-0000-0000-0000000000a5');

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, NumberField } from '@/src/components/ui';
+import { Button, NumberField, SelectField, TextField } from '@/src/components/ui';
+import { useRentalInvoiceChoices } from '@/src/hooks/useEquipmentAvailability';
+import RentalCheckHistory from './RentalCheckHistory';
 import { DateField } from '@/src/components/ui/DateField';
 import { repositories } from '@/src/lib/repositories';
 import type { HourlyRentalResult } from '@/src/lib/db/equipmentAvailability';
@@ -12,6 +14,9 @@ export default function HourlyRentalCheck({ assetId, from, to }: { assetId: stri
   const { t } = useTranslation('equipment');
   const [contracted, setContracted] = useState('');
   const [invoice, setInvoice] = useState('');
+  const [invoiceId, setInvoiceId] = useState('');
+  const [note, setNote] = useState('');
+  const invoices = useRentalInvoiceChoices(assetId);
   const [broken, setBroken] = useState<{ date: string; hours: string }[]>([]);
   const [result, setResult] = useState<HourlyRentalResult | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -28,17 +33,24 @@ export default function HourlyRentalCheck({ assetId, from, to }: { assetId: stri
         setProblem(t('availability.amountInvalid', 'Enter the amount as a number with at most 2 decimals')); return;
       }
       setResult(await repositories.equipmentAvailability.hourlyRentalCheck({ assetId, from, to, contractedHours, invoiceHours,
-        broken: days as { date: string; hours: string }[], state }));
+        broken: days as { date: string; hours: string }[], state, invoiceId, note }));
     } catch (error) { setProblem(classifyMutationError(error).headline); }
     finally { setBusy(false); }
   };
   const money = (v: string) => formatExactMoney(v, result!.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—';
   return <section className="mt-3" aria-label={t('availability.hourly', 'Hourly rental')}>
+    <RentalCheckHistory assetId={assetId} />
     {problem && <p role="alert">{problem}</p>}
     <div className="grid gap-3 sm:grid-cols-2">
       <NumberField localeAware label={t('hourly.contracted', 'Contracted hours')} value={contracted} disabled={busy} onChange={(v) => { clear(); setContracted(v); }} />
       <NumberField localeAware label={t('hourly.invoice', 'Invoice hours')} value={invoice} disabled={busy} onChange={(v) => { clear(); setInvoice(v); }} />
     </div>
+    <div className="grid gap-3 sm:grid-cols-2 mt-3">
+      <SelectField label={t('hourly.supplierInvoice', 'Supplier invoice')} value={invoiceId} disabled={busy || invoices.isPending} onChange={(v) => { clear(); setInvoiceId(v); }}
+        options={[{ value: '', label: t('availability.choose', 'Choose…') }, ...(invoices.data ?? []).map((i) => ({ value: i.id, label: i.label }))]} />
+      <TextField label={t('hourly.note', 'Officer note')} value={note} disabled={busy} onChange={(v) => { clear(); setNote(v); }} />
+    </div>
+    {invoices.isError && <p role="alert">{t('hourly.invoicesFailed', 'Supplier invoices could not be loaded.')}</p>}
     <p className="mt-2 text-sm text-muted-foreground">{t('hourly.evidence', 'Attach dated evidence in Availability before checking. Only proven broken hours are deducted.')}</p>
     {broken.map((day, i) => <div key={i} className="grid gap-3 sm:grid-cols-3 mt-2">
       <DateField label={t('hourly.date', 'Breakdown date')} value={day.date} disabled={busy} onChange={(v) => { clear(); setBroken(broken.map((d, n) => n === i ? { ...d, date: v ?? '' } : d)); }} />
@@ -48,8 +60,8 @@ export default function HourlyRentalCheck({ assetId, from, to }: { assetId: stri
     <div className="flex flex-wrap gap-2 mt-3">
       <Button variant="outline" disabled={busy || broken.length >= 400} onClick={() => { clear(); setBroken([...broken, { date: from, hours: '' }]); }}>{t('hourly.add', 'Add broken hours')}</Button>
       <Button variant="outline" disabled={busy || !assetId || !contracted || !invoice} onClick={() => void run(null)}>{t('hourly.compare', 'Compare hours')}</Button>
-      <Button variant="primary" disabled={busy || !assetId || !contracted || !invoice} onClick={() => void run('checked')}>{t('hourly.checkedAction', 'Mark checked')}</Button>
-      <Button variant="outline" disabled={busy || !assetId || !contracted || !invoice} onClick={() => void run('disputed')}>{t('hourly.disputedAction', 'Mark disputed')}</Button>
+      <Button variant="primary" disabled={busy || !assetId || !contracted || !invoice || !invoiceId} onClick={() => void run('checked')}>{t('hourly.checkedAction', 'Mark checked')}</Button>
+      <Button variant="outline" disabled={busy || !assetId || !contracted || !invoice || !invoiceId || !note.trim()} onClick={() => void run('disputed')}>{t('hourly.disputedAction', 'Mark disputed')}</Button>
     </div>
     {result && <div className="mt-3">
       {result.state && <p role="status">{result.state === 'checked' ? t('hourly.checked', 'Checked') : t('hourly.disputed', 'Disputed')}</p>}

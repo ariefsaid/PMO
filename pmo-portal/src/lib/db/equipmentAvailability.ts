@@ -140,6 +140,7 @@ export async function proofUrl(path: string): Promise<string> {
 export interface HourlyRentalInput {
   assetId: string; from: string; to: string; contractedHours: string; invoiceHours: string;
   broken: { date: string; hours: string }[]; state: 'checked' | 'disputed' | null;
+  invoiceId?: string; note?: string;
 }
 export interface HourlyRentalResult {
   contracted_hours: string; broken_hours: string; billable_hours: string; invoice_hours: string;
@@ -149,5 +150,16 @@ export interface HourlyRentalResult {
 }
 export async function hourlyRentalCheck(v: HourlyRentalInput): Promise<HourlyRentalResult> {
   return await call('check_hourly_rental', { p_asset: v.assetId, p_from: v.from, p_to: v.to,
-    p_contracted: v.contractedHours, p_invoice: v.invoiceHours, p_broken: v.broken, p_state: v.state }) as HourlyRentalResult;
+    p_contracted: v.contractedHours, p_invoice: v.invoiceHours, p_broken: v.broken, p_state: v.state,
+    p_invoice_id: v.invoiceId ?? null, p_note: v.note ?? null }) as HourlyRentalResult;
+}
+export interface SavedRentalCheck {
+  id: string; state: 'checked' | 'disputed'; note: string | null; invoice_number: string | null;
+  period_from: string; period_to: string; created_at: string; author: string | null;
+}
+export async function savedRentalChecks(assetId?: string, procurementId?: string): Promise<SavedRentalCheck[]> {
+  return await call('get_hourly_rental_checks', { p_asset: assetId ?? null, p_procurement: procurementId ?? null }) as SavedRentalCheck[];
+}
+export async function rentalInvoiceChoices(assetId: string): Promise<{ id: string; label: string }[]> {
+  return await call('hourly_rental_invoice_choices', { p_asset: assetId }) as { id: string; label: string }[];
 }
