@@ -1061,6 +1061,7 @@
       "title": "Gagal memuat antrean yang dipilih"
     },
     "previewRegionLabel": "Pratinjau persetujuan",
+    "pickItem": "Pilih item di atas untuk melihat dan memutuskannya.",
     "pushAttention": {
       "retryFailure": "$t(common:terms.timesheet) tersebut gagal dikirim",
       "retrySuccess": "$t(common:terms.timesheet) dikirim ke ERPNext",
