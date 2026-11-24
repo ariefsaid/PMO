@@ -554,6 +554,7 @@
         "unhide": "Tampilkan lagi kepada {{role}}"
       },
       "templates": {
+        "claimEvidence": "Dokumen di langkah ini dihitung sebagai bukti tagihan",
         "title": "Templat langkah penagihan",
         "help": "Templat adalah daftar langkah yang dipakai tim Anda. Muat ke proyek atau klaim; templat disalin, jadi perubahan templat berikutnya tidak mengubah yang sudah dibuat.",
         "manage": "Kelola templat",

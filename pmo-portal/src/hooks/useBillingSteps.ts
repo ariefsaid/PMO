@@ -120,13 +120,17 @@ export function useWorkOrderStepMutations() {
       repositories.billingStages.attachWorkOrderStepDocument(stepId, slotId, documentId),
     onSuccess: invalidate,
   });
+  const markEvidence = useMutation({
+    mutationFn: ({ stepId, enabled }: { stepId: string; enabled: boolean }) => repositories.billingStages.setWorkOrderStepClaimEvidence(stepId, enabled),
+    onSuccess: invalidate,
+  });
   // Adds a step to the list itself (migration 2180); the fresh list may hold a newly current step, so the waiting list refreshes too.
   const add = useMutation({
     mutationFn: ({ workOrderId, afterPosition, step }: { workOrderId: string; afterPosition: number | null; step: StepInput }) =>
       repositories.billingStages.addWorkOrderStep(workOrderId, afterPosition, step),
     onSuccess: invalidate,
   });
-  return { complete, skip, assign, attach, add };
+  return { complete, skip, assign, attach, add, markEvidence };
 }
 
 /** The organisation's default billing step template (none = no work order gets a list). */

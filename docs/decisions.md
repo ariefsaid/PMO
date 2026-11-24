@@ -4165,6 +4165,14 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   (OD-R1124-9), enters that work order's and project's cost at the stock ledger's valuation (`-value_delta`: a shortage adds cost, a gain
   reduces it). A count with no work order behaves unchanged, and count separation of duties (counter is not approver) is unchanged
   (`docs/specs/stock-count-work-order.spec.md`, migration 2590).
+- **DD-R1124-17 Quality documents filed once against a work order are reused by every later claim of that work order, without re-upload.**
+  Issued or approved documents attached to a work order's billing steps are automatically snapshotted into `progress_claim_evidence` when a
+  claim is created or a time-and-materials claim is signed off for that work order, and propagated to existing open (un-withdrawn, un-invoiced) claims on new attachment, so every claim
+  shows them and satisfies its invoice evidence gate without re-upload. Replacing a document on a slot or superseding a revision leaves
+  earlier claims pointing at the document and revision they were submitted with, while later claims receive the replacement. No rights or
+  money change. Only documents on designated steps of the claim's own work order are reused (migration 2600).
+
+- **DD-R1124-18 An Admin designates which work-order billing steps supply claim evidence.** The designation is stored on a template step and copied to the issued work order; an Admin can also designate an existing work-order step. Unmarked steps default off, and only documents from designated steps of the claim's own work order are automatically reused. There is no separate organisation switch.
 
 - **DD-R1124-17 Equipment Officer registers and edits assets in their own organisation:** existing editable asset fields only; deletion remains Admin-only. Rental-term and cost rights remain unchanged. The right follows the job role.
 - **DD-R1124-18 Project Control Manager reads the rate catalogue across their own organisation:** items, locations, rates and stage weights, including projects managed by another person. Catalogue write rights, field-account restrictions and organisation isolation remain unchanged. The role already reads project cost performance.

@@ -13,8 +13,10 @@ const h = vi.hoisted(() => ({
   save: { mutateAsync: vi.fn(), isPending: false },
   archive: { mutateAsync: vi.fn(), isPending: false },
   defaultId: null as string | null,
+  realRole: 'Admin' as string,
   setDefault: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
 vi.mock('@/src/hooks/useBillingSteps', () => ({
   useStepTemplates: () => h.templates,
   useStepTemplateMutations: () => ({ save: h.save, archive: h.archive }),
@@ -46,10 +48,43 @@ beforeEach(() => {
   h.save = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   h.archive = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   h.defaultId = null;
+  h.realRole = 'Admin';
   h.setDefault = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
 });
 
 describe('BillingStepTemplatesModal', () => {
+  it('AC-WQE-006 Admin marks a template step for claim evidence', async () => {
+    const user = userEvent.setup(); view();
+    await user.click(screen.getByRole('button', { name: 'New template' }));
+    await user.click(screen.getByRole('button', { name: 'Add step' }));
+    await user.type(screen.getByLabelText('Template name'), 'Quality');
+    await user.type(screen.getByLabelText('Step name'), 'Inspection');
+    await user.click(screen.getByRole('checkbox', { name: 'Documents here count as claim evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      steps: [expect.objectContaining({ name: 'Inspection', claimEvidenceEnabled: true })],
+    })));
+  });
+
+  it('AC-WQE-007 Finance can reorder a marked step without changing its designation', async () => {
+    h.realRole = 'Finance';
+    const saved = template();
+    saved.steps[0] = { ...saved.steps[0], templateStepId: 's1', claimEvidenceEnabled: true };
+    saved.steps[1] = { ...saved.steps[1], templateStepId: 's2', claimEvidenceEnabled: false };
+    h.templates = { data: [saved], isPending: false, isError: false };
+    const user = userEvent.setup(); view();
+    await user.click(screen.getByRole('button', { name: 'Edit Progress claim' }));
+    const marks = screen.getAllByRole('checkbox', { name: 'Documents here count as claim evidence' });
+    expect(marks[0]).toBeChecked();
+    expect(marks[0]).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Move Measure up' }));
+    await user.click(screen.getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      steps: [expect.objectContaining({ templateStepId: 's2', claimEvidenceEnabled: false }),
+        expect.objectContaining({ templateStepId: 's1', claimEvidenceEnabled: true })],
+    })));
+  });
+
   it('no templates yet says so', () => {
     view();
     expect(screen.getByText('No templates yet.')).toBeInTheDocument();
@@ -209,6 +244,7 @@ describe('BillingStepTemplatesModal', () => {
     const user = userEvent.setup();
     h.templates = { data: [{ id: 't1', name: 'Standard', steps: [{ position: 1, name: 'Survey' }] }], isPending: false, isError: false };
     h.defaultId = null;
+  h.realRole = 'Admin';
     view();
     await user.click(screen.getByRole('button', { name: 'Use Standard for new work orders' }));
     expect(h.setDefault.mutateAsync).toHaveBeenCalledWith('t1');
