@@ -106,7 +106,7 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
         const baseline = selectedQuote ? Number(selectedQuote.total_amount) : null;
         const difference = baseline != null && !chosen ? Number(quote.total_amount) - baseline : null;
         const percent = difference != null && baseline != null && baseline !== 0 ? (difference / baseline) * 100 : null;
-        const supplierName = vendorMap[quote.vendor_id] ?? (quote.vendor_id === p.vendor_id ? p.vendor?.name : null) ?? quote.vq_number ?? t('procurementRecord:details.supplier', 'Supplier');
+        const supplierName = (maySeePrices ? vendorMap[quote.vendor_id] ?? (quote.vendor_id === p.vendor_id ? p.vendor?.name : null) : null) ?? quote.vq_number ?? t('procurementRecord:details.supplier', 'Supplier');
         return <article key={quote.id} className="rounded-md border border-border bg-card p-4">
           <div className="flex items-start justify-between gap-3">
             <h2 className="min-w-0 break-words text-[14px] font-semibold">{supplierName}</h2>
@@ -129,7 +129,7 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
       currency={p.currency}
       canManageFiles={canManageFiles}
       currentUserId={currentUserId}
-      vendorMap={vendorMap}
+      vendorMap={maySeePrices ? vendorMap : {}}
       onError={onMutationError}
       onAdd={async (input) => {
         await mutations.createQuotation.mutateAsync(input);

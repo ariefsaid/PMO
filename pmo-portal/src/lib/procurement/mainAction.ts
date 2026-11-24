@@ -77,7 +77,7 @@ export function allowedActions(
   // primary (OD-W5-2 — quoting first is the conventional lower-risk path). "Generate
   // Purchase Order" is a valid skip-to-PO path but is demoted to `outline` so only
   // ONE blue appears per stage (DESIGN.md One-Blue Rule). BOTH remain clickable.
-  if (legal('Vendor Quoted') && canSource(role)) {
+  if (legal('Vendor Quoted') && (canSource(role) || mayOrderByRole)) {
     actions.push({ to: 'Vendor Quoted', label: t('procurementRecord:action.requestQuotes', 'Request quotations'), variant: 'primary' });
   }
   if (legal('Ordered') && (canSource(role) || mayOrderByRole) && status === 'Approved') {

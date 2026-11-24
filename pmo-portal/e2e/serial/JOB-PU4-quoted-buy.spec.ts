@@ -3,8 +3,8 @@
  *  Partly landed: the quoted route exists; the direct-purchase shortcut (no quotes, buy from a shop) is not offered and is not tested. */
 import { expect } from '@playwright/test';
 import { buyerTest as test } from '../support/buyerOrdering';
-import { recordOrderWithConfirm, signIn } from '../helpers';
-import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
+import { recordOrderWithConfirm } from '../helpers';
+import { createProcurementFixture, serviceClient, type ProcurementFixture } from '../procurement-fixture';
 
 test.setTimeout(150_000);
 
@@ -15,21 +15,12 @@ test.beforeEach(async () => { buyer = await moneyJobRole("buyer"); fixture = awa
 test.afterEach(async () => { await fixture?.cleanup(); await buyer?.cleanup(); });
 
 test('JOB-PU4 two quotes are added, one is chosen, and the order follows the chosen quote', async ({ page }) => {
-  // Admin requests quotations; the buyer then sources and orders within its shipped right.
-  await signIn(page, 'admin@acme.test');
+  await buyer.login(page);
   await page.goto(fixture.url);
   await page.getByRole('tab', { name: /^quotations/i }).click();
   await expect(page.getByTestId('add-quotation')).toHaveCount(0);
   await page.getByTestId('quote-next-step').getByRole('button', { name: 'Request quotations' }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Quoted');
-  await page.context().clearCookies();
-  await page.evaluate(() => localStorage.clear());
-  await buyer.login(page);
-  await page.goto(fixture.url);
-  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await page.getByRole("tab", { name: /^quotations/i }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Quoted', { timeout: 15_000 });
-
   await page.getByRole('tab', { name: /^quotations/i }).click();
   const vendorNames: string[] = [];
   for (const [index, total] of [[0, '9000'], [1, '8500']] as const) {
@@ -53,6 +44,9 @@ test('JOB-PU4 two quotes are added, one is chosen, and the order follows the cho
   await expect(chosen).toContainText(/8[.,]500/);
 
   // The order is raised on the chosen quote.
-  await recordOrderWithConfirm(page);
+  await recordOrderWithConfirm(page, vendorNames[1]);
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
+  const order = await serviceClient().from('purchase_orders').select('amount').eq('procurement_id', fixture.id).single();
+  expect(order.error).toBeNull();
+  expect(Number(order.data?.amount)).toBe(8500);
 });

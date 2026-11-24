@@ -4161,3 +4161,7 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   (DD-R1124-1). Reason: the role's job is to oversee buying across projects, so it must see every case and not only those of the projects
   it manages. Not a setting: it follows the job role.
 
+- **DD-R1125-1 Quoted buying follows the ordering right.** A person who may order purchases may start quotations for an approved request;
+  approval routing and separation of duties remain unchanged. The order carries the winning quotation's amount.
+  The supplier follows the price visibility setting.
+
