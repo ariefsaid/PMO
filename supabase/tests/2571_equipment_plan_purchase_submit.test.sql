@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(12);
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('27004000-0000-0000-0000-00000000000a', 'EQP Org',       'IDR', 'Asia/Jakarta', true),
   ('27004000-0000-0000-0000-00000000000b', 'EQP Other Org', 'IDR', 'Asia/Jakarta', true);
@@ -92,6 +92,9 @@ update profiles set built_in_role=null,role='Admin' where id='27004000-0000-0000
 set local role authenticated;
 select pg_temp._as('27004000-0000-0000-0000-0000000000a3');
 select throws_ok($$select transition_procurement((select id from target),'Approved')$$,'42501',null,'AC-EPS-004 even an Admin who submitted cannot approve');
+reset role;
+select throws_ok($$update procurements set amount_approved_by_id='27004000-0000-0000-0000-0000000000a3' where id=(select id from target)$$,'42501',null,'AC-EPS-004 amount approval also refuses the submitter');
+set local role authenticated;
 select pg_temp._as('27004000-0000-0000-0000-0000000000b1');
 select throws_ok($$select transition_procurement((select id from target),'Requested')$$,'42501',null,'AC-EPS-005 other organisation cannot submit');
 select is(equipment_plan_purchase_submit_context((select id from target)),jsonb_build_object('may_submit',false,'is_submitter',false),'AC-EPS-005 foreign provenance is absent');

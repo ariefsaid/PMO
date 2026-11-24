@@ -29,9 +29,9 @@ test.beforeEach(async () => {
   ok('ordering roles', await admin.rpc('po_set_order_job_roles', { p_keys: ['buyer'] }));
   ok('purchase types', await admin.rpc('set_purchase_types_enabled', { p_enabled: true }));
   ok('plan settings', await admin.rpc('set_equipment_plan_settings', { p_enabled: true, p_approval_step: 'senior_role', p_allow_self_approval: false }));
-  const rental = await db.from('purchase_types').select('id').eq('org_id', orgId).eq('is_equipment_rental', true).eq('active', true).limit(1);
+  const rental = await db.from('purchase_types').select('id').eq('org_id', orgId).eq('is_rental', true).eq('active', true).limit(1);
   if (rental.error) throw rental.error;
-  if (!rental.data?.length) ok('rental type', await db.from('purchase_types').insert({ org_id: orgId, name: 'Equipment rental', is_equipment_rental: true, active: true }));
+  if (!rental.data?.length) ok('rental type', await db.from('purchase_types').insert({ org_id: orgId, name: 'Equipment rental', is_rental: true, active: true }));
   const project = need('project', await db.from('projects').insert({ org_id: orgId, name: tag, status: 'Ongoing Project' }).select('id').single());
   const vendor = need('vendor', await db.from('companies').insert({ org_id: orgId, name: `${tag} Supplier`, type: 'Vendor' }).select('id').single());
   const plan = need('plan', await db.from('equipment_plans').insert({ org_id: orgId, project_id: project.id, plan_month: '2026-11-01', created_by: officer.id }).select('id').single());

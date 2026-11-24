@@ -213,9 +213,7 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
   if (error) throwRpc(error);
   const [withRoute] = await attachApprovalRoutes([data as unknown as ProcurementDetail]);
   const detail = await attachPaymentCeiling(withRoute);
-  if (detail.status === 'Draft' || detail.status === 'Requested') {
-    detail.planPurchaseContext = await getPlanPurchaseSubmitContext(id);
-  }
+  detail.planPurchaseContext = await getPlanPurchaseSubmitContext(id);
   return detail;
 }
 
