@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { serviceClient, need, ORG_ID } from './jobJourney';
-export async function siteRole(jobRole: string, role: 'Engineer' | 'Project Manager' = 'Engineer') {
+export async function siteRole(jobRole: string, role: 'Engineer' | 'Project Manager' | 'Finance' = 'Engineer') {
  const db=serviceClient(jobRole); const must=need(jobRole); const suffix=crypto.randomUUID();
  const email=`site-${suffix}@example.invalid`; const password=`${suffix}-Aa1!`;
  const created = await db.auth.admin.createUser({email,password,email_confirm:true}); if(created.error || !created.data.user) throw new Error(created.error?.message ?? 'User not created'); const user = created.data.user;

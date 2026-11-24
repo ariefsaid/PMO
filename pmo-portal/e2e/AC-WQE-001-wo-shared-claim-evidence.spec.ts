@@ -7,6 +7,7 @@ import { ORG_ID, inDays, need } from './support/jobJourney';
 
 test('AC-WQE-001 a quality document filed once makes later claims invoice-eligible', async ({ page }) => {
   const inspector = await siteRole('quality_inspector');
+  const billingOfficer = await siteRole('billing_officer', 'Finance');
   const db = inspector.db;
   const must = need('AC-WQE-001');
   const fixture = await createBillingFixture(db, `WQE-${crypto.randomUUID()}`);
@@ -33,8 +34,9 @@ test('AC-WQE-001 a quality document filed once makes later claims invoice-eligib
     await quality.getByRole('button', { name: 'Attach additional document' }).click();
     await expect(quality.getByRole('link', { name: fixture.documentTitle })).toBeVisible();
 
-    // Finance makes each claim in the app and proceeds without attaching the document again.
-    await signIn(page, 'finance@acme.test');
+    // The billing officer makes each claim without attaching the document again.
+    await page.evaluate(() => localStorage.clear());
+    await billingOfficer.login(page);
     await page.goto(`/projects/${fixture.projectId}/contract`);
     for (let index = 0; index < 2; index++) {
       await page.getByRole('button', { name: 'New claim' }).click();
@@ -71,5 +73,6 @@ test('AC-WQE-001 a quality document filed once makes later claims invoice-eligib
     await db.from('work_order_billing_steps').delete().eq('work_order_id', fixture.workOrderId);
     await cleanupBilling(db, fixture);
     await inspector.cleanup();
+    await billingOfficer.cleanup();
   }
 });
