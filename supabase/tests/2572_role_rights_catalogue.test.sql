@@ -40,4 +40,6 @@ select throws_ok($$select equipment_plan_purchase_submit_context('00000000-0000-
 reset role;
 select ok(not has_column_privilege(r.name,'dsr_progress_lines',c.name,'SELECT'),'AC-RRC-020 raw priced progress is not directly selectable '||r.name||'.'||c.name)
 from unnest(array['anon','authenticated']) r(name),unnest(array['frozen_rate','frozen_amount','frozen_rate_id','frozen_rate_source']) c(name);
+select ok(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname<>'dsr_report_revenue' and p.prosrc ~ 'dsr_report_revenue[[:space:]]*[(]'),'AC-RRC-021 no other stored public routine delegates its read to the changed report RPC');
+select ok(not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='v' and pg_get_viewdef(c.oid,true) ~ 'dsr_report_revenue[[:space:]]*[(]'),'AC-RRC-021 no public view delegates its read to the changed report RPC');
 select * from finish(); rollback;
