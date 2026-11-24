@@ -80,7 +80,7 @@ set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b3","r
 update organizations set qs_report_revenue_enabled=true;
 select is((select qs_report_revenue_enabled from organizations limit 1),true,'AC-QSR-004 Admin restores read setting');
 reset role;
-update profiles set status='inactive' where id='15220000-0000-0000-0000-0000000000b1';
+update profiles set status='disabled' where id='15220000-0000-0000-0000-0000000000b1';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"15220000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select throws_ok($$select * from dsr_report_revenue('25700000-0000-0000-0000-000000000001')$$,'42501',null,'AC-QSR-003 inactive member refused');
