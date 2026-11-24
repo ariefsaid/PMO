@@ -81,7 +81,8 @@ export type Action =
   | 'return'
   | 'attribute'
   | 'toggleRole'
-  | 'setPaymentChannel';
+  | 'setPaymentChannel'
+  | 'review';
 
 export type Entity =
   | 'project'
@@ -227,6 +228,8 @@ export interface PolicyContext {
   realRole: Role | null;
   /** The real person's built-in role key (null = none) — the one capability read, as the database gate reads it. */
   builtInRoleKey?: string | null;
+  /** 2290: built-in job role keys assigned `daily_report_validate` in the caller's organisation (`organizations.daily_report_validate_roles`). */
+  dailyReportValidateRoles?: readonly string[] | null;
   /** The current user's id — for record-scoped checks (own task, requester, author). */
   currentUserId?: string | null;
   /** The record under consideration — for status/ownership-conditional rules. */
@@ -326,9 +329,12 @@ const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
 // #1522 daily site report (1005): enter = dsr_may_enter, validate = dsr_may_validate, revenue = dsr_may_see_revenue.
 const DSR_ENTER: Role[] = ['Admin', 'Engineer'];
 const DSR_VALIDATE: Role[] = ['Admin', 'Finance'];
-/** 2043: dsr_may_validate also admits a job role an Admin gave the daily_report_validate capability (none by default). */
+/** 2043 + 2290: dsr_may_validate also admits a job role an Admin gave the daily_report_validate capability (none by default). */
 const dsrValidator = (role: Role | null, ctx: PolicyContext): boolean =>
-  has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx) || roleHasCapability(ctx.builtInRoleKey, 'daily_report_validate');
+  has(DSR_VALIDATE, role)
+  || isOwnProjectPm(role, ctx)
+  || roleHasCapability(ctx.builtInRoleKey, 'daily_report_validate')
+  || Boolean(ctx.builtInRoleKey && ctx.dailyReportValidateRoles?.includes(ctx.builtInRoleKey));
 const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 
 // #2578 quantity change requests (1127/1128, OD-QCR-2): author roles raise, edit and record; approver roles approve, never
@@ -938,6 +944,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   timesheet: {
     create: allow(['Admin', 'Executive', 'Project Manager', 'Engineer']),
     edit: allow(['Admin', 'Executive', 'Project Manager', 'Engineer']),
+    /** 2042 + 1124d-rolescreens: read-only org-wide timesheet review list for the HR Officer job role (and Admin). Never grants approval. */
+    review: (role, ctx) => role === 'Admin' || holds(ctx, 'hr_officer'),
     /**
      * P3b (FR-TSP-011) — the Retry/push affordance for a flipped org's ERP push. UX ONLY: the
      * enforcement authorities are `approved_timesheet_for_push` (migration 0138) and

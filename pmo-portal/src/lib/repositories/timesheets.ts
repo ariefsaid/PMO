@@ -4,6 +4,7 @@ import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 import {
   listTimesheets,
+  listTimesheetsForReview,
   saveTimesheetWeek,
   createDraftTimesheet,
   upsertTimesheetEntries,
@@ -41,6 +42,7 @@ export const timesheetRepository: TimesheetRepository = {
   confirmEmployeeLink,
   getPushState,
   list: (...args) => wrap(() => listTimesheets(...args)),
+  listForReview: (filters) => wrap(() => listTimesheetsForReview(filters)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
   upsertEntries: (entries) => wrap(() => upsertTimesheetEntries(entries)),
   deleteEntry: (id) => wrap(() => deleteTimesheetEntry(id)),

@@ -1,0 +1,29 @@
+# Validate daily site reports: Admin assigns the capability to job roles
+
+Lane `rolescreens` (branch `feat/1124d-role-screens`, migration `2290`). Follow-up 1 to migrations 2040–2051. Rulings read: ADR-0016, ADR-0017, ADR-0019, `docs/specs/roles-that-decide.spec.md`, `docs/specs/daily-site-report.spec.md`, `supabase/tests/2716_role_capability_consumers.test.sql`.
+
+**Job story.** When an organisation wants a site or project-control job role (such as Site Supervisor or Project Control Manager) to validate daily site reports without granting Finance or Admin access, the Admin ticks those job roles in Administration and the database enforces both who may change the setting and who may validate.
+
+## 1. Today (verified at head)
+
+- `public.built_in_role_capabilities` (`1200`) is a global catalogue table (`has_org: false`); migration `2043` removed all seeded `daily_report_validate` rows so no job role holds it by default.
+- `public.dsr_may_validate(p_project uuid)` (`2043`) is the single database gate reading `daily_report_validate` via `public.actor_has_role_capability('daily_report_validate')` (`2716_role_capability_consumers.test.sql`).
+- `dsr_validate` and `dsr_return` (`1041`) already forbid the report's author from validating or returning their own report and refuse field (`light`) accounts (`1530`).
+- No per-organisation storage, Admin setter, or Administration UI exists yet to assign `daily_report_validate` to job roles.
+
+## 2. Requirements (EARS)
+
+- **FR-DRVR-001 (Ubiquitous — per-organisation storage, defaults unchanged).** The database SHALL store each organisation's assigned `daily_report_validate` job-role keys in `public.organizations.daily_report_validate_roles text[] not null default '{}'`, leaving existing and newly created organisations with no job role assigned by default.
+- **FR-DRVR-002 (Event-driven — Admin-only setter).** When a caller invokes `public.set_daily_report_validate_roles(p_roles text[])`, the database SHALL refuse field accounts (`assert_not_light`), inactive members (`assert_is_active_member`), and any caller whose real `auth_role()` is not `'Admin'` (`42501`, `DSR_VALIDATE_ROLE_ADMIN`); SHALL refuse non-empty role lists while `org_built_in_roles_enabled` is false (`P0001`, `DSR_VALIDATE_ROLE_OFF`); SHALL refuse null, unknown, or `field`-tier keys (`22023`, `DSR_VALIDATE_ROLE_INVALID`); and SHALL store deduplicated sorted keys on the caller's own `organizations` row and record an audit event.
+- **FR-DRVR-003 (State-driven — capability helper).** While `org_built_in_roles_enabled(auth_org_id())` is true and the signed-in active member holds a `built_in_role` listed in their organisation's `daily_report_validate_roles`, `public.actor_has_role_capability('daily_report_validate')` SHALL return `true` (in addition to any catalogue row in `role_has_capability`), keeping `dsr_may_validate` as the sole gate consumer of `'daily_report_validate'`.
+- **FR-DRVR-004 (Ubiquitous — Administration screen).** Under `Administration › Project setup`, the app SHALL render a `Validate daily site reports` section displaying manager and officer job roles using the organisation's role names (`useBuiltInRoleName`), allowing only a non-impersonating Admin (when built-in roles are enabled) to change and save the selection.
+- **FR-DRVR-005 (State-driven — site report affordances).** While the signed-in user holds a job role in their organisation's `daily_report_validate_roles`, `can('approve', 'dailySiteReport', ctx)` and `can('revise', 'dailySiteReport', ctx)` SHALL admit them on `/site-reports` and `/site-reports/:reportId` for reports authored by someone else, never for their own report.
+
+## 3. Acceptance criteria (Given / When / Then)
+
+- **AC-DRVR-001 (pgTAP).** Given a newly created or existing organisation with default settings, when `daily_report_validate_roles` and `dsr_may_validate` are inspected, then `daily_report_validate_roles` is `{}` and only `Admin`, `Finance`, and the project's own `Project Manager` can validate daily site reports.
+- **AC-DRVR-002 (pgTAP).** Given active members across roles and two organisations, when `set_daily_report_validate_roles` or direct updates are attempted, then an Admin saves manager/officer job roles for their own organisation only (leaving the other organisation unchanged), while non-Admins (`42501`), field accounts (`42501 LIGHT_ACCOUNT`), unknown or `field`-tier keys (`22023`), and non-empty lists while `built_in_roles_enabled` is false (`P0001`) are refused.
+- **AC-DRVR-003 (pgTAP).** Given an Admin has assigned `daily_report_validate` to `site_supervisor` in their organisation, when a `site_supervisor` validates or views the validation queue for a report authored by someone else vs a report they authored themselves, then they pass the validator gate on the other person's report and are refused on their own report, and an unassigned job role (`project_control_manager`) remains refused.
+- **AC-DRVR-004 (Vitest).** Given `DailyReportValidateRoles`, when rendered for an Admin vs a non-Admin, then an Admin sees manager and officer job roles (with custom organisation role names and no field roles), ticks and saves through the repository, and a non-Admin sees disabled checkboxes, no Save button, and the Admin-only explanation.
+- **AC-DRVR-005 (Vitest).** Given `can('approve', 'dailySiteReport', ctx)` and `can('revise', 'dailySiteReport', ctx)`, when `dailyReportValidateRoles` includes the viewer's `builtInRoleKey`, then another author's report is allowed, the viewer's own report is refused, and an unlisted job role is refused.
+- **AC-DRVR-006 (Vitest + guards).** Given Bahasa Indonesia (`id`) active, when `DailyReportValidateRoles` renders and `check:guards` inspects refusal codes and catalogues, then all copy and refusal sentences (`DSR_VALIDATE_ROLE_ADMIN`, `DSR_VALIDATE_ROLE_OFF`, `DSR_VALIDATE_ROLE_INVALID`) resolve in English and Bahasa Indonesia.

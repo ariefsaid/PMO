@@ -15,6 +15,7 @@ import { useProject } from '@/src/hooks/useProjects';
 import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
 } from '@/src/hooks/useDailySiteReports';
+import { useDailyReportValidateRoles } from '@/src/hooks/useDailyReportValidateRoles';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
@@ -60,12 +61,15 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const navigate = useNavigate();
   const { toast } = useToast();
   const narrow = useIsNarrow();
-  const userId = useAuth().currentUser?.id ?? null;
+  const currentUser = useAuth().currentUser;
+  const userId = currentUser?.id ?? null;
+  const builtInRoleKey = currentUser?.built_in_role ?? null;
+  const dailyReportValidateRoles = useDailyReportValidateRoles().data;
   const { realRole } = useEffectiveRole();
   const roleLabels = useRoleLabels();
   const { report } = detail;
   const project = useProject(report.project_id).data ?? null;
-  const ctx = { realRole, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
+  const ctx = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
   const editable = (report.status === 'draft' || report.status === 'returned')
     && (report.author_id === userId || can('create', 'dailySiteReport', ctx));
   const mayWithdraw = report.status === 'submitted' && report.author_id === userId;

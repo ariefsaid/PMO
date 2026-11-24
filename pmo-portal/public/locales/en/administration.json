@@ -873,6 +873,17 @@
       "title": "Attendance target",
       "turnOff": "Turn off"
     },
+    "dsrValidateRoles": {
+      "title": "Validate daily site reports",
+      "intro": "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Tick job roles whose active holders may also validate reports across your organisation.",
+      "legend": "Job roles that validate daily site reports",
+      "loadError": "Couldn't load site report validator roles",
+      "adminOnly": "Only an Admin can change this.",
+      "viewOnly": "Exit view-as mode to change this setting.",
+      "turnOn": "Turn on built-in roles in Administration > People to assign this capability.",
+      "save": "Save",
+      "saved": "Site report validator roles saved"
+    },
     "attendanceRoles": {
       "title": "Time records",
       "intro": "Name who may enter a second record of a worker's day (a surveyor or timekeeper) and who decides which hours stand when two records differ. A second record never changes paid hours on its own.",

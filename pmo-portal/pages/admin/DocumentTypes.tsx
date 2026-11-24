@@ -17,15 +17,31 @@ interface TypeFormValues { name: string; applies_to: SubjectKind; is_medical: bo
 const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> = ({ type, onClose }) => {
   const { t } = useTranslation('administration');
   const { toast } = useToast();
+  const may = usePermission();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const viewOnly = realRole !== effectiveRole;
+  const canPerson = may('manage', 'documentType', { record: { viewOnly, applies_to: 'person', medical: false } });
+  const canEquipment = may('manage', 'documentType', { record: { viewOnly, applies_to: 'equipment', medical: false } });
+  const canMedical = may('manage', 'documentType', { record: { viewOnly, applies_to: 'person', medical: true } });
+  const defaultKind: SubjectKind = type?.applies_to ?? (canPerson ? 'person' : 'equipment');
   const { create, update } = useDocumentTypeMutations();
   const [v, setV] = useState<TypeFormValues>({
-    name: type?.name ?? '', applies_to: type?.applies_to ?? 'person', is_medical: type?.is_medical ?? false, notify_roles: type?.notify_roles ?? DEFAULT_NOTIFY_ROLES.person, notify_person: type?.notify_person ?? false,
+    name: type?.name ?? '',
+    applies_to: defaultKind,
+    is_medical: type?.is_medical ?? false,
+    notify_roles: type?.notify_roles ?? DEFAULT_NOTIFY_ROLES[defaultKind],
+    notify_person: type?.notify_person ?? false,
   });
   const [nameError, setNameError] = useState<string>();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [saving, setSaving] = useState(false);
   const toggleRole = (role: NotifyRole, on: boolean) =>
     setV((c) => ({ ...c, notify_roles: on ? [...c.notify_roles, role] : c.notify_roles.filter((r) => r !== role) }));
+
+  const appliesOptions = [
+    ...(canPerson ? [{ value: 'person', label: t('documentTypes.person', 'Person') }] : []),
+    ...(canEquipment ? [{ value: 'equipment', label: t('documentTypes.equipment', 'Equipment') }] : []),
+  ];
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +50,13 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
     setSaving(true);
     const run = type
       ? update.mutateAsync({ id: type.id, input: { name: v.name, notify_roles: v.notify_roles, notify_person: v.notify_person } })
-      : create.mutateAsync({ name: v.name, applies_to: v.applies_to, is_medical: v.is_medical && v.applies_to === 'person', notify_roles: v.notify_roles, notify_person: v.notify_person });
+      : create.mutateAsync({
+          name: v.name,
+          applies_to: v.applies_to,
+          is_medical: canMedical && v.is_medical && v.applies_to === 'person',
+          notify_roles: v.notify_roles,
+          notify_person: v.notify_person,
+        });
     run.then(() => { toast(t('documentTypes.saved', 'Document type saved'), undefined, 'success'); onClose(); })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : '';
@@ -53,10 +75,10 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
           onChange={(name) => { setV((c) => ({ ...c, name })); setNameError(undefined); }} />
         {!type && (
           <SelectField id="document-type-applies" label={t('documentTypes.appliesTo', 'Applies to')} value={v.applies_to}
-            onChange={(applies_to) => setV((c) => ({ ...c, applies_to: applies_to as SubjectKind, is_medical: applies_to === 'person' && c.is_medical, notify_roles: DEFAULT_NOTIFY_ROLES[applies_to as SubjectKind] }))}
-            options={[{ value: 'person', label: t('documentTypes.person', 'Person') }, { value: 'equipment', label: t('documentTypes.equipment', 'Equipment') }]} />
+            onChange={(applies_to) => setV((c) => ({ ...c, applies_to: applies_to as SubjectKind, is_medical: canMedical && applies_to === 'person' && c.is_medical, notify_roles: DEFAULT_NOTIFY_ROLES[applies_to as SubjectKind] }))}
+            options={appliesOptions} />
         )}
-        {!type && v.applies_to === 'person' && (
+        {!type && v.applies_to === 'person' && canMedical && (
           <Checkbox checked={v.is_medical} onChange={(is_medical) => setV((c) => ({ ...c, is_medical }))}
             label={t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}>
             {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}

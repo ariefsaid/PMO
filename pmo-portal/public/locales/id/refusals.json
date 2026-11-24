@@ -491,5 +491,8 @@
   "PRC_SUPPLIER_INVALID": "Pilih pemasok aktif dari organisasi Anda.",
   "PRC_SUPPLIER_SET": "Pembelian ini sudah menentukan pemasoknya.",
   "PRC_SUPPLIER_STEP": "Tentukan pemasok setelah pembelian disetujui.",
-  "PPL_PROFILE_SELF": "Hanya Admin yang dapat menautkan atau melepas tautan data dirinya sendiri."
+  "PPL_PROFILE_SELF": "Hanya Admin yang dapat menautkan atau melepas tautan data dirinya sendiri.",
+  "DSR_VALIDATE_ROLE_ADMIN": "Hanya Admin yang dapat mengubah jabatan yang memvalidasi laporan harian lokasi.",
+  "DSR_VALIDATE_ROLE_INVALID": "Pilih jabatan tingkat manajer atau petugas dari daftar peran bawaan.",
+  "DSR_VALIDATE_ROLE_OFF": "Aktifkan peran bawaan di Administrasi > Orang sebelum menentukan jabatan yang memvalidasi laporan lokasi."
 }
