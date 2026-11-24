@@ -3,6 +3,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { signIn, requireServiceRoleKey } from './helpers';
+import { roleJobUser } from './support/roleJobUser';
 import { SEED_PROJECT_ID, SEED_PROJECT_NAME, makeItem, runSuffix, userClient } from './support/stockFixture';
 
 test.setTimeout(180_000);
@@ -40,7 +41,8 @@ async function fixture() {
   // material goes and the journey answers — instead of relying on no other test having added a location (they do).
   const site = await admin.from('stock_warehouses').insert({ code: `E2E-CU${sfx}`, name: `E2E site ${sfx}`, kind: 'site', project_id: SEED_PROJECT_ID }).select('id, code, name').single();
   if (site.error) throw new Error('site: ' + site.error.message);
-  return { admin, sfx, rod, gas, unit, wo: wo.data, site: site.data };
+  const pcm = await roleJobUser(service, 'project_control_manager', `cus-pcm-${sfx.toLowerCase()}`);
+  return { admin, sfx, rod, gas, unit, wo: wo.data, site: site.data, pcm };
 }
 
 async function pick(page: Page, label: RegExp, option: string) {
@@ -49,7 +51,7 @@ async function pick(page: Page, label: RegExp, option: string) {
 }
 
 test('AC-CUS-015: a planner adds a standard, generates the work order\'s consumable plan and adjusts a line; a site user\'s request shows the plan figure and its source, asks for a reason when over it, and submits', async ({ page }) => {
-  const { admin, rod, gas, unit, wo, site } = await fixture();
+  const { admin, rod, gas, unit, wo, site, pcm } = await fixture();
   try {
     // Planner: the standard (welding rod per unit of work, 10% waste, for contract lines starting WLD).
     await signIn(page, 'admin@acme.test');
@@ -81,6 +83,14 @@ test('AC-CUS-015: a planner adds a standard, generates the work order\'s consuma
     await expect(plan.getByTestId(`consumable-row-${gas.id}`)).toContainText('Adjusted', { timeout: 15_000 });
     await expect(plan.getByTestId(`consumable-row-${gas.id}`)).toContainText('Plan 3');
 
+    // Project Control Manager approves the consumable plan so material requests check against it.
+    await pcm.signIn(page);
+    await page.goto(`/work-orders/${wo.id}`);
+    const pcmPlan = page.getByTestId('consumable-plan');
+    await expect(pcmPlan.getByTestId('consumable-approval')).toContainText('Approval required', { timeout: 15_000 });
+    await pcmPlan.getByRole('button', { name: 'Approve plan' }).click();
+    await expect(pcmPlan.getByTestId('consumable-approval')).toContainText('Approved', { timeout: 15_000 });
+
     // Site user raises a request for 9 of the rod: over the plan of 8.8, so a reason is asked for.
     await signIn(page, 'engineer@acme.test');
     await page.goto('/material-requests/new');
@@ -101,5 +111,6 @@ test('AC-CUS-015: a planner adds a standard, generates the work order\'s consuma
   } finally {
     // Standards are archived, never deleted (ADR-0018); this run's unique unit keeps it from matching anything else.
     await admin.from('consumable_usage_standards').update({ archived_at: new Date().toISOString() }).eq('work_unit', unit);
+    await pcm.cleanup();
   }
 });
