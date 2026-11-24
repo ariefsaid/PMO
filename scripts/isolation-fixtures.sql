@@ -167,6 +167,11 @@ values ('a6120000-0000-4000-8000-0000000000f3', 'a6120000-0000-4000-8000-0000000
 -- so its ceiling also requires by-id reads on existing tables.
 insert into public.equipment_assets (id, org_id, code, name)
 values ('a6120000-0000-4000-8000-0000000000f4', 'a6120000-0000-4000-8000-00000000000a', 'iso-asset', 'Isolation proof asset');
+-- A concrete saved rental check makes its cross-tenant by-id read and update probes executable.
+insert into public.hourly_rental_checks (id, org_id, asset_id, period_from, period_to, result, created_by, invoice_id, note)
+values ('a6120000-0000-4000-8000-0000000000f8', 'a6120000-0000-4000-8000-00000000000a',
+        'a6120000-0000-4000-8000-0000000000f4', current_date, current_date, '{"state":"checked"}',
+        'a6120000-0000-4000-8000-0000000000a1', 'a6120000-0000-4000-8000-0000000000e5', 'Isolation rental check');
 insert into public.equipment_costing_settings (id, org_id, asset_id, setting_key, version, basis, effective_from)
 values ('a6120000-0000-4000-8000-0000000000f5', 'a6120000-0000-4000-8000-00000000000a',
         'a6120000-0000-4000-8000-0000000000f4', 'a6120000-0000-4000-8000-0000000000f6', 1, 'none', current_date);

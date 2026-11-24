@@ -61,6 +61,7 @@ export interface BillingStagesRepository {
   completeWorkOrderStep(stepId: string, doneOn: string): Promise<void>;
   skipWorkOrderStep(stepId: string): Promise<void>;
   assignWorkOrderStep(stepId: string, personId: string | null): Promise<void>;
+  setWorkOrderStepClaimEvidence(stepId: string, enabled: boolean): Promise<void>;
   /** Adds a step to one work order's own checklist after the given position (null = database-resolved end); migration 2181. */
   addWorkOrderStep(workOrderId: string, afterPosition: number | null, step: StepInput): Promise<string>;
   saveWorkOrderChecklistAsTemplate(workOrderId: string, name: string): Promise<string>;

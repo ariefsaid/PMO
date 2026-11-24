@@ -1521,3 +1521,7 @@ The per-organisation, Admin-controlled switch for the work-order import and open
 
 ## Opening balances screen
 The read-only Finance screen listing what the CLI loaded at go-live (stock per location and item, running work orders' certified and claimed figures), with the go-live date, who loaded each and totals to check against the source file. See `docs/specs/opening-balances-screen.spec.md`.
+
+**Contracted rental hours** — The explicit gross hours hired for an invoice period, before proven downtime deductions.
+
+**Billable rental hours** — Contracted rental hours minus proven broken hours, never below zero; separate from recorded working and standby usage.

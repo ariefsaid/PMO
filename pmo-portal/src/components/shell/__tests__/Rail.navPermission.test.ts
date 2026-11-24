@@ -18,6 +18,9 @@ const base = {
 const paths = (may?: (a: Action, e: Entity) => boolean) => visibleNavItems({ ...base, may }).map((i) => i.to);
 
 describe('menu entries follow the destination page gate', () => {
+  it('AC-BQS-007 requesters can open Purchasing', () => {
+    expect(visibleNavItems({ ...base, role: UserRole.Engineer, realRole: UserRole.Engineer }).map((i) => i.to)).toContain('/procurement');
+  });
   it('lists the Finance pages for a reader the finance gate admits', () => {
     expect(paths(() => true)).toEqual(expect.arrayContaining(['/finance', '/finance/receivables', '/finance/payables', '/journals']));
   });

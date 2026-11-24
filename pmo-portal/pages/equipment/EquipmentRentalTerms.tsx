@@ -18,7 +18,7 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [inService, setInService] = useState(asset.in_service_on ?? '');
   const [vendor, setVendor] = useState(''); const [rate, setRate] = useState('');
-  const [basis, setBasis] = useState<'day' | 'month'>('day'); const [currency, setCurrency] = useState('IDR');
+  const [basis, setBasis] = useState<'hour' | 'day' | 'month'>('day'); const [currency, setCurrency] = useState('IDR');
   const [rentedFrom, setRentedFrom] = useState(''); const [rentedTo, setRentedTo] = useState('');
   // The typed rate is read in the viewer's number convention and sent as a canonical decimal (#2618).
   const canonicalRate = () => {
@@ -37,12 +37,12 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
           <h2 id="eav-terms-h" className="text-base font-semibold mb-2">{t('equipment:availability.terms', 'Rental terms')}</h2>
           {terms.isError && <p role="alert">{t('equipment:availability.termsError', 'Could not load rental terms')}</p>}
           {(terms.data?.length ?? 0) > 0 && <ul className="mb-3">
-            {terms.data?.map((term) => <li key={term.id}>{formatIsoDay(term.rented_from)} – {term.rented_to ? formatIsoDay(term.rented_to) : '…'} · {vendors.data?.find((v) => v.id === term.vendor_id)?.name ?? term.vendor_id} · {formatExactMoney(String(term.rate), term.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—'} / {term.basis === 'day' ? t('equipment:availability.day', 'Day') : t('equipment:availability.month', 'Month')}</li>)}
+            {terms.data?.map((term) => <li key={term.id}>{formatIsoDay(term.rented_from)} – {term.rented_to ? formatIsoDay(term.rented_to) : '…'} · {vendors.data?.find((v) => v.id === term.vendor_id)?.name ?? term.vendor_id} · {formatExactMoney(String(term.rate), term.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—'} / {term.basis === 'hour' ? t('equipment:availability.hour', 'Hour') : term.basis === 'day' ? t('equipment:availability.day', 'Day') : t('equipment:availability.month', 'Month')}</li>)}
           </ul>}
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField label={t('equipment:availability.vendor', 'Vendor')} value={vendor} onChange={setVendor} options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...(vendors.data ?? []).map((v) => ({ value: v.id, label: v.name }))]} />
             <NumberField localeAware label={t('equipment:availability.rate', 'Rate')} value={rate} onChange={setRate} />
-            <SelectField label={t('equipment:availability.basis', 'Rate basis')} value={basis} onChange={(v) => setBasis(v as 'day' | 'month')} options={[{ value: 'day', label: t('equipment:availability.day', 'Day') }, { value: 'month', label: t('equipment:availability.month', 'Month') }]} />
+            <SelectField label={t('equipment:availability.basis', 'Rate basis')} value={basis} onChange={(v) => setBasis(v as 'hour' | 'day' | 'month')} options={[{ value: 'hour', label: t('equipment:availability.hour', 'Hour') }, { value: 'day', label: t('equipment:availability.day', 'Day') }, { value: 'month', label: t('equipment:availability.month', 'Month') }]} />
             <TextField label={t('equipment:availability.currency', 'Currency')} value={currency} onChange={setCurrency} />
             <DateField label={t('equipment:availability.rentedFrom', 'Rental start')} value={rentedFrom} onChange={setRentedFrom} />
             <DateField label={t('equipment:availability.inService', 'In service from (optional)')} value={inService} onChange={setInService} />
