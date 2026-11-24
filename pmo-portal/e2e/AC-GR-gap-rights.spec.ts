@@ -17,6 +17,14 @@ test('AC-GR-001 Equipment Officer registers a machine on the asset register', as
     await expect(page.getByRole('link', { name: 'Open Registered machine' })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('link', { name: 'Open Registered machine' })).toBeVisible();
+    await page.getByRole('button', { name: /row actions/i }).click();
+    await expect(page.getByRole('menuitem', { name: 'Delete', exact: true })).toHaveCount(0);
+    await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+    await page.getByRole('dialog').getByLabel(/^Name/).fill('Updated machine');
+    await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Open Updated machine' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('link', { name: 'Open Updated machine' })).toBeVisible();
   } finally { removeJobOrganization(org.id); await officer.remove(); }
 });
 test('AC-GR-002 Project Control Manager reads another managers catalogue prices', async ({ page }) => {
