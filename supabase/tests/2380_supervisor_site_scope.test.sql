@@ -55,7 +55,7 @@ insert into attendance_days(org_id,worker_id,crew_id,work_order_id,work_date,sta
 insert into incident_reports(id,org_id,project_id,incident_date,type,severity,reported_by) values('20410000-0000-0000-0000-000000000063','20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-0000000000c1',current_date,'Safety','Low','20410000-0000-0000-0000-0000000000a7');
 -- An unrelated host has no current roster on any of this supervisor's work orders.
 insert into crews(id,org_id,code,name) values('20410000-0000-0000-0000-000000000044','20410000-0000-0000-0000-00000000000a','OUT','Unrelated host');
--- An existing out-of-scope host distinguishes UPDATE USING from its new-row WITH CHECK.
+-- This existing loan exercises the client's date-edit path, with home authorized and host outside scope.
 insert into crew_loans(org_id,worker_id,home_crew_id,host_crew_id,valid_from,valid_to) values('20410000-0000-0000-0000-00000000000a','20410000-0000-0000-0000-000000000051','20410000-0000-0000-0000-000000000041','20410000-0000-0000-0000-000000000044',current_date+2,current_date+2);
 select set_config('request.jwt.claims', '{"sub":"20410000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
 set local role authenticated;
@@ -66,8 +66,8 @@ select lives_ok($$insert into crew_loans(worker_id,home_crew_id,host_crew_id,val
 select is((select created_by from crew_loans where valid_from=current_date),'20410000-0000-0000-0000-0000000000a4'::uuid,'AC-SITE-006 loan retains its author');
 select ok(not supervisor_may_lend_crew('20410000-0000-0000-0000-000000000044'),'AC-SITE-006 the home-authorized supervisor does not supervise the unrelated host');
 select throws_ok($$insert into crew_loans(worker_id,home_crew_id,host_crew_id,valid_from,valid_to) values('20410000-0000-0000-0000-000000000051','20410000-0000-0000-0000-000000000041','20410000-0000-0000-0000-000000000044',current_date+1,current_date+1)$$,'42501',null,'AC-SITE-006 INSERT refuses an unrelated host even when home is authorized');
-select throws_ok($$update crew_loans set host_crew_id='20410000-0000-0000-0000-000000000044' where valid_from=current_date$$,'42501',null,'AC-SITE-006 UPDATE WITH CHECK refuses changing an authorized loan to an unrelated host');
-with changed as (update crew_loans set host_crew_id='20410000-0000-0000-0000-000000000042' where valid_from=current_date+2 returning id) select is(count(*),0::bigint,'AC-SITE-006 UPDATE USING refuses changing a loan whose existing host is unrelated') from changed;
+select ok(not has_column_privilege('authenticated','public.crew_loans','host_crew_id','UPDATE'),'AC-SITE-006 authenticated cannot change a loan host');
+with changed as (update crew_loans set valid_to=valid_to where valid_from=current_date+2 returning id) select is(count(*),0::bigint,'AC-SITE-006 date edit refuses a loan whose existing host is unrelated') from changed;
 select ok(not supervisor_may_lend_crew(gen_random_uuid()),'AC-SITE-006 unknown or foreign crew refused');
 reset role;
 
