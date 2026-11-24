@@ -638,6 +638,10 @@
         "noticesHeading": "Notices (off until you choose)",
         "label": "Billing extras",
         "helper": "Revenue per discipline, the revenue plan, idle time as cost, and the reminder for work that is done but not claimed."
+      },
+      "managementViews": {
+        "label": "Management views",
+        "helper": "Show the project portfolio and progress not yet accepted by the client."
       }
     },
     "modulesNav": "Modules",

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, EntityFormModal, FormGrid, ListState, TextField, useToast, type SubmitError } from '@/src/components/ui';
+import { Button, ConfirmDialog, EntityFormModal, FormGrid, ListState, TextArea, TextField, useToast, type SubmitError } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useWorkOrderListEntries, WORK_ORDER_LISTS_KEY } from '@/src/hooks/useWorkOrderLists';
 import {
-  workOrderListRepository, LIST_CODE_MAX, LIST_NAME_MAX, type WorkOrderListEntry, type WorkOrderListInput, type WorkOrderListKind,
+  workOrderListRepository, LIST_CODE_MAX, LIST_DESCRIPTION_MAX, LIST_NAME_MAX, type WorkOrderListEntry, type WorkOrderListInput, type WorkOrderListKind,
 } from '@/src/lib/repositories/workOrderLists';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
@@ -85,7 +85,7 @@ const ListSection: React.FC<{ kind: WorkOrderListKind }> = ({ kind }) => {
           {rows.map((row) => (
             <tr key={row.id} className="border-t border-border">
               <td className="py-2 pr-4 font-medium">{row.code}</td>
-              <td className="py-2 pr-4">{row.name}</td>
+              <td className="py-2 pr-4">{row.name}{row.description ? <span className="block text-muted-foreground">{row.description}</span> : null}</td>
               {(canEdit || canArchive) && <td className="py-2 text-right">
                 <div className="flex justify-end gap-1.5">
                   {canEdit && <Button variant="ghost" size="sm" aria-label={t('workOrders:lists.editLabel', 'Edit {{name}}', { name: row.name })} onClick={() => setForm({ mode: 'edit', row })}>{t('workOrders:lists.edit', 'Edit')}</Button>}
@@ -97,7 +97,7 @@ const ListSection: React.FC<{ kind: WorkOrderListKind }> = ({ kind }) => {
         </tbody>
       </table>
     )}
-    {form && <EntryForm target={form} pending={save.isPending} refusals={refusals}
+    {form && <EntryForm kind={kind} target={form} pending={save.isPending} refusals={refusals}
       onClose={() => setForm(null)}
       onSave={async (input) => {
         await save.mutateAsync({ target: form, input });
@@ -113,27 +113,30 @@ const ListSection: React.FC<{ kind: WorkOrderListKind }> = ({ kind }) => {
 };
 
 const EntryForm: React.FC<{
+  kind: WorkOrderListKind;
   target: FormTarget;
   pending: boolean;
   refusals: Record<string, string>;
   onClose: () => void;
   onSave: (input: WorkOrderListInput) => Promise<void>;
-}> = ({ target, pending, refusals, onClose, onSave }) => {
+}> = ({ kind, target, pending, refusals, onClose, onSave }) => {
   const { t } = useTranslation(['workOrders']);
-  const initial = target.mode === 'edit' ? target.row : { code: '', name: '' };
+  const initial = target.mode === 'edit' ? { code: target.row.code, name: target.row.name, description: target.row.description ?? '' } : { code: '', name: '', description: '' };
   const [code, setCode] = useState(initial.code);
   const [name, setName] = useState(initial.name);
+  const [description, setDescription] = useState(initial.description);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
-  const input = { code: code.trim(), name: name.trim() };
+  const input = { code: code.trim(), name: name.trim(), ...(kind === 'area' ? { description: description.trim() } : {}) };
   const codeError = input.code.length > LIST_CODE_MAX ? t('workOrders:lists.tooLong', 'Use {{max}} characters or fewer.', { max: LIST_CODE_MAX }) : undefined;
   const nameError = input.name.length > LIST_NAME_MAX ? t('workOrders:lists.tooLong', 'Use {{max}} characters or fewer.', { max: LIST_NAME_MAX }) : undefined;
-  const unchanged = target.mode === 'edit' && input.code === target.row.code && input.name === target.row.name;
-  const invalid = !input.code || !input.name || Boolean(codeError || nameError) || unchanged;
+  const descriptionError = (input.description ?? '').length > LIST_DESCRIPTION_MAX ? t('workOrders:lists.tooLong', 'Use {{max}} characters or fewer.', { max: LIST_DESCRIPTION_MAX }) : undefined;
+  const unchanged = target.mode === 'edit' && input.code === target.row.code && input.name === target.row.name && (input.description ?? '') === (kind === 'area' ? (target.row.description ?? '') : '');
+  const invalid = !input.code || !input.name || Boolean(codeError || nameError || descriptionError) || unchanged;
   return <EntityFormModal open
     title={target.mode === 'create' ? t('workOrders:lists.addTitle', 'Add an entry') : t('workOrders:lists.editTitle', 'Edit entry')}
     submitLabel={target.mode === 'create' ? t('workOrders:lists.add', 'Add') : t('workOrders:lists.save', 'Save')}
     submitDisabled={invalid || pending} loading={pending}
-    dirty={input.code !== initial.code || input.name !== initial.name} submitError={submitError}
+    dirty={input.code !== initial.code || input.name !== initial.name || (input.description ?? '') !== (kind === 'area' ? initial.description : '')} submitError={submitError}
     onClose={onClose}
     onSubmit={(e) => {
       e.preventDefault();
@@ -145,6 +148,10 @@ const EntryForm: React.FC<{
       <TextField id="wo-list-code" label={t('workOrders:lists.code', 'Code')} value={code} onChange={setCode} required error={codeError} autoComplete="off" />
       <TextField id="wo-list-name" label={t('workOrders:lists.name', 'Name')} value={name} onChange={setName} required error={nameError} autoComplete="off" />
     </FormGrid>
+    {kind === 'area' && (
+      <TextArea id="wo-list-description" label={t('workOrders:lists.description', 'Description (optional)')} value={description} onChange={setDescription}
+        error={descriptionError} maxLength={LIST_DESCRIPTION_MAX} />
+    )}
   </EntityFormModal>;
 };
 

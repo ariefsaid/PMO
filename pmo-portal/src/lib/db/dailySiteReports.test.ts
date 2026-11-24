@@ -4,17 +4,19 @@ import { AppError } from '@/src/lib/appError';
 /** #1522 daily site report DAL: list filter/order/paging (AC-DSR-015), the write payloads (no org_id), refusals. */
 const h = vi.hoisted(() => {
   const result = { value: {} as { data: unknown; error: unknown } };
+  const directoryResult = { value: {} as { data: unknown; error: unknown } };
+  let table = '';
   const calls: Array<[string, unknown[]]> = [];
   const rpcCalls: Array<[string, unknown]> = [];
   const builder: Record<string, unknown> = {};
-  for (const k of ['select', 'eq', 'is', 'gte', 'lte', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
+  for (const k of ['select', 'eq', 'is', 'gte', 'lte', 'order', 'range', 'in', 'limit', 'insert', 'update', 'maybeSingle'] as const) {
     builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
   }
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
-  const from = vi.fn((t: string) => { calls.push(['from', [t]]); return builder; });
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(table === 'people_directory' ? directoryResult.value : result.value);
+  const from = vi.fn((t: string) => { table = t; calls.push(['from', [t]]); return builder; });
   const rpc = vi.fn((n: string, a?: unknown) => { rpcCalls.push([n, a]); return Promise.resolve(result.value); });
   const storage = { upload: vi.fn(() => Promise.resolve({ error: null })), remove: vi.fn(() => Promise.resolve({ error: null })) };
-  return { from, rpc, calls, rpcCalls, result, storage };
+  return { from, rpc, calls, rpcCalls, result, directoryResult, storage };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc, storage: { from: () => h.storage } } }));
 
@@ -24,6 +26,7 @@ beforeEach(() => {
   h.calls.length = 0; h.rpcCalls.length = 0;
   h.storage.upload.mockClear(); h.storage.remove.mockClear();
   h.result.value = { data: [], error: null };
+  h.directoryResult.value = { data: [], error: null };
 });
 
 describe('AC-DSR-015 list', () => {
@@ -48,6 +51,37 @@ describe('AC-DSR-015 list', () => {
     const page = await dal.listReports({});
     expect(page.rows).toHaveLength(dal.DSR_PAGE_SIZE);
     expect(page.hasMore).toBe(true);
+  });
+});
+
+describe('AC-SRC crew and person link', () => {
+  it('AC-SRC-006 filters the list by crew and reads the crew name', async () => {
+    h.result.value = { data: [{ id: 'r1', work_orders: null, author: null, crew: { name: 'Pipe crew' } }], error: null };
+    const page = await dal.listReports({ crewId: 'c1' });
+    expect(h.calls).toContainEqual(['eq', ['crew_id', 'c1']]);
+    expect(page.rows[0].crew_name).toBe('Pipe crew');
+  });
+
+  it('AC-SRC-006 reads a named-person link through the safe directory view', async () => {
+    h.result.value = { data: [{ id: 'r1', person_id: 'person1', work_orders: null, author: null, crew: null }], error: null };
+    h.directoryResult.value = { data: [{ id: 'person1', name: 'Roster person' }], error: null };
+    const page = await dal.listReports({});
+    expect(h.calls).toContainEqual(['from', ['people_directory']]);
+    expect(h.calls).toContainEqual(['in', ['id', ['person1']]]);
+    expect(h.calls).toContainEqual(['limit', [dal.DSR_PAGE_SIZE]]);
+    expect(page.rows[0].person_name).toBe('Roster person');
+  });
+
+  it('AC-SRC-004 a save sends the link keys only when given: leaving them out keeps the stored link', async () => {
+    h.result.value = { data: 'r1', error: null };
+    await dal.saveDraft({ id: 'r1', workOrderId: 'w1', workDate: '2026-03-10', progress: [], idle: [], consumables: [] });
+    const without = (h.rpcCalls[0] as [string, { p: Record<string, unknown> }])[1].p;
+    expect(without).not.toHaveProperty('crew_id');
+    expect(without).not.toHaveProperty('person_id');
+    expect(without).not.toHaveProperty('area_id');
+    await dal.saveDraft({ id: 'r1', workOrderId: 'w1', workDate: '2026-03-10', crewId: 'c1', personId: null, areaId: 'a1', progress: [], idle: [], consumables: [] });
+    const withKeys = (h.rpcCalls[1] as [string, { p: Record<string, unknown> }])[1].p;
+    expect(withKeys).toMatchObject({ crew_id: 'c1', person_id: null, area_id: 'a1' });
   });
 });
 

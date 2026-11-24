@@ -1,5 +1,5 @@
 import type {
-  DsrContractItem, DsrDraftInput, DsrListAdminOption, DsrListFilter, DsrListKind, DsrListOption, DsrReportHours, DsrPhoto,
+  DsrContractItem, DsrDraftInput, DsrListAdminOption, DsrListFilter, DsrListKind, DsrListOption, DsrPersonOption, DsrReportHours, DsrPhoto,
   DsrQueueRow, DsrReport, DsrReportDetail, DsrReportListRow, DsrRevenueLineRow,
 } from '@/src/lib/db/dailySiteReports';
 import type { DsrValidationRoute } from '@/src/lib/db/dsrValidationRoute';
@@ -15,6 +15,9 @@ export interface DailySiteReportRepository {
   renameListItem(kind: DsrListKind, id: string, label: string): Promise<void>;
   setListItemArchived(kind: DsrListKind, id: string, archived: boolean): Promise<void>;
   listContractItems(workOrderId: string): Promise<DsrContractItem[]>;
+  /** The people a report may name when no crew applies (member-readable directory). */
+  listLinkPeople(): Promise<DsrPersonOption[]>;
+  personName(id: string): Promise<string | null>;
   reportHours(reportId: string): Promise<DsrReportHours>;
   saveDraft(input: DsrDraftInput): Promise<string>;
   submit(id: string): Promise<void>;

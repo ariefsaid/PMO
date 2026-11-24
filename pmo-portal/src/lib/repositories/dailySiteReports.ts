@@ -12,6 +12,8 @@ export const dailySiteReportRepository: DailySiteReportRepository = {
   renameListItem: dal.renameListItem,
   setListItemArchived: dal.setListItemArchived,
   listContractItems: dal.listContractItems,
+  listLinkPeople: dal.listLinkPeople,
+  personName: dal.personName,
   reportHours: dal.reportHours,
   saveDraft: dal.saveDraft,
   submit: dal.submitReport,

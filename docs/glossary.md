@@ -473,13 +473,17 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
 
-**Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
+**Billing board** — a read-only screen listing each open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with days on the step and an overdue chip. Each column shows its claim count and exact total by currency; individual cards omit the amount. Nothing is stored for the board, and a claim moves on only by completing its step on the claim. Finance, Executive and Admin can read the board. Bahasa Indonesia: Papan penagihan (#2681).
 
 **Billed month** — a calendar month in the work-order page's "Billed per month" list: the billed work (submitted invoices, excluding tax, no down payments, in the work order's currency) dated in that organisation-local month, the same figure as the work-in-hand screen. The current month reads "to date". Drafts and claims not yet invoiced are not in it. Bahasa Indonesia: Bulan penagihan.
 
 **Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
 
-**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left. "Progress not yet client-certified" in the ticket words (#2682).
+**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left (#2682).
+
+**Unaccepted progress** — measured quantity on a bill-of-quantities line above the quantity confirmed by the client's acceptance; shown separately from accepted work that is not yet claimed (management views round, 24 November 2026).
+
+**Management views switch** — an Operator-managed per-organisation entitlement for the new home portfolio and unaccepted-progress group; existing plan defaults leave both surfaces off until an organisation is opted in (management views round, 24 November 2026).
 
 **Monthly target** — the amount the organisation aims to bill in a calendar month, with its currency; a default plus optional per-month overrides, set by Admin or Finance. Other currencies are listed apart, not converted (#2682).
 
@@ -513,7 +517,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 ---
 
-**Work in hand** — **Left to bill** on the Contract on hand set and on its issued work orders, ranked per currency. A contract and its work orders are shown as a hierarchy and never added together (#2575).
+**Work in hand** — **Left to bill** on the Contract on hand set and on its issued work orders, ranked per currency. A contract and its work orders are shown as a hierarchy and never added together; a Project Manager sees only assigned projects while Finance, Executive and Admin see the organization-wide position (#2575, management views round).
 
 **Billed to date** (of a contract or work order) — the pack's *invoiced to date*: billed work (the single definition shared by the billing summary and the management pack: submitted, unpaid or paid invoices, net of tax, plus the down-payment recovery; a down payment counts zero) summed over a contract or a work order.
 
@@ -777,7 +781,7 @@ before it closes (the organisation names the items; PMO ships none). A work orde
 it closes only when every required item is done. A material joint count, loss report or completion report is an item of
 the same list, not a separate mechanism.
 
-**Work-order billing steps** (*langkah penagihan surat perintah kerja*) — an advisory list copied onto a work order when it is issued, from the organisation's default billing step template (none chosen: no list). Each step has an owner role (a built-in role), an optional named person, target days, attachments and a status; it never gates an invoice (the claim's own billing stages do). Read through *see billing steps*, acted on through *run billing steps* (or as the step's owner role or named person); a role the template hides a step from does not see it, and the named person is exempt (billing-steps.spec.md).
+**Work-order billing steps** (*langkah penagihan surat perintah kerja*) — an advisory list copied onto a work order when it is issued, from the organisation's default billing step template (none chosen: no list). Each step has an owner role (a built-in role), an optional named person, target days, attachments and a status; it never gates an invoice (the claim's own billing stages do). Read through *see billing steps*, acted on through *run billing steps* (or as the step's owner role or named person); a role the template hides a step from does not see it, and the named person is exempt (billing-steps.spec.md). Checklist editing is an organisation setting, off by default and enabled by an Admin under Administration › Accounting. While it is on and the work order is issued, a person who runs billing steps may add a step to that work order's own list (after the current step), and Finance or an Admin may save the complete list as a new *step template* for the next work orders (wo-checklist-edit.spec.md).
 
 **Close-out item** (*butir penutupan*) — one line of a work order's checklist: required or optional, with an attached
 issued or approved project document, a done date and who marked it. Items are done in order; an item's age counts from the
@@ -1228,8 +1232,9 @@ an account holder's phone with their name typed). The organisation chooses which
 **Daily target** — a figure entered per work order for a day or a month and spread evenly over working days unless edited. PMO does not
 calculate it from crews or productivity; the daily report's revenue is read against it.
 
-**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card. It holds
-no data of its own. A step waiting on a role shows in that person's needs-you list and clears when the step completes.
+**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card and a
+per-currency value total at the column. It holds no data of its own. A step waiting on a role shows in that person's needs-you list and
+clears when the step completes.
 
 **Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
 manager accepts or rejects it, with the reason recorded.
@@ -1474,6 +1479,14 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.
 **Reported absent** (*melaporkan tidak masuk*) — a field worker's own statement, from the phone home, that they are not coming in today (sick or other). The roster shows it; it is not attendance and not leave. Written only by `report_absence` (migration 1631).
+
+**Area rate** (*tarif wilayah*) — a rate a hand-priced contract line carries for one work-order area (#1124). A daily site report priced from that line uses the area's rate when the report names an area (else its work order's area) and the area has a rate for the line; otherwise the line's own rate. Frozen at validation with the rest of the line's rate. A catalogue-priced line has none (the catalogue prices by work location).
+
+**Report area** (*wilayah laporan*) — an optional area a daily site report names to override its work order's area for the rate. Left empty, the report follows its work order's area.
+
+**Report crew link** (*kaitan regu laporan*) — an optional link from a daily site report to one crew, or to one named person when no crew applies; never both. A foreman's new report defaults to the crew they lead. Existing reports carry none.
+
+**Head count evidence** (*bukti jumlah orang*) — a photo or document the recorder attaches to a head count line and the approver reads before approving. The file is a project document of the work order's project; the line only cites it. Final once the line is approved.
 
 ### Stock issue cost cutover
 The organisation's chosen first date for counting stock issues and returns in PMO-paid work-order cost. A purchase received into stock from that date contributes cost through consumption rather than its bill/payment. Whole-purchase classification currently applies to mixed deliveries.

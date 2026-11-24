@@ -11,7 +11,7 @@ const rows: PlanCandidate[] = [{
   value: 7000, acceptedOn: '2026-05-04', today: '2026-11-21',
 }];
 
-vi.mock('@/src/hooks/useBillingPlan', () => ({
+vi.mock('@/src/hooks/useBillingPlan', () => ({ useBillingUnacceptedProgress: () => ({ isPending: true, isError: false, isSuccess: false }),
   useBillingPlanCandidates: () => ({ isPending: false, isError: false, isSuccess: true, data: { rows, truncated: false }, refetch: vi.fn() }),
   useBillingPlanSettings: () => ({ data: { monthlyTarget: null, targetCurrency: null, reminderOn: false, monthTargets: [] } }),
   useSaveBillingPlanSettings: () => ({ mutate: vi.fn(), isPending: false }),
@@ -35,3 +35,5 @@ describe('BillingPlan in Bahasa Indonesia', () => {
     expect(screen.queryByText(/Candidates only|Picked|Over-claimed|No target set/)).toBeNull();
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

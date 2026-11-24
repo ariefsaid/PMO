@@ -421,5 +421,7 @@
   "allSettings.item.stockIssueCost.name",
   "allSettings.item.stockIssueCost.summary",
   "allSettings.item.orderReceiving.name",
-  "allSettings.item.orderReceiving.summary"
+  "allSettings.item.orderReceiving.summary",
+  "allSettings.item.managementViews.name",
+  "allSettings.item.managementViews.summary"
 ]

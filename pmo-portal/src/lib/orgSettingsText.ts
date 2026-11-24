@@ -18,6 +18,7 @@ export const orgSettingGroupLabels = (t: TFunction): Record<string, string> => (
 });
 
 export const orgSettingText = (t: TFunction): Record<OrgSettingKey, { name: string; summary: string }> => ({
+  managementViews: { name: t('allSettings.item.managementViews.name', 'Management views'), summary: t('allSettings.item.managementViews.summary', 'Shows the project portfolio and progress not yet accepted by the client.') },
   modulePeopleCrews: { name: t('allSettings.item.modulePeopleCrews.name', 'Module: people and crews'), summary: t('allSettings.item.modulePeopleCrews.summary', 'Turns built-in roles, the clearance checklist, leave requests and crew loans on or off for everyone.') },
   moduleSiteDay: { name: t('allSettings.item.moduleSiteDay.name', 'Module: site day'), summary: t('allSettings.item.moduleSiteDay.summary', 'Turns daily safety records and the work order performance panels on or off for everyone.') },
   moduleStock: { name: t('allSettings.item.moduleStock.name', 'Module: stock'), summary: t('allSettings.item.moduleStock.summary', 'Turns work-order transfers, reservations, two-step transfers and the material request approvals inbox on or off for everyone.') },
@@ -53,6 +54,7 @@ export const orgSettingText = (t: TFunction): Record<OrgSettingKey, { name: stri
   billingPlan: { name: t('allSettings.item.billingPlan.name', 'Billing plan'), summary: t('allSettings.item.billingPlan.summary', 'Sets the monthly billing target, its currency and the reminder for work done but not claimed.') },
   billingSteps: { name: t('allSettings.item.billingSteps.name', 'Billing steps'), summary: t('allSettings.item.billingSteps.summary', 'Chooses the default list of billing steps for a work order and who each step belongs to.') },
   stockIssueCost: { name: t('allSettings.item.stockIssueCost.name', 'Stock issue costing'), summary: t('allSettings.item.stockIssueCost.summary', 'Counts issued stock as work-order cost from a chosen date.') },
+  workOrderChecklist: { name: t('billingSteps:settings.workOrderChecklist.name', 'Work-order checklist editing'), summary: t('billingSteps:settings.workOrderChecklist.summary', 'Lets billing-step runners add to issued work-order checklists and save a checklist as a template for new work orders.') },
   labourCost: { name: t('allSettings.item.labourCost.name', 'Labour cost'), summary: t('allSettings.item.labourCost.summary', 'Costs hours worked at your labour class rates.') },
   idleCost: { name: t('allSettings.item.idleCost.name', 'Idle hours as cost'), summary: t('allSettings.item.idleCost.summary', 'Counts idle hours as cost against the work order. Needs labour cost on.') },
   disciplineProfit: { name: t('allSettings.item.disciplineProfit.name', 'Revenue per discipline'), summary: t('allSettings.item.disciplineProfit.summary', 'Shows revenue next to cost for each discipline on a project.') },

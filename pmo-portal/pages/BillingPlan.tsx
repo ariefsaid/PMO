@@ -1,22 +1,25 @@
 import React, { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, PageHeader } from '@/src/components/ui';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { Combobox, type ComboboxOption } from '@/src/components/ui/Combobox';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { BillingPlanSettingsModal } from '@/src/components/finance/BillingPlanSettingsModal';
-import { useBillingPlanCandidates, useBillingPlanSettings } from '@/src/hooks/useBillingPlan';
+import { useBillingPlanCandidates, useBillingPlanSettings, useBillingUnacceptedProgress } from '@/src/hooks/useBillingPlan';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { addMonths, doneNotClaimedAge, groupByProject, isOverLimit, monthOf, overClaimWarning, planTotals, resolveTarget, type PlanCandidate } from '@/src/lib/billingPlan';
 import { PLAN_LIMIT } from '@/src/lib/db/billingPlan';
 import { formatCurrency, formatMonthYearShort, formatNumberExact } from '@/src/lib/format';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 
 /**
  * #2682 — the monthly billing plan (docs/specs/monthly-billing-plan.spec.md): accepted-not-yet-claimed work as a pick list against the
- * month's target. Candidates only: ticks are view state (nothing is stored), nothing here raises a claim or an invoice, and over-claim
- * is a warning, never a block. #2675: each line shows the age of "done, not yet claimed" as information; the highlight and count exist only while the reminder is on with a day limit.
+ * month's target, alongside assessed progress still awaiting client acceptance. Candidates only: ticks are view state (nothing is stored),
+ * nothing here raises a claim or an invoice, and over-claim is a warning, never a block. #2675: each accepted line shows its age as information.
  */
 
 const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => void; limit: number | null; alertOn: boolean }> = ({ c, picked, onToggle, limit, alertOn }) => {
@@ -56,26 +59,41 @@ const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => voi
 const BillingPlan: React.FC = () => {
   const { t } = useTranslation('finance');
   const may = usePermission();
+  const managementViewsEnabled = useOrgSwitch('managementViews').data === true;
   const orgCurrency = useOrgCurrency();
   const [params, setParams] = useSearchParams();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState(false);
   const all = useBillingPlanCandidates(null);
+  const unacceptedAll = useBillingUnacceptedProgress(null, managementViewsEnabled);
   const settingsQuery = useBillingPlanSettings();
   const wantedProject = params.get('project');
   const projectOptions: ComboboxOption[] = useMemo(() => {
     const seen = new Map<string, string>();
     for (const r of all.data?.rows ?? []) seen.set(r.projectId, r.projectName);
+    for (const r of unacceptedAll.data?.rows ?? []) seen.set(r.projectId, r.projectName);
     return [...seen.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [all.data]);
+  }, [all.data, unacceptedAll.data]);
   const projectId = wantedProject && projectOptions.some((o) => o.value === wantedProject) ? wantedProject : null;
   const filtered = useBillingPlanCandidates(projectId, projectId !== null);
+  const unacceptedFiltered = useBillingUnacceptedProgress(projectId, managementViewsEnabled && projectId !== null);
   const query = projectId ? filtered : all;
+  const unacceptedQuery = projectId ? unacceptedFiltered : unacceptedAll;
   const rows = useMemo(() => query.data?.rows ?? [], [query.data]);
   const groups = useMemo(() => groupByProject(rows), [rows]);
+  const unacceptedRows = useMemo(() => unacceptedQuery.data?.rows ?? [], [unacceptedQuery.data]);
+  const unacceptedGroups = useMemo(() => {
+    const grouped = new Map<string, { projectId: string; projectName: string; rows: typeof unacceptedRows }>();
+    for (const row of unacceptedRows) {
+      const group = grouped.get(row.projectId) ?? { projectId: row.projectId, projectName: row.projectName, rows: [] };
+      group.rows.push(row);
+      grouped.set(row.projectId, group);
+    }
+    return [...grouped.values()];
+  }, [unacceptedRows]);
 
   // The month on screen starts at the organisation's today (from the server), never the device clock.
-  const today = all.data?.rows[0]?.today ?? null;
+  const today = all.data?.rows[0]?.today ?? unacceptedAll.data?.rows[0]?.today ?? null;
   const [offset, setOffset] = useState(0);
   const month = today ? addMonths(monthOf(today), offset) : null;
   const settings = settingsQuery.data ?? null;
@@ -174,7 +192,7 @@ const BillingPlan: React.FC = () => {
 
       {query.isPending && <ListState variant="loading" shape="cards" rows={3} />}
       {query.isError && <ListState variant="error" onRetry={() => { void query.refetch(); }} title={t('billingPlan.error', 'The billing plan could not be loaded')} />}
-      {query.isSuccess && rows.length === 0 && (
+      {query.isSuccess && rows.length === 0 && (!managementViewsEnabled || (unacceptedQuery.isSuccess && unacceptedRows.length === 0)) && (
         <ListState variant="empty" title={t('billingPlan.empty', 'No candidates to show')} sub={t('billingPlan.emptySub', 'Work appears here once it is accepted and not yet claimed.')} />
       )}
       {query.isSuccess && query.data.truncated && (
@@ -182,7 +200,10 @@ const BillingPlan: React.FC = () => {
           {t('billingPlan.truncated', { defaultValue: 'Showing the {{count}} largest. Filter by project to see the rest.', count: PLAN_LIMIT })}
         </p>
       )}
-      {query.isSuccess && groups.map((g) => {
+      {query.isSuccess && groups.length > 0 && (
+        <section aria-labelledby="billing-plan-accepted-title" data-testid="billing-plan-accepted-group">
+          <h2 id="billing-plan-accepted-title" className="mb-3 text-[16px] font-semibold">{t('billingPlan.acceptedTitle', 'Progress accepted by the client, not yet claimed')}</h2>
+          {groups.map((g) => {
         const keys = g.candidates.map((c) => c.key);
         const allPicked = keys.every((k) => picked.has(k));
         return (
@@ -196,7 +217,36 @@ const BillingPlan: React.FC = () => {
             <ul>{g.candidates.map((c) => <LineRow key={c.key} c={c} picked={picked.has(c.key)} onToggle={() => toggle(c.key)} limit={limit} alertOn={alertOn} />)}</ul>
           </section>
         );
-      })}
+          })}
+        </section>
+      )}
+      {managementViewsEnabled && <section aria-labelledby="billing-plan-unaccepted-title" data-testid="billing-plan-unaccepted-group" className="mt-5">
+        <h2 id="billing-plan-unaccepted-title" className="mb-3 text-[16px] font-semibold">{t('billingPlan.unacceptedTitle', 'Progress not yet accepted by the client')}</h2>
+        {unacceptedQuery.isPending && <ListState variant="loading" shape="rows" rows={2} />}
+        {unacceptedQuery.isError && <ListState variant="error" onRetry={() => { void unacceptedQuery.refetch(); }} title={t('billingPlan.unacceptedError', 'Unaccepted progress could not be loaded')} />}
+        {unacceptedQuery.isSuccess && unacceptedQuery.data.truncated && (
+          <p role="status" data-testid="billing-plan-unaccepted-truncated" className="mb-3 text-control text-muted-foreground">
+            {t('billingPlan.unacceptedTruncated', { defaultValue: 'Showing the {{count}} largest quantities. Filter by project to see the rest.', count: PLAN_LIMIT })}
+          </p>
+        )}
+        {unacceptedQuery.isSuccess && unacceptedGroups.length === 0 && rows.length > 0 && <p className="text-control text-muted-foreground">{t('billingPlan.unacceptedEmpty', 'No progress is waiting for client acceptance.')}</p>}
+        {unacceptedQuery.isSuccess && unacceptedGroups.map((group) => (
+          <section key={group.projectId} aria-label={group.projectName} className="mb-5">
+            <h3 className="mb-1 truncate text-[14px] font-semibold">{group.projectName}</h3>
+            <ul>
+              {group.rows.map((candidate) => {
+                const item = [candidate.itemCode, candidate.description].filter(Boolean).join(' · ') || t('billingPlan.progressItem', 'Progress item');
+                return (
+                  <li key={candidate.boqItemId} className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-border py-2 text-control">
+                    <Link to={`/projects/${candidate.projectId}`} className="min-w-0 flex-1 truncate font-medium text-primary-text hover:underline">{item}</Link>
+                    <span className="tabular-nums text-muted-foreground">{t('billingPlan.unacceptedQuantity', { defaultValue: '{{quantity}} {{unit}} measured', quantity: formatQuantity(candidate.quantity, getNumberLocale()), unit: candidate.unit ?? '' })}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </section>}
       {editing && settings && month && (
         <BillingPlanSettingsModal settings={settings} month={month} defaultCurrency={orgCurrency} onClose={() => setEditing(false)} />
       )}

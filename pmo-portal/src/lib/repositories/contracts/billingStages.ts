@@ -12,13 +12,14 @@ import type { OverdueClaimStep, StepInput, StepPatch, StepTemplate, WaitingStep 
 
 import type { BoardWorkOrderStep, WaitingWorkOrderStep, WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 import type { BillingBoardResult } from '@/src/lib/db/billingBoard';
-import type { PlanCandidatesResult, PlanSettings } from '@/src/lib/db/billingPlan';
+import type { PlanCandidatesResult, PlanSettings, UnacceptedProgressResult } from '@/src/lib/db/billingPlan';
 
 export interface BillingStagesRepository {
   /** #2681: the billing board's rows (a read-only view over the claims' own steps). */
   readBoard(projectId: string | null): Promise<BillingBoardResult>;
   /** #2682: accepted-not-yet-claimed candidates for the monthly billing plan (read only; never raises a claim). */
   readPlanCandidates(projectId: string | null): Promise<PlanCandidatesResult>;
+  readUnacceptedProgress(projectId: string | null): Promise<UnacceptedProgressResult>;
   /** #2682: the plan's target, its currency, the month overrides and the done-not-claimed reminder switch (off by default). */
   getPlanSettings(): Promise<PlanSettings>;
   savePlanSettings(input: { monthlyTarget: number | null; targetCurrency: string | null; reminderOn: boolean }): Promise<void>;
@@ -60,6 +61,11 @@ export interface BillingStagesRepository {
   completeWorkOrderStep(stepId: string, doneOn: string): Promise<void>;
   skipWorkOrderStep(stepId: string): Promise<void>;
   assignWorkOrderStep(stepId: string, personId: string | null): Promise<void>;
+  /** Adds a step to one work order's own checklist after the given position (null = database-resolved end); migration 2181. */
+  addWorkOrderStep(workOrderId: string, afterPosition: number | null, step: StepInput): Promise<string>;
+  saveWorkOrderChecklistAsTemplate(workOrderId: string, name: string): Promise<string>;
+  workOrderChecklistEnabled(): Promise<boolean>;
+  setWorkOrderChecklistEnabled(enabled: boolean): Promise<void>;
   attachWorkOrderStepDocument(stepId: string, slotId: string | null, documentId: string): Promise<void>;
   defaultStepTemplateId(): Promise<string | null>;
   setDefaultStepTemplate(templateId: string | null): Promise<void>;

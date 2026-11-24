@@ -7,6 +7,8 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ALL_ROLES } from '@/src/auth/coarseRoles';
 import en from '@/public/locales/en/common.json';
 import id from '@/public/locales/id/common.json';
+import billingStepsEn from '@/public/locales/en/billingSteps.json';
+import billingStepsId from '@/public/locales/id/billingSteps.json';
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
 
@@ -122,8 +124,10 @@ describe('organisation settings catalogue (#2746)', () => {
 
   it('AC-OSM-032 every setting has a name and a summary in English and in Bahasa', () => {
     const text = orgSettingText(((k: string, d: string) => d) as never);
-    const items = (en as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
-    const itemsId = (id as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
+    const commonItems = (en as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
+    const commonItemsId = (id as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
+    const items: Record<string, { name: string; summary: string }> = { ...commonItems, workOrderChecklist: billingStepsEn.settings.workOrderChecklist };
+    const itemsId: Record<string, { name: string; summary: string }> = { ...commonItemsId, workOrderChecklist: billingStepsId.settings.workOrderChecklist };
     for (const key of orgSettingKeys) {
       expect(text[key].name, key).toBeTruthy();
       expect(items[key]?.name, `en ${key}`).toBe(text[key].name);
@@ -132,5 +136,12 @@ describe('organisation settings catalogue (#2746)', () => {
       expect(itemsId[key]?.summary, `id ${key}`).toBeTruthy();
     }
     expect(Object.keys(items).sort()).toEqual([...orgSettingKeys].sort());
+  });
+
+  it('AC-OSM-032 checklist setting copy comes from the billing-steps feature namespace', () => {
+    const t = vi.fn((key: string, fallback: string) => fallback);
+    orgSettingText(t as never);
+    expect(t).toHaveBeenCalledWith('billingSteps:settings.workOrderChecklist.name', expect.any(String));
+    expect(t).toHaveBeenCalledWith('billingSteps:settings.workOrderChecklist.summary', expect.any(String));
   });
 });

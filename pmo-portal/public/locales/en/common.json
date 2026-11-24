@@ -190,6 +190,10 @@
       "orderReceiving": {
         "name": "Receive against order",
         "summary": "Records counted goods against sent purchase orders."
+      },
+      "managementViews": {
+        "name": "Management views",
+        "summary": "Shows the project portfolio and progress not yet accepted by the client."
       }
     },
     "paletteGroup": "Settings"

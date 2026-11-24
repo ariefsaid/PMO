@@ -23,14 +23,14 @@ When I chase billing across work orders, I want one view of every claim by step 
 - **OD-BBD-1 Columns by step NAME.** Each claim's step list can differ, so the board cannot use a fixed list. Columns are the distinct current-step names across the board's claims (case-insensitive, trimmed match; first-seen spelling shown), **ordered by typical position**: the median `position` of that name over the board's claims, ties by name. Then one final column, **All steps done**, holding open claims whose steps are all completed or skipped (ready to invoice). A step name used by only a few claims still gets its own column; no "other" bucket. No column is shown empty (columns exist only for names with at least one card). Recommended and taken.
 - **OD-BBD-2 Card age = current-step age, not claim age.** Age in days since the current step started (`stageAgeDays`), shown as "N days on this step". The all-done column shows days since the last step completed (age of waiting to invoice). Cards sort oldest first inside a column.
 - **OD-BBD-3 Overdue is the due-date seam, a chip only.** A card shows an overdue chip ("N days past target") when the current step is past its due date; no new rule, no alert.
-- **OD-BBD-4 No money on the card.** Card = project, work order number (when the claim has one), claim date, current step name, step progress "3 of 7", owner role (when set), age, overdue chip. Amounts stay on the claim, which avoids a second money-visibility rule on a new screen.
+- **OD-BBD-4 No money on the card; column totals by currency.** Card = project, work order number (when the claim has one), claim date, current step name, step progress "3 of 7", owner role (when set), age, overdue chip. Each column also shows its claim count and exact claim-value totals split by currency. The billing-board read allows only Finance, Executive and Admin, so a column sum follows the board's existing money audience; the card still omits the individual amount.
 - **OD-BBD-5 Read-only.** No drag, no move, no complete button. Moving a claim = completing its step on the claim; the card links to it (`/projects/:projectId?tab=billing&open=<claimId>&openType=billingClaim`, the existing claim deep link).
 - **OD-BBD-6 Entry link, no rail item.** One link "Billing board" on the Receivables page header (`/finance/receivables`), rendered only when the board has at least one open claim with steps, so an organisation with no billing steps sees nothing new. No Rail registry change (no feature flag, no parity-test change). The route itself is reachable by URL for the four roles; an organisation with no step rows sees the empty state.
 - **OD-BBD-7 Bounded read.** One security-invoker SQL function, 500 claims maximum, ordered oldest current step first, with an explicit `truncated` flag the screen shows ("Showing the 500 oldest; filter by project to see the rest"). Never an unbounded list.
 
 ## Requirements (EARS)
-- **FR-BBD-001** The system shall provide `billing_board(p_project uuid default null)` returning one row per open claim: claim id, project id and name, work order id and number, claim created date, kind, step count, steps done (completed or skipped), current step id/position/name/owner role/started on/target days/target date/due on, and an all-done flag; limited to 501 rows (the caller treats the 501st as "truncated").
-- **FR-BBD-002** The function shall be `security invoker`, so RLS on `claim_billing_stages`, `progress_claims` and `projects` decides which claims a caller sees; it shall add no role check of its own beyond what RLS enforces and shall return nothing for an Engineer.
+- **FR-BBD-001** The system shall provide `billing_board(p_project uuid default null)` returning one row per open claim: claim id, project id and name, exact claim value and currency, work order id and number, claim created date, kind, step count, steps done (completed or skipped), current step id/position/name/owner role/started on/target days/target date/due on, and an all-done flag; limited to 501 rows (the caller treats the 501st as "truncated").
+- **FR-BBD-002** The function shall be `security invoker`, scoped by the caller's organization and RLS, and explicitly allow only active Admin, Executive and Finance roles. A Project Manager and any other role outside that set shall receive no rows.
 - **FR-BBD-003** Withdrawn claims, claims with no step rows, down-payment claims without steps, and claims that already have an invoice shall not appear.
 - **FR-BBD-004** When `p_project` is given, the function shall return only that project's claims.
 - **FR-BBD-010** The client shall group rows into columns per OD-BBD-1 and compute age and overdue with `stageAgeDays` and `stageDaysPastTargetDate` using the server's organisation today (no device clock), in one pure module `billingBoard.ts`.
@@ -55,7 +55,7 @@ When I chase billing across work orders, I want one view of every claim by step 
 | AC-BBD-001 | Given two projects with claims at different current steps, when a Finance user calls `billing_board()`, then each claim appears once with its first open step and counts | pgTAP |
 | AC-BBD-002 | Given a step is skipped or completed, when the board is read, then the current step is the next open one; given all are done, then the all-done flag is true | pgTAP |
 | AC-BBD-003 | Given a withdrawn claim, a claim without steps, and an invoiced claim, then none appear | pgTAP |
-| AC-BBD-004 | Given an Engineer, when the function is called, then no rows; given a user of another organisation, then none of this organisation's claims | pgTAP |
+| AC-BBD-004 | Given an Engineer or Project Manager, when the function is called, then no rows; given Finance, Executive or Admin, then only their organisation's claims appear | pgTAP |
 | AC-BBD-005 | Given `p_project`, then only that project's claims | pgTAP |
 | AC-BBD-006 | Given more than 500 open claims, then exactly 501 rows return, oldest current step first | pgTAP |
 | AC-BBD-007 | The inline due-date rule equals `billing_stage_due_on` for a step with a date, with days only, and with neither | pgTAP |
@@ -73,11 +73,12 @@ When I chase billing across work orders, I want one view of every claim by step 
 | Case | Behaviour |
 |---|---|
 | Read fails (network, RLS) | Error state with retry; never an empty board |
-| Role without access (Engineer) | The function returns nothing; the screen shows the empty state with the plain words "No claims to show" |
+| Role without access (Project Manager or Engineer) | The function returns nothing; the screen shows the empty state with the plain words "No claims to show" |
 | Unknown `?project=` | Filter ignored with the project chip cleared |
 
 ## Build notes (#2681, as built)
 - **Route access (deviation from the phase-1 wording):** `/finance/billing-board` sits under Finance and uses the same gate as Receivables (`FinanceAccessRoute` + the `revenue` feature): Finance, Executive and Admin. A Project Manager reaches their claims from the project's billing tab, as before; the board does not widen who sees the Finance area.
+- **Value totals:** migration 2283 exposes amount and currency to that same three-role set; the client sums exact minor units per currency. Amount stays out of the cards.
 - **Invoiced test:** `billing_claim_invoiced` is not callable by `authenticated`, so the invoker read tests `sales_invoices` rows the caller can see (claim id = invoice id, 0250). For Finance, Executive and Admin that is every invoice of the organisation.
 - **Entry link:** `BillingBoardLink` renders on the Receivables header; it carries its own silent boundary so a failed read hides the link and never blocks Receivables.
 - **Navigation:** no `routeMatch.ts` module and no Rail item (OD-BBD-6); an extra module would change the Finance rail for every organisation. The page sets its own heading.

@@ -190,6 +190,10 @@
       "orderReceiving": {
         "name": "Terima berdasarkan pesanan",
         "summary": "Mencatat jumlah barang yang dihitung terhadap pesanan pembelian terkirim."
+      },
+      "managementViews": {
+        "name": "Tampilan manajemen",
+        "summary": "Menampilkan portofolio proyek dan progres yang belum diterima oleh klien."
       }
     },
     "paletteGroup": "Pengaturan"

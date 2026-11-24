@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: vi.fn() } }));
 
-import { PLAN_LIMIT, getPlanCandidates, saveMonthTarget, savePlanSettings } from './billingPlan';
+import { PLAN_LIMIT, getPlanCandidates, getUnacceptedProgressCandidates, saveMonthTarget, savePlanSettings } from './billingPlan';
 
 beforeEach(() => { h.rpc.mockReset().mockResolvedValue({ data: [], error: null }); });
 
@@ -21,6 +21,20 @@ describe('billing plan DAL (#2682)', () => {
     expect(r.truncated).toBe(true);
     expect(r.rows).toHaveLength(PLAN_LIMIT);
     expect(r.rows[0]).toMatchObject({ key: 'line:w:b0', value: 70, unclaimedQuantity: 7, acceptedOn: '2026-05-04' });
+  });
+
+  it('AC-MV-004 reads measured progress above client-accepted quantity through the bounded candidate RPC', async () => {
+    h.rpc.mockResolvedValue({ data: [{ project_id: 'p1', project_name: 'P1', boq_item_id: 'b1', item_code: 'L1', description: 'Work', unit: 'm', quantity: '2.500', today: '2026-11-24' }], error: null });
+    const r = await getUnacceptedProgressCandidates('p1');
+    expect(h.rpc).toHaveBeenCalledWith('billing_unaccepted_progress', { p_project: 'p1' });
+    expect(r).toEqual({ truncated: false, rows: [{ projectId: 'p1', projectName: 'P1', boqItemId: 'b1', itemCode: 'L1', description: 'Work', unit: 'm', quantity: '2.500', today: '2026-11-24' }] });
+  });
+
+  it('AC-MV-004 an empty or failed unaccepted-progress read remains distinct from a successful empty result', async () => {
+    h.rpc.mockResolvedValueOnce({ data: [], error: null });
+    await expect(getUnacceptedProgressCandidates(null)).resolves.toEqual({ rows: [], truncated: false });
+    h.rpc.mockResolvedValueOnce({ data: null, error: { message: 'denied', code: '42501' } });
+    await expect(getUnacceptedProgressCandidates(null)).rejects.toThrow('denied');
   });
 
   it('a failed read throws rather than returning an empty plan', async () => {

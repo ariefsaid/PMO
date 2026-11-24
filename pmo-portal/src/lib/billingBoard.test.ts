@@ -3,6 +3,7 @@ import { groupBoard, type BoardRow } from './billingBoard';
 
 const row = (over: Partial<BoardRow>): BoardRow => ({
   claimId: 'c', projectId: 'p', projectName: 'P', workOrderId: null, woNumber: null, claimCreatedAt: '2026-01-01T00:00:00Z',
+  claimValue: '0.00', currency: 'IDR',
   stepCount: 3, stepsDone: 1, currentPosition: 2, currentName: 'Approve', ownerRole: null, startedOn: '2026-01-01', lastCompletedOn: null,
   dueOn: null, allDone: false, today: '2026-01-11', ...over,
 });
@@ -47,5 +48,19 @@ describe('groupBoard', () => {
     ]);
     const by = Object.fromEntries(col.cards.map((c) => [c.claimId, c.overdueDays]));
     expect(by).toEqual({ late: 3, today: null, none: null });
+  });
+
+  it('AC-MV-005 adds exact per-currency totals to columns without exposing card amounts', () => {
+    const cols = groupBoard([
+      row({ claimId: 'a', claimValue: '100000000000000.01', currency: 'IDR' }),
+      row({ claimId: 'b', claimValue: '0.09', currency: 'IDR' }),
+      row({ claimId: 'c', claimValue: '7.50', currency: 'USD' }),
+    ]);
+    expect(cols[0].claimCount).toBe(3);
+    expect(cols[0].totals).toEqual([
+      { currency: 'IDR', amount: '100000000000000.10' },
+      { currency: 'USD', amount: '7.50' },
+    ]);
+    expect(cols[0].cards.every((card) => !('claimValue' in card))).toBe(true);
   });
 });
