@@ -115,6 +115,8 @@ select '25190000-0000-0000-0000-000000000814',org_id,'OPEN-CUTOVER','receive','P
 set local session_replication_role=origin;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
+select is((select count(*) from stock_issue_cost_settings),0::bigint,'AC-ISC-001 no setting defaults off');
+select is((select count(*) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')),0::bigint,'AC-ISC-001 no added cost while off');
 select is(public.set_stock_issue_cost_date('2026-11-16'), '2026-11-16'::date, 'AC-ISC-003 clean organisation enables');
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and reason='counted'),30::numeric,'AC-ISC-002 issue counts existing ledger value');
 select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actuals'->>'total')::numeric,1130::numeric,'AC-ISC-002 project includes issued stock');
