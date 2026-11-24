@@ -399,7 +399,7 @@
   "workOrders": {
     "title": "Judul",
     "clientPoNumber": "Referensi klien",
-    "area": "Area",
+    "area": "Wilayah",
     "startDate": "Tanggal mulai",
     "endDate": "Tanggal selesai",
     "orderValue": "Nilai order",

@@ -34462,6 +34462,26 @@ export type Database = {
           work_order_id: string
         }[]
       }
+      opening_balances_overview: {
+        Args: never
+        Returns: {
+          as_of: string
+          certified_value: number
+          claimed_value: number
+          currency: string
+          id: string
+          kind: string
+          label: string
+          line_count: number
+          lines: Json
+          loaded_at: string
+          loaded_by_name: string
+          note: string
+          stock_quantity: number
+          stock_value: number
+          sub_label: string
+        }[]
+      }
       opening_history_plan: {
         Args: { p_as_of: string; p_lines: Json; p_org: string }
         Returns: {

@@ -19,7 +19,7 @@ begin
   select o.id, o.kind, o.as_of, o.loaded_at, p.full_name,
          case when o.kind = 'work_order' then coalesce(w.wo_number, w.title) else h.code end,
          case when o.kind = 'work_order' then pr.name else h.name end,
-         o.currency,
+         coalesce(o.currency, (select g.default_currency from public.organizations g where g.id = o.org_id)),
          coalesce(wl.n, sl.n, 0)::int,
          wl.certified,
          case when o.kind = 'work_order' then o.claimed_amount end,

@@ -52,8 +52,8 @@ begin
       end loop;
       v_ids := v_ids || v_id;
     exception when others then
-      -- Name the row, keep the original error class: the whole call rolls back, so nothing is saved.
-      raise exception 'IMPORT_ROW %: %', n, sqlerrm using errcode = sqlstate;
+      -- Name the row ("IMPORT_ROW: row 3: …"), keep the original error class: the whole call rolls back, so nothing is saved.
+      raise exception 'IMPORT_ROW: row %: %', n, sqlerrm using errcode = sqlstate;
     end;
   end loop;
 

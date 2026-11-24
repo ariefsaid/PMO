@@ -442,9 +442,6 @@
   "SVY_NEEDS_SHEET": "Attach the survey sheet before confirming this survey.",
   "SVY_NEEDS_SHEET_detail": "Attach the signed or recorded survey sheet (and any quality documents), then confirm.",
   "CLR_DOC_TYPE": "Choose one of your document types for people.",
-  "PPL_DATE": "Choose the day the person left.",
-  "PPL_FORBIDDEN": "Only an Admin can mark a person as having left.",
-  "PPL_NOT_FOUND": "That person was not found, or has already left.",
   "OPN_NOT_ADMIN": "Only an Admin can load opening stock. Ask an Admin to do it.",
   "OPN_ROW_INVALID": "A cell in this row is not valid. Check the date, direction and quantity against the template, then choose the file again.",
   "OPN_ROW_INVALID_figures": "Row {{row}} has a cell that is not valid. Check its date, direction and quantity against the template, then choose the file again.",
@@ -489,5 +486,9 @@
   "PRC_SUPPLIER_INVALID": "Choose an active supplier of your organisation.",
   "PRC_SUPPLIER_SET": "This purchase already names its supplier.",
   "PRC_SUPPLIER_STEP": "Name the supplier once the purchase is approved.",
-  "PPL_PROFILE_SELF": "Only an Admin can link or unlink their own person record."
+  "PPL_PROFILE_SELF": "Only an Admin can link or unlink their own person record.",
+  "IMPORT_EMPTY": "There are no work orders in the file.",
+  "IMPORT_PROJECT": "That project was not found.",
+  "IMPORT_TOO_MANY": "Import at most 500 work orders at a time.",
+  "IMPORT_ROW": "Row {{row}} was refused, so nothing was imported: {{reason}}"
 }

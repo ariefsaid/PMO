@@ -45,10 +45,10 @@ select is((select org_id from public.work_orders where client_po_number = 'PO-1'
 select throws_like($$ select public.import_work_orders('21600000-0000-0000-0000-0000000000d1', '[
   {"title":"Good one","order_value":1,"tax_treatment":"exclusive"},
   {"title":"Bad one","order_value":1,"tax_treatment":"exclusive","lines":[{"boq_item_id":"21600000-0000-0000-0000-000000000701","quantity":-5}]}]'::jsonb) $$,
-  'IMPORT_ROW 2:%', 'AC-WOI-004 the failing row is named');
+  'IMPORT_ROW: row 2:%', 'AC-WOI-004 the failing row is named');
 select is((select count(*)::int from public.work_orders where title in ('Good one','Bad one')), 0, 'AC-WOI-004 nothing is saved when any row fails');
 select throws_like($$ select public.import_work_orders('21600000-0000-0000-0000-0000000000d1', '[{"title":"X","order_value":1,"tax_treatment":"sometimes"}]'::jsonb) $$,
-  'IMPORT_ROW 1:%', 'AC-WOI-004 an unknown tax treatment is refused with its row');
+  'IMPORT_ROW: row 1:%', 'AC-WOI-004 an unknown tax treatment is refused with its row');
 select throws_like($$ select public.import_work_orders('21600000-0000-0000-0000-0000000000d1', '[]'::jsonb) $$, 'IMPORT_EMPTY:%', 'AC-WOI-004 an empty file is refused');
 
 -- AC-WOI-005

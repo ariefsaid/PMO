@@ -67,7 +67,7 @@ export function makeWorkOrderImportDescriptor(deps: WorkOrderImportDeps, t?: TFu
       inRowTitle: true, previewSize: 104,
       hint: L('import:workOrders.referenceHint', "The client's own number for the order. Each reference is used once on this project; scope lines name it."),
     }),
-    ...(deps.areas.length > 0 ? [F('area', 'Area', 'Area', false, (raw) => (raw.trim() === '' || areaId(raw) ? null : L('import:workOrders.error.area', 'Area "{{value}}" is not one of your areas.').replace('{{value}}', raw.trim())), { previewSize: 80, hint: L('import:workOrders.areaHint', 'The code or name of one of your areas. Leave blank for none.') })] : []),
+    ...(deps.areas.length > 0 ? [F('area', 'Area', 'Wilayah', false, (raw) => (raw.trim() === '' || areaId(raw) ? null : L('import:workOrders.error.area', 'Area "{{value}}" is not one of your areas.').replace('{{value}}', raw.trim())), { previewSize: 80, hint: L('import:workOrders.areaHint', 'The code or name of one of your areas. Leave blank for none.') })] : []),
     F('startDate', 'Start date', 'Tanggal mulai', false, optionalDate(L('import:workOrders.startDate', 'Start date')), { previewSize: 88 }),
     F('endDate', 'End date', 'Tanggal selesai', false, optionalDate(L('import:workOrders.endDate', 'End date')), { previewSize: 88 }),
     F('orderValue', 'Order value', 'Nilai order', true, (raw) => {

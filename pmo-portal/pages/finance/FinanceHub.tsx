@@ -235,6 +235,7 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
             {hasRevenue && <Link to="/finance/billing-board" data-testid="finance-hub-claims-board-link" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.claimsBoard', 'Claims board: by step and age')}</Link>}
             {hasRevenue && <BillingPlanLink className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline" />}
             {hasRevenue && <Link to="/finance/work-in-hand" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.workInHand', 'Work in hand')}</Link>}
+            {may('view', 'openingBalance') && <Link to="/finance/opening-balances" data-testid="finance-hub-opening-balances-link" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.openingBalances', 'Opening balances')}</Link>}
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
           </div>
         </div>

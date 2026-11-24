@@ -173,6 +173,7 @@ export type Entity =
   | 'odooLedgerLines'
   | 'odooLedgerBasis'
   | 'finance'
+  | 'openingBalance'
   | 'stockItem'
   | 'stockUnit'
   | 'warehouse'
@@ -772,6 +773,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   finance: { view: allow(MONEY_AUTHORITY), act: allow(REVENUE_WRITE) },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
+  /** The opening balances the CLI loaded at go-live (migration 2161). Read-only here; the database read is Admin and Finance only. */
+  openingBalance: { view: allow(['Admin', 'Finance']) },
   /**
    * #895 manual journals (owner ruling 2). The desk is Finance-or-above; `approve` (and Return) is for a
    * Finance-or-above member who did not write the journal: not its maker, not any editor

@@ -192,7 +192,8 @@
       "help": "Pilih pembelian untuk invoice supplier ini. Layar berikutnya menunjukkan apakah pesanan dan penerimaan barang menahan tagihan.",
       "button": "Invoice supplier baru"
     },
-    "openBills": "Buka tagihan dan pencocokan"
+    "openBills": "Buka tagihan dan pencocokan",
+    "openingBalances": "Saldo awal"
   },
   "nav": {
     "finance": "Keuangan",
@@ -310,5 +311,42 @@
     "nothingSent": "{{count}} diaktifkan tetapi tidak ada yang dikirim ke ERPNext (tidak ada baris anggaran); tambahkan baris lalu aktifkan versi baru agar dapat diberlakukan.",
     "activatedErpPending": "Diaktifkan, pembaruan ERPNext diantrekan setelah pembatalan sebelumnya",
     "erpPushQueued": "{{count}} diaktifkan dengan pengiriman ERPNext diantrekan setelah pembatalan anggaran sebelumnya; pengiriman berjalan otomatis setelah pembatalan itu selesai."
+  },
+  "openingBalances": {
+    "title": "Saldo awal",
+    "loading": "Memuat saldo awal",
+    "error": "Saldo awal tidak dapat dimuat",
+    "retry": "Coba lagi",
+    "empty": "Belum ada saldo awal yang dimuat",
+    "help": {
+      "what": "Apa yang dimuat saat Anda mulai berjalan: posisi tiap perintah kerja yang berjalan dan isi tiap lokasi stok. Tidak ada yang bisa diubah di layar ini.",
+      "how": "Saldo awal dimuat dan dibatalkan dengan alat baris perintah pmo. Cocokkan total di bawah dengan file sumber Anda."
+    },
+    "loadedLine": "Mulai berjalan {{asOf}} · dimuat {{loadedAt}} oleh {{who}}",
+    "unknownUser": "mantan anggota",
+    "item": "Barang",
+    "quantity": "Kuantitas",
+    "value": "Nilai",
+    "total": "Total",
+    "line": "Baris kontrak",
+    "certified": "Kuantitas tersertifikasi",
+    "claimedQuantity": "Kuantitas ditagih",
+    "claimedAmount": "Nilai ditagih",
+    "certifiedValue": "Nilai tersertifikasi",
+    "totalsTitle": "Total untuk dicocokkan dengan file sumber",
+    "kind": "Apa",
+    "count": "Dimuat",
+    "totalValue": "Nilai",
+    "stockTotal": "Stok (nilai biaya)",
+    "certifiedTotal": "Perintah kerja: nilai tersertifikasi",
+    "claimedTotal": "Perintah kerja: sudah ditagih",
+    "locations_one": "{{count}} lokasi",
+    "locations_other": "{{count}} lokasi",
+    "orders_one": "{{count}} perintah kerja",
+    "orders_other": "{{count}} perintah kerja",
+    "sourceNote": "Total file sumber tidak disimpan bersama pemuatan. Bandingkan dengan file Anda. Piutang, utang, dan kas lapangan tidak dimuat oleh alat baris perintah, jadi tidak ditampilkan.",
+    "stockHeading": "Stok per lokasi",
+    "ordersHeading": "Perintah kerja berjalan",
+    "back": "Kembali ke Keuangan"
   }
 }
