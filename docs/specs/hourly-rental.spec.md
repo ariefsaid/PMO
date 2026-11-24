@@ -14,4 +14,4 @@ Owning proof: AC-HRE-001..003 pgTAP; AC-HRE-004 browser journey.
 
 FR-005: When a check is saved, the system shall associate it with an own-organisation supplier invoice for the rental vendor; a dispute requires an officer note.
 FR-006: While an invoice has a disputed check, the purchase record shall show its saved warning and note to Finance without blocking approval/payment or altering any money.
-AC-HRE-005: Given an Officer disputes a supplier invoice with a note, when the Officer returns and Finance opens its purchase record, then both recover the persisted warning, invoice identity, period, author and time; another organisation reads none. Owning proofs: browser handoff journey and pgTAP tenancy contract.
+AC-HRE-005: Given an Officer disputes a supplier invoice with a note, when the Officer returns and Finance opens its purchase record, then both recover the persisted warning, invoice identity, period, author and time; another organisation reads none. Owning proof: browser handoff journey. The pgTAP tenancy contract supports this AC at the server boundary.
