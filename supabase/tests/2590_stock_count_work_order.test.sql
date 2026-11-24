@@ -273,11 +273,32 @@ select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
 select is((select amount from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1') where record_id=current_setting('tst.gain')::uuid),-100::numeric,'AC-SCW-007 Project Manager reads signed count amount');
 reset role;
 update profiles set role='Admin' where id='25900000-0000-0000-0000-0000000000a1';
+-- Existing posted corrections follow the author; neither posting nor ledger is changed.
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a2');
+select is(set_cost_attribution('stock_document',array[current_setting('tst.cnt1')::uuid],
+ '25900000-0000-0000-0000-000000000402',null),1,'AC-SCW-007 author can correct posted count attribution');
+select is((select work_order_id from work_order_cost_lines where record_id=current_setting('tst.cnt1')::uuid),
+ '25900000-0000-0000-0000-000000000402'::uuid,'AC-SCW-007 record follows posted attribution correction');
+select set_cost_attribution('stock_document',array[current_setting('tst.cnt1')::uuid],
+ '25900000-0000-0000-0000-000000000401',null);
+reset role;
+update profiles set built_in_role='field_user' where id='25900000-0000-0000-0000-0000000000a4';
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a4');
+select throws_ok($$select create_stock_document('{}','[]',false)$$,'42501',
+ 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this','AC-SCW-007 field account cannot create count');
+select throws_ok($$select save_stock_draft(current_setting('tst.cnt1')::uuid,'{}','[]')$$,'42501',
+ 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this','AC-SCW-007 field account cannot save count');
+select throws_ok($$select * from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1')$$,'42501',
+ 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this','AC-SCW-007 field account cannot read count money');
+reset role;
 -- Rollback is exercised with a linked posted count and a linked draft still present.
 select pg_temp.act_as('25900000-0000-0000-0000-0000000000a2');
 select set_config('tst.rollback_draft',create_stock_document(
  jsonb_build_object('kind','count','warehouse_id','25900000-0000-0000-0000-000000002002','work_order_id','25900000-0000-0000-0000-000000000401'),
  jsonb_build_array(jsonb_build_object('item_id','25900000-0000-0000-0000-000000001001','counted_quantity',6)),false)::text,true);
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a3');
+select throws_ok($$select save_stock_draft(current_setting('tst.rollback_draft')::uuid,'{}','[]')$$,
+ '42501','only the author edits a draft','AC-SCW-007 another same-org user cannot edit the count');
 reset role;
 \ir ../migrations/rollback/2591_stock_count_cost_records_down.sql
 \ir ../migrations/rollback/2590_stock_count_work_order_down.sql
