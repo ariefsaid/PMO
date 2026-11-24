@@ -150,7 +150,7 @@ $$, '23514', 'PRC_STOCK_ITEM: Choose an active item from your organisation''s it
 
 -- 13–14. procurement_items_masked exposes stock_item_id while still masking money when prices are hidden.
 reset role;
-update public.organizations set hide_prices_from_non_finance = true where id = '25500000-0000-0000-0000-00000000000a';
+update public.organizations set hide_prices_from_requesters = true where id = '25500000-0000-0000-0000-00000000000a';
 set local role authenticated;
 select pg_temp._as('25500000-0000-0000-0000-0000000000a1');
 
