@@ -60,12 +60,13 @@ function buildGrid(sheet: TimesheetAwaitingApproval, t: TFunction): { days: Time
 
   const map = new Map<string, TimesheetGridRow>();
   for (const e of sheet.entries) {
-    const key = e.project_id;
+    const key = `${e.project_id}:${e.work_order_id ?? ''}`;
     let row = map.get(key);
     if (!row) {
       row = {
         id: key,
-        projectId: key,
+        projectId: e.project_id,
+        ...(e.work_order ? { workOrderLabel: [e.work_order.wo_number, e.work_order.title].filter(Boolean).join(' · ') } : {}),
         project: e.project ? projectDisplayName(e.project) : t('timesheets:approvalQueue.unknownProject', 'Unknown Project'),
         projectLegalName: e.project?.name,
         code: e.project?.code ?? null,

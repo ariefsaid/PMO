@@ -46,11 +46,12 @@ const StockOnHand: React.FC = () => {
   const loc = getNumberLocale();
   // R2: all four filters are URL-owned so Back/refresh keep them; defaults stay out of the URL
   // (empty = all warehouses, zero balances hidden, no search, worklist off).
-  const { values, setFilter } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder']);
+  const { values, setFilter } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder', 'tag']);
   const warehouseId = values.warehouse;
   const includeZero = values.zero === '1';
   const search = values.q;
   const belowOnly = values.belowReorder === '1';
+  const tag = values.tag;
   const setWarehouseId = (value: string) => setFilter('warehouse', value);
   const setIncludeZero = (checked: boolean) => setFilter('zero', checked ? '1' : '');
   const setSearch = (value: string) => setFilter('q', value);
@@ -94,9 +95,11 @@ const StockOnHand: React.FC = () => {
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const visible = q ? allRows.filter((r) => `${r.itemCode} ${r.itemName}`.toLowerCase().includes(q)) : allRows;
+    const tagged = tag ? allRows.filter((r) => r.tagName === tag) : allRows;
+    const visible = q ? tagged.filter((r) => `${r.itemCode} ${r.itemName} ${r.tagName ?? ''}`.toLowerCase().includes(q)) : tagged;
     return [...visible].sort(compareBalanceRows);
-  }, [allRows, search]);
+  }, [allRows, search, tag]);
+  const tagNames = useMemo(() => [...new Set(allRows.flatMap((r) => (r.tagName ? [r.tagName] : [])))].sort((a, b) => a.localeCompare(b)), [allRows]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
   const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
 
@@ -171,7 +174,7 @@ const StockOnHand: React.FC = () => {
   const whCount = new Set(rows.map((r) => r.warehouseId)).size;
   // The total of the Value column on screen; absent whenever the server left the value off.
   const totalValue = showCost ? sumDecimal(rows.flatMap((r) => (r.valueOnHand === undefined ? [] : [r.valueOnHand]))) : null;
-  const valueIsScoped = Boolean(warehouseId || includeZero || search.trim() || belowOnly);
+  const valueIsScoped = Boolean(tag || warehouseId || includeZero || search.trim() || belowOnly);
 
   return (
     <ListPage
@@ -219,6 +222,10 @@ const StockOnHand: React.FC = () => {
             options={(warehouses.data ?? []).map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))}
             placeholder={t('onHand.filters.allWarehouses')}
           />
+          {tagNames.length > 0 && (
+            <SelectField label={t('onHand.filters.tag', 'Tag')} hideLabel value={tag} onChange={(value) => setFilter('tag', value)}
+              options={tagNames.map((n) => ({ value: n, label: n }))} placeholder={t('onHand.filters.allTags', 'All tags')} />
+          )}
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -271,8 +278,8 @@ const StockOnHand: React.FC = () => {
         <ListState
           variant="empty"
           icon="folder"
-          title={t(search || warehouseId || belowOnly ? 'onHand.states.noMatch' : 'empty.noStock')}
-          sub={t(search || warehouseId || belowOnly ? 'onHand.states.noMatchSub' : 'onHand.states.emptySub')}
+          title={t(search || warehouseId || belowOnly || tag ? 'onHand.states.noMatch' : 'empty.noStock')}
+          sub={t(search || warehouseId || belowOnly || tag ? 'onHand.states.noMatchSub' : 'onHand.states.emptySub')}
         />
       )}
       {state === undefined && (
@@ -325,7 +332,8 @@ const StockOnHand: React.FC = () => {
       )}
       {reserving && (
         <ReservationForm itemId={reserving.itemId} itemLabel={`${reserving.itemCode} - ${reserving.itemName}`} warehouseId={reserving.warehouseId}
-          warehouseLabel={reserving.warehouseName} onClose={() => setReserving(null)} />
+          warehouseLabel={reserving.warehouseName}
+          freeQty={figureOf.get(`${reserving.itemId}:${reserving.warehouseId}`)?.freeQty} unitCode={reserving.unitCode} onClose={() => setReserving(null)} />
       )}
     </ListPage>
   );

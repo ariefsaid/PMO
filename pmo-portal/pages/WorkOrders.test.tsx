@@ -7,12 +7,15 @@ import type { DashboardRow } from '@/src/lib/workOrderDashboard';
 
 /** #2805: the work-order dashboard lists every work order with its figures; filters narrow it; a row opens the work order. */
 const h = vi.hoisted(() => ({
+  exportXlsx: vi.fn(),
   state: {
     rows: [] as unknown[], isPending: false, isError: false, refetch: () => undefined, figuresPending: false, figuresError: false,
     retryFigures: () => undefined, canBilling: true, costState: 'shown' as string, disciplines: [] as unknown[],
   },
 }));
 vi.mock('@/src/hooks/useWorkOrderDashboard', () => ({ COST_PROJECT_CAP: 6, useWorkOrderDashboard: () => h.state }));
+
+vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx: h.exportXlsx, busy: false }) }));
 
 import WorkOrders from './WorkOrders';
 
@@ -29,6 +32,16 @@ beforeEach(() => {
 });
 
 describe('Work orders dashboard', () => {
+  it('PC20 exports the listed work orders to Excel with the columns shown', async () => {
+    h.state = { ...h.state, rows: [row({}), row({ id: 'w2', wo_number: 'WO-2', title: 'Fencing' })] };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    const [rows, columns, entity] = h.exportXlsx.mock.calls[0];
+    expect(rows.map((r: DashboardRow) => r.wo_number)).toEqual(['WO-1', 'WO-2']);
+    expect(columns.find((c: { key: string }) => c.key === 'status').exportValue(rows[0])).toBe('Issued');
+    expect(entity).toBe('WorkOrders');
+  });
+
   it('AC-WOD-003 lists each work order with progress, direct cost against budget, billed and late, and opens it', () => {
     h.state = { ...h.state, rows: [row({ late: 2, openSteps: 3 }), row({ id: 'w2', wo_number: 'WO-2', title: 'Fencing', status: 'Draft', project_name: 'Yard', progress: null, billing: null, cost: null })] };
     renderPage();

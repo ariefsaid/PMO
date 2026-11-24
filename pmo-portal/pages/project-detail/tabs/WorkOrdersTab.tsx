@@ -867,6 +867,12 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
         projectName={projectName}
         liveDownPayment={liveDownPayment}
         evidenceAttachedIds={(claimRows.find((claim) => claim.id === evidenceFor)?.evidence ?? []).map((evidence) => evidence.document_id)}
+        evidenceEarlierIds={(() => {
+          const current = claimRows.find((claim) => claim.id === evidenceFor);
+          if (!current?.work_order_id) return [];
+          return [...new Set(claimRows.filter((claim) => claim.id !== current.id && claim.work_order_id === current.work_order_id)
+            .flatMap((claim) => claim.evidence.map((evidence) => evidence.document_id)))];
+        })()}
         linesSources={[
           { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
           { query: projectBilling, name: t('projectDetail.billing.sources.billing', 'billing figures') },

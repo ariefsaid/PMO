@@ -7,7 +7,7 @@ import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 const EXPECTED = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
   'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
-  'certificate', 'equipment_plan', 'check_in', 'medical_release',
+  'certificate', 'equipment_plan', 'check_in', 'medical_release', 'stock_writeoff', 'attendance_decision',
 ];
 
 /** The translation stub these assertions read through: the English default with its `{{placeholders}}` filled. */
@@ -56,6 +56,13 @@ describe('the registry of everything a login can decide', () => {
     expect(WAITING_KIND_META.check_in.href?.('rec-1')).toBe('/crews');
     expect(scopeLabelText('check_in', t)).toBe('Clock-ins to decide');
     expect(waitingHeadingText('check_in', 2, t)).toBe('Clock-ins to decide (2)');
+  });
+
+  it('W7/F8 a stock write-off opens its document and an undecided attendance day opens that day’s site report', () => {
+    expect(WAITING_KIND_META.stock_writeoff.href?.('d-1')).toBe('/stock/documents/d-1');
+    expect(WAITING_KIND_META.attendance_decision.href?.('r-1')).toBe('/site-reports/r-1');
+    expect(isDatabaseListedKind('stock_writeoff')).toBe(true);
+    expect(isDatabaseListedKind('attendance_decision')).toBe(true);
   });
 
   it('AC-WAIT-056 client acceptance (BAST) is its own kind, not the purchase-delivery kind, and opens its exact work order', () => {

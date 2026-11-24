@@ -4,6 +4,8 @@
     "daily_report": "Daily reports to validate ({{count}})",
     "delivery_record": "Deliveries to confirm ({{count}})",
     "work_order_acceptance": "Client acceptances to confirm ({{count}})",
+    "stock_writeoff": "Stock write-offs to post ({{count}})",
+    "attendance_decision": "Attendance to decide ({{count}})",
     "equipment_plan": "Equipment plans to approve ({{count}})",
     "check_in": "Clock-ins to decide ({{count}})",
     "imprest": "Site cash waiting for you ({{count}})",
@@ -24,7 +26,9 @@
     "quantity_change": "Quantity changes",
     "certificate": "Subcontract certificates",
     "equipment_plan": "Equipment plans",
-    "check_in": "Clock-ins to decide"
+    "check_in": "Clock-ins to decide",
+    "stock_writeoff": "Stock write-offs to post",
+    "attendance_decision": "Attendance to decide"
   },
   "since": "Waiting since {{date}}",
   "bast": {

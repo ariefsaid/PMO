@@ -45,8 +45,13 @@ export function useClientRequisitionMutations() {
         repo.recordRelease(a.lineId, { quantity: a.quantity, reason: a.reason }, a.clientRequestId), ...opts,
     }),
     recordPickup: useMutation({
-      mutationFn: (a: { lineId: string; quantity: string; warehouseId: string; pickedUpOn?: string | null; collector?: string | null; paperReference?: string | null; clientRequestId?: string }) =>
-        repo.recordPickup(a.lineId, { quantity: a.quantity, warehouseId: a.warehouseId, pickedUpOn: a.pickedUpOn, collector: a.collector, paperReference: a.paperReference }, a.clientRequestId), ...opts,
+      // The photo is a second step on the receipt the pickup posted. Its failure must not read as a failed pickup (a retry would post it twice), so it comes back as a flag.
+      mutationFn: async (a: { lineId: string; quantity: string; warehouseId: string; pickedUpOn?: string | null; collector?: string | null; paperReference?: string | null; slip?: File | null; clientRequestId?: string }) => {
+        const pickupId = await repo.recordPickup(a.lineId, { quantity: a.quantity, warehouseId: a.warehouseId, pickedUpOn: a.pickedUpOn, collector: a.collector, paperReference: a.paperReference }, a.clientRequestId);
+        if (!a.slip) return { pickupId, slipFailed: false };
+        try { await repo.attachPickupSlip(pickupId, a.slip); return { pickupId, slipFailed: false }; } catch { return { pickupId, slipFailed: true }; }
+      }, ...opts,
     }),
+
   };
 }

@@ -3,6 +3,8 @@
     "certificate": "Sertifikat subkontraktor untuk disetujui ({{count}})",
     "daily_report": "Laporan harian untuk divalidasi ({{count}})",
     "delivery_record": "Pengiriman untuk dikonfirmasi ({{count}})",
+    "stock_writeoff": "Penghapusan stok untuk diposting ({{count}})",
+    "attendance_decision": "Kehadiran untuk diputuskan ({{count}})",
     "equipment_plan": "Rencana peralatan untuk disetujui ({{count}})",
     "check_in": "Absen masuk yang harus diputuskan ({{count}})",
     "imprest": "Kas lapangan menunggu Anda ({{count}})",
@@ -24,6 +26,8 @@
     "certificate": "Sertifikat subkontraktor",
     "equipment_plan": "Rencana peralatan",
     "check_in": "Absen masuk yang harus diputuskan",
+    "stock_writeoff": "Penghapusan stok untuk diposting",
+    "attendance_decision": "Kehadiran untuk diputuskan",
     "work_order_acceptance": "BAST klien untuk dikonfirmasi"
   },
   "since": "Menunggu sejak {{date}}",

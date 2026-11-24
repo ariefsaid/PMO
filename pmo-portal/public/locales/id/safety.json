@@ -67,6 +67,7 @@
     "resultLabel": "Hasil",
     "title": "Pemeriksaan kebugaran",
     "type": "Pemeriksaan",
+    "allFit": "Tandai semua anggota regu fit",
     "typeNone": "Tanpa pemeriksaan khusus",
     "visitor": "Atau tamu yang disebutkan namanya",
     "worker": "Pekerja"
