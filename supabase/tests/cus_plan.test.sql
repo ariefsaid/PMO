@@ -10,7 +10,7 @@ select plan(59);
 
 insert into organizations (id, name, built_in_roles_enabled) values
   ('25770000-0000-0000-0000-00000000020a', 'CUSP Org A', true),
-  ('25770000-0000-0000-0000-00000000020b', 'CUSP Org B');
+  ('25770000-0000-0000-0000-00000000020b', 'CUSP Org B', false);
 insert into auth.users (id, email) values
   ('25770000-0000-0000-0000-0000000002a1', 'cusp-admin@example.com'),
   ('25770000-0000-0000-0000-0000000002a2', 'cusp-eng@example.com'),

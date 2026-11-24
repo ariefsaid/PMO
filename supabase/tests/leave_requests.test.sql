@@ -11,7 +11,7 @@ create or replace function pg_temp.today() returns date language sql stable as $
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('27080000-0000-0000-0000-00000000010a', 'LV Org', 'IDR', true),
-  ('27080000-0000-0000-0000-00000000010b', 'LV Other', 'IDR');
+  ('27080000-0000-0000-0000-00000000010b', 'LV Other', 'IDR', false);
 insert into auth.users (id, email) values
   ('27080000-0000-0000-0000-0000000001a1', 'lv-admin@example.com'),
   ('27080000-0000-0000-0000-0000000001a2', 'lv-pm@example.com'),
