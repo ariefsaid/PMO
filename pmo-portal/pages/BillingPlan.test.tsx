@@ -3,10 +3,12 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlanCandidate } from '@/src/lib/billingPlan';
+import type { UnacceptedProgressCandidate } from '@/src/lib/db/billingPlan';
 import type { PlanSettings } from '@/src/lib/db/billingPlan';
 
 const state = vi.hoisted(() => ({
   query: { isPending: false, isError: false, isSuccess: true, data: { rows: [] as unknown[], truncated: false }, refetch: vi.fn() } as Record<string, unknown>,
+  unaccepted: { isPending: false, isError: false, isSuccess: true, data: { rows: [] as unknown[], truncated: false }, refetch: vi.fn() } as Record<string, unknown>,
   settings: { data: { monthlyTarget: 10000, targetCurrency: 'IDR', reminderOn: false, monthTargets: [] } } as Record<string, unknown>,
   may: true,
   mutate: vi.fn(),
@@ -19,6 +21,13 @@ vi.mock('@/src/hooks/useBillingPlan', () => ({
       return { ...state.query, data: { rows, truncated: false } };
     }
     return state.query;
+  },
+  useBillingUnacceptedProgress: (projectId: string | null) => {
+    if (projectId) {
+      const rows = (state.unaccepted.data as { rows: UnacceptedProgressCandidate[] }).rows.filter((r) => r.projectId === projectId);
+      return { ...state.unaccepted, data: { rows, truncated: false } };
+    }
+    return state.unaccepted;
   },
   useBillingPlanSettings: () => state.settings,
   useSaveBillingPlanSettings: () => ({ mutate: state.mutate, isPending: false }),
@@ -36,11 +45,14 @@ const line = (over: Partial<PlanCandidate> & { key: string; value: number }): Pl
 const setRows = (rows: PlanCandidate[], truncated = false) => {
   state.query = { isPending: false, isError: false, isSuccess: true, data: { rows, truncated }, refetch: vi.fn() };
 };
+const setUnacceptedRows = (rows: UnacceptedProgressCandidate[], truncated = false) => {
+  state.unaccepted = { isPending: false, isError: false, isSuccess: true, data: { rows, truncated }, refetch: vi.fn() };
+};
 const renderPlan = () => render(<MemoryRouter><BillingPlan /></MemoryRouter>);
 const settings: PlanSettings = { monthlyTarget: 10000, targetCurrency: 'IDR', reminderOn: false, monthTargets: [] };
 
 describe('BillingPlan', () => {
-  beforeEach(() => { state.may = true; state.mutate.mockReset(); state.settings = { data: settings }; setRows([]); });
+  beforeEach(() => { state.may = true; state.mutate.mockReset(); state.settings = { data: settings }; setRows([]); setUnacceptedRows([]); });
   afterEach(() => cleanup());
 
   it('AC-MBP-013 groups by project, ticking updates the total against the target, and says candidates only', () => {
@@ -70,6 +82,22 @@ describe('BillingPlan', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Pick I-1/ }));
     expect(screen.getByTestId('billing-plan-overclaim').textContent).toContain('Over-claimed');
     expect(screen.getByTestId('billing-plan-picked').textContent).toMatch(/7[.,]000/);
+  });
+
+  it('AC-MV-004 keeps unaccepted measured progress separate from accepted work that is not yet claimed', () => {
+    setRows([line({ key: 'accepted', value: 7000, description: 'Accepted item' })]);
+    setUnacceptedRows([{
+      projectId: 'p1', projectName: 'North project', boqItemId: 'b2', itemCode: 'I-2', description: 'Measured item',
+      unit: 'm', quantity: '8.000', today: '2026-11-21',
+    }]);
+    renderPlan();
+    const accepted = screen.getByTestId('billing-plan-accepted-group');
+    const unaccepted = screen.getByTestId('billing-plan-unaccepted-group');
+    expect(within(accepted).getByRole('heading', { name: 'Progress accepted by the client, not yet claimed' })).toBeInTheDocument();
+    expect(within(accepted).getByText(/Accepted item/)).toBeInTheDocument();
+    expect(within(unaccepted).getByRole('heading', { name: 'Progress not yet accepted by the client' })).toBeInTheDocument();
+    expect(within(unaccepted).getByText('I-2 · Measured item')).toBeInTheDocument();
+    expect(within(unaccepted).getByText(/8/)).toBeInTheDocument();
   });
 
   it('AC-MBP-010 other-currency picks are listed apart and not counted', () => {

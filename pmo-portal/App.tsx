@@ -448,6 +448,16 @@ export const FinanceAccessRoute: React.FC<{ children: React.ReactNode }> = ({ ch
   return <>{children}</>;
 };
 
+const WorkInHandAccessRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation('workInHand');
+  const navigate = useNavigate();
+  const may = usePermission();
+  if (!may('view', 'workInHand')) {
+    return <AccessDenied title={t('title', 'Work in hand')} sub={t('access.denied', 'Work in hand is available to Finance, Executive, Admin, and Project Managers for their assigned projects.')} onBack={() => navigate('/')} />;
+  }
+  return <>{children}</>;
+};
+
 export const FinanceLegacyRedirect: React.FC<{ to: string; paymentsView?: boolean }> = ({ to, paymentsView = false }) => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -594,7 +604,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/finance/billing-plan', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<BillingPlanPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
-  { path: '/finance/work-in-hand', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<WorkInHandPage />} /></FinanceAccessRoute> },
+  { path: '/finance/work-in-hand', element: <WorkInHandAccessRoute><FeatureRoute feature="revenue" element={<WorkInHandPage />} /></WorkInHandAccessRoute> },
   { path: '/finance/statements', element: <FinanceAccessRoute>{gated('financial_statements', <FinancialStatementsPage />)}</FinanceAccessRoute> },
   // #895 manual journals: role-gated like the Finance hub (Finance·Executive·Admin); the RPCs re-check the role.
   { path: '/journals', element: <FinanceAccessRoute><JournalsPage /></FinanceAccessRoute> },

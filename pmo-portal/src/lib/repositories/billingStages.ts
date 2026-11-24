@@ -12,7 +12,7 @@ import {
   listBoardWorkOrderSteps, listWorkOrderSteps, setDefaultStepTemplate, skipWorkOrderStep,
 } from '@/src/lib/db/workOrderBillingSteps';
 import { getBillingBoard } from '@/src/lib/db/billingBoard';
-import { getPlanCandidates, getPlanSettings, saveMonthTarget, savePlanReminder, savePlanSettings } from '@/src/lib/db/billingPlan';
+import { getPlanCandidates, getPlanSettings, getUnacceptedProgressCandidates, saveMonthTarget, savePlanReminder, savePlanSettings } from '@/src/lib/db/billingPlan';
 import { wrap } from './repositoryErrors';
 import type { BillingStagesRepository } from './contracts/billingStages';
 
@@ -23,6 +23,7 @@ import type { BillingStagesRepository } from './contracts/billingStages';
 export const billingStagesRepository: BillingStagesRepository = {
   readBoard: (projectId) => wrap(() => getBillingBoard(projectId)),
   readPlanCandidates: (projectId) => wrap(() => getPlanCandidates(projectId)),
+  readUnacceptedProgress: (projectId) => wrap(() => getUnacceptedProgressCandidates(projectId)),
   getPlanSettings: () => wrap(() => getPlanSettings()),
   savePlanSettings: (input) => wrap(() => savePlanSettings(input)),
   savePlanReminder: (input) => wrap(() => savePlanReminder(input)),

@@ -29544,6 +29544,8 @@ export type Database = {
           all_done: boolean
           claim_created_at: string
           claim_id: string
+          claim_value: string
+          currency: string
           current_name: string
           current_position: number
           current_stage_id: string
@@ -29560,6 +29562,19 @@ export type Database = {
           today: string
           wo_number: string
           work_order_id: string
+        }[]
+      }
+      billing_unaccepted_progress: {
+        Args: { p_project?: string }
+        Returns: {
+          boq_item_id: string
+          description: string | null
+          item_code: string | null
+          project_id: string
+          project_name: string
+          quantity: string
+          today: string
+          unit: string | null
         }[]
       }
       billing_claim_invoiced: { Args: { p_claim: string }; Returns: boolean }
@@ -35339,6 +35354,17 @@ export type Database = {
           earned_quantity: number
           earned_value: number
           rate: number
+        }[]
+      }
+      project_management_overview: {
+        Args: { p_ids: string[] }
+        Returns: {
+          done_count: number
+          late_count: number
+          planned_pct: number | null
+          project_id: string
+          today: string
+          total_count: number
         }[]
       }
       project_mapped_actuals: {

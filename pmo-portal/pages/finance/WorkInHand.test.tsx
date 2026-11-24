@@ -8,6 +8,7 @@ import type { WorkInHand as WorkInHandFacts } from '@/src/lib/db/workInHand';
 
 const state = vi.hoisted(() => ({
   canView: true,
+  role: 'Finance',
   loading: false,
   error: false,
   facts: null as unknown,
@@ -16,6 +17,8 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/components/finance/useFinanceAccess', () => ({ useFinanceAccess: () => ({ canView: state.canView, canAct: false }) }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => state.canView }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: state.role }) }));
 vi.mock('@/src/hooks/useWorkInHand', () => ({
   useWorkInHand: () => ({ facts: state.facts, rows: state.rows, isLoading: state.loading, isError: state.error, isSuccess: !state.loading && !state.error, error: null, refetch: state.refetch }),
 }));
@@ -42,7 +45,7 @@ function renderPage() {
   return render(<MemoryRouter><WorkInHand /></MemoryRouter>);
 }
 
-beforeEach(() => { state.canView = true; state.loading = false; state.error = false; state.refetch.mockReset(); });
+beforeEach(() => { state.canView = true; state.role = 'Finance'; state.loading = false; state.error = false; state.refetch.mockReset(); });
 afterEach(cleanup);
 
 const rowOrder = () => screen.getAllByTestId(/^wih-row-/).map((r) => r.getAttribute('data-testid'));
@@ -163,5 +166,13 @@ describe('Work in hand screen', () => {
     setData([rated('c', 'Contract', '900000.00')]);
     renderPage();
     expect(screen.queryByTestId('wih-row-c')).toBeNull();
+  });
+
+  it('AC-MV-003 labels a Project Manager position as their assigned projects only', () => {
+    state.role = 'Project Manager';
+    setData([rated('managed', 'Managed project', '900000.00')]);
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'My work in hand' })).toBeInTheDocument();
+    expect(screen.getByText('These figures cover only projects assigned to you.')).toBeInTheDocument();
   });
 });

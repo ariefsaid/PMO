@@ -33,6 +33,7 @@ import type {
   MilestoneInput,
   MilestonePatch,
   ProjectDeliverySummary,
+  ProjectMilestoneOverview,
   MilestoneDate,
 } from '@/src/lib/db/milestones';
 
@@ -40,6 +41,7 @@ export interface MilestoneRepository {
   list: (projectId: string) => Promise<MilestoneWithProgress[]>;
   deliveryForProjects: (ids: string[]) => Promise<Record<string, number>>;
   deliverySummaryForProjects: (ids: string[]) => Promise<Record<string, ProjectDeliverySummary>>;
+  managementOverviewForProjects: (ids: string[]) => Promise<Record<string, ProjectMilestoneOverview>>;
   /** Dated milestones for a set of projects — the read-only calendar view (one batched read). */
   milestoneDatesForProjects: (ids: string[]) => Promise<MilestoneDate[]>;
   create: (input: MilestoneInput, projectId: string) => Promise<MilestoneRow>;
