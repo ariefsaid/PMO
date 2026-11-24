@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import idPva from '../../public/locales/id/workOrderPva.json';
@@ -9,6 +10,8 @@ import { formatExactMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder, type PlanLine } from '@/src/lib/workOrderPlanVsActual';
 import { PlanVsActualSection } from './PlanVsActualSection';
+
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1' } }) }));
 
 /** #2570 — the work-order page's plan-vs-actual panel: loading / error / restricted / empty / data (FR-WPVA-040, FR-WPVA-041). */
 const wo = (id: string, n: string, extra: Partial<PvaWorkOrder> = {}): PvaWorkOrder =>
@@ -81,5 +84,18 @@ describe('PlanVsActualSection', () => {
     render(<PlanVsActualSection workOrderId="A" query={ok(data([wo('A', 'WO-1', { revenue: null, revenueComplete: false })], [line({ workOrderId: 'A', amount: '10.00' })]))} disciplines={[]} />);
     expect(screen.getByTestId('wo-page-pva-plan-direct').textContent).toBe('No plan');
     expect(screen.getByTestId('wo-page-pva-revenue').textContent).toBe('Revenue unknown');
+  });
+
+  // Walk PC3: the plan is entered on the work order's own page, with the project tab's dialog and gate.
+  it('lets a reader who may plan open the work order plan from its own page; nobody else gets the action', () => {
+    const d = data([wo('A', 'WO-1'), wo('C', 'WO-3', { status: 'Cancelled' })], [line({ workOrderId: 'A', amount: '10.00' }), line({ workOrderId: 'C', amount: '5.00' })]);
+    const client = new QueryClient();
+    const { rerender } = render(<QueryClientProvider client={client}><PlanVsActualSection workOrderId="A" projectId="p1" query={ok(d)} disciplines={discs} /></QueryClientProvider>);
+    expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull();
+    rerender(<QueryClientProvider client={client}><PlanVsActualSection workOrderId="C" projectId="p1" query={ok(d)} disciplines={discs} canPlan /></QueryClientProvider>);
+    expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull();
+    rerender(<QueryClientProvider client={client}><PlanVsActualSection workOrderId="A" projectId="p1" query={ok(d)} disciplines={discs} canPlan /></QueryClientProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    expect(screen.getByRole('dialog', { name: /Plan for WO-1/ })).toBeInTheDocument();
   });
 });

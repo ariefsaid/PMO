@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, RecordSection } from '@/src/components/ui';
-import { usePermission } from '@/src/auth/usePermission';
 import WorkOrderPlanModal from '../project-detail/WorkOrderPlanModal';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -19,6 +18,8 @@ interface Props {
   disciplines: CostDiscipline[];
   /** Needed only for the idle-time block (#2673); without it the block does not load. */
   projectId?: string;
+  /** The reader may enter the plan (`manage workOrderPlan`); the Plan action then opens the project tab's dialog. */
+  canPlan?: boolean;
 }
 
 /**
@@ -27,9 +28,8 @@ interface Props {
  * this work order, so it equals the project tab's row (AC-WPVA-016). Overspend reads in words (FR-WPVA-041); a role
  * that cannot read the money sees "restricted", never a zero (FR-WPVA-013).
  */
-export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId }) => {
+export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId, canPlan = false }) => {
   const { t } = useTranslation('workOrderPva');
-  const canPlan = usePermission()('manage', 'workOrderPlan');
   const [planning, setPlanning] = useState(false);
   const title = t('title', 'Plan vs actual');
   if (query.isPending) return <RecordSection title={title} data-testid="wo-page-pva"><ListState variant="loading" rows={3} /></RecordSection>;

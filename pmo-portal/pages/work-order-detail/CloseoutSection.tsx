@@ -82,7 +82,11 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
     try { await completeItem.mutateAsync({ itemId, doneOn }); } catch (err) { explain(err); }
   };
 
-  return <RecordSection title={title}>
+  // Walk F12-2: the picker offers any issued project document; this names where those documents live and opens it.
+  const register = canRecord
+    ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents`} className="text-control font-medium text-primary-text hover:underline" data-testid="closeout-documents-link">{t('projectDocuments', 'Project documents')}</Link>
+    : undefined;
+  return <RecordSection title={title} actions={register}>
     <p className="text-control text-muted-foreground" data-testid="closeout-summary">
       {status === 'Closed'
         ? (closer.data?.closedAt
@@ -128,7 +132,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
                 ? <span className="flex items-center gap-2">
                     <SelectField compact inline hideLabel
                       label={t('pickFor', 'Document for {{item}}', { item: item.name })}
-                      placeholder={t('pick', 'Choose a document')}
+                      placeholder={t('pick', 'Choose a project document')}
                       value={picked[item.id] ?? ''}
                       onChange={(v) => setPicked((p) => ({ ...p, [item.id]: v }))}
                       options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} />

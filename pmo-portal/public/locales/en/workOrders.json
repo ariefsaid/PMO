@@ -78,7 +78,8 @@
       "incomplete": "Some invoices could not be totalled in this work order's currency, so no monthly figures are shown.",
       "toDate": "to date",
       "total": "Total billed"
-    }
+    },
+    "openContract": "Claims and invoices"
   },
   "documents": {
     "title": "Documents",
@@ -381,10 +382,10 @@
     "workInHand": "Work in hand"
   },
   "pageIndex": {
-    "label": "Sections of this work order",
+    "label": "Sections of this $t(common:terms.clientWorkOrder)",
     "scope": "Site and scope",
     "cost": "Cost and plan",
-    "material": "Material",
+    "material": "Materials",
     "billing": "Billing",
     "inspections": "Inspections",
     "closeout": "Close-out",

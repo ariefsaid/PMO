@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
+
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
@@ -9,7 +12,7 @@ import { toIso } from '../equipment/equipmentWeek';
  * Today's crews on this work order (walk F7-3, PC9): the roster lives on Crews → Roster; this names who is on the work
  * order today and opens that roster with the work order already chosen. Same read and same date as the roster page.
  */
-export const WorkOrderCrewLink: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
+const WorkOrderCrewLinkBody: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   const { t } = useTranslation('workOrders');
   const roster = useWorkOrderRoster(workOrderId, toIso(new Date()));
   const open = (
@@ -34,4 +37,12 @@ export const WorkOrderCrewLink: React.FC<{ workOrderId: string }> = ({ workOrder
             )}
     </RecordSection>
   );
+};
+
+/** Renders nothing outside the auth and query providers (bare renders of the page in unit tests). */
+export const WorkOrderCrewLink: React.FC<{ workOrderId: string }> = (props) => {
+  const auth = useContext(AuthContext);
+  const queryClient = useContext(QueryClientContext);
+  if (!auth || !queryClient) return null;
+  return <WorkOrderCrewLinkBody {...props} />;
 };

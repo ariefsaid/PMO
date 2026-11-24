@@ -124,7 +124,7 @@ const WorkOrderDetail: React.FC = () => {
   const groupLabels: Record<PageGroupKey, string> = {
     scope: t('pageIndex.scope', 'Site and scope'),
     cost: t('pageIndex.cost', 'Cost and plan'),
-    material: t('pageIndex.material', 'Material'),
+    material: t('pageIndex.material', 'Materials'),
     billing: t('pageIndex.billing', 'Billing'),
     inspections: t('pageIndex.inspections', 'Inspections'),
     closeout: t('pageIndex.closeout', 'Close-out'),
@@ -206,7 +206,7 @@ const WorkOrderDetail: React.FC = () => {
         <PageGroup id="wo-cost" label={groupLabels.cost}>
           <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
             onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
-          {canPlanView && <PlanVsActualSection workOrderId={row.id} projectId={projectId} query={pva} disciplines={disciplines.data ?? []} />}
+          {canPlanView && <PlanVsActualSection workOrderId={row.id} projectId={projectId} query={pva} disciplines={disciplines.data ?? []} canPlan={may('manage', 'workOrderPlan')} />}
           {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}
           <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
           <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
@@ -220,7 +220,7 @@ const WorkOrderDetail: React.FC = () => {
           </PageGroup>
         )}
         <PageGroup id="wo-billing" label={groupLabels.billing}>
-          <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
+          <BillingSection contractHref={canBilling ? `/projects/${row.project_id}/contract?wo=${row.id}` : null} billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
             perMonth={canBilling ? { months: billedMonths.data, isPending: billedMonths.isPending, isError: billedMonths.isError, onRetry: () => void billedMonths.refetch() } : null}
             acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()}
             confirm={{

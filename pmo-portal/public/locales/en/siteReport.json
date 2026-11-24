@@ -52,7 +52,7 @@
     "empty": "No crew days in this range",
     "from": "From",
     "help": "Counts the days each crew recorded the work-start checkpoint within its target time. The share is a count of days, never an average of minutes.",
-    "link": "Crews on time and lost time",
+    "link": "Missed checkpoints, crews on time and lost time",
     "minutesLate": "{{n}} min late",
     "missedTitle": "Missed the target time",
     "share": "{{onTime}} of {{days}} days on time",

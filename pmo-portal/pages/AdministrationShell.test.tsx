@@ -411,6 +411,14 @@ describe('Administration route-backed shell', () => {
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
   });
 
+  // Walk G9: Administration in a Project Manager's menu opens the people register; the bare entry (breadcrumb, old link)
+  // lands there too, never on Users, which refuses them.
+  it('a Project Manager reaching /administration lands on the people register, not a refusal', async () => {
+    renderShell('/administration', 'Project Manager');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/people'), { timeout: 5000 });
+    expect(screen.queryByText(/Administration is an Admin, Executive, or platform Operator area/i)).not.toBeInTheDocument();
+  });
+
   it('AC-ADMIA-006: the shell labels the organization integrations section, distinct from the personal route', async () => {
     renderShell('/administration/integrations');
     await waitFor(() =>

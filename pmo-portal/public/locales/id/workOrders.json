@@ -78,7 +78,8 @@
       "incomplete": "Beberapa invoice tidak dapat dijumlahkan dalam mata uang perintah kerja ini, sehingga angka bulanan tidak ditampilkan.",
       "toDate": "sampai hari ini",
       "total": "Total ditagih"
-    }
+    },
+    "openContract": "Klaim dan invoice"
   },
   "documents": {
     "title": "Dokumen",
@@ -381,7 +382,7 @@
     "workInHand": "Pekerjaan dalam tangan"
   },
   "pageIndex": {
-    "label": "Bagian work order ini",
+    "label": "Bagian $t(common:terms.clientWorkOrder) ini",
     "scope": "Lokasi dan lingkup",
     "cost": "Biaya dan rencana",
     "material": "Material",
@@ -396,6 +397,7 @@
     "open": "Buka jadwal kru",
     "loadError": "Regu hari ini tidak dapat dimuat",
     "none": "Tidak ada regu terjadwal hari ini",
+    "people_one": "{{count}} orang",
     "people_other": "{{count}} orang"
   }
 }

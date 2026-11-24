@@ -16,7 +16,7 @@
   "overdue": "Terlambat · jatuh tempo {{date}}",
   "document": "Dokumen",
   "pickFor": "Dokumen untuk {{item}}",
-  "pick": "Pilih dokumen",
+  "pick": "Pilih dokumen proyek",
   "attachTo": "Lampirkan ke {{item}}",
   "attach": "Lampirkan",
   "notAttached": "Belum ada dokumen terlampir",
@@ -57,5 +57,6 @@
     "readOnlyNote": "Hanya Admin yang dapat mengubah daftar periksa.",
     "limit": "Paling banyak 20 butir.",
     "generic": "Daftar periksa tidak dapat disimpan. Coba lagi."
-  }
+  },
+  "projectDocuments": "Dokumen proyek"
 }

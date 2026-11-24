@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
+
 import { useProject } from '@/src/hooks/useProjects';
 import { CandidateWorkOrders } from '../project-detail/tabs/CandidateWorkOrders';
 import WorkOrderPlanVsActual from '../project-detail/WorkOrderPlanVsActual';
@@ -14,7 +17,7 @@ import DailyTargetRollup from '../project-detail/DailyTargetRollup';
  * without work-order money sees the candidates and no gap. Shown on the project's Work order tab and on the work-order
  * dashboard once it is narrowed to one project.
  */
-export const WorkOrderProjectPanels: React.FC<{ projectId: string }> = ({ projectId }) => {
+const WorkOrderProjectPanelsBody: React.FC<{ projectId: string }> = ({ projectId }) => {
   const project = useProject(projectId);
   return (
     <div className="mt-[var(--space-section)] flex min-w-0 flex-col gap-[var(--space-panel-gap)] empty:hidden" data-testid="work-order-project-panels">
@@ -26,4 +29,12 @@ export const WorkOrderProjectPanels: React.FC<{ projectId: string }> = ({ projec
       <DailyTargetRollup projectId={projectId} />
     </div>
   );
+};
+
+/** Renders nothing outside the auth and query providers (bare renders of the page in unit tests). */
+export const WorkOrderProjectPanels: React.FC<{ projectId: string }> = (props) => {
+  const auth = useContext(AuthContext);
+  const queryClient = useContext(QueryClientContext);
+  if (!auth || !queryClient) return null;
+  return <WorkOrderProjectPanelsBody {...props} />;
 };
