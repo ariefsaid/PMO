@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
-import { initI18n, i18next } from './index';
+import { DEFAULT_NS, initI18n, i18next } from './index';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
 import { useApplyOrgTerminology } from '@/src/hooks/useOrgTerminology';
@@ -71,5 +71,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // i18next resolves its first catalogue in a microtask-plus-fetch. Rendering the tree meanwhile is
   // correct — `useSuspense: false` plus FR-L10N-041's fallback means a not-yet-loaded key renders
   // its English source string rather than a raw key or a blank.
-  return <I18nextProvider i18n={i18next}>{children}</I18nextProvider>;
+  // Passing `defaultNS` prevents any `useTranslation()` rendered before `initI18n` from falling
+  // back to i18next's default `'translation'` namespace and fetching `/locales/*/translation.json`.
+  return <I18nextProvider i18n={i18next} defaultNS={DEFAULT_NS}>{children}</I18nextProvider>;
 };
