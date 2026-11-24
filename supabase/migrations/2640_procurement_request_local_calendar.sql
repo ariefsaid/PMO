@@ -1,3 +1,5 @@
+-- drops: replace the request creation-day cast with the shared org-calendar conversion;
+-- native_org_today delegates its equivalent timezone expression to native_org_date.
 -- Calendar conversion shared by document creation and later capture.
 create or replace function public.native_org_date(p_org uuid, p_at timestamptz) returns date
   language sql stable set search_path = public as $$
@@ -18,6 +20,7 @@ create or replace function public.create_purchase_request(
   returns purchase_requests language plpgsql security definer set search_path = public as $$
 declare v_org uuid; v_row public.purchase_requests; v_pr_number text;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();  -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller.
   select org_id, pr_number into v_org, v_pr_number
     from public.procurements where id = p_procurement_id for update;

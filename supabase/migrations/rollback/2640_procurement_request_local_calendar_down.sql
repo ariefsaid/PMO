@@ -5,6 +5,7 @@ create or replace function public.create_purchase_request(
   returns purchase_requests language plpgsql security definer set search_path = public as $$
 declare v_org uuid; v_row public.purchase_requests; v_pr_number text;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();  -- ⚑ 0180 (FR-AMG-001): user-JWT-only caller.
   select org_id, pr_number into v_org, v_pr_number
     from public.procurements where id = p_procurement_id for update;
