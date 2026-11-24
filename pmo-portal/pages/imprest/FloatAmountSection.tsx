@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DataTable, ListState, RecordSection, StatusPill, TextArea, TextField, UnsavedChangesDialog, useToast, type Column } from '@/src/components/ui';
-import { CanWrite } from '@/src/auth/usePermission';
+import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useDecideFloatChange, useImprestFloatChanges, useProposeFloatAmount } from '@/src/hooks/useImprest';
+import { useDecideFloatChange, useImprestFloatChanges, useImprestRequesterRoute, useProposeFloatAmount } from '@/src/hooks/useImprest';
 import { availableFloatChangeActions } from '@/src/lib/imprest/imprestRules';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import type { ImprestFloatChangeListRow } from '@/src/lib/db/imprest';
@@ -18,6 +18,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const { toast } = useToast();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
+  const may = usePermission();
   const changes = useImprestFloatChanges(floatId);
   const decide = useDecideFloatChange();
   const propose = useProposeFloatAmount();
@@ -31,7 +32,11 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
   const moneyCents = (v: number | string) => formatCurrency(Number(v), currency, { precision: 'minor' });
   const rows = changes.data?.rows ?? [];
   const open = rows.find((c) => c.status === 'Proposed');
-  const actions = open ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];
+  const route = useImprestRequesterRoute('limit_change', open?.id, 'approve');
+  const routeAllows = may('decide', 'imprestFloat', { currentUserId: userId, record: {
+    imprestLimitRoute: !route.isPending && !route.isError ? route.data : null,
+  } });
+  const actions = open && routeAllows ? availableFloatChangeActions({ userId, realRole, custodianId, change: open }) : [];
   const history = rows.filter((c) => c.status !== 'Proposed');
   const columns: Column<ImprestFloatChangeListRow>[] = [
     { key: 'date', header: t('imprest:amount.history.date', 'Date'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap font-semibold">{formatDay(r.proposed_at)}</span> },

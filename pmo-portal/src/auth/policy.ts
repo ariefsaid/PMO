@@ -1,3 +1,4 @@
+import type { ImprestRequesterRoute } from '@/src/lib/db/imprest';
 export type { Role } from './AuthContext';
 import type { Role } from './AuthContext';
 import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles';
@@ -232,6 +233,8 @@ export interface PolicyContext {
   currentUserId?: string | null;
   /** The record under consideration — for status/ownership-conditional rules. */
   record?: {
+    /** The server-computed senior route, supplied only after a successful read. */
+    imprestLimitRoute?: ImprestRequesterRoute | null;
     /** Feature-local view-as fence for evidence writes; callers compare effective and real roles. */
     viewOnly?: boolean;
     /** Which master kind a connector surface acts on (ECA2-T17): Finance may accept
@@ -759,7 +762,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * and pay depend on identity (custodian, author, requester) and are projected by src/lib/imprest/imprestRules.ts.
    */
   // MASTER_DATA = Admin, Executive, Project Manager, Finance = approval rank (holds_spend_approval_authority)
-  imprestFloat: { view: allow(MASTER_DATA), create: allow(IMPREST_SETUP), edit: allow(IMPREST_SETUP) },
+  imprestFloat: {
+    view: allow(MASTER_DATA), create: allow(IMPREST_SETUP), edit: allow(IMPREST_SETUP),
+    decide: (role, ctx) => {
+      const route = ctx.record?.imprestLimitRoute;
+      return route?.action === 'approve' && (role === 'Admin' ||
+        (route.route_kind === 'named' && !!ctx.currentUserId && route.approvers.some((actor) => actor.id === ctx.currentUserId)));
+    },
+  },
   imprestPlan: { view: allow(MASTER_DATA), create: allow(MASTER_DATA) },
   imprestReplenishment: { view: allow(MASTER_DATA) },
   company: {
