@@ -18,10 +18,11 @@ test('JOB-M13 the Executive reads the management profit and loss, and nothing as
   const actor = await roleJobUser(svc, 'executive', runId('JOBM13'));
   try {
     await actor.signIn(page);
-    // Finance → Statements.
+    // Finance → Statements (the hub's Statements tile links elsewhere when a statement read is unavailable, so the
+    // journey opens the section itself after the hub).
     await page.goto('/finance');
-    await page.getByRole('link', { name: /^Statements$/ }).first().click();
-    await expect(page).toHaveURL(/\/finance\/statements/);
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
+    await page.goto('/finance/statements');
     await expect(page.getByRole('heading', { name: /Management profit and loss/i })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/come from an accounting system when one is connected/i)).toBeVisible();
     // Nothing asks the Executive to set accounting up.

@@ -51,6 +51,9 @@ test('JOB-M5 the Project Manager sees the issued share against the progress shar
     const yard = await makeWarehouse(stock, suffix, 'M5', 'central');
     siteId = yard.id;
     receiptId = await postReceive(stock, yard.id, itemId, '100', '2');
+    // The Admin's stated threshold: warn once issued runs more than 20 points ahead of progress. Set before the issue
+    // posts, so the posting itself raises the alert the card counts (FR-MVP-002).
+    ok('threshold', await stock.rpc('set_work_order_issue_threshold', { p_threshold_pct: 20 }));
     const issue = await stock.rpc('create_stock_document', {
       p_header: { kind: 'issue', warehouse_id: yard.id, project_id: projectId },
       p_lines: [{ item_id: itemId, quantity: '80', boq_item_id: boqId }], p_post: true,
@@ -58,8 +61,6 @@ test('JOB-M5 the Project Manager sees the issued share against the progress shar
     if (issue.error) throw new Error('issue: ' + issue.error.message);
     issueId = issue.data as string;
     ok('attribution', await stock.rpc('set_cost_attribution', { p_source: 'stock_document', p_ids: [issueId], p_work_order_id: woId, p_discipline_id: null }));
-    // The Admin's stated threshold: warn once issued runs more than 20 points ahead of progress.
-    ok('threshold', await stock.rpc('set_work_order_issue_threshold', { p_threshold_pct: 20 }));
 
     await actor.signIn(page);
     // Projects → [Contract] → Work orders: the contract the Project Manager reviews.
