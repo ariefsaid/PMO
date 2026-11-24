@@ -199,7 +199,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
   const lens = useLens();
   return AREAS.filter((a) => {
     // A deal not yet won has no orders, billing or purchases (brief addendum, #1402).
-    if (a === 'contract') return !isPipeline && lens !== 'delivery' && may('view', 'workOrder');
+    if (a === 'contract') return !isPipeline && (lens !== 'delivery' || may('view', 'progressClaim')) && may('view', 'workOrder');
     if (a === 'orders') return !isPipeline && may('view', 'workOrder');
     if (a === 'procurement' || a === 'materials') return !isPipeline;
     if (a === 'budget') return lens !== 'delivery';

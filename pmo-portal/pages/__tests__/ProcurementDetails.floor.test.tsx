@@ -459,8 +459,8 @@ describe('Procurement record floor controls', () => {
     expect(screen.getByTestId('procurement-record-capture')).toHaveTextContent(captureTitle);
   });
 
-  it('floor: Add quotation opens the quotation capture for this case', async () => {
-    detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
+  it('floor: Finance opens quotation capture after quotations were requested', async () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Quoted', requested_by_id: 'u-other' };
     renderPage();
     await chooseRecordKind('Add quotation');
     expect(screen.getByTestId('procurement-tabpanel-quotes')).toBeInTheDocument();

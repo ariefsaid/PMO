@@ -1,0 +1,9 @@
+{
+  "quotes": {
+    "next": "Minta penawaran terlebih dahulu, lalu tambahkan dan pilih penawaran pemasok."
+  },
+  "match": {
+    "exception": "Pengecualian disetujui oleh {{name}} pada {{date}}: {{reason}}",
+    "nameUnavailable": "Nama pemberi persetujuan belum tersedia"
+  }
+}

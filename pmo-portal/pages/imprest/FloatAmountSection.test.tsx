@@ -7,10 +7,12 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router';
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
 const h = vi.hoisted(() => ({
+  route: { data: { route_kind: 'admin', action: 'approve', approvers: [], admin_breakglass: false } as unknown, isPending: false, isError: false },
   userId: 'u-adm', role: 'Admin' as string, changes: null as unknown,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('@/src/hooks/useImprest', () => ({
+  useImprestRequesterRoute: () => h.route,
   useImprestFloatChanges: () => h.changes, useDecideFloatChange: () => h.m.decide, useProposeFloatAmount: () => h.m.propose,
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
@@ -24,10 +26,26 @@ const renderIt = () => render(<MemoryRouter initialEntries={['/float']}><Link to
 describe('FR-IMP-002 float amount', () => {
   beforeEach(() => {
     h.userId = 'u-adm'; h.role = 'Admin';
+    h.route = { data: { route_kind: 'admin', action: 'approve', approvers: [], admin_breakglass: false }, isPending: false, isError: false };
     h.changes = ok({ rows: [change()], truncated: false });
     h.m = { decide: mut(), propose: mut() };
   });
 
+  it("PU10 Finance Manager outside the named senior route has no decision action", () => {
+ h.userId = "manager"; h.role = "Finance";
+ h.route.data = { route_kind: "named", action: "approve", approvers: [{ id: "someone-else" }], admin_breakglass: true };
+ renderIt();
+ expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+ expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+ });
+  it("PU10 named Finance Manager sees the action and an unavailable route fails closed", () => {
+ h.userId = "manager"; h.role = "Finance";
+ h.route.data = { route_kind: "named", action: "approve", approvers: [{ id: "manager" }], admin_breakglass: true };
+ const view = renderIt();
+ expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+ view.unmount(); h.route.isError = true; renderIt();
+ expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+ });
   it('FR-IMP-002 an approver other than the proposer approves the proposed amount after a confirm', async () => {
     const user = userEvent.setup();
     renderIt();
@@ -40,10 +58,12 @@ describe('FR-IMP-002 float amount', () => {
 
   it('FR-IMP-002 the proposer and the custodian cannot decide their own amount', () => {
     h.userId = 'u-fin'; h.role = 'Finance';
+    h.route.data = { route_kind: 'named', action: 'approve', approvers: [{ id: 'u-fin' }], admin_breakglass: true };
     const { unmount } = renderIt();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
     unmount();
     h.userId = 'u-cust'; h.role = 'Project Manager';
+    h.route.data = { route_kind: 'named', action: 'approve', approvers: [{ id: 'u-cust' }], admin_breakglass: true };
     renderIt();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });

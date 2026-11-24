@@ -1050,17 +1050,18 @@ describe('Action bar covers mid-flow transitions', () => {
     expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
   });
 
-  it('AC-PFE-010: Record another document is filtered by what the role may record', async () => {
-    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+  it.each([
+    ['Draft', ['Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment', 'Link from accounting system']],
+    ['Vendor Quoted', ['Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment', 'Add quotation', 'Link from accounting system']],
+  ] as const)('AC-PFE-010: Finance capture in %s follows its role and sourcing stage', async (status, expected) => {
+    detailState.data = { ...baseProcurement, status, requested_by_id: 'u-other' };
     renderPage('proc-001', 'files');
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
-    // Finance may request, source, invoice and pay; it is not the requester and not a receiver, so no receipt.
+    // Finance keeps its document rights; supplier quotations start after Request quotations.
+    // It is neither the requester nor a receiver, so neither stage offers a receipt.
     const menu = await screen.findByRole('menu', { name: /record another document/i });
-    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment',
-      'Add quotation', 'Link from accounting system',
-    ]);
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(expected);
     await userEvent.click(screen.getByRole('menuitem', { name: 'Supplier invoice' }));
     expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
   });
