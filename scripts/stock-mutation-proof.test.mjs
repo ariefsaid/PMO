@@ -1,5 +1,6 @@
 // Pure checks of the #1512 mutation harness (no DB): the mutation primitive and the case table.
 import test from 'node:test'; import assert from 'node:assert/strict'; import fs from 'node:fs'; import path from 'node:path';
+import { readMigrations, parseDefinitions, blankComments } from './check-restated-functions.mjs';
 import { CASES, mutate, runProof } from './stock-mutation-proof.mjs';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const c = { id: 'fixture', from: /(v_ok := )[^;]+(;\s*-- mut:fixture)/, to: '$1true$2' };
@@ -29,11 +30,21 @@ test('every case has a unique id and an owning test that exists', () => {
     assert.ok(file && fs.existsSync(path.join(ROOT, file)), `${x.id}: owning test ${file} does not exist`);
   }
 });
-test('every -- mut: marker in the stock migrations matches exactly one case pattern', () => {
-  const dir = path.join(ROOT, 'supabase/migrations');
-  const sql = fs.readdirSync(dir).filter((n) => /^\d+_stock_.*\.sql$/.test(n)).map((n) => fs.readFileSync(path.join(dir, n), 'utf8')).join('\n');
+test('every -- mut: marker in the latest stock function matches exactly one case pattern', () => {
+  const latest = new Map();
+  for (const file of readMigrations()) {
+    const blank = blankComments(file.sql);
+    for (const d of parseDefinitions(file.sql).definitions) {
+      const start = blank.indexOf(d.body);
+      assert.ok(start >= 0, `${file.name}: function body must be located`);
+      latest.set(`${d.name}(${d.args})`.replaceAll('public.', ''), file.sql.slice(start, start + d.body.length));
+    }
+  }
   for (const x of CASES.filter((k) => /mut:/.test(k.from.source))) {
+    const key = x.fn.replaceAll('public.', '');
+    const sql = latest.get(key);
+    assert.ok(sql, `${x.id}: latest definition for ${key} exists`);
     const hits = [...sql.matchAll(new RegExp(x.from.source, 'g'))].length;
-    assert.equal(hits, 1, `${x.id}: pattern matched ${hits} times in the migration source`);
+    assert.equal(hits, 1, `${x.id}: pattern matched ${hits} times in the latest function`);
   }
 });
