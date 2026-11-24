@@ -507,7 +507,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
-  rateCatalogue: { view: allow(MASTER_DATA), create: allowUnlessViewOnly(REVENUE_WRITE) },
+  rateCatalogue: { view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'project_control_manager'), create: allowUnlessViewOnly(REVENUE_WRITE) },
   /**
    * Daily site report (#1522, 1005). UX ONLY — dsr_save_draft/dsr_submit/dsr_validate/dsr_return/dsr_correct and
    * dsr_report_revenue are the authority (ADR-0016). Until #902 adds the field-controller and QS roles, the field role
@@ -1283,8 +1283,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    */
   equipmentAsset: {
     view: allow(ALL),
-    create: allowUnlessViewOnly(['Admin', 'Project Manager']),
-    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Project Manager'], role) || holds(ctx, 'equipment_officer')),
+    edit: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Project Manager'], role) || holds(ctx, 'equipment_officer')),
     delete: allowUnlessViewOnly(ADMIN),
   },
   equipmentUsage: {

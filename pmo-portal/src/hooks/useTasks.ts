@@ -114,6 +114,7 @@ export function useTaskMutations(projectId: string) {
     },
     onSuccess: (_data, { id }) => {
       invalidate();
+      void qc.invalidateQueries({ queryKey: ['record-history', orgId, 'task', id] });
       if (routeTaskWrite(projectId) === 'external') {
         setPush(id, pendingPushAfterWrite('external', { ok: true }));
         clearPushTimer(id);

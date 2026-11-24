@@ -22,21 +22,39 @@ export function datesInWeek(start: Date): Date[] {
   });
 }
 
-export function entriesToGridRows(entries: TimesheetEntryWithProject[], weekDates: Date[], unknownProject: string): TimesheetGridRow[] {
+export function entriesToGridRows(
+  entries: TimesheetEntryWithProject[],
+  weekDates: Date[],
+  unknownProject: string,
+  options?: { groupByWorkOrder?: boolean },
+): TimesheetGridRow[] {
+  const byWorkOrder = options?.groupByWorkOrder === true;
   const map = new Map<string, TimesheetGridRow>();
   const dateStrings = weekDates.map((date) => dayKey(date));
   for (const e of entries) {
-    const key = `${e.project_id}`;
+    const key = byWorkOrder ? `${e.project_id}:${e.work_order_id ?? ''}` : `${e.project_id}`;
     let row = map.get(key);
     if (!row) {
-      row = { id: key, projectId: `${e.project_id}`, project: e.project ? projectDisplayName(e.project) : unknownProject,
-        projectLegalName: e.project?.name, code: e.project?.code ?? null, hours: [0, 0, 0, 0, 0, 0, 0] };
+      const workOrderLabel = byWorkOrder && e.work_order
+        ? [e.work_order.wo_number, e.work_order.title].filter(Boolean).join(' · ') || null
+        : null;
+      row = {
+        id: key,
+        projectId: `${e.project_id}`,
+        project: e.project ? projectDisplayName(e.project) : unknownProject,
+        projectLegalName: e.project?.name,
+        code: e.project?.code ?? null,
+        ...(workOrderLabel ? { workOrderLabel } : {}),
+        hours: [0, 0, 0, 0, 0, 0, 0],
+      };
       map.set(key, row);
     }
     const dayIdx = dateStrings.indexOf(e.entry_date);
     if (dayIdx >= 0) row.hours[dayIdx] += e.hours;
   }
-  return Array.from(map.values()).sort((a, b) => a.project.localeCompare(b.project));
+  return Array.from(map.values()).sort(
+    (a, b) => a.project.localeCompare(b.project) || (a.workOrderLabel ?? '').localeCompare(b.workOrderLabel ?? ''),
+  );
 }
 
 export function gridDaysForWeek(weekDates: Date[]): TimesheetDay[] {

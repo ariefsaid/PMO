@@ -1,5 +1,5 @@
-import { CAPTURED_PURCHASE_CAPABILITIES as erpCapture, STOCK_MATCHING_CAPABILITIES as erpStock } from './erpnext/workflowDeclarations.ts';
-import { CAPTURED_PURCHASE_CAPABILITIES as odooCapture, STOCK_MATCHING_CAPABILITIES as odooStock } from './odoo/workflowDeclarations.ts';
+import { CAPTURED_PURCHASE_CAPABILITIES as erpCapture, STOCK_MATCHING_CAPABILITIES as erpStock, ACCOUNTING_SETUP_CAPABILITIES as erpAccounting } from './erpnext/workflowDeclarations.ts';
+import { CAPTURED_PURCHASE_CAPABILITIES as odooCapture, STOCK_MATCHING_CAPABILITIES as odooStock, ACCOUNTING_SETUP_CAPABILITIES as odooAccounting } from './odoo/workflowDeclarations.ts';
 /**
  * Capability-map bounding (FR-EAS-004, AC-EAS-013). An org may assign to a tier only domains within
  * that tier's STATIC capability map, so the effective flip set is bounded by the employed tier's real
@@ -45,4 +45,13 @@ const STOCK_POSTING: Readonly<Record<string, { stockMatching: boolean }>> = {
 };
 export function stockMatchingCapabilities(tier?: string): { stockMatching: boolean } {
   return STOCK_POSTING[tier ?? ''] ?? { stockMatching: false };
+}
+
+/** Accounting setup is a declared capability rather than a tier-name decision in a screen. */
+const ACCOUNTING_SETUP: Readonly<Record<string, { accounting: boolean }>> = {
+  erpnext: erpAccounting,
+  odoo: odooAccounting,
+};
+export function accountingSetupCapabilities(tier?: string): { accounting: boolean } {
+  return ACCOUNTING_SETUP[tier ?? ''] ?? { accounting: false };
 }

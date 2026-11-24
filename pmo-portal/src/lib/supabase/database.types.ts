@@ -16337,6 +16337,7 @@ export type Database = {
           procurement_id: string
           quantity: number
           rate: number
+          stock_item_id: string | null
           work_order_id: string | null
         }
         Insert: {
@@ -16354,6 +16355,7 @@ export type Database = {
           procurement_id: string
           quantity?: number
           rate?: number
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Update: {
@@ -16371,6 +16373,7 @@ export type Database = {
           procurement_id?: string
           quantity?: number
           rate?: number
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Relationships: [
@@ -27862,6 +27865,7 @@ export type Database = {
           procurement_id: string | null
           quantity: number | null
           rate: number | null
+          stock_item_id: string | null
           work_order_id: string | null
         }
         Insert: {
@@ -27877,6 +27881,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Update: {
@@ -27892,6 +27897,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Relationships: [

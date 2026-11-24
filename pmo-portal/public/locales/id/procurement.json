@@ -40,6 +40,9 @@
     "removeDescription": "Item ini akan dihapus dari pengadaan. Anda dapat menambahkannya kembali selama pengadaan masih berupa draf.",
     "removeItem": "Hapus item",
     "searchItem": "Cari kode atau nama item…",
+    "standardItemsList": "Saran item standar",
+    "showStandardItems": "Lihat daftar item standar",
+    "clearStandardItem": "Lepas tautan item standar",
     "unknownCurrencyAmount": "Tidak diketahui"
   },
   "create": {

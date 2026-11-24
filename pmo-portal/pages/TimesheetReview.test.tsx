@@ -190,6 +190,50 @@ describe('HR Officer timesheet review list (AC-HTR-001..006)', () => {
     expect(screen.queryByRole('button', { name: /reopen/i })).toBeNull();
   });
 
+  it('AC-TRW-001 shows each line work order attribution separately when a week spans two work orders on the same project', async () => {
+    const user = userEvent.setup();
+    h.sheets = [
+      {
+        ...sampleSheets[0],
+        entries: [
+          {
+            id: 'e-wo1',
+            org_id: 'org-1',
+            timesheet_id: 'ts-1',
+            project_id: 'p-alpha',
+            work_order_id: 'wo-1',
+            discipline_id: null,
+            entry_date: '2026-11-16',
+            hours: 8,
+            notes: null,
+            project: { id: 'p-alpha', name: 'Alpha Jetty', short_name: null, code: 'P-01' },
+            work_order: { wo_number: 'WO-001', title: 'Structural erection' },
+          },
+          {
+            id: 'e-wo2',
+            org_id: 'org-1',
+            timesheet_id: 'ts-1',
+            project_id: 'p-alpha',
+            work_order_id: 'wo-2',
+            discipline_id: null,
+            entry_date: '2026-11-17',
+            hours: 5,
+            notes: null,
+            project: { id: 'p-alpha', name: 'Alpha Jetty', short_name: null, code: 'P-01' },
+            work_order: { wo_number: 'WO-002', title: 'Piping tie-in' },
+          },
+        ],
+      },
+    ];
+    mountReview();
+    const list = within(await screen.findByTestId('timesheet-review-list'));
+    await user.click(list.getByRole('button', { name: /Show entries for Sari Putri/i }));
+    expect(list.getByText('WO-001 · Structural erection')).toBeInTheDocument();
+    expect(list.getByText('WO-002 · Piping tie-in')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /return/i })).toBeNull();
+  });
+
   it('AC-HTR-004 filters by period, project and person and keeps filter values in the URL', async () => {
     const user = userEvent.setup();
     mountReview();

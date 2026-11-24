@@ -1,3 +1,5 @@
+const ledgerMock = vi.hoisted(() => vi.fn().mockResolvedValue([{ external_tier: 'erpnext', status: 'active' }]));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listBindings: ledgerMock } } }));
 /**
  * #693 (F-1) — Administration › Budget account map shipped hard-coded English. Rendered under the
  * real `id` catalogue the heading, column headers, unmapped pill, row actions, dialogs and
