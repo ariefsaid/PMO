@@ -56,7 +56,7 @@ select is((select count(*)::int from unnest(array[
 -- Loans are the scoped field path: only loans into a visible host crew reach the field account.
 select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'crew_loans'
   and policyname = 'light_account_scope_select' and cmd = 'SELECT' and permissive = 'RESTRICTIVE'
-  and qual like '%actor_is_light%' and qual like '%light_can_see_crew%' and qual like '%host_crew_id%'),
+  and qual like '%actor_is_light%' and qual like '%light_can_see_crew(host_crew_id)%'),
   'AC-LA-003 loans are limited to a field account visible host crew');
 
 -- the alternate path is exactly these six: a table cannot leave the deny set quietly.

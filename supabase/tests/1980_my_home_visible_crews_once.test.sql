@@ -4,7 +4,7 @@
 -- 'my_home calls no per-crew visibility helper' goes red (one call per live roster row); the row assertions stay green.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('19800000-0000-0000-0000-00000000000a', 'VC Org',   'IDR', true),
@@ -68,6 +68,9 @@ select is(pg_temp.wos('19800000-0000-0000-0000-0000000000a2'),
     where r.org_id = '19800000-0000-0000-0000-00000000000a' and public.light_can_see_crew(c.id)),
   'the rows equal the per-crew helper''s answer');
 select ok(position('light_can_see_crew' in (select prosrc from pg_proc where oid = 'public.my_home'::regproc)) = 0, 'my_home''s body names no per-crew helper');
+
+select set_config('request.jwt.claims', '{}', true);
+select throws_ok($$ select public.my_home() $$, '42501', 'not authenticated', 'a caller without a session cannot read the phone home');
 
 select * from finish();
 rollback;
