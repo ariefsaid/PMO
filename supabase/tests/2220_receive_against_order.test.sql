@@ -237,5 +237,28 @@ select ok(pg_temp.kill(
  || '; alter table public.order_receiving_requests drop constraint order_receiving_requests_check',
  $$select not pg_temp.allowed(10,'select approve_order_receiving(pg_temp.rid(92),''My own excess'')')$$),
  'AC-RGO-008 mutation: removing both self-approval defences fails the same-person oracle');
+-- A different receipt can consume the remaining order quantity after an excess was reviewed.
+select pg_temp.actor(11);
+set local role authenticated;
+select is(pg_temp.receive(5,96)->>'status','awaiting_approval','AC-RGO-008 new count waits for its excess review');
+reset role;
+select pg_temp.actor(10);
+set local role authenticated;
+select lives_ok($$select approve_order_receiving(pg_temp.rid(96),'Accept this excess')$$,'AC-RGO-008 purchaser approves the current excess');
+select is(pg_temp.receive(1,97)->>'status','posted','AC-RGO-008 another receipt consumes outstanding quantity');
+reset role;
+select pg_temp.actor(11);
+set local role authenticated;
+select is(pg_temp.receive(5,96)->>'status','awaiting_approval','AC-RGO-008 increased excess requires a fresh approval');
+select is((select (x->>'approved')::boolean from jsonb_array_elements(read_order_receiving(pg_temp.rid(40))->'requests') x where x->>'id'=pg_temp.rid(96)::text),false,'AC-RGO-008 stale approval is shown as waiting');
+reset role;
+select pg_temp.actor(10);
+set local role authenticated;
+select lives_ok($$select approve_order_receiving(pg_temp.rid(96),'Accept the revised excess')$$,'AC-RGO-008 purchasing can review the changed excess');
+reset role;
+select pg_temp.actor(11);
+set local role authenticated;
+select is(pg_temp.receive(5,96)->>'status','posted','AC-RGO-008 the newly approved excess posts once');
+reset role;
 select * from finish();
 rollback;
