@@ -134,6 +134,7 @@ select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-00
 reset role;
 set local session_replication_role=replica;
 update stock_ledger set qty_delta=-99.9,value_delta=-999,qty_after=0,value_after=0 where line_id='25190000-0000-0000-0000-000000000821';
+update cutover_stock_remainder set amount=(select sum(value_delta) from stock_ledger where org_id='25190000-0000-0000-0000-00000000000a');
 set local session_replication_role=origin;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
