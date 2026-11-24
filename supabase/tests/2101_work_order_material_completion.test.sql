@@ -26,6 +26,8 @@ insert into companies (id, org_id, name, type) values
 insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, client_id, project_manager_id) values
   ('26950000-0000-0000-0000-0000000000c1', '26950000-0000-0000-0000-00000000000a', 'TST Job One', 'Ongoing Project', 1000000, 'exclusive', 0, '26950000-0000-0000-0000-0000000000f1', '26950000-0000-0000-0000-0000000000a1'),
   ('26950000-0000-0000-0000-0000000000c2', '26950000-0000-0000-0000-00000000000a', 'TST Job Two', 'Ongoing Project', 1000000, 'exclusive', 0, '26950000-0000-0000-0000-0000000000f1', '26950000-0000-0000-0000-0000000000a1');
+insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
+  ('26950000-0000-0000-0000-0000000000e1', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c1', 'PIPE-BOQ', 'Pipe installation', 'pc', 100, 4);
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('26950000-0000-0000-0000-000000000401', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c1', 'TST WO one', 'Issued', 10000, 'exclusive', 0),
   ('26950000-0000-0000-0000-000000000403', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c2', 'TST WO other job', 'Issued', 10000, 'exclusive', 0);
@@ -95,7 +97,7 @@ reset role;
 -- an issue to the project for the work order, and a return of part of it
 select tst_as('26950000-0000-0000-0000-0000000000a1');
 select set_config('tst.i1', create_stock_document(jsonb_build_object('kind','issue','warehouse_id','26950000-0000-0000-0000-000000002001','project_id','26950000-0000-0000-0000-0000000000c1'),
-  jsonb_build_array(jsonb_build_object('item_id','26950000-0000-0000-0000-000000001001','quantity',10)), true)::text, false);
+  jsonb_build_array(jsonb_build_object('item_id','26950000-0000-0000-0000-000000001001','quantity',10,'boq_item_id','26950000-0000-0000-0000-0000000000e1')), true)::text, false);
 reset role;
 update stock_documents set work_order_id = '26950000-0000-0000-0000-000000000401' where id = current_setting('tst.i1')::uuid;
 select tst_as('26950000-0000-0000-0000-0000000000a1');
