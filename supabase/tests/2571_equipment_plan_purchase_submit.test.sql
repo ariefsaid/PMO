@@ -63,7 +63,7 @@ end $$;
 
 
 update profiles set built_in_role='buyer' where id='27004000-0000-0000-0000-0000000000a3';
-update purchase_order_settings set order_job_roles=array['buyer'] where org_id='27004000-0000-0000-0000-00000000000a';
+insert into purchase_order_settings(org_id,order_job_roles) values('27004000-0000-0000-0000-00000000000a',array['buyer']) on conflict(org_id) do update set order_job_roles=excluded.order_job_roles;
 select pg_temp._mkplan('27004000-0000-0000-0000-000000000b01','27004000-0000-0000-0000-0000000000c1','2026-01-01','27004000-0000-0000-0000-0000000000a2');
 set local role authenticated;
 select pg_temp._as('27004000-0000-0000-0000-0000000000a1');

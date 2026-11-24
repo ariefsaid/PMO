@@ -31766,6 +31766,10 @@ export type Database = {
         }[]
       }
       equipment_org_today: { Args: { p_org: string }; Returns: string }
+      equipment_plan_purchase_submit_context: {
+        Args: { p_purchase: string }
+        Returns: Json
+      }
       equipment_plan_approver_ok: {
         Args: { p_plan_id: string }
         Returns: boolean
