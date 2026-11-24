@@ -1,6 +1,8 @@
+-- Keep the foreign Admin oracle independent of the address guard, alongside both real field-account refusals.
+-- Mutations: remove receiver_org -> foreign Admin assertion fails; remove receiver_address -> unaddressed field assertion fails.
 begin;
 create extension if not exists pgtap;
-select plan(4);
+select plan(9);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26920000-0000-0000-0000-00000000000a', 'TST Org', 'IDR', 'UTC'),
@@ -10,13 +12,15 @@ insert into auth.users (id, email) values
   ('26920000-0000-0000-0000-0000000000a2', 'tst-src@example.com'),
   ('26920000-0000-0000-0000-0000000000a3', 'tst-dst@example.com'),
   ('26920000-0000-0000-0000-0000000000a4', 'tst-plain@example.com'),
-  ('26920000-0000-0000-0000-0000000000b1', 'tst-other-admin@example.com');
+  ('26920000-0000-0000-0000-0000000000b1', 'tst-other-admin@example.com'),
+  ('26920000-0000-0000-0000-0000000000b2', 'tst-other-field@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('26920000-0000-0000-0000-0000000000a1', '26920000-0000-0000-0000-00000000000a', 'TST Admin', 'tst-admin@example.com', 'Admin', 'active'),
   ('26920000-0000-0000-0000-0000000000a2', '26920000-0000-0000-0000-00000000000a', 'TST Source Keeper', 'tst-src@example.com', 'Engineer', 'active'),
   ('26920000-0000-0000-0000-0000000000a3', '26920000-0000-0000-0000-00000000000a', 'TST Dest Keeper', 'tst-dst@example.com', 'Engineer', 'active'),
   ('26920000-0000-0000-0000-0000000000a4', '26920000-0000-0000-0000-00000000000a', 'TST Plain Member', 'tst-plain@example.com', 'Engineer', 'active'),
-  ('26920000-0000-0000-0000-0000000000b1', '26920000-0000-0000-0000-00000000000b', 'TST Other Admin', 'tst-other-admin@example.com', 'Admin', 'active');
+  ('26920000-0000-0000-0000-0000000000b1', '26920000-0000-0000-0000-00000000000b', 'TST Other Admin', 'tst-other-admin@example.com', 'Admin', 'active'),
+  ('26920000-0000-0000-0000-0000000000b2', '26920000-0000-0000-0000-00000000000b', 'TST Other Field', 'tst-other-field@example.com', 'Engineer', 'active');
 insert into companies (id, org_id, name, type) values
   ('26920000-0000-0000-0000-0000000000f1', '26920000-0000-0000-0000-00000000000a', 'TST Client', 'Client');
 insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, client_id, project_manager_id) values
@@ -44,21 +48,29 @@ insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values
   ('26920000-0000-0000-0000-00000000000a', '26920000-0000-0000-0000-000000002002', '26920000-0000-0000-0000-0000000000a3');
 
 
-update profiles set built_in_role='field_user' where id in ('26920000-0000-0000-0000-0000000000a3','26920000-0000-0000-0000-0000000000a4','26920000-0000-0000-0000-0000000000b1');
+update profiles set built_in_role='field_user' where id in ('26920000-0000-0000-0000-0000000000a3','26920000-0000-0000-0000-0000000000a4','26920000-0000-0000-0000-0000000000b2');
 insert into stock_transfers(id,org_id,number,from_warehouse_id,to_warehouse_id,transit_warehouse_id,to_user_id,sent_by)
 values('26920000-0000-0000-0000-000000009001','26920000-0000-0000-0000-00000000000a','METADATA','26920000-0000-0000-0000-000000002001','26920000-0000-0000-0000-000000002002','26920000-0000-0000-0000-000000002003','26920000-0000-0000-0000-0000000000a3','26920000-0000-0000-0000-0000000000a2');
 insert into stock_transfer_lines(org_id,transfer_id,line_no,item_id,qty_sent) values('26920000-0000-0000-0000-00000000000a','26920000-0000-0000-0000-000000009001',1,'26920000-0000-0000-0000-000000001003',10);
 select set_config('request.jwt.claims','{"sub":"26920000-0000-0000-0000-0000000000a3","role":"authenticated"}',true);
 set local role authenticated;
+select ok(public.actor_is_light(),'AC-SITE-009 addressed caller is a field account');
 select is((select item_name from stock_transfer_receiving_items('26920000-0000-0000-0000-000000009001')),'Checked valve','AC-SITE-009 field recipient reads goods identity');
 select ok((select needs_quality_check from stock_transfer_receiving_items('26920000-0000-0000-0000-000000009001')),'AC-SITE-009 field recipient sees required quality input');
 reset role;
 select set_config('request.jwt.claims','{"sub":"26920000-0000-0000-0000-0000000000a4","role":"authenticated"}',true);
 set local role authenticated;
+select ok(public.actor_is_light(),'AC-SITE-009 unaddressed caller is a field account');
 select is((select count(*) from stock_transfer_receiving_items('26920000-0000-0000-0000-000000009001')),0::bigint,'AC-SITE-009 another field account cannot read transfer metadata');
 reset role;
 select set_config('request.jwt.claims','{"sub":"26920000-0000-0000-0000-0000000000b1","role":"authenticated"}',true);
 set local role authenticated;
+select ok(not public.actor_is_light(),'AC-SITE-009 foreign Admin checks organisation independently of the address guard');
+select is((select count(*) from stock_transfer_receiving_items('26920000-0000-0000-0000-000000009001')),0::bigint,'AC-SITE-009 other organisation cannot read metadata');
+reset role;
+select set_config('request.jwt.claims','{"sub":"26920000-0000-0000-0000-0000000000b2","role":"authenticated"}',true);
+set local role authenticated;
+select ok(public.actor_is_light(),'AC-SITE-009 foreign field caller is a field account');
 select is((select count(*) from stock_transfer_receiving_items('26920000-0000-0000-0000-000000009001')),0::bigint,'AC-SITE-009 field account in another organisation cannot read metadata');
 select * from finish();
 rollback;
