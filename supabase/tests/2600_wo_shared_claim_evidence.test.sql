@@ -109,8 +109,12 @@ select is((select claim_evidence_enabled from work_order_billing_steps where id 
   'AC-WQE-004 another organisation leaves the step unmarked');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000021',true);
-select public.set_work_order_step_claim_evidence('26000000-0000-0000-0000-000000000022',true);
+-- Fixture setup is direct so the attachment must acquire its own billing lock;
+-- Admin's guarded marking is proved independently in 2601.
+reset role;
+update public.work_order_billing_steps set claim_evidence_enabled=true
+ where id in ('26000000-0000-0000-0000-000000000021','26000000-0000-0000-0000-000000000022');
+set local role authenticated;
 
 -- ── AC-WQE-001: QI files once on WO 1 -> Claim 1 and Claim 2 both get it & pass evidence gate ──────────────────────────────
 set local role authenticated;
