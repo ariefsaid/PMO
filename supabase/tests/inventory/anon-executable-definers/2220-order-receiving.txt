@@ -1,0 +1,7 @@
+map_order_stock
+receive_order_goods
+approve_order_receiving
+read_order_receiving
+list_receiving_orders
+reverse_order_receiving
+set_order_receiving_enabled
