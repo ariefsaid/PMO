@@ -22,25 +22,26 @@ let run = '';
 
 test.beforeEach(async () => {
   admin = serviceClient('JOB-BQ8');
+  const db = admin;
   run = runId('bq8');
-  const finance = need('finance profile', await admin.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
-  companyId = need('client', await admin.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
-  projectId = need('project', await admin.from('projects').insert({
+  const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
+  companyId = need('client', await db.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
+  projectId = need('project', await db.from('projects').insert({
     org_id: ORG_ID, name: run, status: 'Ongoing Project', currency: 'USD', client_id: companyId, contract_value: 100_000,
     tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 0, tax_base_numerator: 1, tax_base_denominator: 1,
   }).select('id').single()).id as string;
   workOrderId = crypto.randomUUID();
-  ok('work order', await admin.from('work_orders').insert({
+  ok('work order', await db.from('work_orders').insert({
     id: workOrderId, org_id: ORG_ID, project_id: projectId, title: `${run} order`, wo_number: `WO-${run}`, status: 'Issued',
     issued_at: new Date().toISOString(), order_value: 100_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD',
   }));
   // One category hidden from the Quality Inspector, one open to the Engineer access level the role sits on.
-  hiddenCategoryId = need('hidden category', await admin.from('document_categories').insert({ org_id: ORG_ID, name: `${run} commercial`, hidden_job_roles: ['quality_inspector'] }).select('id').single()).id as string;
-  openCategoryId = need('open category', await admin.from('document_categories').insert({ org_id: ORG_ID, name: `${run} open` }).select('id').single()).id as string;
+  hiddenCategoryId = need('hidden category', await db.from('document_categories').insert({ org_id: ORG_ID, name: `${run} commercial`, hidden_job_roles: ['quality_inspector'] }).select('id').single()).id as string;
+  openCategoryId = need('open category', await db.from('document_categories').insert({ org_id: ORG_ID, name: `${run} open` }).select('id').single()).id as string;
   for (const [categoryId, role] of [[hiddenCategoryId, 'Engineer'], [hiddenCategoryId, 'Admin'], [openCategoryId, 'Engineer'], [openCategoryId, 'Admin']] as const) {
-    ok('category role', await admin.from('document_category_roles').insert({ category_id: categoryId, org_id: ORG_ID, role }));
+    ok('category role', await db.from('document_category_roles').insert({ category_id: categoryId, org_id: ORG_ID, role }));
   }
-  const newDoc = async (title: string, categoryId: string) => need('document', await admin.from('project_documents').insert({
+  const newDoc = async (title: string, categoryId: string) => need('document', await db.from('project_documents').insert({
     org_id: ORG_ID, project_id: projectId, category_id: categoryId, category: '', title, revision: 'A', status: 'Issued',
     file_path: `${ORG_ID}/${projectId}/${crypto.randomUUID()}/report.pdf`,
   }).select('id').single()).id as string;
@@ -48,7 +49,7 @@ test.beforeEach(async () => {
   openDocId = await newDoc(`${run} quality report`, openCategoryId);
   // Both documents are attached to this work order's BASTs — which is how a work order's Documents section finds them.
   for (const [i, documentId] of [hiddenDocId, openDocId].entries()) {
-    ok('acceptance', await admin.from('work_order_acceptances').insert({
+    ok('acceptance', await db.from('work_order_acceptances').insert({
       org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: new Date().toISOString().slice(0, 10),
       is_final: false, status: 'Draft', prepared_by: finance.id, document_id: documentId, note: `stage ${i + 1}`,
     }));

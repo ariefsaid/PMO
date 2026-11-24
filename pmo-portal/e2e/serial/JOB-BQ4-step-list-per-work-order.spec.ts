@@ -6,8 +6,8 @@
  */
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
-import { createJobRoleUser } from './support/jobRoleUser';
+import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
+import { createJobRoleUser } from '../support/jobRoleUser';
 
 test.setTimeout(240_000);
 
@@ -22,24 +22,25 @@ let priorDefault: string | null = null;
 
 test.beforeEach(async () => {
   admin = serviceClient('JOB-BQ4');
+  const db = admin;
   const run = runId('bq4');
-  companyId = need('client', await admin.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
-  projectId = need('project', await admin.from('projects').insert({
+  companyId = need('client', await db.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
+  projectId = need('project', await db.from('projects').insert({
     org_id: ORG_ID, name: run, status: 'Ongoing Project', currency: 'IDR', client_id: companyId, contract_value: 1_000_000,
     tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 0, tax_base_numerator: 1, tax_base_denominator: 1,
   }).select('id').single()).id as string;
   workOrderId = crypto.randomUUID();
-  ok('work order', await admin.from('work_orders').insert({
+  ok('work order', await db.from('work_orders').insert({
     id: workOrderId, org_id: ORG_ID, project_id: projectId, title: `${run} order`, status: 'Draft',
     order_value: 100_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'IDR',
   }));
-  const org = need('organisation', await admin.from('organizations').select('work_order_checklist_enabled').eq('id', ORG_ID).single());
+  const org = need('organisation', await db.from('organizations').select('work_order_checklist_enabled').eq('id', ORG_ID).single());
   priorChecklist = org.work_order_checklist_enabled as boolean;
-  const settings = await admin.from('org_billing_step_settings').select('default_template_id').eq('org_id', ORG_ID).maybeSingle();
+  const settings = await db.from('org_billing_step_settings').select('default_template_id').eq('org_id', ORG_ID).maybeSingle();
   if (settings.error) throw new Error(`JOB-BQ4 fixture settings: ${settings.error.message}`);
   priorDefault = (settings.data?.default_template_id as string | null) ?? null;
-  templateId = need('template', await admin.from('billing_step_templates').insert({ org_id: ORG_ID, name: `BQ4 ${run}` }).select('id').single()).id as string;
-  need('template step', await admin.from('billing_step_template_steps').insert({ org_id: ORG_ID, template_id: templateId, position: 1, name: 'Prepare evidence' }).select('id').single());
+  templateId = need('template', await db.from('billing_step_templates').insert({ org_id: ORG_ID, name: `BQ4 ${run}` }).select('id').single()).id as string;
+  need('template step', await db.from('billing_step_template_steps').insert({ org_id: ORG_ID, template_id: templateId, position: 1, name: 'Prepare evidence' }).select('id').single());
 });
 
 test.afterEach(async () => {
