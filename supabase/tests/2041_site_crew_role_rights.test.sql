@@ -122,7 +122,7 @@ select is(pg_temp.err('a4', $$select add_task_to_incident('20410000-0000-0000-00
 select is(pg_temp.err('a6', $$select add_task_to_incident('20410000-0000-0000-0000-000000000061', 'Fence it', null, null)$$),
   '42501 only a manager, or the site supervisor of its work order, may add a task to an issue', 'RR-CR-12 a Quality Inspector cannot make a task from an issue');
 select is(pg_temp.err('a7', $$select add_task_to_incident('20410000-0000-0000-0000-000000000061', 'Fence it', null, null)$$),
-  '42501 only a manager, or the site supervisor of its work order, may add a task to an issue', 'RR-CR-12 an Engineer with no job role still cannot');
+  'ok', 'JOB-PC17 a legacy Engineer reporter follows up their own issue');
 select is(pg_temp.err('a8', $$select add_task_to_incident('20410000-0000-0000-0000-000000000061', 'Fence it', null, null)$$),
   '42501 LIGHT_ACCOUNT', 'RR-CR-12 a field account cannot');
 

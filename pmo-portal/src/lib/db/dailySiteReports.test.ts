@@ -90,13 +90,13 @@ describe('writes', () => {
     h.result.value = { data: 'r1', error: null };
     await expect(dal.saveDraft({
       clientRequestId: 'c1', workOrderId: 'w1', workDate: '2026-03-10', startTime: '07:00', endTime: '',
-      progress: [{ workOrderLineId: 'l1', subStage: '', quantity: '10' }], idle: [{ minutes: 30, reasonId: 'i1' }], consumables: [],
+      progress: [{ workOrderLineId: 'l1', subStage: '', quantity: '10', sectionId: 'section-a' }], idle: [{ minutes: 30, reasonId: 'i1' }], consumables: [],
     })).resolves.toBe('r1');
     const [name, args] = h.rpcCalls[0] as [string, { p: Record<string, unknown> }];
     expect(name).toBe('dsr_save_draft');
     expect(args.p).not.toHaveProperty('org_id');
     expect(args.p).toMatchObject({ client_request_id: 'c1', work_order_id: 'w1', start_time: '07:00', end_time: null,
-      progress: [{ work_order_line_id: 'l1', sub_stage: null, quantity: '10' }], idle: [{ minutes: 30, reason_id: 'i1' }] });
+      progress: [{ work_order_line_id: 'l1', sub_stage: null, quantity: '10', section_id: 'section-a' }], idle: [{ minutes: 30, reason_id: 'i1' }] });
   });
 
   it('AC-DSR-005 a refusal keeps its Postgres code so the screen can explain it', async () => {
