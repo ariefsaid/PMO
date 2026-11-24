@@ -6,7 +6,7 @@ import { roleJobUser } from './support/roleJobUser';
 test('AC-PSI-001 requester chooses a standard item and saves its identity on a draft line', async ({ page }) => {
   const admin = serviceClient('JOB-standard-item');
   const run = runId('standard');
-  const requester = await roleJobUser(admin, 'project_manager', run);
+  const requester = await roleJobUser(admin, 'engineer', run);
   let unitId = '';
   let itemId = '';
   let requestId = '';
