@@ -501,5 +501,11 @@
   "WBS_STEP_DAYS": "Target langkah adalah jumlah hari bilangan bulat, 1 sampai 365.",
   "WBS_STEP_SHAPE": "Daftar periksa ini paling banyak 20 langkah, dan langkah baru butuh tempat di daftar.",
   "WBS_STEP_CLOSED": "Langkah baru diletakkan setelah langkah yang berjalan.",
-  "WBS_STEP_CLOSED_detail": "Langkah yang selesai dan yang berjalan tetap di tempatnya."
+  "WBS_STEP_CLOSED_detail": "Langkah yang selesai dan yang berjalan tetap di tempatnya.",
+  "WBS_CHECKLIST_SETTING": "Hanya Keuangan atau Admin yang dapat mengaktifkan atau menonaktifkan penyuntingan daftar periksa.",
+  "WBS_CHECKLIST_OFF": "Penyuntingan daftar periksa belum diaktifkan untuk organisasi ini.",
+  "WBS_CHECKLIST_OFF_detail": "Minta Keuangan atau Admin mengaktifkannya di templat langkah penagihan.",
+  "WBS_TEMPLATE_NAME": "Beri nama templat, paling banyak 120 karakter.",
+  "WBS_TEMPLATE_TAKEN": "Templat aktif dengan nama ini sudah ada. Pilih nama lain.",
+  "WBS_TEMPLATE_EMPTY": "Daftar periksa ini tidak punya langkah untuk disimpan sebagai templat."
 }

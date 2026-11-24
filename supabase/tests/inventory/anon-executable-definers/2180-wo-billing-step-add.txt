@@ -1,2 +1,4 @@
-# Work-order checklist editing (2180): client-callable SECURITY DEFINER writer (authenticated only; anon and PUBLIC revoked in 2180).
-add_work_order_step  # 2180: adds a step to one work order's billing checklist; field account, active member, run right re-checked; 2180 pgTAP
+# Work-order checklist editing (2180, 2181): client-callable SECURITY DEFINER writers (authenticated only; anon and PUBLIC revoked).
+add_work_order_step  # 2180/2181: adds a step to one work order's billing checklist; field account, active member, org switch, run right re-checked; 2180 pgTAP
+save_work_order_steps_as_template  # 2181: copies a work order's whole checklist into a new template; field account, active member, Admin or Finance, org switch; 2180 pgTAP
+set_org_work_order_checklist_edit  # 2181: the organisation's checklist-editing switch; field account, active member, Admin or Finance; 2180 pgTAP
