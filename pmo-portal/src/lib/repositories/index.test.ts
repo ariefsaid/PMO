@@ -410,6 +410,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'listByVendor',
         'listDocuments',
         'mayOrderPurchases',
+        'mayReadPurchaseCases',
         'orderJobRoles',
         'purchaseOrderSettings',
         'selectQuote',

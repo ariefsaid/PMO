@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "actor_may_read_purchase_cases()"
+  ]
+}

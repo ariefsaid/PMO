@@ -26,18 +26,18 @@ import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format'
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
-import { NO_ATTRIBUTION, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
+import { NO_ATTRIBUTION, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 type Field = 'quantity' | 'fuel_litres' | 'trips';
 type Kind = 'work' | 'standby';
-/** One grid line: an (asset, project, kind) pair, or a fuel/trips line opened under it. */
+/** One grid line: an (asset, project, kind, work order, discipline) slot, or a fuel/trips line opened under it. */
 interface GridRow { key: string; assetId: string; projectId: string; kind: Kind; field: Field; attribution: CostAttribution }
 type Tab = 'log' | 'approvals';
 type Pending = { id: string; label: string } | null;
 
-const cellKey = (assetId: string, projectId: string, kind: string, date: string) => `${assetId}|${projectId}|${kind}|${date}`;
-const rowKey = (assetId: string, projectId: string, kind: string) => `${assetId}|${projectId}|${kind}`;
+const rowKey = (assetId: string, projectId: string, kind: string, attribution: CostAttribution) => `${assetId}|${projectId}|${kind}|${attribution.workOrderId ?? ''}|${attribution.disciplineId ?? ''}`;
+const entryAttribution = (e: EquipmentUsageRow): CostAttribution => ({ workOrderId: e.work_order_id ?? null, disciplineId: e.discipline_id ?? null });
+const cellKey = (assetId: string, projectId: string, kind: string, date: string, attribution: CostAttribution) => `${rowKey(assetId, projectId, kind, attribution)}|${date}`;
 const dayLabel = (iso: string) => formatDay(fromIso(iso));
 /** Column heading: weekday and day number only, so seven days fit beside the totals. The cell's accessible name keeps the full date. */
 const dayHead = (iso: string) => formatWeekdayDay(fromIso(iso));
@@ -58,7 +58,7 @@ const UsageCell: React.FC<{ label: string; stored: string; disabled: boolean; on
 /** The work order and discipline a row's hours are charged to, shown on the row so a person sees where the hours go. */
 const RowAttribution: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) =>
   attribution.workOrderId || attribution.disciplineId ? <RowAttributionLine projectId={projectId} attribution={attribution} /> : null;
-const RowAttributionLine: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) => {
+function useAttributionLabel(projectId: string, attribution: CostAttribution): string {
   const { t } = useTranslation();
   const workOrders = useProjectWorkOrders(attribution.workOrderId ? projectId : '');
   const disciplines = useCostDisciplines(Boolean(attribution.disciplineId));
@@ -68,14 +68,34 @@ const RowAttributionLine: React.FC<{ projectId: string; attribution: CostAttribu
     attribution.workOrderId ? t('equipment:usage.workOrderLine', 'Work order {{name}}', { name: wo ? (wo.wo_number ?? wo.title) : '…' }) : null,
     attribution.disciplineId ? t('equipment:usage.disciplineLine', 'Discipline {{name}}', { name: discipline?.name ?? '…' }) : null,
   ].filter(Boolean);
-  if (parts.length === 0) return null;
-  return <span className="block text-sm text-muted-foreground" data-testid="row-attribution">{parts.join(' · ')}</span>;
+  return parts.join(' · ');
+}
+const RowAttributionLine: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) => {
+  const label = useAttributionLabel(projectId, attribution);
+  return <span className="block text-sm text-muted-foreground" data-testid="row-attribution">{label}</span>;
+};
+
+type AttributionLabelProps = { projectId: string; attribution: CostAttribution; children: (label: string) => React.ReactNode };
+/** Unattributed rows need no lookup; attributed controls share the row's translated identity. */
+const AttributionLabel: React.FC<AttributionLabelProps> = (props) => props.attribution.workOrderId || props.attribution.disciplineId
+  ? <ResolvedAttributionLabel {...props} /> : props.children('');
+const ResolvedAttributionLabel: React.FC<AttributionLabelProps> = ({ projectId, attribution, children }) => children(useAttributionLabel(projectId, attribution));
+
+const EntryDecisionActions: React.FC<{ entry: EquipmentUsageRow; label: string; onApprove: (choice: NonNullable<Pending>) => void; onReturn: (choice: NonNullable<Pending>) => void }> = ({ entry, label, onApprove, onReturn }) => {
+  const { t } = useTranslation();
+  return <AttributionLabel projectId={entry.project_id} attribution={entryAttribution(entry)}>{(attributionLabel) => {
+    const who = [label, attributionLabel].filter(Boolean).join(' · ');
+    const choice = { id: entry.id, label: who };
+    return <span className="flex gap-1">
+      <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => onReturn(choice)}>{t('equipment:usage.reject', 'Return')}</Button>
+      <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => onApprove(choice)}>{t('equipment:usage.approve', 'Approve')}</Button>
+    </span>;
+  }}</AttributionLabel>;
 };
 
 /** Equipment → Usage: a week grid to log, submit and approve (FR-EQU-071). RPCs enforce; `can()` only hides. */
 const EquipmentUsagePage: React.FC = () => {
   const { t } = useTranslation();
-  const attributionError = useAttributionErrorText();
   const { toast } = useToast();
   const navigate = useNavigate();
   const may = usePermission();
@@ -153,19 +173,19 @@ const EquipmentUsagePage: React.FC = () => {
     [usageQ.data, assetFilter],
   );
   const mine = useMemo(() => entries.filter((e) => e.author_id === userId), [entries, userId]);
-  const byCell = useMemo(() => new Map(mine.map((e) => [cellKey(e.asset_id, e.project_id, e.kind, e.work_date), e])), [mine]);
+  const byCell = useMemo(() => new Map(mine.map((e) => [cellKey(e.asset_id, e.project_id, e.kind, e.work_date, entryAttribution(e)), e])), [mine]);
 
-  // Rows: every (asset, project, kind) with an entry this week, plus the ones added by hand; fuel/trips lines open beneath their row.
+  // Rows: every (asset, project, kind, work order, discipline) with an entry this week, plus the ones added by hand; fuel/trips lines open beneath their row.
   const gridRows = useMemo(() => {
     const seen = new Map<string, GridRow>();
     // A row's work order and discipline (#2517) come from its entries, or from the Add-row pickers for a new row.
     for (const e of mine) {
-      const key = rowKey(e.asset_id, e.project_id, e.kind);
+      const key = rowKey(e.asset_id, e.project_id, e.kind, entryAttribution(e));
       if (!seen.has(key)) seen.set(key, { key, assetId: e.asset_id, projectId: e.project_id, kind: e.kind as Kind, field: 'quantity',
         attribution: { workOrderId: e.work_order_id ?? null, disciplineId: e.discipline_id ?? null } });
     }
     for (const a of added) {
-      const key = rowKey(a.assetId, a.projectId, a.kind);
+      const key = rowKey(a.assetId, a.projectId, a.kind, a.attribution);
       if ((!assetFilter || a.assetId === assetFilter) && !seen.has(key)) seen.set(key, { key, ...a, field: 'quantity' });
     }
     const base = [...seen.values()].sort((a, b) =>
@@ -185,7 +205,7 @@ const EquipmentUsagePage: React.FC = () => {
   const fail = (err: unknown) => setProblem(classifiedFailure(err));
 
   const commit = async (row: GridRow, date: string, text: string) => {
-    const entry = byCell.get(cellKey(row.assetId, row.projectId, row.kind, date));
+    const entry = byCell.get(cellKey(row.assetId, row.projectId, row.kind, date, row.attribution));
     const asset = assetById.get(row.assetId);
     const unit = entry?.unit ?? asset?.default_unit ?? 'hours';
     const raw = text.trim().replace(',', '.');
@@ -208,13 +228,8 @@ const EquipmentUsagePage: React.FC = () => {
           kind: entry.kind as Kind, note: entry.note,
           quantity: row.field === 'quantity' ? value ?? 0 : Number(entry.quantity),
           fuel_litres: row.field === 'fuel_litres' ? value : entry.fuel_litres, trips: row.field === 'trips' ? value : entry.trips }
-        : { asset_id: row.assetId, project_id: row.projectId, work_date: date, quantity: value ?? 0, unit: unit as UsageInput['unit'], kind: row.kind };
+        : { asset_id: row.assetId, project_id: row.projectId, work_date: date, quantity: value ?? 0, unit: unit as UsageInput['unit'], kind: row.kind, ...(row.attribution.workOrderId || row.attribution.disciplineId ? { work_order_id: row.attribution.workOrderId, discipline_id: row.attribution.disciplineId } : {}) };
       const result = await save.mutateAsync(input);
-      // A NEW entry takes its row's work order and discipline (#2517); the entry is saved even if that step is refused.
-      if (!entry) {
-        try { await workOrderCostRepository.attributeCreated('equipment_usage', result.id, row.attribution); }
-        catch (err) { const d = attributionError(err); setProblem(joinSentences(d.headline, d.detail)); }
-      }
       setWarnings((w) => {
         const next = { ...w };
         if (result.over_24h) next[date] = result.day_total_hours; else delete next[date];
@@ -225,7 +240,7 @@ const EquipmentUsagePage: React.FC = () => {
     } catch (err) {
       if (classifyMutationError(err).classification === 'duplicate') {
         // Whose entry holds the day: the row's own cell is empty for this person, so it belongs to someone else.
-        const other = entries.find((e) => e.asset_id === row.assetId && e.project_id === row.projectId && e.kind === row.kind && e.work_date === date && e.author_id !== userId);
+        const other = entries.find((e) => e.asset_id === row.assetId && e.project_id === row.projectId && e.kind === row.kind && e.work_date === date && rowKey(e.asset_id, e.project_id, e.kind, entryAttribution(e)) === rowKey(row.assetId, row.projectId, row.kind, row.attribution) && e.author_id !== userId);
         setProblem(null);
         setClash({
           who: other ? (userName.get(other.author_id) ?? null) : null, asset: assetName(row.assetId), project: projectName(row.projectId),
@@ -282,41 +297,42 @@ const EquipmentUsagePage: React.FC = () => {
     // 240px minimum that pushes the Fuel and trips control outside the 1440px usage grid.
     { key: 'asset', header: t('equipment:usage.columns.equipment', 'Equipment'), rowHeader: true, stickyLeft: true, size: 170, minSize: 140,
       cell: (r) => r.field === 'quantity'
-        ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
+        ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}<RowAttribution projectId={r.projectId} attribution={r.attribution} /></span>
         : <span className="pl-3 text-sm text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
-    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? <><span>{projectName(r.projectId)}</span><RowAttribution projectId={r.projectId} attribution={r.attribution} /></> : null },
+    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? <><span>{projectName(r.projectId)}</span></> : null },
     ...days.map<Column<GridRow>>((d) => ({
       key: d, header: <span className={d === today ? 'whitespace-nowrap font-semibold text-foreground' : 'whitespace-nowrap'}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1', size: 80, minSize: 76,
       cell: (r) => {
-        const entry = byCell.get(cellKey(r.assetId, r.projectId, r.kind, d));
+        const entry = byCell.get(cellKey(r.assetId, r.projectId, r.kind, d, r.attribution));
         const unit = entry?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
         const suffix = r.field === 'quantity' ? unit : r.field === 'fuel_litres' ? t('equipment:usage.fuelUnit', 'fuel litres') : t('equipment:usage.trips', 'Trips').toLowerCase();
         const stored = !entry ? '' : r.field === 'quantity' ? String(Number(entry.quantity)) : entry[r.field] == null ? '' : String(Number(entry[r.field]));
         const locked = !canLog || !isEditable(entry) || d > today || (r.field !== 'quantity' && !entry);
-        return <UsageCell label={`${assetName(r.assetId)} · ${projectName(r.projectId)} · ${dayLabel(d)}, ${suffix}`} stored={stored} disabled={locked}
-          onCommit={(text) => void commit(r, d, text)} />;
+        return <AttributionLabel projectId={r.projectId} attribution={r.attribution}>{(attributionLabel) =>
+          <UsageCell label={[`${assetName(r.assetId)} · ${projectName(r.projectId)} · ${dayLabel(d)}, ${suffix}`, attributionLabel].filter(Boolean).join(' · ')} stored={stored} disabled={locked}
+            onCommit={(text) => void commit(r, d, text)} />}</AttributionLabel>;
       } })),
     { key: 'total', header: t('equipment:usage.columns.total', 'Total'), align: 'num', size: 84,
       cell: (r) => {
         if (r.field !== 'quantity') return null;
-        const rowEntries = mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key);
+        const rowEntries = mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind, entryAttribution(e)) === r.key);
         const unit = rowEntries[0]?.unit ?? assetById.get(r.assetId)?.default_unit ?? 'hours';
         return <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(rowEntries.reduce((s, e) => s + Number(e.quantity), 0))} {unit}</span>;
       } },
     { key: 'status', header: t('equipment:usage.columns.status', 'Status'), size: 112,
       cell: (r) => {
         if (r.field !== 'quantity') return null;
-        const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind) === r.key).map((e) => e.status))];
+        const states = [...new Set(mine.filter((e) => rowKey(e.asset_id, e.project_id, e.kind, entryAttribution(e)) === r.key).map((e) => e.status))];
         if (states.length === 0) return <span className="text-muted-foreground">—</span>;
         return <span className="flex flex-wrap gap-1">{states.map((s) => <StatusPill key={s} record="equipmentUsage" state={s} wrap={false} />)}</span>;
       } },
     { key: 'more', size: 48, header: <span className="sr-only">{t('equipment:usage.columns.fuelTrips', 'Fuel · trips')}</span>,
       cell: (r) => r.field !== 'quantity' ? null : (
-        <Button variant="ghost" size="sm" aria-expanded={opened.has(r.key)}
-          aria-label={t('equipment:usage.fuelTripsToggle', 'Fuel and trips for {{asset}} · {{project}}', { asset: assetName(r.assetId), project: projectName(r.projectId) })}
-          onClick={() => setOpened((st) => { const n = new Set(st); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })}>
-          <Icon name="chev" />
-        </Button>) },
+        <AttributionLabel projectId={r.projectId} attribution={r.attribution}>{(attributionLabel) =>
+          <Button variant="ghost" size="sm" aria-expanded={opened.has(r.key)}
+            aria-label={[t('equipment:usage.fuelTripsToggle', 'Fuel and trips for {{asset}} · {{project}}', { asset: assetName(r.assetId), project: projectName(r.projectId) }), attributionLabel].filter(Boolean).join(' · ')}
+            onClick={() => setOpened((st) => { const n = new Set(st); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })}><Icon name="chev" /></Button>
+        }</AttributionLabel>) },
   ];
 
   const addRow = (confirmed = false) => {
@@ -367,7 +383,7 @@ const EquipmentUsagePage: React.FC = () => {
   };
   const approvalColumns: Column<EquipmentUsageRow>[] = [
     { key: 'date', header: t('equipment:usage.columns.date', 'Date'), kind: 'primary', rowHeader: true, cell: (e) => dayLabel(e.work_date) },
-    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), cell: (e) => projectName(e.project_id) },
+    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), cell: (e) => <>{projectName(e.project_id)}<RowAttribution projectId={e.project_id} attribution={entryAttribution(e)} /></> },
     { key: 'author', header: t('equipment:usage.columns.loggedBy', 'Logged by'), cell: (e) => userName.get(e.author_id) ?? '—' },
     { key: 'qty', header: t('equipment:usage.columns.quantity', 'Quantity'), align: 'num',
       cell: (e) => <span className="whitespace-nowrap tabular-nums">{formatNumberMax2(Number(e.quantity))} {e.unit}{e.kind === 'standby' ? ` · ${t('equipment:usage.standby', 'standby')}` : ''}</span> },
@@ -377,13 +393,9 @@ const EquipmentUsagePage: React.FC = () => {
       cell: (e) => {
         if (e.author_id === userId) return <span className="text-sm text-muted-foreground">{t('equipment:usage.ownEntry', 'Your own entry')}</span>;
         if (!mayDecide(e)) return <span className="text-sm text-muted-foreground">{t('equipment:usage.notYours', 'Another manager approves this')}</span>;
-        const who = `${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`;
-        return (
-          <span className="flex gap-1">
-            <Button variant="outline" size="sm" aria-label={t('equipment:usage.rejectEntry', 'Return {{what}}', { what: who })} onClick={() => { setDecisionError(null); setRejecting({ id: e.id, label: who }); }}>{t('equipment:usage.reject', 'Return')}</Button>
-            <Button variant="primary" size="sm" aria-label={t('equipment:usage.approveEntry', 'Approve {{what}}', { what: who })} onClick={() => { setDecisionError(null); setApproving({ id: e.id, label: who }); }}>{t('equipment:usage.approve', 'Approve')}</Button>
-          </span>
-        );
+        return <EntryDecisionActions entry={e} label={`${assetName(e.asset_id)} · ${projectName(e.project_id)} · ${dayLabel(e.work_date)}`}
+          onReturn={(choice) => { setDecisionError(null); setRejecting(choice); }}
+          onApprove={(choice) => { setDecisionError(null); setApproving(choice); }} />;
       } },
   ];
 

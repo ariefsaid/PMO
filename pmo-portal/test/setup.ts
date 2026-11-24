@@ -333,3 +333,5 @@ vi.mock('@/src/hooks/useWaitingDecisions', () => ({
   useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
   useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
 }));
+
+vi.mock('@/src/hooks/usePurchaseCaseRead', () => ({ usePurchaseCaseRead: () => false }));

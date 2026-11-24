@@ -29233,6 +29233,10 @@ export type Database = {
         Returns: boolean
       }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_read_purchase_cases: {
+        Args: never
+        Returns: boolean
+      }
       actor_may_order_purchases: { Args: never; Returns: boolean }
       stock_transfer_receiving_items: { Args: { p_transfer: string }; Returns: { item_id: string; item_code: string; item_name: string; needs_quality_check: boolean; from_name: string; to_name: string; proof_rule: string }[] }
       assign_closeout_item_owner: { Args: { p_item: string; p_role?: string }; Returns: undefined }

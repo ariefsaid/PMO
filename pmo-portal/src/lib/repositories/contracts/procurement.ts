@@ -213,6 +213,8 @@ export interface ProcurementRepository {
   setOrderJobRoles(keys: string[]): Promise<string[]>;
   /** Whether the signed-in person fills one of those roles (the database gate). */
   mayOrderPurchases(): Promise<boolean>;
+  /** Read-only inspection scope; grants no action. */
+  mayReadPurchaseCases(): Promise<boolean>;
 }
 
 export interface ProcurementFileRepository {

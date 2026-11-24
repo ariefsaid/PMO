@@ -5,6 +5,9 @@ const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }))
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 // #1671: the shared ownership mock plus the org-binding answer the Void bill control reads; unset reads as "not known" (control hidden).
 const orgBinding = vi.hoisted(() => ({ bound: null as boolean | null }));
+const purchaseReader = vi.hoisted(() => ({ allowed: false }));
+vi.mock('@/src/hooks/usePurchaseCaseRead', () => ({ usePurchaseCaseRead: () => purchaseReader.allowed }));
+afterEach(() => { purchaseReader.allowed = false; });
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => {
   const shared = await import('@/test/domainOwnershipMock');
   return { useDomainOwnershipMode: (domain: string) => ({ ...shared.useDomainOwnershipMode(domain), orgBound: orgBinding.bound }) };
@@ -428,6 +431,27 @@ const chooseRecordKind = async (label: string) => {
   await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
   await userEvent.click(await screen.findByRole('menuitem', { name: label }));
 };
+
+it('AC-PURCHASE-READ lets the procurement manager inspect another manager’s order without gaining actions', () => {
+  mockEffectiveRole = 'Project Manager';
+  purchaseReader.allowed = true;
+  detailState.data = { ...orderedProcurement, requested_by_id: 'other-requester', project: { ...baseProcurement.project, project_manager_id: 'other-manager' } };
+  renderPage();
+  expect(screen.queryByTestId('procurement-no-access')).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: orderedProcurement.title })).toBeInTheDocument();
+  expect(screen.getByText('PO-2601100001')).toBeInTheDocument();
+  expect(screen.getAllByText('VQ-2601100001').length).toBeGreaterThan(0);
+  expect(screen.getByText('GR-2601100001')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /edit|approve|order|record|add/i })).not.toBeInTheDocument();
+});
+
+it('AC-PURCHASE-READ keeps an unrelated manager outside the inspection scope', () => {
+  mockEffectiveRole = 'Project Manager';
+  purchaseReader.allowed = false;
+  detailState.data = { ...orderedProcurement, requested_by_id: 'other-requester', project: { ...baseProcurement.project, project_manager_id: 'other-manager' } };
+  renderPage();
+  expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+});
 
 // ---------------------------------------------------------------------------
 // D1 — AC-804: loading / empty / error+retry states (NFR-PROC-UI-001)
