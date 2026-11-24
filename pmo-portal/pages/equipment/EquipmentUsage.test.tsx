@@ -572,6 +572,26 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.getByTestId('row-attribution')).toHaveTextContent('Work order WO-12 · Discipline Civil');
   });
 
+  it('AC-EQU-SPLIT keeps two work orders on the same machine-day separate and saves attribution with the hours', async () => {
+    h.entries = [
+      { ...entry({}), work_order_id: 'wo1', discipline_id: null },
+      { ...entry({ id: 'e2', quantity: 2, status: 'Approved' }), work_order_id: 'wo2', discipline_id: null },
+    ];
+    h.save.mockResolvedValue({ id: 'e3', status: 'Draft', day_total_hours: 9, over_24h: false });
+    renderPage();
+    const rows = screen.getAllByRole('row', { name: /Loader 1/ });
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText('4 hours')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('2 hours')).toBeInTheDocument();
+    expect(within(rows[1]).getByRole('textbox', { name: /8 Sep.*hours/ })).toBeDisabled();
+    const nextDay = within(rows[0]).getByRole('textbox', { name: /9 Sep.*hours/ });
+    await userEvent.type(nextDay, '3');
+    await userEvent.tab();
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith(expect.objectContaining({
+      work_order_id: 'wo1', discipline_id: null, quantity: 3, work_date: '2026-09-09',
+    })));
+  });
+
   it('AC-EQM-005 submit-week sits below the hours and says what happens next and who approves', () => {
     renderPage();
     const note = screen.getByText(/Submitting sends 1 draft entry for approval/);

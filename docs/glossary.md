@@ -426,6 +426,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Cost attribution** — the optional work order and discipline a cost record names (purchase request, purchase order, goods receipt, vendor bill, timesheet line, stock movement, equipment usage); a cost with neither is a project-level cost. The work order must be on the cost's own project (ADR-0104).
 
+**Equipment usage slot** — one machine, project, work date, work/standby kind, optional work order and discipline. Distinct work orders on the same project and day keep distinct hours. The daily warning still sums all slots, and approval still belongs to a person other than the author.
+
 **Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name. The Admin keeps the list on the **Cost disciplines** screen (*disiplin biaya*) and archives rather than deletes (#2623).
 
 **Direct cost** (of a work order) — the counted cost records that name the work order, in its own currency: vendor bills pre-tax, posted stock issues and returns at stock-ledger value, and approved equipment usage at a hire rate. Purchase requests, orders and receipts are commitments and never add to it; hours with no rate are carried as hours (#2519).
