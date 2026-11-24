@@ -393,10 +393,10 @@ select pg_temp.as_user('b2');
 select is(pg_temp.seen('21800000-0000-0000-0000-000000000037'), '1,2', 'AC-WCE-005 control: Finance sees only the two finished steps');
 select is(pg_temp.err(pg_temp.call('21800000-0000-0000-0000-000000000037', 2, '{"name":"Counted from what is visible"}'::jsonb)), '55000 WBS_STEP_CLOSED',
   'AC-WCE-005 the visible row count is not the end of the list');
+select is(pg_temp.err(pg_temp.call('21800000-0000-0000-0000-000000000037', 5, '{"name":"Past the end"}'::jsonb)), '22023 WBS_STEP_SHAPE',
+  'AC-WCE-005 a numeric place beyond the real end is refused');
 select is(pg_temp.err(pg_temp.call('21800000-0000-0000-0000-000000000037', null, '{"name":"Appended"}'::jsonb)), 'ok',
   'AC-WCE-005 the end is: the step goes after the steps the viewer cannot see');
-select is(pg_temp.err(pg_temp.call('21800000-0000-0000-0000-000000000037', 5, '{"name":"Past the end"}'::jsonb)), '22023 WBS_STEP_SHAPE',
-  'AC-WCE-005 a place past the real end is still refused');
 reset role;
 select is(pg_temp.states('21800000-0000-0000-0000-000000000037'), '1:Plan:done,2:Measure:done,3:Report:current,4:File:open,5:Appended:open',
   'AC-WCE-005 ...after position 4, the one the viewer could not name');
