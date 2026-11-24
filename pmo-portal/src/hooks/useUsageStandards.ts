@@ -49,5 +49,6 @@ export function useConsumablePlanMutations(workOrderId: string) {
   return {
     generate: useMutation({ mutationFn: () => repo.generate(workOrderId), ...opts }),
     adjust: useMutation({ mutationFn: (a: { itemId: string; adjustedQty: string | null; reason: string | null }) => repo.adjust({ workOrderId, ...a }), ...opts }),
+    approve: useMutation({ mutationFn: () => repo.approve(workOrderId), ...opts }),
   };
 }

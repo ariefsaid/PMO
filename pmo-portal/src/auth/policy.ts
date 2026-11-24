@@ -560,14 +560,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   /** Consumable usage standards (#2577, 1075): mirrors `stock_master_writer()` - rank >= 20 (PM, Finance, Executive, Admin) writes;
    *  archive, never delete (ADR-0018). UX only; RLS is the authority. */
   usageStandard: { view: allow(ALL), create: allowUnlessViewOnly(MASTER_DATA), edit: allowUnlessViewOnly(MASTER_DATA), archive: allowUnlessViewOnly(MASTER_DATA) },
-  /** Work-order consumable plan (#2577, 1076): generate and adjust follow the allowance write rule (`may_record_project_progress`):
-   *  Admin, Executive, Finance on any project, a PM only on their own. Pass the work order's PROJECT row as `ctx.record`
-   *  (a work order has no `project_manager_id`). UX only; the RPCs are the authority. */
+  /** Work-order consumable plan (#2577, 1076; 2261): generation and edits keep today's writers plus Engineer/PCM.
+   *  The work order's PROJECT row is `ctx.record`; approval mirrors the server's PCM route and creator SoD. UX only. */
   consumablePlan: {
     view: allow(ALL),
-    // 2046: the Engineer job role plans consumables too (cus_assert_planner).
-    generate: (role, ctx) => allowanceWriter(role, ctx) || (ctx.record?.viewOnly !== true && holds(ctx, 'engineer')),
-    adjust: (role, ctx) => allowanceWriter(role, ctx) || (ctx.record?.viewOnly !== true && holds(ctx, 'engineer')),
+    generate: (role, ctx) => allowanceWriter(role, ctx) || (ctx.record?.viewOnly !== true && (holds(ctx, 'engineer') || holds(ctx, 'project_control_manager'))),
+    adjust: (role, ctx) => allowanceWriter(role, ctx) || (ctx.record?.viewOnly !== true && (holds(ctx, 'engineer') || holds(ctx, 'project_control_manager'))),
+    approve: (role, ctx) => {
+      const author = ctx.record?.author_id;
+      if (ctx.record?.viewOnly === true || !ctx.currentUserId || typeof author !== 'string' || author === ctx.currentUserId) return false;
+      if (ctx.record?.author_is_pcm === true) {
+        return role === 'Admin' || (role === 'Project Manager' && ctx.record?.project_manager_id === ctx.currentUserId);
+      }
+      return holds(ctx, 'project_control_manager');
+    },
   },
   /** Reorder levels (#1512 S6, PQ-6): everyone reads; rank >= 20 sets, edits or clears. UX only; the RPC is the authority. */
   reorderLevel: { view: allow(ALL), edit: allowUnlessViewOnly(MASTER_DATA) },

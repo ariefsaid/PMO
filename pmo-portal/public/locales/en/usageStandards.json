@@ -79,8 +79,20 @@
     "reverted": "Back to the generated quantity",
     "empty": "No consumable plan yet. Generate one from the usage standards.",
     "emptyClosed": "No consumable plan was made for this work order.",
-    "outOfDate": "The work or the usage standards changed since this plan was made. Requests still use the stored plan.",
-    "outOfDateAction": "Regenerate to bring it up to date.",
+    "outOfDate": "The work or the usage standards changed since this plan was made. Material requests use the allowance until the plan is regenerated and approved.",
+    "outOfDateAction": "Regenerate to bring it up to date, then request approval.",
+    "approval": {
+      "approved": "Approved",
+      "required": "Approval required",
+      "approvedMessage": "Approved for material requests.",
+      "unknownAuthor": "This older plan needs to be edited or regenerated before it can be approved.",
+      "stale": "The inputs changed since approval. Regenerate and request approval again.",
+      "waiting": "Waiting for {{approver}}.",
+      "pcmRoute": "a Project Control Manager",
+      "pcmAuthorRoute": "an Admin or this project's Project Manager",
+      "approve": "Approve plan",
+      "approvedToast": "Plan approved for material requests"
+    },
     "noPlan": "No plan",
     "planned": "Plan {{qty}} {{unit}}",
     "requested": "Requested {{qty}}",
@@ -113,7 +125,11 @@
       "CUS_WORK_ORDER": "The work order is closed or cancelled.",
       "CUS_REASON": "Give a reason (up to 500 characters).",
       "CUS_ITEM": "Choose an active item.",
-      "CUS_INVALID": "Enter zero or more."
+      "CUS_INVALID": "Enter zero or more.",
+      "CUS_SOD": "The person who made the plan cannot approve it.",
+      "CUS_APPROVER": "You are not an approver for this plan.",
+      "CUS_PLAN_MISSING": "Generate or edit the plan before asking for approval.",
+      "CUS_PLAN_STALE": "Regenerate the plan before asking for approval."
     },
     "form": {
       "addTitle": "Add an item to the plan",

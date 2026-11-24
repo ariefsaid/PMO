@@ -31355,6 +31355,8 @@ export type Database = {
       }
       cus_generate_plan: { Args: { p_work_order_id: string }; Returns: number }
       cus_get_plan: { Args: { p_work_order_id: string }; Returns: Json }
+      cus_approve_plan: { Args: { p_work_order_id: string }; Returns: undefined }
+      cus_plan_approval_status: { Args: { p_work_order_id: string }; Returns: Json }
       cus_item_ok: { Args: { p_item_id: string }; Returns: boolean }
       cus_plan_fingerprint: {
         Args: { p_work_order_id: string }
@@ -33027,6 +33029,7 @@ export type Database = {
           start_date: string
           status: string
           type_name: string
+          waiting_for_names: string[]
         }[]
       }
       light_can_see_crew: { Args: { p_crew: string }; Returns: boolean }
