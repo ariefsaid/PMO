@@ -2,9 +2,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, ConfirmDialog, StatusPill, Switch, useToast } from '@/src/components/ui';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { isLightRoleKey } from '@/src/auth/lightAccount';
+import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
+import { useScheduledReportsAccess } from '@/src/hooks/useScheduledReportsAccess';
 import { scheduledReportsRepository } from '@/src/lib/repositories/scheduledReports';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { usePermission } from '@/src/auth/usePermission';
 import { type ReportKind, type ScheduledReport, type ScheduledReportInput } from '@/src/lib/db/scheduledReports';
 import { ScheduledReportFields } from './ScheduledReportFields';
 
@@ -16,15 +19,15 @@ const BLANK: ScheduledReportInput = {
 };
 
 /**
- * Scheduled reports (#2714), a subsection of the Administration email card. Admin only (`can('manage','orgEmailNotifications')`);
- * UX only: save_scheduled_report and its siblings (1228) re-check the Admin role. It is always shown to the Admin: a scheduled report
- * does not depend on any email event being on (the tick reads only the report), and hiding it until one was is why nobody found it.
+ * Scheduled reports (#2714, TC-PC-19). Admin always manages; an active Project Control Manager manages readable reports
+ * when `pcm_scheduled_reports_enabled` is on. UX only: the RPCs (2580) re-check the role and recipient read rules.
  */
-export const ScheduledReportsSetting: React.FC = () => {
+export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ standalone = false }) => {
   const { t } = useTranslation('emailNotifications');
   const { toast } = useToast();
   const qc = useQueryClient();
-  const canManage = usePermission()('manage', 'orgEmailNotifications');
+  const auth = React.useContext(AuthContext);
+  const { canManage, isAdmin } = useScheduledReportsAccess();
   const [draft, setDraft] = React.useState<ScheduledReportInput | null>(null);
   const [archiving, setArchiving] = React.useState<ScheduledReport | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -61,12 +64,15 @@ export const ScheduledReportsSetting: React.FC = () => {
 
   if (!canManage) return null;
   const reports = query.data ?? [];
+  const recipientOptions = isAdmin
+    ? (people.data ?? [])
+    : (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
 
   const valid = draft !== null && draft.name.trim() !== '' && draft.recipientUserIds.length + draft.recipientRoles.length > 0
     && (draft.frequency === 'daily' || draft.weekday !== null) && /^\d{2}:\d{2}$/.test(draft.sendTime);
 
   return (
-    <section className="mt-6 border-t border-border pt-4" aria-labelledby="scheduled-reports-title">
+    <section className={standalone ? '' : 'mt-6 border-t border-border pt-4'} aria-labelledby="scheduled-reports-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 id="scheduled-reports-title" className="text-control font-medium">{t('scheduled.title', 'Scheduled reports')}</h4>
         {draft === null ? (
@@ -76,6 +82,15 @@ export const ScheduledReportsSetting: React.FC = () => {
       <p className="mt-1 text-control text-muted-foreground">
         {t('scheduled.intro', 'Email a report to people or roles on a schedule. Times are in the organisation timezone. Each person sees only the figures their role allows.')}
       </p>
+      {!standalone && isAdmin && auth?.currentUser?.org_id ? (
+        <div className="mt-3">
+          <OrgSwitchSetting
+            setting="pcmScheduledReports"
+            label={t('scheduled.pcmSwitchLabel', 'Project Control Managers can schedule reports')}
+            helper={t('scheduled.pcmSwitchHelper', 'Lets Project Control Managers create and manage scheduled reports they can read, for recipients who can also read them.')}
+          />
+        </div>
+      ) : null}
       {query.isError ? (
         <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 text-control">
           <span>{t('scheduled.loadError', 'Scheduled reports could not be loaded.')}</span>
@@ -114,7 +129,7 @@ export const ScheduledReportsSetting: React.FC = () => {
           onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(draft); }}
           aria-label={t('scheduled.formLabel', 'Scheduled report')}
         >
-          <ScheduledReportFields draft={draft} setDraft={setDraft} people={people.data ?? []} />
+          <ScheduledReportFields draft={draft} setDraft={setDraft} people={recipientOptions} />
           {error ? <p role="alert" className="text-control text-destructive-text">{error}</p> : null}
           <div className="flex gap-2">
             <Button type="submit" variant="primary" disabled={!valid} loading={save.isPending}>{t('scheduled.save', 'Save report')}</Button>

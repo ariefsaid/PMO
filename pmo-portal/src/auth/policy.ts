@@ -141,6 +141,7 @@ export type Entity =
   | 'orgAccounting'
   | 'orgFeedback'
   | 'orgEmailNotifications'
+  | 'scheduledReport'
   | 'costAttribution'
   | 'workOrderPlan'
   | 'workOrderSection'
@@ -1239,6 +1240,15 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgFeedback: { manage: allow(ADMIN) },
   // #2711: which events send email, the extra roles copied, the email language. Mirrors set_email_* (1223: active Admin). UX ONLY.
   orgEmailNotifications: { manage: allow(ADMIN) },
+  // TC-PC-19 (2580): Admin always manages scheduled reports; an active Project Control Manager manages readable reports when the org switch is on.
+  scheduledReport: {
+    view: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
+    manage: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
+  },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },

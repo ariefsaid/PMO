@@ -11,6 +11,8 @@ import billingStepsEn from '@/public/locales/en/billingSteps.json';
 import billingStepsId from '@/public/locales/id/billingSteps.json';
 import siteReportEn from '@/public/locales/en/siteReport.json';
 import siteReportId from '@/public/locales/id/siteReport.json';
+import emailNotificationsEn from '@/public/locales/en/emailNotifications.json';
+import emailNotificationsId from '@/public/locales/id/emailNotifications.json';
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
 
@@ -128,8 +130,18 @@ describe('organisation settings catalogue (#2746)', () => {
     const text = orgSettingText(((k: string, d: string) => d) as never);
     const commonItems = (en as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
     const commonItemsId = (id as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
-    const items: Record<string, { name: string; summary: string }> = { ...commonItems, workOrderChecklist: billingStepsEn.settings.workOrderChecklist, qsReportRevenue: { name: siteReportEn.revenue.qsAccess, summary: siteReportEn.revenue.qsAccessHelp } };
-    const itemsId: Record<string, { name: string; summary: string }> = { ...commonItemsId, workOrderChecklist: billingStepsId.settings.workOrderChecklist, qsReportRevenue: { name: siteReportId.revenue.qsAccess, summary: siteReportId.revenue.qsAccessHelp } };
+    const items: Record<string, { name: string; summary: string }> = {
+      ...commonItems,
+      workOrderChecklist: billingStepsEn.settings.workOrderChecklist,
+      qsReportRevenue: { name: siteReportEn.revenue.qsAccess, summary: siteReportEn.revenue.qsAccessHelp },
+      pcmScheduledReports: { name: emailNotificationsEn.scheduled.pcmSettingName, summary: emailNotificationsEn.scheduled.pcmSettingSummary },
+    };
+    const itemsId: Record<string, { name: string; summary: string }> = {
+      ...commonItemsId,
+      workOrderChecklist: billingStepsId.settings.workOrderChecklist,
+      qsReportRevenue: { name: siteReportId.revenue.qsAccess, summary: siteReportId.revenue.qsAccessHelp },
+      pcmScheduledReports: { name: emailNotificationsId.scheduled.pcmSettingName, summary: emailNotificationsId.scheduled.pcmSettingSummary },
+    };
     for (const key of orgSettingKeys) {
       expect(text[key].name, key).toBeTruthy();
       expect(items[key]?.name, `en ${key}`).toBe(text[key].name);

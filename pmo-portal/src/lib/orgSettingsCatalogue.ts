@@ -85,6 +85,7 @@ export const ORG_SETTINGS = {
   equipmentTargets: { group: 'equipment', writers: ['Admin'], route: '/equipment/availability', covers: ['organizations.equipment_availability_target_pct', 'organizations.equipment_utilisation_target_pct', 'organizations.equipment_escalation_down_days'] },
   emailNotifications: { group: 'notifications', writers: ['Admin'], route: '/administration/integrations#email-notifications-title', manage: 'orgEmailNotifications', covers: ['email_org_settings', 'email_event_settings'] },
   scheduledReports: { group: 'notifications', writers: ['Admin'], route: '/administration/integrations#email-notifications-title', manage: 'orgEmailNotifications', covers: [] },
+  pcmScheduledReports: { group: 'notifications', writers: ['Admin'], route: '/administration/integrations#scheduled-reports-title', manage: 'orgEmailNotifications', switch: 'pcmScheduledReports', covers: ['organizations.pcm_scheduled_reports_enabled'] },
   m365DefaultLibrary: { group: 'integrations', writers: ['Admin'], route: '/administration/integrations#m365-default-library', covers: ['org_m365_document_settings'] },
   feedbackSurveys: { group: 'notifications', writers: ['Admin'], route: '/administration/integrations', covers: ['useFeedbackSurveysEnabled'] },
 } satisfies Record<string, OrgSettingEntry>;

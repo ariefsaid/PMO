@@ -25,7 +25,7 @@ export interface ScheduledReport {
   enabled: boolean;
 }
 export type ScheduledReportInput = Omit<ScheduledReport, 'id'> & { id: string | null };
-export interface ReportRecipientOption { id: string; name: string }
+export interface ReportRecipientOption { id: string; name: string; builtInRole?: string | null }
 
 function fail(error: { message: string; code?: string }): never { throw new AppError(error.message, error.code); }
 
@@ -44,11 +44,11 @@ export async function listScheduledReports(): Promise<ScheduledReport[]> {
   }));
 }
 
-/** Active members the Admin can pick as recipients. */
+/** Active members the Admin or Project Control Manager can pick as recipients. */
 export async function listReportRecipientOptions(): Promise<ReportRecipientOption[]> {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('status', 'active').order('full_name', { ascending: true }).order('id', { ascending: true });
+  const { data, error } = await supabase.from('profiles').select('id, full_name, built_in_role').eq('status', 'active').order('full_name', { ascending: true }).order('id', { ascending: true });
   if (error) fail(error);
-  return (data ?? []).map((p) => ({ id: p.id, name: p.full_name ?? '' }));
+  return (data ?? []).map((p) => ({ id: p.id, name: p.full_name ?? '', builtInRole: p.built_in_role ?? null }));
 }
 
 export async function saveScheduledReport(input: ScheduledReportInput): Promise<string> {

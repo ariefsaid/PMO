@@ -2,23 +2,23 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, EntityFormModal, FormGrid, useToast } from '@/src/components/ui';
-import { usePermission } from '@/src/auth/usePermission';
+import { isLightRoleKey } from '@/src/auth/lightAccount';
+import { useScheduledReportsAccess } from '@/src/hooks/useScheduledReportsAccess';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { scheduledReportsRepository } from '@/src/lib/repositories/scheduledReports';
 import type { ReportKind, ScheduledReportInput } from '@/src/lib/db/scheduledReports';
 import { ScheduledReportFields } from './ScheduledReportFields';
 
 /**
- * "Send this report every …" on the report itself. An Admin opens the same scheduled-report form as Administration, with the report
- * fixed. UX only: save_scheduled_report re-checks the Admin role (1228). Shown to nobody else.
+ * "Send this report every …" on the report itself. Admin or an enabled Project Control Manager opens the same
+ * scheduled-report form with the report fixed. UX only: save_scheduled_report (2580) re-checks the role.
  */
-/** Only an Admin gets the control; for everyone else nothing mounts (no queries, no dialog). */
 export const ScheduleThisReport: React.FC<{ kind: ReportKind }> = ({ kind }) => {
-  const canManage = usePermission()('manage', 'orgEmailNotifications');
-  return canManage ? <ScheduleThisReportDialog kind={kind} /> : null;
+  const { canManage, isAdmin } = useScheduledReportsAccess();
+  return canManage ? <ScheduleThisReportDialog kind={kind} isAdmin={isAdmin} /> : null;
 };
 
-const ScheduleThisReportDialog: React.FC<{ kind: ReportKind }> = ({ kind }) => {
+const ScheduleThisReportDialog: React.FC<{ kind: ReportKind; isAdmin: boolean }> = ({ kind, isAdmin }) => {
   const { t } = useTranslation('emailNotifications');
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -30,6 +30,9 @@ const ScheduleThisReportDialog: React.FC<{ kind: ReportKind }> = ({ kind }) => {
   const [draft, setDraft] = React.useState<ScheduledReportInput | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const people = useQuery({ queryKey: ['scheduledReportRecipients'], queryFn: () => scheduledReportsRepository.recipientOptions(), enabled: canManage && draft !== null });
+  const recipientOptions = isAdmin
+    ? (people.data ?? [])
+    : (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
   const save = useMutation({
     mutationFn: (v: ScheduledReportInput) => scheduledReportsRepository.save(v),
     onSuccess: () => {
@@ -50,7 +53,7 @@ const ScheduleThisReportDialog: React.FC<{ kind: ReportKind }> = ({ kind }) => {
           loading={save.isPending} dirty submitDisabled={!valid}
           submitError={error ? { headline: t('saveError', 'The change was not saved'), detail: error } : null}>
           <FormGrid>
-            <ScheduledReportFields draft={draft} setDraft={setDraft} people={people.data ?? []} kindLocked />
+            <ScheduledReportFields draft={draft} setDraft={setDraft} people={recipientOptions} kindLocked />
           </FormGrid>
         </EntityFormModal>
       )}

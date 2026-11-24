@@ -428,6 +428,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   'exchange-rates': 'Exchange rates',
   terminology: 'Terminology',
   'cost-attribution': 'Cost attribution',
+  'scheduled-reports': 'Scheduled reports',
 } as const;
 
 /**
@@ -452,6 +453,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   'exchange-rates': 'admin.nav.exchangeRates',
   terminology: 'administration:terminology.nav',
   'cost-attribution': 'costAttribution:title',
+  'scheduled-reports': 'emailNotifications:scheduled.title',
 };
 
 const administrationBreadcrumbForPath = (
