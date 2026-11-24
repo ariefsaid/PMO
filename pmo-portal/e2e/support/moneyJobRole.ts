@@ -9,7 +9,7 @@ export async function moneyJobRole(key: string, role = 'Engineer') {
   const created = await admin.auth.admin.createUser({ email, password: SEED_PASSWORD, email_confirm: true });
   if (created.error || !created.data.user) throw new Error('Create journey login: ' + created.error?.message);
   const user = created.data.user;
-  ok('profile', await admin.from('profiles').upsert({ id: user.id, org_id: ORG_ID, email, full_name: 'Journey worker', role, built_in_role: key, status: 'Active' }));
+  ok('profile', await admin.from('profiles').upsert({ id: user.id, org_id: ORG_ID, email, full_name: 'Journey worker', role, built_in_role: key, status: 'active' }));
   return {
     id: user.id,
     async login(page: Page) {

@@ -1,5 +1,9 @@
 {
   "quotes": {
     "next": "Request quotations before adding and selecting supplier quotes."
+  },
+  "match": {
+    "exception": "Exception approved by {{name}} on {{date}}: {{reason}}",
+    "nameUnavailable": "Approver name unavailable"
   }
 }

@@ -1,3 +1,4 @@
+import { useUsers } from '@/src/hooks/useUsers';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, Drawer, ListState, StatusPill, TextArea, type StatusVariant } from '@/src/components/ui';
@@ -23,7 +24,7 @@ const REASON_MAX = 1000;
 const STATUS_VARIANT: Record<BillMatchStatus, StatusVariant> = { held: 'lost', matched: 'won', exception_approved: 'neutral', not_applicable: 'neutral' };
 
 export const BillMatchDrawer: React.FC<BillMatchDrawerProps> = ({ invoiceId, billLabel, onClose }) => {
-  const { t } = useTranslation(['common', 'procurement']);
+  const { t } = useTranslation(['common', 'procurement', 'walkMoney']);
   const may = usePermission();
   const [query] = useBillMatches([invoiceId], true);
   const approve = useApproveBillMatchException();
@@ -56,6 +57,8 @@ export const BillMatchDrawer: React.FC<BillMatchDrawerProps> = ({ invoiceId, bil
   const qty = (v: string | null) => (v === null ? '—' : formatNumberExact(Number(v)));
 
   const match = query?.data;
+  const people = useUsers({ enabled: Boolean(match?.exception) });
+  const decider = people.data?.find((person) => person.id === match?.exception?.approvedBy)?.full_name;
   const canApprove = may('approve', 'billMatch') && match?.status === 'held';
   const reasonTrimmed = reason.trim();
   const reasonTooLong = reasonTrimmed.length > REASON_MAX;
@@ -118,7 +121,8 @@ export const BillMatchDrawer: React.FC<BillMatchDrawerProps> = ({ invoiceId, bil
           {match.quantityTolerancePct !== null && <p className="text-muted-foreground">{t('procurement:threeWayMatch.tolerances', 'Tolerance: quantity {{qty}}% · amount {{amount}}%', {
             qty: formatNumberExact(Number(match.quantityTolerancePct)), amount: formatNumberExact(Number(match.amountTolerancePct ?? 0)),
           })}</p>}
-          {match.exception && <p data-testid="bill-match-exception">{t('procurement:threeWayMatch.exceptionLine', 'Exception approved {{date}}: {{reason}}', {
+          {match.exception && <p data-testid="bill-match-exception">{t('walkMoney:match.exception', 'Exception approved by {{name}} on {{date}}: {{reason}}', {
+            name: decider ?? t('walkMoney:match.nameUnavailable', 'Approver name unavailable'),
             date: formatDay(match.exception.approvedAt), reason: match.exception.reason,
           })}</p>}
         </>}
