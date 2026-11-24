@@ -13,9 +13,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('27090000-0000-0000-0000-0000000001a1', '27090000-0000-0000-0000-00000000010a', 'LVR Admin',  'lvr-admin@example.com',  'Admin', 'active'),
   ('27090000-0000-0000-0000-0000000001a2', '27090000-0000-0000-0000-00000000010a', 'LVR Manager', 'lvr-mgr@example.com',    'Project Manager', 'active'),
   ('27090000-0000-0000-0000-0000000001a3', '27090000-0000-0000-0000-00000000010a', 'LVR Worker', 'lvr-worker@example.com', 'Engineer', 'active');
-update profiles set manager_id = '27090000-0000-0000-0000-0000000001a2' where id = '27090000-0000-0000-0000-0000000001a3';
-insert into people (id, org_id, kind, name, profile_id) values
-  ('27090000-0000-0000-0000-000000001f01', '27090000-0000-0000-0000-00000000010a', 'own', 'LVR Own Worker', '27090000-0000-0000-0000-0000000001a3');
+insert into people (id, org_id, kind, name, profile_id, manager_id) values
+  ('27090000-0000-0000-0000-000000001f01', '27090000-0000-0000-0000-00000000010a', 'own', 'LVR Own Worker', '27090000-0000-0000-0000-0000000001a3', '27090000-0000-0000-0000-0000000001a2');
 insert into leave_types (id, org_id, name) values ('27090000-0000-0000-0000-0000000001e1', '27090000-0000-0000-0000-00000000010a', 'Type A');
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
@@ -26,11 +25,11 @@ set local role authenticated;
 
 select pg_temp.act_as('27090000-0000-0000-0000-0000000001a3');
 insert into lvr_ids select 'r1', leave_request_submit('27090000-0000-0000-0000-000000001f01', '27090000-0000-0000-0000-0000000001e1', current_date + 10, current_date + 11, null);
-select is((select line_manager_name from leave_requests_visible() limit 1), 'LVR Manager', 'AC-LVR-001 the request names the person''s line manager');
-select is((select approver_role from leave_requests_visible() limit 1), 'Admin', 'AC-LVR-001 and the approver role (Admin while the setting is empty)');
+select is((select waiting_for_names from leave_requests_visible() limit 1), array['LVR Manager']::text[], 'AC-LVR-001 the waiting list names the person''s assigned manager');
 select is((select decided_by_name from leave_requests_visible() limit 1), null, 'AC-LVR-002 nobody has decided yet');
 
 select pg_temp.act_as('27090000-0000-0000-0000-0000000001a2');
+select is((select can_decide from leave_requests_visible() limit 1), true, 'AC-LVR-001 the assigned manager can decide');
 select lives_ok($$ select leave_request_decide((select id from lvr_ids where k = 'r1'), 'Approved', null) $$, 'AC-LVR-002 the line manager approves');
 select pg_temp.act_as('27090000-0000-0000-0000-0000000001a3');
 select is((select decided_by_name from leave_requests_visible() limit 1), 'LVR Manager', 'AC-LVR-002 the requester sees who decided');

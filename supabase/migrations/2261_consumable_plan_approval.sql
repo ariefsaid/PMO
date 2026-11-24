@@ -14,6 +14,14 @@ alter table public.work_orders
     or (consumable_plan_approved_by is not null and consumable_plan_approved_at is not null and consumable_plan_approved_fingerprint is not null)
   );
 
+-- Record the plan author and approval decision in the work-order history; the fingerprint is internal integrity state.
+update public.record_history_config
+   set captured = captured || '{"consumable_plan_author_id":"ref","consumable_plan_author_is_pcm":"bool",
+                                "consumable_plan_approved_by":"ref","consumable_plan_approved_at":"timestamp"}'::jsonb,
+       omit_cols = case when 'consumable_plan_approved_fingerprint' = any (omit_cols) then omit_cols
+                        else omit_cols || '{consumable_plan_approved_fingerprint}'::text[] end
+ where table_name = 'work_orders';
+
 -- drops: cus_assert_planner adds the Project Control Manager job role while retaining the project-writer and Engineer predicates.
 -- 2046 is the latest planner gate. Keep its project writers and Engineer; add the PCM job role.
 create or replace function public.cus_assert_planner(p_work_order_id uuid, p_open boolean default true) returns public.work_orders

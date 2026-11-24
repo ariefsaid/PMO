@@ -23,6 +23,12 @@ begin
 end $$;
 revoke all on function public.cus_assert_planner(uuid, boolean) from public, anon, authenticated, service_role;
 
+update public.record_history_config
+   set captured = captured - 'consumable_plan_author_id' - 'consumable_plan_author_is_pcm'
+                            - 'consumable_plan_approved_by' - 'consumable_plan_approved_at',
+       omit_cols = array_remove(omit_cols, 'consumable_plan_approved_fingerprint')
+ where table_name = 'work_orders';
+
 create or replace function public.mrq_plan_figure(p_work_order_id uuid, p_item_id uuid)
   returns table (plan_qty numeric, plan_source text)
   language sql stable security definer set search_path = public, pg_temp as $$
