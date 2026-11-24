@@ -1,9 +1,10 @@
-// @e2e-isolation: self-isolated — owns its project, inspection, purchase and role logins; cleans up only those rows.
-import { test, expect } from '@playwright/test';
-import { moneyJobRole } from './support/moneyJobRole';
-import { serviceClient, projectWithWorkOrders, runId, need, ok, ORG_ID } from './support/jobFixtures';
-import { createProcurementFixture } from './procurement-fixture';
-import { recordOrderWithConfirm } from './helpers';
+// @e2e-isolation: serial — configures and restores the org ordering roles; fixtures are otherwise isolated;  — owns its project, inspection, purchase and role logins; cleans up only those rows.
+import { expect } from '@playwright/test';
+import { buyerTest as test } from '../support/buyerOrdering';
+import { moneyJobRole } from '../support/moneyJobRole';
+import { serviceClient, projectWithWorkOrders, runId, need, ok, ORG_ID } from '../support/jobFixtures';
+import { createProcurementFixture } from '../procurement-fixture';
+import { recordOrderWithConfirm } from '../helpers';
 
 test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the inspection commitment', async ({ page }) => {
   const admin = serviceClient('inspection handoff');

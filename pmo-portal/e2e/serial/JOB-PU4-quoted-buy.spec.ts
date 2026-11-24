@@ -1,13 +1,14 @@
-// @e2e-isolation: self-isolated — creates its own namespaced Approved procurement (service role) and removes it afterwards.
+// @e2e-isolation: serial — configures and restores the org ordering roles; fixtures are otherwise isolated;  — creates its own namespaced Approved procurement (service role) and removes it afterwards.
 /** JOB-PU4 — a buyer sources by quotation: from an approved request they ask for quotes, add two, pick one, and the order is recorded at the chosen vendor and price.
  *  Partly landed: the quoted route exists; the direct-purchase shortcut (no quotes, buy from a shop) is not offered and is not tested. */
-import { test, expect } from '@playwright/test';
-import { recordOrderWithConfirm } from './helpers';
-import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
+import { expect } from '@playwright/test';
+import { buyerTest as test } from '../support/buyerOrdering';
+import { recordOrderWithConfirm } from '../helpers';
+import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 
 test.setTimeout(150_000);
 
-import { moneyJobRole } from "./support/moneyJobRole";
+import { moneyJobRole } from "../support/moneyJobRole";
 let buyer: Awaited<ReturnType<typeof moneyJobRole>>;
 let fixture: ProcurementFixture;
 test.beforeAll(async () => { buyer = await moneyJobRole("buyer"); fixture = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU4' }); });

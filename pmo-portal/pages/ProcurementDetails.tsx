@@ -685,7 +685,7 @@ const ProcurementDetails: React.FC = () => {
   // desktop header already shows elsewhere (the Record another document menu).
   const recordMenuItems: RecordMenuItem[] = [
     ...recordKinds.map((kind) => ({ key: `record-${kind}`, label: recordKindLabels[kind], onSelect: () => beginCapture(kind) })),
-    ...(canAddQuote ? [{ key: 'add-quote', label: t('procurementRecord:action.addQuote', 'Add quotation'), onSelect: openQuotationCapture }] : []),
+    ...(canAddQuote && p.status === 'Vendor Quoted' ? [{ key: 'add-quote', label: t('procurementRecord:action.addQuote', 'Add quotation'), onSelect: openQuotationCapture }] : []),
     ...(canLinkAccounting ? [{ key: 'link-accounting', label: t('procurementRecord:linkAccounting', 'Link from accounting system'), onSelect: () => setLinkDialogOpen(true) }] : []),
   ];
   const cancelAction = actionFor('Cancelled');

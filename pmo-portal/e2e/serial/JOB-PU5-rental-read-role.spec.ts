@@ -1,5 +1,6 @@
 // @e2e-isolation: serial — exercises the org-wide price-aware reader with prices hidden, restoring the prior setting.
-import { test, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { buyerTest as test } from '../support/buyerOrdering';
 import { moneyJobRole } from '../support/moneyJobRole';
 import { serviceClient, need, ok, ORG_ID } from '../support/jobFixtures';
 import { createProcurementFixture } from '../procurement-fixture';

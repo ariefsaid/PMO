@@ -131,3 +131,10 @@ it("JOB-PU4 an Approved purchase explains sourcing and offers Request quotations
   expect(await screen.findByTestId("quote-next-step")).toHaveTextContent("Request quotations");
   expect(screen.queryByTestId("add-quotation")).not.toBeInTheDocument();
 });
+
+it("PU4 the Approved record menu offers no Add quotation without a form target", () => {
+ renderAt("/procurement/proc-001/quotes");
+ const menu = screen.queryByRole("button", { name: "Record another document" });
+ if (menu) fireEvent.click(menu);
+ expect(screen.queryByRole("menuitem", { name: "Add quotation" })).not.toBeInTheDocument();
+});

@@ -58,10 +58,12 @@ describe('FR-IMP-002 float amount', () => {
 
   it('FR-IMP-002 the proposer and the custodian cannot decide their own amount', () => {
     h.userId = 'u-fin'; h.role = 'Finance';
+    h.route.data = { route_kind: 'named', action: 'approve', approvers: [{ id: 'u-fin' }], admin_breakglass: true };
     const { unmount } = renderIt();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
     unmount();
     h.userId = 'u-cust'; h.role = 'Project Manager';
+    h.route.data = { route_kind: 'named', action: 'approve', approvers: [{ id: 'u-cust' }], admin_breakglass: true };
     renderIt();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
