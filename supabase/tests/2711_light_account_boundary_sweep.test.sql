@@ -49,6 +49,7 @@ insert into la_fn_allow values
   ('actor_may_see_medical_documents', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('expiry_document_object_is_medical', 'helper', 'a stored-file helper the expiry-documents storage policy reads through the write rule; it answers for the caller''s own organisation and a field account holds no document right'),
   ('actor_may_order_purchases', 'helper', 'the ordering-job-role gate the purchasing read policies call; a field account never holds an ordering role (the setting refuses field roles), so it answers false'),
+  ('actor_may_read_purchase_cases', 'helper', 'scalar inspection predicate: explicitly false for field accounts and requires the held Procurement Manager key; the field-account denial is proved and mutation-checked in 2422_purchase_case_read.test.sql'),
   ('actor_may_see_prices', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_may_see_prices_now', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_sees_prices', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
