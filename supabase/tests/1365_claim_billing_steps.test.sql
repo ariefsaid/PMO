@@ -327,8 +327,9 @@ select pg_temp.as_user('b5');
 select is((select step_name from my_waiting_billing_steps() where project_id = '26800000-0000-0000-0000-0000000000c2'), 'S3', 'AC-CBS-011 the project''s manager now sees the step owned by their role');
 select pg_temp.as_user('b4');
 select is((select count(*)::int from my_waiting_billing_steps() where project_id = '26800000-0000-0000-0000-0000000000c2'), 0, 'AC-CBS-011 a manager of another project does not see it');
-select pg_temp.as_user('b1');
-select lives_ok($q$select complete_billing_stage(pg_temp.stage('X', 3), current_date)$q$, 'X step 3 completes');
+-- 2044: a step with a named owner is completed by that owner, never by the claim's creator (b1), so the manager completes it.
+select pg_temp.as_user('b5');
+select lives_ok($q$select complete_billing_stage(pg_temp.stage('X', 3), current_date)$q$, 'X step 3 completes (by its owner, the project''s manager)');
 select pg_temp.as_user('b5');
 select is((select count(*)::int from my_waiting_billing_steps() where project_id = '26800000-0000-0000-0000-0000000000c2'), 0, 'AC-CBS-011 the manager''s pointer clears when the step completes');
 select pg_temp.as_user('b1');
