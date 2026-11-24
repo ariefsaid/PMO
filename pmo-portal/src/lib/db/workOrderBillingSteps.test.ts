@@ -75,6 +75,11 @@ describe('work-order billing steps DAL (migrations 1770-1774)', () => {
     expect(h.rpc).toHaveBeenCalledWith('set_work_order_step_claim_evidence', { p_step: 's1', p_enabled: true });
   });
 
+  it('AC-WQE-006 preserves a refusal to change evidence designation', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'WBS_ADMIN_ONLY: Admin required', code: '42501' } });
+    await expect(setWorkOrderStepClaimEvidence('s1', true)).rejects.toMatchObject({ message: 'WBS_ADMIN_ONLY: Admin required', code: '42501' });
+  });
+
   it('AC-WCE-003 a refusal keeps its code for the refusals catalogue', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'WBS_STEP_CLOSED: a new step goes after the current step', code: '55000' } });
     await expect(addWorkOrderStep('w1', 0, { name: 'Too early' })).rejects.toMatchObject({ message: expect.stringContaining('WBS_STEP_CLOSED:'), code: '55000' });
