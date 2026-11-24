@@ -57,7 +57,7 @@ export const AssetFormModal: React.FC<{ asset?: EquipmentAssetRow; onClose: () =
         } else if (v.ownership === 'rented') {
           await createRented.mutateAsync({
             code: v.code.trim(), name: v.name.trim(), default_unit: v.unit as 'hours' | 'days', vendor_id: v.vendor,
-            rate: normalizeLocalizedDecimal(v.rate, 2) ?? v.rate, basis: v.basis as 'day' | 'month', currency: v.currency.trim().toUpperCase(),
+            rate: normalizeLocalizedDecimal(v.rate, 2) ?? v.rate, basis: v.basis as 'hour' | 'day' | 'month', currency: v.currency.trim().toUpperCase(),
             rented_from: v.rentedFrom, rented_to: v.rentedTo || null,
           });
           toast(t('equipment:assets.createdRented', 'Rented equipment added'), undefined, 'success');
@@ -89,7 +89,7 @@ export const AssetFormModal: React.FC<{ asset?: EquipmentAssetRow; onClose: () =
             options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...(vendors.data ?? []).map((v) => ({ value: v.id, label: v.name }))]} />
           <NumberField localeAware required label={t('equipment:availability.rate', 'Rate')} {...f('rate')} />
           <SelectField label={t('equipment:availability.basis', 'Rate basis')} value={form.values.basis} onChange={(v) => form.setValue('basis', v)}
-            options={[{ value: 'day', label: t('equipment:assets.perDay', 'Per day') }, { value: 'month', label: t('equipment:assets.perMonth', 'Per month') }]} />
+            options={[{ value: 'hour', label: t('equipment:availability.hour', 'Hour') }, { value: 'day', label: t('equipment:assets.perDay', 'Per day') }, { value: 'month', label: t('equipment:assets.perMonth', 'Per month') }]} />
           <TextField label={t('equipment:availability.currency', 'Currency')} value={form.values.currency} onChange={(v) => form.setValue('currency', v)} />
           <DateField label={t('equipment:availability.rentedFrom', 'Rental start')} required {...f('rentedFrom')} />
           <DateField label={t('equipment:availability.rentedTo', 'Rental end (optional)')} {...f('rentedTo')} />

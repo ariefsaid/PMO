@@ -43,6 +43,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import RentalCheckHistory from './equipment/RentalCheckHistory';
 import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
@@ -870,6 +871,7 @@ const ProcurementDetails: React.FC = () => {
       )}
       </div>
 
+      {may('transition', 'equipmentAvailability') && <RentalCheckHistory procurementId={p.id} />}
       {/* #2697: type, rental period, extension links and the guided extend step. Mounted only on a typed purchase, so an organisation
           without purchase types renders exactly what it did before. */}
       {p.purchase_type_id && (
