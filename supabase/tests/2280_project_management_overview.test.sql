@@ -1,4 +1,5 @@
 begin;
+\set VERBOSITY terse
 create extension if not exists pgtap;
 select plan(11);
 
