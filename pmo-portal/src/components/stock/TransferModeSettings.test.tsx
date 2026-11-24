@@ -37,7 +37,7 @@ describe('TransferModeSettings (AC-TST-026, AC-TST-033)', () => {
     await waitFor(() => expect(h.setScope).toHaveBeenCalledWith('transfers_and_issues'));
   });
   it('JOB-1122-6 switching two-step off while transfers are in transit is refused out loud, with the number in transit', async () => {
-    h.settings = { mode: 'two_step', proofTiming: 'before_posting' };
+    h.settings = { mode: 'two_step', proofTiming: 'before_posting', handoverScope: 'transfers' };
     h.sent = [{ id: 'a' }, { id: 'b' }];
     renderIt();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /How stock transfers are made/ }), 'one_step');

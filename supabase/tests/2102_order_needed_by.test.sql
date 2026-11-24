@@ -55,7 +55,7 @@ insert into procurement_items (id, org_id, procurement_id, name, quantity, rate)
 
 -- AC-NBY-003 the rule blocks sending without the date
 select nby_as('26970000-0000-0000-0000-0000000000a4');
-select throws_ok($$ update procurements set status = 'Ordered' where id = '26970000-0000-0000-0000-000000000012' $$, 'P0001', 'PO_NEEDED_BY_REQUIRED: set the needed-by date before sending the order to the supplier', 'AC-NBY-003 an order without its date cannot be sent');
+select throws_ok($$ update procurements set status = 'Ordered' where id = '26970000-0000-0000-0000-000000000012' $$, 'P0001', 'Set the needed-by date before sending the order to the supplier', 'AC-NBY-003 an order without its date cannot be sent');
 -- AC-NBY-004 the date fills every line; a line may differ
 set local role authenticated;
 select lives_ok($$ select set_procurement_needed_by('26970000-0000-0000-0000-000000000011', '2026-12-31') $$, 'AC-NBY-004 Finance sets the header date');

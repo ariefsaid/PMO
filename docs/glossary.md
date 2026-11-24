@@ -1462,3 +1462,9 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.
 **Reported absent** (*melaporkan tidak masuk*) — a field worker's own statement, from the phone home, that they are not coming in today (sick or other). The roster shows it; it is not attendance and not leave. Written only by `report_absence` (migration 1631).
+
+## Added by the 1124d stock lane
+- **Handover scope** — the organisation's choice of which stock movements need a signed handover document: transfers between locations only (default), or also issues to a project or work order. Timing (before posting, or may follow) is the separate proof timing setting. See `docs/specs/stock-handover-scope.spec.md`.
+- **Proof still owed** — a posted movement whose required handover document has not yet been attached; listed for the storekeeper and stock manager until it is.
+- **Material completion** — the printable, read-only page of one work order's materials: issued, returned, moved in and out, counted difference and balance, with totals; attached to the close-out item as its document. See `docs/specs/work-order-material-completion.spec.md`.
+- **Needed by (order)** — the one date on an order's header by which the goods are needed; it fills every line, and a line may carry its own. See `docs/specs/order-needed-by.spec.md`.

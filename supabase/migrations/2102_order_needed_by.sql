@@ -103,7 +103,7 @@ begin
   if new.status = 'Ordered' and (tg_op = 'INSERT' or old.status is distinct from 'Ordered') and auth.uid() is not null then
     select o.po_needed_by_required_from into v_from from public.organizations o where o.id = new.org_id;
     if v_from is not null and new.created_at >= v_from and new.needed_by is null then            -- mut:required
-      raise exception 'PO_NEEDED_BY_REQUIRED: set the needed-by date before sending the order to the supplier' using errcode = 'P0001'; end if;
+      raise exception 'Set the needed-by date before sending the order to the supplier' using errcode = 'P0001'; end if;
   end if;
   return new;
 end $$;

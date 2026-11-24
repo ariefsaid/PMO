@@ -1123,5 +1123,18 @@
     "saved": "Who can order purchases saved",
     "onlyAdmin": "Only an Admin can change this.",
     "turnOn": "Turn on built-in roles in Administration > People > Built-in roles to name roles that can order."
+  },
+  "orderNeededBy": {
+    "heading": "Needed by",
+    "help": "Required before the order is sent to the supplier. It fills every line; a line can carry its own date.",
+    "orderDate": "Order needed by",
+    "lineDate": "Line needed by",
+    "none": "—",
+    "save": "Save",
+    "saved": "Saved",
+    "settingHeading": "Order needed-by date",
+    "settingHelp": "When on, an order cannot be sent to the supplier until it has a needed-by date. Orders created before you turn this on are not blocked.",
+    "settingLabel": "Require a needed-by date before an order is sent",
+    "loadError": "Couldn’t load this setting"
   }
 }

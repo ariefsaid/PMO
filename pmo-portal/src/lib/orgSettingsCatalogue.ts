@@ -61,6 +61,7 @@ export const ORG_SETTINGS = {
   dsrStockIssue: { group: 'stock', writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', covers: ['organizations.dsr_stock_issue', 'organizations.dsr_stock_issue_items', 'useDsrStockSettings'] },
   woIssueThreshold: { group: 'stock', writers: ['Admin'], route: '/stock/setup', manage: 'warehouse', covers: ['work_order_stock_settings'] },
   purchaseTypes: { group: 'purchasing', alwaysOn: true, writers: ['Admin'], route: '/purchase-types/settings', manage: 'purchaseType', covers: ['org_purchase_type_settings', 'usePurchaseTypesEnabled'] },
+  orderNeededBy: { group: 'purchasing', writers: ['Admin'], route: '/administration/accounting#order-needed-by-heading', manage: 'orgAccounting', covers: ['organizations.po_needed_by_required_from', 'usePoNeededByRequired'] },
   purchaseLinePlanning: { group: 'purchasing', alwaysOn: true, writers: ['Admin'], route: '/administration/accounting#line-planning-heading', manage: 'orgAccounting', covers: ['organizations.purchase_line_planning', 'useLinePlanningEnabled'] },
   threeWayMatch: { group: 'purchasing', writers: ['Admin'], route: '/administration/accounting#org-three-way-match', manage: 'threeWayMatchSettings', covers: ['org_three_way_match_settings', 'useThreeWayMatchSettings'] },
   purchaseOrderPrint: { group: 'purchasing', alwaysOn: true, writers: ['Admin'], route: '/administration/accounting#po-print-settings-heading', manage: 'orgAccounting', covers: ['purchase_order_settings', 'usePurchaseOrderSettings'] },

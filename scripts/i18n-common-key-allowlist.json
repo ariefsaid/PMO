@@ -417,5 +417,7 @@
   "allSettings.item.modulePurchasingExtras.name",
   "allSettings.item.modulePurchasingExtras.summary",
   "allSettings.item.moduleBillingExtras.name",
-  "allSettings.item.moduleBillingExtras.summary"
+  "allSettings.item.moduleBillingExtras.summary",
+  "allSettings.item.orderNeededBy.name",
+  "allSettings.item.orderNeededBy.summary"
 ]

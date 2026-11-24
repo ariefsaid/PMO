@@ -14288,6 +14288,7 @@ export type Database = {
           safety_records_enabled: boolean
           sector_options: string[]
           service_line_options: string[]
+          po_needed_by_required_from: string | null
           stock_handover_scope: string
           stock_proof_timing: string
           stock_reservations: boolean
@@ -14354,6 +14355,7 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
           stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
@@ -14420,6 +14422,7 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
           stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
@@ -37296,6 +37299,9 @@ export type Database = {
       }
       set_site_checkpoint_list: { Args: { p_items: Json }; Returns: number }
       get_work_order_material_completion: { Args: { p_work_order_id: string }; Returns: Json }
+      set_po_needed_by_required: { Args: { p_on: boolean }; Returns: boolean }
+      set_procurement_needed_by: { Args: { p_id: string; p_needed_by: string | null; p_lines?: Json | null }; Returns: boolean }
+      po_needed_by_required_from_of: { Args: { p_org: string }; Returns: string }
       set_stock_handover_scope: { Args: { p_scope: string }; Returns: string }
       set_stock_proof_timing: { Args: { p_timing: string }; Returns: string }
       stock_handover_scope_of: { Args: { p_org: string }; Returns: string }
