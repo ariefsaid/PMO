@@ -1,0 +1,57 @@
+// @e2e-isolation: serial — turns the org-wide "hide prices from requesters" setting on and off (Admin); the request is this run's own.
+/**
+ * JOB-PU9 — requesters do not see prices: with the setting on, the Requester opens their own request and reads its title, lines and
+ * status but no unit price, line total or amount.
+ * Recorded gap (not asserted here, see the lane table): the case also expects no vendor to show; the supplier's name still renders on
+ * the request. That is a copy/read decision for the owner, not something this journey bends around.
+ */
+import { expect } from '@playwright/test';
+import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
+import { roleJobUser } from '../support/roleJobUser';
+import { ok, runId, serviceClient } from '../support/jobFixtures';
+import { userClient } from '../support/stockFixture';
+
+test.setTimeout(120_000);
+
+let requester: Awaited<ReturnType<typeof roleJobUser>>;
+let purchase: ProcurementFixture;
+let pricesWereHidden = false;
+
+test.beforeAll(async () => {
+  const svc = serviceClient('JOB-PU9');
+  const admin = await userClient('admin@acme.test');
+  const org = await svc.from('organizations').select('hide_prices_from_requesters').eq('id', '00000000-0000-0000-0000-000000000001').single();
+  ok('hide-prices setting read', org);
+  pricesWereHidden = Boolean((org.data as { hide_prices_from_requesters: boolean }).hide_prices_from_requesters);
+  ok('hide prices', await admin.rpc('set_hide_prices_enabled', { p_enabled: true }));
+
+  requester = await roleJobUser(svc, 'site_supervisor', runId('pu9-requester'));
+  purchase = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU9 prices hidden', withSupplier: true, requestedBy: requester.id });
+});
+
+test.afterAll(async () => {
+  await purchase?.cleanup();
+  await requester?.cleanup();
+  if (!pricesWereHidden) {
+    const admin = await userClient('admin@acme.test');
+    const r = await admin.rpc('set_hide_prices_enabled', { p_enabled: false });
+    if (r.error) throw new Error(`JOB-PU9 restore setting: ${r.error.message}`);
+  }
+});
+
+test('JOB-PU9 the requester opens their request and no price is shown anywhere on it', async ({ page }) => {
+  await requester.signIn(page);
+  await page.goto(purchase.url);
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
+
+  // The request itself is there — title, status, its line.
+  await expect(page.getByRole('heading', { name: /JOB-PU9 prices hidden/ }).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Fixture line').first()).toBeVisible();
+
+  // …and no money: no line amounts, no stage amounts, no money panel, and the request total never renders.
+  await page.getByRole('tab', { name: /^Line items/ }).click();
+  await expect(page.getByRole('columnheader', { name: /Unit price/i })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: /Line total/i })).toHaveCount(0);
+  await expect(page.getByText(/^Money ·/)).toHaveCount(0);
+  await expect(page.getByText(/12[.,]000/)).toHaveCount(0);
+});
