@@ -28,7 +28,7 @@ test('JOB-T7 a changed deadline shows its old and new date and who changed it in
 
   await worker.signIn(page);
   await page.goto(`/projects/${projectId}/tasks?open=${task.id}`);
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('dialog', { name: `Pour slab ${sfx}` }).getByRole('button', { name: 'Edit', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: /edit task/i });
   await dialog.getByLabel(/due date/i).fill('2030-01-15');
   await dialog.getByRole('button', { name: /save task/i }).click();

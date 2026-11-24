@@ -17,7 +17,7 @@ test("AC-TRW-001 HR reviews the work order attributed to each timesheet line", a
     projectId = fx.projectId;
     woIds = fx.workOrders.map(w => w.id);
     sheetId = need("timesheet", await admin.from("timesheets").insert({ org_id: ORG_ID, user_id: hr.id, week_start_date: "2031-01-06", status: "Approved" }).select("id").single()).id;
-    ok("entries", await admin.from("timesheet_entries").insert(fx.workOrders.map((wo, i) => ({ org_id: ORG_ID, timesheet_id: sheetId, project_id: projectId, work_order_id: wo.id, entry_date: "2031-01-06", hours: i + 3 }))));
+    ok("entries", await admin.from("timesheet_entries").insert(fx.workOrders.map((wo, i) => ({ org_id: ORG_ID, timesheet_id: sheetId, project_id: projectId, work_order_id: wo.id, entry_date: ["2031-01-06", "2031-01-07"][i], hours: i + 3 }))));
     await hr.signIn(page);
     await page.goto(`/timesheets/review?person=${hr.id}`);
     await page.getByRole("button", { name: new RegExp(`Show entries for ${run}`) }).click();
