@@ -12,13 +12,12 @@ test.setTimeout(180_000);
 
 let admin: SupabaseClient | undefined;
 let projectId = '';
-let companyId = '';
 let priorSettings: Record<string, unknown> | null = null;
 
 test.beforeEach(async () => {
   admin = serviceClient('JOB-BQ6');
   const run = runId('bq6');
-  companyId = need('client', await admin.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
+  const companyId = need('client', await admin.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
   projectId = need('project', await admin.from('projects').insert({
     org_id: ORG_ID, name: run, status: 'Ongoing Project', currency: 'IDR', client_id: companyId,
     contract_value: 100_000_000, tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 12, tax_base_numerator: 11, tax_base_denominator: 12,
@@ -52,9 +51,9 @@ test.afterEach(async () => {
   fail('month targets', (await admin.from('billing_plan_month_targets').delete().eq('org_id', ORG_ID)).error);
   fail('settings', (await admin.from('org_billing_plan_settings').delete().eq('org_id', ORG_ID)).error);
   if (priorSettings) fail('restore settings', (await admin.from('org_billing_plan_settings').insert(priorSettings)).error);
-  // A confirmed acceptance is permanent by design, so the project is archived instead: its work leaves every plan.
+  // A confirmed acceptance is permanent by design, so the project is archived instead: its work leaves every plan. The client stays
+  // (the archived project still references it).
   if (projectId) fail('archive project', (await admin.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', projectId)).error);
-  if (companyId) fail('client', (await admin.from('companies').delete().eq('id', companyId)).error);
 });
 
 test('JOB-BQ6 the billing officer picks two of three accepted work orders and the plan shows the picked total against the target', async ({ page }) => {

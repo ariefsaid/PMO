@@ -20,10 +20,14 @@ let extraWorkOrders: string[] = [];
 test.afterEach(async () => {
   if (!admin) return;
   const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`JOB-BQ13 cleanup ${step}: ${e.message}`); };
+  // The project's other work orders must go before the fixture project; their claims cascade their steps.
+  for (const id of extraWorkOrders) {
+    fail('claim', (await admin.from('progress_claims').delete().eq('work_order_id', id)).error);
+    fail('work order', (await admin.from('work_orders').delete().eq('id', id)).error);
+  }
+  extraWorkOrders = [];
   await cleanupBilling(admin, fx);
   fx = undefined;
-  for (const id of extraWorkOrders) fail('work order', (await admin.from('work_orders').delete().eq('id', id)).error);
-  extraWorkOrders = [];
 });
 
 test('JOB-BQ13 each claim sits in its step column with its age, and the step owner sees them in the needs-you list', async ({ page }) => {
