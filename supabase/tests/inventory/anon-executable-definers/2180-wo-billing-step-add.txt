@@ -1,0 +1,2 @@
+# Work-order checklist editing (2180): client-callable SECURITY DEFINER writer (authenticated only; anon and PUBLIC revoked in 2180).
+add_work_order_step  # 2180: adds a step to one work order's billing checklist; field account, active member, run right re-checked; 2180 pgTAP

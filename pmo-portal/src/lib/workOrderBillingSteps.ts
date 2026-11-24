@@ -1,6 +1,7 @@
 import { stageAgeDays, stageOverdue } from '@/src/lib/billingStages';
 import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { legacyMayRunBillingSteps } from '@/src/auth/billingStepRights';
+import type { StepInput } from '@/src/lib/db/billingSteps';
 import type { WaitingWorkOrderStep, WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
 /**
@@ -46,6 +47,48 @@ export function mayActOnStep(actor: StepActor, step: Pick<WorkOrderStep, 'assign
     return step.ownerRoleKey === actor.builtInRoleKey || roleHasCapability(actor.builtInRoleKey, 'billing_steps_run');
   }
   return legacyMayRunBillingSteps(actor.role);
+}
+
+/**
+ * Whether to show "Add step" on the list (FR-WCE-001): a holder of "run billing steps" — the checklist's writers, the same callers the
+ * database accepts — or (no built-in role) one of today's claim-step writers. A UX affordance only: the database re-checks and refuses,
+ * among others a Project Manager level person on a project they do not manage (WBS_STEP_ADD_PM).
+ */
+export function mayChangeStepList(actor: StepActor): boolean {
+  if (actor.builtInRoleKey) return roleHasCapability(actor.builtInRoleKey, 'billing_steps_run');
+  return legacyMayRunBillingSteps(actor.role);
+}
+
+/** Where a new step may go: `afterPosition` is the position of the step it follows (0 = first; a list with no open step has one place, the end). */
+export interface StepInsertPlace { afterPosition: number; after: string | null }
+
+/**
+ * The places offered for a new step (FR-WCE-001): after the current step and after each later one. The current step stays current and
+ * finished steps keep their place (the database refuses anything earlier, WBS_STEP_CLOSED).
+ */
+export function stepInsertPlaces(
+  steps: ReadonlyArray<Pick<WorkOrderStep, 'position' | 'name' | 'startedOn' | 'doneOn' | 'skippedOn'>>,
+): StepInsertPlace[] {
+  const first = steps.findIndex((s) => stepStatus(s) === 'current' || stepStatus(s) === 'open');
+  if (first < 0) return [{ afterPosition: steps.length, after: null }];
+  return steps.slice(first).map((s) => ({ afterPosition: s.position, after: s.name }));
+}
+
+/**
+ * The work order's list as the steps of a new template (FR-WCE-002): names in order with their owner job roles, target days, the optional
+ * flag and the checklist slots, so the next work order starts from the list this one actually used.
+ */
+export function toTemplateSteps(
+  steps: ReadonlyArray<Pick<WorkOrderStep, 'name' | 'ownerRoleKey' | 'targetDays' | 'optional'>
+    & { documents: ReadonlyArray<Pick<WorkOrderStep['documents'][number], 'name' | 'required'>> }>,
+): StepInput[] {
+  return steps.map((s) => ({
+    name: s.name,
+    ownerRoleKey: s.ownerRoleKey,
+    ...(s.targetDays != null ? { targetDays: s.targetDays } : {}),
+    ...(s.optional ? { optional: true } : {}),
+    documents: s.documents.map((d) => ({ name: d.name, required: d.required })),
+  }));
 }
 
 export interface WaitingWorkOrderStepsFact {

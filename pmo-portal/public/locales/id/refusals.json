@@ -482,5 +482,15 @@
   "MR_REASSIGN_NO_MANAGER": "Orang ini tidak punya atasan langsung yang aktif. Atur atasan di data orangnya, lalu pindahkan pelepasannya.",
   "MR_REASSIGN_SOD": "Atasan orang ini saat ini yang membuka pelepasan ini, atau orang itu sendiri. Atur atasan langsung lain lebih dulu, lalu pindahkan.",
   "LCM_HAS_LOGIN": "Orang ini masuk ke aplikasi, jadi jamnya dihitung biayanya di lembar waktunya. Kelas hanya untuk orang tanpa akun.",
-  "TASK_TREE_CYCLE": "Tugas tidak bisa ditempatkan di bawah salah satu subtugasnya sendiri."
+  "TASK_TREE_CYCLE": "Tugas tidak bisa ditempatkan di bawah salah satu subtugasnya sendiri.",
+  "WBS_ORDER_NOT_FOUND": "Surat perintah kerja itu tidak tersedia. Muat ulang halaman lalu coba lagi.",
+  "WBS_STEP_ADD_RIGHT": "Hanya orang yang menjalankan langkah penagihan yang dapat menambah langkah ke daftar periksa ini.",
+  "WBS_STEP_ADD_RIGHT_detail": "Minta orang yang menjalankan langkah penagihan, atau Admin atau petugas Keuangan.",
+  "WBS_STEP_ADD_PM": "Hanya manajer proyek yang dapat menambah langkah ke daftar periksa ini.",
+  "WBS_STEP_NAME": "Beri nama langkah, paling banyak 120 karakter.",
+  "WBS_STEP_ROLE": "Pilih peran pemilik dari daftar peran organisasi. Akun lapangan tidak dapat memiliki langkah.",
+  "WBS_STEP_DAYS": "Target langkah adalah jumlah hari bilangan bulat, 1 sampai 365.",
+  "WBS_STEP_SHAPE": "Daftar periksa ini paling banyak 20 langkah, dan langkah baru butuh tempat di daftar.",
+  "WBS_STEP_CLOSED": "Langkah baru diletakkan setelah langkah yang berjalan.",
+  "WBS_STEP_CLOSED_detail": "Langkah yang selesai dan yang berjalan tetap di tempatnya."
 }

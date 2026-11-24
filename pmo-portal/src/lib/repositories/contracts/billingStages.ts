@@ -60,6 +60,8 @@ export interface BillingStagesRepository {
   completeWorkOrderStep(stepId: string, doneOn: string): Promise<void>;
   skipWorkOrderStep(stepId: string): Promise<void>;
   assignWorkOrderStep(stepId: string, personId: string | null): Promise<void>;
+  /** Adds a step to one work order's own checklist after the given position (0 = first); a person who runs billing steps (migration 2180). */
+  addWorkOrderStep(workOrderId: string, afterPosition: number, step: StepInput): Promise<string>;
   attachWorkOrderStepDocument(stepId: string, slotId: string | null, documentId: string): Promise<void>;
   defaultStepTemplateId(): Promise<string | null>;
   setDefaultStepTemplate(templateId: string | null): Promise<void>;

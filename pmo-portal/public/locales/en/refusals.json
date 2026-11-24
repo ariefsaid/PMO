@@ -480,5 +480,15 @@
   "MR_REASSIGN_NO_MANAGER": "This person has no active direct manager. Set one on their person record, then move the release.",
   "MR_REASSIGN_SOD": "The person's current manager opened this release, or is the person. Set another direct manager first, then move it.",
   "LCM_HAS_LOGIN": "This person signs in, so their hours are costed on their timesheet. A class is only for people with no login.",
-  "TASK_TREE_CYCLE": "A task cannot sit under one of its own subtasks."
+  "TASK_TREE_CYCLE": "A task cannot sit under one of its own subtasks.",
+  "WBS_ORDER_NOT_FOUND": "That work order is not available. Refresh the page and try again.",
+  "WBS_STEP_ADD_RIGHT": "Only a person who runs billing steps can add a step to this checklist.",
+  "WBS_STEP_ADD_RIGHT_detail": "Ask the person who runs the billing steps, or an Admin or Finance person.",
+  "WBS_STEP_ADD_PM": "Only the project's manager can add a step to this checklist.",
+  "WBS_STEP_NAME": "Name the step, in up to 120 characters.",
+  "WBS_STEP_ROLE": "Choose an owner role from the organisation's role list. A field account cannot own a step.",
+  "WBS_STEP_DAYS": "A step target is a whole number of days, 1 to 365.",
+  "WBS_STEP_SHAPE": "This checklist has at most 20 steps, and a new step needs a place in the list.",
+  "WBS_STEP_CLOSED": "A new step goes after the current step.",
+  "WBS_STEP_CLOSED_detail": "Finished and current steps stay where they are."
 }

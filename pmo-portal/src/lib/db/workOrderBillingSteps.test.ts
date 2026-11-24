@@ -4,7 +4,8 @@ const h = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 
 import {
-  assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getWaitingWorkOrderSteps, listWorkOrderSteps, setDefaultStepTemplate, skipWorkOrderStep,
+  addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getWaitingWorkOrderSteps, listWorkOrderSteps, setDefaultStepTemplate,
+  skipWorkOrderStep,
 } from './workOrderBillingSteps';
 
 beforeEach(() => { h.rpc.mockReset().mockResolvedValue({ data: null, error: null }); h.from.mockReset(); });
@@ -23,6 +24,29 @@ describe('work-order billing steps DAL (migrations 1770-1774)', () => {
       ['attach_work_order_step_document', { p_step: 's1', p_slot: null, p_document: 'd1' }],
       ['set_default_billing_step_template', { p_template: null }],
     ]);
+  });
+
+  it('AC-WCE-001 adds a step with the work order, the place and the step the page collected', async () => {
+    h.rpc.mockResolvedValue({ data: 'n1', error: null });
+    await expect(addWorkOrderStep('w1', 2, { name: 'Joint survey sign-off', ownerRoleKey: 'quantity_surveyor' })).resolves.toBe('n1');
+    expect(h.rpc).toHaveBeenCalledWith('add_work_order_step', {
+      p_work_order: 'w1', p_after_position: 2, p_step: { name: 'Joint survey sign-off', owner_role_key: 'quantity_surveyor' },
+    });
+  });
+
+  it('AC-WCE-001 a step with no owner role, target or flag carries only its name; a target and the optional flag travel with it', async () => {
+    h.rpc.mockResolvedValue({ data: 'n2', error: null });
+    await addWorkOrderStep('w1', 0, { name: 'Only', ownerRoleKey: null, targetDays: null, optional: false });
+    await addWorkOrderStep('w1', 0, { name: 'Timed', ownerRoleKey: 'billing_officer', targetDays: 4, optional: true });
+    expect(h.rpc.mock.calls.map((c) => c[1].p_step)).toEqual([
+      { name: 'Only' },
+      { name: 'Timed', owner_role_key: 'billing_officer', target_days: 4, optional: true },
+    ]);
+  });
+
+  it('AC-WCE-003 a refusal keeps its code for the refusals catalogue', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'WBS_STEP_CLOSED: a new step goes after the current step', code: '55000' } });
+    await expect(addWorkOrderStep('w1', 0, { name: 'Too early' })).rejects.toMatchObject({ message: expect.stringContaining('WBS_STEP_CLOSED:'), code: '55000' });
   });
 
   it('AC-WBS-006 a refusal keeps its sentence and code for the refusals catalogue', async () => {

@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
+import type { StepInput } from './billingSteps';
 
 /**
  * A work order's billing step list (migrations 1770-1774; docs/specs/billing-steps.spec.md). Advisory: nothing here reads or writes
@@ -116,6 +117,26 @@ export async function completeWorkOrderStep(stepId: string, doneOn: string): Pro
 export async function skipWorkOrderStep(stepId: string): Promise<void> {
   const { error } = await supabase.rpc('skip_work_order_step', { p_step: stepId });
   if (error) fail(error);
+}
+
+/**
+ * Add a step to one work order's own checklist after the step at `afterPosition` (0 = first), for a person who runs billing steps
+ * (migration 2180). The database stamps the organisation and the project, and opens the step itself on a list that has no current step.
+ */
+export async function addWorkOrderStep(
+  workOrderId: string, afterPosition: number, step: Pick<StepInput, 'name' | 'ownerRoleKey' | 'targetDays' | 'optional'>,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('add_work_order_step', {
+    p_work_order: workOrderId, p_after_position: afterPosition,
+    p_step: {
+      name: step.name,
+      ...(step.ownerRoleKey ? { owner_role_key: step.ownerRoleKey } : {}),
+      ...(step.targetDays != null ? { target_days: step.targetDays } : {}),
+      ...(step.optional ? { optional: true } : {}),
+    },
+  });
+  if (error) fail(error);
+  return String(data);
 }
 
 export async function assignWorkOrderStep(stepId: string, personId: string | null): Promise<void> {

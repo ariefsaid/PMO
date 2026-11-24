@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "add_work_order_step(uuid,integer,jsonb)"
+  ]
+}

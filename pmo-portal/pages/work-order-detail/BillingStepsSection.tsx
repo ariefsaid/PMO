@@ -1,22 +1,25 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useId, useState } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { Button } from '@/src/components/ui/Button';
 import { DateField } from '@/src/components/ui/DateField';
-import { SelectField } from '@/src/components/ui/FormFields';
+import { SelectField, TextField } from '@/src/components/ui/FormFields';
+import { EntityFormModal, type SubmitError } from '@/src/components/ui/EntityFormModal';
 import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useUsers } from '@/src/hooks/useUsers';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
-import { useWorkOrderStepMutations, useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
-import { useRefusalLine } from '@/src/lib/refusals';
+import { useStepTemplateMutations, useWorkOrderStepMutations, useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useRefusalLine, useRefusalText } from '@/src/lib/refusals';
 import { formatIsoDay } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
-import { mayActOnStep, stepAgeDays, stepDaysOver, stepDueOn, stepStatus } from '@/src/lib/workOrderBillingSteps';
+import { mayActOnStep, mayChangeStepList, stepAgeDays, stepDaysOver, stepDueOn, stepInsertPlaces, stepStatus, toTemplateSteps } from '@/src/lib/workOrderBillingSteps';
 import type { WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
 /**
@@ -24,6 +27,8 @@ import type { WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
  * from the organisation's default billing step template when the work order was issued. ADVISORY: nothing here gates invoicing; the
  * claim's own steps do. What the viewer may see is decided by the database (hidden steps are simply absent), so this component never
  * hides a step itself; it only shows or withholds the controls. No step, role or day count is named here: they are the organisation's data.
+ * The list itself can change after issue (wo-checklist-edit.spec.md): while the work order is Issued, a person who runs billing steps adds
+ * a step to this work order's own list; Finance or an Admin saves the list as it stands as a new template for the next work orders.
  */
 export interface BillingStepsSectionProps {
   workOrderId: string;
@@ -34,6 +39,8 @@ export interface BillingStepsSectionProps {
 }
 
 const LIGHT_KEYS = new Set(BUILT_IN_ROLES.filter((r) => r.tier === 'field').map((r) => r.key));
+/** An added step's owner is a job role; a field account owns no step (the database refuses it), so it is not offered. */
+const FULL_ROLE_KEYS = BUILT_IN_ROLES.filter((r) => r.tier !== 'field').map((r) => r.key);
 
 const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId: string; today: string; issued: boolean; onError: (m: string | null) => void }> = ({
   step, steps, projectId, today, issued, onError,
@@ -115,11 +122,87 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
   </li>;
 };
 
+/** Add one step to this work order's own list (FR-WCE-001): a name, an optional owner role, and a place after the current step or later. */
+const AddStepForm: React.FC<{ id: string; workOrderId: string; steps: WorkOrderStep[]; onClose: () => void; onError: (m: string | null) => void }> = ({
+  id, workOrderId, steps, onClose, onError,
+}) => {
+  const { t } = useTranslation('billingSteps');
+  const roleName = useBuiltInRoleName();
+  const line = useRefusalLine();
+  const { add } = useWorkOrderStepMutations();
+  const places = stepInsertPlaces(steps);
+  const [name, setName] = useState('');
+  const [ownerKey, setOwnerKey] = useState('');
+  const [afterPosition, setAfterPosition] = useState(places[0]?.afterPosition ?? 0);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed === '') return;
+    onError(null);
+    try {
+      await add.mutateAsync({ workOrderId, afterPosition, step: { name: trimmed, ownerRoleKey: ownerKey || null } });
+      onClose();
+    } catch (err) { onError(line(err)); }
+  };
+  const roleOptions = [{ value: '', label: t('noOwner', 'Nobody in particular') }, ...FULL_ROLE_KEYS.map((k) => ({ value: k, label: roleName(k) }))];
+  return <form id={id} aria-label={t('addStepLabel', 'Add a billing step')} className="mt-3 rounded-md border border-border p-3"
+    onSubmit={(e) => void submit(e)}>
+    <div className="flex flex-wrap items-end gap-3">
+      <TextField label={t('stepName', 'Step name')} value={name} onChange={setName} maxLength={120} />
+      <SelectField compact label={t('ownerRole', 'Owner role')} value={ownerKey} onChange={setOwnerKey} options={roleOptions} />
+      {places.length > 1 && <SelectField compact label={t('position', 'Position')} value={String(afterPosition)} onChange={(v) => setAfterPosition(Number(v))}
+        options={places.map((p) => ({ value: String(p.afterPosition), label: p.after === null ? t('atEnd', 'At the end') : t('afterStep', 'After {{step}}', { step: p.after }) }))} />}
+      <Button type="submit" variant="outline" size="sm" disabled={name.trim() === '' || add.isPending}>{t('add', 'Add')}</Button>
+      <Button variant="ghost" size="sm" onClick={onClose}>{t('cancel', 'Cancel')}</Button>
+    </div>
+  </form>;
+};
+
+/** Save this work order's list as a new template (FR-WCE-002): names in order with their owner roles, targets and checklist slots. */
+const SaveTemplateModal: React.FC<{ steps: WorkOrderStep[]; onClose: () => void; onSaved: (name: string) => void }> = ({ steps, onClose, onSaved }) => {
+  const { t } = useTranslation('billingSteps');
+  const { save } = useStepTemplateMutations();
+  const refusalText = useRefusalText();
+  const [name, setName] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed === '') return;
+    try {
+      await save.mutateAsync({ templateId: null, name: trimmed, steps: toTemplateSteps(steps) });
+      onSaved(trimmed);
+    } catch (err) {
+      // A name an active template already uses is the templates table's unique index: say that, not "another record".
+      const taken = (err as { code?: string } | null)?.code === '23505';
+      const r = refusalText(err);
+      setSubmitError(taken ? { headline: t('templateNameTaken', 'A template with this name already exists. Choose another name.') }
+        : r.known ? { headline: r.headline, detail: r.detail || undefined } : classifyMutationError(err));
+    }
+  };
+  return <EntityFormModal open width="sm" title={t('saveTemplateTitle', 'Save as template')} submitLabel={t('saveTemplate', 'Save template')}
+    onSubmit={(e) => void submit(e)} onClose={onClose} loading={save.isPending} dirty={dirty} submitError={submitError} submitDisabled={name.trim() === ''}>
+    <TextField label={t('templateName', 'Template name')} value={name} onChange={(v) => { setName(v); setDirty(true); }} maxLength={120} />
+    <p className="text-control text-muted-foreground">{t('templateSteps', '{{count}} steps, in this order, with their owner roles.', { count: steps.length })}</p>
+  </EntityFormModal>;
+};
+
 const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, projectId, status, today = localToday() }) => {
   const { t } = useTranslation('billingSteps');
+  const auth = useContext(AuthContext);
+  const { realRole } = useEffectiveRole();
+  const may = usePermission();
+  const formId = useId();
   const query = useWorkOrderSteps(workOrderId);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
   const title = t('title', 'Billing steps');
+  const issued = status === 'Issued';
+  // Affordances only (the database is the authority): a person who runs billing steps may add a step; saving a template is Finance or an Admin.
+  const canAdd = issued && mayChangeStepList({ userId: auth?.currentUser?.id ?? null, builtInRoleKey: auth?.currentUser?.built_in_role ?? null, role: realRole });
   if (status === 'Draft') return null;
   if (query.isError) {
     return <RecordSection title={title}><ListState variant="error" title={t('loadError', "Couldn't load the billing steps")} onRetry={() => void query.refetch()} /></RecordSection>;
@@ -127,21 +210,33 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
   if (!query.data) return null;
   const steps = query.data;
   const left = steps.filter((s) => stepStatus(s) !== 'done' && stepStatus(s) !== 'skipped').length;
-  return <RecordSection title={title}>
+  const canSave = steps.length > 0 && may('edit', 'billingStage');
+  const actions = canAdd || canSave
+    ? <span className="flex flex-wrap gap-2">
+        {canAdd && <Button variant="outline" size="sm" aria-expanded={adding} aria-controls={adding ? formId : undefined}
+          onClick={() => { setRefusal(null); setSaved(null); setAdding((v) => !v); }}>{t('addStep', 'Add step')}</Button>}
+        {canSave && <Button variant="outline" size="sm" onClick={() => { setRefusal(null); setSaved(null); setSaving(true); }}>{t('saveAsTemplate', 'Save as template')}</Button>}
+      </span>
+    : undefined;
+  return <RecordSection title={title} actions={actions}>
     {steps.length === 0
       ? <p className="text-control text-muted-foreground" data-testid="wo-billing-steps-empty">
           {t('empty', 'No billing steps to show. Steps are copied from the organisation\'s default billing step template when a work order is issued: an Admin or a Finance person chooses that template under billing step templates. If a list exists, it is not shown to your role.')}
         </p>
       : <>
         <p className="text-control text-muted-foreground" data-testid="wo-billing-steps-summary">
-          {left > 0 ? t('left', '{{count}} steps not finished. This list tracks the chain to the invoice; it does not block invoicing.', { count: left })
+          {left > 0 ? t('left', '{{count}} steps not finished. This list does not block invoicing.', { count: left })
             : t('allDone', 'Every billing step is finished.')}
         </p>
-        {refusal && <p role="alert" className="mt-2 text-control text-destructive">{refusal}</p>}
         <ol aria-label={title} className="mt-3 divide-y divide-border" data-testid="wo-billing-steps">
-          {steps.map((s) => <StepRow key={s.id} step={s} steps={steps} projectId={projectId} today={today} issued={status === 'Issued'} onError={setRefusal} />)}
+          {steps.map((s) => <StepRow key={s.id} step={s} steps={steps} projectId={projectId} today={today} issued={issued} onError={setRefusal} />)}
         </ol>
       </>}
+    {adding && <AddStepForm id={formId} workOrderId={workOrderId} steps={steps} onClose={() => setAdding(false)} onError={setRefusal} />}
+    {refusal && <p role="alert" className="mt-2 text-control text-destructive">{refusal}</p>}
+    {saving && <SaveTemplateModal steps={steps} onClose={() => setSaving(false)} onSaved={(n) => { setSaved(n); setSaving(false); }} />}
+    {saved && <p role="status" className="mt-2 text-control text-muted-foreground" data-testid="wo-billing-step-template-saved">
+      {t('templateSaved', 'Saved as template "{{name}}".', { name: saved })}</p>}
   </RecordSection>;
 };
 

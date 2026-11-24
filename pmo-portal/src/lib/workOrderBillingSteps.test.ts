@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mayActOnStep, stepDaysOver, stepDueOn, stepStatus, summariseWaitingWorkOrderSteps } from './workOrderBillingSteps';
+import { mayActOnStep, mayChangeStepList, stepDaysOver, stepDueOn, stepInsertPlaces, stepStatus, summariseWaitingWorkOrderSteps, toTemplateSteps } from './workOrderBillingSteps';
 
 const base = { startedOn: '2026-11-01', doneOn: null, skippedOn: null, targetDays: 3 };
 
@@ -35,6 +35,42 @@ describe('AC-WBS-005 which controls show', () => {
   it('a person with no role key keeps the claim-step writers', () => {
     expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Finance' }, step)).toBe(true);
     expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Engineer' }, step)).toBe(false);
+  });
+});
+
+describe('AC-WCE-001 who may add a step, and where it goes', () => {
+  it('follows the run right: a holder may, a reader who does not run and a field account may not; no job role keeps the writer levels', () => {
+    expect(mayChangeStepList({ userId: 'p2', builtInRoleKey: 'quantity_surveyor', role: 'Engineer' })).toBe(true);
+    expect(mayChangeStepList({ userId: 'p2', builtInRoleKey: 'billing_officer', role: 'Finance' })).toBe(true);
+    expect(mayChangeStepList({ userId: 'p2', builtInRoleKey: 'quality_manager', role: 'Project Manager' })).toBe(false);
+    expect(mayChangeStepList({ userId: 'p2', builtInRoleKey: 'foreman', role: 'Engineer' })).toBe(false);
+    expect(mayChangeStepList({ userId: 'p2', builtInRoleKey: null, role: 'Finance' })).toBe(true);
+    expect(mayChangeStepList({ userId: 'p2', builtInRoleKey: null, role: 'Engineer' })).toBe(false);
+  });
+  it('a step goes after the current step or after any later one, never before either', () => {
+    const steps = [
+      { position: 1, name: 'Survey', startedOn: '2026-03-01', doneOn: '2026-03-03', skippedOn: null },
+      { position: 2, name: 'Certify', startedOn: '2026-03-03', doneOn: null, skippedOn: null },
+      { position: 3, name: 'Invoice', startedOn: null, doneOn: null, skippedOn: null },
+    ];
+    expect(stepInsertPlaces(steps)).toEqual([{ afterPosition: 2, after: 'Certify' }, { afterPosition: 3, after: 'Invoice' }]);
+  });
+  it('a list with nothing open (none yet, or every step finished) has one place: the end', () => {
+    expect(stepInsertPlaces([])).toEqual([{ afterPosition: 0, after: null }]);
+    const finished = { position: 1, name: 'Survey', startedOn: '2026-03-01', doneOn: '2026-03-03', skippedOn: null };
+    expect(stepInsertPlaces([finished])).toEqual([{ afterPosition: 1, after: null }]);
+  });
+});
+
+describe('AC-WCE-002 the list as template steps', () => {
+  it('keeps the names, the order, the owner job roles, the targets, the optional flag and the checklist slots', () => {
+    expect(toTemplateSteps([
+      { name: 'Survey', ownerRoleKey: 'quantity_surveyor', targetDays: 3, optional: false, documents: [{ name: 'Sheet', required: true }] },
+      { name: 'Sign-off', ownerRoleKey: null, targetDays: null, optional: true, documents: [] },
+    ])).toEqual([
+      { name: 'Survey', ownerRoleKey: 'quantity_surveyor', targetDays: 3, documents: [{ name: 'Sheet', required: true }] },
+      { name: 'Sign-off', ownerRoleKey: null, optional: true, documents: [] },
+    ]);
   });
 });
 

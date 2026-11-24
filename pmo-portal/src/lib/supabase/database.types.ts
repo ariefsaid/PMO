@@ -29068,6 +29068,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_work_order_step: {
+        Args: { p_after_position: number; p_step: Json; p_work_order: string }
+        Returns: string
+      }
       add_task_to_incident: {
         Args: {
           p_assignee?: string

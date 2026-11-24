@@ -8,7 +8,7 @@ import {
   loadStepTemplateOntoProject, moveClaimStep, removeClaimStep, saveStepTemplate, updateClaimStep,
 } from '@/src/lib/db/billingSteps';
 import {
-  assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getDefaultStepTemplateId, getWaitingWorkOrderSteps,
+  addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getDefaultStepTemplateId, getWaitingWorkOrderSteps,
   listBoardWorkOrderSteps, listWorkOrderSteps, setDefaultStepTemplate, skipWorkOrderStep,
 } from '@/src/lib/db/workOrderBillingSteps';
 import { getBillingBoard } from '@/src/lib/db/billingBoard';
@@ -60,6 +60,7 @@ export const billingStagesRepository: BillingStagesRepository = {
   completeWorkOrderStep: (stepId, doneOn) => wrap(() => completeWorkOrderStep(stepId, doneOn)),
   skipWorkOrderStep: (stepId) => wrap(() => skipWorkOrderStep(stepId)),
   assignWorkOrderStep: (stepId, personId) => wrap(() => assignWorkOrderStep(stepId, personId)),
+  addWorkOrderStep: (workOrderId, afterPosition, step) => wrap(() => addWorkOrderStep(workOrderId, afterPosition, step)),
   attachWorkOrderStepDocument: (stepId, slotId, documentId) => wrap(() => attachWorkOrderStepDocument(stepId, slotId, documentId)),
   defaultStepTemplateId: () => wrap(() => getDefaultStepTemplateId()),
   setDefaultStepTemplate: (templateId) => wrap(() => setDefaultStepTemplate(templateId)),
