@@ -209,3 +209,13 @@ export async function getPlanApprovalRoute(planId: string): Promise<PlanApproval
   if (error) fail(error);
   return parsePlanApprovalRoute(data);
 }
+
+
+export interface PlanPurchaseSubmitContext { maySubmit: boolean; isSubmitter: boolean }
+/** The signed-in actor's rights on one purchase; the database alone establishes plan provenance. */
+export async function getPlanPurchaseSubmitContext(id: string): Promise<PlanPurchaseSubmitContext> {
+  const { data, error } = await supabase.rpc('equipment_plan_purchase_submit_context', { p_purchase: id });
+  if (error) throw new AppError(error.message, error.code);
+  const value = data as { may_submit?: boolean; is_submitter?: boolean } | null;
+  return { maySubmit: value?.may_submit === true, isSubmitter: value?.is_submitter === true };
+}

@@ -244,7 +244,9 @@
   },
   "revenue": {
     "day": "Pendapatan hari itu",
-    "toDate": "Tervalidasi sampai kini"
+    "toDate": "Tervalidasi sampai kini",
+    "qsAccess": "Quantity Surveyor melihat pendapatan laporan harian tervalidasi",
+    "qsAccessHelp": "Menampilkan tarif dan nilai tetap untuk satu laporan tervalidasi. Izin pendapatan dan biaya lainnya tetap sama."
   },
   "stock": {
     "title": "Stok",

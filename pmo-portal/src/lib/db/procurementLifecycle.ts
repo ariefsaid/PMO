@@ -1,3 +1,4 @@
+import { getPlanPurchaseSubmitContext, type PlanPurchaseSubmitContext } from './equipmentPlans';
 import { supabase } from '@/src/lib/supabase/client';
 import { maskSelection, priceSource } from '@/src/lib/priceReadPath';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -69,6 +70,7 @@ export type ProcurementDetail = Omit<
   'purchase_requests' | 'purchase_orders' | 'receipts' | 'procurement_invoices' | 'payments'
 > & {
   approved_by: { full_name: string } | null;
+  planPurchaseContext?: PlanPurchaseSubmitContext;
   /** Editable line items (CRUD+RBAC Procurement slice) joined into the detail. */
   items: ProcurementItemRow[];
   quotations: Tables<'procurement_quotations'>[];
@@ -210,7 +212,9 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
     .single();
   if (error) throwRpc(error);
   const [withRoute] = await attachApprovalRoutes([data as unknown as ProcurementDetail]);
-  return attachPaymentCeiling(withRoute);
+  const detail = await attachPaymentCeiling(withRoute);
+  detail.planPurchaseContext = await getPlanPurchaseSubmitContext(id);
+  return detail;
 }
 
 // ---------------------------------------------------------------------------

@@ -416,7 +416,7 @@ const ProcurementDetails: React.FC = () => {
       ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
       : null;
   const hasValue = purchaseHasValue(p);
-  const actions = readOnlyDecision ? [] : sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue, mayOrderByRole));
+  const actions = readOnlyDecision ? [] : sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue, mayOrderByRole, p.planPurchaseContext));
   const actionFor = (to: ProcurementStatus) => actions.find((action) => action.to === to);
   const stateMain = stateMainAction(p.status, actions, t);
   const transitionMainAction = stateMain?.transition;
@@ -538,7 +538,7 @@ const ProcurementDetails: React.FC = () => {
   // 0349: where payment is blocked because the billed amount exceeds the approved amount, an eligible
   // approver (the Approve role set, never the requester) may approve the higher amount. UX only — the
   // server decides eligibility from the approval route and refuses the quote selector / bill recorder.
-  const canApproveAmount = !readOnlyDecision && (canApproveReject(role) && !isRequester);
+  const canApproveAmount = !readOnlyDecision && canApproveReject(role) && !isRequester && !p.planPurchaseContext?.isSubmitter;
   const currentAmountApproval = canApproveAmount && !detailQuery.isPending && !detailQuery.isFetching && !detailQuery.isError && p.paymentEligibility === 'allowed';
   const approveHigherAmount = async (amount: number) => {
     if (!currentAmountApproval) return;

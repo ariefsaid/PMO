@@ -32,7 +32,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  approvePlan, canApprovePlan, getPlanApprovalRoute, getPlanSettings, listPlanCategories, listPlansForMonth,
+  getPlanPurchaseSubmitContext, approvePlan, canApprovePlan, getPlanApprovalRoute, getPlanSettings, listPlanCategories, listPlansForMonth,
   parsePlanApprovalRoute, rejectPlan, reopenPlan, savePlan, setPlanCategoryActive, setPlanSettings, submitPlan, upsertPlanCategory,
 } from './equipmentPlans';
 
@@ -165,5 +165,19 @@ describe('equipment plan IO (#2700)', () => {
     await expect(getPlanApprovalRoute('p1')).rejects.toMatchObject({ code: 'plan-route-malformed' });
     h.push({ data: null, error: { message: 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this', code: '42501' } });
     await expect(getPlanApprovalRoute('p1')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+
+describe('plan purchase submit context', () => {
+  it('AC-EPS-001 projects server booleans and defaults absent rights to false', async () => {
+    h.push({ data: { may_submit: true, is_submitter: false }, error: null });
+    await expect(getPlanPurchaseSubmitContext('purchase')).resolves.toEqual({ maySubmit: true, isSubmitter: false });
+    h.push({ data: null, error: null });
+    await expect(getPlanPurchaseSubmitContext('foreign')).resolves.toEqual({ maySubmit: false, isSubmitter: false });
+  });
+  it('preserves a refusal rather than offering an action', async () => {
+    h.push({ data: null, error: { message: 'Denied', code: '42501' } });
+    await expect(getPlanPurchaseSubmitContext('purchase')).rejects.toMatchObject({ code: '42501' });
   });
 });
