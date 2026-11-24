@@ -15,6 +15,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { ClaimsBoardLink } from '@/src/components/finance/ClaimsBoardLink';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useFeature } from '@/src/auth/useFeature';
 import { useHomeLayout } from '@/src/hooks/useHomeLayout';
 import { can } from '@/src/auth/policy';
 import { useFinanceBudgetReview, useSalesPipeline } from '@/src/hooks/useDashboard';
@@ -71,13 +72,16 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const { realRole } = useEffectiveRole();
+  const managementViewsEnabled = useFeature('management_views');
   const overview = useHomeLayout().homeLayout === 'overview';
   const canOpenAccounting = can('edit', 'budgetLine', { realRole });
   const periodState = usePeriod();
   const figures = useCompanyFigures(periodState.period);
   const needs = useNeedsYou(role);
-  const projects = useProjects();
-  const portfolioProjects = (projects.data ?? []).filter((project) => ON_HAND_STATUSES.includes(project.status));
+  const projects = useProjects({ enabled: managementViewsEnabled });
+  const portfolioProjects = managementViewsEnabled
+    ? (projects.data ?? []).filter((project) => ON_HAND_STATUSES.includes(project.status))
+    : [];
   const portfolioIds = portfolioProjects.map((project) => project.id);
   const portfolioMilestones = useProjectManagementOverview(portfolioIds);
   const portfolioDelivery = useProjectsDeliverySummary(portfolioIds);
@@ -149,7 +153,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
-    void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
+    void procurements.refetch(); void budgetReview.refetch();
+    if (managementViewsEnabled) void projects.refetch();
     if (finance) void financePosition.retry();
     void erpPurchases.refetch();
     if (attention.length > 0) void healthDelivery.refetch();
@@ -338,8 +343,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       actualPct: portfolioDelivery.data?.[project.id]?.deliveryPct ?? null,
     };
   });
-  const portfolioPending = projects.isPending || portfolioMilestones.isPending || portfolioDelivery.isPending || budgetReview.isPending;
-  const portfolioError = projects.isError || portfolioMilestones.isError || portfolioDelivery.isError || budgetReview.isError;
+  const portfolioPending = projects.isPending || (portfolioIds.length > 0 && (portfolioMilestones.isPending || portfolioDelivery.isPending || budgetReview.isPending));
+  const portfolioError = projects.isError || (portfolioIds.length > 0 && (portfolioMilestones.isError || portfolioDelivery.isError || budgetReview.isError));
   const retryPortfolio = () => { void projects.refetch(); void portfolioMilestones.refetch(); void portfolioDelivery.refetch(); void budgetReview.refetch(); };
 
   const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch} />;
@@ -463,7 +468,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         </CardPad>
       </Card>
     );
-    const portfolio = <ProjectPortfolioTable rows={portfolioRows} pending={portfolioPending} error={portfolioError} retry={retryPortfolio} />;
+    const portfolio = managementViewsEnabled
+      ? <ProjectPortfolioTable rows={portfolioRows} pending={portfolioPending} error={portfolioError} retry={retryPortfolio} />
+      : null;
     // Finance: who owes us (worst first), then what is ready to pay.
     // Executive and Admin: Sales as one full-width band (purchasing by stage sits under Finances).
     const lowerRows = finance ? (
@@ -521,7 +528,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         {header}
         {waitsEl}
         {finance ? <>{overdueCard}{readyCard}</> : offTrackEl}
-        <ProjectPortfolioTable rows={portfolioRows} pending={portfolioPending} error={portfolioError} retry={retryPortfolio} />
+        {managementViewsEnabled && <ProjectPortfolioTable rows={portfolioRows} pending={portfolioPending} error={portfolioError} retry={retryPortfolio} />}
         {(() => {
           const tiles = tilesRow(finance ? 'grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col' : 'grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2', positionTiles);
           // Executive: the position tiles and the Sales card share one row on desktop (Sales at half width); stacked on a phone.

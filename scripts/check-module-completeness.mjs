@@ -230,6 +230,7 @@ export const ALLOWLIST = [
       'assistant:multi_currency',
       'assistant:api_access',
       'assistant:sso',
+      'assistant:management_views',
     ],
     reason:
       'no assistant-visible entity/tool for these keys yet (D13 wants a read tool when the module ships; S4 owns the runtime map)',

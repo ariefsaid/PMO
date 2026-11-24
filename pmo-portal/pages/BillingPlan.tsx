@@ -8,6 +8,7 @@ import { StatusPill } from '@/src/components/ui/StatusPill';
 import { BillingPlanSettingsModal } from '@/src/components/finance/BillingPlanSettingsModal';
 import { useBillingPlanCandidates, useBillingPlanSettings, useBillingUnacceptedProgress } from '@/src/hooks/useBillingPlan';
 import { usePermission } from '@/src/auth/usePermission';
+import { useFeature } from '@/src/auth/useFeature';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { addMonths, doneNotClaimedAge, groupByProject, isOverLimit, monthOf, overClaimWarning, planTotals, resolveTarget, type PlanCandidate } from '@/src/lib/billingPlan';
 import { PLAN_LIMIT } from '@/src/lib/db/billingPlan';
@@ -58,12 +59,13 @@ const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => voi
 const BillingPlan: React.FC = () => {
   const { t } = useTranslation('finance');
   const may = usePermission();
+  const managementViewsEnabled = useFeature('management_views');
   const orgCurrency = useOrgCurrency();
   const [params, setParams] = useSearchParams();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState(false);
   const all = useBillingPlanCandidates(null);
-  const unacceptedAll = useBillingUnacceptedProgress(null);
+  const unacceptedAll = useBillingUnacceptedProgress(null, managementViewsEnabled);
   const settingsQuery = useBillingPlanSettings();
   const wantedProject = params.get('project');
   const projectOptions: ComboboxOption[] = useMemo(() => {
@@ -74,7 +76,7 @@ const BillingPlan: React.FC = () => {
   }, [all.data, unacceptedAll.data]);
   const projectId = wantedProject && projectOptions.some((o) => o.value === wantedProject) ? wantedProject : null;
   const filtered = useBillingPlanCandidates(projectId, projectId !== null);
-  const unacceptedFiltered = useBillingUnacceptedProgress(projectId, projectId !== null);
+  const unacceptedFiltered = useBillingUnacceptedProgress(projectId, managementViewsEnabled && projectId !== null);
   const query = projectId ? filtered : all;
   const unacceptedQuery = projectId ? unacceptedFiltered : unacceptedAll;
   const rows = useMemo(() => query.data?.rows ?? [], [query.data]);
@@ -218,7 +220,7 @@ const BillingPlan: React.FC = () => {
           })}
         </section>
       )}
-      <section aria-labelledby="billing-plan-unaccepted-title" data-testid="billing-plan-unaccepted-group" className="mt-5">
+      {managementViewsEnabled && <section aria-labelledby="billing-plan-unaccepted-title" data-testid="billing-plan-unaccepted-group" className="mt-5">
         <h2 id="billing-plan-unaccepted-title" className="mb-3 text-[16px] font-semibold">{t('billingPlan.unacceptedTitle', 'Progress not yet accepted by the client')}</h2>
         {unacceptedQuery.isPending && <ListState variant="loading" shape="rows" rows={2} />}
         {unacceptedQuery.isError && <ListState variant="error" onRetry={() => { void unacceptedQuery.refetch(); }} title={t('billingPlan.unacceptedError', 'Unaccepted progress could not be loaded')} />}
@@ -244,7 +246,7 @@ const BillingPlan: React.FC = () => {
             </ul>
           </section>
         ))}
-      </section>
+      </section>}
       {editing && settings && month && (
         <BillingPlanSettingsModal settings={settings} month={month} defaultCurrency={orgCurrency} onClose={() => setEditing(false)} />
       )}

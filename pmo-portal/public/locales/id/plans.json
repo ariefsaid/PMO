@@ -137,6 +137,7 @@
     "roles": "Role",
     "budgets": "Anggaran",
     "tasks": "Tugas",
-    "revenue": "Pendapatan (Invoice penjualan, Pembayaran masuk, Pendapatan per proyek)"
+    "revenue": "Pendapatan (Invoice penjualan, Pembayaran masuk, Pendapatan per proyek)",
+    "management_views": "Tampilan manajemen"
   }
 }

@@ -477,6 +477,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Unaccepted progress** — measured quantity on a bill-of-quantities line above the quantity confirmed by the client's acceptance; shown separately from accepted work that is not yet claimed (management views round, 24 November 2026).
 
+**Management views switch** — an Operator-managed per-organisation entitlement for the new home portfolio and unaccepted-progress group; existing plan defaults leave both surfaces off until an organisation is opted in (management views round, 24 November 2026).
+
 **Monthly target** — the amount the organisation aims to bill in a calendar month, with its currency; a default plus optional per-month overrides, set by Admin or Finance. Other currencies are listed apart, not converted (#2682).
 
 **Board column** — one step name on the billing board, ordered by the median position of that name across the claims; a final column, All steps done, holds claims ready to invoice (#2681).

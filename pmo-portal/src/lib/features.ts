@@ -82,6 +82,7 @@ export const FEATURE_KEYS = [
   'stock',
   'api_access',
   'sso',
+  'management_views',
 ] as const;
 export type OrgFeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -127,7 +128,7 @@ export const FEATURE_GROUPS: ReadonlyArray<{ id: string; keys: readonly OrgFeatu
   },
   {
     id: 'finance',
-    keys: ['revenue', 'budget_projection', 'budget_phasing', 'multi_currency', 'financial_statements', 'management_pack', 'erp_sync', 'erp_purchases'],
+    keys: ['revenue', 'budget_projection', 'budget_phasing', 'multi_currency', 'financial_statements', 'management_pack', 'erp_sync', 'erp_purchases', 'management_views'],
   },
   {
     id: 'platform',
@@ -203,6 +204,7 @@ export const FEATURE_ENV_DEFAULT: Record<OrgFeatureKey, boolean> = {
   stock: true,
   api_access: true,
   sso: true,
+  management_views: false,
   feedback_surveys: true, // absence = on; an org Admin switches it off (admin_set_feedback_surveys, 0419)
 };
 
@@ -243,6 +245,7 @@ export const FEATURE_LABELS: Record<EntitleableKey, string> = {
   budgets: 'Budgets',
   tasks: 'Tasks',
   revenue: 'Revenue (Sales Invoices, Incoming Payments, Revenue by Project)',
+  management_views: 'Management views',
 };
 
 /** Type guard: true for the core modules (always-on, never gated). */
