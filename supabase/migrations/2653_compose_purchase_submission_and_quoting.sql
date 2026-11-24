@@ -1,6 +1,6 @@
 -- Compose approved-plan submission, interested-submitter separation of duties, quoted sourcing and the selected order amount.
 -- Base: latest dev transition body 2571; retain every 2571 rule and add the three ordering lines from 2650.
--- drops: none of the current 2650 body; the 2571 submission predicate and interested-submitter check are additive.
+-- drops: replace 2650's Draft submission predicate with the latest 2571 predicate; retain quoted sourcing and selected order amount, and add 2571's interested-submitter check.
 create or replace function public.transition_procurement(p_id uuid, p_to procurement_status, p_notes text default null)
   returns void language plpgsql security definer set search_path = public as $$
 declare
