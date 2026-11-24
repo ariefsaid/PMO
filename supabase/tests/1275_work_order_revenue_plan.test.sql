@@ -154,7 +154,11 @@ do $$
 declare original text; mutant text;
 begin
   select pg_get_functiondef('public.wrp_writable_work_order(uuid)'::regprocedure) into original;
-  mutant := replace(original, 'if not public.dsr_may_write_revenue(w.project_id) then', 'if false then');   -- 2046: the writer gate
+  -- 2515 deliberately adds PCM and Planner to the writer gate; mutate the complete
+  -- current predicate, preserving the Engineer refusal above and its removal proof below.
+  mutant := regexp_replace(original,
+    $gate$if not \(public\.dsr_may_write_revenue\(w\.project_id\)[^;]*?then -- mut:sr_target_writer$gate$,
+    'if false then -- mut:sr_target_writer');
   if mutant = original then raise exception 'role mutation did not apply'; end if;
   execute mutant;
 end $$;

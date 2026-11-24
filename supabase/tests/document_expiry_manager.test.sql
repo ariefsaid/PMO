@@ -1,8 +1,9 @@
 -- document_expiry_manager.test.sql — 1760/1761 (expiry-to-manager). Owns AC-EXM-001..005 (needs notify_person from 1750).
--- 1931 as revised by 2043: a medical document's expiry notice (in-app and its email) goes to the person, holders of the medical right
--- and the direct manager; the manager's is a plain notice (person, type, date) that opens no document.
--- MUTATION NOTES: drop the medical recipient condition (mut:medical) -> 'AC-EXM-006 a medical notice reaches the person, the medical right and the manager' goes red;
---   drop the manager branch (2043 mut:rr_medical_manager) -> the same assertion goes red;
+-- 2518 deliberately revises DD-R1123-1/DD-R1124-15: medical expiry notices (in-app/email)
+-- exclude the worker before release approval, retaining medical-right holders and the direct manager;
+-- the manager's is a plain notice (person, type, date) that opens no document.
+-- MUTATION NOTES: admit the worker (2518 mut:sr_medical_worker) -> the AC-EXM-006 recipient arrays go red;
+--   drop the manager branch in 2518 -> the same identity-specific assertions go red;
 --   always link (2050 mut:rr_medical_plain: v_plain := false) -> 'AC-EXM-007 the manager''s medical notice opens no document' goes red.
 begin;
 create extension if not exists pgtap;
@@ -82,7 +83,7 @@ select is((select count(*)::int from audit_events where action = 'expiry_documen
   'AC-EXM-004 a renewal writes exactly one audit row with the document, both dates and the actor');
 
 
--- ── AC-EXM-006 (1931, 2043) a medical notice: the person, the medical right and the manager, in-app and by email ──
+-- ── AC-EXM-006 (2518): preserve exact medical-right/manager recipients and exclude the worker, in-app and by email ──
 reset role;
 select set_config('request.jwt.claims', '{}', true);
 insert into email_event_settings (org_id, event_key, enabled) values ('17600000-0000-0000-0000-00000000000a', 'document_expiry', true)
@@ -96,13 +97,13 @@ insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, expi
   ('17600000-0000-0000-0000-0000000000c7', '17600000-0000-0000-0000-00000000000a', 'person', '17600000-0000-0000-0000-0000000000e1', '17600000-0000-0000-0000-0000000000f7', '2026-11-25');
 select lives_ok($$select public.run_document_expiry_warnings('2026-11-20')$$, 'AC-EXM-006 the warning run completes');
 select is((select array_agg(recipient_id order by recipient_id) from document_expiry_notices where document_id = '17600000-0000-0000-0000-0000000000c6'),
-  array['17600000-0000-0000-0000-0000000000a1', '17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
-  'AC-EXM-006 a medical notice reaches the person, the medical right and the manager (not another named role)');
+  array['17600000-0000-0000-0000-0000000000a1', '17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a6']::uuid[],
+  'AC-EXM-006 a medical notice reaches the medical right and manager, excluding the worker and unrelated named role');
 select is((select array_agg(o.recipient_id order by o.recipient_id) from email_outbox o join notifications n on n.id = o.notification_id
             where n.metadata->'entity'->>'id' = '17600000-0000-0000-0000-0000000000c6'
                or (n.owner_id = '17600000-0000-0000-0000-0000000000a3' and n.body like '%Medical told%')),
-  array['17600000-0000-0000-0000-0000000000a1', '17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4', '17600000-0000-0000-0000-0000000000a6']::uuid[],
-  'AC-EXM-006 its email copy goes to the same medical-right holders, person and manager');
+  array['17600000-0000-0000-0000-0000000000a1', '17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a6']::uuid[],
+  'AC-EXM-006 its email copy goes to the same medical-right holders and manager, excluding the worker');
 select is((select count(*)::int from notifications where owner_id = '17600000-0000-0000-0000-0000000000a3' and body like '%Medical told%'
              and metadata->'entity'->>'id' is null and metadata->'entity'->>'type' is null), 1,
   'AC-EXM-007 the manager''s medical notice opens no document: it names the person, the type and the date only');
