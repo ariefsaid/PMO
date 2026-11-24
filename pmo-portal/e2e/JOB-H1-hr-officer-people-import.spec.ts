@@ -56,9 +56,11 @@ test('JOB-H1 HR officer imports new people from a spreadsheet while skipping inv
     });
     await dialog.getByRole('button', { name: 'Next' }).click();
 
-    // 2. Preview shows new, unchanged and invalid rows clearly, and offers adding only the 3 valid new rows.
+    // 2. Preview shows new, unchanged and invalid rows clearly, offers the rows not imported as a file, and adds only the 3 valid new rows.
     await expect(dialog.getByText('New').first()).toBeVisible({ timeout: 15_000 });
     await expect(dialog.getByText('No change').first()).toBeVisible();
+    await expect(dialog.getByText('1 invalid')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Download rows not imported' })).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Add 3' })).toBeEnabled();
     await dialog.getByRole('button', { name: 'Add 3' }).click();
 
