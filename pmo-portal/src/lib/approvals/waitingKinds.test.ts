@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DATABASE_LISTED_KINDS, WAITING_KINDS, WAITING_KIND_META, isDatabaseListedKind } from './waitingKinds';
+import { DATABASE_LISTED_KINDS, WAITING_KINDS, WAITING_KIND_META, isDatabaseListedKind, scopeLabelText, waitingHeadingText } from './waitingKinds';
 import { approvalItem } from '@/src/components/dashboard/hub/company/approvalItem';
 import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 
@@ -7,7 +7,7 @@ import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 const EXPECTED = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
   'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
-  'certificate', 'equipment_plan', 'medical_release',
+  'certificate', 'equipment_plan', 'check_in', 'medical_release',
 ];
 
 /** The translation stub these assertions read through: the English default with its `{{placeholders}}` filled. */
@@ -49,6 +49,13 @@ describe('the registry of everything a login can decide', () => {
       expect(item.what, kind).toBeTruthy();
       expect(item.href, kind).toMatch(/^\//);
     }
+  });
+
+  it('F5-3 an outside-area clock-in waiting for a supervisor is a listed decision that opens Crews', () => {
+    expect(isDatabaseListedKind('check_in')).toBe(true);
+    expect(WAITING_KIND_META.check_in.href?.('rec-1')).toBe('/crews');
+    expect(scopeLabelText('check_in', t)).toBe('Clock-ins to decide');
+    expect(waitingHeadingText('check_in', 2, t)).toBe('Clock-ins to decide (2)');
   });
 
   it('AC-WAIT-056 client acceptance (BAST) is its own kind, not the purchase-delivery kind, and opens its exact work order', () => {

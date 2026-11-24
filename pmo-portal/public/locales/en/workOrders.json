@@ -37,7 +37,7 @@
       "expense_claim": "Expense claims"
     },
     "unavailable": "Amount unavailable",
-    "notCosted": "Not yet costed",
+    "amountNotShown": "Line amount not shown",
     "timesheetLabel": "{{person}}, week of {{week}}",
     "timesheetFallback": "Timesheet",
     "commitment": {
@@ -267,7 +267,8 @@
     "refusal": {
       "overRequested": "Reserved would exceed requested by {{n}}.",
       "releaseBelowCollected": "A release cannot take reserved below the {{n}} already collected.",
-      "overCollect": "Only {{n}} is still to collect."
+      "overCollect": "Only {{n}} is still to collect.",
+      "nothingReserved": "Nothing is reserved on this line yet. The client's reservation is recorded first."
     },
     "reserve": {
       "referenceRequired": "Enter the client's reference.",

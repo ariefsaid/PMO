@@ -87,6 +87,7 @@
     "task": "Tugas",
     "taskLinked": "Sebuah tugas dibuat untuk isu ini.",
     "makeTask": "Buat tugas",
+    "needsProject": "Pilih proyek untuk isu ini sebelum membuat tugas.",
     "photos": "Foto",
     "openTask": "Buka tugas"
   },

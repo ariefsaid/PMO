@@ -97,6 +97,9 @@ test('AC-DSR-013 / FR-WAIT-006 a phone-entered field report reaches the QS queue
   // The photo of the paper form (see header: the row stands in for the upload Storage-less CI cannot make).
   const photo = await admin!.from('dsr_photos').insert({ org_id: ORG_ID, report_id: reportId, kind: 'paper_form', file_path: `${ORG_ID}/${reportId}/00000000-0000-4000-8000-000000000013/form.jpg` });
   if (photo.error) throw new Error(`AC-DSR-013 photo row: ${photo.error.message}`);
+  // A report without its photo is not sent. The page learns of the photo the way it does after a real upload: a save reads the report again.
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page.getByTestId('dsr-author-needs-photo')).toHaveCount(0, { timeout: 15_000 });
   await page.getByRole('button', { name: 'Submit' }).click();
   await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'submitted', { timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Validate' })).toHaveCount(0);

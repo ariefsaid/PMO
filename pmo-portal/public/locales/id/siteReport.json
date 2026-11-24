@@ -184,6 +184,8 @@
     "chooseSecond": "Catatan kedua: {{figure}}",
     "hoursRange": "Isi jam dari 0 sampai 24.",
     "reasonRequired": "Tulis alasan angka ini yang berlaku.",
+    "chooseRequired": "Pilih angka mana yang dipakai.",
+    "chooseFigure": "Pilih satu angka",
     "cannotDecideRole": "Peran Anda tidak memutuskan jam mana yang berlaku.",
     "cannotDecideMine": "Anda mencatat salah satu angka ini. Orang lain yang memutuskan.",
     "cannotDecideOwn": "Ini hari kerja Anda sendiri. Orang lain yang memutuskan.",
@@ -262,7 +264,7 @@
     "saved": "Draf disimpan",
     "submitted": "Dikirim untuk validasi",
     "validated": "Laporan divalidasi",
-    "submittedNeedsPhoto": "Terkirim untuk validasi. Validator memerlukan foto formulir kertas: tambahkan.",
+    "needsPhotoFirst": "Belum terkirim: tambahkan dulu foto formulir kertas",
     "withdrawn": "Laporan ditarik kembali. Anda bisa mengubahnya lagi."
   },
   "empty": {

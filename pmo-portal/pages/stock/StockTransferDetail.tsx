@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, ListState, PageHeader, SelectField, TextField, useToast } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { HandoverCapture } from '@/src/components/stock/HandoverCapture';
+import { HandoverPhotos } from '@/src/components/stock/HandoverPhotos';
 import { buildConfirmation, emptyHandover, isHandoverComplete, type HandoverValue } from '@/src/components/stock/handoverValue';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -194,6 +195,7 @@ const StockTransferDetail: React.FC = () => {
             <li key={c.id} className="rounded-lg border border-border p-3 text-sm">
               <div className="font-medium">{c.signerName}{c.signerKind === 'guest' ? ` (${t('handover.guestBadge')})` : ''}</div>
               <div className="text-muted-foreground">{t(`handover.stage.${c.stage}`)} · {t(c.proofType === 'paper' ? 'handover.proofPaper' : 'handover.proofInApp')} · {formatDateTime(new Date(c.confirmedAt))} · {t('handover.recordedBy', { name: person(c.recordedBy) })}</div>
+              <HandoverPhotos confirmation={c} />
             </li>))}</ul>)}
         {proofRow?.proofStatus === 'outstanding' && transfer.status !== 'Cancelled' && !viewOnly && (
           <div className="space-y-3 rounded-lg border border-border p-4">

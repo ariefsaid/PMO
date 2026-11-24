@@ -167,7 +167,16 @@ describe('WorkOrderDetail', () => {
     h.lines = q({ stock_document: [ln('stock_document', 'stock1', null)] });
     renderPage();
     expect(screen.queryByRole('link', { name: 'stock1' })).toBeNull();
-    expect(screen.getByText('Not yet costed')).toBeTruthy();
+    expect(screen.getByText('Line amount not shown')).toBeTruthy();
+  });
+  it('M6 a costed stock issue and timesheet line show their amount, never "Not yet costed"', () => {
+    h.lines = q({ stock_document: [ln('stock_document', 'stock1', null)], timesheet_entry: [ln('timesheet_entry', 'hour1', null)] });
+    h.money = q({ stock_document: { stock1: { amount: 1200, currency: 'USD' } }, timesheet_entry: { hour1: { amount: 495, currency: 'USD' } } });
+    renderPage();
+    expect(within(screen.getByTestId('cost-line-stock1')).getByText('$1,200')).toBeTruthy();
+    expect(within(screen.getByTestId('cost-line-hour1')).getByText('$495')).toBeTruthy();
+    expect(screen.queryByText('Not yet costed')).toBeNull();
+    expect(screen.queryByText('Line amount not shown')).toBeNull();
   });
   it('identifies a timesheet by person and week, and uses the standard whole-unit money display', () => {
     h.lines = q({ timesheet_entry: [{ ...ln('timesheet_entry', 'hour1', null), reference: null }], purchase_order: [ln('purchase_order', 'po1', 'd1')] });
@@ -197,7 +206,7 @@ describe('WorkOrderDetail', () => {
     h.lines = q({ timesheet_entry: [ln('timesheet_entry', 'hour1', null)] });
     h.money = q({});
     renderPage();
-    expect(screen.getByText('Not yet costed')).toBeTruthy();
+    expect(screen.getByText('Line amount not shown')).toBeTruthy();
   });
   it('AC-WORP-007 a caller who cannot read purchase money sees records with no total and a restricted note', () => {
     h.money = q({ purchase_order: null });

@@ -73,9 +73,11 @@ export const CostSection: React.FC<Props> = ({ labels, links, groups, discipline
                         <span className="tabular-nums text-control text-muted-foreground">
                           {l.occurredOn ? formatDay(l.occurredOn) : '—'}
                           {l.quantity != null && ` · ${formatNumberExact(l.quantity)} ${l.quantityUnit ?? ''}`}
-                          {(l.source === 'timesheet_entry' || l.source === 'attendance_day' || l.source === 'stock_document'
-                            || (l.source === 'equipment_usage' && !g.restricted && !g.moneyByRecord?.[l.recordId]))
-                            && <> · <span>{t('costs.notCosted', 'Not yet costed')}</span></>}
+                          {g.moneyByRecord?.[l.recordId]
+                            ? <> · <span>{money(g.moneyByRecord[l.recordId])}</span></>
+                            : (l.source === 'timesheet_entry' || l.source === 'attendance_day' || l.source === 'stock_document'
+                              || (l.source === 'equipment_usage' && !g.restricted))
+                              && <> · <span>{t('costs.amountNotShown', 'Line amount not shown')}</span></>}
                         </span>
                       </li>
                     );

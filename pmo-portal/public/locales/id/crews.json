@@ -125,6 +125,7 @@
     "absent": "Absen",
     "leave": "Cuti",
     "offRotation": "Libur rotasi",
+    "notRecorded": "Belum tercatat",
     "present": "Hadir"
   },
   "statusFor": "Status untuk {{name}}",
@@ -232,6 +233,7 @@
     "waitingRole": "Menunggu keputusan {{role}} mana pun",
     "approvedBy": "Disetujui oleh {{name}}",
     "rejectedBy": "Ditolak oleh {{name}}",
+    "nobodyToFileFor": "Anda hanya dapat mengajukan cuti untuk diri sendiri dan orang yang Anda kelola. Minta atasan langsung atau Admin yang mengajukannya.",
     "goesTo": "Atasan langsung Anda atau {{role}} mana pun yang menyetujui. Hasilnya akan masuk ke notifikasi Anda."
   },
   "checkIn": {

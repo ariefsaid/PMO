@@ -184,6 +184,8 @@
     "chooseSecond": "Second record: {{figure}}",
     "hoursRange": "Enter hours from 0 to 24.",
     "reasonRequired": "Say why this figure stands.",
+    "chooseRequired": "Choose which figure stands.",
+    "chooseFigure": "Choose a figure",
     "cannotDecideRole": "Your role does not decide which hours stand.",
     "cannotDecideMine": "You recorded one of these figures. Someone else decides.",
     "cannotDecideOwn": "This is your own working day. Someone else decides.",
@@ -262,7 +264,7 @@
     "saved": "Draft saved",
     "submitted": "Sent for validation",
     "validated": "Report validated",
-    "submittedNeedsPhoto": "Sent for validation. The validator needs a photo of the paper form: add it.",
+    "needsPhotoFirst": "Not sent: add a photo of the paper form first",
     "withdrawn": "Report taken back. You can edit it again."
   },
   "empty": {

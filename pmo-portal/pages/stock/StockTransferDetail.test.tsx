@@ -9,7 +9,7 @@ import stockEn from '@/public/locales/en/stock.json';
 import stockId from '@/public/locales/id/stock.json';
 
 const h = vi.hoisted(() => ({
-  dn: true, transfer: null as unknown, tags: [] as unknown[], items: [] as unknown[], timing: 'before_posting',
+  dn: true, confirmations: [] as unknown[], transfer: null as unknown, tags: [] as unknown[], items: [] as unknown[], timing: 'before_posting',
   receive: vi.fn(), upload: vi.fn(), resolve: vi.fn(), recall: vi.fn(), record: vi.fn(),
   waiting: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn(), calls: [] as unknown[][] },
 }));
@@ -25,7 +25,8 @@ vi.mock('@/src/hooks/useOperationalWaitingRoute', async (orig) => {
 });
 vi.mock('@/src/hooks/useStockTransfers', () => ({
   useStockTransfer: () => ({ isPending: false, isError: false, data: h.transfer, refetch: vi.fn() }),
-  useTransferConfirmations: () => ({ data: [] }),
+  useTransferConfirmations: () => ({ data: h.confirmations }),
+  useHandoverPhotoUrl: (path: string | null) => ({ data: path ? `https://signed/${path}` : undefined }),
   useProofStatus: () => ({ data: [] }),
   useTransferSettings: () => ({ data: { mode: 'two_step', proofTiming: h.timing } }),
   useTransferRefresh: () => async () => [],
@@ -49,13 +50,32 @@ beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true);
 beforeEach(() => {
   vi.clearAllMocks();
   h.waiting.data = undefined; h.waiting.isPending = false; h.waiting.isError = false; h.waiting.refetch.mockReset(); h.waiting.calls.length = 0;
-  h.transfer = transfer(); h.tags = []; h.timing = 'before_posting'; h.dn = true;
+  h.transfer = transfer(); h.confirmations = []; h.tags = []; h.timing = 'before_posting'; h.dn = true;
   h.items = [{ id: 'i1', code: 'PIPE', name: 'Pipe', tag_id: null, needs_quality_check: false }];
   h.receive.mockResolvedValue(undefined);
   h.upload.mockImplementation(async (_o: string, _t: string, _c: string, kind: string) => `org-1/t1/c1/${kind}.jpg`);
 });
 const renderPage = () => render(<ToastProvider><MemoryRouter initialEntries={['/stock/transfers/t1']}><Routes><Route path="/stock/transfers/:transferId" element={<StockTransferDetail />} /></Routes></MemoryRouter></ToastProvider>);
 const photo = () => new File(['x'], 'p.jpg', { type: 'image/jpeg' });
+
+describe('StockTransferDetail handover photos (F10)', () => {
+  it('F10 each recorded confirmation shows the photos taken at it: goods, person, paper', async () => {
+    h.transfer = transfer({ status: 'Received' });
+    h.confirmations = [{ id: 'c1', transferId: 't1', stage: 'receive', proofType: 'in_app', signerKind: 'user', signerName: 'Dest Keeper', recordedBy: 'me', confirmedAt: '2026-11-20T09:00:00Z', goodsPhotoPath: 'o/t1/c1/goods.jpg', signerPhotoPath: 'o/t1/c1/person.jpg', paperPhotoPath: null }];
+    renderPage();
+    const photos = await screen.findByTestId('handover-photos');
+    expect(photos.querySelectorAll('img')).toHaveLength(2);
+    expect(screen.getByAltText('Photo of the goods')).toHaveAttribute('src', 'https://signed/o/t1/c1/goods.jpg');
+    expect(screen.getByAltText('Photo of the person receiving')).toBeInTheDocument();
+    expect(screen.queryByAltText('Photo of the signed paper')).toBeNull();
+  });
+  it('F10 a confirmation with no photo shows none', async () => {
+    h.confirmations = [{ id: 'c1', transferId: 't1', stage: 'receive', proofType: 'paper', signerKind: 'user', signerName: 'Dest Keeper', recordedBy: 'me', confirmedAt: '2026-11-20T09:00:00Z', goodsPhotoPath: null, signerPhotoPath: null, paperPhotoPath: null }];
+    renderPage();
+    await screen.findAllByText('Dest Keeper');
+    expect(screen.queryByTestId('handover-photos')).toBeNull();
+  });
+});
 
 describe('StockTransferDetail receive (AC-TST-024)', () => {
   it('AC-TST-024 counted and accepted start at the sent quantity, and an unflagged item has no quality choice', async () => {

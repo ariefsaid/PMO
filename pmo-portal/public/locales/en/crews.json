@@ -125,6 +125,7 @@
     "absent": "Absent",
     "leave": "Leave",
     "offRotation": "Off rotation",
+    "notRecorded": "Not recorded",
     "present": "Present"
   },
   "statusFor": "Status for {{name}}",
@@ -232,6 +233,7 @@
     "waitingRole": "Waiting for any {{role}} to decide",
     "approvedBy": "Approved by {{name}}",
     "rejectedBy": "Rejected by {{name}}",
+    "nobodyToFileFor": "You can file leave only for yourself and the people you manage. Ask your line manager or an Admin to file it.",
     "goesTo": "Your line manager or any {{role}} approves this. You get a notification with the result."
   },
   "checkIn": {

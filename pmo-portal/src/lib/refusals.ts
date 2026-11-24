@@ -5,6 +5,7 @@ import { formatDay } from '@/src/lib/format';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useTerms } from '@/src/lib/i18n/terms';
+import { catalogueSentence } from '@/src/lib/catalogueLookup';
 
 /**
  * The database refuses with `raise exception 'FAMILY_CODE: sentence'`. This is the one place the app reads that protocol:
@@ -98,10 +99,10 @@ export interface RefusalOptions {
 export function refusalText(err: unknown, t: TFunction, opts: RefusalOptions = {}): RefusalSentence {
   const r = parseRefusal(err);
   if (r) {
-    const vars = { ...r.values, ...opts.values, defaultValue: '' };
-    const figures = Object.keys(r.values).length ? t(`refusals:${r.code}_figures`, vars) : '';
-    const headline = figures || t(`refusals:${r.code}`, vars);
-    if (headline) return { headline, detail: t(`refusals:${r.code}_detail`, vars), known: true };
+    const vars = { ...r.values, ...opts.values };
+    const figures = Object.keys(r.values).length ? catalogueSentence(t, `refusals:${r.code}_figures`, vars) : '';
+    const headline = figures || catalogueSentence(t, `refusals:${r.code}`, vars);
+    if (headline) return { headline, detail: catalogueSentence(t, `refusals:${r.code}_detail`, vars), known: true };
   }
   const c = classifyMutationError(err, undefined, opts.context);
   return { headline: c.headline, detail: r ? '' : c.detail, known: false };

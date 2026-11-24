@@ -37,7 +37,7 @@
       "expense_claim": "Klaim biaya"
     },
     "unavailable": "Jumlah tidak tersedia",
-    "notCosted": "Biaya belum dihitung",
+    "amountNotShown": "Nilai baris tidak ditampilkan",
     "timesheetLabel": "{{person}}, minggu {{week}}",
     "timesheetFallback": "Lembar waktu",
     "commitment": {
@@ -270,6 +270,7 @@
     "recordReservation": "Catat reservasi",
     "refusal": {
       "overCollect": "Hanya {{n}} yang belum diambil.",
+      "nothingReserved": "Belum ada yang dicadangkan pada baris ini. Reservasi dari klien dicatat lebih dulu.",
       "overRequested": "Reservasi akan melebihi jumlah diminta sebesar {{n}}.",
       "releaseBelowCollected": "Pelepasan tidak boleh membuat reservasi di bawah {{n}} yang sudah diambil."
     },
