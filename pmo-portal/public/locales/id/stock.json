@@ -1095,6 +1095,10 @@
     "cancel": "Batal",
     "reason": "Alasan",
     "confirmAction": "Konfirmasi",
-    "clearMapping": "Gunakan jalur jasa atau pemakaian langsung"
+    "clearMapping": "Gunakan jalur jasa atau pemakaian langsung",
+    "changeMode": "Ubah penerimaan untuk organisasi ini?",
+    "changeModeBody": "Ini mengubah penerimaan untuk semua pengguna. Isian formulir yang belum disimpan akan dibuang.",
+    "progressTitle": "Barang diterima",
+    "openReceiving": "Buka penerimaan"
   }
 }

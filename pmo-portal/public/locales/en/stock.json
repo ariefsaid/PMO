@@ -1095,6 +1095,10 @@
     "cancel": "Cancel",
     "reason": "Reason",
     "confirmAction": "Confirm",
-    "clearMapping": "Use service or direct-use path"
+    "clearMapping": "Use service or direct-use path",
+    "changeMode": "Change receiving for this organisation?",
+    "changeModeBody": "This changes receiving for everyone. Unsaved entries on this form will be discarded.",
+    "progressTitle": "Goods received",
+    "openReceiving": "Open receiving"
   }
 }
