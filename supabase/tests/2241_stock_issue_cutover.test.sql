@@ -108,6 +108,12 @@ set local session_replication_role=replica;
 update stock_documents set occurred_on='2026-11-15' where id='25190000-0000-0000-0000-000000000810';
 delete from procurement_invoices where id='25190000-0000-0000-0000-000000000626';
 update stock_documents set work_order_id='25190000-0000-0000-0000-000000000401' where id='25190000-0000-0000-0000-000000000811';
+insert into stock_document_lines(id,org_id,document_id,line_no,item_id,quantity,unit_cost)
+select '25190000-0000-0000-0000-000000000824',org_id,'25190000-0000-0000-0000-000000000810',1,item_id,99.9,10 from stock_document_lines where id='25190000-0000-0000-0000-000000000821';
+insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
+select org_id,'25190000-0000-0000-0000-000000000810','25190000-0000-0000-0000-000000000824',item_id,warehouse_id,'receive',99.9,999,99.9,999,'2026-11-15',posted_by from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
+delete from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
+update stock_documents set status='Draft',posted_by=null,posted_at=null,occurred_on='2026-11-18' where id='25190000-0000-0000-0000-000000000811';
 set local session_replication_role=origin;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
@@ -118,10 +124,10 @@ insert into procurement_invoices(id,org_id,procurement_id,vi_number,invoice_date
 values('25190000-0000-0000-0000-000000000626','25190000-0000-0000-0000-00000000000a','25190000-0000-0000-0000-000000000604','VI-ST','2026-11-17','Received',999,'exclusive',0,'IDR');
 insert into payments(id,org_id,procurement_id,invoice_id,status,amount,currency,date)
 values('25190000-0000-0000-0000-000000000645','25190000-0000-0000-0000-00000000000a','25190000-0000-0000-0000-000000000604','25190000-0000-0000-0000-000000000626','Paid',999,'IDR','2026-11-17');
-insert into stock_document_lines(id,org_id,document_id,line_no,item_id,quantity,unit_cost)
-select '25190000-0000-0000-0000-000000000824',org_id,'25190000-0000-0000-0000-000000000810',1,item_id,99.9,10 from stock_document_lines where id='25190000-0000-0000-0000-000000000821';
-insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
-select org_id,'25190000-0000-0000-0000-000000000810','25190000-0000-0000-0000-000000000824',item_id,warehouse_id,'receive',99.9,999,99.9,999,'2026-11-15',posted_by from stock_ledger where line_id='25190000-0000-0000-0000-000000000821';
+update stock_documents set status='Posted',posted_by=created_by,posted_at=now() where id='25190000-0000-0000-0000-000000000811';
+insert into stock_ledger(org_id,document_id,line_id,item_id,warehouse_id,project_id,kind,qty_delta,value_delta,qty_after,value_after,occurred_on,posted_by)
+select d.org_id,d.id,l.id,l.item_id,d.warehouse_id,d.project_id,'issue',-3,-30,96.9,969,d.occurred_on,d.created_by
+from stock_documents d join stock_document_lines l on l.document_id=d.id where d.id='25190000-0000-0000-0000-000000000811';
 set local session_replication_role=origin;
 create temp table cutover_stock_remainder as select sum(value_delta) as amount from stock_ledger where org_id='25190000-0000-0000-0000-00000000000a';
 grant select on cutover_stock_remainder to authenticated;
@@ -133,6 +139,7 @@ select is((get_project_finances('25190000-0000-0000-0000-0000000000d1')->'actual
 select is((select sum(amount::numeric) from work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1') where source='stock_document' and reason='counted')+(select amount from cutover_stock_remainder),999::numeric,'AC-ISC-006 partial work order cost plus stock equals bill');
 reset role;
 set local session_replication_role=replica;
+update stock_document_lines set quantity=99.9 where id='25190000-0000-0000-0000-000000000821';
 update stock_ledger set qty_delta=-99.9,value_delta=-999,qty_after=0,value_after=0 where line_id='25190000-0000-0000-0000-000000000821';
 update cutover_stock_remainder set amount=(select sum(value_delta) from stock_ledger where org_id='25190000-0000-0000-0000-00000000000a');
 set local session_replication_role=origin;

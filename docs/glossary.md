@@ -1465,3 +1465,5 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 ### Stock issue cost cutover
 The organisation's chosen first date for counting stock issues and returns in PMO-paid work-order cost. A purchase received into stock from that date contributes cost through consumption rather than its bill/payment. Whole-purchase classification currently applies to mixed deliveries.
+
+A pre-cutover purchase receipt with no bill or Paid payment dated before the cutover also uses the stock issue basis; later billing keeps that basis.
