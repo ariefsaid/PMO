@@ -12,15 +12,15 @@
 --   mut:pa_link_wo_only ...... 'WOF-13 PA cannot call m365_link_record_folder for project or procurement'
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(28);
 
 -- Fixtures: two orgs, projects, work orders, users (Admin, PA, Planner, plain Engineer, Field/Light, CrossOrg PA)
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('26300000-0000-0000-0000-00000000000a', 'WOF Org A', 'IDR', 'UTC', true),
   ('26300000-0000-0000-0000-00000000000b', 'WOF Org B', 'IDR', 'UTC', true);
-insert into org_features (org_id, key, enabled) values
+insert into org_features (org_id, feature_key, enabled) values
   ('26300000-0000-0000-0000-00000000000a', 'm365_integration', true)
-on conflict (org_id, key) do update set enabled = true;
+on conflict (org_id, feature_key) do update set enabled = true;
 
 insert into auth.users (id, email)
 select ('26300000-0000-0000-0000-0000000000' || k)::uuid, 'wof-' || k || '@example.com'
@@ -48,9 +48,9 @@ insert into work_orders (id, org_id, project_id, title, wo_number, status, order
 insert into procurements (id, org_id, project_id, title, requested_by_id, status, total_value) values
   ('26300000-0000-0000-0000-000000000501', '26300000-0000-0000-0000-00000000000a', '26300000-0000-0000-0000-000000000101', 'Proc A1', '26300000-0000-0000-0000-0000000000a1', 'Draft', 0);
 
-insert into org_m365_document_settings (org_id, default_site_id, default_drive_id, default_drive_name, default_site_url, updated_by, updated_at)
-values ('26300000-0000-0000-0000-00000000000a', 'site-a', 'drive-a', 'Docs', 'https://contoso.sharepoint.com/sites/a', '26300000-0000-0000-0000-0000000000a1', '2026-10-01T00:00:00Z')
-on conflict (org_id) do update set default_site_id='site-a', default_drive_id='drive-a', updated_at='2026-10-01T00:00:00Z';
+insert into org_m365_document_settings (org_id, default_site_id, default_site_name, default_drive_id, default_drive_name, updated_by, updated_at)
+values ('26300000-0000-0000-0000-00000000000a', 'site-a', 'Docs Site', 'drive-a', 'Docs', '26300000-0000-0000-0000-0000000000a1', '2026-10-01T00:00:00Z')
+on conflict (org_id) do update set default_site_id='site-a', default_site_name='Docs Site', default_drive_id='drive-a', default_drive_name='Docs', updated_at='2026-10-01T00:00:00Z';
 
 -- Existing project-level document + existing issued WO document authored by Admin + hidden category
 insert into document_categories (id, org_id, name, sort_order, hidden_job_roles) values

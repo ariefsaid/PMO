@@ -31,7 +31,9 @@ export const documentRepository: DocumentRepository = {
   list: (projectId) => wrap(() => listProjectDocuments(projectId)),
   get: (id) => wrap(() => getProjectDocument(id)),
   create: (projectId, input, authorId, workOrderId) =>
-    wrap(() => createProjectDocument(projectId, input, authorId, workOrderId)),
+    wrap(() => workOrderId === undefined
+      ? createProjectDocument(projectId, input, authorId)
+      : createProjectDocument(projectId, input, authorId, workOrderId)),
   linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftDocument(id, reference)),
   attachMicrosoftUpload: (id, reference) => wrap(() => attachMicrosoftUpload(id, reference)),
   unlinkMicrosoftDocument: (id) => wrap(() => unlinkMicrosoftDocument(id)),

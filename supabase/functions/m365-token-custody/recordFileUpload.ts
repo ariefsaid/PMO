@@ -205,12 +205,14 @@ export async function authorizeUploadCaller(deps: HandlerDeps): Promise<UploadCa
     if (err instanceof M365HandlerError) return errorResult(err);
     throw err;
   }
-  if (WRITER_ROLES.has(caller.role)) return caller; // mutation-witness:upload-writer-role
-  if (caller.role === "Engineer") {
-    const { data, error } = await deps.callerClient.rpc("actor_holds_job_role", { p_key: "project_administrator" });
-    if (!error && data === true) return { ...caller, projectAdminOnly: true };
+  if (!WRITER_ROLES.has(caller.role)) { // mutation-witness:upload-writer-role
+    if (caller.role === "Engineer") {
+      const { data, error } = await deps.callerClient.rpc("actor_holds_job_role", { p_key: "project_administrator" });
+      if (!error && data === true) return { ...caller, projectAdminOnly: true };
+    }
+    return DENIED();
   }
-  return DENIED();
+  return caller;
 }
 
 /**

@@ -139,16 +139,25 @@ end; $$;
 -- ── §5 Scoped RLS policies (per-command INSERT + UPDATE only; ZERO delete) ───────────────────────────────────────────────────────
 create policy project_documents_wo_pa_insert on public.project_documents
   for insert to authenticated
-  with check (public.actor_may_write_work_order_document(org_id, project_id, work_order_id));
+  with check (
+    (select public.is_active_member())
+    and public.actor_may_write_work_order_document(org_id, project_id, work_order_id)
+  );
 
 create policy project_documents_wo_pa_update on public.project_documents
   for update to authenticated
-  using (status = 'Draft'::public.doc_status
-         and author_id = (select auth.uid())
-         and public.actor_may_write_work_order_document(org_id, project_id, work_order_id))
-  with check (status = 'Draft'::public.doc_status
-              and author_id = (select auth.uid())
-              and public.actor_may_write_work_order_document(org_id, project_id, work_order_id));
+  using (
+    (select public.is_active_member())
+    and status = 'Draft'::public.doc_status
+    and author_id = (select auth.uid())
+    and public.actor_may_write_work_order_document(org_id, project_id, work_order_id)
+  )
+  with check (
+    (select public.is_active_member())
+    and status = 'Draft'::public.doc_status
+    and author_id = (select auth.uid())
+    and public.actor_may_write_work_order_document(org_id, project_id, work_order_id)
+  );
 
 create policy storage_objects_project_doc_wo_pa_insert on storage.objects
   for insert to authenticated
@@ -382,6 +391,7 @@ declare
   v_lock text;
   v_new uuid[] := '{}';
 begin
+  perform public.assert_not_light();
   if not public.is_active_member() or v_role not in ('Admin','Executive','Project Manager','Finance') then
     raise insufficient_privilege;
   end if;
