@@ -9,14 +9,18 @@
 import { test, expect } from '@playwright/test';
 import { signIn, visibleToast } from './helpers';
 import { need, ORG_ID, serviceClient } from './support/jobJourney';
+import { roleJobUser } from './support/roleJobUser';
+import { runId } from './support/jobFixtures';
 
 test.setTimeout(180_000);
 const must = need('JOB-E1');
 const db = serviceClient('JOB-E1');
 const code = `000-E1-${Date.now().toString(36)}`;
 let vendorId = ''; let vendorName = '';
+let manager: Awaited<ReturnType<typeof roleJobUser>>;
 
 test.beforeEach(async () => {
+  manager = await roleJobUser(db, 'equipment_manager', runId('e1-em'));
   vendorName = `Hire vendor ${code}`;
   vendorId = must('vendor', await db.from('companies').insert({ org_id: ORG_ID, name: vendorName, type: 'Vendor' }).select('id').single()).id;
 });
@@ -30,6 +34,7 @@ test.afterEach(async () => {
     }
   }
   await db.from('companies').delete().eq('id', vendorId);
+  await manager.cleanup();
 });
 
 test('JOB-E1 a crane registered as rented from a vendor shows its terms and is offered for the rental check', async ({ page }) => {
@@ -58,7 +63,7 @@ test('JOB-E1 a crane registered as rented from a vendor shows its terms and is o
 });
 
 test('JOB-E1 the equipment manager adds a rented machine from the Equipment screen, vendor and rate on the same form', async ({ page }) => {
-  await signIn(page, 'pm@acme.test');
+  await manager.signIn(page);
   await page.goto('/equipment');
   await page.getByRole('button', { name: 'New equipment' }).click();
   const form = page.getByRole('dialog');
