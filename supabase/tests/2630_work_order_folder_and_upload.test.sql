@@ -7,12 +7,15 @@
 --   mut:pa_wo_project_read ... 'WOF-07 PA cannot insert when project is unreadable to caller'
 --   mut:pa_wo_belongs ........ 'WOF-08 PA cannot bind doc to work order of another project'
 --   mut:pa_trigger_source .... 'WOF-12 PA links m365_link_record_folder for own work order' & refusal on project doc
---   mut:pa_storage_role ...... 'WOF-15 plain Engineer cannot insert into storage project-documents'
---   mut:pa_storage_wo_only ... 'WOF-16 PA cannot upload storage object for project-level doc (work_order_id null)'
---   mut:pa_link_wo_only ...... 'WOF-13 PA cannot call m365_link_record_folder for project or procurement'
+--   mut:pa_storage_role .......... 'WOF-15 plain Engineer cannot insert into storage project-documents'
+--   mut:pa_storage_wo_only ....... 'WOF-16 PA cannot upload storage object for project-level doc (work_order_id null)'
+--   mut:pa_storage_author_insert .. 'WOF-17 PA cannot insert storage object on another user Draft WO doc'
+--   mut:pa_storage_author_update .. 'WOF-17 PA cannot update storage object on another user Draft WO doc'
+--   mut:pa_storage_author_wcheck .. 'WOF-17 PA cannot move own storage object onto another user Draft WO doc'
+--   mut:pa_link_wo_only .......... 'WOF-13 PA cannot call m365_link_record_folder for project or procurement'
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(42);
 
 -- Fixtures: two orgs, projects, work orders, users (Admin, PA, Planner, plain Engineer, Field/Light, CrossOrg PA)
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
@@ -62,6 +65,9 @@ select '26300000-0000-0000-0000-000000000601', '26300000-0000-0000-0000-00000000
 insert into project_documents (id, org_id, project_id, work_order_id, category, title, status, author_id) values
   ('26300000-0000-0000-0000-000000000701', '26300000-0000-0000-0000-00000000000a', '26300000-0000-0000-0000-000000000101', null, 'Drawing', 'Proj doc by PA', 'Draft', '26300000-0000-0000-0000-0000000000a2'),
   ('26300000-0000-0000-0000-000000000702', '26300000-0000-0000-0000-00000000000a', '26300000-0000-0000-0000-000000000101', '26300000-0000-0000-0000-000000000301', 'Drawing', 'WO doc by Admin', 'Draft', '26300000-0000-0000-0000-0000000000a1');
+
+insert into storage.objects (bucket_id, name, metadata) values
+  ('project-documents', '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000702/orig.pdf', '{"orig":true}'::jsonb);
 
 -- ── §1 Role table grants denominator check ───────────────────────────────────────────────────────────────────────────────────────
 select ok(
@@ -318,6 +324,65 @@ select throws_ok(
   'WOF-14 service receipt refuses PA on project'
 );
 
+-- Receipt RPC EXECUTE privilege and caller refusal checks
+select ok(
+  has_function_privilege('service_role', 'public.m365_record_folder_created(uuid,text,uuid,text,text)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.m365_record_folder_created(uuid,text,uuid,text,text)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.m365_record_folder_created(uuid,text,uuid,text,text)', 'EXECUTE'),
+  'WOF-14 receipt RPC EXECUTE granted to service_role only'
+);
+
+select isnt(
+  pg_temp.err('a2', $$
+    select public.m365_record_folder_created('26300000-0000-0000-0000-0000000000a2', 'work_order', '26300000-0000-0000-0000-000000000301', 'drive-a', 'wo-folder-item-2')
+  $$),
+  'ok',
+  'WOF-14 authenticated caller cannot invoke service-only receipt RPC'
+);
+
+-- Folder category visibility helper and hidden Reference link refusal
+select is(
+  pg_temp.val('a2', $$ select public.m365_folder_category_visible('26300000-0000-0000-0000-00000000000a')::text $$),
+  'true',
+  'WOF-14b PA sees unhidden Reference folder category'
+);
+
+update public.document_categories
+   set hidden_job_roles = array['project_administrator']
+ where org_id = '26300000-0000-0000-0000-00000000000a'
+   and lower(name) = 'reference'
+   and archived_at is null;
+
+select is(
+  pg_temp.val('a2', $$ select public.m365_folder_category_visible('26300000-0000-0000-0000-00000000000a')::text $$),
+  'false',
+  'WOF-14b PA is refused folder category visibility when Reference is hidden'
+);
+
+select is(
+  pg_temp.val('a1', $$ select public.m365_folder_category_visible('26300000-0000-0000-0000-00000000000a')::text $$),
+  'true',
+  'WOF-14b Admin retains folder category visibility when Reference is hidden from PA'
+);
+
+select isnt(
+  pg_temp.err('a2', $$
+    select public.m365_link_record_folder(
+      'work_order', '26300000-0000-0000-0000-000000000302',
+      jsonb_build_object('drive_id','drive-a','item_id','wo-folder-item-hidden','item_kind','folder','name','WO-002 WO A2','web_url','https://contoso.sharepoint.com/sites/a/wo2'),
+      'site-a', 'drive-a', '2026-10-01T00:00:00Z'
+    )
+  $$),
+  'ok',
+  'WOF-14b PA cannot link work_order folder when Reference category is hidden'
+);
+
+update public.document_categories
+   set hidden_job_roles = '{}'
+ where org_id = '26300000-0000-0000-0000-00000000000a'
+   and lower(name) = 'reference'
+   and archived_at is null;
+
 -- ── §4 Path 4: storage.objects ('project-documents' bucket) ────────────────────────────────────────────────────────────────────
 select is(
   pg_temp.err('a2', $$
@@ -346,13 +411,102 @@ select isnt(
   'WOF-16 PA cannot upload storage object for project-level doc (work_order_id null)'
 );
 
+-- Storage author ownership checks on Draft work-order documents
+select isnt(
+  pg_temp.err('a2', $$
+    insert into storage.objects (bucket_id, name)
+    values ('project-documents', '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000702/extra.pdf')
+  $$),
+  'ok',
+  'WOF-17 PA cannot insert storage object on another user Draft WO doc'
+);
+
+select is(
+  pg_temp.val('a2', $$
+    with changed as (
+      update storage.objects set metadata = '{"hijacked":true}'::jsonb
+       where bucket_id = 'project-documents'
+         and name = '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000702/orig.pdf'
+      returning 1
+    ) select count(*)::text from changed
+  $$),
+  '0',
+  'WOF-17 PA cannot update storage object on another user Draft WO doc'
+);
+
+select is(
+  (select metadata->>'orig' from storage.objects
+    where bucket_id = 'project-documents'
+      and name = '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000702/orig.pdf'),
+  'true',
+  'WOF-17 original storage object metadata retained'
+);
+
+select isnt(
+  pg_temp.err('a2', $$
+    update storage.objects
+       set name = '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000702/moved.pdf'
+     where bucket_id = 'project-documents'
+       and name = '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000801/spec.pdf'
+  $$),
+  'ok',
+  'WOF-17 PA cannot move own storage object onto another user Draft WO doc'
+);
+
+select is(
+  pg_temp.val('a2', $$
+    with changed as (
+      update storage.objects set metadata = '{"pa_edit":true}'::jsonb
+       where bucket_id = 'project-documents'
+         and name = '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000801/spec.pdf'
+      returning 1
+    ) select count(*)::text from changed
+  $$),
+  '1',
+  'WOF-17 PA can update storage object metadata on own Draft WO doc'
+);
+
 -- Mark WO doc 801 Issued as Admin -> PA can no longer update row or storage object
 select is(
   pg_temp.err('a1', $$
     select public.transition_document_status('26300000-0000-0000-0000-000000000801', 'Issued'::public.doc_status)
   $$),
   'ok',
-  'WOF-17 Admin transitions PA WO document to Issued (SoD satisfied)'
+  'WOF-18 Admin transitions PA WO document to Issued (SoD satisfied)'
+);
+
+select is(
+  pg_temp.val('a2', $$
+    with changed as (
+      update public.project_documents set title = 'Edit after Issued'
+       where id = '26300000-0000-0000-0000-000000000801'
+      returning 1
+    ) select count(*)::text from changed
+  $$),
+  '0',
+  'WOF-19 PA cannot update Issued work-order document'
+);
+
+select isnt(
+  pg_temp.err('a2', $$
+    insert into storage.objects (bucket_id, name)
+    values ('project-documents', '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000801/after-issued.pdf')
+  $$),
+  'ok',
+  'WOF-20 PA cannot insert storage object on Issued work-order document'
+);
+
+select is(
+  pg_temp.val('a2', $$
+    with changed as (
+      update storage.objects set metadata = '{"after_issued":true}'::jsonb
+       where bucket_id = 'project-documents'
+         and name = '26300000-0000-0000-0000-00000000000a/26300000-0000-0000-0000-000000000101/26300000-0000-0000-0000-000000000801/spec.pdf'
+      returning 1
+    ) select count(*)::text from changed
+  $$),
+  '0',
+  'WOF-21 PA cannot update storage object on Issued work-order document'
 );
 
 select * from finish();

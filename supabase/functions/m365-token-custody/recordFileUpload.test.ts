@@ -583,6 +583,7 @@ Deno.test("TC-PA-13 work-order document upload lands in work_order folder and re
       ["issued work-order doc", { role: "Engineer", holdsProjectAdmin: true, documents: woRegisters({ status: "Issued" }) }, projectForm()],
       ["procurement upload", { role: "Engineer", holdsProjectAdmin: true, tables: { procurement_receipts: [{ id: DOC_ID, org_id: ORG, procurement_id: CASE_ID }] }, documents: registers() }, purchaseForm()],
       ["plain Engineer on work-order doc", { role: "Engineer", holdsProjectAdmin: false, documents: woRegisters() }, projectForm()],
+      ["unreadable project or work order for PA", { role: "Engineer", holdsProjectAdmin: true, mayWriteWoDoc: false, documents: woRegisters() }, projectForm()],
     ];
     for (const [label, worldOver, form] of deniedCases) {
       const { res, calls } = await serveUpload(newWorld({ graph: [], ...worldOver }), form);

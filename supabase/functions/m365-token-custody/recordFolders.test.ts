@@ -690,7 +690,7 @@ Deno.test("AC-M365DOC-069 backend invariants: only the signed Microsoft calls, n
     const restWrites = calls.filter((c) => c.url.pathname.startsWith("/rest/v1/") && !c.url.pathname.startsWith("/rest/v1/rpc/") && c.method !== "GET");
     assert(restWrites.every((c) => c.url.pathname === "/rest/v1/error_events"), "only observability rows may be written directly");
     const rpcs = new Set(calls.filter((c) => c.url.pathname.startsWith("/rest/v1/rpc/")).map((c) => c.url.pathname.split("/").pop()));
-    assertEquals([...rpcs].sort(), ["m365_link_record_folder", "m365_membership_state", "m365_record_folder_created", "rate_limit_hit", "service_feature_enabled"]);
+    assertEquals([...rpcs].sort(), ["m365_folder_category_visible", "m365_link_record_folder", "m365_membership_state", "m365_record_folder_created", "rate_limit_hit", "service_feature_enabled"]);
     // Only the folder's own bodies carry a name; nothing else Microsoft-bound has a body.
     assertEquals(graphCalls(calls).filter((c) => c.method === "GET" && c.bodyText).length, 0);
   });
@@ -789,5 +789,27 @@ Deno.test("TC-PA-13 work_order folder nests under its project folder and scopes 
       assertEquals((await call(ensureWorkOrder)).status, 403);
       assertEquals(graphCalls(calls).length, 0);
     });
+  });
+
+  await t.step("hidden folder category refuses before any Graph call or creation receipt", async () => {
+    const cases: Array<[string, Record<string, unknown>, Parameters<typeof newWorld>[0]]> = [
+      ["PA on work_order", ensureWorkOrder, { role: "Engineer", holdsProjectAdmin: true, tables: { work_orders: [woRow()], projects: [projectRow()] } }],
+      ["PM on project", ensureProject, { role: "Project Manager" }],
+    ];
+    for (const [label, body, worldOver] of cases) {
+      await run(newWorld({
+        ...worldOver,
+        documents: [],
+        folderCategoryVisible: false,
+        graph: [],
+      }), async ({ call, calls }) => {
+        const response = await call(body);
+        assertEquals(response.status, 403, label);
+        assertEquals(graphCalls(calls).length, 0, label);
+        assertEquals(tableCalls(calls, "ms_graph_connections").length, 0, label);
+        assertEquals(rpcBodies(calls, "m365_record_folder_created").length, 0, label);
+        assertEquals(rpcBodies(calls, "m365_link_record_folder").length, 0, label);
+      });
+    }
   });
 });

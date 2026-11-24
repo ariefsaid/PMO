@@ -431,6 +431,17 @@ function parentFailureResult(parent: ParentFailure): HandlerResult {
   }
 }
 
+export async function folderCategoryVisible(
+  deps: HandlerDeps,
+  orgId: string,
+): Promise<boolean | "error"> {
+  const { data, error } = await deps.callerClient!.rpc("m365_folder_category_visible", {
+    p_org_id: orgId,
+  });
+  if (error) return "error";
+  return data === true;
+}
+
 /** Per-user throttle (availability guard, fail-open like every request-rate limiter): 429 when exceeded. */
 export async function folderRateLimited(
   deps: HandlerDeps,
@@ -513,6 +524,12 @@ export async function handleEnsureRecordFolder(
   if (snapshot === "error") return NO_PARENT_READ();
   if (snapshot === "unset") return outcomeResult({ state: "default_unset" });
   if (!record.identity) return outcomeResult({ state: "missing_identifier" });
+
+  if (target.kind === "project" || target.kind === "work_order") {
+    const visible = await folderCategoryVisible(deps, caller.orgId);
+    if (visible === "error") return NO_PARENT_READ();
+    if (!visible) return DENIED(); // mutation-witness:folder-category-visible
+  }
 
   let identity = record.identity;
   if (target.kind === "work_order" && record.projectId) {

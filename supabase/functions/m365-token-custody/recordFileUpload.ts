@@ -117,6 +117,16 @@ async function loadTarget(
   if (caller.projectAdminOnly && !workOrderId) return DENIED();
   const writable = row.status === "Draft" && row.source !== "onedrive" && (row.author_id === deps.userId || caller.role === "Admin"); // mutation-witness:upload-draft-only mutation-witness:upload-author-or-admin
   if (!writable) return DENIED();
+  if (caller.projectAdminOnly && workOrderId) {
+    if (typeof row.project_id !== "string" || !row.project_id) return NOT_AVAILABLE();
+    const { data: allowed, error: scopeError } = await deps.callerClient!.rpc("actor_may_write_work_order_document", {
+      p_org_id: caller.orgId,
+      p_project_id: row.project_id,
+      p_work_order_id: workOrderId,
+    });
+    if (scopeError) return UNREADABLE();
+    if (allowed !== true) return DENIED(); // mutation-witness:upload-wo-scoped-helper
+  }
   if (workOrderId) return { kind: "work_order", recordId: workOrderId };
   return typeof row.project_id === "string" ? { kind: "project", recordId: row.project_id } : NOT_AVAILABLE();
 }
