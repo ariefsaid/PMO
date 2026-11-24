@@ -53,6 +53,7 @@ export const ORG_SETTINGS = {
   crewTools: { group: 'people', writers: ['Admin', 'Project Manager'], route: '/crews?view=tools', covers: ['org_crew_tool_settings', 'useToolSettings'] },
   safetyRecords: { group: 'site', alwaysOn: true, writers: ['Admin'], route: '/administration/projects#safety-records', manage: 'safetyLists', switch: 'safetyRecords', covers: ['organizations.safety_records_enabled'] },
   performanceIndices: { group: 'site', alwaysOn: true, writers: ['Admin'], route: '/administration/projects#org-performance-indices', manage: 'orgPerformanceIndices', covers: ['organizations.performance_indices_enabled', 'organizations.performance_band_low', 'organizations.performance_band_high', 'usePerformanceSettings'] },
+  qsReportRevenue: { group: 'site', writers: ['Admin'], route: '/administration/projects', manage: 'siteReportLists', switch: 'qsReportRevenue', covers: ['organizations.qs_report_revenue_enabled'] },
   revenuePlan: { group: 'site', alwaysOn: true, writers: ['Admin'], route: '/administration/projects#revenue-plan-settings', manage: 'revenuePlanSettings', covers: ['org_revenue_plan_settings', 'useRevenuePlanSettings'] },
   issueClosingReport: { group: 'site', alwaysOn: true, writers: ['Admin', 'Executive', 'Project Manager'], route: '/administration/projects#issue-closing-report-settings', covers: ['issue_closing_report_settings', 'useIssueClosingReportSettings'] },
   quantityChangeLimit: { group: 'site', writers: ['Admin'], route: '/quantity-changes', manage: 'quantityChange', covers: ['organizations.quantity_change_limit'] },

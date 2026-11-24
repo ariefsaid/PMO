@@ -504,7 +504,14 @@
     },
     "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya.",
     "editingDraft": "Mengedit draf tersimpan: stok tidak berubah sampai Anda mempostingnya.",
-    "whoPosts": "Simpan hitungan Anda di sini. Jika ada selisih dengan catatan, Manajer Proyek atau di atasnya yang mem-posting, bukan Anda. Hitungan tanpa selisih bisa Anda posting sendiri."
+    "whoPosts": "Simpan hitungan Anda di sini. Jika ada selisih dengan catatan, Manajer Proyek atau di atasnya yang mem-posting, bukan Anda. Hitungan tanpa selisih bisa Anda posting sendiri.",
+    "workOrder": "Perintah kerja",
+    "workOrderPlaceholder": "Lokasi saja (tanpa perintah kerja)",
+    "workOrderSearch": "Cari perintah kerja…",
+    "workOrderNoun": "perintah kerja",
+    "workOrderNounPlural": "perintah kerja",
+    "workOrderEmpty": "Proyek ini belum memiliki perintah kerja aktif.",
+    "workOrderHelp": "Opsional: catat selisih hitungan ke perintah kerja ini."
   },
   "consumption": {
     "from": "Dari bulan",

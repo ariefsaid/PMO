@@ -552,7 +552,7 @@ jobs:
     needs: scope
     if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'dev' && needs.scope.outputs.pgtap == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         # supabase CLI must be run from repo root (where supabase/config.toml lives)

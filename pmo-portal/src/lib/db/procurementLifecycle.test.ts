@@ -191,6 +191,7 @@ describe('transitionProcurement', () => {
 // ---------------------------------------------------------------------------
 
 describe('getProcurementDetail', () => {
+  beforeEach(() => { mockRpc.mockResolvedValue({ data: {}, error: null }); });
   it('AC-816 (DAL): selects procurement with all related joins for the given id', async () => {
     const detailRow = {
       id: 'proc-1',

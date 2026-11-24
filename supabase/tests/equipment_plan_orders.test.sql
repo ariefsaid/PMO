@@ -80,8 +80,8 @@ select is((select count(*)::int from procurements p join equipment_plan_lines l 
 select is((select count(*)::int from procurements p join equipment_plan_lines l on l.procurement_id = p.id
             where l.plan_id = '27004000-0000-0000-0000-000000000b01' and p.status = 'Draft' and p.purchase_type_id = '27004000-0000-0000-0000-0000000000f2'
               and p.rental_from = l.date_from and p.rental_to = l.date_to and p.vendor_id = l.vendor_id
-              and p.project_id = '27004000-0000-0000-0000-0000000000c1' and p.requested_by_id = '27004000-0000-0000-0000-0000000000a1'), 2,
-  'AC-EQP-014 each is an ordinary Draft of the flagged rental type, with the line''s vendor and period, requested by the approver');
+              and p.project_id = '27004000-0000-0000-0000-0000000000c1' and p.requested_by_id = '27004000-0000-0000-0000-0000000000a2'), 2,
+  'AC-EQP-014 each is an ordinary Draft of the flagged rental type, with the line''s vendor and period, requested by the plan author');
 select is((select i.quantity = 2 and i.rate = 1000 and i.description = 'Monthly plan 2026-01' and i.work_order_id = l.work_order_id
             from procurement_items i join equipment_plan_lines l on l.procurement_id = i.procurement_id
             where l.plan_id = '27004000-0000-0000-0000-000000000b01' and l.work_order_id is not null),

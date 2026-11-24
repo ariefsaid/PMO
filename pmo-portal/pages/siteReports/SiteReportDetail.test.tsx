@@ -40,6 +40,8 @@ const h = vi.hoisted(() => ({
   equipment: [] as unknown[],
   peopleHours: '8',
   userId: 'eng',
+  builtInRoleKey: null as string | null,
+  qsRevenue: true,
   realRole: 'Engineer',
   pm: 'pm' as string | null,
   pmName: 'Rina Wati' as string | null,
@@ -88,8 +90,10 @@ vi.mock('@/src/hooks/useDsrValidationRoute', async (importOriginal) => {
   };
 });
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master: { listItems: async () => [] } }, dailySiteReport: { photoUrl: vi.fn() } } }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1', built_in_role: h.builtInRoleKey } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
+
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.qsRevenue }) }));
 
 import SiteReportDetail from './SiteReportDetail';
 
@@ -124,6 +128,7 @@ const renderPage = (lng: 'en' | 'id' = 'en') => render(
 );
 
 beforeEach(() => {
+  h.builtInRoleKey = null; h.qsRevenue = true;
   h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.pmName = 'Rina Wati'; h.noItems = false; h.equipment = []; h.peopleHours = '8';
   h.route = { routeKind: 'finance_admin', approvers: [] };
   h.routeError = false;
@@ -406,4 +411,21 @@ it('JOB-PC6 the field recorder selects the section when recording progress', asy
   const sections = screen.getAllByLabelText('Section');
   await user.selectOptions(sections[0], 'section-a');
   expect(sections[0]).toHaveValue('section-a');
+});
+
+
+describe('QS report revenue scope', () => {
+  it('AC-QSR-001 shows the validated day amount without the work-order total', () => {
+    h.builtInRoleKey = 'quantity_surveyor';
+    h.detail = make('validated');
+    renderPage();
+    expect(screen.getByTestId('dsr-total')).toHaveTextContent('50');
+    expect(screen.queryByText('Validated to date')).toBeNull();
+  });
+  it('AC-QSR-001 hides the amount while the organisation setting is off', () => {
+    h.builtInRoleKey = 'quantity_surveyor'; h.qsRevenue = false;
+    h.detail = make('validated');
+    renderPage();
+    expect(screen.queryByTestId('dsr-total')).toBeNull();
+  });
 });
