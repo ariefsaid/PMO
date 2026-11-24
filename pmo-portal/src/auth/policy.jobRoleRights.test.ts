@@ -43,6 +43,10 @@ describe('job-role rights (2040–2047)', () => {
     expect(can('manage', 'crewLoan', as('Project Manager', null))).toBe(true);
   });
 
+  it('a supervisor with a scoped crew read can lend without controlling the crew', () => {
+    expect(can('manage', 'crewLoan', as('Engineer', 'site_supervisor', { record: { supervisesACrew: true } }))).toBe(true);
+  });
+
   it('the HR Officer adds and edits people and ticks the checklist, never on its own record', () => {
     expect(can('create', 'person', as('Engineer', 'hr_officer'))).toBe(true);
     expect(can('edit', 'person', as('Engineer', 'hr_officer'))).toBe(true);
