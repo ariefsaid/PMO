@@ -58,7 +58,7 @@ grant all on lv_ids to authenticated;
 create temp table lv_d (k text primary key, d date);
 insert into lv_d values ('t', pg_temp.today()), ('y', pg_temp.today() - 1), ('p10', pg_temp.today() + 10), ('p11', pg_temp.today() + 11),
   ('p12', pg_temp.today() + 12), ('p13', pg_temp.today() + 13), ('p14', pg_temp.today() + 14), ('p15', pg_temp.today() + 15), ('p20', pg_temp.today() + 20),
-  ('p21', pg_temp.today() + 21), ('p30', pg_temp.today() + 30), ('p40', pg_temp.today() + 40);
+  ('p21', pg_temp.today() + 21), ('p30', pg_temp.today() + 30), ('p31', pg_temp.today() + 31), ('p40', pg_temp.today() + 40), ('p42', pg_temp.today() + 42);
 grant select on lv_d to authenticated;
 create function pg_temp.d(p text) returns date language sql stable as $$ select d from lv_d where k = p $$;
 grant execute on function pg_temp.d(text) to authenticated;
@@ -189,7 +189,7 @@ select is((select decided_by from leave_requests where id = (select id from lv_i
   'AC-LV-005 the decider is recorded');
 set local role authenticated;
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
-insert into lv_ids select 'manager-entered', leave_request_submit('27080000-0000-0000-0000-000000001f01', (select id from lv_ids where k = 'ta'), pg_temp.d('p30'), pg_temp.d('p30'), null);
+insert into lv_ids select 'manager-entered', leave_request_submit('27080000-0000-0000-0000-000000001f01', (select id from lv_ids where k = 'ta'), pg_temp.d('p31'), pg_temp.d('p31'), null);
 select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'manager-entered'), 'Approved', null) $$,
   '42501', 'LV_SOD: you cannot decide your own request, or one you entered', 'AC-PEO-002 a manager who entered the request cannot decide it');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
@@ -225,7 +225,7 @@ reset role;
 update profiles set status = 'disabled' where id = '27080000-0000-0000-0000-0000000001a6';
 set local role authenticated;
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
-insert into lv_ids select 'admin-fallback', leave_request_submit('27080000-0000-0000-0000-000000001f02', (select id from lv_ids where k = 'ta'), pg_temp.d('p40'), pg_temp.d('p40'), null);
+insert into lv_ids select 'admin-fallback', leave_request_submit('27080000-0000-0000-0000-000000001f02', (select id from lv_ids where k = 'ta'), pg_temp.d('p42'), pg_temp.d('p42'), null);
 reset role;
 select is((select count(*)::int from notifications where owner_id = '27080000-0000-0000-0000-0000000001a1'
              and message_key = 'leaveRequestPending' and metadata->>'leave_request_id' = (select id::text from lv_ids where k = 'admin-fallback')),
