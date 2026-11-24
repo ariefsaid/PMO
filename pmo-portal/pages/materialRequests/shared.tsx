@@ -27,8 +27,10 @@ export const StepStatusPill: React.FC<{ status: StepStatus }> = ({ status }) => 
 
 
 /** The work order a request is for (number and title, linked), and optionally its project. Unreadable or still loading shows an em dash, never an id. */
-export const RequestWorkOrder: React.FC<{ workOrderId: string; projectId?: string }> = ({ workOrderId, projectId }) => {
-  const wo = useWorkOrder(workOrderId).data;
+/** `workOrder`, when the caller already read it (a batched list), saves the per-row read. */
+export const RequestWorkOrder: React.FC<{ workOrderId: string; projectId?: string; workOrder?: { wo_number: string | null; title: string } | null }> = ({ workOrderId, projectId, workOrder }) => {
+  const read = useWorkOrder(workOrder === undefined ? workOrderId : undefined).data;
+  const wo = workOrder === undefined ? read : workOrder;
   const projects = useProjectPickerOptions().data;
   const project = projectId ? projects?.find((p) => p.id === projectId) : undefined;
   const label = wo ? (wo.wo_number ? `${wo.wo_number} · ${wo.title}` : wo.title) : '—';
