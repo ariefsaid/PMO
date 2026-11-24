@@ -16,7 +16,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.r
 
 import {
   listUsageStandards, getStandardMatchCounts, createUsageStandard, updateUsageStandard, setUsageStandardArchived,
-  getConsumablePlan, generateConsumablePlan, adjustConsumablePlanLine, getPlanInputs, consumablePlanRefusal, parseConsumablePlan, USAGE_STANDARDS_PAGE_SIZE,
+  getConsumablePlan, generateConsumablePlan, adjustConsumablePlanLine, approveConsumablePlan, getPlanInputs, consumablePlanRefusal, parseConsumablePlan, USAGE_STANDARDS_PAGE_SIZE,
 } from './usageStandards';
 
 beforeEach(() => { h.queue.length = 0; h.from.mockClear(); h.rpc.mockClear(); for (const k of Object.keys(h.calls)) h.calls[k].length = 0; });
@@ -91,9 +91,14 @@ describe('consumable plan DAL (#2577)', () => {
 
   it('FR-CUS-008/010/014 the plan is read whole: lines with source and basis, the out-of-date flag, "no standard" lines, unplanned requested items', async () => {
     h.queue.push({ data: raw, error: null });
+    h.queue.push({ data: { author_id: 'u2', author_is_pcm: false, approved: true, approved_by: 'pcm', approved_at: '2026-11-20T03:00:00Z' }, error: null });
     const p = await getConsumablePlan('wo1');
-    expect(h.calls.rpc[0]).toEqual(['cus_get_plan', { p_work_order_id: 'wo1' }]);
+    expect(h.calls.rpc).toEqual([
+      ['cus_get_plan', { p_work_order_id: 'wo1' }],
+      ['cus_plan_approval_status', { p_work_order_id: 'wo1' }],
+    ]);
     expect(p.outOfDate).toBe(true);
+    expect(p.approval).toEqual({ authorId: 'u2', authorIsPcm: false, approved: true, approvedBy: 'pcm', approvedAt: '2026-11-20T03:00:00Z' });
     expect(p.lines[0]).toMatchObject({ itemCode: 'ROD', generatedQty: '8.800', adjustedQty: '12.000', plannedQty: '12.000', priorQty: '3.000', source: 'adjusted', adjustReason: 'spools' });
     expect(p.lines[0].basis[0]).toMatchObject({ code: 'WLD-01', workQty: '120.000', standardId: 's1' });
     expect(p.noStandard).toEqual([{ boqItemId: 'b3', itemCode: 'CIV-01', description: 'Concrete', unit: 'm3', quantity: '10.000' }]);
@@ -101,7 +106,8 @@ describe('consumable plan DAL (#2577)', () => {
   });
 
   it('an empty or missing payload reads as an empty plan, not a crash', () => {
-    expect(parseConsumablePlan(null)).toMatchObject({ lines: [], noStandard: [], unplanned: [], outOfDate: false, generatedAt: null });
+    expect(parseConsumablePlan(null)).toMatchObject({ lines: [], noStandard: [], unplanned: [], outOfDate: false, generatedAt: null,
+      approval: { authorId: null, authorIsPcm: false, approved: false, approvedBy: null, approvedAt: null } });
   });
 
   it('FR-CUS-005 generation calls the server function and returns the number of lines', async () => {
@@ -121,12 +127,20 @@ describe('consumable plan DAL (#2577)', () => {
     ]);
   });
 
+  it('AC-PEO-003 approval calls the distinct server decision RPC', async () => {
+    h.queue.push({ data: null, error: null });
+    await approveConsumablePlan('wo1');
+    expect(h.calls.rpc).toEqual([['cus_approve_plan', { p_work_order_id: 'wo1' }]]);
+  });
+
   it('AC-CUS-007 a refused adjustment keeps its code and its stable CUS_ key', async () => {
     h.queue.push({ data: null, error: { message: 'CUS_REASON: an adjustment needs a reason (1 to 500 characters)', code: '23514' } });
     const err = await adjustConsumablePlanLine({ workOrderId: 'wo1', itemId: 'rod', adjustedQty: '1', reason: '' }).catch((e) => e);
     expect(err).toMatchObject({ code: '23514' });
     expect(consumablePlanRefusal(err)).toBe('CUS_REASON');
     expect(consumablePlanRefusal(new Error('CUS_WORK_ORDER: closed'))).toBe('CUS_WORK_ORDER');
+    expect(consumablePlanRefusal(new Error('CUS_SOD: author'))).toBe('CUS_SOD');
+    expect(consumablePlanRefusal(new Error('CUS_APPROVER: pcm'))).toBe('CUS_APPROVER');
     expect(consumablePlanRefusal(new Error('boom'))).toBeNull();
     expect(consumablePlanRefusal('x')).toBeNull();
   });

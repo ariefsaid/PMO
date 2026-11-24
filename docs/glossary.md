@@ -674,9 +674,12 @@ margin %. Where several standards of one item match a line, the longest prefix w
 
 **Consumable plan** (*rencana bahan habis pakai*) — the stock items a work order is expected to use, generated on request
 from its contract-line allocations and the active usage standards, and stored as a snapshot with the basis of each quantity.
-A planner may adjust a quantity, or add an item no standard covers, with a reason. It goes **out of date** when the work or
-the standards change after it was made and is regenerated only on request. Quantities of stock items only: it is not the
-cost plan of a work order.
+A planner may adjust a quantity, or add an item no standard covers, with a reason. A material request uses this plan before
+contract allowances only after its current version has been approved. Generation records the generator as creator; later line
+edits retain that creator and role route. A Project Control Manager approves an Engineer-authored plan; a PCM-authored plan
+needs approval from an Admin or that project's manager, and its creator cannot approve it. It goes **out of date** when the
+work or standards change and must be regenerated and approved again. Quantities of stock items only: it is not the cost plan
+of a work order.
 
 ## Work orders down to the cost line (#2516)
 
@@ -1168,6 +1171,8 @@ A certificate, permit or similar record with an expiry date that belongs to a pe
 ## People register
 The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018); **former staff** (*mantan personel*, #2703) are those archived people, kept on record and shown only in the register's Former staff view.
 
+**Leave approval routing** — a pending request goes to the active manager assigned on the person's record. If that manager is missing or inactive, an active HR Manager decides; if none is active, an Admin decides. The person on leave and the person who entered the request cannot decide it, so a manager who entered a request hands it to the fallback route (24 Nov decisions round).
+
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
 sixteen fixed terms: work order, project, client-supplied stock, purchase request, discipline, material request, bill of quantities,
@@ -1178,7 +1183,6 @@ the wording shown, never the data or the code identifier. Generic terms are not 
 access level and stored data never change; with none, the catalogue default name shows.
 **Usage standard** — an organisation rule of how much of a consumable stock item one unit of planned work uses (for example welding rod per dia-inch), matched on the contract line's unit, with an optional code prefix and a waste margin (#2577).
 
-**Consumable plan** — a work order's stored list of consumable quantities, generated from its work-order lines and the usage standards and adjustable with a reason; material requests are checked against it before the contract allowances (#2577).
 **Client material requisition** — a request to the client to release client-supplied material for one work order, tracked
 from the **take-off** (the quantity the work order needs) through the client's **reservation** (their confirmation that a
 quantity is set aside) to **pickup** (collection, which posts a zero-cost stock receipt). The work order shows reserved,
@@ -1274,12 +1278,14 @@ document type and the date only, with no link and no access to the document; rea
 ## Leave requests (#2708)
 
 **Leave request** — a request by or for a person to be away for an inclusive range of days, of a type from the organisation's own list.
-It is Pending until the person's line manager, or a user holding the organisation's approver role, approves or rejects it. Nobody
-decides a request they made, are the subject of, or entered, whatever their role.
+It is Pending until the active manager on the person's record approves or rejects it. If that manager is missing, inactive, the person,
+or the request entrant, it goes to active HR Managers, then active Admins if no HR Manager is available. Nobody decides a request they
+made, are the subject of, or entered, whatever their role.
 
 **Leave type** — an entry on the organisation's own list of reasons for being away (leave, sickness, and so on). PMO ships none.
 
-**Leave approver role** — the organisation setting naming which role decides leave requests besides the line manager; empty means Admin.
+**Leave approver role** — a former organisation setting retained for compatibility; current leave routing uses the person's active record manager,
+then HR Manager and Admin fallback.
 
 **Medical release** — a decision, for one person and a return date, that the person may be rostered again after sickness or injury. The people team opens it; the person's direct manager approves it or defers it with a reason. While it is pending or deferred the database refuses to roster the person (crew placement, loan, attendance) on or after that date. It holds a decision and a short note, never medical content; the manager sees the state only.
 

@@ -182,9 +182,7 @@
     "adminOnly": "Hanya Admin yang dapat mengubah pengaturan cuti",
     "approve": "Setujui",
     "approved": "Cuti disetujui",
-    "approverDefault": "Atasan langsung, atau Admin",
-    "approverHelp": "Atasan langsung selalu dapat memutuskan. Kosong berarti Admin.",
-    "approverRole": "Siapa yang menyetujui",
+    "approvalRouting": "Permintaan menunggu keputusan manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang mengajukan cuti dan orang yang memasukkan permintaan tidak boleh memutuskan.",
     "backToLeave": "Kembali ke cuti",
     "cancel": "Batalkan permintaan",
     "cancelled": "Permintaan dibatalkan",
@@ -229,12 +227,12 @@
     "typesHeading": "Jenis cuti",
     "waiting": "Menunggu keputusan Anda ({{count}})",
     "pickPerson": "Pilih orangnya",
-    "waitingManager": "Menunggu keputusan {{manager}} atau {{role}} mana pun",
-    "waitingRole": "Menunggu keputusan {{role}} mana pun",
+    "waitingFor": "Menunggu keputusan {{names}}",
+    "waitingNoDecider": "Tidak ada penyetuju aktif.",
     "approvedBy": "Disetujui oleh {{name}}",
     "rejectedBy": "Ditolak oleh {{name}}",
     "nobodyToFileFor": "Anda hanya dapat mengajukan cuti untuk diri sendiri dan orang yang Anda kelola. Minta atasan langsung atau Admin yang mengajukannya.",
-    "goesTo": "Atasan langsung Anda atau {{role}} mana pun yang menyetujui. Hasilnya akan masuk ke notifikasi Anda."
+    "goesTo": "Permintaan Anda diputuskan oleh manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang memasukkan permintaan tidak boleh memutuskan. Hasilnya akan masuk ke notifikasi Anda."
   },
   "checkIn": {
     "requestsTitle": "Absen menunggu Anda",

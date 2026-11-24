@@ -3,9 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { DateField, EntityFormModal, FormGrid, SelectField, TextArea, useToast, type SubmitError } from '@/src/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { useLeaveMutations, useLeaveSettings, useLeaveTypes } from '@/src/hooks/useLeave';
-import { useRoleLabels } from '../admin-users/roleLabels';
-import type { UserRole } from '@/src/lib/db/adminUsers';
+import { useLeaveMutations, useLeaveTypes } from '@/src/hooks/useLeave';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { toIso } from '../equipment/equipmentWeek';
@@ -35,9 +33,6 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
   const people = useRequestablePeople();
   const types = useLeaveTypes();
   const { submit } = useLeaveMutations();
-  const settings = useLeaveSettings();
-  const roleLabels = useRoleLabels();
-  const approver = roleLabels.label((settings.data?.approver_role ?? 'Admin') as UserRole);
   const liveTypes = (types.data ?? []).filter((x) => !x.archived_at);
   const [personId, setPersonId] = useState('');
   const [typeId, setTypeId] = useState('');
@@ -79,7 +74,7 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
         <DateField label={t('crews:leave.lastDay', 'Last day')} value={end} onChange={setEnd} min={start} />
         <TextArea label={t('crews:leave.reason', 'Reason (optional)')} value={reason} onChange={setReason} fullWidth />
         <p className="col-span-full text-sm text-muted-foreground">
-          {t('crews:leave.goesTo', 'Your line manager or any {{role}} approves this. You get a notification with the result.', { role: approver })}
+          {t('crews:leave.goesTo', 'Your person record manager decides. If that manager is missing or inactive, an HR Manager decides, then an Admin. The person who enters the request cannot decide it. You get a notification with the result.')}
         </p>
       </FormGrid>}
     </EntityFormModal>
