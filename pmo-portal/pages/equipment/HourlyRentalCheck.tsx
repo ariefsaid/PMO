@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, NumberField, SelectField, TextField } from '@/src/components/ui';
-import { useRentalInvoiceChoices } from '@/src/hooks/useEquipmentAvailability';
+import { useRentalInvoiceChoices, useRefreshRentalChecks } from '@/src/hooks/useEquipmentAvailability';
 import RentalCheckHistory from './RentalCheckHistory';
 import { DateField } from '@/src/components/ui/DateField';
 import { repositories } from '@/src/lib/repositories';
@@ -17,6 +17,7 @@ export default function HourlyRentalCheck({ assetId, from, to }: { assetId: stri
   const [invoiceId, setInvoiceId] = useState('');
   const [note, setNote] = useState('');
   const invoices = useRentalInvoiceChoices(assetId);
+  const refreshChecks = useRefreshRentalChecks();
   const [broken, setBroken] = useState<{ date: string; hours: string }[]>([]);
   const [result, setResult] = useState<HourlyRentalResult | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export default function HourlyRentalCheck({ assetId, from, to }: { assetId: stri
       }
       setResult(await repositories.equipmentAvailability.hourlyRentalCheck({ assetId, from, to, contractedHours, invoiceHours,
         broken: days as { date: string; hours: string }[], state, invoiceId, note }));
+      if (state) await refreshChecks();
     } catch (error) { setProblem(classifyMutationError(error).headline); }
     finally { setBusy(false); }
   };

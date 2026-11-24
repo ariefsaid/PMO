@@ -12,6 +12,10 @@ export function useSavedRentalChecks(assetId?: string, procurementId?: string) {
 export function useRentalInvoiceChoices(assetId: string) {
   return useOrgQuery([KEY, 'invoice-choices', assetId], () => repositories.equipmentAvailability.rentalInvoiceChoices(assetId), { enabled: Boolean(assetId) });
 }
+export function useRefreshRentalChecks() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: [KEY] });
+}
 
 export function useStatusDays(from: string, to: string, assetIds: string[]) {
   return useOrgQuery([KEY, 'status', from, to, assetIds], () => repositories.equipmentAvailability.listStatusDays(from, to, assetIds), { enabled: assetIds.length > 0 });

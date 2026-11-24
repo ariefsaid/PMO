@@ -7,6 +7,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { equipmentAvailability
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useRentalInvoiceChoices: () => ({ data: [{ id: 'invoice', label: 'VI-123' }], isPending: false }),
   useSavedRentalChecks: () => ({ data: [], isPending: false }),
+  useRefreshRentalChecks: () => vi.fn().mockResolvedValue(undefined),
 }));
 import HourlyRentalCheck from './HourlyRentalCheck';
 beforeEach(() => vi.clearAllMocks());
