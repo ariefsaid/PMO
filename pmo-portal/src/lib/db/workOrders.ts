@@ -305,6 +305,37 @@ export async function createWorkOrder(
   return created;
 }
 
+/** One work order of a spreadsheet import (FR-WOI-003). Money and the tax basis arrive with the row, as the create form sends them. */
+export interface WorkOrderImportRow {
+  title: string;
+  clientPoNumber: string | null;
+  orderValue: number;
+  taxTreatment: TaxTreatment;
+  taxAmount: number;
+  currency: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  areaId: string | null;
+  lines: { boqItemId: string; quantity: number }[];
+}
+
+/**
+ * Create a project's work orders from an import, all or nothing: one `import_work_orders` call, one transaction. The
+ * database runs it under the caller's own policies (the "New work order" rule) and names the row that refused
+ * ("IMPORT_ROW 3: …"), in which case nothing was saved.
+ */
+export async function importWorkOrders(projectId: string, rows: WorkOrderImportRow[]): Promise<{ created: number; lines: number }> {
+  const payload = rows.map((r) => ({
+    title: r.title, client_po_number: r.clientPoNumber, order_value: r.orderValue, tax_treatment: r.taxTreatment,
+    tax_amount: r.taxAmount, currency: r.currency, start_date: r.startDate, end_date: r.endDate, area_id: r.areaId,
+    lines: r.lines.map((l) => ({ boq_item_id: l.boqItemId, quantity: l.quantity })),
+  }));
+  const { data, error } = await supabase.rpc('import_work_orders', { p_project: projectId, p_rows: payload });
+  if (error) throwWrite(error);
+  const out = data as { created: number; lines: number };
+  return { created: out.created, lines: out.lines };
+}
+
 /**
  * Edit a Draft work order's body. Deliberately excludes `order_value` / `tax_treatment` /
  * `tax_amount` — `0197 §5(a)` revoked them from the client UPDATE grant, and they move through

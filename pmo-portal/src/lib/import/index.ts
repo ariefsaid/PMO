@@ -12,7 +12,7 @@ export {
   type MatchExisting,
   type RowChange,
 } from './types';
-export { parseWorkbook } from './parseWorkbook';
+export { parseWorkbook, parseSecondSheet } from './parseWorkbook';
 export { parsePastedRows } from './parsePaste';
 export { autoMap } from './autoMap';
 export { validateRows, rowToCells, applyMatches } from './validateRows';
@@ -38,3 +38,4 @@ export { makePeopleImportDescriptor, type ManagerChoice, type PeopleImportDeps }
 export { makeCrewImportDescriptor, makeCrewMemberImportDescriptor, type CrewImportInput } from './crewDescriptor';
 export { buildTemplateWorkbook } from './templateFile';
 export { buildFailedRowsWorkbook } from './failedRowsFile';
+export { makeWorkOrderImportDescriptor, type WorkOrderImportInput, type WorkOrderImportDeps } from './workOrderDescriptor';

@@ -105,6 +105,7 @@ export type Entity =
   | 'approval'
   | 'milestone'
   | 'workOrder'
+  | 'workOrderImport'
   | 'thirdPartyInspection'
   | 'boqItem'
   | 'rateCatalogue'
@@ -149,6 +150,7 @@ export type Entity =
   | 'supplyRisk'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
+  | 'setupWorkflowSettings'
   | 'siteReportLists'
   | 'incidentTypes'
   | 'workOrderRevenuePlan'
@@ -175,6 +177,7 @@ export type Entity =
   | 'odooLedgerLines'
   | 'odooLedgerBasis'
   | 'finance'
+  | 'openingBalance'
   | 'stockItem'
   | 'stockUnit'
   | 'warehouse'
@@ -450,6 +453,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
+  },
+  /** Bulk work-order import is deliberately narrower than ordinary create: Admin or the project's own PM only. */
+  workOrderImport: {
+    create: (role, ctx) => ctx.record?.viewOnly !== true
+      && (role === 'Admin' || (role === 'Project Manager' && !!ctx.currentUserId
+        && ctx.record?.project_manager_id === ctx.currentUserId)),
   },
   /**
    * Third-party inspections (#2580, migrations 1130-1134). UX ONLY: tpi_create / tpi_record_* / tpi_raise_purchase / tpi_waive /
@@ -779,6 +788,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   finance: { view: allow(MONEY_AUTHORITY), act: allow(REVENUE_WRITE) },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
+  /** The opening balances the CLI loaded at go-live (migration 2161). Read-only here; the database read is Admin and Finance only. */
+  openingBalance: { view: allow(['Admin', 'Finance']) },
+  /** Setup workflows are an organisation Admin setting; RLS owns the persisted switch. */
+  setupWorkflowSettings: { configure: allowUnlessViewOnly(ADMIN) },
   /**
    * #895 manual journals (owner ruling 2). The desk is Finance-or-above; `approve` (and Return) is for a
    * Finance-or-above member who did not write the journal: not its maker, not any editor

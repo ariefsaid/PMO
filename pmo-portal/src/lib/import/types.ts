@@ -43,6 +43,8 @@ export interface ImportField<Input> {
    * the preview keeps the file's own text (the row carries its error).
    */
   format?: (raw: string) => string | null;
+  /** A field the wizard fills itself (the second sheet's lines folded onto the row): never mapped, never in the template, never a column. */
+  internal?: boolean;
   /** Column width in px in the wide preview (all columns, with Row 64 and Status 240, must sum to the dialog body, 1088px at most). */
   previewSize?: number;
 }
@@ -130,6 +132,33 @@ export interface ImportDescriptor<Input> {
     example: Record<string, string>;
     lists?: Record<string, string[]>;
   };
+  /**
+   * OPTIONAL second sheet (work orders, FR-WOI-002): the file's SECOND worksheet holds child rows (scope lines). Its
+   * headers are matched to `fields` by label; each child row is linked to a first-sheet row by `childKey` = `parentKey`
+   * (case-insensitive) and folded onto that row's `target` internal field as JSON text. A child row that names no first-sheet
+   * row refuses the file at preview with the sheet row named. The template gets this sheet, with one example row.
+   */
+  extraSheet?: {
+    sheet: string;
+    fields: ImportField<never>[];
+    example: Record<string, string>;
+    parentKey: string;
+    childKey: string;
+    target: string;
+    /** The sentence for a child row (sheet row number) that names no first-sheet row. */
+    orphan: (row: number, value: string) => string;
+    /** The sentence for a required column the second sheet does not have. */
+    missingColumn: (label: string) => string;
+  };
+  /**
+   * OPTIONAL all-or-nothing import (work orders, FR-WOI-003/004): the confirm stays disabled while ANY row is invalid
+   * or already there, and the confirm sends every row in one `createAll` call that either saves all or saves none.
+   */
+  allOrNothing?: {
+    createAll: (inputs: Input[]) => Promise<unknown>;
+    /** Under the disabled button when any row is not valid. */
+    blocked: string;
+  };
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */
@@ -164,6 +193,8 @@ export interface MatchExisting {
 export interface ParsedSheet {
   headers: string[];
   rows: string[][];
+  /** The second worksheet (`extraSheet`), when the descriptor reads one and the file has it. */
+  extra?: { headers: string[]; rows: string[][] };
   /** The template marker stored in the workbook's properties, when the file came from a downloaded template. */
   templateMarker?: string | null;
 }

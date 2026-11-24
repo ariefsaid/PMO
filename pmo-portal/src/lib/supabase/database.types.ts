@@ -14119,6 +14119,29 @@ export type Database = {
           },
         ]
       }
+      org_setup_workflow_settings: {
+        Row: {
+          enabled: boolean
+          org_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Update: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_setup_workflow_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_term_keys: {
         Row: {
           term_key: string
@@ -32651,6 +32674,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: boolean
       }
+      import_work_orders: {
+        Args: { p_project: string; p_rows: Json }
+        Returns: Json
+      }
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
@@ -34471,6 +34498,26 @@ export type Database = {
           warehouse_id: string
           work_order: string
           work_order_id: string
+        }[]
+      }
+      opening_balances_overview: {
+        Args: never
+        Returns: {
+          as_of: string
+          certified_value: number
+          claimed_value: number
+          currency: string
+          id: string
+          kind: string
+          label: string
+          line_count: number
+          lines: Json
+          loaded_at: string
+          loaded_by_name: string
+          note: string
+          stock_quantity: number
+          stock_value: number
+          sub_label: string
         }[]
       }
       opening_history_plan: {

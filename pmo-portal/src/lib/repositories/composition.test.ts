@@ -60,6 +60,7 @@ vi.mock('@/src/lib/db/incidents', async (importOriginal) => ({ ...(await importO
 vi.mock('@/src/lib/db/milestones', async (importOriginal) => ({ ...(await importOriginal<object>()), listMilestones: vi.fn() }));
 vi.mock('@/src/lib/db/workOrders', async (importOriginal) => ({ ...(await importOriginal<object>()), listProjectWorkOrders: vi.fn() }));
 vi.mock('@/src/lib/db/progressBilling', async (importOriginal) => ({ ...(await importOriginal<object>()), listBoqItems: vi.fn() }));
+vi.mock('@/src/lib/db/openingBalances', async (importOriginal) => ({ ...(await importOriginal<object>()), listOpeningBalances: vi.fn() }));
 vi.mock('@/src/lib/db/workInHand', async (importOriginal) => ({ ...(await importOriginal<object>()), getWorkInHand: vi.fn() }));
 vi.mock('@/src/lib/db/billingStages', async (importOriginal) => ({ ...(await importOriginal<object>()), getClaimBillingTrace: vi.fn(), setProjectBillingTerms: vi.fn() }));
 vi.mock('@/src/lib/db/workOrderAcceptances', async (importOriginal) => ({ ...(await importOriginal<object>()), listProjectAcceptances: vi.fn(), listAcceptancesAwaitingConfirmation: vi.fn() }));
@@ -75,7 +76,7 @@ vi.mock('@/src/lib/db/userViews', async (importOriginal) => ({ ...(await importO
 vi.mock('@/src/lib/db/operators', async (importOriginal) => ({ ...(await importOriginal<object>()), isOperator: vi.fn() }));
 vi.mock('@/src/lib/db/usage', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgUsageSummary: vi.fn() }));
 vi.mock('@/src/lib/db/orgFeatures', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnResolvedFeatures: vi.fn(), getOrgCreditBalance: vi.fn() }));
-vi.mock('@/src/lib/db/orgs', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgTaxDefault: vi.fn() }));
+vi.mock('@/src/lib/db/orgs', async (importOriginal) => ({ ...(await importOriginal<object>()), getOrgTaxDefault: vi.fn(), getOrgSetupWorkflowsEnabled: vi.fn(), setOrgSetupWorkflowsEnabled: vi.fn() }));
 vi.mock('@/src/lib/db/externalDomainOwnership', async (importOriginal) => ({ ...(await importOriginal<object>()), listOwnExternalDomainOwnership: vi.fn() }));
 vi.mock('@/src/lib/db/erpSnapshots', async (importOriginal) => ({ ...(await importOriginal<object>()), listActualsSnapshot: vi.fn() }));
 vi.mock('@/src/lib/db/managementPack', async (importOriginal) => ({ ...(await importOriginal<object>()), getManagementPackFacts: vi.fn() }));
@@ -122,6 +123,7 @@ const ROWS: Row[] = [
   { member: 'workOrder', method: 'list', mod: '@/src/lib/db/workOrders', fn: 'listProjectWorkOrders', args: ['p1'] },
   { member: 'progressBilling', method: 'listBoq', mod: '@/src/lib/db/progressBilling', fn: 'listBoqItems', args: ['p1'] },
   { member: 'billingStages', method: 'setTerms', mod: '@/src/lib/db/billingStages', fn: 'setProjectBillingTerms', args: ['p1', [], 25, 5, 2.5] },
+  { member: 'openingBalances', method: 'list', mod: '@/src/lib/db/openingBalances', fn: 'listOpeningBalances', args: [] },
   { member: 'workInHand', method: 'get', mod: '@/src/lib/db/workInHand', fn: 'getWorkInHand', args: ['2026-12-10'] },
   { member: 'billingStages', method: 'trace', mod: '@/src/lib/db/billingStages', fn: 'getClaimBillingTrace', args: ['c1', 'p1'] },
   { member: 'workOrderAcceptance', method: 'listByProject', mod: '@/src/lib/db/workOrderAcceptances', fn: 'listProjectAcceptances', args: ['p1'] },
@@ -144,6 +146,8 @@ const ROWS: Row[] = [
   { member: 'usage', method: 'getOrgUsageSummary', mod: '@/src/lib/db/usage', fn: 'getOrgUsageSummary', args: [] },
   { member: 'orgFeature', method: 'listOwn', mod: '@/src/lib/db/orgFeatures', fn: 'listOwnResolvedFeatures', args: [] },
   { member: 'orgSettings', method: 'getTaxDefault', mod: '@/src/lib/db/orgs', fn: 'getOrgTaxDefault', args: [] },
+  { member: 'orgSettings', method: 'getSetupWorkflowsEnabled', mod: '@/src/lib/db/orgs', fn: 'getOrgSetupWorkflowsEnabled', args: [] },
+  { member: 'orgSettings', method: 'setSetupWorkflowsEnabled', mod: '@/src/lib/db/orgs', fn: 'setOrgSetupWorkflowsEnabled', args: [true] },
   { member: 'credits', method: 'getOrgBalance', mod: '@/src/lib/db/orgFeatures', fn: 'getOrgCreditBalance', args: ['org-1'] },
   { member: 'externalDomainOwnership', method: 'listOwn', mod: '@/src/lib/db/externalDomainOwnership', fn: 'listOwnExternalDomainOwnership', args: [] },
   { member: 'erpSnapshots', method: 'actuals', mod: '@/src/lib/db/erpSnapshots', fn: 'listActualsSnapshot', args: [] },
