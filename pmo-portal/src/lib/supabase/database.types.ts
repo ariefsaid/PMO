@@ -29230,6 +29230,10 @@ export type Database = {
         Returns: boolean
       }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_read_purchase_cases: {
+        Args: never
+        Returns: boolean
+      }
       actor_may_order_purchases: { Args: never; Returns: boolean }
       actor_may_task_issue: { Args: { p_work_order: string }; Returns: boolean }
       actor_may_run_billing_steps: { Args: never; Returns: boolean }

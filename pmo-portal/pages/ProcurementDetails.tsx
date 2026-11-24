@@ -1,3 +1,4 @@
+import { usePurchaseCaseRead } from '@/src/hooks/usePurchaseCaseRead';
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
 import { SupplierRiskNote } from '@/src/components/SupplyRiskWarning';
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
@@ -146,6 +147,7 @@ const ProcurementDetails: React.FC = () => {
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
+  const mayReadAllCases = usePurchaseCaseRead();
   // roles-that-decide FR-RTD-009: the database gate says whether this person orders by built-in role (view-as never widens it).
   const mayOrderByRole = useMayOrderPurchases() && realRole === effectiveRole;
   const { currentUser } = useAuth();
@@ -389,7 +391,8 @@ const ProcurementDetails: React.FC = () => {
     : role === 'Project Manager'
       ? raisedByMe || Boolean(p.project_id && p.project != null && managerId === currentUser?.id)
       : true);
-  if (!recordInScope) {
+  const inspectionOnly = mayReadAllCases && !recordInScope;
+  if (!recordInScope && !inspectionOnly) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
       <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement case either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.")} /></div>
@@ -744,6 +747,15 @@ const ProcurementDetails: React.FC = () => {
     status={p.status}
     currency={p.currency}
   /> : null;
+
+  if (inspectionOnly) return <FigureScope><RecordStack>
+    <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
+    <RecordHeader panelInset name={p.title} status={<ProcurementStatusPill status={p.status} />} meta={p.vendor?.name}>
+      {p.vendor_id && <SupplierRiskNote supplierId={p.vendor_id} />}
+    </RecordHeader>
+    <TimelineWithOrders procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={false} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+    {historyOpen && <RecordSection title={t('procurementRecord:timeline.fullHistory', 'Full history')}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
+  </RecordStack></FigureScope>;
 
   return (
     <FigureScope>

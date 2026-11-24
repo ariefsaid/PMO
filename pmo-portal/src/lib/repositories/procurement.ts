@@ -60,7 +60,7 @@ import {
   cleanupStorageObject as cleanupProcurementFileObject,
 } from '@/src/lib/db/procurementFiles';
 import { getPurchaseOrderSettings, setPurchaseOrderSettings } from '@/src/lib/db/purchaseOrderSettings';
-import { getMayOrderPurchases, getOrderJobRoles, setOrderJobRoles } from '@/src/lib/db/orderJobRoles';
+import { getMayReadPurchaseCases, getMayOrderPurchases, getOrderJobRoles, setOrderJobRoles } from '@/src/lib/db/orderJobRoles';
 import { getPoNeededByRequired, setPoNeededByRequired, getProcurementNeededBy, setProcurementNeededBy } from '@/src/lib/db/procurementNeededBy';
 import { wrap } from './repositoryErrors';
 import { dispatchCreate } from './repositoryDispatch';
@@ -271,6 +271,7 @@ export const procurementRepository: ProcurementRepository = {
     wrap(() => setPurchaseOrderSettings(enabled, signatureBlocks, collectors)),
   orderJobRoles: () => wrap(() => getOrderJobRoles()),
   setOrderJobRoles: (keys) => wrap(() => setOrderJobRoles(keys)),
+  mayReadPurchaseCases: () => wrap(() => getMayReadPurchaseCases()),
   mayOrderPurchases: () => wrap(() => getMayOrderPurchases()),
 };
 
