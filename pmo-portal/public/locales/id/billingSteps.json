@@ -61,5 +61,13 @@
   "templateNameTaken": "Templat dengan nama ini sudah ada. Pilih nama lain.",
   "templateSteps_one": "{{count}} langkah, dengan urutan ini, beserta peran penanggung jawabnya.",
   "templateSteps_other": "{{count}} langkah, dengan urutan ini, beserta peran penanggung jawabnya.",
-  "templateSaved": "Disimpan sebagai templat \"{{name}}\"."
+  "templateSaved": "Disimpan sebagai templat \"{{name}}\".",
+  "settings": {
+    "workOrderChecklist": {
+      "name": "Pengeditan daftar penagihan perintah kerja",
+      "summary": "Memungkinkan pelaksana langkah penagihan menambahkan langkah pada daftar perintah kerja yang diterbitkan dan menyimpannya sebagai templat untuk perintah kerja baru.",
+      "label": "Edit daftar penagihan perintah kerja yang diterbitkan",
+      "helper": "Jika aktif, pelaksana langkah penagihan dapat menambahkan langkah pada perintah kerja terbit, dan Finance atau Admin dapat menyimpan daftar sebagai templat untuk perintah kerja baru."
+    }
+  }
 }

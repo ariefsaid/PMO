@@ -1,7 +1,6 @@
 import { stageAgeDays, stageOverdue } from '@/src/lib/billingStages';
 import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { legacyMayRunBillingSteps } from '@/src/auth/billingStepRights';
-import type { StepInput } from '@/src/lib/db/billingSteps';
 import type { WaitingWorkOrderStep, WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
 /**
@@ -60,7 +59,7 @@ export function mayChangeStepList(actor: StepActor): boolean {
 }
 
 /** Where a new step may go: `afterPosition` is the position of the step it follows (0 = first; a list with no open step has one place, the end). */
-export interface StepInsertPlace { afterPosition: number; after: string | null }
+export interface StepInsertPlace { afterPosition: number | null; after: string | null }
 
 /**
  * The places offered for a new step (FR-WCE-001): after the current step and after each later one. The current step stays current and
@@ -70,25 +69,8 @@ export function stepInsertPlaces(
   steps: ReadonlyArray<Pick<WorkOrderStep, 'position' | 'name' | 'startedOn' | 'doneOn' | 'skippedOn'>>,
 ): StepInsertPlace[] {
   const first = steps.findIndex((s) => stepStatus(s) === 'current' || stepStatus(s) === 'open');
-  if (first < 0) return [{ afterPosition: steps.length, after: null }];
+  if (first < 0) return [{ afterPosition: null, after: null }];
   return steps.slice(first).map((s) => ({ afterPosition: s.position, after: s.name }));
-}
-
-/**
- * The work order's list as the steps of a new template (FR-WCE-002): names in order with their owner job roles, target days, the optional
- * flag and the checklist slots, so the next work order starts from the list this one actually used.
- */
-export function toTemplateSteps(
-  steps: ReadonlyArray<Pick<WorkOrderStep, 'name' | 'ownerRoleKey' | 'targetDays' | 'optional'>
-    & { documents: ReadonlyArray<Pick<WorkOrderStep['documents'][number], 'name' | 'required'>> }>,
-): StepInput[] {
-  return steps.map((s) => ({
-    name: s.name,
-    ownerRoleKey: s.ownerRoleKey,
-    ...(s.targetDays != null ? { targetDays: s.targetDays } : {}),
-    ...(s.optional ? { optional: true } : {}),
-    documents: s.documents.map((d) => ({ name: d.name, required: d.required })),
-  }));
 }
 
 export interface WaitingWorkOrderStepsFact {

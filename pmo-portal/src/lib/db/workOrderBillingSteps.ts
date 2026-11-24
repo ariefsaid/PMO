@@ -124,7 +124,7 @@ export async function skipWorkOrderStep(stepId: string): Promise<void> {
  * (migration 2180). The database stamps the organisation and the project, and opens the step itself on a list that has no current step.
  */
 export async function addWorkOrderStep(
-  workOrderId: string, afterPosition: number, step: Pick<StepInput, 'name' | 'ownerRoleKey' | 'targetDays' | 'optional'>,
+  workOrderId: string, afterPosition: number | null, step: Pick<StepInput, 'name' | 'ownerRoleKey' | 'targetDays' | 'optional'>,
 ): Promise<string> {
   const { data, error } = await supabase.rpc('add_work_order_step', {
     p_work_order: workOrderId, p_after_position: afterPosition,
@@ -135,6 +135,26 @@ export async function addWorkOrderStep(
       ...(step.optional ? { optional: true } : {}),
     },
   });
+  if (error) fail(error);
+  return String(data);
+}
+
+/** The per-organisation gate for editing an issued work order's checklist (migration 2181); a missing row is off. */
+export async function getWorkOrderChecklistEnabled(): Promise<boolean> {
+  const { data, error } = await supabase.from('organizations').select('work_order_checklist_enabled').limit(1);
+  if (error) fail(error);
+  return data?.[0]?.work_order_checklist_enabled === true;
+}
+
+/** Only an Admin may change the checklist-edit switch; the database writes and audits the organisation setting. */
+export async function setWorkOrderChecklistEnabled(enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_org_work_order_checklist_edit', { p_enabled: enabled });
+  if (error) fail(error);
+}
+
+/** Saves the complete checklist, including steps the caller cannot see, through the database copy function (migration 2181). */
+export async function saveWorkOrderChecklistAsTemplate(workOrderId: string, name: string): Promise<string> {
+  const { data, error } = await supabase.rpc('save_work_order_steps_as_template', { p_work_order: workOrderId, p_name: name });
   if (error) fail(error);
   return String(data);
 }

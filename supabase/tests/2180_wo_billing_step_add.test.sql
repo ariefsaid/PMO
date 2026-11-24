@@ -9,7 +9,7 @@
 -- disappears, and the rule is restored — the mutation evidence runs with every pgTAP run instead of once by hand.
 begin;
 create extension if not exists pgtap;
-select plan(141);
+select plan(142);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('21800000-0000-0000-0000-0000000000a1', 'WCE Org A', 'IDR', 'UTC', true),
@@ -151,6 +151,8 @@ select pg_temp.as_user('b4');
 select is(pg_temp.err('select set_org_work_order_checklist_edit(true)'), '42501 WBS_CHECKLIST_SETTING', 'FR-WCE-006 a runner who is neither Finance nor an Admin cannot switch it on');
 select pg_temp.as_user('b3');
 select is(pg_temp.err('select set_org_work_order_checklist_edit(true)'), '42501 WBS_CHECKLIST_SETTING', 'FR-WCE-006 nor can the project''s manager');
+select pg_temp.as_user('b2');
+select is(pg_temp.err('select set_org_work_order_checklist_edit(true)'), '42501 WBS_CHECKLIST_SETTING', 'FR-WCE-006 Finance cannot switch it on');
 select pg_temp.as_user('b7');
 select is(pg_temp.err('select set_org_work_order_checklist_edit(true)'), '42501 LIGHT_ACCOUNT', 'FR-WCE-006 a field account is refused');
 select pg_temp.as_user('b0');
@@ -159,8 +161,8 @@ select pg_temp.as_user('b1');
 select is(pg_temp.err('select set_org_work_order_checklist_edit(null)'), '22023 WBS_CHECKLIST_SETTING', 'FR-WCE-006 the switch is on or off, never empty');
 select is(pg_temp.err('select set_org_work_order_checklist_edit(true)'), 'ok', 'FR-WCE-006 an Admin switches it on');
 select is(pg_temp.err('select set_org_work_order_checklist_edit(true)'), 'ok', 'FR-WCE-006 saving the same value again');
-select pg_temp.as_user('b2');
-select is(pg_temp.err('select set_org_work_order_checklist_edit(false)'), 'ok', 'FR-WCE-006 Finance switches it off');
+select pg_temp.as_user('b1');
+select is(pg_temp.err('select set_org_work_order_checklist_edit(false)'), 'ok', 'FR-WCE-006 an Admin switches it off');
 select is(pg_temp.err('select set_org_work_order_checklist_edit(true)'), 'ok', 'FR-WCE-006 and on again');
 reset role;
 select is((select count(*)::int from audit_events where action = 'org.setting.change' and org_id = '21800000-0000-0000-0000-0000000000a1'
@@ -277,8 +279,8 @@ select is(pg_temp.err(pg_temp.save('21800000-0000-0000-0000-000000000031', repea
 select is(pg_temp.seen('21800000-0000-0000-0000-000000000031'), '1,2,4', 'AC-WCE-002 control: Finance cannot see one step of the list being saved');
 select is(pg_temp.err(pg_temp.save('21800000-0000-0000-0000-000000000031', 'Remote site')), 'ok',
   'AC-WCE-002 Finance saves the work order''s checklist as a template named "Remote site"');
-select is(pg_temp.err(pg_temp.save('21800000-0000-0000-0000-000000000031', ' remote  SITE ')), '23505 WBS_TEMPLATE_TAKEN',
-  'AC-WCE-002 an active template of the same name, case and blanks aside, is refused');
+select is(pg_temp.err(pg_temp.save('21800000-0000-0000-0000-000000000031', ' remote SITE ')), '23505 WBS_TEMPLATE_TAKEN',
+  'AC-WCE-002 an active template of the same name, case and surrounding spaces aside, is refused');
 reset role;
 select is((select count(*)::int from billing_step_templates where lower(btrim(name)) = 'remote site' and archived_at is null), 1,
   'AC-WCE-002 the refused second save made no second template');
@@ -383,7 +385,7 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('21800000-0000-0000-0000-000000000037', '21800000-0000-0000-0000-0000000000a1', '21800000-0000-0000-0000-0000000000c1', 'WCE hidden tail', 'Issued', 10000, 'exclusive', 0);
 insert into work_order_billing_steps (org_id, work_order_id, project_id, position, name, started_on, done_on, done_by, hidden_from_role_keys) values
   ('21800000-0000-0000-0000-0000000000a1', '21800000-0000-0000-0000-000000000037', '21800000-0000-0000-0000-0000000000c1', 1, 'Plan', current_date - 4, current_date - 3, '21800000-0000-0000-0000-0000000000b2', '{}'),
-  ('21800000-0000-0000-0000-0000-0000000000a1', '21800000-0000-0000-0000-000000000037', '21800000-0000-0000-0000-0000000000c1', 2, 'Measure', current_date - 3, current_date - 2, '21800000-0000-0000-0000-0000000000b2', '{}');
+  ('21800000-0000-0000-0000-0000000000a1', '21800000-0000-0000-0000-000000000037', '21800000-0000-0000-0000-0000000000c1', 2, 'Measure', current_date - 3, current_date - 2, '21800000-0000-0000-0000-0000000000b2', '{}');
 insert into work_order_billing_steps (org_id, work_order_id, project_id, position, name, started_on, owner_role_key, hidden_from_role_keys) values
   ('21800000-0000-0000-0000-0000000000a1', '21800000-0000-0000-0000-000000000037', '21800000-0000-0000-0000-0000000000c1', 3, 'Report', current_date - 2, 'quantity_surveyor', '{finance_officer}'),
   ('21800000-0000-0000-0000-0000000000a1', '21800000-0000-0000-0000-000000000037', '21800000-0000-0000-0000-0000000000c1', 4, 'File', null, 'quantity_surveyor', '{finance_officer}');

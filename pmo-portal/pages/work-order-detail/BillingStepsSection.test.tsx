@@ -18,17 +18,23 @@ const h = vi.hoisted(() => ({
   assign: vi.fn(),
   attach: vi.fn(),
   add: vi.fn(),
+  saveAsTemplate: vi.fn(),
   save: vi.fn(),
+  checklistEnabled: true,
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role }) }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.checklistEnabled }) }));
 vi.mock('@/src/hooks/useBillingSteps', () => ({
   useWorkOrderSteps: () => ({ data: h.steps, ...h.state }),
   useWorkOrderStepMutations: () => ({
     complete: { mutateAsync: h.complete, isPending: false }, skip: { mutateAsync: h.skip, isPending: false },
     assign: { mutateAsync: h.assign, isPending: false }, attach: { mutateAsync: h.attach, isPending: false },
-    add: { mutateAsync: h.add, isPending: false },
+    add: { mutateAsync: h.add, isPending: false }, saveAsTemplate: { mutateAsync: h.saveAsTemplate, isPending: false },
   }),
-  useStepTemplateMutations: () => ({ save: { mutateAsync: h.save, isPending: false }, archive: { mutateAsync: vi.fn(), isPending: false } }),
+  useStepTemplateMutations: () => ({
+    save: { mutateAsync: h.save, isPending: false }, saveWorkOrder: { mutateAsync: h.saveAsTemplate, isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
+  }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => ({ data: [{ id: 'd1', title: 'Survey sheet A', status: 'Approved', file_path: 'o/p/d1/f.pdf' }, { id: 'd2', title: 'Draft note', status: 'Draft', file_path: 'x' }], isPending: false, isError: false }),
@@ -67,8 +73,8 @@ function renderIt(props: Partial<React.ComponentProps<typeof BillingStepsSection
 }
 
 beforeEach(() => {
-  h.role = 'Finance'; h.key = 'billing_officer'; h.steps = steps(); h.state = { isError: false, refetch: vi.fn() };
-  for (const f of [h.complete, h.skip, h.assign, h.attach, h.add, h.save]) f.mockReset().mockResolvedValue(undefined);
+  h.role = 'Finance'; h.key = 'billing_officer'; h.steps = steps(); h.checklistEnabled = true; h.state = { isError: false, refetch: vi.fn() };
+  for (const f of [h.complete, h.skip, h.assign, h.attach, h.add, h.saveAsTemplate, h.save]) f.mockReset().mockResolvedValue(undefined);
 });
 
 describe('BillingStepsSection', () => {
@@ -168,7 +174,19 @@ describe('BillingStepsSection', () => {
       expect(screen.queryByLabelText('Position')).not.toBeInTheDocument();
       await user.type(screen.getByLabelText('Step name'), 'Archive note');
       await user.click(screen.getByRole('button', { name: 'Add' }));
-      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: 1, step: { name: 'Archive note', ownerRoleKey: null } });
+      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: null, step: { name: 'Archive note', ownerRoleKey: null } });
+    });
+
+    it('AC-WCE-005 a hidden finished tail is appended after by sending the end sentinel, not the visible row count', async () => {
+      h.steps = [
+        step({ id: 's1', position: 1, name: 'Plan', startedOn: '2026-03-01', doneOn: '2026-03-03' }),
+        step({ id: 's3', position: 3, name: 'Report', startedOn: '2026-03-04', doneOn: '2026-03-05' }),
+      ];
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      await user.type(screen.getByLabelText('Step name'), 'Close-out note');
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: null, step: { name: 'Close-out note', ownerRoleKey: null } });
     });
 
     it('AC-WCE-003 the refusal sentence shows and the typed step stays when the database refuses', async () => {
@@ -187,6 +205,13 @@ describe('BillingStepsSection', () => {
       expect(screen.queryByRole('button', { name: 'Add step' })).not.toBeInTheDocument();
     });
 
+    it('AC-WCE-006 existing organisations see neither checklist edit action while the setting is off', () => {
+      h.checklistEnabled = false;
+      renderIt();
+      expect(screen.queryByRole('button', { name: 'Add step' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Save as template' })).not.toBeInTheDocument();
+    });
+
     it('AC-WBS-007 steps cannot be added once the work order is no longer issued; the finished list can still be saved as a template', () => {
       renderIt({ status: 'Closed' });
       expect(screen.queryByRole('button', { name: 'Add step' })).not.toBeInTheDocument();
@@ -199,11 +224,8 @@ describe('BillingStepsSection', () => {
       expect(screen.getByText('3 steps, in this order, with their owner roles.')).toBeInTheDocument();
       await user.type(screen.getByLabelText('Template name'), 'Remote site');
       await user.click(screen.getByRole('button', { name: 'Save template' }));
-      expect(h.save).toHaveBeenCalledWith({ templateId: null, name: 'Remote site', steps: [
-        { name: 'Step one', ownerRoleKey: 'quantity_surveyor', targetDays: 3, documents: [{ name: 'Sheet', required: true }] },
-        { name: 'Step two', ownerRoleKey: 'billing_officer', targetDays: 2, documents: [{ name: 'Pack', required: true }] },
-        { name: 'Step three', ownerRoleKey: null, optional: true, documents: [] },
-      ] });
+      expect(h.saveAsTemplate).toHaveBeenCalledWith({ workOrderId: 'w1', name: 'Remote site' });
+      expect(h.save).not.toHaveBeenCalled();
       expect(await screen.findByRole('status')).toHaveTextContent('Saved as template "Remote site".');
       expect(screen.queryByLabelText('Template name')).not.toBeInTheDocument();
     });
@@ -217,12 +239,13 @@ describe('BillingStepsSection', () => {
     });
 
     it('AC-WCE-002 a name an active template already uses is said to be taken', async () => {
-      h.save.mockRejectedValue(new AppError('duplicate key value violates unique constraint "billing_step_templates_name_idx"', '23505'));
+      h.saveAsTemplate.mockRejectedValue(new AppError('WBS_TEMPLATE_TAKEN: an active template with this name already exists', '23505'));
       const user = renderIt();
       await user.click(screen.getByRole('button', { name: 'Save as template' }));
       await user.type(screen.getByLabelText('Template name'), 'WCE template');
       await user.click(screen.getByRole('button', { name: 'Save template' }));
       expect(await screen.findByText('A template with this name already exists. Choose another name.')).toBeInTheDocument();
+      expect(h.save).not.toHaveBeenCalled();
     });
 
     it('AC-WCE-002 only Finance or an Admin can save a template; anyone who runs the steps can add one', () => {
@@ -241,7 +264,7 @@ describe('BillingStepsSection', () => {
       await user.click(screen.getByRole('button', { name: 'Add step' }));
       await user.type(screen.getByLabelText('Step name'), 'Kick-off record');
       await user.click(screen.getByRole('button', { name: 'Add' }));
-      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: 0, step: { name: 'Kick-off record', ownerRoleKey: null } });
+      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: null, step: { name: 'Kick-off record', ownerRoleKey: null } });
       expect(await screen.findByRole('alert')).toHaveTextContent('refused: WBS_STEP_ADD_PM');
     });
   });

@@ -7,10 +7,10 @@
 --        enforced in the body (F2). The step, role, day, place and closed-list refusals, the row lock and the audit event are unchanged.
 
 -- ── the switch: a new behaviour that changes what existing organisations see sits behind a per-organisation setting, off by default ────
--- Written only through set_org_work_order_checklist_edit (Admin or Finance); its change is audited by the standing trigger (1510, ADR-0121).
+-- Written only through set_org_work_order_checklist_edit (Admin); its change is audited by the standing trigger (1510, ADR-0121).
 alter table public.organizations add column work_order_checklist_enabled boolean not null default false;
 comment on column public.organizations.work_order_checklist_enabled is
-  'On: a person who runs billing steps may add a step to an issued work order''s checklist, and Finance or an Admin may save a work order''s checklist as a template (2181). Default false. Written only through set_org_work_order_checklist_edit (Admin or Finance).';
+  'On: a person who runs billing steps may add a step to an issued work order''s checklist, and Finance or an Admin may save a work order''s checklist as a template (2181). Default false. Written only through set_org_work_order_checklist_edit (Admin).';
 
 -- Restated from 1670 (the latest migration that defines it), with the new column appended.
 drop trigger zz_audit_org_setting_change on public.organizations;
@@ -34,8 +34,8 @@ declare
 begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
-  if v_role is null or v_role not in ('Admin','Finance') then
-    raise exception 'WBS_CHECKLIST_SETTING: only Finance or an Admin can switch checklist editing on or off' using errcode = '42501';
+  if v_role is distinct from 'Admin' then
+    raise exception 'WBS_CHECKLIST_SETTING: only an Admin can switch checklist editing on or off' using errcode = '42501';
   end if;
   if p_enabled is null then
     raise exception 'WBS_CHECKLIST_SETTING: checklist editing is on or off' using errcode = '22023';
@@ -66,7 +66,7 @@ begin
   -- Same row lock as transition_work_order and lock_wo_billing_step.
   select w.project_id, w.status into v_project, v_status from public.work_orders w where w.id = p_work_order and w.org_id = v_org for update;
   if not found then raise exception 'WBS_ORDER_NOT_FOUND: work order not found' using errcode = 'P0002'; end if;
-  -- The organisation's switch: off until Finance or an Admin turns it on (2181).
+  -- The organisation's switch: off until an Admin turns it on (2181).
   if not coalesce((select o.work_order_checklist_enabled from public.organizations o where o.id = v_org), false) then
     raise exception 'WBS_CHECKLIST_OFF: checklist editing is not switched on for this organisation' using errcode = '55000';
   end if;

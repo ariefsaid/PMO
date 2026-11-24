@@ -18,11 +18,16 @@ export function useStepTemplateMutations() {
       repositories.billingStages.saveStepTemplate(templateId, name, steps),
     onSuccess: invalidate,
   });
+  const saveWorkOrder = useMutation({
+    mutationFn: ({ workOrderId, name }: { workOrderId: string; name: string }) =>
+      repositories.billingStages.saveWorkOrderChecklistAsTemplate(workOrderId, name),
+    onSuccess: invalidate,
+  });
   const archive = useMutation({
     mutationFn: (templateId: string) => repositories.billingStages.archiveStepTemplate(templateId),
     onSuccess: invalidate,
   });
-  return { save, archive };
+  return { save, saveWorkOrder, archive };
 }
 
 /** Loading a template onto a project replaces its list; new claims take it (claims already made do not change). */
@@ -117,7 +122,7 @@ export function useWorkOrderStepMutations() {
   });
   // Adds a step to the list itself (migration 2180); the fresh list may hold a newly current step, so the waiting list refreshes too.
   const add = useMutation({
-    mutationFn: ({ workOrderId, afterPosition, step }: { workOrderId: string; afterPosition: number; step: StepInput }) =>
+    mutationFn: ({ workOrderId, afterPosition, step }: { workOrderId: string; afterPosition: number | null; step: StepInput }) =>
       repositories.billingStages.addWorkOrderStep(workOrderId, afterPosition, step),
     onSuccess: invalidate,
   });

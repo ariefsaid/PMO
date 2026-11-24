@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mayActOnStep, mayChangeStepList, stepDaysOver, stepDueOn, stepInsertPlaces, stepStatus, summariseWaitingWorkOrderSteps, toTemplateSteps } from './workOrderBillingSteps';
+import { mayActOnStep, mayChangeStepList, stepDaysOver, stepDueOn, stepInsertPlaces, stepStatus, summariseWaitingWorkOrderSteps } from './workOrderBillingSteps';
 
 const base = { startedOn: '2026-11-01', doneOn: null, skippedOn: null, targetDays: 3 };
 
@@ -56,21 +56,15 @@ describe('AC-WCE-001 who may add a step, and where it goes', () => {
     expect(stepInsertPlaces(steps)).toEqual([{ afterPosition: 2, after: 'Certify' }, { afterPosition: 3, after: 'Invoice' }]);
   });
   it('a list with nothing open (none yet, or every step finished) has one place: the end', () => {
-    expect(stepInsertPlaces([])).toEqual([{ afterPosition: 0, after: null }]);
+    expect(stepInsertPlaces([])).toEqual([{ afterPosition: null, after: null }]);
     const finished = { position: 1, name: 'Survey', startedOn: '2026-03-01', doneOn: '2026-03-03', skippedOn: null };
-    expect(stepInsertPlaces([finished])).toEqual([{ afterPosition: 1, after: null }]);
+    expect(stepInsertPlaces([finished])).toEqual([{ afterPosition: null, after: null }]);
   });
-});
-
-describe('AC-WCE-002 the list as template steps', () => {
-  it('keeps the names, the order, the owner job roles, the targets, the optional flag and the checklist slots', () => {
-    expect(toTemplateSteps([
-      { name: 'Survey', ownerRoleKey: 'quantity_surveyor', targetDays: 3, optional: false, documents: [{ name: 'Sheet', required: true }] },
-      { name: 'Sign-off', ownerRoleKey: null, targetDays: null, optional: true, documents: [] },
-    ])).toEqual([
-      { name: 'Survey', ownerRoleKey: 'quantity_surveyor', targetDays: 3, documents: [{ name: 'Sheet', required: true }] },
-      { name: 'Sign-off', ownerRoleKey: null, optional: true, documents: [] },
-    ]);
+  it('AC-WCE-005 uses the database end sentinel when hidden finished positions make the visible rows non-contiguous', () => {
+    expect(stepInsertPlaces([
+      { position: 1, name: 'Plan', startedOn: '2026-03-01', doneOn: '2026-03-03', skippedOn: null },
+      { position: 3, name: 'Report', startedOn: '2026-03-04', doneOn: '2026-03-05', skippedOn: null },
+    ])).toEqual([{ afterPosition: null, after: null }]);
   });
 });
 
