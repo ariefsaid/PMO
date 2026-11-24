@@ -30,6 +30,8 @@ test.afterEach(async () => {
   await db.from('equipment_escalation_log').delete().eq('asset_id', assetId);
   await db.from('equipment_status_days').delete().eq('asset_id', assetId);
   await db.from('equipment_status_history').delete().eq('asset_id', assetId);
+  await db.from('equipment_vendor_responses').delete().eq('asset_id', assetId);
+  await db.from('equipment_rental_terms').delete().eq('asset_id', assetId);
   await db.from('equipment_assets').delete().eq('id', assetId);
   await db.from('companies').delete().eq('name', `${code} hire`);
   await manager.cleanup();
