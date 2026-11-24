@@ -6,4 +6,6 @@ set_leave_settings  # active Admin, own organisation only
 leave_on_date  # active member; the caller's organisation; empty while the feature is off
 leave_requestable_people  # active member; the caller's organisation
 leave_authority  # active member; boolean about the caller's own authority
+leave_authority_for_request  # active member; boolean only for the caller's current request route
+leave_waiting_names  # active office member; returns names only for a leave request they may already read
 leave_enabled  # active member; the caller's own organisation setting

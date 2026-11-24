@@ -6,7 +6,7 @@
 -- unapproved/stale plan source assertions below must fail.
 begin;
 create extension if not exists pgtap;
-select plan(59);
+select plan(61);
 
 insert into organizations (id, name, built_in_roles_enabled) values
   ('25770000-0000-0000-0000-00000000020a', 'CUSP Org A', true),
@@ -209,7 +209,7 @@ set local role authenticated;
 select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
 select lives_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
   'AC-PEO-003 a PCM approves an Engineer-authored plan');
-select is((public.cus_get_plan('25770000-0000-0000-0000-000000002402')->>'plan_approved')::boolean, true,
+select is((public.cus_plan_approval_status('25770000-0000-0000-0000-000000002402')->>'approved')::boolean, true,
   'AC-PEO-003 the approved plan state is visible');
 reset role;
 select is((select plan_source from public.mrq_plan_figure('25770000-0000-0000-0000-000000002402', '25770000-0000-0000-0000-000000002311')),
@@ -226,6 +226,22 @@ select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-0000
 select pg_temp._as('25770000-0000-0000-0000-0000000002a1');
 select lives_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002401') $$,
   'AC-PEO-003 Admin may approve a PCM-authored plan');
+
+-- A PCM-authored plan may also be approved by the project manager, but not an unrelated PM.
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select lives_ok($$ select public.cus_generate_plan('25770000-0000-0000-0000-000000002402') $$,
+  'AC-PEO-003 the PCM authors a second plan');
+select pg_temp._as('25770000-0000-0000-0000-0000000002a4');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  '42501', 'CUS_APPROVER: only an Admin or this project''s manager may approve a PCM-authored plan',
+  'AC-PEO-003 a PM of a different project cannot approve a PCM-authored plan');
+reset role;
+update projects set project_manager_id = '25770000-0000-0000-0000-0000000002a4'
+ where id = '25770000-0000-0000-0000-0000000002d1';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a4');
+select lives_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  'AC-PEO-003 the project manager approves a PCM-authored plan');
 
 -- ── AC-CUS-012: another organisation ───────────────────────────────────────────────────────────────────────────
 select pg_temp._as('25770000-0000-0000-0000-0000000002b1');
