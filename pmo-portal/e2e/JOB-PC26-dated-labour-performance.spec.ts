@@ -30,6 +30,7 @@ test('JOB-PC26 project control sees cost and schedule indices after approved lab
     must('earned work', await db.from('dsr_progress_lines').insert({ org_id: org.id, report_id: report.id, position: 1, work_order_line_id: line.id, quantity: 50, unit: 'm', frozen_amount: 500 }).select('id'));
     await pcm.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
+    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Cost and plan', exact: true }).click();
     await expect(page.getByTestId('wo-page-performance-cpi-value')).toContainText('1.25');
     await expect(page.getByTestId('wo-page-performance-spi-value')).toContainText('0.50');
   } finally {
