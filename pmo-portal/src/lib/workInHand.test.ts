@@ -307,5 +307,21 @@ describe('work-in-hand months by monthly capacity', () => {
     expect(summary.orgLeftToBillCents).toBe(0n);
     expect(summary.monthsTenths).toBe(0n);
     expect(summary.otherCurrencies).toEqual([{ currency: 'USD', leftToBillCents: 90000000n }]);
+    expect(summary.excludedIncompleteCount).toBe(0);
+  });
+
+  it('AC-M8-001 counts incomplete contracts excluded from summary totals', () => {
+    const rows = deriveWorkInHand([
+      contract({ id: 'idr', value: '2500000.00', currency: 'IDR' }),
+      contract({ id: 'inc-1', incomplete: true, billedToDate: null, foreignCurrencyInvoiceCount: 1 }),
+      contract({ id: 'inc-2', incomplete: true, billedToDate: null, unpricedInvoiceCount: 1 }),
+      {
+        ...contract({ id: 'wo-inc', incomplete: true, billedToDate: null, foreignCurrencyInvoiceCount: 1 }),
+        kind: 'workOrder',
+        parentId: 'idr',
+      },
+    ], AS_OF);
+    const summary = workInHandSummary(rows, 'IDR', '2500000.00');
+    expect(summary.excludedIncompleteCount).toBe(2);
   });
 });

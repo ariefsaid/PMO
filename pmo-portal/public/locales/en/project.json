@@ -554,6 +554,7 @@
         "unhide": "Show to {{role}} again"
       },
       "templates": {
+        "claimEvidence": "Documents here count as claim evidence",
         "title": "Billing step templates",
         "help": "A template is a list of steps your team uses. Load one onto a project or a claim; it is copied, so later edits to a template change nothing already made.",
         "manage": "Manage templates",

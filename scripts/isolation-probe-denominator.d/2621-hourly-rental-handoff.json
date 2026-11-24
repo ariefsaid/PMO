@@ -1,0 +1,7 @@
+{
+  "tables": [],
+  "definer_functions": [
+    "get_hourly_rental_checks(uuid,uuid)",
+    "hourly_rental_invoice_choices(uuid)"
+  ]
+}

@@ -38,7 +38,12 @@ const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeo
   rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
 vi.mock('@/src/lib/repositories', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return { repositories: { ...actual.repositories, task: { ...actual.repositories.task, findOpenForRecord: async () => null } } };
+  return { repositories: {
+    ...actual.repositories,
+    task: { ...actual.repositories.task, findOpenForRecord: async () => null },
+    // These ordinary-purchase fixtures have no saved rental checks.
+    equipmentAvailability: { ...actual.repositories.equipmentAvailability, savedRentalChecks: async () => [] },
+  } };
 });
 
 import userEvent from '@testing-library/user-event';

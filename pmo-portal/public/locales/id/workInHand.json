@@ -97,6 +97,7 @@
     "clear": "Hapus kapasitas",
     "saved": "Kapasitas kerja bulanan disimpan",
     "loadError": "Gagal memuat kapasitas kerja bulanan",
+    "invalid": "Masukkan jumlah yang valid.",
     "positive": "Kapasitas bulanan harus lebih besar dari nol.",
     "precision": "Beri kapasitas bulanan paling banyak dua angka desimal.",
     "empty": "Belum diatur: bulan pekerjaan dalam tangan belum dihitung sampai kapasitas bulanan diisi.",
@@ -114,6 +115,9 @@
     "capacityBasis": "Berdasarkan {{capacity}}/bulan",
     "otherCurrencies": "Mata uang lain (tidak termasuk dalam hitungan bulan): {{amounts}}",
     "excludedFromMonths": "{{currencies}} tidak termasuk dalam hitungan bulan (tanpa konversi)",
+    "excludedIncomplete_one": "{{count}} kontrak dikecualikan karena invoice tidak dapat dijumlahkan",
+    "excludedIncomplete_other": "{{count}} kontrak dikecualikan karena invoice tidak dapat dijumlahkan",
+    "excludedTruncated": "Kontrak di luar batas 500 kontrak dikecualikan karena daftar dibatasi maksimal 500 kontrak.",
     "noCapacity": "Kapasitas bulanan belum diatur",
     "setCapacity": "Atur kapasitas"
   }

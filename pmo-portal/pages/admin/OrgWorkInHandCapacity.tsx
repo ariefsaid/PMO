@@ -33,18 +33,17 @@ const OrgWorkInHandCapacity: React.FC = () => {
 
   if (!canManage) return null;
 
-  const parse = (): number | null => {
-    const trimmed = shown.trim();
-    if (trimmed === '') return null;
-    const normalized = trimmed.replace(',', '.');
-    if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return Number.NaN;
-    const value = Number(normalized);
-    return Number.isFinite(value) ? value : Number.NaN;
-  };
+  const trimmed = shown.trim();
+  const draftIssue = trimmed === '' ? null : monthlyCapacityIssue(trimmed);
+  const parsedValue: number | null | 'invalid' = trimmed === '' ? null : (draftIssue === null ? Number(trimmed) : 'invalid');
 
-  const run = async (value: number | null) => {
+  const submit = async (raw: string | null) => {
     setError(null);
-    const issue = monthlyCapacityIssue(value);
+    const issue = monthlyCapacityIssue(raw);
+    if (issue === 'invalid') {
+      setError(t('capacitySetting.invalid', 'Enter a valid amount.'));
+      return;
+    }
     if (issue === 'positive') {
       setError(t('capacitySetting.positive', 'Monthly capacity must be greater than zero.'));
       return;
@@ -53,8 +52,10 @@ const OrgWorkInHandCapacity: React.FC = () => {
       setError(t('capacitySetting.precision', 'Give monthly capacity at most two decimals.'));
       return;
     }
+    const clean = raw === null ? '' : raw.trim();
+    const nextValue = clean === '' ? null : Number(clean);
     try {
-      await mutation.mutateAsync(value);
+      await mutation.mutateAsync(nextValue);
       toast(t('capacitySetting.saved', 'Monthly work capacity saved'), undefined, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -85,7 +86,7 @@ const OrgWorkInHandCapacity: React.FC = () => {
       ) : (
         <form
           className="mt-3 flex flex-wrap items-end gap-2"
-          onSubmit={(event) => { event.preventDefault(); void run(parse()); }}
+          onSubmit={(event) => { event.preventDefault(); void submit(trimmed); }}
         >
           <TextField
             label={t('capacitySetting.label', 'Monthly capacity ({{currency}})', { currency: orgCurrency })}
@@ -94,7 +95,7 @@ const OrgWorkInHandCapacity: React.FC = () => {
             onChange={(value) => { setDraft(value); setError(null); }}
             disabled={mutation.isPending}
           />
-          <Button type="submit" variant="primary" disabled={mutation.isPending || parse() === saved}>
+          <Button type="submit" variant="primary" disabled={mutation.isPending || parsedValue === saved}>
             {t('capacitySetting.save', 'Save capacity')}
           </Button>
           {saved !== null && (
@@ -102,7 +103,7 @@ const OrgWorkInHandCapacity: React.FC = () => {
               type="button"
               variant="outline"
               disabled={mutation.isPending}
-              onClick={() => { setDraft(''); void run(null); }}
+              onClick={() => { setDraft(''); void submit(null); }}
             >
               {t('capacitySetting.clear', 'Clear capacity')}
             </Button>

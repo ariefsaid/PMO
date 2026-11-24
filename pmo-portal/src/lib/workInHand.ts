@@ -179,6 +179,8 @@ export interface WorkInHandSummary {
   otherCurrencies: WorkInHandCurrencyAmount[];
   capacityCents: bigint | null;
   monthsTenths: bigint | null;
+  /** Number of on-hand contracts whose invoices could not be totalled, so they are excluded from summary totals. */
+  excludedIncompleteCount: number;
 }
 
 /**
@@ -193,12 +195,14 @@ export function workInHandSummary(rows: WipRow[], orgCurrency: string, monthlyCa
   const otherCurrencies = groups
     .filter((group) => group.currency !== orgCurrency)
     .map((group) => ({ currency: group.currency, leftToBillCents: group.totals.leftToBillCents }));
+  const excludedIncompleteCount = rows.filter((row) => row.kind === 'contract' && row.state === 'incomplete').length;
   return {
     orgCurrency,
     orgLeftToBillCents: orgGroup?.totals.leftToBillCents ?? 0n,
     otherCurrencies,
     capacityCents,
     monthsTenths: monthsOfWorkAvailable(groups, orgCurrency, capacityCents),
+    excludedIncompleteCount,
   };
 }
 

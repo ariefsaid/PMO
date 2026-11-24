@@ -113,13 +113,13 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     effectiveRole = 'Engineer';
     renderRail();
     // Tasks is no longer a top-level nav (it lives in the project Tasks tab).
-    for (const name of ['Dashboard', 'Projects', 'Timesheets']) {
+    for (const name of ['Dashboard', 'Projects', 'Timesheets', 'Procurement']) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
     // Incidents is hidden by the interim UI feature flag.
     expect(screen.queryByText('Incidents')).not.toBeInTheDocument();
     expect(screen.queryByText('Tasks')).not.toBeInTheDocument();
-    for (const name of ['Sales Pipeline', 'Procurement', 'Companies', 'Reports']) {
+    for (const name of ['Sales Pipeline', 'Companies', 'Reports']) {
       expect(screen.queryByText(name)).not.toBeInTheDocument();
     }
     expect(screen.queryByText('Administration')).not.toBeInTheDocument();

@@ -107,4 +107,22 @@ describe('WorkInHandSummary (M8)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(state.refetch).toHaveBeenCalledTimes(1);
   });
+
+  it('plainly states how many incomplete or truncated contracts are excluded and why', () => {
+    setData([
+      row('c1', 'IDR', '5000000.00'),
+      { ...row('c2', 'IDR', '9000000.00'), incomplete: true, foreignCurrencyInvoiceCount: 1, billedToDate: null },
+      { ...row('c3', 'IDR', '3000000.00'), incomplete: true, unpricedInvoiceCount: 1, billedToDate: null },
+    ], '2500000.00');
+    state.facts = { ...state.facts!, truncated: true };
+    const { rerender } = render(<MemoryRouter><WorkInHandSummary /></MemoryRouter>);
+
+    const notice = screen.getByTestId('work-in-hand-summary-exclusions');
+    expect(notice).toHaveTextContent('2 contracts excluded because their invoices cannot be totalled');
+    expect(notice).toHaveTextContent('Contracts beyond the 500-contract limit are excluded because the list is capped at 500 contracts.');
+
+    setData([row('c1', 'IDR', '5000000.00')], '2500000.00');
+    rerender(<MemoryRouter><WorkInHandSummary /></MemoryRouter>);
+    expect(screen.queryByTestId('work-in-hand-summary-exclusions')).toBeNull();
+  });
 });

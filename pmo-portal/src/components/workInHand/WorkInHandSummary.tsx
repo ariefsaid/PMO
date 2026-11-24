@@ -157,6 +157,28 @@ export const WorkInHandSummary: React.FC<WorkInHandSummaryProps> = ({
           )}
         </div>
       </div>
+      {(summary.excludedIncompleteCount > 0 || query.facts.truncated) && (
+        <div
+          className="border-t border-border px-[var(--panel-inset)] py-3 text-control text-muted-foreground"
+          data-testid={`${testId}-exclusions`}
+        >
+          {summary.excludedIncompleteCount > 0 && (
+            <span>
+              {t('summary.excludedIncomplete', {
+                count: summary.excludedIncompleteCount,
+                defaultValue_one: '{{count}} contract excluded because its invoices cannot be totalled',
+                defaultValue_other: '{{count}} contracts excluded because their invoices cannot be totalled',
+              })}
+            </span>
+          )}
+          {summary.excludedIncompleteCount > 0 && query.facts.truncated && ' · '}
+          {query.facts.truncated && (
+            <span>
+              {t('summary.excludedTruncated', 'Contracts beyond the 500-contract limit are excluded because the list is capped at 500 contracts.')}
+            </span>
+          )}
+        </div>
+      )}
     </Card>
   );
 };

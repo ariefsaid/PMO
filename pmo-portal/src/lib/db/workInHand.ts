@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { parseExactCents } from '@/src/lib/exactDecimal';
 import type { WipInputRow, WipWindowMonth } from '@/src/lib/workInHand';
 
 /**
@@ -116,12 +117,26 @@ export function parseWorkInHand(data: unknown): WorkInHand {
   };
 }
 
-/** Shared capacity validation matching the database check constraint (> 0, at most two decimal places). */
-export function monthlyCapacityIssue(value: number | null): 'positive' | 'precision' | null {
+export type MonthlyCapacityIssue = 'invalid' | 'positive' | 'precision';
+
+/** Shared capacity validation matching the database check constraint (> 0, at most two decimal places) without float rounding. */
+export function monthlyCapacityIssue(value: string | number | null): MonthlyCapacityIssue | null {
   if (value === null) return null;
-  if (!Number.isFinite(value) || value <= 0) return 'positive';
-  if (Math.round(value * 100) !== value * 100) return 'precision';
-  return null;
+  let text: string;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return 'invalid';
+    if (value <= 0) return 'positive';
+    text = String(value);
+    if (/[eE]/.test(text)) return 'precision';
+  } else {
+    text = value.trim();
+    if (text === '') return null;
+  }
+  if (!/^-?\d+(?:\.\d+)?$/.test(text)) return 'invalid';
+  if (text.startsWith('-') || /^0+(?:\.0+)?$/.test(text)) return 'positive';
+  const cents = parseExactCents(text);
+  if (cents === null) return 'precision';
+  return cents <= 0n ? 'positive' : null;
 }
 
 /** Left to bill inputs for every contract on hand and Issued work order (Admin, Executive, Finance, and PM for assigned projects). */
@@ -145,6 +160,7 @@ export async function getWorkInHandMonthlyCapacity(): Promise<number | null> {
  */
 export async function setWorkInHandMonthlyCapacity(value: number | null): Promise<void> {
   const issue = monthlyCapacityIssue(value);
+  if (issue === 'invalid') throw new AppError('Enter a valid amount.', '22023');
   if (issue === 'positive') throw new AppError('Monthly capacity must be greater than zero.', '22023');
   if (issue === 'precision') throw new AppError('Give monthly capacity at most two decimals.', '22023');
   const { data, error } = await supabase.from('organizations').select('id').limit(2);

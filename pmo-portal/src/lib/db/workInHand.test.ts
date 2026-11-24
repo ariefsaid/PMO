@@ -106,13 +106,21 @@ describe('getWorkInHand', () => {
 });
 
 describe('monthly work capacity setting (M8)', () => {
-  it('validates positive amounts with at most two decimal places', () => {
+  it('validates positive amounts with at most two decimal places using exact decimal strings/cents', () => {
     expect(monthlyCapacityIssue(null)).toBeNull();
     expect(monthlyCapacityIssue(2500000.5)).toBeNull();
+    expect(monthlyCapacityIssue(0.29)).toBeNull();
+    expect(monthlyCapacityIssue(1000.29)).toBeNull();
+    expect(monthlyCapacityIssue('0.29')).toBeNull();
+    expect(monthlyCapacityIssue('1000.29')).toBeNull();
     expect(monthlyCapacityIssue(0)).toBe('positive');
+    expect(monthlyCapacityIssue('0.00')).toBe('positive');
     expect(monthlyCapacityIssue(-10)).toBe('positive');
-    expect(monthlyCapacityIssue(Number.NaN)).toBe('positive');
+    expect(monthlyCapacityIssue(Number.NaN)).toBe('invalid');
+    expect(monthlyCapacityIssue('abc')).toBe('invalid');
+    expect(monthlyCapacityIssue('2,500,000')).toBe('invalid');
     expect(monthlyCapacityIssue(12.345)).toBe('precision');
+    expect(monthlyCapacityIssue('1000.295')).toBe('precision');
   });
 
   it('reads work_in_hand_monthly_capacity under RLS without sending org_id', async () => {

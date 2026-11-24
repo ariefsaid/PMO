@@ -5,9 +5,8 @@ import { UserRole } from '../../../../types';
 /**
  * AC-W3-N3 — ⌘K Navigate items are filtered by the viewer's real role.
  *
- * The Rail already hides Sales / Procurement / Companies / Administration from
- * Engineer; ⌘K was listing ALL MODULES unfiltered — a RBAC leak. `modulesForRole`
- * returns only the modules visible to the given role.
+ * The Rail and ⌘K share role-filtered destinations. Engineers reach Procurement
+ * for their own requests; Sales, Companies and Administration retain their gates.
  *
  * AC-W3-N4 — /my-tasks is reachable via ⌘K Navigate.
  *
@@ -31,9 +30,9 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
     expect(items.map((m) => m.module)).not.toContain('sales');
   });
 
-  it('AC-W3-N3: Engineer does NOT see Procurement in Navigate', () => {
+  it('AC-BQS-008: Engineer reaches Procurement for their own requests in Navigate', () => {
     const items = modulesForRole(UserRole.Engineer);
-    expect(items.map((m) => m.module)).not.toContain('procurement');
+    expect(items.find((m) => m.module === 'procurement')?.path).toBe('/procurement');
   });
 
   it('AC-W3-N3: Engineer does NOT see Companies in Navigate', () => {

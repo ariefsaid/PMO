@@ -75,6 +75,28 @@ describe('monthly work capacity setting (M8)', () => {
     await user.click(screen.getByRole('button', { name: 'Save capacity' }));
     expect(h.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText('Give monthly capacity at most two decimals.')).toBeInTheDocument();
+
+    await user.clear(field);
+    await user.type(field, '2,500,000');
+    await user.click(screen.getByRole('button', { name: 'Save capacity' }));
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a valid amount.')).toBeInTheDocument();
+  });
+
+  it('accepts valid two-decimal values including 0.29 and 1000.29', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const field = screen.getByLabelText('Monthly capacity (IDR)');
+
+    await user.clear(field);
+    await user.type(field, '0.29');
+    await user.click(screen.getByRole('button', { name: 'Save capacity' }));
+    expect(h.mutateAsync).toHaveBeenLastCalledWith(0.29);
+
+    await user.clear(field);
+    await user.type(field, '1000.29');
+    await user.click(screen.getByRole('button', { name: 'Save capacity' }));
+    expect(h.mutateAsync).toHaveBeenLastCalledWith(1000.29);
   });
 
   it('shows nothing to anyone who may not manage monthly capacity', () => {

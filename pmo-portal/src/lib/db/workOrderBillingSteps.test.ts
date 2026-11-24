@@ -6,7 +6,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.fr
 import {
   addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getWaitingWorkOrderSteps, getWorkOrderChecklistEnabled,
   listWorkOrderSteps, saveWorkOrderChecklistAsTemplate, setDefaultStepTemplate, setWorkOrderChecklistEnabled,
-  skipWorkOrderStep,
+  setWorkOrderStepClaimEvidence, skipWorkOrderStep,
 } from './workOrderBillingSteps';
 
 beforeEach(() => { h.rpc.mockReset().mockResolvedValue({ data: null, error: null }); h.from.mockReset(); });
@@ -68,6 +68,16 @@ describe('work-order billing steps DAL (migrations 1770-1774)', () => {
     expect(chain.select).toHaveBeenCalledWith('work_order_checklist_enabled');
     await setWorkOrderChecklistEnabled(false);
     expect(h.rpc).toHaveBeenCalledWith('set_org_work_order_checklist_edit', { p_enabled: false });
+  });
+
+  it('AC-WQE-006 marks a work-order step through its guarded RPC', async () => {
+    await setWorkOrderStepClaimEvidence('s1', true);
+    expect(h.rpc).toHaveBeenCalledWith('set_work_order_step_claim_evidence', { p_step: 's1', p_enabled: true });
+  });
+
+  it('AC-WQE-006 preserves a refusal to change evidence designation', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'WBS_ADMIN_ONLY: Admin required', code: '42501' } });
+    await expect(setWorkOrderStepClaimEvidence('s1', true)).rejects.toMatchObject({ message: 'WBS_ADMIN_ONLY: Admin required', code: '42501' });
   });
 
   it('AC-WCE-003 a refusal keeps its code for the refusals catalogue', async () => {

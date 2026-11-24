@@ -97,6 +97,7 @@
     "clear": "Clear capacity",
     "saved": "Monthly work capacity saved",
     "loadError": "Couldn't load monthly work capacity",
+    "invalid": "Enter a valid amount.",
     "positive": "Monthly capacity must be greater than zero.",
     "precision": "Give monthly capacity at most two decimals.",
     "empty": "Not set: months of work in hand is not calculated until a monthly capacity is entered.",
@@ -114,6 +115,9 @@
     "capacityBasis": "Based on {{capacity}}/month",
     "otherCurrencies": "Other currencies (not included in months): {{amounts}}",
     "excludedFromMonths": "{{currencies}} not included in months (no conversion)",
+    "excludedIncomplete_one": "{{count}} contract excluded because its invoices cannot be totalled",
+    "excludedIncomplete_other": "{{count}} contracts excluded because their invoices cannot be totalled",
+    "excludedTruncated": "Contracts beyond the 500-contract limit are excluded because the list is capped at 500 contracts.",
     "noCapacity": "No monthly capacity set",
     "setCapacity": "Set capacity"
   }
