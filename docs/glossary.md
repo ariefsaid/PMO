@@ -1476,3 +1476,9 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Head count evidence** (*bukti jumlah orang*) — a photo or document the recorder attaches to a head count line and the approver reads before approving. The file is a project document of the work order's project; the line only cites it. Final once the line is approved.
 
+### Stock issue cost cutover
+The organisation's chosen first date for counting stock issues and returns in PMO-paid work-order cost. A purchase received into stock from that date contributes cost through consumption rather than its bill/payment. Whole-purchase classification currently applies to mixed deliveries.
+
+A pre-cutover purchase receipt with no bill or Paid payment dated before the cutover also uses the stock issue basis; later billing keeps that basis.
+
+The pre-cutover purchase set is captured at switch-on and stored until the next accepted settings change; later bill dates never recompute that saved basis.

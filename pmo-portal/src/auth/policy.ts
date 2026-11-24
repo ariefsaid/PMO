@@ -152,6 +152,7 @@ export type Entity =
   | 'siteReportLists'
   | 'incidentTypes'
   | 'workOrderRevenuePlan'
+  | 'stockIssueCostSettings'
   | 'revenuePlanSettings'
   | 'siteCheckpoint'
   | 'siteCheckpointList'
@@ -1144,6 +1145,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // #2671 dated revenue plan per work order. UX ONLY — wo_revenue_plan_* (1276) and the reads (1277) are the authority
   // (ADR-0016): the project's own Project Manager only, Admin/Executive/Finance on any project.
   workOrderRevenuePlan: { view: allow(['Admin', 'Executive', 'Finance', 'Project Manager']), manage: allow(['Admin', 'Executive', 'Finance', 'Project Manager']) },
+  stockIssueCostSettings: { manage: allow(ADMIN) },
   revenuePlanSettings: { manage: allow(ADMIN) },
   /**
    * Timed checkpoints (#2594, 1385..1388). UX ONLY — record_site_checkpoint and the read rule are the authority (ADR-0016).

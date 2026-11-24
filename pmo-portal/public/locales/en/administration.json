@@ -1318,5 +1318,15 @@
       "missing": "Not done"
     },
     "navLabel": "Clearance"
+  },
+  "stockIssueCost": {
+    "title": "Stock issue costing",
+    "enabled": "Count stock issues as cost",
+    "date": "Effective date",
+    "save": "Save",
+    "saved": "Stock costing saved",
+    "loadError": "Couldn't load stock costing",
+    "migration": "Migrate existing stock costs before enabling this setting.",
+    "erp": "This setting is available for organisations using PMO-paid costs."
   }
 }

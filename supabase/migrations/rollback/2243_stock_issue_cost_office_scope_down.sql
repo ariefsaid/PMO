@@ -1,0 +1,2 @@
+drop policy light_account_deny_select on public.stock_issue_cost_purchases;
+drop policy light_account_deny_select on public.stock_issue_cost_settings;

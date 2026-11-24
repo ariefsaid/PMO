@@ -1,6 +1,6 @@
 -- The rollback is exercised transactionally against the local schema; rollback restores 0279 afterward.
 begin;
-select plan(6);
+select plan(7);
 -- The database test runner mounts only the current test file into its container, so exercise
 -- the rollback statements inline (kept in lock-step with migrations/rollback/0281_vendor_withholding_slips_down.sql).
 -- The rollback's precondition refuses while any slip exists (recorded tax evidence is never dropped
@@ -72,14 +72,36 @@ REVOKE ALL ON FUNCTION public.record_history_visible(text,uuid) FROM public,anon
 GRANT EXECUTE ON FUNCTION public.record_history_visible(text,uuid) TO authenticated,service_role;
 DROP TABLE IF EXISTS public.vendor_withholding_slip_bills;
 DROP TABLE IF EXISTS public.vendor_withholding_slips;
-ALTER TABLE public.companies DROP CONSTRAINT IF EXISTS bupot_companies_org_id_id_uq;
-ALTER TABLE public.procurements DROP CONSTRAINT IF EXISTS bupot_procurements_org_id_id_uq;
-ALTER TABLE public.procurement_invoices DROP CONSTRAINT IF EXISTS bupot_invoices_org_id_id_uq;
+-- Tenant keys may also support later features. Keep any key still referenced by a foreign key.
+DO $shared_tenant_keys$
+DECLARE target record;
+BEGIN
+  FOR target IN
+    SELECT c.conname,c.conindid,t.relname FROM pg_constraint c
+    JOIN pg_class t ON t.oid=c.conrelid
+    JOIN pg_namespace n ON n.oid=t.relnamespace
+    WHERE n.nspname='public' AND (t.relname,c.conname) IN (
+      ('companies','bupot_companies_org_id_id_uq'),
+      ('procurements','bupot_procurements_org_id_id_uq'),
+      ('procurement_invoices','bupot_invoices_org_id_id_uq'))
+  LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint fk WHERE fk.contype='f' AND fk.conindid=target.conindid) THEN
+      EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT %I',target.relname,target.conname);
+    END IF;
+  END LOOP;
+END
+$shared_tenant_keys$;
 NOTIFY pgrst,'reload schema';
 select ok(to_regclass('public.vendor_withholding_slips') is null and to_regclass('public.vendor_withholding_slip_bills') is null,'rollback removes only the feature tables');
 select ok(to_regprocedure('public.record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])') is null,'rollback removes the three writer RPCs');
 -- 15 + usage standards (1154) + crew_tool_line (1157) + third_party_inspection (1181) + safety_day (1413): the entries 0281 added are the only ones its rollback removes.
 select ok((select count(*)=19 from public.record_history_config),'rollback restores the prior history catalog');
 select ok(has_function_privilege('authenticated','public.set_procurement_invoice_efaktur(uuid,text,date)','EXECUTE'),'rollback leaves the incumbent e-Faktur writer grant intact');
+select ok(exists (
+  select 1 from pg_constraint fk
+  where fk.conrelid='public.stock_issue_cost_purchases'::regclass and fk.contype='f'
+    and fk.confrelid='public.procurements'::regclass
+    and cardinality(fk.conkey)=2
+), 'rollback preserves the later stock-cost snapshot tenant foreign key');
 select * from finish();
 rollback;

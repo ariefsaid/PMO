@@ -26832,6 +26832,12 @@ export type Database = {
           },
         ]
       }
+      stock_issue_cost_settings: {
+        Row: { org_id: string; effective_on: string | null; updated_by: string | null; updated_at: string }
+        Insert: { org_id: string; effective_on?: string | null; updated_by?: string | null; updated_at?: string }
+        Update: { org_id?: string; effective_on?: string | null; updated_by?: string | null; updated_at?: string }
+        Relationships: []
+      }
       work_order_stock_settings: {
         Row: {
           issue_progress_threshold_pct: number | null
@@ -37629,6 +37635,10 @@ export type Database = {
           p_work_order: string
         }
         Returns: undefined
+      }
+      set_stock_issue_cost_date: {
+        Args: { p_effective_on: string | null }
+        Returns: string | null
       }
       set_work_order_issue_threshold: {
         Args: { p_threshold_pct: number }
