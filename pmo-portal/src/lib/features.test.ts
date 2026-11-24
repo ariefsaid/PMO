@@ -47,6 +47,14 @@ it('AC-PLN-012 the console grouping covers every gatable key exactly once', asyn
   expect([...grouped].sort()).toEqual([...FEATURE_KEYS].sort());
 });
 
+it('AC-MV-006 registers management views as an organisation switch that defaults off', async () => {
+  const { FEATURE_ENV_DEFAULT, FEATURE_GROUPS, FEATURE_KEYS, FEATURE_LABELS } = await import('./features');
+  expect(FEATURE_KEYS).toContain('management_views');
+  expect(FEATURE_GROUPS.flatMap((group) => group.keys)).toContain('management_views');
+  expect((FEATURE_ENV_DEFAULT as Record<string, boolean>).management_views).toBe(false);
+  expect(FEATURE_LABELS.management_views).toBeTruthy();
+});
+
 it('AC-PLN-008 the deployment kill switches are the two keys that keep an env gate', async () => {
   const { ENV_FEATURE_GATES } = await import('./features');
   expect(Object.keys(ENV_FEATURE_GATES).sort()).toEqual(['agent_assistant', 'user_views']);

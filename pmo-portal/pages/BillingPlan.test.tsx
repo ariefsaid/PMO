@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   unaccepted: { isPending: false, isError: false, isSuccess: true, data: { rows: [] as unknown[], truncated: false }, refetch: vi.fn() } as Record<string, unknown>,
   settings: { data: { monthlyTarget: 10000, targetCurrency: 'IDR', reminderOn: false, monthTargets: [] } } as Record<string, unknown>,
   may: true,
+  managementViews: true,
+  unacceptedEnabled: [] as boolean[],
   mutate: vi.fn(),
 }));
 
@@ -22,7 +24,9 @@ vi.mock('@/src/hooks/useBillingPlan', () => ({
     }
     return state.query;
   },
-  useBillingUnacceptedProgress: (projectId: string | null) => {
+  useBillingUnacceptedProgress: (projectId: string | null, enabled = true) => {
+    state.unacceptedEnabled.push(enabled);
+    if (!enabled) return { isPending: true, isError: false, isSuccess: false, data: undefined, refetch: vi.fn() };
     if (projectId) {
       const rows = (state.unaccepted.data as { rows: UnacceptedProgressCandidate[] }).rows.filter((r) => r.projectId === projectId);
       return { ...state.unaccepted, data: { rows, truncated: false } };
@@ -33,6 +37,7 @@ vi.mock('@/src/hooks/useBillingPlan', () => ({
   useSaveBillingPlanSettings: () => ({ mutate: state.mutate, isPending: false }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => state.may }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'management_views' || state.managementViews }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 
 import BillingPlan from './BillingPlan';
@@ -52,7 +57,7 @@ const renderPlan = () => render(<MemoryRouter><BillingPlan /></MemoryRouter>);
 const settings: PlanSettings = { monthlyTarget: 10000, targetCurrency: 'IDR', reminderOn: false, monthTargets: [] };
 
 describe('BillingPlan', () => {
-  beforeEach(() => { state.may = true; state.mutate.mockReset(); state.settings = { data: settings }; setRows([]); setUnacceptedRows([]); });
+  beforeEach(() => { state.may = true; state.managementViews = true; state.unacceptedEnabled = []; state.mutate.mockReset(); state.settings = { data: settings }; setRows([]); setUnacceptedRows([]); });
   afterEach(() => cleanup());
 
   it('AC-MBP-013 groups by project, ticking updates the total against the target, and says candidates only', () => {
@@ -98,6 +103,16 @@ describe('BillingPlan', () => {
     expect(within(unaccepted).getByRole('heading', { name: 'Progress not yet accepted by the client' })).toBeInTheDocument();
     expect(within(unaccepted).getByText('I-2 · Measured item')).toBeInTheDocument();
     expect(within(unaccepted).getByText(/8/)).toBeInTheDocument();
+  });
+
+  it('AC-MV-006 hides the unaccepted group and disables its reads until the organisation opts in', () => {
+    state.managementViews = false;
+    setRows([line({ key: 'accepted', value: 7000, description: 'Accepted item' })]);
+    renderPlan();
+    expect(screen.getByTestId('billing-plan-accepted-group')).toBeInTheDocument();
+    expect(screen.queryByTestId('billing-plan-unaccepted-group')).toBeNull();
+    expect(state.unacceptedEnabled.length).toBeGreaterThan(0);
+    expect(state.unacceptedEnabled.every((enabled) => enabled === false)).toBe(true);
   });
 
   it('AC-MBP-010 other-currency picks are listed apart and not counted', () => {
