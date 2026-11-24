@@ -47,6 +47,10 @@ test('JOB-PU20 the Buyer prints an approved purchase order with its lines', asyn
     need('order line', await svc.from('purchase_order_lines').insert({
       org_id: ORG_ID, po_id: poId, revision: 1, boq_item_id: itemId, quantity: 100, rate: 12, unit: 'm3',
     }).select('boq_item_id').single());
+    // The printed page lists the purchase's own items (not the contract line), so the paper has a row to print.
+    need('purchase item', await svc.from('procurement_items').insert({
+      org_id: ORG_ID, procurement_id: purchaseId, name: itemCode, description: `${run} ready-mix`, quantity: 100, rate: 12,
+    }).select('id').single());
 
     // An Admin turns printing on (organisation-wide), remembering the previous value for the reset.
     const before = await svc.from('purchase_order_settings').select('print_enabled, signature_blocks, authorised_collectors').eq('org_id', ORG_ID).maybeSingle();
@@ -65,9 +69,11 @@ test('JOB-PU20 the Buyer prints an approved purchase order with its lines', asyn
     await expect(page).toHaveURL(new RegExp(`/procurement/${purchaseId}/purchase-orders/${poId}/print$`), { timeout: 20_000 });
 
     // 2. Goal: the printed page carries this order's number and the line's item, quantity and rate.
-    await expect(page.getByText(poNumber).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(itemCode).first()).toBeVisible();
-    await expect(page.getByText(/ready-mix/).first()).toBeVisible();
+    await expect(page.getByTestId('purchase-order-page')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('purchase-order-page')).toContainText(poNumber);
+    const row = page.getByTestId('print-table-row-0');
+    await expect(row).toContainText(itemCode);
+    await expect(row).toContainText('100');
   } finally {
     if (printedBefore) {
       await admin.rpc('po_set_print_settings', {

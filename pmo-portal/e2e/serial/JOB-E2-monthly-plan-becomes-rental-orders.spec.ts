@@ -89,7 +89,7 @@ test('JOB-E2 a two-line monthly plan becomes two rental orders linked to the pla
   } finally {
     if (typesBefore !== null || planBefore !== null) {
       // The plan's lines point at its orders, and the guard freezes an approved plan, so the run's rows go as the local owner.
-      sqlAsOwner(`delete from equipment_plan_lines where plan_id in (select id from equipment_plans where project_id = '${projectId}'); delete from equipment_plans where project_id = '${projectId}'; delete from procurement_items where procurement_id in (select id from procurements where project_id = '${projectId}'); delete from procurements where project_id = '${projectId}';`);
+      sqlAsOwner(`delete from equipment_plan_lines where plan_id in (select id from equipment_plans where project_id = '${projectId}'); delete from equipment_plans where project_id = '${projectId}'; delete from purchase_requests where procurement_id in (select id from procurements where project_id = '${projectId}'); delete from procurement_items where procurement_id in (select id from procurements where project_id = '${projectId}'); delete from procurements where project_id = '${projectId}';`);
       await admin.rpc('set_equipment_plan_settings', {
         p_enabled: planBefore?.enabled ?? false,
         p_approval_step: planBefore?.approval_step ?? 'spend_approvers',
