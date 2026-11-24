@@ -27,9 +27,11 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
   ('26950000-0000-0000-0000-0000000000c1', '26950000-0000-0000-0000-00000000000a', 'TST Job One', 'Ongoing Project', 1000000, 'exclusive', 0, '26950000-0000-0000-0000-0000000000f1', '26950000-0000-0000-0000-0000000000a1'),
   ('26950000-0000-0000-0000-0000000000c2', '26950000-0000-0000-0000-00000000000a', 'TST Job Two', 'Ongoing Project', 1000000, 'exclusive', 0, '26950000-0000-0000-0000-0000000000f1', '26950000-0000-0000-0000-0000000000a1');
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
-  ('26950000-0000-0000-0000-0000000000e1', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c1', 'PIPE-BOQ', 'Pipe installation', 'pc', 100, 4);
+  ('26950000-0000-0000-0000-0000000000e1', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c1', 'PIPE-BOQ', 'Pipe installation', 'pc', 100, 4),
+  ('26950000-0000-0000-0000-0000000000e2', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c1', 'CONF-BOQ', 'Confirmed item installation', 'pc', 100, 0);
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('26950000-0000-0000-0000-000000000401', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c1', 'TST WO one', 'Issued', 10000, 'exclusive', 0),
+  ('26950000-0000-0000-0000-000000000402', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c1', 'TST WO two', 'Issued', 10000, 'exclusive', 0),
   ('26950000-0000-0000-0000-000000000403', '26950000-0000-0000-0000-00000000000a', '26950000-0000-0000-0000-0000000000c2', 'TST WO other job', 'Issued', 10000, 'exclusive', 0);
 insert into stock_units (id, org_id, code, name, whole_only) values
   ('26950000-0000-0000-0000-0000000000d1', '26950000-0000-0000-0000-00000000000a', 'pc', 'Piece', false);
@@ -88,6 +90,7 @@ insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values ('269
 create function public.tst_tr(p_n text) returns uuid language sql as $$ select current_setting('tst.' || p_n)::uuid $$;
 update stock_tags set proof_required = 'paper' where id = '26950000-0000-0000-0000-000000003001';
 select tst_as('26950000-0000-0000-0000-0000000000a1');
+select set_stock_wo_transfers(true);
 select tst_rcv('26950000-0000-0000-0000-000000002001', '26950000-0000-0000-0000-000000001002', 40, 0);
 select tst_rcv('26950000-0000-0000-0000-000000002001', '26950000-0000-0000-0000-000000001001', 40, 4);
 select tst_rcv('26950000-0000-0000-0000-000000002001', '26950000-0000-0000-0000-000000001004', 40, 3);
@@ -115,7 +118,7 @@ select set_config('tst.ret', create_stock_document(jsonb_build_object('kind','re
   jsonb_build_array(jsonb_build_object('item_id','26950000-0000-0000-0000-000000001001','quantity',3,
     'source_line_id',(select id from stock_document_lines where document_id = current_setting('tst.i1')::uuid))), true)::text, false);
 select set_config('tst.xin_pipe', tst_xfer('26950000-0000-0000-0000-000000002001','26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000001001',8)::text, false);
-select set_config('tst.xout_pipe', tst_xfer('26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000002001','26950000-0000-0000-0000-000000001001',3)::text, false);
+select set_config('tst.xout_pipe', tst_xfer('26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000002003','26950000-0000-0000-0000-000000001001',3)::text, false);
 select set_config('tst.xin_free', tst_xfer('26950000-0000-0000-0000-000000002001','26950000-0000-0000-0000-000000002002','26950000-0000-0000-0000-000000001002',5, false)::text, false);
 reset role;
 insert into storage.objects (bucket_id, name) values ('stock-documents', '26950000-0000-0000-0000-00000000000a/' || current_setting('tst.xin_free') || '/26950000-0000-0000-0000-000000004005/slip.pdf');
@@ -125,6 +128,16 @@ insert into stock_document_files (id, document_id, file_path, label) values
    '26950000-0000-0000-0000-00000000000a/' || current_setting('tst.xin_free') || '/26950000-0000-0000-0000-000000004005/slip.pdf', 'Delivery note');
 select post_stock_document(current_setting('tst.xin_free')::uuid,
   (select revision from stock_documents where id = current_setting('tst.xin_free')::uuid));
+select set_config('tst.rconf', tst_rcv('26950000-0000-0000-0000-000000002002', '26950000-0000-0000-0000-000000001004', 2, 0)::text, false);
+select set_config('tst.i2', create_stock_document(jsonb_build_object('kind','issue','warehouse_id','26950000-0000-0000-0000-000000002002','project_id','26950000-0000-0000-0000-0000000000c1'),
+  jsonb_build_array(jsonb_build_object('item_id','26950000-0000-0000-0000-000000001004','quantity',1,'boq_item_id','26950000-0000-0000-0000-0000000000e2')), true)::text, false);
+reset role;
+update stock_documents set work_order_id = '26950000-0000-0000-0000-000000000401' where id in
+  (current_setting('tst.rconf')::uuid, current_setting('tst.i2')::uuid);
+select tst_as('26950000-0000-0000-0000-0000000000a1');
+select set_config('tst.wo', public.post_stock_wo_transfer(
+  jsonb_build_object('warehouse_id','26950000-0000-0000-0000-000000002002','from_work_order_id','26950000-0000-0000-0000-000000000401','to_work_order_id','26950000-0000-0000-0000-000000000402'),
+  jsonb_build_array(jsonb_build_object('item_id','26950000-0000-0000-0000-000000001004','quantity',1)))::text, false);
 select set_config('tst.count', create_stock_document(jsonb_build_object('kind','count','warehouse_id','26950000-0000-0000-0000-000000002002'),
   jsonb_build_array(jsonb_build_object('item_id','26950000-0000-0000-0000-000000001001','counted_quantity',6),
                     jsonb_build_object('item_id','26950000-0000-0000-0000-000000001002','counted_quantity',4)), false)::text, false);
@@ -143,22 +156,27 @@ alter table stock_documents enable trigger zz_cost_attribution_check;
 select tst_as('26950000-0000-0000-0000-0000000000a1');
 select is(tst_completion_row('PIPE','issued'), '10', 'AC-WMC-001 the issue figure is based on the issued ledger entry');
 select is(tst_completion_row('PIPE','returned'), '3', 'AC-WMC-001 a partial return is reported separately');
-select is(tst_completion_row('PIPE','moved_in'), '8', 'AC-WMC-001 a count gain is not double-counted as moved in');
-select is(tst_completion_row('PIPE','moved_out'), '3', 'AC-WMC-001 a transfer away is reported as moved out');
+select is(tst_completion_row('PIPE','moved_in'), '11', 'AC-WMC-001 a count gain is not double-counted as moved in');
+select is(tst_completion_row('PIPE','moved_out'), '3', 'AC-WMC-001 a location transfer is reported as moved out');
 select is(tst_completion_row('PIPE','counted_difference'), '1', 'AC-WMC-001 a positive count variance is reported');
-select is(tst_completion_row('PIPE','balance'), '6', 'AC-WMC-001 the balance includes the count gain');
+select is(tst_completion_row('PIPE','balance'), '9', 'AC-WMC-001 the balance includes both locations and the count gain');
 select is(tst_completion_row('FREE','moved_in'), '5', 'AC-WMC-001 the second material has its own moved-in quantity');
 select is(tst_completion_row('FREE','moved_out'), '0', 'AC-WMC-001 a count loss is not double-counted as a transfer out');
 select is(tst_completion_row('FREE','counted_difference'), '-1', 'AC-WMC-001 a negative count variance is reported');
 select is(tst_completion_row('FREE','balance'), '4', 'AC-WMC-001 the balance includes the count loss');
-select is(tst_completion_total('issued'), '10', 'AC-WMC-002 totals add issued quantities across materials');
+select is(tst_completion_row('CONF','issued'), '1', 'AC-WMC-001 a work-order transfer does not count its issue half again');
+select is(tst_completion_row('CONF','returned'), '0', 'AC-WMC-001 a work-order transfer does not count its return half again');
+select is(tst_completion_row('CONF','moved_in'), '2', 'AC-WMC-001 the work-order item starts at its location');
+select is(tst_completion_row('CONF','moved_out'), '1', 'AC-WMC-001 a work-order transfer is counted as moved out');
+select is(tst_completion_row('CONF','balance'), '1', 'AC-WMC-001 the work-order move preserves the location balance');
+select is(tst_completion_total('issued'), '11', 'AC-WMC-002 totals add issued quantities across materials');
 select is(tst_completion_total('returned'), '3', 'AC-WMC-002 totals add returned quantities across materials');
-select is(tst_completion_total('moved_in'), '13', 'AC-WMC-002 totals add moved-in quantities across materials');
-select is(tst_completion_total('moved_out'), '3', 'AC-WMC-002 totals add moved-out quantities across materials');
+select is(tst_completion_total('moved_in'), '18', 'AC-WMC-002 totals add moved-in quantities across materials');
+select is(tst_completion_total('moved_out'), '4', 'AC-WMC-002 totals add moved-out quantities across materials');
 select is(tst_completion_total('counted_difference'), '0', 'AC-WMC-002 totals add signed count differences');
-select is(tst_completion_total('balance'), '10', 'AC-WMC-002 totals add material balances');
+select is(tst_completion_total('balance'), '14', 'AC-WMC-002 totals add material balances');
 select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'value_totals'->>'returned'), '12.00', 'AC-WMC-003 the returned value follows its issue');
-select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'value_totals'->>'balance'), '24.00', 'AC-WMC-003 the site balance value reflects the count and movements');
+select is((get_work_order_material_completion('26950000-0000-0000-0000-000000000401')->'value_totals'->>'balance'), '36.00', 'AC-WMC-003 the site balance value reflects the count and movements');
 select is(jsonb_array_length(get_work_order_material_completion('26950000-0000-0000-0000-000000000403')->'rows'), 0, 'AC-WMC-001 another work order shows none of these figures');
 reset role;
 select tst_as('26950000-0000-0000-0000-0000000000a4');
