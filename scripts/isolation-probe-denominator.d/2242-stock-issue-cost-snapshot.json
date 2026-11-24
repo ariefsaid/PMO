@@ -1,0 +1,13 @@
+{
+  "tables": [
+    {
+      "table": "stock_issue_cost_purchases",
+      "has_org": true,
+      "pk": "purchase_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": []
+}
