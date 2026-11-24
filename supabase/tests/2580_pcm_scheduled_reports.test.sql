@@ -46,7 +46,7 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('25800000-0000-0000-0000-0000000000a9', '25800000-0000-0000-0000-00000000000a', 'Reclass',     'pcm-sch-reclass@example.com',  'Engineer',        'active',   'engineer'),
   ('25800000-0000-0000-0000-0000000000aa', '25800000-0000-0000-0000-00000000000a', 'LateBan',     'pcm-sch-lateban@example.com',  'Engineer',        'active',   'engineer'),
   ('25800000-0000-0000-0000-0000000000ab', '25800000-0000-0000-0000-00000000000a', 'ClaimBan',    'pcm-sch-claimban@example.com', 'Engineer',        'active',   'engineer'),
-  ('25800000-0000-0000-0000-0000000000ac', '25800000-0000-0000-0000-00000000000a', 'AdminPCM',    'pcm-sch-admpcm@example.com',   'Admin',           'active',   'project_control_manager'),
+  ('25800000-0000-0000-0000-0000000000ac', '25800000-0000-0000-0000-00000000000a', 'AdminBuiltIn','pcm-sch-admbi@example.com',    'Admin',           'active',   'administrator'),
   ('25800000-0000-0000-0000-0000000000b1', '25800000-0000-0000-0000-00000000000b', 'OrgB PCM',    'pcm-sch-b-pcm@example.com',    'Project Manager', 'active',   'project_control_manager');
 
 insert into projects (id, org_id, name, status, project_manager_id) values
@@ -79,13 +79,13 @@ select ok((select body from public.scheduled_report_content('daily_progress', '2
 select ok((select body from public.scheduled_report_content('daily_progress', '25800000-0000-0000-0000-00000000000a', '25800000-0000-0000-0000-0000000000a4', current_date, current_date, 'en', 'Daily'))
   not like '%2500.00%', 'AC-SCH-015 Engineer receives no revenue figure');
 
--- Admin creates schedules first (one with a foreman recipient, one created by Admin carrying pcm role).
+-- Admin creates schedules first (one with a foreman recipient, one created by Admin carrying administrator built-in role).
 set local role authenticated;
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000a1');
 insert into ids select 'adm_daily', save_scheduled_report(null, 'Admin Daily', 'daily_progress', 'daily', null, '23:59:59',
   array['25800000-0000-0000-0000-0000000000a5']::uuid[], '{}', false);
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000ac');
-insert into ids select 'adm_pcm_role', save_scheduled_report(null, 'Admin With PCM Role', 'daily_progress', 'daily', null, '23:59:59',
+insert into ids select 'adm_builtin', save_scheduled_report(null, 'Admin BuiltIn Role', 'daily_progress', 'daily', null, '23:59:59',
   '{}', array['Finance'], false);
 
 -- AC-SCH-013 / AC-SCH-014 / AC-SCH-017 as PCM.
@@ -122,8 +122,8 @@ select throws_ok($$select set_scheduled_report_enabled((select v from ids where 
   '42501', 'admin only', 'AC-SCH-017 PCM cannot disable Admin schedule');
 select throws_ok($$select archive_scheduled_report((select v from ids where k = 'adm_daily'))$$,
   '42501', 'admin only', 'AC-SCH-017 PCM cannot archive Admin schedule');
-select throws_ok($$select set_scheduled_report_enabled((select v from ids where k = 'adm_pcm_role'), true)$$,
-  '42501', 'admin only', 'AC-SCH-017 PCM cannot manage schedule created by Admin holding pcm role');
+select throws_ok($$select set_scheduled_report_enabled((select v from ids where k = 'adm_builtin'), true)$$,
+  '42501', 'admin only', 'AC-SCH-017 PCM cannot manage schedule created by built-in administrator');
 
 -- Valid PCM create, read, edit, toggle, archive for both readable kinds.
 insert into ids select 'pcm_daily', save_scheduled_report(null, 'PCM Daily', 'daily_progress', 'daily', null, '23:59:59',
