@@ -83,6 +83,7 @@ begin
            max(p.planned) filter (where p.rn = d.rn) as last_planned
       from points p
       join dated d on d.project_id = p.project_id
+      join scope s on s.id = p.project_id
      group by p.project_id
   ), planned as (
     select s.id as project_id,
