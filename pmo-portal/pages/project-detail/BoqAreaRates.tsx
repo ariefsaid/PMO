@@ -16,7 +16,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
  */
 interface Props { boqItemId: string; catalogueItemId: string | null; currency?: string }
 
-const RATE = /^\d{1,16}(\.\d{1,8})?$/;
+const RATE = /^\d{1,7}(\.\d{1,6})?$/;
 
 const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
   const { t } = useTranslation('project');

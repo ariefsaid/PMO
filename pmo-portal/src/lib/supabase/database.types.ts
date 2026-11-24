@@ -36957,7 +36957,7 @@ export type Database = {
         Returns: number
       }
       set_boq_item_area_rate: {
-        Args: { p_area: string; p_boq_item: string; p_rate: number }
+        Args: { p_area: string; p_boq_item: string; p_rate?: number }
         Returns: undefined
       }
       set_boq_item_discipline: {

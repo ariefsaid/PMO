@@ -45,7 +45,7 @@ grant select on public.boq_item_area_rates to authenticated;
 grant all on public.boq_item_area_rates to service_role;
 
 -- p_rate null removes the area's rate (the line falls back to its contract rate).
-create function public.set_boq_item_area_rate(p_boq_item uuid, p_area uuid, p_rate numeric) returns void
+create function public.set_boq_item_area_rate(p_boq_item uuid, p_area uuid, p_rate numeric default null) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.auth_org_id(); v_b record;
 begin

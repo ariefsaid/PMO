@@ -81,6 +81,6 @@ export async function listBoqItemAreaRates(boqItemId: string): Promise<BoqAreaRa
 }
 
 export async function setBoqItemAreaRate(boqItemId: string, areaId: string, rate: string | null): Promise<void> {
-  const { error } = await supabase.rpc('set_boq_item_area_rate', { p_boq_item: boqItemId, p_area: areaId, p_rate: rate as unknown as number });
+  const { error } = await supabase.rpc('set_boq_item_area_rate', rate === null ? { p_boq_item: boqItemId, p_area: areaId } : { p_boq_item: boqItemId, p_area: areaId, p_rate: Number(rate) });
   if (error) throw new AppError(error.message, error.code);
 }

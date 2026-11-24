@@ -36,17 +36,17 @@ describe('area description', () => {
 });
 
 describe('area rates', () => {
-  it('AC-ARA-002 reads the rates of a line and sets one through the RPC with the rate as an exact string', async () => {
+  it('AC-ARA-002 reads the rates of a line and sets one through the RPC; no rate removes it', async () => {
     h.result.value = { data: [{ area_id: 'a1', rate: 8.5 }], error: null };
     await expect(dal.listBoqItemAreaRates('b1')).resolves.toEqual([{ areaId: 'a1', rate: '8.5' }]);
     expect(h.calls).toContainEqual(['from', ['boq_item_area_rates']]);
     h.calls.length = 0;
     h.result.value = { data: null, error: null };
-    await dal.setBoqItemAreaRate('b1', 'a1', '8.50000001');
+    await dal.setBoqItemAreaRate('b1', 'a1', '8.5');
     await dal.setBoqItemAreaRate('b1', 'a1', null);
     expect(h.calls.filter(([k]) => k === 'rpc').map(([, a]) => a)).toEqual([
-      ['set_boq_item_area_rate', { p_boq_item: 'b1', p_area: 'a1', p_rate: '8.50000001' }],
-      ['set_boq_item_area_rate', { p_boq_item: 'b1', p_area: 'a1', p_rate: null }],
+      ['set_boq_item_area_rate', { p_boq_item: 'b1', p_area: 'a1', p_rate: 8.5 }],
+      ['set_boq_item_area_rate', { p_boq_item: 'b1', p_area: 'a1' }],
     ]);
   });
 
