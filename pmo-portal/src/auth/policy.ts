@@ -177,6 +177,7 @@ export type Entity =
   | 'stockUnit'
   | 'warehouse'
   | 'stockDocument'
+  | 'orderReceiving'
   | 'materialRequest'
   | 'clientRequisition'
   | 'approvalChain'
@@ -233,6 +234,8 @@ export interface PolicyContext {
   record?: {
     /** Feature-local view-as fence for evidence writes; callers compare effective and real roles. */
     viewOnly?: boolean;
+    /** Purchasing rights returned by the order receiving reader for the real actor. */
+    receivingPurchaser?: boolean;
     /** Which master kind a connector surface acts on (ECA2-T17): Finance may accept
      *  account matches only; every other integration manage affordance is Admin-only. */
     kind?: string;
@@ -579,6 +582,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
         : ctx.record?.isKeeper === true || role === 'Admin'),
     withdraw: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' && (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId)),
+  },
+  orderReceiving: {
+    view: allow(ALL),
+    manage: allowUnlessViewOnly(ADMIN),
+    edit: (_role, ctx) => ctx.record?.viewOnly !== true && ctx.record?.receivingPurchaser === true,
+    approve: (_role, ctx) => ctx.record?.viewOnly !== true && ctx.record?.receivingPurchaser === true
+      && !!ctx.currentUserId && ctx.record?.created_by !== ctx.currentUserId,
   },
   /**
    * Material requests (#2524, migrations 1000/1001). Every member raises one (FR-MRQ-016: the field role is a job, not a

@@ -101,5 +101,75 @@ insert into external_domain_ownership(org_id,external_tier,domain) values(pg_tem
 set local role authenticated;
 select throws_ok($$select set_order_receiving_enabled(true)$$,'23514',null,'AC-RGO-001 ERP inventory refuses enablement');
 reset role;
+
+-- Mutation probes evaluate the same behaviour oracle before and after breaking the rule.
+-- Each probe rolls its DDL and all writes back in a subtransaction; an unchanged or broken baseline fails the proof.
+create function pg_temp.allowed(n int,stmt text) returns boolean language plpgsql as $$
+begin
+ perform pg_temp.actor(n); execute 'set local role authenticated'; execute stmt; execute 'reset role'; return true;
+exception when others then execute 'reset role'; return false;
+end $$;
+create function pg_temp.value(n int,stmt text) returns text language plpgsql as $$
+declare result text;
+begin
+ perform pg_temp.actor(n); execute 'set local role authenticated'; execute stmt into result; execute 'reset role'; return result;
+exception when others then execute 'reset role'; return 'error';
+end $$;
+create function pg_temp.probe(stmt text) returns boolean language plpgsql as $$
+declare result boolean;
+begin
+ begin execute stmt into result; raise exception using errcode='Z0001';
+ exception when sqlstate 'Z0001' then null; end;
+ return result;
+end $$;
+create function pg_temp.kill(change_sql text,oracle_sql text) returns boolean language plpgsql as $$
+declare baseline boolean; changed boolean;
+begin
+ baseline:=pg_temp.probe(oracle_sql);
+ if baseline is not true then raise exception 'Mutation oracle baseline failed: %',oracle_sql; end if;
+ begin execute change_sql; changed:=pg_temp.probe(oracle_sql); raise exception using errcode='Z0001';
+ exception when sqlstate 'Z0001' then null; end;
+ return changed is false;
+end $$;
+create function pg_temp.mutation(sig text,old_text text,new_text text,oracle_sql text) returns boolean language plpgsql as $$
+declare original text; changed text;
+begin
+ select pg_get_functiondef(sig::regprocedure) into original;
+ changed:=replace(original,old_text,new_text);
+ if changed=original then raise exception 'Mutation target missing in %',sig; end if;
+ return pg_temp.kill(changed,oracle_sql);
+end $$;
+create function pg_temp.cost_oracle() returns boolean language plpgsql as $$
+declare result boolean;
+begin
+ perform pg_temp.actor(11); execute 'set local role authenticated'; perform pg_temp.receive(1,90); execute 'reset role';
+ select sum(value_delta)=30000 into result from stock_ledger where document_id=(select stock_document_id from order_receiving_requests where id=pg_temp.rid(90));
+ return result;
+end $$;
+select ok(pg_temp.mutation('public.map_order_stock(uuid,uuid)',
+ 'if not public.order_receiving_purchaser() then','if false then',
+ $$select not pg_temp.allowed(11,'select map_order_stock(pg_temp.rid(31),pg_temp.rid(60))')$$),
+ 'AC-RGO-002 mutation: removing mapping authority makes the owning refusal oracle fail');
+select ok(pg_temp.mutation('public.map_order_stock(uuid,uuid)',
+ 'i.id = p_item and i.org_id = v_org','i.id = p_item',
+ $$select not pg_temp.allowed(13,'select map_order_stock(pg_temp.rid(31),pg_temp.rid(61))')$$),
+ 'AC-RGO-011 mutation: removing mapping tenancy makes the owning refusal oracle fail');
+select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
+ 'round(v_item.rate * v_fx,4)','round(0 * v_fx,4)',
+ $$select pg_temp.cost_oracle()$$),'AC-RGO-005 mutation: ignoring order price fails the stock value oracle');
+select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
+ 'round(v_item.rate * v_fx,4)','round(v_item.rate * 1,4)',
+ $$select pg_temp.cost_oracle()$$),'AC-RGO-005 mutation: ignoring FX fails the stock value oracle');
+select ok(pg_temp.mutation('public.receive_order_goods(uuid,uuid,date,jsonb,uuid)',
+ 'if v_excess and v_r.approved_by is null then','if false then',
+ $$select pg_temp.value(11,$q$select pg_temp.receive(20,91)->>'status'$q$)='awaiting_approval'$$),
+ 'AC-RGO-008 mutation: bypassing excess approval fails the pending-count oracle');
+select ok(pg_temp.mutation('public.read_order_receiving(uuid)',
+ 'case when v_purchaser then jsonb_build_object','case when true then jsonb_build_object',
+ $$select pg_temp.value(11,$q$select read_order_receiving(pg_temp.rid(40))->'lines'->0 ? 'ordered'$q$)='false'$$),
+ 'AC-RGO-004 mutation: exposing ordered count fails the blind-read oracle');
+select ok(pg_temp.kill('alter policy receiving_blind_lines on public.procurement_items using(true)',
+ $$select pg_temp.value(11,$q$select count(*) from procurement_items where procurement_id=pg_temp.rid(20)$q$)='0'$$),
+ 'AC-RGO-004 mutation: opening raw ordered-line policy fails the blind table oracle');
 select * from finish();
 rollback;
