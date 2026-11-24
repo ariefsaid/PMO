@@ -12,7 +12,7 @@ Lane 1124d, decision 2. IDs: `FR-WMC-###`, `AC-WMC-###`. Not a money path: a rea
 - FR-WMC-002 Moved in, moved out and balance shall come from the existing work-order balance read (`get_work_order_stock_balance`); issued, returned and the counted difference from the same ledger rows filtered to the work order. A work order with no movements returns no rows.
 - FR-WMC-003 The read shall be open to whoever may read the work order in the organisation (the rule of the existing balance read) and refuse another organisation's work order.
 - FR-WMC-004 While the caller lacks cost access (`stock_can_see_cost()`), the read shall carry no value field at all; with access it adds issued value, returned value, balance value and their totals.
-- FR-WMC-005 The work order's Close-out group shall link to a printable page for the organisation's with stock module; the page shall print to PDF (header, table, totals, two signature blocks) so the PDF can be attached to the close-out item as its document through the existing project documents.
+- FR-WMC-005 The work order's Close-out group shall link to a printable page for organisations with the stock module; the page shall print to PDF (header, table, totals, two signature blocks) so the PDF can be attached to the close-out item as its document through the existing project documents.
 - FR-WMC-006 The page shall be read-only, in English and Bahasa Indonesia, and show an empty state instead of a row of zeros.
 
 ## Acceptance criteria (owning layer)
