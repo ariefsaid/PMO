@@ -20,7 +20,7 @@
 - **FR-MV-007** When progress has no confirmed client acceptance, the system shall show only the positive measured quantity above the accepted quantity; accepted-but-unclaimed candidates shall continue to use the existing billing-plan candidate calculation.
 - **FR-MV-008** When a Finance, Executive, or Admin user opens the billing board, each visible step column shall show the number of claims and the exact total claim value by currency; individual claim cards shall continue to omit money.
 - **FR-MV-009** When a Project Manager or any other role outside Finance, Executive, and Admin calls the billing-board read, the database shall reject the call or return no rows.
-- **FR-MV-010** When an organisation has not enabled the `management_views` entitlement, the system shall hide the new home portfolio and unaccepted-progress group and skip their dedicated reads; all existing plan defaults shall leave this entitlement off until an Operator enables the organisation's override.
+- **FR-MV-010** When an organisation has not enabled the `management_views` entitlement, the system shall hide the new home portfolio and unaccepted-progress group and skip their dedicated reads; the setting shall default off until an organisation Admin enables it.
 - **NFR-MV-001** Reads shall be batched, organization-scoped, bounded, and use the repository seam; no N+1 project reads are permitted.
 - **NFR-MV-002** Money shall remain exact and separate by currency; no cross-currency total shall be presented.
 - **NFR-MV-003** All changed user-facing labels shall have English and Bahasa Indonesia translations and preserve loading, error, empty, keyboard, and responsive states.
@@ -35,7 +35,7 @@
 | AC-MV-004 | Given assessed quantity above confirmed accepted quantity, when Billing plan opens, then the positive difference appears under “Progress not yet accepted by client”; accepted quantities not yet claimed remain under their own labelled group. | RTL/unit + pgTAP |
 | AC-MV-005 | Given claims in multiple board steps and currencies, when an authorized user opens the billing board, then each column shows claim count and exact totals separated by currency, while cards show no amount. | RTL/unit + pgTAP |
 | AC-MV-006 | Given a Project Manager or Engineer, when they call billing_board directly, then the database returns no board rows; Finance, Executive, and Admin can still read it. | pgTAP |
-| AC-MV-007 | Given an organisation without the management_views override, when home or Billing plan loads, then the portfolio and unaccepted-progress group are hidden and their dedicated reads are skipped; after the organisation is opted in, those surfaces can load. | RTL/unit + pgTAP |
+| AC-MV-007 | Given an organisation without the management views setting enabled, when home or Billing plan loads, then the portfolio and unaccepted-progress group are hidden and their dedicated reads are skipped; after the organisation is opted in, those surfaces can load. | RTL/unit + pgTAP |
 
 ## Error handling
 

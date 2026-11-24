@@ -137,7 +137,6 @@
     "roles": "Roles",
     "budgets": "Budgets",
     "tasks": "Tasks",
-    "revenue": "Revenue (Sales Invoices, Incoming Payments, Revenue by Project)",
-    "management_views": "Management views"
+    "revenue": "Revenue (Sales Invoices, Incoming Payments, Revenue by Project)"
   }
 }

@@ -17,7 +17,7 @@ import { stockWorkOrderTransferRepository } from './stockWorkOrderTransfer';
 
 // ponytail: a literal until database.types.ts is regenerated (typed-client ticket); then derive it from the organizations Row.
 type OrgColumn =
-  | 'clearance_checklist_enabled'
+  | 'management_views_enabled' | 'clearance_checklist_enabled'
   | 'module_people_crews' | 'module_site_day' | 'module_stock' | 'module_purchasing_extras' | 'module_billing_extras';
 
 export type OrgModuleKey = 'modulePeopleCrews' | 'moduleSiteDay' | 'moduleStock' | 'modulePurchasingExtras' | 'moduleBillingExtras';
@@ -35,6 +35,7 @@ export interface OrgSwitch {
 }
 
 export const ORG_SWITCHES = {
+  managementViews: { source: { column: 'management_views_enabled' }, manage: 'orgAccounting', writers: ['Admin'] },
   crewLoans: { source: { read: crewLoanRepository.enabled, write: crewLoanRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
   clearance: { source: { column: 'clearance_checklist_enabled' }, module: 'modulePeopleCrews', manage: 'clearanceItem', writers: ['Admin'], refreshes: ['clearance'] },
   builtInRoles: { source: { read: builtInRolesRepository.getEnabled, write: builtInRolesRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },

@@ -8,7 +8,7 @@ import { StatusPill } from '@/src/components/ui/StatusPill';
 import { BillingPlanSettingsModal } from '@/src/components/finance/BillingPlanSettingsModal';
 import { useBillingPlanCandidates, useBillingPlanSettings, useBillingUnacceptedProgress } from '@/src/hooks/useBillingPlan';
 import { usePermission } from '@/src/auth/usePermission';
-import { useFeature } from '@/src/auth/useFeature';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { addMonths, doneNotClaimedAge, groupByProject, isOverLimit, monthOf, overClaimWarning, planTotals, resolveTarget, type PlanCandidate } from '@/src/lib/billingPlan';
 import { PLAN_LIMIT } from '@/src/lib/db/billingPlan';
@@ -59,7 +59,7 @@ const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => voi
 const BillingPlan: React.FC = () => {
   const { t } = useTranslation('finance');
   const may = usePermission();
-  const managementViewsEnabled = useFeature('management_views');
+  const managementViewsEnabled = useOrgSwitch('managementViews').data === true;
   const orgCurrency = useOrgCurrency();
   const [params, setParams] = useSearchParams();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());

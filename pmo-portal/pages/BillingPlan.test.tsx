@@ -37,7 +37,7 @@ vi.mock('@/src/hooks/useBillingPlan', () => ({
   useSaveBillingPlanSettings: () => ({ mutate: state.mutate, isPending: false }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => state.may }));
-vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key !== 'management_views' || state.managementViews }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: state.managementViews }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 
 import BillingPlan from './BillingPlan';

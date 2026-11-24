@@ -168,7 +168,7 @@ beforeEach(() => {
   };
 });
 
-vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => deliveryState, useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectManagementOverview: () => ({ data: [], isPending: false, isError: false }), useProjectsDelivery: () => deliveryState, useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 
 
 const attention = (n: number, over: Partial<Record<string, unknown>> = {}) => ({
@@ -957,3 +957,5 @@ describe('company home — Overview layout (the default: one page, charts carry 
     expect(screen.getByRole('img', { name: /No due date: \$0/ })).toBeInTheDocument();
   });
 });
+
+vi.mock('@/src/hooks/useOrgSwitch', async (original) => ({ ...(await original<typeof import('@/src/hooks/useOrgSwitch')>()), useOrgSwitch: () => ({ data: false }) }));

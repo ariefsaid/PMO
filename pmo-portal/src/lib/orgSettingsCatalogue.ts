@@ -38,6 +38,7 @@ export interface OrgSettingEntry {
 
 export const ORG_SETTINGS = {
   // The five modules (#2746): one switch each; off hides the module's screens, nothing is deleted.
+  managementViews: { group: 'money', writers: ['Admin'], route: '/administration/modules#management-views', manage: 'orgAccounting', switch: 'managementViews', covers: ['organizations.management_views_enabled'] },
   modulePeopleCrews: { group: 'people', writers: ['Admin'], route: '/administration/modules#module-people-crews', manage: 'orgAccounting', switch: 'modulePeopleCrews', covers: ['organizations.module_people_crews'] },
   moduleSiteDay: { group: 'site', writers: ['Admin'], route: '/administration/modules#module-site-day', manage: 'orgAccounting', switch: 'moduleSiteDay', covers: ['organizations.module_site_day'] },
   moduleStock: { group: 'stock', writers: ['Admin'], route: '/administration/modules#module-stock', manage: 'orgAccounting', switch: 'moduleStock', covers: ['organizations.module_stock'] },

@@ -15,7 +15,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { ClaimsBoardLink } from '@/src/components/finance/ClaimsBoardLink';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useFeature } from '@/src/auth/useFeature';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useHomeLayout } from '@/src/hooks/useHomeLayout';
 import { can } from '@/src/auth/policy';
 import { useFinanceBudgetReview, useSalesPipeline } from '@/src/hooks/useDashboard';
@@ -72,13 +72,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const { realRole } = useEffectiveRole();
-  const managementViewsEnabled = useFeature('management_views');
+  const managementViewsEnabled = useOrgSwitch('managementViews').data === true;
   const overview = useHomeLayout().homeLayout === 'overview';
   const canOpenAccounting = can('edit', 'budgetLine', { realRole });
   const periodState = usePeriod();
   const figures = useCompanyFigures(periodState.period);
   const needs = useNeedsYou(role);
-  const projects = useProjects({ enabled: managementViewsEnabled });
+  const projects = useProjects();
   const portfolioProjects = managementViewsEnabled
     ? (projects.data ?? []).filter((project) => ON_HAND_STATUSES.includes(project.status))
     : [];
@@ -154,7 +154,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
     void procurements.refetch(); void budgetReview.refetch();
-    if (managementViewsEnabled) void projects.refetch();
+    void projects.refetch();
     if (finance) void financePosition.retry();
     void erpPurchases.refetch();
     if (attention.length > 0) void healthDelivery.refetch();

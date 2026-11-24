@@ -108,13 +108,13 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectIdentity: () => ({ data: [] }),
   useProjects: (opts?: { enabled?: boolean }) => {
-    h.projectListEnabled = opts?.enabled === true;
+    h.projectListEnabled = opts?.enabled !== false;
     return { data: [], isPending: h.projectListEnabled ? h.projectListPending : true, isError: false, refetch: vi.fn() };
   },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }) }));
-vi.mock('@/src/auth/useFeature', () => ({ useFeature: (key: string) => key === 'management_views' && h.managementViews }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.managementViews }) }));
 
 import { CompanyDashboard } from './CompanyDashboard';
 
@@ -151,10 +151,10 @@ beforeEach(() => {
   h.reads = { dashboard: ok(dash), pack: ok(pack), invoices: ok([invoice]), salesInvoices: ok([]), payments: ok([]), procurements: ok([]) };
 });
 
-it('AC-MV-007 keeps the new portfolio hidden and its project reads disabled until the organisation opts in', () => {
+it('AC-MV-007 keeps the portfolio hidden and its dedicated reads disabled until the organisation opts in', () => {
   renderExec();
   expect(screen.queryByTestId('project-portfolio-table')).toBeNull();
-  expect(h.projectListEnabled).toBe(false);
+  expect(h.projectListEnabled).toBe(true);
   expect(h.portfolioIds).toEqual([[], []]);
   expect(tile('Contract on hand · excl. tax')).toHaveTextContent('$8M');
   expect(within(screen.getByTestId('project-health')).getByRole('link', { name: /River project/ })).toBeInTheDocument();

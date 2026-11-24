@@ -18,6 +18,7 @@ export const orgSettingGroupLabels = (t: TFunction): Record<string, string> => (
 });
 
 export const orgSettingText = (t: TFunction): Record<OrgSettingKey, { name: string; summary: string }> => ({
+  managementViews: { name: t('allSettings.item.managementViews.name', 'Management views'), summary: t('allSettings.item.managementViews.summary', 'Shows the project portfolio and progress not yet accepted by the client.') },
   modulePeopleCrews: { name: t('allSettings.item.modulePeopleCrews.name', 'Module: people and crews'), summary: t('allSettings.item.modulePeopleCrews.summary', 'Turns built-in roles, the clearance checklist, leave requests and crew loans on or off for everyone.') },
   moduleSiteDay: { name: t('allSettings.item.moduleSiteDay.name', 'Module: site day'), summary: t('allSettings.item.moduleSiteDay.summary', 'Turns daily safety records and the work order performance panels on or off for everyone.') },
   moduleStock: { name: t('allSettings.item.moduleStock.name', 'Module: stock'), summary: t('allSettings.item.moduleStock.summary', 'Turns work-order transfers, reservations, two-step transfers and the material request approvals inbox on or off for everyone.') },

@@ -14395,6 +14395,7 @@ export type Database = {
           leave_approver_role: string | null
           leave_requests_enabled: boolean
           lifecycle_state: string | null
+          management_views_enabled: boolean
           module_billing_extras: boolean
           module_people_crews: boolean
           module_purchasing_extras: boolean
@@ -14460,6 +14461,7 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          management_views_enabled?: boolean
           module_billing_extras?: boolean
           module_people_crews?: boolean
           module_purchasing_extras?: boolean
@@ -14525,6 +14527,7 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          management_views_enabled?: boolean
           module_billing_extras?: boolean
           module_people_crews?: boolean
           module_purchasing_extras?: boolean

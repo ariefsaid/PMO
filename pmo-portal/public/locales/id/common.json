@@ -186,6 +186,10 @@
       "stockIssueCost": {
         "name": "Biaya pengeluaran stok",
         "summary": "Menghitung stok yang dikeluarkan sebagai biaya perintah kerja mulai tanggal yang dipilih."
+      },
+      "managementViews": {
+        "name": "Tampilan manajemen",
+        "summary": "Menampilkan portofolio proyek dan progres yang belum diterima oleh klien."
       }
     },
     "paletteGroup": "Pengaturan"
