@@ -110,7 +110,8 @@ begin
   with purchase as (
     select p.*, public.procurement_paid_pre_tax(p) as paid
       from public.procurements p
-     where p.project_id = p_project_id and p.org_id = v_org and p.origin is distinct from 'erp_link' and not public.purchase_costs_as_stock(p.id)
+     where p.project_id = p_project_id and p.org_id = v_org and p.origin is distinct from 'erp_link'
+       and not public.purchase_costs_as_stock(p.id)
        and exists (select 1 from public.payments x where x.org_id = v_org and x.procurement_id = p.id
                     and x.status = 'Paid' and coalesce(x.erp_docstatus, 1) <> 2 and x.erp_cancelled_at is null)
   ), linked as (
@@ -326,7 +327,8 @@ begin
       from paid_procurements pp
       join public.procurements pr on pr.id = pp.procurement_id
       join target_project p on pr.project_id = p.id and pr.org_id = p.org_id
-     where pr.origin is distinct from 'erp_link' and not public.purchase_costs_as_stock(pr.id)
+     where pr.origin is distinct from 'erp_link'
+       and not public.purchase_costs_as_stock(pr.id)
     union all
     select 'Materials'::public.budget_category,s.amount,s.occurred_on::timestamp at time zone 'UTC' from public.stock_issue_cost_lines(p_project_id) s
   ), category_totals as (
@@ -399,7 +401,8 @@ begin
     select case when pr.currency = p.currency then public.procurement_paid_pre_tax(pr) end as paid
       from target_project p
       join public.procurements pr on pr.project_id = p.id and pr.org_id = p.org_id
-     where pr.origin is distinct from 'erp_link' and not public.purchase_costs_as_stock(pr.id)
+     where pr.origin is distinct from 'erp_link'
+       and not public.purchase_costs_as_stock(pr.id)
        and exists (select 1 from public.payments pay
                     where pay.procurement_id = pr.id and pay.org_id = pr.org_id and pay.status = 'Paid'
                       and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null)
@@ -459,7 +462,8 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
                 else pa.amount end as paid
       from public.procurements pr join pay pa on pa.procurement_id = pr.id
       left join inv iv on iv.procurement_id = pr.id
-     where pr.origin is distinct from 'erp_link' and not public.purchase_costs_as_stock(pr.id)
+     where pr.origin is distinct from 'erp_link'
+       and not public.purchase_costs_as_stock(pr.id)
     union all select s.record_id,proj.id,s.currency,s.amount from proj cross join lateral public.stock_issue_cost_lines(proj.id) s
   ), paid_by_project as (
     select proj.id as project_id,

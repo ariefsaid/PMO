@@ -1462,3 +1462,6 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.
 **Reported absent** (*melaporkan tidak masuk*) — a field worker's own statement, from the phone home, that they are not coming in today (sick or other). The roster shows it; it is not attendance and not leave. Written only by `report_absence` (migration 1631).
+
+### Stock issue cost cutover
+The organisation's chosen first date for counting stock issues and returns in PMO-paid work-order cost. A purchase received into stock from that date contributes cost through consumption rather than its bill/payment. Whole-purchase classification currently applies to mixed deliveries.

@@ -156,5 +156,31 @@ select pg_temp.act_as('25190000-0000-0000-0000-0000000000b1');
 select is((select count(*) from stock_issue_cost_settings),0::bigint,'AC-ISC-004 settings isolated');
 select throws_ok($$select * from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')$$,'P0002','project not found','AC-ISC-004 costs isolated');
 
+
+reset role;
+savepoint erp_case;
+create or replace function public.org_reads_erp_ledger() returns boolean language sql stable as $$select true$$;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
+select throws_ok($$select set_stock_issue_cost_date('2026-11-16')$$,'23514','stock issue costing requires the PMO-paid basis','AC-ISC-005 ERP enabling refused');
+select is((select count(*) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')),0::bigint,'AC-ISC-005 ERP has no extra PMO stock cost');
+rollback to erp_case;
+savepoint stock_mutation;
+do $mut$ begin execute replace(pg_get_functiondef('public.stock_issue_cost_lines(uuid)'::regprocedure),'-sum(l.value_delta)','sum(l.value_delta)'); end $mut$;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
+select isnt((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')),450::numeric,'AC-ISC-002 mutation: broken sign fails the same cost oracle');
+rollback to stock_mutation;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
+select is((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')),450::numeric,'AC-ISC-002 restored money oracle');
+reset role;
+savepoint admin_mutation;
+do $mut$ begin execute replace(pg_get_functiondef('public.set_stock_issue_cost_date(date)'::regprocedure),
+  $old$if public.auth_role() is distinct from 'Admin' then$old$,$new$if false then$new$); end $mut$;
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a4');
+select lives_ok($$select set_stock_issue_cost_date(null)$$,'AC-ISC-004 mutation: removing role rule breaks refusal oracle');
+rollback to admin_mutation;
 select * from finish();
 rollback;
