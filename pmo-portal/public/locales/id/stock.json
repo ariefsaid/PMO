@@ -1068,5 +1068,27 @@
       "missingColumn": "Berkas tidak memiliki kolom {{column}}. Gunakan templat.",
       "tooMany": "Satu berkas berisi 1 sampai {{max}} baris. Bagi per lokasi."
     }
+  },
+  "materialCompletion": {
+    "title": "Penyelesaian material",
+    "open": "Penyelesaian material (cetak)",
+    "item": "Material",
+    "unit": "Satuan",
+    "issued": "Dikeluarkan",
+    "returned": "Dikembalikan",
+    "movedIn": "Masuk",
+    "movedOut": "Keluar",
+    "counted": "Selisih hitung",
+    "balance": "Saldo",
+    "issuedValue": "Nilai dikeluarkan",
+    "balanceValue": "Nilai saldo",
+    "totals": "Total",
+    "workOrder": "Perintah kerja",
+    "empty": "Belum ada material yang bergerak pada perintah kerja ini.",
+    "notFound": "Perintah kerja tidak ditemukan",
+    "print": "Cetak",
+    "back": "Kembali ke perintah kerja",
+    "preparedBy": "Disiapkan oleh",
+    "checkedBy": "Diperiksa oleh"
   }
 }

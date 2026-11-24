@@ -1068,5 +1068,27 @@
       "missingColumn": "The file has no {{column}} column. Use the template.",
       "tooMany": "A file holds 1 to {{max}} rows. Split it by location."
     }
+  },
+  "materialCompletion": {
+    "title": "Material completion",
+    "open": "Material completion (print)",
+    "item": "Material",
+    "unit": "Unit",
+    "issued": "Issued",
+    "returned": "Returned",
+    "movedIn": "Moved in",
+    "movedOut": "Moved out",
+    "counted": "Counted difference",
+    "balance": "Balance",
+    "issuedValue": "Issued value",
+    "balanceValue": "Balance value",
+    "totals": "Totals",
+    "workOrder": "Work order",
+    "empty": "No material has moved on this work order.",
+    "notFound": "Work order not found",
+    "print": "Print",
+    "back": "Back to the work order",
+    "preparedBy": "Prepared by",
+    "checkedBy": "Checked by"
   }
 }

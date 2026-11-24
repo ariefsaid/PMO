@@ -37295,6 +37295,7 @@ export type Database = {
         Returns: number
       }
       set_site_checkpoint_list: { Args: { p_items: Json }; Returns: number }
+      get_work_order_material_completion: { Args: { p_work_order_id: string }; Returns: Json }
       set_stock_handover_scope: { Args: { p_scope: string }; Returns: string }
       set_stock_proof_timing: { Args: { p_timing: string }; Returns: string }
       stock_handover_scope_of: { Args: { p_org: string }; Returns: string }
