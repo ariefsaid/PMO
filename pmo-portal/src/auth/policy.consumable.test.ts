@@ -33,11 +33,23 @@ describe('consumable plan policy (#2577, FR-CUS-015)', () => {
     expect(can('generate', 'consumablePlan', { realRole: 'Project Manager', currentUserId: 'pm-other', record: project })).toBe(false);
     expect(can('adjust', 'consumablePlan', { realRole: 'Project Manager', currentUserId: 'pm-other', record: project })).toBe(false);
   });
-  it('AC-CUS-011 an Engineer cannot, but every role may view; view-as is view-only', () => {
-    const ctx = { realRole: 'Engineer' as const, currentUserId: 'pm-own', record: project };
-    expect(can('generate', 'consumablePlan', ctx)).toBe(false);
-    expect(can('adjust', 'consumablePlan', ctx)).toBe(false);
+  it('AC-CUS-011 an Engineer and the PCM can generate and edit; view-as stays read-only', () => {
+    const engineer = { realRole: 'Engineer' as const, builtInRoleKey: 'engineer', currentUserId: 'eng', record: project };
+    const pcm = { realRole: 'Project Manager' as const, builtInRoleKey: 'project_control_manager', currentUserId: 'pcm', record: project };
+    expect(can('generate', 'consumablePlan', engineer)).toBe(true);
+    expect(can('adjust', 'consumablePlan', engineer)).toBe(true);
+    expect(can('generate', 'consumablePlan', pcm)).toBe(true);
+    expect(can('adjust', 'consumablePlan', pcm)).toBe(true);
+    expect(can('generate', 'consumablePlan', { ...pcm, record: { ...project, viewOnly: true } })).toBe(false);
     for (const role of roles) expect(can('view', 'consumablePlan', { realRole: role })).toBe(true);
     expect(can('generate', 'consumablePlan', { realRole: 'Admin', currentUserId: 'u', record: { ...project, viewOnly: true } })).toBe(false);
+  });
+  it('AC-PEO-003 approval follows author type and never lets the author approve', () => {
+    const plan = (authorId: string, authorIsPcm: boolean) => ({ ...project, author_id: authorId, author_is_pcm: authorIsPcm });
+    expect(can('approve', 'consumablePlan', { realRole: 'Engineer', builtInRoleKey: 'project_control_manager', currentUserId: 'pcm', record: plan('engineer', false) })).toBe(true);
+    expect(can('approve', 'consumablePlan', { realRole: 'Project Manager', builtInRoleKey: 'project_control_manager', currentUserId: 'pcm', record: plan('pcm', false) })).toBe(false);
+    expect(can('approve', 'consumablePlan', { realRole: 'Admin', currentUserId: 'admin', record: plan('pcm', true) })).toBe(true);
+    expect(can('approve', 'consumablePlan', { realRole: 'Project Manager', currentUserId: 'pm-own', record: plan('pcm', true) })).toBe(true);
+    expect(can('approve', 'consumablePlan', { realRole: 'Project Manager', currentUserId: 'pm-other', record: plan('pcm', true) })).toBe(false);
   });
 });

@@ -4,6 +4,7 @@
 -- Existing organizations adopt the lane's explicit authority rule; the legacy leave_approver_role column remains for API compatibility,
 -- but no longer participates in leave decisions.
 -- Reverse: supabase/migrations/rollback/2260_leave_person_manager_routing_down.sql
+-- drops: legacy role/profile-manager predicates and manager display fields are replaced by person-manager resolution; the waiting projection names only actual deciders and the notification guard adds the pending key while preserving prior constraints.
 
 create or replace function public.leave_decider_profiles(p_person_id uuid, p_exclude uuid)
   returns table (profile_id uuid, full_name text)
@@ -41,6 +42,7 @@ begin
 end $$;
 revoke all on function public.leave_decider_profiles(uuid, uuid) from public, anon, authenticated, service_role;
 
+-- drops: leave_authority replaces the former held-role/manager lookup with the resolved active person manager, then HR Manager/Admin fallback.
 create or replace function public.leave_authority(p_person_id uuid) returns boolean
   language plpgsql stable security definer set search_path = public, pg_temp as $$
 begin
@@ -53,17 +55,21 @@ $$;
 revoke all on function public.leave_authority(uuid) from public, anon;
 grant execute on function public.leave_authority(uuid) to authenticated;
 
-create or replace function public.leave_authority_for_request(p_person_id uuid, p_entered_by uuid) returns boolean
+create or replace function public.leave_authority_for_request(p_request_id uuid) returns boolean
   language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v_org uuid := public.auth_org_id(); v_req public.leave_requests;
 begin
   if public.actor_is_light() then return false; end if;
   perform public.assert_not_light();
-  return public.is_active_member() and exists (
-    select 1 from public.leave_decider_profiles(p_person_id, p_entered_by) d where d.profile_id = auth.uid());
+  if v_org is null or not public.is_active_member() then return false; end if;
+  select * into v_req from public.leave_requests r where r.id = p_request_id and r.org_id = v_org;
+  if not found then return false; end if;
+  return exists (
+    select 1 from public.leave_decider_profiles(v_req.person_id, v_req.entered_by) d where d.profile_id = auth.uid());
 end;
 $$;
-revoke all on function public.leave_authority_for_request(uuid, uuid) from public, anon;
-grant execute on function public.leave_authority_for_request(uuid, uuid) to authenticated;
+revoke all on function public.leave_authority_for_request(uuid) from public, anon;
+grant execute on function public.leave_authority_for_request(uuid) to authenticated;
 
 -- The one authorized projection of decider names used by the invoker listing; it cannot enumerate people outside visible leave rows.
 create function public.leave_waiting_names(p_request_id uuid) returns text[]
@@ -77,7 +83,7 @@ begin
   if not found or v_org is null then return '{}'::text[]; end if;
   if not (v_req.entered_by = auth.uid()
           or exists (select 1 from public.people w where w.id = v_req.person_id and w.profile_id = auth.uid())
-          or public.leave_authority_for_request(v_req.person_id, v_req.entered_by)) then
+          or public.leave_authority_for_request(v_req.id)) then
     return '{}'::text[];
   end if;
   return coalesce((select array_agg(d.full_name order by d.full_name, d.profile_id)
@@ -91,7 +97,7 @@ create policy leave_requests_select on public.leave_requests for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and (entered_by = (select auth.uid())
               or exists (select 1 from public.people w where w.id = leave_requests.person_id and w.profile_id = (select auth.uid()))
-              or (select public.leave_authority_for_request(leave_requests.person_id, leave_requests.entered_by))));
+              or (select public.leave_authority_for_request(leave_requests.id))));
 
 drop function public.leave_requests_visible();
 create function public.leave_requests_visible()
@@ -104,7 +110,7 @@ create function public.leave_requests_visible()
          r.reason, r.status, r.decided_at, r.decision_note,
          (r.entered_by = (select auth.uid())
             or exists (select 1 from public.people me where me.id = r.person_id and me.profile_id = (select auth.uid()))),
-         (r.status = 'Pending' and public.leave_authority_for_request(r.person_id, r.entered_by)
+         (r.status = 'Pending' and public.leave_authority_for_request(r.id)
             and r.entered_by <> (select auth.uid())
             and not exists (select 1 from public.people me where me.id = r.person_id and me.profile_id = (select auth.uid()))),
          (select d.full_name from public.profiles d where d.id = r.decided_by),
@@ -120,6 +126,7 @@ $$;
 revoke all on function public.leave_requests_visible() from public, anon;
 grant execute on function public.leave_requests_visible() to authenticated;
 
+-- drops: leave_request_submit replaces profile.manager_id/leave_approver_role routing with people.manager_id and sends a notice to every resolved decider.
 -- Restated from 2042: manager-on-behalf uses the person record, and each new request sends one notice to each resolved decider.
 create or replace function public.leave_request_submit(p_person_id uuid, p_type_id uuid, p_start date, p_end date, p_reason text)
   returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
@@ -136,7 +143,7 @@ begin
     raise exception 'LV_REF: the person is not in this organisation' using errcode = '23514';
   end if;
   if not (coalesce(v_person.profile_id = v_uid, false) or public.actor_may_enter_leave_for_others()
-          or v_person.manager_id = v_uid) then
+          or coalesce(v_person.manager_id = v_uid, false)) then
     raise exception 'LV_FORBIDDEN: you cannot enter a request for this person' using errcode = '42501';
   end if;
   if p_end < p_start then
@@ -166,6 +173,7 @@ end $$;
 revoke all on function public.leave_request_submit(uuid, uuid, date, date, text) from public, anon;
 grant execute on function public.leave_request_submit(uuid, uuid, date, date, text) to authenticated;
 
+-- drops: leave_requestable_people removes the profile.manager_id predicate; the active people.manager_id is the single manager-on-behalf source.
 -- Restated from 2042: the active person-record manager can choose the person when filing on their behalf.
 create or replace function public.leave_requestable_people()
   returns table (id uuid, name text, is_self boolean)
@@ -179,6 +187,7 @@ $$;
 revoke all on function public.leave_requestable_people() from public, anon;
 grant execute on function public.leave_requestable_people() to authenticated;
 
+-- drops: leave_request_decide removes legacy role-based authority and delegates to the exact request resolver; self-decision and result notices remain enforced.
 -- Latest 1611 decision body, retaining the non-field-account guard and result notice.
 create or replace function public.leave_request_decide(p_id uuid, p_decision text, p_note text)
   returns text language plpgsql security definer set search_path = public, pg_temp as $$
@@ -200,7 +209,7 @@ begin
   if v_req.entered_by = v_uid or coalesce(v_profile = v_uid, false) then
     raise exception 'LV_SOD: you cannot decide your own request, or one you entered' using errcode = '42501';
   end if;
-  if not public.leave_authority_for_request(v_req.person_id, v_req.entered_by) then
+  if not public.leave_authority_for_request(v_req.id) then
     raise exception 'LV_FORBIDDEN: you cannot decide this request' using errcode = '42501';
   end if;
   if v_req.status <> 'Pending' then
@@ -229,6 +238,7 @@ end $$;
 revoke all on function public.leave_request_decide(uuid, text, text) from public, anon;
 grant execute on function public.leave_request_decide(uuid, text, text) to authenticated;
 
+-- drops: notifications_message_template_guard adds leaveRequestPending to the leave-owner allowlist; all message immutability and other template rules remain.
 -- Latest 1611 template guard plus the pending-request key. Its parameters are immutable after insertion.
 create or replace function public.notifications_message_template_guard()
 returns trigger language plpgsql set search_path = public, pg_temp as $$

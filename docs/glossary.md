@@ -668,9 +668,10 @@ margin %. Where several standards of one item match a line, the longest prefix w
 
 **Consumable plan** (*rencana bahan habis pakai*) — the stock items a work order is expected to use, generated on request
 from its contract-line allocations and the active usage standards, and stored as a snapshot with the basis of each quantity.
-A planner may adjust a quantity, or add an item no standard covers, with a reason. It goes **out of date** when the work or
-the standards change after it was made and is regenerated only on request. Quantities of stock items only: it is not the
-cost plan of a work order.
+A planner may adjust a quantity, or add an item no standard covers, with a reason. A material request uses this plan only
+after a Project Control Manager approves it; a PCM-authored plan needs approval from an Admin or that project's manager.
+The author cannot approve it. It goes **out of date** when the work or standards change and must be regenerated and approved
+again. Quantities of stock items only: it is not the cost plan of a work order.
 
 ## Work orders down to the cost line (#2516)
 
@@ -1162,6 +1163,8 @@ A certificate, permit or similar record with an expiry date that belongs to a pe
 ## People register
 The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018); **former staff** (*mantan personel*, #2703) are those archived people, kept on record and shown only in the register's Former staff view.
 
+**Leave approval routing** — a pending request goes to the active manager assigned on the person's record. If that manager is missing or inactive, an active HR Manager decides; if none is active, an Admin decides. The person on leave and the person who entered the request cannot decide it, so a manager who entered a request hands it to the fallback route (24 Nov decisions round).
+
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
 sixteen fixed terms: work order, project, client-supplied stock, purchase request, discipline, material request, bill of quantities,
@@ -1172,7 +1175,7 @@ the wording shown, never the data or the code identifier. Generic terms are not 
 access level and stored data never change; with none, the catalogue default name shows.
 **Usage standard** — an organisation rule of how much of a consumable stock item one unit of planned work uses (for example welding rod per dia-inch), matched on the contract line's unit, with an optional code prefix and a waste margin (#2577).
 
-**Consumable plan** — a work order's stored list of consumable quantities, generated from its work-order lines and the usage standards and adjustable with a reason; material requests are checked against it before the contract allowances (#2577).
+**Consumable plan** — a work order's stored list of consumable quantities, generated from its work-order lines and the usage standards and adjustable with a reason; material requests use it before the contract allowances only after the current plan has been approved (#2577, 24 Nov decisions round).
 **Client material requisition** — a request to the client to release client-supplied material for one work order, tracked
 from the **take-off** (the quantity the work order needs) through the client's **reservation** (their confirmation that a
 quantity is set aside) to **pickup** (collection, which posts a zero-cost stock receipt). The work order shows reserved,

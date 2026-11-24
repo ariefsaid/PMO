@@ -7,15 +7,16 @@ import i18n from '@/src/lib/i18n';
 const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPending: false, isError: false, isSuccess: true, refetch: vi.fn(), ...over });
 const h = vi.hoisted(() => ({
   plan: null as unknown, inputs: null as unknown,
-  can: { generate: true, adjust: true } as Record<string, boolean>,
+  can: { generate: true, adjust: true, approve: false } as Record<string, boolean>,
   seenCtx: null as unknown,
-  generate: { mutateAsync: vi.fn(), isPending: false }, adjust: { mutateAsync: vi.fn(), isPending: false },
+  generate: { mutateAsync: vi.fn(), isPending: false }, adjust: { mutateAsync: vi.fn(), isPending: false }, approve: { mutateAsync: vi.fn(), isPending: false },
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, _e: string, ctx: unknown) => { h.seenCtx = ctx; return h.can[action] ?? true; } }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1' } }) }));
 vi.mock('@/src/hooks/useStock', () => ({ useStockItems: () => q([{ id: 'rod', code: 'ROD', name: 'Welding rod', unit_id: 'u1', archived_at: null }, { id: 'gas', code: 'GAS', name: 'Gas', unit_id: 'u1', archived_at: null }]) }));
 vi.mock('@/src/hooks/useUsageStandards', () => ({
-  useConsumablePlan: () => h.plan, usePlanInputs: () => h.inputs, useConsumablePlanMutations: () => ({ generate: h.generate, adjust: h.adjust }),
+  useConsumablePlan: () => h.plan, usePlanInputs: () => h.inputs, useConsumablePlanMutations: () => ({ generate: h.generate, adjust: h.adjust, approve: h.approve }),
 }));
 
 import { ConsumablePlanSection } from './ConsumablePlanSection';
@@ -25,16 +26,18 @@ const line = (over: Record<string, unknown> = {}) => ({
   plannedQty: '8.800', priorQty: '3.000', source: 'standard',
   basis: [{ boqItemId: 'b1', code: 'WLD-01', unit: 'dia-inch', workQty: '120.000', standardId: 's1', qtyPerUnit: '0.050000', marginPct: '10.00', result: '6.6' }], ...over,
 });
-const plan = (over: Record<string, unknown> = {}) => ({ workOrderId: 'w1', workOrderStatus: 'Issued', generatedAt: '2026-11-20T01:00:00Z', outOfDate: false, lines: [line()], noStandard: [], unplanned: [], ...over });
+const plan = (over: Record<string, unknown> = {}) => ({ workOrderId: 'w1', workOrderStatus: 'Issued', generatedAt: '2026-11-20T01:00:00Z', outOfDate: false,
+  approval: { authorId: 'eng-1', authorIsPcm: false, approved: false, approvedBy: null, approvedAt: null }, lines: [line()], noStandard: [], unplanned: [], ...over });
 const renderSection = (status = 'Issued') => render(<ToastProvider><ConsumablePlanSection workOrderId="w1" workOrderStatus={status} project={{ project_manager_id: 'pm-1' }} /></ToastProvider>);
 
 beforeEach(async () => {
   await i18n.changeLanguage('en');
   h.plan = q(plan());
   h.inputs = q({ lines: [{ boqItemId: 'b1', code: 'WLD-01', unit: 'dia-inch', quantity: '120' }], standards: [{ id: 's1', itemId: 'rod', workUnit: 'dia-inch', boqCodePrefix: 'WLD', qtyPerUnit: '0.05', marginPct: '10' }] });
-  h.can = { generate: true, adjust: true };
+  h.can = { generate: true, adjust: true, approve: false };
   h.generate.mutateAsync = vi.fn().mockResolvedValue(1);
   h.adjust.mutateAsync = vi.fn().mockResolvedValue(undefined);
+  h.approve.mutateAsync = vi.fn().mockResolvedValue(undefined);
 });
 
 describe('consumable plan section (#2577)', () => {
@@ -67,14 +70,29 @@ describe('consumable plan section (#2577)', () => {
     expect(within(screen.getByTestId('consumable-no-standard')).getByText(/CIV-01: Concrete/)).toBeInTheDocument();
   });
 
-  it('FR-CUS-008 an out-of-date plan says so and that requests still use the stored plan', () => {
+  it('AC-PEO-003 an out-of-date plan says material requests fall back until approval', () => {
     h.plan = q(plan({ outOfDate: true }));
     renderSection();
-    expect(screen.getByTestId('consumable-out-of-date')).toHaveTextContent('Requests still use the stored plan');
+    expect(screen.getByTestId('consumable-out-of-date')).toHaveTextContent('Material requests use the allowance until the plan is regenerated and approved');
+    expect(screen.queryByRole('button', { name: 'Approve plan' })).not.toBeInTheDocument();
+  });
+
+  it('AC-PEO-003 shows the decider route and sends approval only when the policy allows it', async () => {
+    h.can.approve = true;
+    renderSection();
+    expect(screen.getByTestId('consumable-approval')).toHaveTextContent('Waiting for a Project Control Manager.');
+    await userEvent.click(screen.getByRole('button', { name: 'Approve plan' }));
+    expect(h.approve.mutateAsync).toHaveBeenCalledOnce();
+  });
+
+  it('AC-PEO-003 a PCM-authored plan names its Admin or project-manager route', () => {
+    h.plan = q(plan({ approval: { authorId: 'pcm', authorIsPcm: true, approved: false, approvedBy: null, approvedAt: null } }));
+    renderSection();
+    expect(screen.getByTestId('consumable-approval')).toHaveTextContent(/Waiting for an Admin or this project.s Project Manager\./);
   });
 
   it('AC-CUS-011 a user who may not plan sees the plan but no generate, regenerate, add or adjust control', () => {
-    h.can = { generate: false, adjust: false };
+    h.can = { generate: false, adjust: false, approve: false };
     renderSection();
     expect(screen.getByTestId('consumable-row-rod')).toBeInTheDocument();
     for (const name of [/regenerate/i, /generate plan/i, /add item/i, /^adjust$/i]) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();

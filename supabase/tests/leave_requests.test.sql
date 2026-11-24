@@ -5,7 +5,7 @@
 -- AC-LV-011 attendance is not blocked · settings write path (Admin only) and the OFF state.
 begin;
 create extension if not exists pgtap;
-select plan(62);
+select plan(65);
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('27080000-0000-0000-0000-00000000010a') $$;
 
@@ -37,7 +37,8 @@ insert into people (id, org_id, kind, name, profile_id, manager_id) values
   ('27080000-0000-0000-0000-000000001f01', '27080000-0000-0000-0000-00000000010a', 'own',    'LV Own Worker', '27080000-0000-0000-0000-0000000001a3', '27080000-0000-0000-0000-0000000001a2'),
   ('27080000-0000-0000-0000-000000001f02', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV Vendor',     null, null),
   ('27080000-0000-0000-0000-000000001f03', '27080000-0000-0000-0000-00000000010a', 'own',    'LV Admin Person', '27080000-0000-0000-0000-0000000001a1', null),
-  ('27080000-0000-0000-0000-000000001f04', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV Inactive Manager Worker', null, '27080000-0000-0000-0000-0000000001a7');
+  ('27080000-0000-0000-0000-000000001f04', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV Inactive Manager Worker', null, '27080000-0000-0000-0000-0000000001a7'),
+  ('27080000-0000-0000-0000-000000001f05', '27080000-0000-0000-0000-00000000010a', 'vendor', 'LV No Login With Manager', null, '27080000-0000-0000-0000-0000000001a2');
 -- roster fixtures for AC-LV-011
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('27080000-0000-0000-0000-0000000001d1', '27080000-0000-0000-0000-00000000010a', 'LV Site', 'Ongoing Project', '27080000-0000-0000-0000-0000000001a2');
@@ -163,6 +164,18 @@ select throws_ok($$ select leave_request_decide((select id from lv_ids where k =
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a6');
 select is(leave_request_decide((select id from lv_ids where k = 'v1'), 'Approved', null), 'Approved',
   'AC-PEO-002 HR Manager decides a request when no manager is set');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');
+insert into lv_ids select 'no-login-managed', leave_request_submit('27080000-0000-0000-0000-000000001f05', (select id from lv_ids where k = 'ta'), pg_temp.d('p13'), pg_temp.d('p13'), null);
+reset role;
+select is((select count(*)::int from notifications where owner_id = '27080000-0000-0000-0000-0000000001a2'
+             and message_key = 'leaveRequestPending' and metadata->>'leave_request_id' = (select id::text from lv_ids where k = 'no-login-managed')),
+  1, 'AC-PEO-001 the person-record manager receives the notice for a worker without a login');
+set local role authenticated;
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
+select is((select waiting_for_names from leave_requests_visible() where id = (select id from lv_ids where k = 'no-login-managed')),
+  array['LV PM']::text[], 'AC-PEO-001 a worker without a login still waits for the person-record manager');
+select is(leave_request_decide((select id from lv_ids where k = 'no-login-managed'), 'Approved', null), 'Approved',
+  'AC-PEO-001 the person-record manager decides leave for a worker without a login');
 select throws_ok($$ select leave_request_decide((select id from lv_ids where k = 'v1'), 'Approved', null) $$,
   '23514', 'LV_DECIDED: this request is already approved', 'AC-LV-008 a decided request cannot be decided again');
 -- AC-LV-005 the line manager
@@ -250,7 +263,7 @@ select is(attendance_record('27080000-0000-0000-0000-000000001401', pg_temp.d('y
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a3');
 select is((select count(*)::int from leave_requestable_people()), 1, 'picker: a person may enter a request only for themselves');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
-select is((select count(*)::int from leave_requestable_people()), 3, 'picker: an office user may enter one for every person');
+select is((select count(*)::int from leave_requestable_people()), 5, 'picker: an office user may enter one for every person');
 
 -- OFF state: switching off hides the marker and refuses new requests
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');

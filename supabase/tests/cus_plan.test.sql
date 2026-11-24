@@ -6,7 +6,7 @@
 -- unapproved/stale plan source assertions below must fail.
 begin;
 create extension if not exists pgtap;
-select plan(61);
+select plan(64);
 
 insert into organizations (id, name, built_in_roles_enabled) values
   ('25770000-0000-0000-0000-00000000020a', 'CUSP Org A', true),
@@ -215,6 +215,11 @@ reset role;
 select is((select plan_source from public.mrq_plan_figure('25770000-0000-0000-0000-000000002402', '25770000-0000-0000-0000-000000002311')),
   'standard', 'AC-PEO-003 material requests use the approved plan');
 update work_order_lines set quantity = 11 where work_order_id = '25770000-0000-0000-0000-000000002402';
+set local role authenticated;
+select pg_temp._as('25770000-0000-0000-0000-0000000002a3');
+select throws_ok($$ select public.cus_approve_plan('25770000-0000-0000-0000-000000002402') $$,
+  'P0001', 'CUS_PLAN_STALE: regenerate the plan before approval', 'AC-PEO-003 a changed plan cannot be approved until it is regenerated');
+reset role;
 select is((select plan_source from public.mrq_plan_figure('25770000-0000-0000-0000-000000002402', '25770000-0000-0000-0000-000000002311')),
   'none', 'AC-PEO-003 material requests ignore a plan after its inputs change');
 set local role authenticated;

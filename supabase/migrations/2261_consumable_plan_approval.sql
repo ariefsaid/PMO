@@ -14,6 +14,7 @@ alter table public.work_orders
     or (consumable_plan_approved_by is not null and consumable_plan_approved_at is not null and consumable_plan_approved_fingerprint is not null)
   );
 
+-- drops: cus_assert_planner adds the Project Control Manager job role while retaining the project-writer and Engineer predicates.
 -- 2046 is the latest planner gate. Keep its project writers and Engineer; add the PCM job role.
 create or replace function public.cus_assert_planner(p_work_order_id uuid, p_open boolean default true) returns public.work_orders
   language plpgsql stable security definer set search_path = public, pg_temp as $$
@@ -99,6 +100,10 @@ begin
     raise exception 'CUS_WORK_ORDER: the work order is closed or cancelled; its consumable plan cannot change' using errcode = 'P0001'; end if;
   if v_wo.consumable_plan_author_id is null then
     raise exception 'CUS_PLAN_MISSING: generate or edit the plan before approval' using errcode = 'P0001'; end if;
+  if exists (select 1 from public.work_order_consumable_plan_lines p
+              where p.work_order_id = v_wo.id and p.generated_at is not null
+                and p.input_fingerprint is distinct from public.cus_plan_fingerprint(v_wo.id)) then
+    raise exception 'CUS_PLAN_STALE: regenerate the plan before approval' using errcode = 'P0001'; end if;
   if v_wo.consumable_plan_author_id = v_uid then                                             -- mut:plan_approve_author
     raise exception 'CUS_SOD: the plan author cannot approve it' using errcode = '42501'; end if;
   if v_wo.consumable_plan_author_is_pcm then

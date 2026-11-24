@@ -9,7 +9,7 @@ create policy leave_requests_select on public.leave_requests for select
               or (select public.leave_authority(person_id))));
 
 drop function if exists public.leave_waiting_names(uuid);
-drop function if exists public.leave_authority_for_request(uuid, uuid);
+drop function if exists public.leave_authority_for_request(uuid);
 drop function if exists public.leave_decider_profiles(uuid, uuid);
 
 create or replace function public.leave_authority(p_person_id uuid) returns boolean
