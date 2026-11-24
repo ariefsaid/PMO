@@ -539,6 +539,7 @@
   "WBS_STEP_CLOSED": "A new step goes after the current step.",
   "WBS_STEP_CLOSED_detail": "Finished and current steps stay where they are.",
   "WBS_CHECKLIST_SETTING": "Only Finance or an Admin can switch checklist editing on or off.",
+  "WBS_EVIDENCE_MARK": "Only an Admin can choose which step documents count as claim evidence.",
   "WBS_CHECKLIST_OFF": "Checklist editing is not switched on for this organisation.",
   "WBS_CHECKLIST_OFF_detail": "Ask Finance or an Admin to switch it on under billing step templates.",
   "WBS_TEMPLATE_NAME": "Name the template, in up to 120 characters.",

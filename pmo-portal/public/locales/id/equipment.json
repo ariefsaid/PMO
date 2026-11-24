@@ -195,7 +195,9 @@
     "unrecordedRented": "Hari tanpa status tercatat dihitung sebagai hari sewa; hanya hari rusak yang tercatat yang dipotong.",
     "onlyFinanceIncludes": "Hari rusak tanpa bukti tidak dipotong. Hanya Admin atau Finance yang dapat memasukkannya, dengan alasan.",
     "unrecordedNote": "Hari tanpa catatan adalah hari beroperasi tanpa status. Hari sebelum organisasi mulai mencatat tidak dihitung.",
-    "metricsEmpty": "Tidak ada angka untuk periode ini"
+    "metricsEmpty": "Tidak ada angka untuk periode ini",
+    "hour": "Jam",
+    "hourly": "Sewa per jam"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",
@@ -519,5 +521,30 @@
     "emptyCan": "Tambahkan mesin pertama dengan Alat baru.",
     "firstPage": "Menampilkan {{count}} mesin pertama. Sisanya ada di Ketersediaan.",
     "machines": "Mesin dan status hari ini"
+  },
+  "hourly": {
+    "contracted": "Jam kontrak",
+    "invoice": "Jam pada invoice",
+    "evidence": "Lampirkan bukti bertanggal di Ketersediaan sebelum memeriksa. Hanya jam rusak terbukti yang dipotong.",
+    "date": "Tanggal kerusakan",
+    "hours": "Jam rusak",
+    "remove": "Hapus kerusakan",
+    "add": "Tambah jam rusak",
+    "compare": "Bandingkan jam",
+    "checkedAction": "Tandai diperiksa",
+    "disputedAction": "Tandai disengketakan",
+    "checked": "Diperiksa",
+    "disputed": "Disengketakan",
+    "proven": "Jam rusak terbukti",
+    "billable": "Jam yang ditagihkan",
+    "rate": "Tarif per jam",
+    "loadingChecks": "Memuat pemeriksaan sewa tersimpan…",
+    "checksFailed": "Pemeriksaan sewa tersimpan tidak dapat dimuat. Coba lagi sebelum memeriksa invoice ini.",
+    "savedChecks": "Pemeriksaan sewa tersimpan",
+    "unlinked": "Invoice belum ditautkan",
+    "warningOnly": "Sengketa memberi peringatan kepada Keuangan; hak persetujuan dan nilai tidak berubah.",
+    "supplierInvoice": "Invoice pemasok",
+    "note": "Catatan petugas",
+    "invoicesFailed": "Invoice pemasok tidak dapat dimuat."
   }
 }

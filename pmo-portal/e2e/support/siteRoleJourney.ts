@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { serviceClient, need, ORG_ID } from './jobJourney';
-export async function siteRole(jobRole: string, role: 'Engineer' | 'Project Manager' = 'Engineer') {
+export async function siteRole(jobRole: string, role: 'Engineer' | 'Project Manager' | 'Finance' = 'Engineer') {
  const db=serviceClient(jobRole); const must=need(jobRole); const suffix=crypto.randomUUID();
  const email=`site-${suffix}@example.invalid`; const password=`${suffix}-Aa1!`;
  const created = await db.auth.admin.createUser({email,password,email_confirm:true}); if(created.error || !created.data.user) throw new Error(created.error?.message ?? 'User not created'); const user = created.data.user;
@@ -17,7 +17,11 @@ export async function siteWorkOrder(db: ReturnType<typeof serviceClient>) {
  const wo=must('work order',await db.from('work_orders').insert({org_id:ORG_ID,project_id:project,title:run,status:'Issued',order_value:1000,tax_treatment:'exclusive',tax_amount:0}).select('id').single()).id;
  return {run,project,wo,async cleanup(){
   await db.from('work_order_billing_step_documents').delete().eq('work_order_id',wo);await db.from('work_order_billing_steps').delete().eq('work_order_id',wo);
-  await db.from('work_order_closeout_items').delete().eq('work_order_id',wo);await db.from('progress_claims').delete().eq('work_order_id',wo);
+  await db.from('work_order_closeout_items').delete().eq('work_order_id',wo);
+  const woClaims=await db.from('progress_claims').select('id').eq('work_order_id',wo);
+  const claimIds=(woClaims.data ?? []).map((c)=>c.id);
+  if(claimIds.length>0) await db.from('progress_claim_evidence').delete().in('claim_id',claimIds);
+  await db.from('progress_claims').delete().eq('work_order_id',wo);
   await db.from('project_documents').delete().eq('project_id',project);await db.from('work_orders').delete().eq('id',wo);await db.from('projects').delete().eq('id',project);
  }};
 }
