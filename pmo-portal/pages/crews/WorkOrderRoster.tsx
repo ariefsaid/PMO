@@ -120,7 +120,7 @@ export const WorkOrderRoster: React.FC = () => {
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const canManage = may('manage', 'crew', { record: { viewOnly: realRole !== effectiveRole } });
+  const canManage = may('manage', 'workOrderRoster', { record: { viewOnly: realRole !== effectiveRole } });
   const { values, setFilter } = useUrlFilters(['wo', 'date']);
   const today = toIso(new Date());
   const workOrderId = values.wo || null;

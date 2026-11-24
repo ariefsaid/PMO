@@ -155,6 +155,8 @@ export type Entity =
   | 'setupWorkflowSettings'
   | 'siteReportLists'
   | 'incidentTypes'
+  | 'workOrderRoster'
+  | 'equipmentMetrics'
   | 'workOrderRevenuePlan'
   | 'stockIssueCostSettings'
   | 'revenuePlanSettings'
@@ -1194,7 +1196,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   incidentTypes: { manage: allow(ADMIN) },
   // #2671 dated revenue plan per work order. UX ONLY — wo_revenue_plan_* (1276) and the reads (1277) are the authority
   // (ADR-0016): the project's own Project Manager only, Admin/Executive/Finance on any project.
-  workOrderRevenuePlan: { view: allow(['Admin', 'Executive', 'Finance', 'Project Manager']), manage: allow(['Admin', 'Executive', 'Finance', 'Project Manager']) },
+  workOrderRevenuePlan: {
+    view: (role, ctx) => has(['Admin', 'Executive', 'Finance', 'Project Manager'], role) || holds(ctx, 'planner'),
+    manage: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Executive', 'Finance', 'Project Manager'], role) || holds(ctx, 'project_control_manager') || holds(ctx, 'planner')),
+  },
   stockIssueCostSettings: { manage: allow(ADMIN) },
   revenuePlanSettings: { manage: allow(ADMIN) },
   /**
@@ -1294,6 +1299,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       role === 'Engineer' && !!ctx.currentUserId && ctx.record?.author_id === ctx.currentUserId
     ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
   },
+  equipmentMetrics: { view: (role, ctx) => has(EQUIPMENT_APPROVE, role) || holds(ctx, 'equipment_officer') },
+  workOrderRoster: { manage: (role, ctx) => ctx.record?.viewOnly !== true && (has(DELIVERY, role) || holds(ctx, 'planner')) },
   equipmentCosting: { manage: allowUnlessViewOnly(EQUIPMENT_COSTING_WRITE), view: allow(EQUIPMENT_APPROVE) },
   /**
    * Equipment availability, ownership and rental downtime (#2526, migrations 0985-0986). UX ONLY — the RPCs

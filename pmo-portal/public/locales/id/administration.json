@@ -1108,7 +1108,8 @@
     "daysInvalid": "Isi 1 sampai 5 bilangan bulat hari, dari 1 sampai 365, dipisahkan koma.",
     "daysLabel": "Ingatkan sekian hari sebelum kedaluwarsa",
     "daysHelp": "Sampai 5 nilai, misalnya 30, 14, 7.",
-    "daysSave": "Simpan hari peringatan"
+    "daysSave": "Simpan hari peringatan",
+    "medicalNotice": "Peringatan kedaluwarsa diterima tim SDM dan atasan langsung. Pekerja diberi tahu setelah izin disetujui."
   },
   "labourCost": {
     "title": "Biaya tenaga kerja",
