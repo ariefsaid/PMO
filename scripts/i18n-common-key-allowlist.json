@@ -421,5 +421,7 @@
   "allSettings.item.stockIssueCost.name",
   "allSettings.item.stockIssueCost.summary",
   "allSettings.item.orderNeededBy.name",
-  "allSettings.item.orderNeededBy.summary"
+  "allSettings.item.orderNeededBy.summary",
+  "allSettings.item.setupWorkflows.name",
+  "allSettings.item.setupWorkflows.summary"
 ]

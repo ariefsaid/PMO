@@ -190,6 +190,10 @@
       "orderNeededBy": {
         "name": "Order needed-by date",
         "summary": "Requires a needed-by date before an order is sent to the supplier."
+      },
+      "setupWorkflows": {
+        "name": "Setup workflows",
+        "summary": "Enables work-order imports and the opening balances overview."
       }
     },
     "paletteGroup": "Settings"

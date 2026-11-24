@@ -72,6 +72,7 @@ export const ORG_SETTINGS = {
   procurementGates: { group: 'purchasing', writers: ['Admin'], route: '/administration/accounting#procurement-gates-heading', manage: 'orgAccounting', covers: [] },
   billingPlan: { group: 'money', writers: ['Admin', 'Finance'], route: '/finance/billing-plan', covers: ['org_billing_plan_settings', 'useBillingPlanSettings'] },
   billingSteps: { group: 'money', writers: ['Admin', 'Finance'], route: '/finance/billing-board', covers: ['org_billing_step_settings'] },
+  setupWorkflows: { group: 'money', writers: ['Admin'], route: '/finance', covers: ['org_setup_workflow_settings', 'useSetupWorkflows'] },
   stockIssueCost: { group: 'money', writers: ['Admin'], route: '/administration/accounting#stock-issue-cost-heading', manage: 'stockIssueCostSettings', covers: ['stock_issue_cost_settings', 'useStockIssueCostSettings'] },
   labourCost: { group: 'money', writers: ['Admin', 'Finance'], route: '/administration/cost-attribution#labour-cost-settings', manage: 'labourCost', covers: ['labour_cost_settings', 'useLabourCostEnabled'] },
   idleCost: { group: 'money', alwaysOn: true, writers: ['Admin', 'Finance'], route: '/administration/modules#module-billing-extras', manage: 'labourCost', covers: ['idle_cost_settings', 'useIdleCostEnabled'] },

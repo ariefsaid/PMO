@@ -190,6 +190,10 @@
       "orderNeededBy": {
         "name": "Tanggal dibutuhkan pada pesanan",
         "summary": "Mewajibkan tanggal dibutuhkan sebelum pesanan dikirim ke pemasok."
+      },
+      "setupWorkflows": {
+        "name": "Alur penyiapan",
+        "summary": "Mengaktifkan impor perintah kerja dan ringkasan saldo awal."
       }
     },
     "paletteGroup": "Pengaturan"

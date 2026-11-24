@@ -25,6 +25,8 @@ insert into companies (id, org_id, name, type) values
 insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, client_id, project_manager_id) values
   ('26940000-0000-0000-0000-0000000000c1', '26940000-0000-0000-0000-00000000000a', 'TST Job One', 'Ongoing Project', 1000000, 'exclusive', 0, '26940000-0000-0000-0000-0000000000f1', '26940000-0000-0000-0000-0000000000a1'),
   ('26940000-0000-0000-0000-0000000000c2', '26940000-0000-0000-0000-00000000000a', 'TST Job Two', 'Ongoing Project', 1000000, 'exclusive', 0, '26940000-0000-0000-0000-0000000000f1', '26940000-0000-0000-0000-0000000000a1');
+insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
+  ('26940000-0000-0000-0000-0000000000e1', '26940000-0000-0000-0000-00000000000a', '26940000-0000-0000-0000-0000000000c1', 'HSC-1', 'TST contract item', 'pc', 1000, 100);
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('26940000-0000-0000-0000-000000000401', '26940000-0000-0000-0000-00000000000a', '26940000-0000-0000-0000-0000000000c1', 'TST WO one', 'Issued', 10000, 'exclusive', 0),
   ('26940000-0000-0000-0000-000000000403', '26940000-0000-0000-0000-00000000000a', '26940000-0000-0000-0000-0000000000c2', 'TST WO other job', 'Issued', 10000, 'exclusive', 0);
@@ -90,7 +92,7 @@ reset role;
 select is((select stock_handover_scope from organizations where id = '26940000-0000-0000-0000-00000000000a'), 'transfers', 'AC-HSC-001 a new organisation is transfers-only');
 select tst_as('26940000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select create_stock_document(jsonb_build_object('kind','issue','warehouse_id','26940000-0000-0000-0000-000000002001','project_id','26940000-0000-0000-0000-0000000000c1'),
-  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1)), true) $$, 'AC-HSC-001 under the default an issue posts with no document, as today');
+  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1,'boq_item_id','26940000-0000-0000-0000-0000000000e1')), true) $$, 'AC-HSC-001 under the default an issue posts with no document, as today');
 select is((select count(*)::int from get_stock_movement_proof_status()), 0, 'AC-HSC-001 and nothing is listed as owed');
 -- ── AC-HSC-002 only an Admin changes it ───────────────────────────────────────────────────────
 reset role;
@@ -103,9 +105,9 @@ select is(set_stock_handover_scope('transfers_and_issues'), 'transfers_and_issue
 select is((select count(*)::int from audit_events where action = 'stock.handover_scope'), 1, 'AC-HSC-002 the change is audited');
 -- ── AC-HSC-003 before posting: the issue is refused without its document ──────────────────────
 select throws_ok($$ select create_stock_document(jsonb_build_object('kind','issue','warehouse_id','26940000-0000-0000-0000-000000002001','project_id','26940000-0000-0000-0000-0000000000c1'),
-  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1)), true) $$, 'P0001', 'STK_PAPER_REQUIRED: attach the signed handover document before posting this issue', 'AC-HSC-003 before posting an issue needs its signed document');
+  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1,'boq_item_id','26940000-0000-0000-0000-0000000000e1')), true) $$, 'P0001', 'STK_PAPER_REQUIRED: attach the signed handover document before posting this issue', 'AC-HSC-003 before posting an issue needs its signed document');
 select set_config('tst.i0', create_stock_document(jsonb_build_object('kind','issue','warehouse_id','26940000-0000-0000-0000-000000002001','project_id','26940000-0000-0000-0000-0000000000c1'),
-  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1)), false)::text, false);
+  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1,'boq_item_id','26940000-0000-0000-0000-0000000000e1')), false)::text, false);
 reset role;
 insert into storage.objects (bucket_id, name) values ('stock-documents', '26940000-0000-0000-0000-00000000000a/' || current_setting('tst.i0') || '/26940000-0000-0000-0000-000000004101/signed.pdf');
 select tst_as('26940000-0000-0000-0000-0000000000a1');
@@ -118,7 +120,7 @@ reset role;
 update organizations set stock_proof_timing = 'may_follow' where id = '26940000-0000-0000-0000-00000000000a';
 select tst_as('26940000-0000-0000-0000-0000000000a1');
 select set_config('tst.i1', create_stock_document(jsonb_build_object('kind','issue','warehouse_id','26940000-0000-0000-0000-000000002001','project_id','26940000-0000-0000-0000-0000000000c1'),
-  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1)), true)::text, false);
+  jsonb_build_array(jsonb_build_object('item_id','26940000-0000-0000-0000-000000001001','quantity',1,'boq_item_id','26940000-0000-0000-0000-0000000000e1')), true)::text, false);
 select is((select proof_status || '/' || missing || '/' || to_warehouse_name from get_stock_movement_proof_status() where movement_id = tst_tr('i1')), 'outstanding/paper/TST Job One', 'AC-HSC-004 under may_follow the issue posts and is listed as proof owed, naming its project');
 select is((select count(*)::int from get_stock_movement_proof_status() where movement_id = tst_tr('i0')), 1, 'AC-HSC-005 the issue posted with its document is listed, complete');
 select is((select proof_status from get_stock_movement_proof_status() where movement_id = tst_tr('i0')), 'complete', 'AC-HSC-005 the attached document reads complete');
