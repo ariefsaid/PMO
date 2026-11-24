@@ -29,7 +29,7 @@ export interface ProjectPlanVsActual {
   split: SplitPercent[] | null;
   rollup: ProjectRollup;
   /** The read's own lines, each with the reason it is or is not summed (empty when restricted). */
-  costLines: CostAmountLine[];
+  costLines?: CostAmountLine[];
 }
 
 function isRefused(err: unknown): boolean {

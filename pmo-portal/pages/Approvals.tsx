@@ -528,7 +528,7 @@ const ApprovalsPage: React.FC = () => {
                 <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" eligibleFromQueue />
               )
             ) : (
-              previewFallback ?? <p className="text-sm text-muted-foreground">{t('approvals.pickItem', 'Pick an item above to see it and decide.')}</p>
+              previewFallback ?? <p className="text-sm text-muted-foreground">{t('procurement:approvalQueue.pickItem', 'Pick an item above to see it and decide.')}</p>
             )}
           </Card>
         </div>

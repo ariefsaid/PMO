@@ -1061,7 +1061,6 @@
       "title": "Couldn't load the selected queue"
     },
     "previewRegionLabel": "Approval preview",
-    "pickItem": "Pick an item above to see it and decide.",
     "pushAttention": {
       "retryFailure": "That timesheet could not be pushed",
       "retrySuccess": "Timesheet pushed to ERPNext",
