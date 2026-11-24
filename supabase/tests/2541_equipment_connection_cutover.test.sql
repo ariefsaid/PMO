@@ -82,7 +82,7 @@ reset role;
 update external_org_bindings set status='disconnected' where org_id='15190000-0000-0000-0000-00000000000a';
 delete from budget_category_account_map where org_id='15190000-0000-0000-0000-00000000000a';
 set local role authenticated;
-select lives_ok($$select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000000000d6","basis":"hire_rate","work_rate":60,"rate_unit":"hours","effective_from":"2026-01-01"}')$$,'AC-EQU-CUT-002 disconnected organization saves an unmapped rate');
+select lives_ok($$select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"hire_rate","work_rate":60,"rate_unit":"hours","effective_from":"2026-01-01"}')$$,'AC-EQU-CUT-002 disconnected organization saves an unmapped rate');
 reset role;
 select throws_ok($$update external_org_bindings set status='active',connected_at='2026-11-15 12:00:00+00' where org_id='15190000-0000-0000-0000-00000000000a'$$,'P0002','map an account to the Equipment category first','AC-EQU-CUT-002 reconnect refuses saved unmapped hire rate with the same error');
 insert into budget_category_account_map(org_id,category,erp_account,is_push_target) values ('15190000-0000-0000-0000-00000000000a','Equipment','Depreciation - EQ',true);
