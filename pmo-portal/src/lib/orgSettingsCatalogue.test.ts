@@ -9,6 +9,8 @@ import en from '@/public/locales/en/common.json';
 import id from '@/public/locales/id/common.json';
 import billingStepsEn from '@/public/locales/en/billingSteps.json';
 import billingStepsId from '@/public/locales/id/billingSteps.json';
+import siteReportEn from '@/public/locales/en/siteReport.json';
+import siteReportId from '@/public/locales/id/siteReport.json';
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
 
@@ -126,8 +128,8 @@ describe('organisation settings catalogue (#2746)', () => {
     const text = orgSettingText(((k: string, d: string) => d) as never);
     const commonItems = (en as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
     const commonItemsId = (id as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
-    const items: Record<string, { name: string; summary: string }> = { ...commonItems, workOrderChecklist: billingStepsEn.settings.workOrderChecklist };
-    const itemsId: Record<string, { name: string; summary: string }> = { ...commonItemsId, workOrderChecklist: billingStepsId.settings.workOrderChecklist };
+    const items: Record<string, { name: string; summary: string }> = { ...commonItems, workOrderChecklist: billingStepsEn.settings.workOrderChecklist, qsReportRevenue: { name: siteReportEn.revenue.qsAccess, summary: siteReportEn.revenue.qsAccessHelp } };
+    const itemsId: Record<string, { name: string; summary: string }> = { ...commonItemsId, workOrderChecklist: billingStepsId.settings.workOrderChecklist, qsReportRevenue: { name: siteReportId.revenue.qsAccess, summary: siteReportId.revenue.qsAccessHelp } };
     for (const key of orgSettingKeys) {
       expect(text[key].name, key).toBeTruthy();
       expect(items[key]?.name, `en ${key}`).toBe(text[key].name);
@@ -136,6 +138,13 @@ describe('organisation settings catalogue (#2746)', () => {
       expect(itemsId[key]?.summary, `id ${key}`).toBeTruthy();
     }
     expect(Object.keys(items).sort()).toEqual([...orgSettingKeys].sort());
+  });
+
+  it('AC-OSM-032 report revenue setting copy comes from the site-report feature namespace', () => {
+    const t = vi.fn((key: string, fallback: string) => fallback);
+    orgSettingText(t as never);
+    expect(t).toHaveBeenCalledWith('siteReport:revenue.qsAccess', expect.any(String));
+    expect(t).toHaveBeenCalledWith('siteReport:revenue.qsAccessHelp', expect.any(String));
   });
 
   it('AC-OSM-032 checklist setting copy comes from the billing-steps feature namespace', () => {

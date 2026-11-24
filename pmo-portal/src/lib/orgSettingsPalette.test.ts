@@ -4,12 +4,14 @@ import en from '@/public/locales/en/common.json';
 import id from '@/public/locales/id/common.json';
 import billingStepsEn from '@/public/locales/en/billingSteps.json';
 import billingStepsId from '@/public/locales/id/billingSteps.json';
+import siteReportEn from '@/public/locales/en/siteReport.json';
+import siteReportId from '@/public/locales/id/siteReport.json';
 import { ORG_SETTINGS, orgSettingKeys } from './orgSettingsCatalogue';
 import { buildSettingsPaletteItems } from './orgSettingsPalette';
 
 /** #2746 AC-OSM-034: ⌘K finds a setting by its name in English or Bahasa and opens where it is changed. */
 const instance = i18next.createInstance();
-await instance.init({ lng: 'id', fallbackLng: 'en', ns: ['common', 'billingSteps'], defaultNS: 'common', resources: { en: { common: en, billingSteps: billingStepsEn }, id: { common: id, billingSteps: billingStepsId } } });
+await instance.init({ lng: 'id', fallbackLng: 'en', ns: ['common', 'billingSteps', 'siteReport'], defaultNS: 'common', resources: { en: { common: en, billingSteps: billingStepsEn, siteReport: siteReportEn }, id: { common: id, billingSteps: billingStepsId, siteReport: siteReportId } } });
 const tEn = instance.getFixedT('en');
 const tId = instance.getFixedT('id');
 
@@ -40,6 +42,16 @@ describe('buildSettingsPaletteItems (AC-OSM-034)', () => {
     const inBahasa = buildSettingsPaletteItems(tId, instance, 'Admin', vi.fn()).find((i) => i.id === 'setting-workOrderChecklist')!;
     expect(inBahasa.title).toBe('Pengeditan daftar penagihan perintah kerja');
     expect(inBahasa.searchCodes).toEqual(['Work-order checklist editing', 'Pengeditan daftar penagihan perintah kerja']);
+  });
+
+  it('AC-OSM-034 finds the QS report revenue setting in either language and opens its administration page', () => {
+    const navigate = vi.fn();
+    const entry = buildSettingsPaletteItems(tId, instance, 'Admin', navigate).find((i) => i.id === 'setting-qsReportRevenue')!;
+    expect(entry.title).toBe(siteReportId.revenue.qsAccess);
+    expect(entry.searchCodes).toEqual([siteReportEn.revenue.qsAccess, siteReportId.revenue.qsAccess]);
+    entry.run();
+    expect(navigate).toHaveBeenCalledWith('/administration/projects');
+    expect(buildSettingsPaletteItems(tEn, instance, 'Quantity Surveyor', vi.fn()).map((i) => i.id)).not.toContain('setting-qsReportRevenue');
   });
 
   it('offers a role only the settings it may change, and nothing to a role that may change none', () => {
