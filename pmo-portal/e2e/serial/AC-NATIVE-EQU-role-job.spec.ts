@@ -57,9 +57,10 @@ test('AC-NATIVE-EQU project control records crane hours and sees their native co
     await page.goto(`/work-orders/${setup.workOrders[0].id}`);
     await expect(page.getByTestId('cost-group-equipment_usage').getByText('$150', { exact: true }).first()).toBeVisible();
   } finally {
-    for (const binding of bindings) ok('restore accounting status', await service.from('external_org_bindings').update({ status: binding.status }).eq('id', binding.id));
-    if (mappings.length) ok('restore maps', await service.from('budget_category_account_map').insert(mappings));
+    // Restore valid rate/category state before reconnecting: connection validates every saved hire category.
     ok('remove own rates', await service.from('equipment_costing_settings').delete().eq('asset_id', asset.id));
+    if (mappings.length) ok('restore maps', await service.from('budget_category_account_map').insert(mappings));
+    for (const binding of bindings) ok('restore accounting status', await service.from('external_org_bindings').update({ status: binding.status }).eq('id', binding.id));
     ok('remove own usage', await service.from('equipment_usage_entries').delete().eq('asset_id', asset.id));
     ok('remove own asset', await service.from('equipment_assets').delete().eq('id', asset.id));
     ok('remove own work orders', await service.from('work_orders').delete().eq('project_id', setup.projectId));
