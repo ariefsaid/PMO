@@ -3,7 +3,7 @@
  * JOB-PU14 — receive at the yard or site: the storekeeper receives 37 of an order for 40 against the site store; the site's stock
  * rises by 37 and the order reads "Ordered 40 · Received 37 · Outstanding 3".
  */
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { ORG_ID, need, ok, ownProject, runId, serviceClient } from '../support/jobFixtures';
