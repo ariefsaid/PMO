@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(12);
+select plan(15);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20450000-0000-0000-0000-00000000000a', 'RR PU Org', 'IDR', 'UTC', true);
@@ -64,6 +64,9 @@ select is(pg_temp.err('a2', $$select create_procurement_quotation('20450000-0000
 select is(pg_temp.err('a2', $$select select_procurement_quote((select id from procurement_quotations where procurement_id = '20450000-0000-0000-0000-000000000042'))$$), 'ok', 'AC-BQS-003 Buyer selects quotation');
 select is(pg_temp.err('a2', $$select transition_procurement('20450000-0000-0000-0000-000000000042','Ordered')$$), 'ok', 'AC-BQS-003 Buyer records order');
 select is((select amount from purchase_orders where procurement_id = '20450000-0000-0000-0000-000000000042'),8500::numeric,'AC-BQS-003 Order carries selected amount');
+select is(pg_temp.err('a2', $$select create_purchase_order('20450000-0000-0000-0000-000000000042','PO-quoted','Issued',current_date,1)$$),'ok','AC-BQS-007 Buyer completes the order reference');
+select is((select count(*) from purchase_orders where procurement_id='20450000-0000-0000-0000-000000000042'),1::bigint,'AC-BQS-007 Completing the reference keeps one order');
+select is((select min(amount) from purchase_orders where procurement_id='20450000-0000-0000-0000-000000000042'),8500::numeric,'AC-BQS-007 Completion keeps the chosen amount');
 update organizations set hide_prices_from_requesters=true where id='20450000-0000-0000-0000-00000000000a';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"20450000-0000-0000-0000-0000000000a6","role":"authenticated"}';
