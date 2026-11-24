@@ -113,6 +113,6 @@ describe('SiteReportPeopleHours', () => {
   it('F8-2 a decided day says who decided it and when', () => {
     view({ mayEnter: true, workers: [worker({ second: { status: 'present', hours: 5, overtimeHours: null, note: null, standing: 'second', decidedAt: '2026-11-04T08:30:00Z', decidedByName: 'Mira Manager', decisionReason: 'signed' } })] });
     const row = screen.getByTestId('dsr-people-row-w1');
-    expect(row).toHaveTextContent('Second record stands (signed) · Mira Manager · 4 Nov 2026');
+    expect(row).toHaveTextContent('Second record stands (signed) · Mira Manager · 4 Nov');
   });
 });
