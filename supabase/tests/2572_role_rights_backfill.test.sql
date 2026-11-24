@@ -1,7 +1,21 @@
 -- Replay the actual migration against legacy Draft and submitted purchases, in one rolled-back transaction.
 begin;
 create extension if not exists pgtap;
-\ir ../migrations/rollback/2571_equipment_plan_purchase_submit_down.sql
+-- The CLI streams tests into its database container; read the applied migration ledger rather than host paths.
+drop trigger procurements_guard_plan_submitter on public.procurements;
+drop function public.guard_equipment_plan_purchase_submitter();
+drop function public.equipment_plan_purchase_submit_context(uuid);
+do $history$
+declare stmt text; restored integer:=0;
+begin
+ for stmt in select x.statement from supabase_migrations.schema_migrations m
+   cross join lateral unnest(m.statements) with ordinality x(statement,n)
+   where (m.version='1882' and x.statement ilike '%create or replace function public.approve_equipment_plan(%')
+      or (m.version='2001' and x.statement ilike '%create or replace function public.transition_procurement(%')
+   order by m.version,x.n
+ loop execute stmt; restored:=restored+1; end loop;
+ if restored<>2 then raise exception 'Historical function bodies missing from migration ledger'; end if;
+end $history$;
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('27004000-0000-0000-0000-00000000000a', 'EQP Org',       'IDR', 'Asia/Jakarta', true),
   ('27004000-0000-0000-0000-00000000000b', 'EQP Other Org', 'IDR', 'Asia/Jakarta', true);
@@ -85,7 +99,15 @@ select transition_procurement((select id from target),'Requested');
 reset role;
 select set_config('request.jwt.claims','{}',true);
 -- MIGRATION-REPLAY
-\ir ../migrations/2571_equipment_plan_purchase_submit.sql
+do $replay$
+declare stmt text; replayed integer:=0;
+begin
+ for stmt in select x.statement from supabase_migrations.schema_migrations m
+   cross join lateral unnest(m.statements) with ordinality x(statement,n)
+   where m.version='2571' order by x.n
+ loop execute stmt; replayed:=replayed+1; end loop;
+ if replayed=0 then raise exception 'Reviewed forward migration missing from migration ledger'; end if;
+end $replay$;
 create temp table backfill_cases(id text,actual text,expected text);
 insert into backfill_cases values
 ('requester_backfill',(select p.requested_by_id::text from procurements p join equipment_plan_lines l on l.procurement_id=p.id where l.plan_id='27004000-0000-0000-0000-000000000b01' and p.status='Draft'),'27004000-0000-0000-0000-0000000000a2'),
