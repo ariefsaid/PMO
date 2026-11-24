@@ -10,11 +10,12 @@ alter table public.equipment_accounting_cutover force row level security;
 revoke all on public.equipment_accounting_cutover from public, anon, authenticated;
 grant all on public.equipment_accounting_cutover to service_role;
 
+-- Legacy connections may lack connected_at; activation and persisted creation supply a stable day.
 -- The first effective ledger date survives later disconnects, reconnects and configuration edits.
 insert into public.equipment_accounting_cutover(org_id, effective_on)
 select b.org_id, min((case when b.external_tier = 'odoo'
                          then (b.config->>'ledger_basis_at')::timestamptz
-                         else b.connected_at end at time zone o.default_timezone)::date)
+                         else coalesce(b.connected_at,b.activated_at,b.created_at) end at time zone o.default_timezone)::date)
 from public.external_org_bindings b join public.organizations o on o.id=b.org_id
 where b.status='active' and (b.external_tier='erpnext' or
   (b.external_tier='odoo' and b.activated_at is not null and nullif(b.config->>'ledger_basis_at','') is not null))
@@ -44,7 +45,7 @@ begin
   if v_category is not null then
     raise exception 'map an account to the % category first',v_category using errcode='P0002';
   end if;
-  v_effective := case when new.external_tier='odoo' then (new.config->>'ledger_basis_at')::timestamptz else new.connected_at end;
+  v_effective := case when new.external_tier='odoo' then (new.config->>'ledger_basis_at')::timestamptz else coalesce(new.connected_at,new.activated_at,new.created_at) end;
   insert into public.equipment_accounting_cutover(org_id,effective_on)
   select new.org_id,(v_effective at time zone o.default_timezone)::date from public.organizations o where o.id=new.org_id
   on conflict(org_id) do nothing;

@@ -1,3 +1,4 @@
+import { accountingSetupCapabilities } from '@/src/lib/adapterSeam/capabilityMap';
 import { repositories } from '@/src/lib/repositories';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/src/auth/useAuth';
@@ -98,7 +99,7 @@ const BudgetAccountMap: React.FC = () => {
     enabled: Boolean(orgId),
   });
   const nativeCosting = basisQuery.data !== undefined && !basisQuery.data.some((binding) =>
-    binding.status === 'active' && (binding.external_tier === 'erpnext' || binding.external_tier === 'odoo'));
+    binding.status === 'active' && accountingSetupCapabilities(binding.external_tier).accounting);
   const catalogueQuery = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],
     queryFn: listBudgetPostingAccountCatalogue,

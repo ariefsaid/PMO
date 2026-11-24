@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(10);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
   ('15190000-0000-0000-0000-00000000000b', 'EQU Other', 'IDR', 'UTC');
@@ -91,5 +91,15 @@ set local role authenticated;
 select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),100::numeric,'AC-EQU-CUT-003 reconnect preserves the original connection date snapshot');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000b1');
 select is((select count(*) from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),0::bigint,'AC-EQU-CUT-004 another organization reads no native charges');
+reset role;
+insert into external_org_bindings(org_id,external_tier,site_url,secret_ref,status,activated_at,created_at) values
+('15190000-0000-0000-0000-00000000000b','erpnext','https://erp.example.test','test-ref','active','2026-09-03 12:00:00+00','2026-09-01 12:00:00+00');
+select is((select effective_on from equipment_accounting_cutover where org_id='15190000-0000-0000-0000-00000000000b'),'2026-09-03'::date,
+ 'AC-EQU-CUT-005 a legacy binding with no connected timestamp uses its activation day');
+insert into organizations(id,name,default_currency,default_timezone) values ('15190000-0000-0000-0000-00000000000c','Legacy costing','IDR','UTC');
+insert into external_org_bindings(org_id,external_tier,site_url,secret_ref,status,created_at) values
+('15190000-0000-0000-0000-00000000000c','erpnext','https://erp.example.test','test-ref','active','2026-08-01 12:00:00+00');
+select is((select effective_on from equipment_accounting_cutover where org_id='15190000-0000-0000-0000-00000000000c'),'2026-08-01'::date,
+ 'AC-EQU-CUT-005 a legacy binding without connection or activation timestamps uses its persisted creation day');
 select * from finish();
 rollback;
