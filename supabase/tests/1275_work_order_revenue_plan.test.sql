@@ -154,7 +154,7 @@ do $$
 declare original text; mutant text;
 begin
   select pg_get_functiondef('public.wrp_writable_work_order(uuid)'::regprocedure) into original;
-  mutant := replace(original, 'if not public.dsr_may_see_revenue(w.project_id) then', 'if false then');
+  mutant := replace(original, 'if not public.dsr_may_write_revenue(w.project_id) then', 'if false then');   -- 2046: the writer gate
   if mutant = original then raise exception 'role mutation did not apply'; end if;
   execute mutant;
 end $$;

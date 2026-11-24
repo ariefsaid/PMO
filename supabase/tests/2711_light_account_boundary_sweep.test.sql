@@ -81,6 +81,7 @@ insert into la_fn_allow values
   ('crew_tool_photo_stored', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('dsr_may_enter', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('dsr_may_see_revenue', 'helper', 'a capability or audience helper the shell and the policies read'),
+  ('dsr_may_write_revenue', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('dsr_may_validate', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('dsr_photo_stored', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('dsr_photo_writable', 'helper', 'a capability or audience helper the shell and the policies read'),
