@@ -13,6 +13,7 @@ test('AC-SITE-012 Admin names the CM owner and the CM files proof and confirms p
   await expect.poll(async()=> (await db.from('work_order_closeout_items').select('owner_job_role').eq('id',item).single()).data?.owner_job_role).toBe('construction_manager');
   await page.context().clearCookies();await page.evaluate(()=>localStorage.clear());await actor.login(page);await page.goto(`/work-orders/${fixture.wo}`);
   await page.getByRole('combobox',{name:'Document for Physical completion'}).selectOption({label:`Proof ${fixture.run}`});await page.getByRole('button',{name:'Attach to Physical completion'}).click();await page.getByRole('button',{name:'Mark Physical completion done'}).click();
+  await expect(page.getByRole('listitem',{name:'Physical completion'})).toContainText('Test construction_manager');
   await page.reload();await expect(page.getByRole('listitem',{name:'Physical completion'})).toContainText('Test construction_manager');
   const saved=must('completion',await db.from('work_order_closeout_items').select('done_by,done_on').eq('id',item).single());expect(saved.done_by).toBe(actor.id);expect(saved.done_on).toBe(inDays(0));
  }finally{await fixture.cleanup();await actor.cleanup();}
