@@ -1,0 +1,15 @@
+{
+  "tables": [
+    {
+      "table": "hourly_rental_checks",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": [
+    "check_hourly_rental(uuid,date,date,numeric,numeric,jsonb,text)"
+  ]
+}

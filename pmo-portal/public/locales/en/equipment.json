@@ -195,7 +195,9 @@
     "unrecordedRented": "Days with no status recorded are counted as rented; only recorded down days are deducted.",
     "onlyFinanceIncludes": "Unproven down days are not deducted. Only an Admin or Finance user can include them, with a reason.",
     "unrecordedNote": "Unrecorded days are days in service with no status. Days before the organisation started recording are not counted.",
-    "metricsEmpty": "No figures for this period"
+    "metricsEmpty": "No figures for this period",
+    "hour": "Hour",
+    "hourly": "Hourly rental"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",
@@ -519,5 +521,22 @@
     "emptyCan": "Add the first machine with New equipment.",
     "firstPage": "Showing the first {{count}} machines. The rest are under Availability.",
     "machines": "Machines and today's status"
+  },
+  "hourly": {
+    "contracted": "Contracted hours",
+    "invoice": "Invoice hours",
+    "evidence": "Attach dated evidence in Availability before checking. Only proven broken hours are deducted.",
+    "date": "Breakdown date",
+    "hours": "Broken hours",
+    "remove": "Remove breakdown",
+    "add": "Add broken hours",
+    "compare": "Compare hours",
+    "checkedAction": "Mark checked",
+    "disputedAction": "Mark disputed",
+    "checked": "Checked",
+    "disputed": "Disputed",
+    "proven": "Proven broken hours",
+    "billable": "Billable hours",
+    "rate": "Hourly rate"
   }
 }

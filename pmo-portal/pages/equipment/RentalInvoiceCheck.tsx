@@ -1,3 +1,4 @@
+import HourlyRentalCheck from './HourlyRentalCheck';
 import React, { useEffect, useState } from 'react';
 import { DateField } from '@/src/components/ui/DateField';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +16,7 @@ type Props = { assets: Asset[]; today: string; monthFrom: string; statusLabel: (
 export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLabel, canIncludeUnproven = true }: Props) {
   const { t } = useTranslation();
   const check = useRentalCheck();
+  const [hourly, setHourly] = useState(false);
   const [asset, setAsset] = useState('');
   const [start, setStart] = useState<string | null>(null);
   const [end, setEnd] = useState<string | null>(null);
@@ -51,8 +53,10 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
       <SelectField label={t('equipment:availability.rentedAsset', 'Rented machine')} value={asset} onChange={(v) => { clear(); setAsset(v); }} options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...assets.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))]} />
       <DateField label={t('equipment:availability.from', 'Invoice period from')} value={from} onChange={(v) => { clear(); setStart(v); }} />
       <DateField label={t('equipment:availability.to', 'Invoice period to')} value={to} onChange={(v) => { clear(); setEnd(v); }} />
-      <NumberField localeAware label={t('equipment:availability.invoiceAmount', 'Vendor invoice amount')} value={invoice} onChange={(v) => { clear(); setInvoice(v); }} />
+      {!hourly && <NumberField localeAware label={t('equipment:availability.invoiceAmount', 'Vendor invoice amount')} value={invoice} onChange={(v) => { clear(); setInvoice(v); }} />}
     </div>
+    <label className="flex gap-2 mt-3"><input type="checkbox" checked={hourly} onChange={(e) => { clear(); setHourly(e.target.checked); }} />{t('equipment:availability.hourly', 'Hourly rental')}</label>
+    {hourly ? <HourlyRentalCheck key={`${asset}:${from}:${to}`} assetId={asset} from={from} to={to} /> : <>
     <Button variant="primary" className="mt-3" disabled={!asset || !from || !to || check.isPending} onClick={() => void run(false)}>{t('equipment:availability.runCheck', 'Check invoice')}</Button>
     {check.data && <div className="mt-4" role="region" aria-label={t('equipment:availability.result', 'Check result')}>
       <dl className="grid grid-cols-2 gap-1 text-sm max-w-md">
@@ -81,5 +85,6 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
         <Button variant="outline" className="mt-2" disabled={!reason.trim() || check.isPending} onClick={() => void run(true)}>{t('equipment:availability.include', 'Include unproven days')}</Button>
       </div>}
     </div>}
+    </>}
   </section>;
 }

@@ -4161,3 +4161,5 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   (DD-R1124-1). Reason: the role's job is to oversee buying across projects, so it must see every case and not only those of the projects
   it manages. Not a setting: it follows the job role.
 
+
+- **DD-R1124-17 Hourly equipment rental checks.** A rental term may use an hourly rate. The equipment officer enters contracted hours for each period and dated broken hours; proven broken hours reduce billable hours, floored at zero. Calendar days and working hours never infer the contracted quantity. The officer compares supplier quantity, rate, deduction and evidence and records checked or disputed; Finance retains approval and payment. Existing daily and monthly bases retain their calculations.
