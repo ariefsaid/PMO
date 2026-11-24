@@ -1,0 +1,16 @@
+{
+  "tables": [
+    {
+      "table": "stock_issue_cost_settings",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "n/a: pk is org_id"
+    }
+  ],
+  "definer_functions": [
+    "set_stock_issue_cost_date(date)",
+    "stock_issue_cost_lines(uuid)"
+  ]
+}
