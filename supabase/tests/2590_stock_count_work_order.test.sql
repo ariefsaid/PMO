@@ -196,6 +196,26 @@ select is((select amount from project_pmo_spent_position('25900000-0000-0000-000
 select is((select spent from project_pmo_positions(array['25900000-0000-0000-0000-0000000000c1']::uuid[])), 250::numeric,
   'AC-SCW-003 project_pmo_positions agrees (+250)');
 
+-- AC-SCW-006 the record read used by Costs contains the same signed money as actuals.
+select is((select project_id from work_order_cost_lines where record_id=current_setting('tst.cnt1')::uuid),
+ '25900000-0000-0000-0000-0000000000c1'::uuid, 'AC-SCW-006 count record derives its project from its work order');
+select is((select sum(a.amount::numeric) from work_order_cost_lines l
+ join work_order_cost_amounts('25900000-0000-0000-0000-0000000000c1') a on a.source=l.source and a.record_id=l.record_id
+ where l.work_order_id='25900000-0000-0000-0000-000000000401'),250::numeric,
+ 'AC-SCW-006 visible cost records sum to the counted total');
+select is((select reference from work_order_cost_lines where record_id=current_setting('tst.cnt1')::uuid),
+ (select number from stock_documents where id=current_setting('tst.cnt1')::uuid), 'AC-SCW-006 count has its own document label');
+select set_stock_issue_cost_date(null);
+select is((select count(*) from work_order_cost_lines where record_id=current_setting('tst.cnt1')::uuid),0::bigint,
+ 'AC-SCW-006 disabling issued-stock costing removes count record');
+select is((select count(*) from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1')),0::bigint,
+ 'AC-SCW-006 disabling issued-stock costing removes count amount');
+select set_stock_issue_cost_date('2026-11-21');
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a2');
+select throws_ok($$select * from work_order_cost_amounts('25900000-0000-0000-0000-0000000000c1')$$,
+ '42501','not authorized','AC-SCW-006 keeper cannot read count money');
+select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
+
 -- AC-SCW-003: Effective date gate — moving effective_on to 2026-11-22 excludes the 2026-11-21 count.
 select is(set_stock_issue_cost_date('2026-11-22'), '2026-11-22'::date, 'AC-SCW-003 move effective_on after count date');
 select is((select count(*) from stock_issue_cost_lines('25900000-0000-0000-0000-0000000000c1')), 0::bigint,
