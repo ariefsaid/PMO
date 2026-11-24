@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
 import { writeOffLinesReserve } from '@/src/components/stock/linesLoadingHeights';
-import { Button, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon } from '@/src/components/ui';
+import { Button, Combobox, ConfirmDialog, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon, type ComboboxOption } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockError } from '@/src/components/stock/StockError';
@@ -12,6 +12,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useStockDocument, useStockDocumentCosts, useStockDocumentMutations, useStockItems, useStockKeepers, useStockOnHand, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal, subtractDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentDetail, StockDocumentInput, StockLineCost, StockLineInput } from '@/src/lib/db/stockDocuments';
 
@@ -115,6 +116,7 @@ const Shell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, 
 const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; costs?: StockLineCost[] }> = ({ kind, draft, costs }) => {
   const { t } = useTranslation('stock');
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -128,7 +130,8 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
 
   const requestId = useRef<string>(crypto.randomUUID()); // FR-STK-015
   const nextKey = useRef(2);
-  const [warehouseId, setWarehouseId] = useState(draft?.warehouse_id ?? '');
+  const [warehouseId, setWarehouseId] = useState(draft?.warehouse_id ?? params.get('warehouse') ?? '');
+  const [workOrderId, setWorkOrderId] = useState(draft?.work_order_id ?? params.get('workOrder') ?? '');
   const [reason, setReason] = useState(draft?.reason ?? '');
   const [note, setNote] = useState(draft?.note ?? '');
   const [lines, setLines] = useState<Line[]>(() => draft?.lines.length
@@ -142,11 +145,28 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   const [saved, setSaved] = useState(false);
   const [confirmFillOpen, setConfirmFillOpen] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
-  const initialSnapshot = useRef(JSON.stringify({ warehouseId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) }));
-  const snapshot = JSON.stringify({ warehouseId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) });
+  const initialSnapshot = useRef(JSON.stringify({ warehouseId, workOrderId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) }));
+  const snapshot = JSON.stringify({ warehouseId, workOrderId, reason, note, lines: lines.filter((l) => l.itemId || l.counted || l.quantity || l.unitCost).map(({ itemId, counted, quantity, direction, unitCost }) => ({ itemId, counted, quantity, direction, unitCost })) });
   const dirty = !saved && snapshot !== initialSnapshot.current;
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave, stay) => setPendingLeave({ leave, stay }) });
   useEffect(() => { if (draft) nextKey.current = draft.lines.length + 1; }, [draft]);
+
+  const selectedWarehouse = useMemo(() => (warehouses.data ?? []).find((w) => w.id === warehouseId), [warehouses.data, warehouseId]);
+  const countProjectId = kind === 'count' && selectedWarehouse && ['site', 'yard', 'staging'].includes(selectedWarehouse.kind) ? selectedWarehouse.project_id : null;
+  const projectWorkOrders = useProjectWorkOrders(countProjectId ?? '');
+  const workOrderOptions: ComboboxOption[] = useMemo(
+    () => (projectWorkOrders.data ?? [])
+      .filter((wo) => wo.status !== 'Cancelled')
+      .map((wo) => ({ value: wo.id, label: wo.wo_number ?? wo.title, sub: wo.wo_number ? wo.title : undefined, searchTerms: [wo.title, wo.client_po_number ?? ''] })),
+    [projectWorkOrders.data],
+  );
+  const loadWorkOrders = useCallback(async () => workOrderOptions, [workOrderOptions]);
+  const handleWarehouseChange = (nextId: string) => {
+    setWarehouseId(nextId);
+    const nextWh = (warehouses.data ?? []).find((w) => w.id === nextId);
+    const nextProject = kind === 'count' && nextWh && ['site', 'yard', 'staging'].includes(nextWh.kind) ? nextWh.project_id : null;
+    if (nextProject !== countProjectId) setWorkOrderId('');
+  };
 
   const onHand = useStockOnHand({ warehouseId, includeZero: true }, Boolean(warehouseId));
   const viewOnly = realRole !== effectiveRole;
@@ -225,8 +245,13 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
     });
     setErrors(e);
     if (Object.keys(e).length) return null;
+    const woPatch = kind !== 'count' ? {}
+      : countProjectId && workOrderId ? { workOrderId }
+      : draft?.work_order_id ? { workOrderId: null }
+      : {};
     return {
       kind, warehouseId,
+      ...woPatch,
       ...(kind === 'adjustment' || hasDifference ? { reason: reason.trim() } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
       lines: out,
@@ -289,8 +314,29 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
           <div data-testid="stock-count-header">
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>
-              <SelectField label={t('form.warehouse')} required value={warehouseId} onChange={setWarehouseId}
+              <SelectField label={t('form.warehouse')} required value={warehouseId} onChange={handleWarehouseChange}
                 options={usable.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.warehouse} />
+              {kind === 'count' && countProjectId && (
+                <Combobox
+                  id="stock-count-work-order"
+                  label={t('count.workOrder')}
+                  value={workOrderId || null}
+                  selectedOption={workOrderOptions.find((o) => o.value === workOrderId) ?? null}
+                  loadOptions={loadWorkOrders}
+                  statusOverride={projectWorkOrders.isLoading ? 'loading' : projectWorkOrders.isError ? 'error' : undefined}
+                  onRetry={() => void projectWorkOrders.refetch()}
+                  onChange={(v) => setWorkOrderId(v || '')}
+                  clearable
+                  onClear={() => setWorkOrderId('')}
+                  placeholder={t('count.workOrderPlaceholder')}
+                  searchPlaceholder={t('count.workOrderSearch')}
+                  noun={t('count.workOrderNoun')}
+                  nounPlural={t('count.workOrderNounPlural')}
+                  emptyMessage={t('count.workOrderEmpty')}
+                  helper={t('count.workOrderHelp')}
+                  disabled={viewOnly}
+                />
+              )}
               {(kind === 'adjustment' || hasDifference) && (
                 <TextField label={t('count.reason')} required value={reason} onChange={setReason} helper={t('count.reasonHelp')} error={errors.reason} />
               )}
