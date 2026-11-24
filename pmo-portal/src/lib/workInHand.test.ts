@@ -4,6 +4,8 @@ import {
   rankWorkInHand,
   formatBacklogTenths,
   hiddenFigures,
+  monthsOfWorkAvailable,
+  workInHandSummary,
   type WipInputRow,
 } from './workInHand';
 
@@ -260,5 +262,50 @@ describe('hiddenFigures', () => {
   it('does not count a fully billed row as missing a rate', () => {
     const rows = deriveWorkInHand([contract({ id: 'done', value: '100.00', billedToDate: '100.00' })], AS_OF);
     expect(hiddenFigures(rows, { noValueContractCount: 0, undatedInvoiceCount: 0, truncated: false }).noRate).toBe(0);
+  });
+});
+
+describe('work-in-hand months by monthly capacity', () => {
+  it('AC-M8-001 divides only the organisation-currency backlog by the configured monthly capacity', () => {
+    const rows = deriveWorkInHand([
+      contract({ id: 'idr', value: '25000000.00', currency: 'IDR' }),
+      contract({ id: 'usd', value: '900000.00', currency: 'USD' }),
+    ], AS_OF);
+    const groups = rankWorkInHand(rows, 'leftToBill', 'IDR');
+    expect(monthsOfWorkAvailable(groups, 'IDR', 250000000n)).toBe(100n); // 25m / 2.5m = 10.0
+    expect(formatBacklogTenths(100n)).toBe('10.0');
+    expect(monthsOfWorkAvailable(groups, 'IDR', 2500000000n)).toBe(10n); // 25m / 25m = 1.0
+    expect(groups.filter((g) => g.currency !== 'IDR').map((g) => g.currency)).toEqual(['USD']);
+  });
+
+  it('AC-M8-001 returns no months when capacity is unset or zero', () => {
+    expect(monthsOfWorkAvailable([], 'IDR', null)).toBeNull();
+    expect(monthsOfWorkAvailable([], 'IDR', 0n)).toBeNull();
+  });
+
+  it('AC-M8-001 summarizes org-currency backlog, other currencies separately, and capacity months without conversion', () => {
+    const rows = deriveWorkInHand([
+      contract({ id: 'idr', value: '25000000.00', billedToDate: '5000000.00', currency: 'IDR' }), // left 20m
+      contract({ id: 'usd', value: '900000.00', billedToDate: '0.00', currency: 'USD' }),
+    ], AS_OF);
+    const withCapacity = workInHandSummary(rows, 'IDR', '8000000.00'); // 20m / 8m = 2.5
+    expect(withCapacity.orgLeftToBillCents).toBe(2000000000n);
+    expect(withCapacity.otherCurrencies).toEqual([{ currency: 'USD', leftToBillCents: 90000000n }]);
+    expect(withCapacity.capacityCents).toBe(800000000n);
+    expect(withCapacity.monthsTenths).toBe(25n);
+
+    const withoutCapacity = workInHandSummary(rows, 'IDR', null);
+    expect(withoutCapacity.orgLeftToBillCents).toBe(2000000000n);
+    expect(withoutCapacity.otherCurrencies).toEqual([{ currency: 'USD', leftToBillCents: 90000000n }]);
+    expect(withoutCapacity.capacityCents).toBeNull();
+    expect(withoutCapacity.monthsTenths).toBeNull();
+  });
+
+  it('AC-M8-001 reports zero org-currency work in hand when only foreign-currency contracts exist', () => {
+    const rows = deriveWorkInHand([contract({ id: 'usd', value: '900000.00', currency: 'USD' })], AS_OF);
+    const summary = workInHandSummary(rows, 'IDR', '2500000.00');
+    expect(summary.orgLeftToBillCents).toBe(0n);
+    expect(summary.monthsTenths).toBe(0n);
+    expect(summary.otherCurrencies).toEqual([{ currency: 'USD', leftToBillCents: 90000000n }]);
   });
 });

@@ -161,6 +161,47 @@ export interface WipCurrencyGroup {
   workOrderTotals: WipTotals;
 }
 
+/** Tenths of work months from the organisation-currency backlog and monthly capacity, or null until capacity is set. */
+export function monthsOfWorkAvailable(groups: WipCurrencyGroup[], orgCurrency: string, capacityCents: bigint | null): bigint | null {
+  if (capacityCents === null || capacityCents <= 0n) return null;
+  const backlog = groups.find((group) => group.currency === orgCurrency)?.totals.leftToBillCents ?? 0n;
+  return divHalfUp(backlog * 10n, capacityCents);
+}
+
+export interface WorkInHandCurrencyAmount {
+  currency: string;
+  leftToBillCents: bigint;
+}
+
+export interface WorkInHandSummary {
+  orgCurrency: string;
+  orgLeftToBillCents: bigint;
+  otherCurrencies: WorkInHandCurrencyAmount[];
+  capacityCents: bigint | null;
+  monthsTenths: bigint | null;
+}
+
+/**
+ * M8 summary: value of work in hand in the organisation's currency, other currencies separately (never converted or
+ * included in months), and months of work in hand = org-currency work in hand ÷ monthly capacity.
+ */
+export function workInHandSummary(rows: WipRow[], orgCurrency: string, monthlyCapacity: string | null | undefined): WorkInHandSummary {
+  const groups = rankWorkInHand(rows, 'leftToBill', orgCurrency);
+  const parsedCapacity = monthlyCapacity === null || monthlyCapacity === undefined ? null : parseExactCents(monthlyCapacity);
+  const capacityCents = parsedCapacity !== null && parsedCapacity > 0n ? parsedCapacity : null;
+  const orgGroup = groups.find((group) => group.currency === orgCurrency);
+  const otherCurrencies = groups
+    .filter((group) => group.currency !== orgCurrency)
+    .map((group) => ({ currency: group.currency, leftToBillCents: group.totals.leftToBillCents }));
+  return {
+    orgCurrency,
+    orgLeftToBillCents: orgGroup?.totals.leftToBillCents ?? 0n,
+    otherCurrencies,
+    capacityCents,
+    monthsTenths: monthsOfWorkAvailable(groups, orgCurrency, capacityCents),
+  };
+}
+
 const cmp = (a: bigint, b: bigint): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /** 0 = open work with a rate, 1 = nothing left to bill, 2 = no billing rate. */

@@ -226,6 +226,7 @@ export type Entity =
   | 'crewLoan'
   | 'attendanceRate'
   | 'attendanceTarget'
+  | 'workInHandCapacity'
   | 'leaveRequest'
   | 'medicalRelease'
   | 'checkInSettings'
@@ -823,6 +824,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow([...MONEY_AUTHORITY, 'Project Manager']),
     viewAssigned: allow(['Project Manager']),
   },
+  /** M8: monthly capacity in org currency is Admin-only (enforced by organizations_update_work_in_hand_capacity + column grant). */
+  workInHandCapacity: { manage: allowUnlessViewOnly(ADMIN) },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
   /** The opening balances the CLI loaded at go-live (migration 2161). Read-only here; the database read is Admin and Finance only. */
   openingBalance: { view: allow(['Admin', 'Finance']) },

@@ -23,7 +23,7 @@
     "title": "Gagal memuat pekerjaan dalam tangan"
   },
   "help": {
-    "backlog": "Bulan backlog adalah Sisa tagihan dibagi laju penagihan. Kontrak dan work ordernya ditampilkan bersama dan tidak dijumlahkan.",
+    "backlog": "Bulan backlog per baris adalah Sisa tagihan dibagi laju penagihan baris tersebut. Bulan pekerjaan dalam tangan membagi pekerjaan dalam tangan dalam mata uang organisasi dengan kapasitas bulanan dari Admin; mata uang lain tidak dikonversi atau dimasukkan.",
     "leftToBill": "Sisa tagihan adalah nilai yang belum ditagih: nilai kontrak atau $t(common:terms.clientWorkOrder) dikurangi pekerjaan yang sudah ditagih, sebelum pajak. Invoice draf dan invoice batal tidak dihitung.",
     "rate": "Laju penagihan per bulan adalah pekerjaan yang ditagih dalam 6 bulan penuh terakhir, dibagi jumlah bulan sejak penagihan dimulai (paling banyak 6)."
   },
@@ -88,5 +88,33 @@
   },
   "title": "Pekerjaan dalam tangan",
   "titleManaged": "Pekerjaan saya dalam tangan",
-  "managedScope": "Angka ini hanya mencakup proyek yang ditugaskan kepada Anda."
+  "managedScope": "Angka ini hanya mencakup proyek yang ditugaskan kepada Anda.",
+  "capacitySetting": {
+    "title": "Kapasitas kerja bulanan",
+    "helper": "Kapasitas produksi bulanan dalam {{currency}}, dipakai untuk membagi pekerjaan dalam tangan menjadi bulan. Kosongkan jika belum diatur.",
+    "label": "Kapasitas bulanan ({{currency}})",
+    "save": "Simpan kapasitas",
+    "clear": "Hapus kapasitas",
+    "saved": "Kapasitas kerja bulanan disimpan",
+    "loadError": "Gagal memuat kapasitas kerja bulanan",
+    "positive": "Kapasitas bulanan harus lebih besar dari nol.",
+    "precision": "Beri kapasitas bulanan paling banyak dua angka desimal.",
+    "empty": "Belum diatur: bulan pekerjaan dalam tangan belum dihitung sampai kapasitas bulanan diisi.",
+    "active": "Bulan pekerjaan dalam tangan membagi nilai pekerjaan dalam tangan {{currency}} dengan kapasitas bulanan ini."
+  },
+  "setting": {
+    "name": "Kapasitas kerja bulanan",
+    "summary": "Mengatur kapasitas produksi bulanan dalam mata uang organisasi untuk bulan pekerjaan dalam tangan."
+  },
+  "summary": {
+    "openLink": "Buka pekerjaan dalam tangan",
+    "value": "Nilai pekerjaan dalam tangan",
+    "months": "Bulan pekerjaan dalam tangan",
+    "monthsValue": "{{months}} bulan",
+    "capacityBasis": "Berdasarkan {{capacity}}/bulan",
+    "otherCurrencies": "Mata uang lain (tidak termasuk dalam hitungan bulan): {{amounts}}",
+    "excludedFromMonths": "{{currencies}} tidak termasuk dalam hitungan bulan (tanpa konversi)",
+    "noCapacity": "Kapasitas bulanan belum diatur",
+    "setCapacity": "Atur kapasitas"
+  }
 }
