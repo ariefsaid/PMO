@@ -14,7 +14,7 @@ export const WAITING_KINDS = [
 export type WaitingKind = (typeof WAITING_KINDS)[number];
 
 /** Kinds answered by the database function `my_waiting_decisions()`; the rest keep the read their own screen already uses. */
-export const DATABASE_LISTED_KINDS = ['daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan', 'check_in'] as const;
+export const DATABASE_LISTED_KINDS = ['daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan', 'check_in', 'stock_writeoff', 'attendance_decision'] as const;
 export type DatabaseListedKind = (typeof DATABASE_LISTED_KINDS)[number];
 
 export interface WaitingKindMeta {
