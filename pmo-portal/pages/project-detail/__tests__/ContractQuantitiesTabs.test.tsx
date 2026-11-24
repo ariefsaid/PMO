@@ -13,6 +13,7 @@ import type { ContractLineFacts } from '@/src/lib/progressBilling';
  */
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  jobRole: null as string | null,
   userId: 'u-fin',
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   boq: [] as unknown[],
@@ -36,7 +37,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1', role: h.role } }) }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
-  return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
+  return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, builtInRoleKey: h.jobRole, ...ctx } as never) };
 });
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -94,7 +95,7 @@ const baseFacts = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.role = 'Finance'; h.userId = 'u-fin';
+  h.jobRole = null; h.role = 'Finance'; h.userId = 'u-fin';
   h.claims = []; h.workOrders = []; h.woBilling = []; h.lines = []; h.acceptances = []; h.docs = []; h.accError = false;
   const mutation = () => ({ mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false });
   h.acc = Object.fromEntries(['createLine', 'updateLine', 'deleteLine', 'prepare', 'withdraw', 'confirm'].map((n) => [n, mutation()]));
@@ -271,7 +272,7 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
 
   it('AC-CQ-015 Finance may confirm a Draft prepared by someone else, but Project Manager may not', async () => {
     h.acceptances = [bast('a2', { is_final: true })];
-    h.role = 'Finance'; h.userId = 'u-fin';
+    h.jobRole = null; h.role = 'Finance'; h.userId = 'u-fin';
     const user = renderWorkOrders();
     await openDisclosure(user);
     expect(within(disclosure()).getByRole('button', { name: 'Confirm BAST' })).toBeInTheDocument();
@@ -282,7 +283,7 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     h.workOrders = [wo({ status })];
     h.woBilling = [woBilling({ status })];
     h.acceptances = [bast('a2')];
-    h.role = 'Finance'; h.userId = 'u-fin';
+    h.jobRole = null; h.role = 'Finance'; h.userId = 'u-fin';
     const user = renderWorkOrders();
     await openDisclosure(user);
     expect(within(disclosure()).queryByRole('button', { name: 'Confirm BAST' })).toBeNull();
@@ -300,7 +301,7 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
 
   it('AC-CQ-015 a Finance preparer is told another approver is needed unless they are the only active member', async () => {
     h.acceptances = [bast('a2', { prepared_by: 'u-fin' })];
-    h.role = 'Finance'; h.userId = 'u-fin';
+    h.jobRole = null; h.role = 'Finance'; h.userId = 'u-fin';
     const user = renderWorkOrders();
     await openDisclosure(user);
     expect(within(disclosure()).getByRole('button', { name: 'Confirm BAST' })).toBeInTheDocument();
@@ -379,7 +380,7 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     h.lines = [alloc('l1', 'b1', 1000)];
     h.docs = [SIGNED];
     h.acceptances = [bast('a2', { is_final: true, document_id: 'd1', lines: [{ acceptance_id: 'a2', boq_item_id: 'b1', quantity: 997 }] })];
-    h.role = 'Finance'; h.userId = 'u-fin';
+    h.jobRole = null; h.role = 'Finance'; h.userId = 'u-fin';
   });
   const confirmButton = () => within(screen.getByTestId('bast-a2')).getByRole('button', { name: 'Confirm BAST' });
 
@@ -464,10 +465,23 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
   });
 
   it('AC-CQ-015 the Invoice action still follows the server billing facts for a closed order', () => {
-    h.role = 'Finance'; h.userId = 'u-fin';
+    h.jobRole = null; h.role = 'Finance'; h.userId = 'u-fin';
     h.workOrders = [wo({ status: 'Closed', closing_value: 49_850_000 })];
     h.woBilling = [woBilling({ status: 'Closed', orderNet: 49_850_000, remaining: 9_850_000, invoiced: 40_000_000 })];
     renderWorkOrders();
     expect(screen.getByRole('button', { name: /Raise invoice/ })).toBeInTheDocument();
   });
+});
+
+it("JOB-BQ5 QS reads billing claims without gaining invoice or claim author actions", () => {
+ h.role = "Engineer"; h.jobRole = "quantity_surveyor"; h.billing.data = baseFacts;
+ renderBilling();
+ expect(screen.getByText("No billing claims yet")).toBeInTheDocument();
+ expect(screen.queryByRole("button", { name: "New claim" })).not.toBeInTheDocument();
+});
+
+it("JOB-BQ5 QS sees the claim list on the Contract work-orders surface", () => {
+ h.role = "Engineer"; h.jobRole = "quantity_surveyor"; h.billing.data = baseFacts;
+ renderWorkOrders();
+ expect(screen.getByText("No billing claims yet")).toBeInTheDocument();
 });
