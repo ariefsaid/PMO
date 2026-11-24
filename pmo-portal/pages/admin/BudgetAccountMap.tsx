@@ -1,3 +1,4 @@
+import { repositories } from '@/src/lib/repositories';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/src/auth/useAuth';
 import { useLocation } from 'react-router';
@@ -65,7 +66,7 @@ type FormTarget =
   | { mode: 'edit'; row: CategoryAccountMapRow };
 
 const BudgetAccountMap: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'nativeEquipment']);
   const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
   const may = usePermission();
   const canManage = may('manage', 'integration');
@@ -91,10 +92,17 @@ const BudgetAccountMap: React.FC = () => {
   // Same cache entry as the other Accounting panels. Read for anyone who can change the map, and for
   // anyone who is shown the suggestions block (categories still unmapped); nobody else sees any of it.
   const orgId = useAuth().currentUser?.org_id;
+  const basisQuery = useQuery({
+    queryKey: ['account-map-accounting-bindings', orgId],
+    queryFn: () => repositories.integrations.listBindings(orgId!),
+    enabled: Boolean(orgId),
+  });
+  const nativeCosting = basisQuery.data !== undefined && !basisQuery.data.some((binding) =>
+    binding.status === 'active' && (binding.external_tier === 'erpnext' || binding.external_tier === 'odoo'));
   const catalogueQuery = useQuery({
     queryKey: ['uxs11', 'account-catalogue', orgId],
     queryFn: listBudgetPostingAccountCatalogue,
-    enabled: canManage || readsChartWithMap || (data !== undefined && categoriesNeedingPosting.length > 0),
+    enabled: basisQuery.isSuccess && !nativeCosting && (canManage || readsChartWithMap || (data !== undefined && categoriesNeedingPosting.length > 0)),
   });
   const catalogue = catalogueQuery.data;
   const proposals = useMemo(
@@ -328,6 +336,13 @@ const BudgetAccountMap: React.FC = () => {
       },
     }] : []),
   ];
+
+  if (nativeCosting) return (
+    <section id="budget-account-map" aria-label={t('admin.budgetMap.title', 'Budget account map')}>
+      <h2 className="text-group font-semibold">{t('nativeEquipment:title', 'Native equipment costing')}</h2>
+      <p className="mt-2 text-control text-muted-foreground">{t('nativeEquipment:setup', 'Equipment hire uses native rates and the Equipment category. Set real rates and effective dates in equipment costing; record and approve usage. Account mapping is for connected accounting.')}</p>
+    </section>
+  );
 
   return (
     // ⚑ I-8 — the budget projection's banner LINKS here (`/administration/accounting#budget-account-map`).

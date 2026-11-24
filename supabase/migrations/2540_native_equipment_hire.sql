@@ -1,3 +1,4 @@
+-- drops: no validation removed; the hire category mapping predicate now applies to organizations reading a connected ledger.
 -- Native hire rates use native categories; connected ledger costing retains account mapping.
 create or replace function public.equipment_costing_normalize(p_org uuid, p_setting jsonb, p_check_accounts boolean default true)
 returns jsonb language plpgsql stable set search_path = public, pg_temp as $$
