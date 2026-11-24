@@ -1,6 +1,6 @@
 # Receive lane status
 
-Status: **incomplete; specification and initial red contracts only**. No runtime implementation or migrations are included. Do not integrate this branch as a completed feature.
+Status: **built and acceptance-proven**. The completion report is `docs/briefs/decisions-1124/receive-report.md`.
 
 Captured Director rulings:
 
@@ -10,8 +10,8 @@ Captured Director rulings:
 
 Spec: `docs/specs/receive-against-order.spec.md`. Plan: `docs/plans/2026-11-24-receive-against-order.md`.
 
-Proof: the spare runner applied the branch baseline and executed `supabase/tests/2220_receive_against_order.test.sql`; all four schema-contract tests failed as expected because implementation is absent. This is initial red evidence, not acceptance. No guards, typecheck, lint, browser, behaviour pgTAP or mutation acceptance is claimed.
+There is no unresolved product decision inside this lane. The approved follow-up is ERP-connected receiving and valuation reconciliation; this lane explicitly refuses enablement while either purchasing or inventory is ERP-owned.
 
-Remaining: implement the complete lane, replace the schema-only starting coverage with its behavioural owning proofs, execute mutation checks, and obtain all required local and integration evidence. Existing bills and three-way match compare purchase-currency values (migrations 0349 and 1018); this work proposes no change to those rules. ADR-0085 originally limits JISDOR to display equivalents, so the authorised receipt snapshot use also needs a recorded architectural amendment.
+The Director assigned rendered English/Bahasa captures at 1440/390 and `ux-proof` to the integration worker, once on the integration branch. The completion report lists the routes and states to capture. Existing bills and three-way match retain purchase-currency comparisons; ADR-0124 records the additional receipt-date JISDOR snapshot use.
 
 DONE: 1124d-receive
