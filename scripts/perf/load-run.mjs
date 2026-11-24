@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 export function parseArgs(argv) {
@@ -46,10 +47,21 @@ export function summarize(pages) {
 }
 
 // date windows the dashboards ask for, relative to today (the fixture stores placeholders, not capture-time dates)
-export function dateVars(now = new Date()) {
+// `today*` are the organisation's own day (its time zone), which the field screens ask for.
+export function dateVars(now = new Date(), tz = process.env.PERF_TZ || 'Asia/Jakarta') {
   const iso = (y, m, d) => new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10);
   const y = now.getUTCFullYear(), m = now.getUTCMonth();
-  return { yearStart: iso(y, 0, 1), monthStart: iso(y, m, 1), monthEnd: iso(y, m + 1, 0), monthStartMinus1: iso(y, m - 1, 1), monthStartMinus12: iso(y - 1, m, 1) };
+  const [ty, tm, td] = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now).split('-').map(Number);
+  return {
+    yearStart: iso(y, 0, 1), monthStart: iso(y, m, 1), monthEnd: iso(y, m + 1, 0), monthStartMinus1: iso(y, m - 1, 1), monthStartMinus12: iso(y - 1, m, 1),
+    today: iso(ty, tm - 1, td), todayMinus29: iso(ty, tm - 1, td - 29), todayMinus91: iso(ty, tm - 1, td - 91),
+  };
+}
+
+// the uuid a perf seed gives a row it names (`md5(name)::uuid` in scripts/perf/large-org-field-seed.sql)
+export function seedId(name) {
+  const h = createHash('md5').update(name).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
 export function fill(s, vars) {

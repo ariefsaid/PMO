@@ -8,7 +8,7 @@
 --   let assert_not_light pass for a light actor .................. every AC-LA-013 refusal below
 begin;
 create extension if not exists pgtap;
-select plan(13);
+select plan(15);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled)
   values ('27120000-0000-0000-0000-00000000000a', 'LA Writes', 'IDR', true);
@@ -68,6 +68,11 @@ select throws_ilike($$ select public.transition_expense_claim(null, 'Approved', 
   'LIGHT_ACCOUNT%', 'AC-LA-013 a field account cannot move an expense claim');
 select throws_ilike($$ select public.reserve_credits('27120000-0000-0000-0000-00000000000a', 1, null) $$,
   'LIGHT_ACCOUNT%', 'AC-LA-013 a field account cannot hold assistant credits');
+
+select throws_ilike($$ select public.csr_record_pickup(null, null, null) $$,
+  'LIGHT_ACCOUNT%', 'AC-LA-013 a field account cannot record a client pickup');
+select throws_ilike($$ select public.prepare_certificate_acceptance(null) $$,
+  'LIGHT_ACCOUNT%', 'AC-LA-013 a field account cannot prepare a certificate acceptance');
 
 -- 10. a full Engineer is not affected: the same call reaches its own argument check, never LIGHT_ACCOUNT
 select pg_temp.act_as('27120000-0000-0000-0000-0000000000a4');

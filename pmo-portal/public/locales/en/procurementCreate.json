@@ -36,6 +36,7 @@
   "supplier": "Supplier",
   "selectSupplier": "Optional: select a supplier…",
   "budgetCategory": "Budget category",
+  "subcontract": "Subcontract work: billed through progress certificates",
   "budgetCategoryHelp": "Decides who approves",
   "budgetCategoryHelpFull": "Decides who approves: spend within the project's budget for this category goes to the project approver.",
   "addRowIncomplete": "Add this line or clear it first",

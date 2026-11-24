@@ -31,6 +31,13 @@ export const FitnessPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
     } catch (err) { fail(err); }
   };
 
+  // One tap for the usual morning: every rostered worker not yet checked is fit (the chosen check, if any); a not-fit is then added one by one.
+  const allFit = async () => {
+    try {
+      for (const w of pickable) await m.saveFitness.mutateAsync({ dayId, workerId: w.worker_id, visitorName: null, checkTypeId: typeId || null, result: 'fit', note: '' });
+    } catch (err) { fail(err); }
+  };
+
   return (
     <RecordSection title={t('fitness.title', 'Fitness check')} data-testid="safety-fitness">
       {detail.fitness.length === 0 && <p className="text-muted-foreground">{t('fitness.none', 'No fitness checks recorded')}</p>}
@@ -48,6 +55,10 @@ export const FitnessPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
         ))}
       </ul>
       {editable && (
+        <>
+        {seePeople && pickable.length > 0 && (
+          <Button type="button" variant="outline" className="mt-4" disabled={m.saveFitness.isPending} onClick={() => void allFit()}>{t('fitness.allFit', 'Mark all crew members fit')}</Button>
+        )}
         <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); if (canAdd) void add(); }}>
           {seePeople && pickable.length > 0 && (
             <SelectField label={t('fitness.pickWorker', 'Worker on the roster')} value={workerId} onChange={setWorkerId}
@@ -63,6 +74,7 @@ export const FitnessPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
           {result === 'not_fit' && <TextField label={t('fitness.note', 'Note (required when not fit)')} value={note} onChange={setNote} required />}
           <div className="sm:col-span-2"><Button type="submit" variant="primary" disabled={!canAdd || m.saveFitness.isPending} data-testid="safety-fitness-add">{t('fitness.add', 'Add check')}</Button></div>
         </form>
+        </>
       )}
     </RecordSection>
   );

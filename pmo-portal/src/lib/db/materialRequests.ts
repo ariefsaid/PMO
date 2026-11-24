@@ -1,3 +1,4 @@
+import { BY_IDS_CHUNK } from './limits';
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
@@ -279,6 +280,21 @@ export async function listMaterialRequests(f: MaterialRequestFilter): Promise<{ 
   const rows = all.slice(0, MATERIAL_REQUEST_PAGE_SIZE);
   const last = rows[rows.length - 1];
   return { rows, nextCursor: all.length > MATERIAL_REQUEST_PAGE_SIZE && last ? { createdAt: last.createdAt, id: last.id } : null };
+}
+
+/** A waiting request's header with its work order's number and title, as the approvals inbox lists it. */
+export type MaterialRequestHeaderRow = MaterialRequestRow & { workOrder: { wo_number: string | null; title: string } | null };
+
+/** The headers of many requests in one read per 100 ids (the approvals inbox; one read per row was 4 calls a row). */
+export async function listMaterialRequestHeaders(ids: string[]): Promise<MaterialRequestHeaderRow[]> {
+  const out: MaterialRequestHeaderRow[] = [];
+  for (let i = 0; i < ids.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await (supabase.from('material_requests').select(`${REQUEST_COLUMNS}, work_order:work_orders(wo_number, title)`)
+      .in('id', ids.slice(i, i + BY_IDS_CHUNK)).limit(BY_IDS_CHUNK) as unknown as DbResult<Array<RequestDbRow & { work_order: MaterialRequestHeaderRow['workOrder'] }>>);
+    if (error) fail(error);
+    for (const r of data ?? []) out.push({ ...toRow(r), workOrder: r.work_order ?? null });
+  }
+  return out;
 }
 
 /** One request with its lines, every step of every round and its history. */

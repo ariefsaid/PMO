@@ -22,9 +22,9 @@ const DOCS = [
   doc('doc-4', 'Client acceptance', 'Approved', 'docs/bast.pdf'),
 ];
 
-function renderModal(documents = DOCS, attached = ['doc-4']) {
+function renderModal(documents = DOCS, attached = ['doc-4'], earlier: string[] = []) {
   const onAttach = vi.fn().mockResolvedValue(undefined);
-  render(<ToastProvider><ClaimEvidenceModal documents={documents} attachedDocumentIds={attached} onClose={vi.fn()} onAttach={onAttach} onError={vi.fn()} /></ToastProvider>);
+  render(<ToastProvider><ClaimEvidenceModal documents={documents} attachedDocumentIds={attached} earlierDocumentIds={earlier} onClose={vi.fn()} onAttach={onAttach} onError={vi.fn()} /></ToastProvider>);
   return { onAttach, user: userEvent.setup() };
 }
 
@@ -46,5 +46,18 @@ describe('ClaimEvidenceModal', () => {
     renderModal([DOCS[1], DOCS[2]], []);
     expect(screen.getByText('No issued or approved document with a file on this project.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Attach' })).toBeDisabled();
+  });
+
+  it('BQ10 the documents used on earlier claims of this work order come pre-ticked and attach in one confirm', async () => {
+    const docs = [...DOCS, doc('doc-5', 'Inspection test plan', 'Approved', 'docs/itp.pdf')];
+    const { onAttach, user } = renderModal(docs, ['doc-4'], ['doc-1', 'doc-5', 'doc-4', 'doc-2']);
+    // Only what could be attached now is offered: doc-4 is already on this claim, doc-2 is a draft.
+    expect(screen.getByRole('checkbox', { name: /Progress report/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Inspection test plan/ })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: /Client acceptance/ })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /Draft report/ })).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: /Inspection test plan/ }));
+    await user.click(screen.getByRole('button', { name: 'Attach' }));
+    expect(onAttach.mock.calls.map((c) => c[0])).toEqual(['doc-1']);
   });
 });

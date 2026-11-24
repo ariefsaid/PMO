@@ -18,6 +18,8 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
+vi.mock('./stockSiteWork', () => ({ uploadStockDocumentFile: vi.fn().mockResolvedValue(undefined) }));
+import { uploadStockDocumentFile } from './stockSiteWork';
 import * as dal from './clientRequisitions';
 import { clientRequisitionRepository } from '@/src/lib/repositories/clientRequisitions';
 
@@ -48,6 +50,15 @@ describe('writes carry the call, never org_id, project or cost', () => {
     expect(name).toBe('csr_record_pickup');
     expect(args).toMatchObject({ p_line_id: 'l1', p_quantity: 50, p_warehouse_id: 'w1', p_collector: 'Budi', p_paper_reference: 'DN-1', p_client_request_id: 'c1' });
     expect(Object.keys(args).some((k) => /cost/i.test(k))).toBe(false);
+  });
+
+  it('W1 a slip photo is attached to the receipt the pickup posted, as its own attachment', async () => {
+    h.queue.push({ data: [{ org_id: 'o1', stock_document_id: 'doc1' }], error: null });
+    const file = new File(['x'], 'slip.jpg', { type: 'image/jpeg' });
+    await clientRequisitionRepository.attachPickupSlip('p1', file);
+    expect(h.calls.from).toEqual(['client_requisition_pickups']);
+    expect(h.calls.eq[0]).toEqual(['id', 'p1']);
+    expect(uploadStockDocumentFile).toHaveBeenCalledWith('o1', 'doc1', file, 'Delivery slip');
   });
 
   it('FR-CSR-006/008 reservation and release go through their own RPCs', async () => {

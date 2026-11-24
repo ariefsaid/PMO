@@ -99,7 +99,7 @@ test('AC-EBR-011 the project tab and the pack show earned next to billed revenue
     await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.route('**/api/resource/**', (route) => route.abort());
-    await page.goto('/projects/' + projectId + '/contract');
+    await page.goto('/projects/' + projectId + '/orders');
     const panel = page.getByTestId('earned-billed');
     await expect(panel).toBeVisible({ timeout: 15_000 });
     const fmt = (v: string) => formatExactMoney(v, 'EUR', 'en-US') ?? 'unformattable';

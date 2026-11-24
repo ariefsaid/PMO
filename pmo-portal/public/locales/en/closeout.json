@@ -16,7 +16,7 @@
   "overdue": "Overdue · due {{date}}",
   "document": "Document",
   "pickFor": "Document for {{item}}",
-  "pick": "Choose a document",
+  "pick": "Choose a project document",
   "attachTo": "Attach to {{item}}",
   "attach": "Attach",
   "notAttached": "No document attached",
@@ -60,5 +60,6 @@
     "readOnlyNote": "Only an Admin can change the checklist.",
     "limit": "At most 20 items.",
     "generic": "The checklist could not be saved. Try again."
-  }
+  },
+  "projectDocuments": "Project documents"
 }

@@ -10,6 +10,8 @@ export type TimesheetEntryRow = Tables<'timesheet_entries'>;
 /** An entry row with its project name/code resolved in SQL (kills render-time .find()). */
 export type TimesheetEntryWithProject = TimesheetEntryRow & {
   project: { name: string; short_name?: string | null; code: string | null } | null;
+  /** Only where the read joins it (the approval queue). */
+  work_order?: { wo_number: string | null; title: string | null } | null;
 };
 
 /** A timesheet header with its entries (each carrying the joined project) resolved in one query. */

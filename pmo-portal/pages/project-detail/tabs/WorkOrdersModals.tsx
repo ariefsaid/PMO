@@ -42,6 +42,7 @@ const WorkOrdersModals: React.FC<{
   projectName: string;
   liveDownPayment: boolean;
   evidenceAttachedIds: string[];
+  evidenceEarlierIds: string[];
   linesSources: { name: string; pending: boolean; error: boolean; retry: () => void }[];
   // Modal state (closed = null/undefined, exactly as the tab holds it).
   assessOpen: boolean;
@@ -110,7 +111,7 @@ const WorkOrdersModals: React.FC<{
 }> = (props) => {
   const {
     boqRows, documentRows, rows, allocations, allocationsById, acceptancesByWo, contractLines, summary,
-    currency, currencyPrefix, projectId, projectName, liveDownPayment, evidenceAttachedIds, linesSources,
+    currency, currencyPrefix, projectId, projectName, liveDownPayment, evidenceAttachedIds, evidenceEarlierIds, linesSources,
     assessOpen, percentOpen, formFor, linesFor, bastFor, withdrawFor, confirmFor, valueFor,
     invoiceFor, clientId, claimFor, newClaimOpen, evidenceFor, raiseFor, nativeRaise, withdrawClaimFor,
     pending, overCommit,
@@ -299,6 +300,7 @@ const WorkOrdersModals: React.FC<{
         <ClaimEvidenceModal
           documents={documentRows}
           attachedDocumentIds={evidenceAttachedIds}
+          earlierDocumentIds={evidenceEarlierIds}
           sourcePending={documentsPending}
           sourceError={documentsError ? t('projectDetail.billing.evidence.documentsError', "Couldn't load evidence documents") : null}
           onRetry={onRetryDocuments}

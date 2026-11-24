@@ -23,7 +23,7 @@ describe('work-order claim pre-fill (AC-CQ-013)', () => {
   });
 
   it('AC-CQ-013 a BAST of zero is a BAST: it suggests nothing even where assessment is higher', () => {
-    expect(run([alloc({ acceptedQuantity: 0 })], { b1: 9 }, {})).toEqual({ quantities: {}, fromBast: false });
+    expect(run([alloc({ acceptedQuantity: 0 })], { b1: 9 }, {})).toEqual({ quantities: {}, fromBast: false, fromSurvey: false });
   });
 
   it('AC-CQ-013 without a BAST the suggestion is the smaller of assessed-less-claimed-everywhere and allocated-less-claimed-here', () => {
@@ -39,6 +39,17 @@ describe('work-order claim pre-fill (AC-CQ-013)', () => {
   it('AC-CQ-013 non-positive suggestions are omitted and arithmetic is exact in milli-units', () => {
     const rows = [alloc({ boqItemId: 'b1', acceptedQuantity: 1, claimedQuantity: 2 }), alloc({ boqItemId: 'b2', acceptedQuantity: 0.3, claimedQuantity: 0.1 })];
     expect(run(rows, {}, {}).quantities).toEqual({ b2: 0.2 });
+  });
+
+  it('FR-SCW-3 a confirmed survey is the suggestion: certified less claimed on this work order, ahead of a BAST or an assessment', () => {
+    const out = run([alloc({ surveyedQuantity: 6.5, acceptedQuantity: 9, claimedQuantity: 2 })], { b1: 9 }, {});
+    expect(out.quantities).toEqual({ b1: 4.5 });
+    expect(out.fromSurvey).toBe(true);
+    expect(out.fromBast).toBe(false);
+  });
+
+  it('FR-SCW-3 a survey already fully claimed suggests nothing, even where the assessment is higher', () => {
+    expect(run([alloc({ surveyedQuantity: 3, claimedQuantity: 3 })], { b1: 9 }, {}).quantities).toEqual({});
   });
 
   it('AC-CQ-013 a line not allocated to this work order is skipped', () => {

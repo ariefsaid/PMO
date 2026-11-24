@@ -29,6 +29,7 @@ import { useUserViews } from '@/src/hooks/useUserViews';
 import { MODULES, railParentForPath } from './routeMatch';
 import { functionItemRank, groupOrderForRole, type NavigationGroup } from './navigationOrder';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
+import type { Action, Entity } from '@/src/auth/policy';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -129,6 +130,21 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
 ];
 
+/**
+ * Walk G9: a menu entry whose page refuses by policy is offered only when `can()` admits the reader to that page, so the
+ * menu never shows a door the role is then refused at. The page's own gate, named once here.
+ */
+const NAV_PERMISSION: Partial<Record<string, [Action, Entity]>> = {
+  '/finance': ['view', 'finance'],
+  '/finance/billing-board': ['view', 'finance'],
+  '/finance/receivables': ['view', 'finance'],
+  '/finance/payables': ['view', 'finance'],
+  '/finance/reports': ['view', 'finance'],
+  '/finance/statements': ['view', 'financialStatements'],
+  '/journals': ['view', 'journal'],
+  '/imprest': ['view', 'imprestFloat'],
+};
+
 const NAV_GROUPS: NavigationGroup[] = [...new Set(ALL_ITEMS.flatMap(({ group }) => group ? [group] : []))];
 const NAV_GROUPS_STORAGE_KEY = 'shell.navigation.collapsedGroups';
 const NAV_GROUPS_CHANGED_EVENT = 'navigationgroupschange';
@@ -211,6 +227,8 @@ export interface NavVisibility {
   mayOrderPurchases?: boolean;
   /** The organisation switched the safety module on. Absent means off, so the entry stays out. */
   safetyEnabled?: boolean;
+  /** The reader's `can()`; when given, an entry whose page gates by policy shows only if that gate admits them. */
+  may?: (action: Action, entity: Entity) => boolean;
 }
 
 /**
@@ -218,13 +236,14 @@ export interface NavVisibility {
  * so the two never disagree about what a role may reach.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- pure gate shared with the phone bar
-export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled, mayOrderPurchases }: NavVisibility): NavItem[] {
+export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled, mayOrderPurchases, may }: NavVisibility): NavItem[] {
   return ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
       ? realRole !== null && i.roles.includes(role) && i.roles.includes(realRole)
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets)
          || (i.to === '/procurement' && mayOrderPurchases === true && role === realRole))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
-  ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true).filter((i) => i.to !== '/safety' || safetyEnabled === true);
+  ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true).filter((i) => i.to !== '/safety' || safetyEnabled === true)
+    .filter((i) => { const gate = NAV_PERMISSION[i.to]; return !may || !gate || may(gate[0], gate[1]); });
 }
 
 export interface RailProps {
@@ -347,7 +366,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
 
   if (!role) return null;
 
-  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled, mayOrderPurchases });
+  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled, mayOrderPurchases, may });
   const currentGroup = items.find((item) =>
     item.group && (pathInItem(location.pathname, item.to) || railParentForPath(location.pathname) === item.to),
   )?.group;

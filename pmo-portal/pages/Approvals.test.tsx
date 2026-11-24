@@ -585,7 +585,7 @@ describe('Approvals procurement bulk approval (AC-1578)', () => {
 // desktop (stacked), preserving each type's evidence and decision rules.
 // ---------------------------------------------------------------------------
 describe('S-18 UX-060: phone width renders the unified queue + preview grammar', () => {
-  it('procurement and timesheet items share ONE queue region and ONE preview region — no second queue system', () => {
+  it('procurement and timesheet items share ONE queue region and ONE preview region — no second queue system', async () => {
     queryState.data = submittedSheets;
     procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
     renderPage('all', false);
@@ -599,8 +599,12 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
     expect(screen.queryByText(/team approvals queue/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/procurement awaiting you/i)).not.toBeInTheDocument();
 
-    // The same preview region as desktop, with the first pending item already previewed.
+    // The same preview region as desktop. FN4: below the list on a phone it previews only what the person picked, so its
+    // decision buttons never belong to an item they did not choose.
     const preview = screen.getByTestId('approvals-preview-region');
+    expect(within(preview).queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+    expect(within(preview).getByText('Pick an item above to see it and decide.')).toBeInTheDocument();
+    await userEvent.click(within(queue).getByRole('button', { name: /Structural steel/i }));
     expect(within(preview).getByRole('heading', { name: /Structural steel/i })).toBeInTheDocument();
   });
 

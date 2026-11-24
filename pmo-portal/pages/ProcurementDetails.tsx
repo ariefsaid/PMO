@@ -1,4 +1,5 @@
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
+import { SupplierRiskNote } from '@/src/components/SupplyRiskWarning';
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { Avatar } from '@/src/components/ui/Avatar';
@@ -815,6 +816,7 @@ const ProcurementDetails: React.FC = () => {
       >
         {/* The notes that speak about the header's actions sit inside the header, under its band. */}
         {headerNotes.length > 0 ? headerNotes : null}
+        {p.vendor_id && <SupplierRiskNote supplierId={p.vendor_id} />}
         <div><FollowUpTaskButton type="procurement" recordId={p.id} projectId={p.project_id} defaultName={p.po_number ?? p.pr_number ?? p.title} finished={p.status === 'Paid' || p.status === 'Cancelled'} /></div>
       </RecordHeader>
 

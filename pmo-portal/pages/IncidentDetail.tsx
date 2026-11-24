@@ -178,7 +178,9 @@ const IncidentDetail: React.FC = () => {
   };
 
   const taskLines = incident.incident_tasks ?? [];
-  const showTaskList = taskLines.length > 0 || supervisorMayTask;
+  const showTaskList = taskLines.length > 0;
+  // The form that takes a name, a person and a day is there from the start, not only once a first task exists.
+  const canAddTask = (canMakeTask || supervisorMayTask) && Boolean(incident.project_id) && incident.status !== 'Closed';
 
   const onMakeTask = async () => {
     try {
@@ -315,6 +317,8 @@ const IncidentDetail: React.FC = () => {
                     <Button variant="outline" size="sm" data-testid="incident-make-task" loading={makeTask.isPending} onClick={() => void onMakeTask()}>
                       {t('detail.makeTask', 'Make a task')}
                     </Button>
+                  ) : canMakeTask && incident.status !== 'Closed' ? (
+                    <span className="text-muted-foreground">{t('detail.needsProject', 'Choose a project for this issue before you make a task.')}</span>
                   ) : (
                     '—'
                   )
@@ -325,14 +329,14 @@ const IncidentDetail: React.FC = () => {
         </CardPad>
       </Card>
 
-      {showTaskList && (
+      {(showTaskList || canAddTask) && (
         <Card variant="bare" className="mb-4">
           <CardHead>{t('tasks.heading', 'Tasks')}</CardHead>
           <CardPad>
             <IncidentTasks
               lines={taskLines}
               assigneeOptions={assigneeOptions ?? []}
-              canAdd={(canMakeTask || supervisorMayTask) && Boolean(incident.project_id) && incident.status !== 'Closed'}
+              canAdd={canAddTask}
               onAdd={async (input) => {
                 await addTask.mutateAsync({ incidentId: incident.id, ...input });
                 toast(t('toast.taskMade', 'Task created'), incident.type, 'success');

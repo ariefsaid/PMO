@@ -30,8 +30,9 @@ export interface TabsProps<V extends string = string> {
   idBase: string;
   className?: string;
   /**
-   * Phone width: wrap the tabs onto a second row instead of scrolling the strip. For a record with so many tabs that the
-   * strip would scroll its first tab off the left edge; every tab then stays on screen and starts on the gutter.
+   * Phone width: wrap the tabs onto a second row instead of scrolling the strip, so every tab stays on screen and starts
+   * on the gutter. On by default (walk: a phone strip hid its last tab past the fade); pass false only for a strip that
+   * is known to fit.
    */
   wrapOnPhone?: boolean;
 }
@@ -64,7 +65,7 @@ export function Tabs<V extends string = string>({
   idBase,
   className,
   insetFirstTab = false,
-  wrapOnPhone = false,
+  wrapOnPhone = true,
 }: TabsProps<V>) {
   const listRef = useRef<HTMLDivElement>(null);
 

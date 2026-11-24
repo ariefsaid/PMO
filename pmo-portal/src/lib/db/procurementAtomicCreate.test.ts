@@ -23,6 +23,12 @@ describe('atomic procurement creation', () => {
     });
   });
 
+  it('a purchase marked as subcontract work is created as a subcontract (#2584)', async () => {
+    rpc.mockResolvedValue({ data: { id: 'header-id' }, error: null });
+    await createProcurementWithItems({ ...input, header: { ...input.header, isSubcontract: true } });
+    expect(rpc.mock.calls[0][1].p_header).toEqual({ title: 'Materials', project_id: null, vendor_id: null, is_subcontract: true });
+  });
+
   it('preserves server conflict errors for reconciliation', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'conflict' } });
     await expect(createProcurementWithItems(input)).rejects.toMatchObject({ code: '23505', message: 'conflict' });

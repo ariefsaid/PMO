@@ -25,4 +25,5 @@ export const clientRequisitionRepository = {
     wrap(() => dal.recordClientRelease(lineId, input, clientRequestId)),
   recordPickup: (lineId: string, input: Parameters<typeof dal.recordClientPickup>[1], clientRequestId?: string) =>
     wrap(() => dal.recordClientPickup(lineId, input, clientRequestId)),
+  attachPickupSlip: (pickupId: string, file: File) => wrap(() => dal.attachClientPickupSlip(pickupId, file)),
 };

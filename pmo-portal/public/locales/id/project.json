@@ -431,6 +431,7 @@
         "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
         "title": "Lampirkan bukti penagihan",
         "revision": "rev {{revision}}",
+        "earlier": "Dipakai pada klaim sebelumnya untuk pekerjaan ini",
         "document": "Dokumen bukti"
       },
       "stages": {
@@ -497,6 +498,8 @@
         "template": "Templat",
         "pickTemplate": "Pilih templat",
         "load": "Ganti langkah dengan templat",
+        "loadFirst": "Muat langkah dari templat",
+        "loadEmpty": "Muat langkah",
         "loadTemplateTerms": "Ganti tahap dengan templat",
         "loadTemplateError": "Templat tidak dapat dimuat.",
         "name": "Nama langkah",
@@ -1250,6 +1253,7 @@
       "prioritySource": "Sumber: bidang prioritas tugas",
       "commentsOpenHint": "Buka tugas untuk membaca atau menambahkan komentar",
       "dueTooltip": "Tenggat berasal dari catatan tugas. Hari keterlambatan dihitung dengan membandingkan tenggat dengan hari ini menurut zona waktu organisasi.",
+      "noDueDate": "Tanpa tenggat",
       "dayLate": "hari terlambat",
       "daysLate": "hari terlambat",
       "column": {

@@ -384,10 +384,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
 export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
-  // #2518: a work order's page belongs to Projects.
-  if (/^\/work-orders\/[^/]+$/.test(pathname)) return '/projects';
-  // #2596: a safety day belongs to its work order, so to Projects.
-  if (/^\/safety-days\/[^/]+$/.test(pathname)) return '/projects';
+  // A work order's page, and a safety day (which belongs to its work order), light Work orders only (#2518, #2596).
+  if (/^\/(work-orders|safety-days)\/[^/]+$/.test(pathname)) return '/work-orders';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
