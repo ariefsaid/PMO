@@ -22,6 +22,7 @@ export function useSaveDailyReportValidateRoles() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [DAILY_REPORT_VALIDATE_ROLES_KEY, orgId] });
       void qc.invalidateQueries({ queryKey: ['daily-site-reports'] });
+      void qc.invalidateQueries({ queryKey: ['dsr-validation-route', orgId] });
     },
   });
 }

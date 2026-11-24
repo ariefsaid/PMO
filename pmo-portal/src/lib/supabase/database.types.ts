@@ -31355,7 +31355,7 @@ export type Database = {
           project_id: string
           report_id: string
           submitted_at: string
-          total_revenue: number
+          total_revenue: number | null
           unrated_lines: number
           waiting_for_validator: boolean
           work_date: string

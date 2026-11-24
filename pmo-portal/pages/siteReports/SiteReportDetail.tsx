@@ -16,6 +16,7 @@ import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
 } from '@/src/hooks/useDailySiteReports';
 import { useDailyReportValidateRoles } from '@/src/hooks/useDailyReportValidateRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
@@ -67,6 +68,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const dailyReportValidateRoles = useDailyReportValidateRoles().data;
   const { realRole } = useEffectiveRole();
   const roleLabels = useRoleLabels();
+  const jobRoleLabel = useBuiltInRoleName();
   const { report } = detail;
   const project = useProject(report.project_id).data ?? null;
   const ctx = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
@@ -86,6 +88,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const route = useDsrValidationRoute(report.status === 'submitted' ? report.id : null);
   const waitingLabels = {
     role: (role: string) => roleLabels.label(role as UserRole),
+    jobRole: jobRoleLabel,
     financeAdmin: waitingRoleLabel('roleFinanceAdmin', t),
     nobody: t('detail.nobodyCanValidate', 'Nobody active can validate this report right now.'),
     unavailable: t('common:uxs32.routeUnavailable', "Couldn't verify who can approve right now."),

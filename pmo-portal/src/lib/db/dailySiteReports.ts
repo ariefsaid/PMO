@@ -79,7 +79,7 @@ export interface DsrListFilter { projectId?: string; workOrderId?: string; from?
 export interface DsrRevenueLineRow { line_id: string; rate: number | null; rate_source: string | null; amount: number | null; frozen: boolean }
 export interface DsrQueueRow {
   report_id: string; project_id: string; work_order_id: string; work_order_label: string; work_date: string; author_id: string;
-  author_name: string | null; submitted_at: string; total_revenue: number; unrated_lines: number; age_days: number; waiting_for_validator: boolean;
+  author_name: string | null; submitted_at: string; total_revenue: number | null; unrated_lines: number; age_days: number; waiting_for_validator: boolean;
 }
 
 export const DSR_PAGE_SIZE = 50;
