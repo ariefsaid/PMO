@@ -1,4 +1,5 @@
 // @e2e-isolation: self-isolated — owns a QC login, work order, current quality step and approved project document.
+import {signIn} from './helpers';
 import {test,expect} from '@playwright/test';
 import {siteRole,siteWorkOrder} from './support/siteRoleJourney';
 import {ORG_ID,PM_ID,inDays,need} from './support/jobJourney';
@@ -12,7 +13,19 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
   const row=page.getByTestId('wo-billing-step').filter({hasText:'Quality evidence'});
   await row.getByRole('combobox',{name:'Additional document'}).selectOption(document);await row.getByRole('button',{name:'Attach additional document'}).click();
   await expect(row.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();await page.reload();await expect(page.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();
-  for(const claim of claims){await page.goto(`/work-orders/${claim.work_order_id}`);await expect(page.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();}
+  // QC owns filing; Finance owns opening each claim and following its evidence doorway.
+  await signIn(page,'finance@acme.test');
+  for(const claim of claims){
+   await page.goto(`/projects/${fixture.project}?tab=billing&open=${claim.id}&openType=billingClaim`);
+   await expect(page).toHaveURL(new RegExp(`open=${claim.id}`));
+   const claimSection=page.locator(`[aria-labelledby="billing-stages-${claim.id}"]`);
+   await expect(claimSection).toBeVisible();
+   const doorway=claimSection.getByTestId('claim-wo-steps').getByRole('link',{name:"Open the work order's billing steps"});
+   await expect(doorway).toHaveAttribute('href',`/work-orders/${fixture.wo}`);
+   await doorway.click();await expect(page).toHaveURL(new RegExp(`/work-orders/${fixture.wo}$`));
+   await expect(page.getByRole('link',{name:`Quality proof ${fixture.run}`})).toHaveAttribute('href',`/projects/${fixture.project}/documents?open=${document}`);
+  }
+
   const evidence=must('evidence saved once',await db.from('work_order_billing_step_documents').select('document_id,attached_by').eq('step_id',step).single());expect(evidence.document_id).toBe(document);expect(evidence.attached_by).toBe(actor.id);
  }finally{await fixture.cleanup();await actor.cleanup();}
 });

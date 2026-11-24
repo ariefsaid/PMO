@@ -40,7 +40,8 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
 }) => {
   const { t } = useTranslation('billingSteps');
   const auth = useContext(AuthContext);
-  const { realRole } = useEffectiveRole();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const viewOnly = realRole !== effectiveRole;
   const roleName = useBuiltInRoleName();
   const line = useRefusalLine();
   const { complete, skip, assign, attach } = useWorkOrderStepMutations();
@@ -48,8 +49,8 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
   const [picked, setPicked] = useState<Record<string, string>>({});
   const status = stepStatus(step);
   const actor = { userId: auth?.currentUser?.id ?? null, builtInRoleKey: auth?.currentUser?.built_in_role ?? null, role: realRole };
-  const canAct = issued && status === 'current' && mayActOnStep(actor, step);
-  const canAttach = issued && status !== 'done' && status !== 'skipped' && mayActOnStep(actor, step);
+  const canAct = !viewOnly && issued && status === 'current' && mayActOnStep(actor, step);
+  const canAttach = !viewOnly && issued && status !== 'done' && status !== 'skipped' && mayActOnStep(actor, step);
   const users = useUsers({ enabled: canAct });
   const documents = useDocuments(projectId);
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));

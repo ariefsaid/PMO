@@ -10,6 +10,7 @@ import type { WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  effectiveRole: null as string | null,
   key: 'billing_officer' as string | null,
   steps: undefined as unknown,
   state: { isError: false, refetch: vi.fn() },
@@ -18,7 +19,7 @@ const h = vi.hoisted(() => ({
   assign: vi.fn(),
   attach: vi.fn(),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
 vi.mock('@/src/hooks/useBillingSteps', () => ({
   useWorkOrderSteps: () => ({ data: h.steps, ...h.state }),
   useWorkOrderStepMutations: () => ({
@@ -60,7 +61,7 @@ function renderIt(props: Partial<React.ComponentProps<typeof BillingStepsSection
 }
 
 beforeEach(() => {
-  h.role = 'Finance'; h.key = 'billing_officer'; h.steps = steps(); h.state = { isError: false, refetch: vi.fn() };
+  h.effectiveRole=null; h.role = 'Finance'; h.key = 'billing_officer'; h.steps = steps(); h.state = { isError: false, refetch: vi.fn() };
   for (const f of [h.complete, h.skip, h.assign, h.attach]) f.mockReset().mockResolvedValue(undefined);
 });
 
@@ -138,4 +139,13 @@ it('AC-SITE-BQ10 an inspector files evidence on an owned step with no template s
  await user.selectOptions(screen.getByRole('combobox',{name:'Additional document'}),'d1');
  await user.click(screen.getByRole('button',{name:'Attach additional document'}));
  expect(h.attach).toHaveBeenCalledWith({stepId:'quality',slotId:null,documentId:'d1'});
+});
+
+it('AC-SITE-BQ10 an Admin viewing as an Engineer cannot attach extra evidence', () => {
+ h.role='Admin'; h.effectiveRole='Engineer';
+ h.steps=[step({id:'quality',position:1,name:'Quality',startedOn:'2026-03-10',documents:[]})];
+ renderIt();
+ expect(screen.queryByRole('combobox',{name:'Additional document'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Attach additional document'})).not.toBeInTheDocument();
+ expect(h.attach).not.toHaveBeenCalled();
 });
