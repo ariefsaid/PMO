@@ -233,6 +233,7 @@ reset role;
 set local session_replication_role=replica;
 insert into procurements(id,org_id,title,project_id,requested_by_id,status,total_value,approved_total_value,currency,budget_category)
 values ('25900000-0000-0000-0000-000000005001','25900000-0000-0000-0000-00000000000a','Stock purchase','25900000-0000-0000-0000-0000000000c1','25900000-0000-0000-0000-0000000000a1','Ordered',1500,1500,'IDR','Materials');
+insert into boq_items(id,org_id,project_id,item_code,description,unit,quantity,rate) values ('25900000-0000-0000-0000-000000005002','25900000-0000-0000-0000-00000000000a','25900000-0000-0000-0000-0000000000c1','INSTALL','Install','pc',10,100);
 insert into payments(org_id,procurement_id,status,amount,currency)
 values ('25900000-0000-0000-0000-00000000000a','25900000-0000-0000-0000-000000005001','Paid',1500,'IDR');
 update stock_documents set procurement_id='25900000-0000-0000-0000-000000005001'
@@ -247,7 +248,7 @@ select post_stock_document(current_setting('tst.gain')::uuid,(select revision fr
 select pg_temp.act_as('25900000-0000-0000-0000-0000000000a1');
 select set_config('tst.issue',create_stock_document(
  jsonb_build_object('kind','issue','warehouse_id','25900000-0000-0000-0000-000000002002','project_id','25900000-0000-0000-0000-0000000000c1','occurred_on','2026-11-21'),
- jsonb_build_array(jsonb_build_object('item_id','25900000-0000-0000-0000-000000001001','quantity',1)),true)::text,true);
+ jsonb_build_array(jsonb_build_object('item_id','25900000-0000-0000-0000-000000001001','quantity',1,'boq_item_id','25900000-0000-0000-0000-000000005002')),true)::text,true);
 select set_cost_attribution('stock_document',array[current_setting('tst.issue')::uuid],'25900000-0000-0000-0000-000000000401',null);
 select is((select a.amount::numeric from work_order_cost_lines l join work_order_cost_amounts('25900000-0000-0000-0000-0000000000c1') a
  on a.record_id=l.record_id and a.source=l.source where l.record_id=current_setting('tst.gain')::uuid),-100::numeric,
