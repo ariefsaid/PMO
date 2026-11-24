@@ -29,12 +29,6 @@ export interface TabsProps<V extends string = string> {
   /** Namespace for the generated tab/panel ids so they're unique + stable per surface. */
   idBase: string;
   className?: string;
-  /**
-   * Phone width: wrap the tabs onto a second row instead of scrolling the strip, so every tab stays on screen and starts
-   * on the gutter. On by default (walk: a phone strip hid its last tab past the fade); pass false only for a strip that
-   * is known to fit.
-   */
-  wrapOnPhone?: boolean;
 }
 
 /**
@@ -65,7 +59,6 @@ export function Tabs<V extends string = string>({
   idBase,
   className,
   insetFirstTab = false,
-  wrapOnPhone = true,
 }: TabsProps<V>) {
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -84,11 +77,13 @@ export function Tabs<V extends string = string>({
     const active = list.querySelector<HTMLElement>('[aria-selected="true"]');
     if (!active) return;
     const strip = list.getBoundingClientRect();
+    if (strip.right <= strip.left) return;
     const tab = active.getBoundingClientRect();
     const style = getComputedStyle(active);
     const left = tab.left - (parseFloat(style.scrollMarginLeft) || 0);
     const right = tab.right + (parseFloat(style.scrollMarginRight) || 0);
-    const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
+    // Keep the selected label clear of the 28px scroll affordance at the right edge.
+    const offset = left < strip.left ? left - strip.left : right > strip.right - 28 ? right - strip.right + 28 : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
   }, [value, widths]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
@@ -101,21 +96,18 @@ export function Tabs<V extends string = string>({
       activateOnFocus
       className={cn(
         // Layout: flex strip, no wrap, gap between tabs
-        'mb-4 flex whitespace-nowrap gap-0.5 border-b border-border',
+        'mb-4 flex flex-nowrap whitespace-nowrap gap-0.5 border-b border-border',
         // Mobile scroll-snap strip (OD-W4-2, C2):
         // overflow-x-auto: allows horizontal scrolling when tabs exceed viewport
         // snap-x snap-mandatory: each tab snaps cleanly
         // The right-edge fade (mask-image) makes it clear more tabs exist
-        'overflow-x-auto snap-x snap-mandatory',
+        'overflow-x-auto snap-x snap-mandatory pe-7',
         // Scrollbar-free (aesthetic — chromeless thin scrollbar on macOS; no layout impact)
         '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         // Right-edge fade: linear gradient mask signals "scroll for more"
         // Uses #000 (opaque mask) to transparent — compositor only, no repaint.
         // Reduced-motion: the mask is CSS, no animation; always-on is correct.
         '[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent_100%)]',
-        wrapOnPhone && 'max-sm:flex-wrap max-sm:overflow-x-visible max-sm:[mask-image:none]',
-        // Wrapped rows all start on the same edge: the gutter, or the record header inset when the heading sits inside one.
-        wrapOnPhone && (insetFirstTab ? 'max-sm:[&>[role=tab]]:ps-[calc(var(--space-content-inset)+1px)]' : 'max-sm:[&>[role=tab]]:ps-0'),
         className,
       )}
     >

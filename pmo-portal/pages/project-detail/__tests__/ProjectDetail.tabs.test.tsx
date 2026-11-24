@@ -192,23 +192,34 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
   });
 
   it('scrolls the selected project tab into view on mount and after a tab change', async () => {
-    // jsdom has no layout: place every tab past the strip's right edge so the selected one must be scrolled to.
+    // Model horizontal scrolling because jsdom has no layout. Both selected tabs
+    // start beyond the visible strip, at different positions.
+    let stripScroll = 0;
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const isTab = this.getAttribute('role') === 'tab';
-      return { left: isTab ? 400 : 0, right: isTab ? 480 : 300, top: 0, bottom: 32, width: isTab ? 80 : 300, height: 32, x: 0, y: 0, toJSON() {} } as DOMRect;
+      const start = this.textContent?.includes('Documents') ? 800 : 400;
+      return { left: isTab ? start - stripScroll : 0, right: isTab ? start + 80 - stripScroll : 300, top: 0, bottom: 32, width: isTab ? 80 : 300, height: 32, x: 0, y: 0, toJSON() {} } as DOMRect;
     });
-    const scrollBySpy = vi.fn();
+    const scrollBySpy = vi.fn((options: ScrollToOptions) => { stripScroll += options.left ?? 0; });
     const pageScroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
     Object.defineProperty(HTMLElement.prototype, 'scrollBy', { configurable: true, value: scrollBySpy });
+    const expectSelectionVisible = () => {
+      const selected = screen.getByRole('tab', { selected: true });
+      const strip = selected.closest('[role="tablist"]')!.getBoundingClientRect();
+      const tab = selected.getBoundingClientRect();
+      expect(tab.left).toBeGreaterThanOrEqual(strip.left);
+      // The strip's rightmost 28px are covered by its fade affordance.
+      expect(tab.right).toBeLessThanOrEqual(strip.right - 28);
+    };
     try {
       await renderAt('/projects/p1/tasks');
-      await waitFor(() => expect(scrollBySpy).toHaveBeenCalledWith(expect.objectContaining({ left: 180 })));
+      await waitFor(expectSelectionVisible);
 
-      scrollBySpy.mockClear();
       fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
       await waitFor(() => expect(screen.getByRole('tab', { name: 'Documents' })).toHaveAttribute('aria-selected', 'true'));
-      await waitFor(() => expect(scrollBySpy).toHaveBeenCalledWith(expect.objectContaining({ left: 180 })));
+      await waitFor(expectSelectionVisible);
       // Only the strip scrolls horizontally; the page never scrolls.
+      expect(scrollBySpy).toHaveBeenCalled();
       expect(scrollBySpy.mock.calls.every(([arg]) => !('top' in arg))).toBe(true);
       expect(pageScroll).not.toHaveBeenCalled();
     } finally {

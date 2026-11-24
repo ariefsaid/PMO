@@ -1,13 +1,13 @@
 -- 2044_quantity_survey_and_claim_step_owner.test.sql — the Quantity Surveyor records surveys and reads claims; a claim step is done
--- by its named owner and never by the claim's creator when another owner is named (migration 2044).
+-- by its named owner or the standing privileged access levels (migration 2052).
 -- MUTATION NOTES (remove the condition tagged in 2044; the named assertion must go red; restore):
 --   mut:rr_qs_survey ...... 'RR-QS-01 the Quantity Surveyor records a survey'
 --   mut:rr_qs_claims ...... 'RR-QS-04 the Quantity Surveyor reads the project''s claims and steps'
 --   mut:rr_step_owner ..... 'RR-BS-01 the Quantity Surveyor records a step its access level owns'
---   mut:rr_step_creator ... 'RR-BS-03 the claim''s creator cannot record a step another owner holds'
+--   mut:claim_step_privileged_creator (2052; restore creator refusal) ... 'RR-BS-03 Finance creator records a step another owner holds'
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(21);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('20440000-0000-0000-0000-00000000000a', 'RR QS Org', 'IDR', 'UTC', true);
@@ -93,12 +93,26 @@ select is(pg_temp.err('a3', pg_temp.note('71')), '42501 only Finance, an Admin, 
 select is(pg_temp.err('a4', pg_temp.note('71')), '42501 only Finance, an Admin, a Project Manager or the step''s owner can record billing stages',
   'RR-BS-02 an Engineer with no job role still cannot');
 select is(pg_temp.err('a5', pg_temp.note('71')), '42501 LIGHT_ACCOUNT', 'RR-BS-02 a field account cannot');
-select is(pg_temp.err('a6', pg_temp.note('71')), '42501 this billing step belongs to its named owner, not to whoever created the claim',
-  'RR-BS-03 the claim''s creator cannot record a step another owner holds');
+-- mut:claim_step_privileged_creator: restoring the creator refusal must fail this assertion.
+select is(pg_temp.err('a6', pg_temp.note('71')), 'ok',
+  'RR-BS-03 Finance creator records a step another owner holds');
 select is(pg_temp.err('a7', pg_temp.note('71')), 'ok', 'RR-BS-04 another Finance user still records it, as before');
 select is(pg_temp.err('a6', pg_temp.note('73')), 'ok', 'RR-BS-04 the creator records a step its own access level owns');
 select is(pg_temp.err('a6', pg_temp.note('72')), 'ok', 'RR-BS-04 the creator still records a step with no owner');
 select is(pg_temp.err('a8', pg_temp.note('71')), 'ok', 'RR-BS-04 a Project Manager still records a step, as before');
+
+insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, created_by)
+select ('20440000-0000-0000-0000-0000000000' || k)::uuid, org_id, project_id, kind, currency, gross_amount,
+  ('20440000-0000-0000-0000-0000000000' || u)::uuid
+from progress_claims cross join (values ('62', 'a1'), ('63', 'a8')) as creators(k,u)
+where id = '20440000-0000-0000-0000-000000000061';
+delete from claim_billing_stages where claim_id in ('20440000-0000-0000-0000-000000000062', '20440000-0000-0000-0000-000000000063');
+insert into claim_billing_stages (id, org_id, claim_id, project_id, position, name, client_side, owner_role, started_on)
+select ('20440000-0000-0000-0000-0000000000' || k)::uuid, org_id, id, project_id, 1, 'Review', false, 'Engineer', current_date
+from progress_claims cross join (values ('62', '74'), ('63', '75')) as stages(c,k)
+where id = ('20440000-0000-0000-0000-0000000000' || c)::uuid;
+select is(pg_temp.err('a1', pg_temp.note('74')), 'ok', 'RR-BS-06 Admin creator records another owner step');
+select is(pg_temp.err('a8', pg_temp.note('75')), 'ok', 'RR-BS-07 Project Manager creator records another owner step');
 
 select * from finish();
 rollback;
