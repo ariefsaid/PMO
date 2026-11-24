@@ -1,30 +1,43 @@
-// @e2e-isolation: self-isolated — creates its own uniquely-named project, work order, crew and people through the screens; cleanup ends the roster and placements (a crew's history is kept by design).
+// @e2e-isolation: self-isolated — creates its own uniquely-named project, work order, crew, people and a disposable Construction Manager login; cleanup ends the roster and placements (a crew's history is kept by design).
 /**
- * JOB-F7 — crew register (#2528). The field admin forms a crew (code, name), places two people in it, and rosters the crew
- * to a work order.
+ * JOB-F7 — crew register (#2528). The construction manager forms a crew (code, name), places two people in it, and rosters the
+ * crew to a work order.
  * Goal oracle: the work order's crew list shows the crew with both people.
  * Partly built: positions (welder, fitter) come from standard roles per crew, not asserted here.
  */
 import { test, expect } from '@playwright/test';
-import { signIn, visibleToast } from './helpers';
+import { visibleToast } from './helpers';
 import { need, ORG_ID, serviceClient } from './support/jobJourney';
 import { endCrewRows, seedWorkOrder } from './support/crewJourney';
+import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
 const must = need('JOB-F7');
 const db = serviceClient('JOB-F7');
 const run = `E2E-F7-${Date.now()}`;
 let wo = { projectId: '', workOrderId: '', title: '' };
+let cm: Awaited<ReturnType<typeof roleJobUser>> | undefined;
 
-test.beforeEach(async () => { wo = await seedWorkOrder(db, 'JOB-F7', run, 'yard'); });
+test.beforeEach(async () => {
+  wo = await seedWorkOrder(db, 'JOB-F7', run, 'yard');
+  cm = await roleJobUser(db, 'construction_manager', `f7-cm-${Date.now()}`);
+  // The register holds people before a crew is formed (the case's precondition).
+  for (const name of [`${run} Ana`, `${run} Budi`]) {
+    must('person', await db.from('people').insert({ org_id: ORG_ID, kind: 'own', name }).select('id').single());
+  }
+});
 test.afterEach(async () => {
   const crews = await db.from('crews').select('id').eq('org_id', ORG_ID).like('code', `${run.slice(-14)}%`);
-  await endCrewRows(db, (crews.data ?? []).map((c) => c.id as string));
+  const crewIds = (crews.data ?? []).map((c) => c.id as string);
+  await endCrewRows(db, crewIds);
+  await cm?.cleanup();
+  cm = undefined;
 });
 
 test('JOB-F7 a crew with two people rostered to a work order shows on the work order\'s crew list', async ({ page }) => {
   const code = run.slice(-14);
-  await signIn(page, 'admin@acme.test');
+  if (!cm) throw new Error('JOB-F7: construction manager login missing');
+  await cm.signIn(page);
   await page.goto('/crews');
   await page.getByRole('button', { name: 'New crew' }).first().click();
   const form = page.getByRole('dialog');
