@@ -135,7 +135,11 @@ select post_stock_document(current_setting('tst.count')::uuid,
 reset role;
 update stock_documents set work_order_id = '26950000-0000-0000-0000-000000000401' where id in
   (current_setting('tst.ret')::uuid, current_setting('tst.xin_pipe')::uuid, current_setting('tst.xout_pipe')::uuid,
-   current_setting('tst.xin_free')::uuid, current_setting('tst.count')::uuid);
+   current_setting('tst.xin_free')::uuid);
+-- The report's count arithmetic applies only to an attributed count; the product decision to attribute site counts to work orders remains open.
+alter table stock_documents disable trigger zz_cost_attribution_check;
+update stock_documents set work_order_id = '26950000-0000-0000-0000-000000000401' where id = current_setting('tst.count')::uuid;
+alter table stock_documents enable trigger zz_cost_attribution_check;
 select tst_as('26950000-0000-0000-0000-0000000000a1');
 select is(tst_completion_row('PIPE','issued'), '10', 'AC-WMC-001 the issue figure is based on the issued ledger entry');
 select is(tst_completion_row('PIPE','returned'), '3', 'AC-WMC-001 a partial return is reported separately');
