@@ -169,6 +169,10 @@ begin
     raise exception 'rented asset not found' using errcode = 'P0002';   -- SECURITY: the org re-assertion MUST stay
   end if;
 
+  if exists (select 1 from public.equipment_rental_terms where org_id = v_org and asset_id = p_asset and basis = 'hour' and rented_from <= p_to and coalesce(rented_to,'infinity'::date) >= p_from) then
+    raise exception 'use the hourly rental check for hourly terms' using errcode = '22023';
+  end if;
+
   select coalesce(sum(r.units), 0), count(distinct r.currency), min(r.currency) into v_rental_units, v_ccy, v_cur
     from public.equipment_rental_day_rates(v_org, p_asset, p_from, p_to) r;
   if v_ccy = 0 then raise exception 'no rental term covers the invoice period' using errcode = '22023'; end if;

@@ -13,10 +13,10 @@ test('AC-HRE-004 Equipment Officer checks the supplier quantity against contract
     asset = must('asset', await db.from('equipment_assets').insert({ org_id: ORG_ID, code, name: 'Hourly crane', ownership: 'rented', default_unit: 'hours' }).select('id').single()).id;
     must('term', await db.from('equipment_rental_terms').insert({ org_id: ORG_ID, asset_id: asset, vendor_id: vendor, rate: 100, basis: 'hour', currency: 'IDR', rented_from: '2026-09-01' }).select('id'));
     for (const date of ['2026-09-01','2026-09-02']) {
-      const path = `${ORG_ID}/${asset}/${crypto.randomUUID()}/repair.txt`; paths.push(path);
-      const upload = await db.storage.from('equipment-proof').upload(path, Buffer.from('Repair report'), { contentType: 'text/plain' });
+      const path = `${ORG_ID}/${asset}/${crypto.randomUUID()}/repair.pdf`; paths.push(path);
+      const upload = await db.storage.from('equipment-proof').upload(path, Buffer.from('%PDF-1.4\n% Repair report\n%%EOF'), { contentType: 'application/pdf' });
       if (upload.error) throw upload.error;
-      must('proof', await db.from('equipment_downtime_proofs').insert({ org_id: ORG_ID, asset_id: asset, proof_date: date, file_name: 'repair.txt', file_path: path }).select('id'));
+      must('proof', await db.from('equipment_downtime_proofs').insert({ org_id: ORG_ID, asset_id: asset, proof_date: date, file_name: 'repair.pdf', file_path: path }).select('id'));
     }
     await officer.signIn(page);
     await page.goto('/equipment/availability');
@@ -38,7 +38,7 @@ test('AC-HRE-004 Equipment Officer checks the supplier quantity against contract
     await expect(panel.getByText('160.00', { exact: true })).toBeVisible();
     await expect(panel.getByText('IDR 4,000', { exact: true })).toBeVisible();
     await expect(panel.getByText('IDR 16,000', { exact: true })).toBeVisible();
-    await expect(panel.getByRole('button', { name: 'Open repair.txt' })).toHaveCount(2);
+    await expect(panel.getByRole('button', { name: 'Open repair.pdf' })).toHaveCount(2);
     const saved = must('saved check', await db.from('hourly_rental_checks').select('result,created_by').eq('asset_id',asset).single());
     expect(saved.result.state).toBe('disputed'); expect(saved.created_by).toBe(officer.id);
   } finally {

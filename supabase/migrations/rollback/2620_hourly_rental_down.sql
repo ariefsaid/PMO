@@ -1,8 +1,8 @@
-drop function public.check_hourly_rental(uuid,date,date,numeric,numeric,jsonb,text);
-drop table public.hourly_rental_checks;
 -- Refuse rollback until hourly terms have been removed or converted deliberately.
 alter table public.equipment_rental_terms drop constraint equipment_rental_terms_basis_check;
 alter table public.equipment_rental_terms add constraint equipment_rental_terms_basis_check check (basis in ('day','month'));
+drop function public.check_hourly_rental(uuid,date,date,numeric,numeric,jsonb,text);
+drop table public.hourly_rental_checks;
 create or replace function public.save_equipment_rental_term(p_term jsonb) returns uuid
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare

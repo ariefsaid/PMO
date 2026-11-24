@@ -58,9 +58,11 @@ select throws_ok($$select equipment_rental_check('16910000-0000-0000-0000-000000
 select is((equipment_rental_check('16910000-0000-0000-0000-0000000000f2','2026-09-01','2026-09-10',3000))->>'rental_amount','3000.00','AC-HRE-001 daily rental unchanged');
 reset role;
 insert into organizations(id,name,built_in_roles_enabled) values ('26200000-0000-0000-0000-000000000001','Other rental org',true);
-update profiles set org_id = '26200000-0000-0000-0000-000000000001' where id = '16910000-0000-0000-0000-0000000000a4';
+insert into auth.users(id,email) values ('26200000-0000-0000-0000-0000000000a4','other-officer@example.test');
+insert into profiles(id,org_id,full_name,email,role,status,built_in_role) values
+('26200000-0000-0000-0000-0000000000a4','26200000-0000-0000-0000-000000000001','Other Officer','other-officer@example.test','Engineer','active','equipment_officer');
 set local role authenticated;
-select pg_temp.act_as('16910000-0000-0000-0000-0000000000a4');
+select pg_temp.act_as('26200000-0000-0000-0000-0000000000a4');
 select throws_ok($$select check_hourly_rental('16910000-0000-0000-0000-0000000000f1','2026-09-01','2026-09-30',200,160,'[]',null)$$,'P0002','rented asset not found','AC-HRE-003 other organisation asset refused');
 select is((select count(*)::int from hourly_rental_checks),0,'AC-HRE-003 other organisation snapshots hidden');
 reset role;

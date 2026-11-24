@@ -2,7 +2,7 @@ import HourlyRentalCheck from './HourlyRentalCheck';
 import React, { useEffect, useState } from 'react';
 import { DateField } from '@/src/components/ui/DateField';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, NumberField, SelectField, TextField } from '@/src/components/ui';
+import { Button, Checkbox, ListState, NumberField, SelectField, TextField } from '@/src/components/ui';
 import { useRentalCheck } from '@/src/hooks/useEquipmentAvailability';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -55,7 +55,7 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
       <DateField label={t('equipment:availability.to', 'Invoice period to')} value={to} onChange={(v) => { clear(); setEnd(v); }} />
       {!hourly && <NumberField localeAware label={t('equipment:availability.invoiceAmount', 'Vendor invoice amount')} value={invoice} onChange={(v) => { clear(); setInvoice(v); }} />}
     </div>
-    <label className="flex gap-2 mt-3"><input type="checkbox" checked={hourly} onChange={(e) => { clear(); setHourly(e.target.checked); }} />{t('equipment:availability.hourly', 'Hourly rental')}</label>
+    <div className="mt-3"><Checkbox label={t('equipment:availability.hourly', 'Hourly rental')} checked={hourly} onChange={(v) => { clear(); setHourly(v); }}>{t('equipment:availability.hourly', 'Hourly rental')}</Checkbox></div>
     {hourly ? <HourlyRentalCheck key={`${asset}:${from}:${to}`} assetId={asset} from={from} to={to} /> : <>
     <Button variant="primary" className="mt-3" disabled={!asset || !from || !to || check.isPending} onClick={() => void run(false)}>{t('equipment:availability.runCheck', 'Check invoice')}</Button>
     {check.data && <div className="mt-4" role="region" aria-label={t('equipment:availability.result', 'Check result')}>
