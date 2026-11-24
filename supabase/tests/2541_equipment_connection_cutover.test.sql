@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(18);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
   ('15190000-0000-0000-0000-00000000000b', 'EQU Other', 'IDR', 'UTC');
@@ -118,6 +118,21 @@ update external_org_bindings set status='active',connected_at='2026-11-17 12:00:
 set local role authenticated;
 select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),750::numeric,
  'AC-EQU-PERIOD-003 a second reconnect retains both historical native gaps');
+reset role;
+-- Odoo retains its original ledger-basis switch marker when a connection is renewed.
+update external_org_bindings set external_tier='odoo',activated_at='2026-11-17 12:00:00+00',config='{"ledger_basis_at":"2026-10-15 12:00:00+00"}' where org_id='15190000-0000-0000-0000-00000000000a';
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-11-18',4,'hours');
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-11-19',5,'hours');
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d5','15190000-0000-0000-0000-0000000000c1','2026-11-20',6,'hours');
+update external_org_bindings set status='disconnected',activated_at=null,disconnected_at='2026-11-18 12:00:00+00' where org_id='15190000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),1500::numeric,
+ 'AC-EQU-PERIOD-004 Odoo disconnection restores native hire from its disconnection day');
+reset role;
+update external_org_bindings set status='active',connected_at='2026-11-20 12:00:00+00',activated_at='2026-11-20 12:00:00+00' where org_id='15190000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select is((select amount from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),1200::numeric,
+ 'AC-EQU-PERIOD-004 Odoo reconnect starts a new interval at activation, preserving its native gap despite an older ledger-basis marker');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000b1');
 select is((select count(*) from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')),0::bigint,'AC-EQU-CUT-004 another organization reads no native charges');
 reset role;
