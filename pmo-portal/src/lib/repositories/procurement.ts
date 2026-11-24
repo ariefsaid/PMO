@@ -193,7 +193,7 @@ export const procurementRepository: ProcurementRepository = {
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
   createWithItems: (input) => wrap(() => createProcurementWithItems(input)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
-  updateVendor: (id, vendorId) => wrap(() => updateProcurementVendor(id, vendorId)),
+  updateVendor: (id, vendorId, byBuyer) => wrap(() => updateProcurementVendor(id, vendorId, byBuyer)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
   updateItem: (id, patch) => wrap(() => updateProcurementItem(id, patch)),
   deleteItem: (id) => wrap(() => deleteProcurementItem(id)),

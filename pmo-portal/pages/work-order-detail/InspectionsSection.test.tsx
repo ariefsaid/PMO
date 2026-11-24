@@ -1,7 +1,8 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render as rtlRender, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { InspectionsSection } from './InspectionsSection';
 
 /** #2580 — the work-order page's inspections panel: the money fence is the server's, the screen shows what it was given (FR-TPI-008, FR-TPI-017). */
@@ -12,6 +13,7 @@ const h = vi.hoisted(() => ({
   files: { data: [] as unknown[] },
   mutations: {} as Record<string, { mutate: ReturnType<typeof vi.fn>; mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+const render = (ui: React.ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 const mut = () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false });
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role }) }));
@@ -79,7 +81,15 @@ describe('InspectionsSection', () => {
     h.list.data = [insp({ id: 'i1' })];
     render(<InspectionsSection workOrderId="wo" />);
     await userEvent.click(screen.getByRole('button', { name: 'Raise purchase' }));
+    // BQ9: raising creates a purchase, so it is confirmed first; nothing is raised until then.
+    expect(h.mutations.raisePurchase.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Raise purchase' }));
     expect(h.mutations.raisePurchase.mutateAsync).toHaveBeenCalledWith({ id: 'i1' });
+  });
+  it('BQ9 the raised purchase opens from the inspection', () => {
+    h.list.data = [insp({ id: 'i1', status: 'purchase_raised', procurement_id: 'p1' })];
+    render(<InspectionsSection workOrderId="wo" />);
+    expect(within(screen.getByTestId('inspection-cost')).getByRole('link').getAttribute('href')).toBe('/procurement/p1');
   });
   it('FR-TPI-006 an Engineer is not offered Raise purchase or Waive', () => {
     h.role = 'Engineer';

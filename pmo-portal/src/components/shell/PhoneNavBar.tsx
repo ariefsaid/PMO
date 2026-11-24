@@ -12,6 +12,7 @@ import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { FEATURE_ENV_DEFAULT, type OrgFeatureKey } from '@/src/lib/features';
 import { UserRole } from '@/types';
 import { visibleNavItems, type NavItem } from './Rail';
+import { usePermission } from '@/src/auth/usePermission';
 import { PHONE_DESTINATION_SLOTS, ROLE_PHONE_DESTINATIONS } from './navigationOrder';
 
 export interface PhoneNavBarProps {
@@ -73,6 +74,7 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
   const { effectiveRole, realRole } = useEffectiveRole();
   const { data: orgFeatures } = useOrgFeatures();
 
+  const may = usePermission();
   if (!isNarrow) return null;
   const role = asRole(effectiveRole);
 
@@ -85,6 +87,7 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
       canViewStatements: false,
       userViewsEnabled: false,
       hasEligibleTimesheets: hasEligibleDecisions,
+      may,
     })
     : [];
   const byPath = new Map<string, NavItem>(reachable.map((item) => [item.to, item]));

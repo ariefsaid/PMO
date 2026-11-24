@@ -6,7 +6,7 @@
 --   drop policy storage_objects_project_doc_light on storage.objects 'AC-LA-003 the project-documents bucket is closed'
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(10);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled)
   values ('27130000-0000-0000-0000-00000000000a', 'LA Reads', 'IDR', true);
@@ -28,7 +28,7 @@ insert into expense_account_map (org_id, account_key, erp_account)
 select is((select count(*)::int from unnest(array[
     'approval_chain_steps', 'approval_stand_ins', 'approval_step_pins', 'billing_stage_template_documents',
     'billing_stage_templates', 'budget_category_account_map', 'budget_version_account_erp_mirror',
-    'budget_version_erp_mirror', 'claim_billing_stage_documents', 'claim_billing_stages', 'crew_loans',
+    'budget_version_erp_mirror', 'claim_billing_stage_documents', 'claim_billing_stages',
     'equipment_downtime_proofs', 'equipment_status_days', 'equipment_status_history', 'equipment_usage_entries',
     'error_events', 'expense_account_map', 'external_domain_ownership', 'external_master_records',
     'external_project_bindings', 'external_ref_lineage', 'external_reference_items', 'external_refs',
@@ -53,11 +53,17 @@ select is((select count(*)::int from unnest(array[
                  where p.schemaname = 'public' and p.tablename = x.t)), 0,
   'AC-LA-003 every office table without a field-account screen confines a field account');
 
+-- Loans are the scoped field path: only loans into a visible host crew reach the field account.
+select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'crew_loans'
+  and policyname = 'light_account_scope_select' and cmd = 'SELECT' and permissive = 'RESTRICTIVE'
+  and qual like '%actor_is_light%' and qual like '%light_can_see_crew(host_crew_id)%'),
+  'AC-LA-003 loans are limited to a field account visible host crew');
+
 -- the alternate path is exactly these six: a table cannot leave the deny set quietly.
 select is((select array_agg(x.t order by x.t) from unnest(array[
     'approval_chain_steps', 'approval_stand_ins', 'approval_step_pins', 'billing_stage_template_documents',
     'billing_stage_templates', 'budget_category_account_map', 'budget_version_account_erp_mirror',
-    'budget_version_erp_mirror', 'claim_billing_stage_documents', 'claim_billing_stages', 'crew_loans',
+    'budget_version_erp_mirror', 'claim_billing_stage_documents', 'claim_billing_stages',
     'equipment_downtime_proofs', 'equipment_status_days', 'equipment_status_history', 'equipment_usage_entries',
     'error_events', 'expense_account_map', 'external_domain_ownership', 'external_master_records',
     'external_project_bindings', 'external_ref_lineage', 'external_reference_items', 'external_refs',

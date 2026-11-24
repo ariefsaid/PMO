@@ -169,8 +169,8 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
       )}
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
-        <time dateTime={ev.createdAt} title={absolute} className="text-sm text-muted-foreground">
-          {formatRelativeTime(ev.createdAt)}
+        <time dateTime={ev.createdAt} title={formatRelativeTime(ev.createdAt)} className="text-sm text-muted-foreground">
+          {absolute}
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>

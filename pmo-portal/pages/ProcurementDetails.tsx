@@ -1,4 +1,5 @@
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
+import { SupplierRiskNote } from '@/src/components/SupplyRiskWarning';
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { Avatar } from '@/src/components/ui/Avatar';
@@ -378,11 +379,13 @@ const ProcurementDetails: React.FC = () => {
   const managerId = p.project?.project_manager_id;
   // The requester always sees their own procurement, whatever project (or none) it sits on.
   const raisedByMe = !!currentUser?.id && p.requested_by_id === currentUser.id;
-  const recordInScope = role === 'Engineer'
+  // A person the database lets order purchases (actor_may_order_purchases, the same gate the record read uses) opens any purchase
+  // of the organisation; money stays behind the access-level views below.
+  const recordInScope = mayOrderByRole || (role === 'Engineer'
     ? raisedByMe
     : role === 'Project Manager'
       ? raisedByMe || Boolean(p.project_id && p.project != null && managerId === currentUser?.id)
-      : true;
+      : true);
   if (!recordInScope) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
@@ -488,8 +491,9 @@ const ProcurementDetails: React.FC = () => {
   );
   const canEditItemValues = ownership.mode === 'pmo' || (ownership.mode === 'external' && !casePushInFlight && itemEligibility.data === true && !itemEligibility.isError && !itemEligibility.isFetching);
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
-  const canAddQuote = may('create', 'quotation');
-  const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
+  // A person who orders purchases (roles-that-decide) also adds and selects quotes (create_procurement_quotation / select_procurement_quote).
+  const canAddQuote = may('create', 'quotation') || mayOrderByRole;
+  const canSelectQuote = canAddQuote && p.status === 'Vendor Quoted';
   // Phase-file attachments (ADR-0023): same writer set as procDoc; RLS is the authority.
   const canManageFiles = may('create', 'procFile');
   // DD-EFK-1: separate Admin/Finance UX gate; the PMO setter RPC is the enforcement authority.
@@ -501,11 +505,14 @@ const ProcurementDetails: React.FC = () => {
   const canWriteWithholdingSlip = may('create', 'vendorWithholdingSlip', { record: { viewOnly: effectiveRole !== realRole } });
   // 0002_rls.sql defines procurements_update for Admin, Executive, Project Manager, and Finance;
   // 0010_procurement_rls_hardening.sql preserves that row policy while narrowing writable columns.
-  const canSetVendor = !p.vendor_id
+  const canSetVendorAsManager = !p.vendor_id
     && effectiveRole === realRole
     && realRole != null
     && ['Admin', 'Executive', 'Project Manager', 'Finance'].includes(realRole)
     && may('edit', 'procurement');
+  // A person who orders purchases names the supplier of an approved purchase (set_procurement_supplier); amounts stay closed.
+  const canSetVendorAsBuyer = !canSetVendorAsManager && !p.vendor_id && mayOrderByRole && p.status === 'Approved';
+  const canSetVendor = canSetVendorAsManager || canSetVendorAsBuyer;
   const canLinkAccounting = role === 'Admin' || role === 'Finance';
   const currentUserId = currentUser?.id ?? null;
 
@@ -581,7 +588,8 @@ const ProcurementDetails: React.FC = () => {
   const meta = [
     p.code ? <span key="code" className="record-id">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
-    p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
+    p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing" className="inline-flex items-center gap-1.5">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}
+      {canSetVendorAsBuyer && <Button variant="outline" size="sm" data-testid="buyer-set-supplier" onClick={() => { setTab('files'); setSelectedVendorId(null); setVendorPickerOpen(true); }}>{t('bupot.setVendor', 'Set supplier')}</Button>}</span>,
     p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><Avatar name={p.requested_by.full_name} decorative /><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
   ].filter((part): part is React.ReactElement => part !== null);
 
@@ -808,6 +816,7 @@ const ProcurementDetails: React.FC = () => {
       >
         {/* The notes that speak about the header's actions sit inside the header, under its band. */}
         {headerNotes.length > 0 ? headerNotes : null}
+        {p.vendor_id && <SupplierRiskNote supplierId={p.vendor_id} />}
         <div><FollowUpTaskButton type="procurement" recordId={p.id} projectId={p.project_id} defaultName={p.po_number ?? p.pr_number ?? p.title} finished={p.status === 'Paid' || p.status === 'Cancelled'} /></div>
       </RecordHeader>
 
@@ -855,7 +864,6 @@ const ProcurementDetails: React.FC = () => {
         ariaLabel={t('procurementDetail.tabsLabel', 'Procurement sections')}
         idBase="procurement-detail"
         insetFirstTab
-        wrapOnPhone
         className="mb-0!"
       />
 
@@ -946,7 +954,7 @@ const ProcurementDetails: React.FC = () => {
                   onClick={async () => {
                     if (!selectedVendorId) return;
                     try {
-                      await crud.updateVendor.mutateAsync(selectedVendorId);
+                      await crud.updateVendor.mutateAsync(canSetVendorAsBuyer ? { vendorId: selectedVendorId, byBuyer: true } : selectedVendorId);
                       setVendorPickerOpen(false);
                       toast(t('bupot.vendorSet', 'Supplier set'), undefined, 'success');
                     } catch (err) {

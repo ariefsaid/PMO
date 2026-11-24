@@ -83,6 +83,16 @@ describe('SiteReportPeopleHours', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(h.decide).toHaveBeenCalledWith({ workerId: 'w1', workOrderId: 'wo1', workDate: '2026-11-03', stand: 'second', reason: 'Survey sheet is signed' }, expect.anything());
   });
+  it('F8-3 no figure is pre-chosen: a reason alone does not decide, the manager must choose which figure stands', async () => {
+    const user = userEvent.setup();
+    view({ mayDecide: true, workers: [worker({ undecided: true, second: { status: 'present', hours: 5, overtimeHours: null, note: null, standing: null, decidedAt: null, decisionReason: null } })] });
+    await user.click(screen.getByRole('button', { name: 'Decide' }));
+    expect(screen.getByRole('combobox', { name: /Which figure stands/ })).toHaveValue('');
+    await user.type(screen.getByLabelText(/Why this figure stands/), 'Because');
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(h.decide).not.toHaveBeenCalled();
+    expect(screen.getByText('Choose which figure stands.')).toBeInTheDocument();
+  });
   it('a surveyor adds a second record with hours', async () => {
     const user = userEvent.setup();
     view({ mayEnter: true, workers: [worker()] });
@@ -99,5 +109,10 @@ describe('SiteReportPeopleHours', () => {
     const row = screen.getByTestId('dsr-people-row-w1');
     expect(within(row).queryByRole('button', { name: 'Add second record' })).toBeNull();
     expect(row).toHaveTextContent('Second record stands (signed)');
+  });
+  it('F8-2 a decided day says who decided it and when', () => {
+    view({ mayEnter: true, workers: [worker({ second: { status: 'present', hours: 5, overtimeHours: null, note: null, standing: 'second', decidedAt: '2026-11-04T08:30:00Z', decidedByName: 'Mira Manager', decisionReason: 'signed' } })] });
+    const row = screen.getByTestId('dsr-people-row-w1');
+    expect(row).toHaveTextContent('Second record stands (signed) · Mira Manager · 4 Nov');
   });
 });

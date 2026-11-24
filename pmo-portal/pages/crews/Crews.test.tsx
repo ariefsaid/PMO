@@ -40,7 +40,7 @@ describe('the Crews page and the rate view (#2706)', () => {
   it('AC-ATR-001 offers no Rate tab while the organisation has no target', () => {
     renderPage();
     expect(screen.getByRole('tab', { name: 'Crews' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Rate' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Attendance rate' })).toBeNull();
     expect(screen.getByText('crew master')).toBeInTheDocument();
   });
 
@@ -48,7 +48,7 @@ describe('the Crews page and the rate view (#2706)', () => {
     h.target = 90;
     const user = userEvent.setup();
     renderPage();
-    const tab = screen.getByRole('tab', { name: 'Rate' });
+    const tab = screen.getByRole('tab', { name: 'Attendance rate' });
     await user.click(tab);
     expect(screen.getByText('rate view')).toBeInTheDocument();
   });
@@ -63,6 +63,6 @@ describe('the Crews page and the rate view (#2706)', () => {
     h.target = 90;
     h.canRate = false;
     renderPage();
-    expect(screen.queryByRole('tab', { name: 'Rate' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Attendance rate' })).toBeNull();
   });
 });

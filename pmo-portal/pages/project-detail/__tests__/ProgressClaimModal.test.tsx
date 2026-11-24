@@ -274,6 +274,15 @@ describe('ProgressClaimModal survey ceiling and quality-ready warning (survey-ca
     expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('Warning: with this claim');
   });
 
+  it('FR-SCW-3 the claim starts from the surveyed quantity less what this order already claimed', async () => {
+    const { onSave, user } = renderModal({ contractLines: surveyed(4, 2, 5) });
+    await pickScope(user);
+    await user.click(screen.getByRole('button', { name: 'Start from the surveyed quantities' }));
+    expect(screen.getByLabelText(/STATION/)).toHaveValue('3');
+    await user.click(screen.getByRole('button', { name: 'Create claim' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ workOrderId: 'wo-1', lines: [{ boqItemId: 'b2', quantity: 3 }] }));
+  });
+
   it('AC-SCR-012 without a survey the form behaves as before and shows no survey figures', async () => {
     const { user } = renderModal({ contractLines: surveyed(null, null) });
     await pickScope(user);

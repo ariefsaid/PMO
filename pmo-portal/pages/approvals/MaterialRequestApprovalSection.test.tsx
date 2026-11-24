@@ -8,7 +8,7 @@ import React from 'react';
 const h = vi.hoisted(() => ({ waiting: vi.fn() }));
 vi.mock('@/src/lib/repositories/materialRequests', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories/materialRequests')>();
-  return { ...actual, materialRequestRepository: { ...actual.materialRequestRepository, waitingForMe: h.waiting, get: async (id: string) => ({ id, number: 'MR-0007', workOrderId: 'wo1', projectId: 'p1', neededBy: '2026-12-01' }) } };
+  return { ...actual, materialRequestRepository: { ...actual.materialRequestRepository, waitingForMe: h.waiting, headers: async (ids: string[]) => ids.map((id) => ({ id, number: 'MR-0007', workOrderId: 'wo1', projectId: 'p1', neededBy: '2026-12-01' })) } };
 });
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 // The real RequestWorkOrder renders a link; the row must not wrap it in another.

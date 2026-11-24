@@ -16,7 +16,7 @@ const idle = { data: [] as unknown[], isPending: false, isError: false, refetch:
 
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useWaitingForMe: () => h.waiting,
-  useMaterialRequest: (id: string | undefined) => ({ data: id ? { id, number: `MR-${id}`, workOrderId: 'wo1', projectId: 'p1', neededBy: '2026-12-01' } : undefined }),
+  useMaterialRequestHeaders: (ids: string[]) => ({ data: ids.map((id) => ({ id, number: `MR-${id}`, workOrderId: 'wo1', projectId: 'p1', neededBy: '2026-12-01', workOrder: null })) }),
 }));
 vi.mock('./materialRequests/shared', () => ({ RequestWorkOrder: () => <span>WO-1 · Foundations</span> }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));

@@ -63,8 +63,11 @@ export function useProcurementCrudMutations(id: string) {
     onSuccess: (_d, patch) => invalidate([patch.projectId]),
   });
 
-  const updateVendor = useMutation<void, AppError, string>({
-    mutationFn: (vendorId) => repositories.procurement.updateVendor(id, vendorId),
+  /** A string = a purchasing manager's edit; `{ byBuyer: true }` = a person who orders purchases, on an approved purchase. */
+  const updateVendor = useMutation<void, AppError, string | { vendorId: string; byBuyer: true }>({
+    mutationFn: (v) => typeof v === 'string'
+      ? repositories.procurement.updateVendor(id, v)
+      : repositories.procurement.updateVendor(id, v.vendorId, true),
     onSuccess: () => invalidate(),
   });
 

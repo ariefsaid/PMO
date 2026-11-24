@@ -191,7 +191,8 @@
       "none": "No purchase is ready for a bill. A purchase takes a bill once it is approved or ordered.",
       "help": "Choose the purchase this supplier bill is for. The next screen shows whether the order and receipt hold the bill.",
       "button": "New vendor bill"
-    }
+    },
+    "openBills": "Open bills and match"
   },
   "nav": {
     "finance": "Finance",
@@ -242,7 +243,7 @@
     "col": {
       "period": "Period",
       "progress": "Progress",
-      "earned": "Earned",
+      "earned": "Recognised",
       "invoices": "Invoices",
       "doneNotYetBilled": "Done, not yet billed",
       "leftToBill": "Left to bill"

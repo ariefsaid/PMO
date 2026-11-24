@@ -236,9 +236,11 @@ const ApprovalsPage: React.FC = () => {
       return;
     }
     if (!selectedKey || !queueItems.some((item) => item.key === selectedKey)) {
-      setSelectedKey(queueItems[0].key);
+      // FN4: below `lg` the preview sits after the whole list, so a pre-picked item's buttons would read as the one
+      // the person was looking at. There, nothing is previewed until they pick it.
+      setSelectedKey(isLargeScreen ? queueItems[0].key : null);
     }
-  }, [queueItems, selectedKey]);
+  }, [queueItems, selectedKey, isLargeScreen]);
 
   // One grammar at every width: below `lg` the preview stacks under the queue, so bring it into view.
   const pickItem = (key: string) => {
@@ -526,7 +528,7 @@ const ApprovalsPage: React.FC = () => {
                 <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" eligibleFromQueue />
               )
             ) : (
-              previewFallback
+              previewFallback ?? <p className="text-sm text-muted-foreground">{t('procurement:approvalQueue.pickItem', 'Pick an item above to see it and decide.')}</p>
             )}
           </Card>
         </div>

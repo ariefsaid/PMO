@@ -7,7 +7,7 @@ import * as dal from '@/src/lib/db/materialRequests';
 import { wrap } from './repositoryErrors';
 
 export type {
-  MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow,
+  MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow, MaterialRequestHeaderRow,
   MaterialRequestLine, MaterialRequestStep, MaterialRequestEvent, MaterialRequestDetail, WaitingStep, ChainStep,
   ChainStepInput, StandIn, StepPin, LinePlan, PlanSource, UsageThresholds, UsageWarning, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
   DeliveryNoteSettings, PriorRequestLine,
@@ -17,6 +17,7 @@ export { linePlanStatus, lineUsageWarning, parseUsageThresholds, draftLineErrors
 export const materialRequestRepository = {
   list: (f: dal.MaterialRequestFilter) => wrap(() => dal.listMaterialRequests(f)),
   get: (id: string) => wrap(() => dal.getMaterialRequest(id)),
+  headers: (ids: string[]) => wrap(() => dal.listMaterialRequestHeaders(ids)),
   waitingForMe: () => wrap(() => dal.listWaitingForMe()),
   linePlans: (workOrderId: string, itemIds: string[], excludeRequestId?: string | null) =>
     wrap(() => dal.getLinePlans(workOrderId, itemIds, excludeRequestId)),

@@ -60,6 +60,8 @@ test('AC-TPI-015 request, purchase, invitation, execution and report show the in
 
     // raise the purchase: a Draft procurement case is created and linked
     await card.getByRole('button', { name: 'Raise purchase' }).click();
+    // BQ9: raising creates a purchase, so it is confirmed first.
+    await page.getByRole('dialog').getByRole('button', { name: 'Raise purchase' }).click();
     await expect(card.getByTestId('inspection-status')).toHaveText('Purchase raised');
 
     // procurement's own flow later records an order on that case: it lands on this work order (FR-TPI-021)

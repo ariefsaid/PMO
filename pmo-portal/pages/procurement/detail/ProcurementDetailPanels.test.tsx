@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { FigureScope } from '@/src/components/ui';
-import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementTimeline } from './ProcurementDetailPanels';
+import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementStageTracker, ProcurementTimeline } from './ProcurementDetailPanels';
 
 vi.mock('../ProcurementFilesSubsection', () => ({ ProcurementFilesSubsection: () => null }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
@@ -39,6 +39,17 @@ const overdueInvoice: ErpPurchaseRow = {
 };
 
 describe('procurement record panels', () => {
+  it('PU14 one partial receipt against one order reads as partly received, never "1 of 1 orders received"', () => {
+    const partlyReceived = {
+      ...procurement, status: 'Ordered',
+      purchase_orders: [{ amount: 100 }], receipts: [{ status: 'Partial', receipt_date: '2026-09-05' }],
+    } as unknown as ProcurementDetail;
+    render(<ProcurementStageTracker procurement={partlyReceived} linkedDocuments={[]} />);
+    const tracker = screen.getByTestId('procurement-stage-tracker');
+    expect(tracker).toHaveTextContent('Partly received');
+    expect(tracker).not.toHaveTextContent(/1 of 1 orders received/);
+  });
+
   it('L6 + C6: overdue is said once, and record figures show their currency', () => {
     render(
       <>

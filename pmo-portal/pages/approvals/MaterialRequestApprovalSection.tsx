@@ -2,14 +2,13 @@ import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, ListState } from '@/src/components/ui';
-import { useMaterialRequest, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
-import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
+import { useMaterialRequestHeaders, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import type { MaterialRequestHeaderRow, WaitingStep } from '@/src/lib/repositories/materialRequests';
 import { formatDay } from '@/src/lib/format';
 import { RequestWorkOrder } from '../materialRequests/shared';
 
-const Row: React.FC<{ step: WaitingStep }> = ({ step }) => {
+const Row: React.FC<{ step: WaitingStep; request: MaterialRequestHeaderRow | undefined }> = ({ step, request }) => {
   const { t } = useTranslation('materialRequests');
-  const request = useMaterialRequest(step.requestId).data;
   // One link per row (the request number). The work order is its own link, so no anchor sits inside another.
   return (
     <li className="flex min-h-11 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
@@ -19,7 +18,7 @@ const Row: React.FC<{ step: WaitingStep }> = ({ step }) => {
           {t('inbox.step', 'Step {{n}}: {{label}}', { n: step.stepPosition, label: step.label })}
           {step.actingFor && <span className="ml-2">{t('inbox.standingIn', 'standing in')}</span>}
         </span>
-        {request && <span className="block text-control text-muted-foreground"><RequestWorkOrder workOrderId={request.workOrderId} projectId={request.projectId} /></span>}
+        {request && <span className="block text-control text-muted-foreground"><RequestWorkOrder workOrderId={request.workOrderId} projectId={request.projectId} workOrder={request.workOrder} /></span>}
       </span>
       <span className="text-control text-muted-foreground">
         {request && <span className="block">{t('inbox.neededBy', 'Needed by {{date}}', { date: formatDay(request.neededBy) })}</span>}
@@ -37,6 +36,10 @@ const Row: React.FC<{ step: WaitingStep }> = ({ step }) => {
 export const MaterialRequestApprovalSection: React.FC = () => {
   const { t } = useTranslation('materialRequests');
   const { data, isPending, isError, refetch } = useWaitingForMe();
+  // every row's header in one read (a step is per request and position; a request appears once)
+  const ids = React.useMemo(() => [...new Set((data ?? []).map((s) => s.requestId))], [data]);
+  const headers = useMaterialRequestHeaders(ids).data;
+  const byId = React.useMemo(() => new Map((headers ?? []).map((h) => [h.id, h])), [headers]);
   if (isPending) return <div className="mb-4"><ListState variant="loading" rows={3} /></div>;
   if (isError) {
     return (
@@ -51,7 +54,7 @@ export const MaterialRequestApprovalSection: React.FC = () => {
     <section aria-label={t('inbox.label', 'Material requests awaiting you')} className="mb-4">
       <h2 className="mb-2 text-control font-semibold text-muted-foreground">{t('inbox.heading', 'Material requests awaiting you ({{count}})', { count: data.length })}</h2>
       <Card>
-        <ul className="divide-y divide-border">{data.map((step) => <Row key={`${step.requestId}:${step.stepPosition}`} step={step} />)}</ul>
+        <ul className="divide-y divide-border">{data.map((step) => <Row key={`${step.requestId}:${step.stepPosition}`} step={step} request={byId.get(step.requestId)} />)}</ul>
       </Card>
     </section>
   );

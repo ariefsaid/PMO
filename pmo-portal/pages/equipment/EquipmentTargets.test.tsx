@@ -27,7 +27,7 @@ vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useLatestStatusDays: () => ({ data: [] }),
   useEquipmentProofs: () => ({ data: [] }),
   useDowntimeFlags: () => ({ data: [{ asset_id: 'a1', period_start: '2026-09-21', down_days: 6 }] }),
-  useEquipmentMetrics: () => ({ data: [{ asset_id: 'a1', bucket_start: '2026-09-01', availability_pct: '80.0', utilisation_pct: '95.0', unrecorded_days: 0, pending_usage_entries: 0 }] }),
+  useEquipmentMetrics: () => ({ data: [{ asset_id: 'a1', bucket_start: '2026-09-01', availability_pct: '80.0', in_service_days: 25, available_days: 20, utilisation_pct: '95.0', unrecorded_days: 0, pending_usage_entries: 0 }] }),
   useSetStatusBulk: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAttachProof: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRentalTerms: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -63,6 +63,11 @@ describe('equipment target settings (#2701)', () => {
     expect(await screen.findByText('(target 90%)')).toBeInTheDocument();
     expect(screen.getAllByText('Below target')).toHaveLength(1);
     expect(screen.getByText('(target 60%)')).toBeInTheDocument();
+  });
+
+  it('E3 availability reads as days available out of days in service, beside the percentage', () => {
+    renderPage();
+    expect(screen.getByText('20 of 25 days')).toBeInTheDocument();
   });
 
   it('AC-ETS-007 shows no marker and no target while none is set', () => {

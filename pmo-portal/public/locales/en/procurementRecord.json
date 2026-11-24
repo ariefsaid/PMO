@@ -105,7 +105,7 @@
     "record": "record",
     "records": "records",
     "startedAt": "Started at the {{stage}}",
-    "partialReceipt": "{{received}} of {{orders}} orders received",
+    "partlyReceived": "Partly received",
     "purchaseRequest": "purchase request",
     "purchaseRequests": "purchase requests",
     "purchaseOrder": "order",

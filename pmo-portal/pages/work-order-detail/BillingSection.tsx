@@ -1,11 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { Button, ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { formatCurrency, formatDay, formatMonthYearShort, formatNumberExact } from '@/src/lib/format';
 import type { WorkOrderBilledMonths, WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
 interface Props {
+  /** Walk BQ3/BQ13: claims, terms and reconciliation live on the project's Contract tab; this opens it on this work order. */
+  contractHref?: string | null;
   /** null = the caller may not see billing (section hidden); undefined row = no figures for this work order. */
   billing: { row: WorkOrderBillingRow | null; isPending: boolean; isError: boolean; onRetry: () => void } | null;
   /** Billed per month: null = the caller may not see billing (no block, no read). */
@@ -19,7 +22,7 @@ interface Props {
 }
 
 /** Billing and acceptances (FR-WORP-023): the shipped `work_order_billing` figures and the BAST list — no second formula. */
-export const BillingSection: React.FC<Props> = ({ billing, perMonth = null, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances, confirm }) => {
+export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, perMonth = null, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances, confirm }) => {
   const { t } = useTranslation('workOrders');
   const title = t('billing.title', 'Billing and acceptances');
   const row = billing?.row ?? null;
@@ -30,7 +33,9 @@ export const BillingSection: React.FC<Props> = ({ billing, perMonth = null, acce
       <dd className="tabular-nums font-medium">{formatCurrency(v, row!.currency)}</dd></div>
   );
   return (
-    <RecordSection title={title}>
+    <RecordSection title={title} actions={contractHref
+      ? <Link to={contractHref} className="text-control font-medium text-primary-text hover:underline" data-testid="wo-billing-contract-link">{t('billing.openContract', 'Claims and invoices')}</Link>
+      : undefined}>
       <div className="flex flex-col gap-4">
         {billing && billing.isPending && <ListState variant="loading" rows={1} />}
         {billing && billing.isError && <ListState variant="error" title={t('billing.error', "Couldn't load the billing figures")} onRetry={billing.onRetry} />}

@@ -96,6 +96,18 @@ describe('vendor recovery writes only vendor_id', () => {
     expect(h.calls.select).toEqual(['id']);
   });
 
+  it('a person who orders purchases names the supplier through set_procurement_supplier, never a table write', async () => {
+    h.rpcResult.value = { data: null, error: null };
+    await updateProcurementVendor('pr1', 'vendor-1', true);
+    expect(h.calls.rpc).toEqual([['set_procurement_supplier', { p_procurement: 'pr1', p_vendor: 'vendor-1' }]]);
+    expect(h.calls.update).toEqual([]);
+  });
+
+  it('the command\'s already-named refusal reads as the typed vendor-already-set outcome', async () => {
+    h.rpcResult.value = { data: null, error: { message: 'PRC_SUPPLIER_SET: this purchase already names its supplier', code: '23514' } };
+    await expect(updateProcurementVendor('pr1', 'vendor-1', true)).rejects.toMatchObject({ code: 'VENDOR_ALREADY_SET' });
+  });
+
   it('returns the typed vendor-already-set outcome when the conditional update lands no row', async () => {
     h.result.value = { data: [], error: null };
     await expect(updateProcurementVendor('pr1', 'vendor-1')).rejects.toMatchObject({

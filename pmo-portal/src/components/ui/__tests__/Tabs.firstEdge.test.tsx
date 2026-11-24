@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { useState } from 'react';
+import userEvent from '@testing-library/user-event';
 import { render, screen } from '@testing-library/react';
 import { Tabs } from '../Tabs';
 
@@ -27,8 +29,26 @@ describe('Tabs first-tab left edge', () => {
     expect(cls).not.toContain('first:ps-0');
   });
 
-  it('a wrapping phone tab row on a record page keeps every row on the record header inset', () => {
-    render(<Tabs items={items} value="a" onChange={() => {}} ariaLabel="Views" idBase="t4" insetFirstTab wrapOnPhone />);
-    expect(screen.getByRole('tablist').className).toContain('max-sm:[&>[role=tab]]:ps-[calc(var(--space-content-inset)+1px)]');
+  it('brings the last tab into view when the user reaches it by keyboard', async () => {
+    const scrollBy = vi.fn();
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { left: 0, right: this.getAttribute('role') === 'tab' ? 480 : 390 } as DOMRect;
+    });
+    const previous = HTMLElement.prototype.scrollBy;
+    HTMLElement.prototype.scrollBy = scrollBy;
+    function Harness() {
+      const [value, setValue] = useState('a');
+      return <Tabs items={[...items, { value: 'rate', label: 'Attendance rate' }]} value={value} onChange={setValue} ariaLabel="Views" idBase="reach" />;
+    }
+    try {
+      render(<Harness />);
+      screen.getByRole('tab', { name: 'Alpha' }).focus();
+      await userEvent.keyboard('{End}');
+      expect(screen.getByRole('tab', { name: 'Attendance rate' })).toHaveAttribute('aria-selected', 'true');
+      expect(scrollBy).toHaveBeenCalledWith({ left: 118, behavior: expect.any(String) });
+    } finally {
+      rect.mockRestore();
+      HTMLElement.prototype.scrollBy = previous;
+    }
   });
 });

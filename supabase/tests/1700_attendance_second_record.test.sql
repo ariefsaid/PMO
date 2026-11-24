@@ -16,7 +16,7 @@
 --   (1932) drop the own-day test in the decide RPC (mut:decide_self) ............ 'AC-PAY-009 nobody decides the hours of their own day'
 begin;
 create extension if not exists pgtap;
-select plan(58);
+select plan(59);
 
 insert into organizations (id, name, default_currency, attendance_backdate_days, built_in_roles_enabled) values
   ('17000000-0000-0000-0000-00000000020a', 'PT Org', 'IDR', 60, true);
@@ -227,6 +227,8 @@ select is((select jsonb_array_length(attendance_report_day_hours('17000000-0000-
   'FR-PAY-007 the manager sees exactly the rostered workers on the site report (all five placed in the crew)');
 select is((select w -> 'second' ->> 'standing' from jsonb_array_elements(attendance_report_day_hours('17000000-0000-0000-0000-0000000005a1') -> 'workers') w
             where w ->> 'name' = 'No Login One'), 'second', 'FR-PAY-007 the report shows which figure stands');
+select is((select w -> 'second' ->> 'decided_by_name' from jsonb_array_elements(attendance_report_day_hours('17000000-0000-0000-0000-0000000005a1') -> 'workers') w
+            where w ->> 'name' = 'No Login One'), (select full_name from profiles where id = '17000000-0000-0000-0000-0000000000a4'), 'FR-PAY-004 the report names who decided');
 select pg_temp.act_as('17000000-0000-0000-0000-0000000000a6');
 select is(attendance_report_day_hours('17000000-0000-0000-0000-0000000005a1') -> 'detail', 'false'::jsonb,
   'FR-PAY-007 a role that records no time sees only the total');

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, RecordSection } from '@/src/components/ui';
+import { Button, ListState, RecordSection } from '@/src/components/ui';
+import WorkOrderPlanModal from '../project-detail/WorkOrderPlanModal';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { planVariance } from '@/src/lib/workOrderPlanVsActual';
@@ -17,6 +18,8 @@ interface Props {
   disciplines: CostDiscipline[];
   /** Needed only for the idle-time block (#2673); without it the block does not load. */
   projectId?: string;
+  /** The reader may enter the plan (`manage workOrderPlan`); the Plan action then opens the project tab's dialog. */
+  canPlan?: boolean;
 }
 
 /**
@@ -25,8 +28,9 @@ interface Props {
  * this work order, so it equals the project tab's row (AC-WPVA-016). Overspend reads in words (FR-WPVA-041); a role
  * that cannot read the money sees "restricted", never a zero (FR-WPVA-013).
  */
-export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId }) => {
+export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId, canPlan = false }) => {
   const { t } = useTranslation('workOrderPva');
+  const [planning, setPlanning] = useState(false);
   const title = t('title', 'Plan vs actual');
   if (query.isPending) return <RecordSection title={title} data-testid="wo-page-pva"><ListState variant="loading" rows={3} /></RecordSection>;
   if (query.isError || !query.data) {
@@ -46,8 +50,17 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
   }
   const f = rollup.workOrders.find((x) => x.workOrderId === workOrderId);
   const w = workOrders.find((x) => x.id === workOrderId);
+  // Walk PC3: the plan is entered where a manager reads it, with the project tab's own dialog and gate.
+  const planAction = canPlan && projectId && w && w.status !== 'Cancelled'
+    ? <Button variant="outline" size="sm" onClick={() => setPlanning(true)} data-testid="wo-page-pva-plan">{t('editPlan', 'Plan')}</Button>
+    : undefined;
+  const planModal = planning && projectId && w && (
+    <WorkOrderPlanModal projectId={projectId} workOrder={w}
+      plans={query.data.plans.filter((p) => p.workOrderId === w.id && p.disciplineId === null && (p.sectionId ?? null) === null)}
+      onClose={() => setPlanning(false)} />
+  );
   if (!f || !w) {
-    return <RecordSection title={title} data-testid="wo-page-pva"><p className="text-control text-muted-foreground">{t('pageEmpty', 'No plan or actuals for this work order yet.')}</p></RecordSection>;
+    return <RecordSection title={title} actions={planAction} data-testid="wo-page-pva"><p className="text-control text-muted-foreground">{t('pageEmpty', 'No plan or actuals for this work order yet.')}</p>{planModal}</RecordSection>;
   }
   const cur = w.currency;
   const money = (value: string | null, currency = cur) =>
@@ -79,7 +92,7 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
     </div>
   );
   return (
-    <RecordSection title={title} data-testid="wo-page-pva">
+    <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-control sm:grid-cols-3">
         {figure('wo-page-pva-plan-direct', t('col.plan', 'Planned direct'), planText(f.plan.direct_budget))}
         {figure('wo-page-pva-direct', t('col.direct', 'Direct cost'), money(f.direct), variantText(f.plan.direct_budget, f.direct))}
@@ -115,6 +128,7 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
           </table>
         </div>
       )}
+      {planModal}
     </RecordSection>
   );
 };

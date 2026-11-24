@@ -92,7 +92,7 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
     await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.route('**/api/resource/**', (route) => route.abort());
-    await page.goto('/projects/' + projectId + '/contract');
+    await page.goto('/projects/' + projectId + '/orders');
     const panel = page.getByTestId('discipline-profit');
     await expect(panel).toBeVisible({ timeout: 15_000 });
     const row = panel.getByTestId('discipline-profit-row-' + disciplineId);
@@ -106,6 +106,8 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
 
     // Evidence: the contract-line discipline picker (Edit lines > Edit a line). The Admin setting card is gone: revenue per discipline is on for everyone (#2746).
     await page.setViewportSize({ width: 1440, height: 900 });
+    // The contract lines live on the Contract tab; the profit panel is on the Work order tab (walk M9).
+    await page.getByRole('tab', { name: 'Contract' }).click();
     await page.getByRole('button', { name: 'Edit lines' }).click();
     await page.getByRole('dialog').getByRole('row', { name: /Tagged line/ }).getByRole('button', { name: 'Edit', exact: true }).click();
     const picker = page.getByRole('combobox', { name: 'Discipline (for profit per discipline)' });

@@ -17,6 +17,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => detail,
   useIncidentMutations: () => ({ update: { mutateAsync: vi.fn(), isPending: false }, transition: { mutateAsync: vi.fn(), isPending: false } }),
   useAssigneeOptions: () => ({ data: [{ value: 'u-a', label: 'Ana Site' }] }),
+  useSupervisorMayTask: () => false,
   useIncidentEvidenceMutations: () => ({
     upload: { mutateAsync: vi.fn(), isPending: false },
     makeTask: { mutateAsync: vi.fn(), isPending: false },
@@ -122,6 +123,23 @@ describe('IncidentDetail tasks and root cause (#2677)', () => {
     expect(screen.queryByTestId('incident-root-cause')).not.toBeInTheDocument();
     expect(screen.queryByTestId('incident-root-cause-add')).not.toBeInTheDocument();
     expect(screen.queryByTestId('incident-tasks')).not.toBeInTheDocument();
+  });
+
+  it('F17-2 a manager can add a task with a name, person and due day before any task exists', async () => {
+    const user = userEvent.setup();
+    detail.data = { ...base, incident_tasks: [] };
+    renderPage('Project Manager');
+    await user.click(screen.getByTestId('incident-add-task'));
+    await user.type(await screen.findByLabelText(/^Task/), 'Inspect the weld');
+    await user.click(screen.getByRole('button', { name: 'Add a task', hidden: false }));
+    expect(addTask).toHaveBeenCalledWith({ incidentId: 'i1', name: 'Inspect the weld', assigneeId: null, dueDate: null });
+  });
+
+  it('F17-2 an issue with no project says a project is needed first, instead of a dash', () => {
+    detail.data = { ...base, project_id: null, incident_tasks: [] };
+    renderPage('Project Manager');
+    expect(screen.getByText('Choose a project for this issue before you make a task.')).toBeInTheDocument();
+    expect(screen.queryByTestId('incident-add-task')).not.toBeInTheDocument();
   });
 
   it('AC-ITR-008: a manager with no root cause gets no card until they choose to record one', () => {

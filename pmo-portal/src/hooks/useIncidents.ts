@@ -4,6 +4,7 @@ import type { IncidentRow, IncidentDetailRow, IncidentStatus, IncidentInput, Inc
 import type { ComboboxOption } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { withTimeout } from '@/src/lib/withTimeout';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /**
  * Org-scoped Incidents list over the repository seam (ADR-0017). queryKey includes
@@ -145,6 +146,13 @@ export function useIncidentFiles(incidentId: string | undefined) {
 }
 
 /** Upload one photo/PDF for an issue, and make a task from an issue (#2521). */
+/** The Site Supervisor job role adds tasks to issues on work orders it supervises: the database gate decides. Unreadable = no. */
+export function useSupervisorMayTask(workOrderId: string | null | undefined, enabled: boolean): boolean {
+  const q = useOrgQuery(['incident-may-task', workOrderId], () => repositories.incident.mayTaskOnWorkOrder(workOrderId as string),
+    { enabled: enabled && Boolean(workOrderId) });
+  return q.data === true;
+}
+
 export function useIncidentEvidenceMutations() {
   const qc = useQueryClient();
   const invalidate = () => {

@@ -59,3 +59,15 @@ describe('AC-MMP-017 management pack catalogue', () => {
     });
   }
 });
+
+describe('M12 the two earned measures carry two names', () => {
+  // The report pack's column is revenue recognised from monthly progress (else invoices); the work-order and project views
+  // count validated daily reports. One word for both read as a disagreement of figures (the pack said 0 beside a work order's millions).
+  it.each(['en', 'id'] as const)('%s: the pack column is not called what the validated-report views call theirs', (lng) => {
+    const root = new URL(`../../../public/locales/${lng}/`, import.meta.url);
+    const pva = JSON.parse(readFileSync(fileURLToPath(new URL('workOrderPva.json', root)), 'utf-8'));
+    const pack = get(load(lng), 'managementPack.col.earned');
+    expect(pack).toBeTruthy();
+    expect(pack).not.toBe(pva.earnedBilled.col.earned);
+  });
+});

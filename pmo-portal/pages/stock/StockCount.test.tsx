@@ -154,11 +154,25 @@ describe('StockCount', () => {
     await userEvent.type(screen.getByLabelText(/^Counted/), '92');
     expect(await screen.findByText(/Another person must post this/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Post count' })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/^Reason/), 'two rolls damaged');
     await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(1));
-    expect(documents.create.mock.calls[0][0]).toEqual({ kind: 'count', warehouseId: 'w1', lines: [{ itemId: 'i2', countedQuantity: '92' }] });
+    expect(documents.create.mock.calls[0][0]).toEqual({ kind: 'count', warehouseId: 'w1', reason: 'two rolls damaged', lines: [{ itemId: 'i2', countedQuantity: '92' }] });
     expect(documents.create.mock.calls[0][1]).toMatchObject({ post: false });
     expect(await screen.findByText('document page')).toBeInTheDocument();
+  });
+
+  it('W7 a count with a difference asks for the reason before it is saved; one with no difference never asks', async () => {
+    renderAt('/stock/new/count');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    await pickItem('cab', /CAB - Cable 4mm/);
+    await userEvent.type(screen.getByLabelText(/^Counted/), '100');
+    expect(screen.queryByLabelText(/^Reason/)).toBeNull();
+    await userEvent.clear(screen.getByLabelText(/^Counted/));
+    await userEvent.type(screen.getByLabelText(/^Counted/), '92');
+    await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(await screen.findByText('Say why the stock changed.')).toBeInTheDocument();
+    expect(documents.create).not.toHaveBeenCalled();
   });
 
   it('FR-STK-062 a count with no variance may be posted by its author', async () => {
@@ -180,6 +194,7 @@ describe('StockCount', () => {
     expect(await screen.findByText('Enter the unit cost: the system holds none of this item.')).toBeInTheDocument();
     expect(documents.create).not.toHaveBeenCalled();
     await userEvent.type(screen.getByLabelText(/^Unit cost/), '40');
+    await userEvent.type(screen.getByLabelText(/^Reason/), 'found in the yard');
     await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(documents.create).toHaveBeenCalled());
     expect(documents.create.mock.calls[0][0].lines).toEqual([{ itemId: 'i1', countedQuantity: '5', unitCost: '40' }]);

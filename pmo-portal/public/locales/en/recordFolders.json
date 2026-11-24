@@ -56,6 +56,7 @@
     "modified": "Modified",
     "size": "Size",
     "empty": "Empty folder",
+    "hidden": "Some items in this folder can't be shown here.",
     "more": "Show more",
     "openNamed": "Open {{name}} in SharePoint"
   }

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, PageHeader } from '@/src/components/ui';
+import { BillingPlanLink } from '@/src/components/finance/BillingPlanLink';
 import { Combobox, type ComboboxOption } from '@/src/components/ui/Combobox';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { useBillingBoard } from '@/src/hooks/useBillingBoard';
@@ -95,6 +96,7 @@ const BillingBoard: React.FC = () => {
       <PageHeader
         title={t('billingBoard.title', 'Billing board')}
         count={query.isSuccess ? total : undefined}
+        action={<BillingPlanLink />}
       />
       <div className="mb-4 max-w-sm">
         <Combobox

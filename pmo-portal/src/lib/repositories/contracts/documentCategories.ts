@@ -5,7 +5,7 @@ export interface DocumentCategoryRepository {
   list: typeof dal.listDocumentCategories;
   create: typeof dal.createCategory;
   rename: typeof dal.renameCategory;
-  setRoles: typeof dal.setCategoryRoles;
+  setAccess: typeof dal.setCategoryAccess;
   archive: typeof dal.archiveCategory;
   restore: typeof dal.restoreCategory;
   reorder: typeof dal.reorderCategories;

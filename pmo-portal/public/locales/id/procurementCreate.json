@@ -36,6 +36,7 @@
   "supplier": "Supplier",
   "selectSupplier": "Opsional: pilih supplier…",
   "budgetCategory": "Kategori anggaran",
+  "subcontract": "Pekerjaan subkon: ditagih melalui sertifikat progres",
   "budgetCategoryHelp": "Menentukan pemberi persetujuan",
   "budgetCategoryHelpFull": "Menentukan pemberi persetujuan: belanja dalam anggaran proyek untuk kategori ini disetujui oleh penanggung jawab proyek.",
   "addRowIncomplete": "Tambahkan baris ini atau kosongkan dulu",

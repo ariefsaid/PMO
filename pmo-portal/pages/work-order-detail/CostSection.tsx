@@ -8,6 +8,8 @@ import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
 
 interface Props {
   links: Record<string, string>;
+  /** `source:recordId` → the cost read's reason (absent when the caller cannot read it). */
+  reasons?: Record<string, string>;
   labels: Record<string, { person: string; weekStart: string }>;
   groups: SourceGroup[] | null;
   disciplines: CostDiscipline[];
@@ -28,8 +30,15 @@ const COMMITMENT_SOURCES: readonly string[] = ['purchase_request', 'purchase_ord
 const HOURS_ONLY: readonly string[] = ['timesheet_entry', 'attendance_day', 'stock_document', 'equipment_usage'];
 
 /** Costs (FR-WORP-021/022): lines grouped by source then discipline; a total only where the money is readable. */
-export const CostSection: React.FC<Props> = ({ labels, links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
-  const { t } = useTranslation('workOrders');
+export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
+  const { t } = useTranslation(['workOrders', 'workOrderPva']);
+  // A stock document is not costed on the work order by design (its bill carries the cost): say which state it is in.
+  const stockState = (recordId: string) => {
+    const reason = reasons[`stock_document:${recordId}`];
+    return reason === 'outside-basis' ? t('workOrderPva:reason.outsideBasis', 'Not part of project actuals')
+      : reason === 'transfer' ? t('workOrderPva:reason.transfer', 'Moved to site, still on hand')
+      : reason === 'not-posted' ? t('workOrderPva:reason.notPosted', 'Not posted or approved yet') : null;
+  };
   const title = t('costs.title', 'Costs');
   if (isPending) return <RecordSection title={title}><ListState variant="loading" rows={3} /></RecordSection>;
   if (isError || !groups) {
@@ -73,9 +82,13 @@ export const CostSection: React.FC<Props> = ({ labels, links, groups, discipline
                         <span className="tabular-nums text-control text-muted-foreground">
                           {l.occurredOn ? formatDay(l.occurredOn) : '—'}
                           {l.quantity != null && ` · ${formatNumberExact(l.quantity)} ${l.quantityUnit ?? ''}`}
-                          {(l.source === 'timesheet_entry' || l.source === 'attendance_day' || l.source === 'stock_document'
-                            || (l.source === 'equipment_usage' && !g.restricted && !g.moneyByRecord?.[l.recordId]))
-                            && <> · <span>{t('costs.notCosted', 'Not yet costed')}</span></>}
+                          {g.moneyByRecord?.[l.recordId]
+                            ? <> · <span>{money(g.moneyByRecord[l.recordId])}</span></>
+                            : (l.source === 'timesheet_entry' || l.source === 'attendance_day' || l.source === 'stock_document'
+                              || (l.source === 'equipment_usage' && !g.restricted))
+                              && <> · <span>{t('costs.amountNotShown', 'Line amount not shown')}</span></>}
+                          {l.source === 'stock_document' && stockState(l.recordId) && <> · <span>{stockState(l.recordId)}</span></>}
+
                         </span>
                       </li>
                     );
