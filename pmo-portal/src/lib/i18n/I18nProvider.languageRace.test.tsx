@@ -26,7 +26,7 @@ function Period() {
   return <label>{t('financialStatements.period', 'Period')}</label>;
 }
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); resetActiveLocale(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); resetActiveLocale(); });
 
 it('AC-008 keeps Periode when an older English switch finishes after the profile returns to Indonesian', async () => {
   let releaseBoot!: () => void;
@@ -53,9 +53,10 @@ it('AC-008 keeps Periode when an older English switch finishes after the profile
   let namespaceLoad!: Promise<unknown>;
   act(() => { namespaceLoad = i18next.loadNamespaces('workOrderPva'); });
   await waitFor(() => expect(fetcher.mock.calls.some(([path]) => String(path) === '/locales/en/workOrderPva.json')).toBe(true));
+  const changeLanguage = vi.spyOn(i18next, 'changeLanguage');
   state.locale = 'en';
   view.rerender(tree());
-  await waitFor(() => expect(i18next.isLanguageChangingTo).toBe('en'));
+  await waitFor(() => expect(changeLanguage).toHaveBeenCalledWith('en'));
   state.locale = 'id';
   view.rerender(tree());
   await act(async () => { releaseEnglish(); await namespaceLoad; });
