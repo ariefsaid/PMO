@@ -15,7 +15,8 @@ alter table public.hourly_rental_checks enable row level security;
 alter table public.hourly_rental_checks force row level security;
 create policy hourly_rental_checks_read on public.hourly_rental_checks for select to authenticated
 using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
-  and ((select public.auth_role()) in ('Admin','Finance') or (select public.actor_built_in_role()) in ('equipment_officer','equipment_manager')));
+  and ((select public.auth_role()) in ('Admin','Finance') or (select public.actor_built_in_role()) in ('equipment_officer','equipment_manager')
+    or ((select public.auth_role()) = 'Project Manager' and (select public.actor_built_in_role()) is null)));
 create policy hourly_rental_checks_field on public.hourly_rental_checks as restrictive for select to authenticated
 using ((select public.actor_is_light()) is not true);
 revoke all on public.hourly_rental_checks from public, anon, authenticated;
@@ -32,7 +33,7 @@ declare
 begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
-  if not (public.auth_role() in ('Admin','Finance') or coalesce(public.actor_built_in_role() in ('equipment_officer','equipment_manager'), false)) then
+  if not (public.auth_role() in ('Admin','Finance') or public.equipment_manager_rights(public.auth_role()) or coalesce(public.actor_built_in_role() = 'equipment_officer', false)) then
     raise exception 'not authorized' using errcode = '42501';
   end if;
   if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 399 then
