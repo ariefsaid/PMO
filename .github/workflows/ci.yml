@@ -634,6 +634,9 @@ jobs:
       - name: pgTAP integration tests
         run: supabase test db
 
+      - name: Receiving rollback proof
+        run: scripts/test-2450-receiving-rollback.sh
+
       # Standing cross-org isolation proof (#612): two throwaway organisations on this stack (A disposable,
       # B the attacker), the probe in read mode then write mode. Any leak, probe error, crashed probe or write
       # probe skipped for lack of a disposable A, or a check or skip count off its expected number fails the job; the counts print in the log and the job summary.
@@ -947,6 +950,10 @@ jobs:
       - name: pgTAP integration tests
         if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
         run: supabase test db
+
+      - name: Receiving rollback proof
+        if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
+        run: scripts/test-2450-receiving-rollback.sh
 
       - name: Capture rollback harness
         if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap

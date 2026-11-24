@@ -128,7 +128,7 @@ function useLiveWaitingForYou(): WaitingForYou {
       })),
       medical_release: (release.data ?? []).filter((r) => r.status === 'Pending' && r.can_decide)
         .map((row) => ({ key: `medical_release:${row.id}`, kind: 'medical_release' as const, createdAt: row.release_date, row })),
-      daily_report: [], work_order_issue: [], delivery_record: [], transfer_receipt: [], quantity_change: [], certificate: [], equipment_plan: [], check_in: [], stock_writeoff: [], attendance_decision: [],
+      daily_report: [], work_order_issue: [], delivery_record: [], transfer_receipt: [], quantity_change: [], certificate: [], equipment_plan: [], check_in: [], stock_writeoff: [], attendance_decision: [], order_receiving: [],
     };
     for (const row of database.data ?? []) byKind[row.kind].push({ key: `${row.kind}:${row.recordId}`, kind: row.kind, createdAt: row.createdAt, row });
     return WAITING_KINDS.flatMap((kind) => byKind[kind]);
@@ -164,6 +164,7 @@ function useLiveWaitingForYou(): WaitingForYou {
     check_in: { pending: signedIn && database.isPending, error: database.isError },
     stock_writeoff: { pending: signedIn && database.isPending, error: database.isError },
     attendance_decision: { pending: signedIn && database.isPending, error: database.isError },
+    order_receiving: { pending: signedIn && database.isPending, error: database.isError },
   };
   const pendingKinds = WAITING_KINDS.filter((kind) => state[kind].pending);
   const failedKinds = WAITING_KINDS.filter((kind) => state[kind].error);
