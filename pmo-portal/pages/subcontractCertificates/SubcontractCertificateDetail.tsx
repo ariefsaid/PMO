@@ -12,6 +12,7 @@ import { can } from '@/src/auth/policy';
 import { useProject } from '@/src/hooks/useProjects';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCertificateMutations, useCertificateView, useOpenBackcharges } from '@/src/hooks/useSubcontractCertificates';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatCurrencyCents, formatDay, formatMonthYearShort } from '@/src/lib/format';
 import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
 import type { CertificateView, ExcludedSource, MeasuredDay } from '@/src/lib/db/subcontractCertificates';
@@ -219,7 +220,8 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
 
 const BillDialog: React.FC<{ loading: boolean; error: string | null; net: string; onClose: () => void; onConfirm: (date: string, reference: string) => void }> = ({ loading, error, net, onClose, onConfirm }) => {
   const { t } = useTranslation('subcontractCertificates');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const today = useOrgToday();
+  const [date, setDate] = useState(today);
   const [reference, setReference] = useState('');
   return (
     <ConfirmDialog open title={t('subcontractCertificates:billTitle', 'Create the supplier bill?')} confirmLabel={t('subcontractCertificates:actions.bill', 'Create bill')}
