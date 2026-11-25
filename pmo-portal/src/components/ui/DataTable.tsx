@@ -42,6 +42,11 @@ export interface Column<Row> {
   /** First column only: a control drawn before the cell and outside its open-row button (a tree's
    *  expand toggle), so one interactive element never sits inside another. */
   lead?: (row: Row) => React.ReactNode;
+  /** First column only: the cell draws its own activation control beside its own links (JOB-F17: a task
+   *  name with its source-issue link), so the table wraps neither in a row-open button — one interactive
+   *  element never sits inside another. Pointer activation on the rest of the row is the table's own
+   *  row-click; keyboard activation is the cell's own control. */
+  ownActivation?: boolean;
   /** One table-level explanation, referenced by a mark in this column header. */
   caveat?: { reason: React.ReactNode; remedy?: React.ReactNode };
   align?: ColAlign;

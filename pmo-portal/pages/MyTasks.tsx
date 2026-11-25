@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, Icon, buttonClasses, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useTaskLinkedRecords } from '@/src/hooks/useTaskLinkedRecords';
+import { useTaskSourceIssues } from '@/src/hooks/useTaskSourceIssues';
 import { LinkedRecordLine } from '@/src/components/tasks/LinkedRecordLine';
+import { SourceIssueLink } from '@/src/components/tasks/SourceIssueLink';
 import { recordLinkOf } from '@/src/lib/db/tasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
@@ -153,6 +155,8 @@ const MyTasks: React.FC = () => {
   const setSearch = (value: string) => setParam('q', value);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
+  // JOB-F17: the issue each task was made from — one read for the page, keyed by the sorted ids.
+  const { data: sourceIssues } = useTaskSourceIssues((tasks ?? []).map((task) => task.id));
   // #2587: the live status of every followed record on the page, one read for all rows (never one per row).
   const { data: linkedRecords } = useTaskLinkedRecords(
     (tasks ?? []).filter((task) => recordLinkOf({ procurement_id: task.procurement_id ?? null, expense_claim_id: task.expense_claim_id ?? null, material_request_id: task.material_request_id ?? null })).map((task) => task.id),
@@ -455,6 +459,12 @@ const MyTasks: React.FC = () => {
                           </LateText>
                         )}
                       </div>
+                      {sourceIssues?.get(task.id) && (
+                        <SourceIssueLink
+                          incidentId={sourceIssues.get(task.id)!}
+                          className="mt-0.5 inline-block text-control font-medium text-primary underline-offset-2 hover:underline"
+                        />
+                      )}
                       <LinkedRecordLine
                         className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-control"
                         task={{

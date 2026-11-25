@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -39,13 +40,13 @@ import MyTasks from '../MyTasks';
 
 const renderMyTasks = () =>
   render(
-    <ImpersonationProvider realRole="Engineer">
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ImpersonationProvider realRole="Engineer">
       <MemoryRouter>
         <ToastProvider>
           <MyTasks />
         </ToastProvider>
       </MemoryRouter>
-    </ImpersonationProvider>,
+    </ImpersonationProvider></QueryClientProvider>,
   );
 
 const twoLate = [
@@ -86,6 +87,8 @@ describe('My tasks — the counts say what they count (judging move 1)', () => {
     const strip = screen.getByTestId('my-tasks-waiting-summary');
     expect(strip).toHaveTextContent('1 Open');
     expect(within(strip).queryByTestId('my-tasks-overdue-count')).not.toBeInTheDocument();
-    expect(strip).not.toHaveTextContent(/Overdue/);
+    // The oracle names the fabricated figure: with nothing late no "0 Overdue" is printed. (The strip
+    // also carries the queue toggle, whose own Overdue option is a queue name, not a count.)
+    expect(strip).not.toHaveTextContent('0 Overdue');
   });
 });
