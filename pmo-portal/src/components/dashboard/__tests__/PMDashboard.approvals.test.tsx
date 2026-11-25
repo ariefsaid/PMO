@@ -19,6 +19,7 @@ import { orgSwitchKey } from '@/src/hooks/useOrgSwitch';
 const h = vi.hoisted(() => ({
   procurements: [] as unknown[],
   timesheetsAwaiting: [] as Array<{ id: string; entries: Array<{ hours: number }> }>,
+  steps: [] as unknown[],
 }));
 
 const project = {
@@ -114,7 +115,7 @@ vi.mock('@/src/lib/repositories', async () => {
       }),
     },
     imprest: { listAwaitingImprest: () => Promise.resolve({ plans: [], replenishments: [] }) },
-    billingStages: { waitingSteps: () => Promise.resolve([]) },
+    billingStages: { waitingSteps: () => Promise.resolve(h.steps) },
     workOrderAcceptance: { listAwaitingConfirmation: () => Promise.resolve([]) },
   },
 };
@@ -131,7 +132,6 @@ const renderDashboard = () => {
   client.setQueryData(acceptancesAwaitingConfirmationKey('org-1', 'pm-1'), []);
   client.setQueryData(['imprest-awaiting', 'org-1'], { plans: [], replenishments: [] });
   client.setQueryData(expenseClaimsAwaitingKey('org-1'), []);
-  client.setQueryData(['waiting-billing-steps', 'org-1'], []);
 
   return render(
     <QueryClientProvider client={client}>
@@ -146,6 +146,7 @@ const renderDashboard = () => {
 };
 
 beforeEach(() => {
+  h.steps = [];
   h.procurements = [
     // Approvable: requested by someone else on the PM's project.
     { id: 'pr1', project_id: 'p1', status: 'Requested', requested_by_id: 'someone-else', approvalRoute: null, title: 'Inverter spares' },
@@ -172,6 +173,13 @@ describe('PMDashboard approvals queue (ported N15)', () => {
     expect(screen.queryByRole('link', { name: /^2\s*approvals waiting for you$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^4\s*approvals waiting for you$/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Procurement approvals — coming soon/i)).not.toBeInTheDocument();
+  });
+
+  it('#2886: a billing step waiting on the PM role shows under Waits on you and links to the project billing tab', async () => {
+    h.steps = [{ projectId: 'p1', daysOver: 0 }];
+    renderDashboard();
+    const link = await screen.findByRole('link', { name: /billing step waiting on your role/i }, { timeout: 5000 });
+    expect(link).toHaveAttribute('href', '/projects/p1/billing');
   });
 
   it('AC-SL-A-001: nothing waiting → no approvals doorway', async () => {

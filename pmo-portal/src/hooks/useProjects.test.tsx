@@ -174,6 +174,16 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
   });
 });
 
+describe('useProjectMutations history (#2888)', () => {
+  it('a header update invalidates the record history so the edit shows in place', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider> });
+    await result.current.updateHeader.mutateAsync({ id: 'p1', input: { name: 'Y', code: null, client_id: null, end_client_id: null, project_manager_id: null, start_date: null, end_date: null } });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['record-history', 'org-1'] });
+  });
+});
+
 describe('projectKeys.detail', () => {
   it('returns org-scoped project query key matching useProject', () => {
     expect(projectKeys.detail('org-1', 'p1')).toEqual(['project', 'org-1', 'p1']);

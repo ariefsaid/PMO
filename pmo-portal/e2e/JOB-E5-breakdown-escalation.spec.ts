@@ -49,9 +49,12 @@ test('JOB-E5 a unit broken for three days is flagged on screen and escalated to 
   await expect(page.getByText('Vendor response to breakdowns')).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Record response' }).click();
   const response = page.getByRole('dialog');
-  const responded = new Date(Date.now() - 60 * 60 * 1000);
+  const responded = new Date(Date.now() - 60 * 60 * 1000); // the browser runs on UTC (playwright.config timezoneId), so read the clock in UTC
   const pad = (n: number) => String(n).padStart(2, '0');
-  await response.getByLabel('Vendor responded').fill(`${responded.getFullYear()}-${pad(responded.getMonth() + 1)}-${pad(responded.getDate())}T${pad(responded.getHours())}:${pad(responded.getMinutes())}`);
+  const when = response.getByRole('group', { name: /Vendor responded/ });
+  await when.getByLabel('Day').fill(`${responded.getUTCFullYear()}-${pad(responded.getUTCMonth() + 1)}-${pad(responded.getUTCDate())}`);
+  await when.getByLabel('Hour (00–23)').selectOption(pad(responded.getUTCHours()));
+  await when.getByLabel('Minute', { exact: true }).selectOption(pad(responded.getUTCMinutes()));
   await response.getByRole('button', { name: 'Save response' }).click();
   await expect(page.getByText('Awaiting response')).toHaveCount(0, { timeout: 20_000 });
 

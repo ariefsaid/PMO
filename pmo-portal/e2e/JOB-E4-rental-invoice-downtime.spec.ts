@@ -16,10 +16,11 @@ test.setTimeout(180_000);
 const must = need('JOB-E4');
 const db = serviceClient('JOB-E4');
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
-const code = `000-E4-${Date.now().toString(36)}`;
+let code = ''; // one per test, so two tests running at once never share an asset code
 let assetId = ''; let vendorId = ''; let proofPath = ''; let hourlyId = ''; const hourlyPaths: string[] = [];
 
 test.beforeEach(async () => {
+  code = `000-${runId('E4')}`;
   vendorId = must('vendor', await db.from('companies').insert({ org_id: ORG_ID, name: `Hire vendor ${code}`, type: 'Vendor' }).select('id').single()).id;
   assetId = must('asset', await db.from('equipment_assets').insert({ org_id: ORG_ID, code, name: 'Crane', default_unit: 'hours', ownership: 'rented' }).select('id').single()).id;
   must('terms', await db.from('equipment_rental_terms').insert({ org_id: ORG_ID, asset_id: assetId, vendor_id: vendorId, rate: 30000, basis: 'month', currency: 'IDR', rented_from: '2026-09-01', rented_to: '2026-09-30' }).select('id'));

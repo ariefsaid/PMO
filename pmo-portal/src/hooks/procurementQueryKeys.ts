@@ -30,6 +30,7 @@ export function invalidateProcurementCase(
 ) {
   qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
   qc.invalidateQueries({ queryKey: procurementKeys.all(orgId) });
+  qc.invalidateQueries({ queryKey: ['record-history', orgId] }); // #2888
   const touched = new Set(projectIds.filter((p): p is string => Boolean(p)));
   for (const projectId of touched) {
     qc.invalidateQueries({ queryKey: ['project-committed-spend', orgId, projectId] });

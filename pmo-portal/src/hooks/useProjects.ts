@@ -131,6 +131,7 @@ export function useProjectMutations() {
   // don't serve a stale, archived, or missing project name for the ~5-min query staleTime.
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['project-vat-editability'] });
+    qc.invalidateQueries({ queryKey: ['record-history', currentUser?.org_id] }); // #2888: the edit shows in History without a reload
     invalidateProjectProjections(qc, currentUser?.org_id);
     qc.invalidateQueries({ queryKey: ['fk-options', 'project'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'invoice-project'] });

@@ -218,6 +218,7 @@ export function useContactMutations() {
     qc.invalidateQueries({ queryKey: ['contacts'] });
     // CW-4b: also bust the single-record family so an open `/contacts/:id` detail page refetches.
     qc.invalidateQueries({ queryKey: ['contact'] });
+    qc.invalidateQueries({ queryKey: ['record-history', currentUser?.org_id] }); // #2888
   };
 
   const create = useMutation({
