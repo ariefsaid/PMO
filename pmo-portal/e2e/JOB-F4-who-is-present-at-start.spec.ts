@@ -81,3 +81,56 @@ test('JOB-F4 the supervisor sees the two who clocked in as present and everyone 
     await supervisor.cleanup();
   }
 });
+
+test('JOB-F4 the manager recorded on a crew member, who does not run the crew, marks that member absent and the others stay not yet present', async ({ page }) => {
+  const svc = serviceClient('JOB-F4-manager');
+  const run = runId('f4m');
+  const controller = await roleJobUser(svc, 'site_supervisor', runId('f4m-ss'));
+  const manager = await roleJobUser(svc, 'site_supervisor', runId('f4m-mg'));
+  let projectId = ''; let workOrderId = ''; let crewId = '';
+  const people: string[] = [];
+  try {
+    projectId = need('project', await svc.from('projects').insert({
+      org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD',
+    }).select('id').single()).id;
+    workOrderId = need('work order', await svc.from('work_orders').insert({
+      org_id: ORG_ID, project_id: projectId, title: `${run} slab`, status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
+    }).select('id').single()).id;
+    crewId = need('crew', await svc.from('crews').insert({
+      org_id: ORG_ID, code: `F4M-${run.slice(-7)}`, name: `${run} crew`, kind: 'own', field_controller_id: controller.id,
+    }).select('id').single()).id;
+    for (const name of ['Ana', 'Budi', 'Citra']) {
+      people.push(need(`person ${name}`, await svc.from('people').insert({
+        org_id: ORG_ID, kind: 'own', name: `${run} ${name}`, ...(name === 'Citra' ? { manager_id: manager.id } : {}),
+      }).select('id').single()).id);
+    }
+    for (const person of people) {
+      ok('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: inDays(0) }));
+    }
+    ok('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: inDays(0) }));
+
+    // The manager opens Crews → Attendance: only their report's row has a control.
+    await manager.signIn(page);
+    await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
+    const row = (name: string) => page.getByRole('row', { name: new RegExp(`${run} ${name}`) });
+    await expect(row('Citra')).toBeVisible({ timeout: 20_000 });
+    for (const name of ['Ana', 'Budi']) await expect(row(name).getByRole('combobox')).toHaveCount(0);
+    await row('Citra').getByRole('combobox').selectOption('absent');
+    await page.getByRole('button', { name: 'Save attendance' }).click();
+    await expect(page.getByText('Attendance saved').first()).toBeVisible({ timeout: 15_000 });
+
+    // Goal: after a fresh load their report reads Absent; nobody else was recorded.
+    await page.reload();
+    await expect(row('Citra').getByRole('combobox')).toHaveValue('absent', { timeout: 20_000 });
+    for (const name of ['Ana', 'Budi']) await expect(row(name).getByText('Not yet present', { exact: true })).toBeVisible();
+  } finally {
+    if (workOrderId) ok('attendance cleanup', await svc.from('attendance_days').delete().eq('work_order_id', workOrderId));
+    if (crewId) ok('roster cleanup', await svc.from('work_order_crews').delete().eq('crew_id', crewId));
+    if (crewId) ok('placement cleanup', await svc.from('crew_members').delete().eq('crew_id', crewId));
+    for (const person of people) ok('person cleanup', await svc.from('people').delete().eq('id', person));
+    if (crewId) ok('crew cleanup', await svc.from('crews').delete().eq('id', crewId));
+    if (workOrderId) ok('work order cleanup', await svc.from('work_orders').delete().eq('id', workOrderId));
+    if (projectId) ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
+    await manager.cleanup(); await controller.cleanup();
+  }
+});

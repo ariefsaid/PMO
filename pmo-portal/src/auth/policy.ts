@@ -1371,7 +1371,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   attendance: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (
-      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)
+      // OD-R1125-1: the manager recorded on a person marks that person's row (`attendance_record` re-checks people.manager_id).
+      || (!!ctx.currentUserId && ctx.record?.manager_id === ctx.currentUserId)),
     approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
       !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
   },

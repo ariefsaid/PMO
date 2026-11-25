@@ -18,6 +18,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
     isPending: false, isError: false, refetch: vi.fn(),
   }),
   useAttendanceDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useManagedPeople: () => ({ data: [] }),
   useAwaitingAttendance: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useAllCrewMembers: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useCrewWorkers: () => ({ data: [] }),

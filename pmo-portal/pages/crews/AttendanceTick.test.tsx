@@ -9,6 +9,7 @@ import { AppError } from '@/src/lib/appError';
 const h = vi.hoisted(() => ({
   role: 'Engineer' as string,
   uid: 'fc1',
+  reports: [] as string[],
   roster: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   day: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   awaiting: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
@@ -18,6 +19,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
   useWorkOrderRoster: () => h.roster,
   useAttendanceDay: () => h.day,
   useAwaitingAttendance: () => h.awaiting,
+  useManagedPeople: () => ({ data: h.reports }),
   useCrewWorkers: () => ({ data: [
     { id: 'v1', display_name: 'Vendor One' }, { id: 'v2', display_name: 'Ended Placement' }, { id: 'v3', display_name: 'No Placement' }, { id: 'w2', display_name: 'Budi' },
   ], isPending: false }),
@@ -57,6 +59,7 @@ describe('attendance tick screen (#2528)', () => {
   beforeEach(() => {
     h.role = 'Engineer';
     h.uid = 'fc1';
+    h.reports = [];
     h.roster = {
       data: [{
         crew_id: 'c1', crew_code: 'CR-1', crew_name: 'Crew one', field_controller_id: 'fc1', roles: [], shortfall: 0,
@@ -147,6 +150,31 @@ describe('attendance tick screen (#2528)', () => {
     await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
     expect(h.record.mock.calls[0][0].rows.map((r: { worker_id: string; status: string }) => [r.worker_id, r.status])).toEqual([['w1', 'present'], ['w2', 'present']]);
+  });
+
+  it('OD-R1125-1 the manager recorded on one member (not the crew\'s recorder) marks that row only; the other rows stay read-only', async () => {
+    const user = userEvent.setup();
+    h.uid = 'mgr1';
+    h.reports = ['w3'];
+    renderAt();
+    expect(within(screen.getByRole('row', { name: /Citra/ })).getByRole('combobox')).toBeEnabled();
+    for (const n of ['Ana', 'Budi', 'Dewi']) {
+      const row = screen.getByRole('row', { name: new RegExp(n) });
+      expect(within(row).queryByRole('combobox')).toBeNull();
+      expect(within(row).getByText('Not yet present', { selector: 'span' })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: 'Send the week for approval' })).toBeNull();
+    await user.selectOptions(within(screen.getByRole('row', { name: /Citra/ })).getByRole('combobox'), 'absent');
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    expect(h.record.mock.calls[0][0].rows).toEqual([{ worker_id: 'w3', status: 'absent', hours: null, overtime_hours: null, reason: null }]);
+  });
+
+  it('OD-R1125-1 someone who manages nobody on the crew and does not record it gets no control and no save', () => {
+    h.uid = 'stranger';
+    renderAt();
+    expect(screen.queryByRole('combobox', { name: /Status for/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save attendance' })).toBeNull();
   });
 
   it('AC-SD-002 one refused person is named and everyone else is saved', async () => {

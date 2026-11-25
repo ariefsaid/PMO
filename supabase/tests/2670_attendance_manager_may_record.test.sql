@@ -3,7 +3,7 @@
 -- Dates are relative to the organisation's today because the back-date window is.
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(8);
 -- #2617: "today" is the organisation's local date (the function under test uses it), so the fixtures use it too.
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('25280000-0000-0000-0000-00000000010a')
@@ -60,6 +60,9 @@ create or replace function pg_temp.d(p text) returns date language sql stable as
 set local role authenticated;
 
 -- AC-CRW-005 (server half): the field controller ticks the crew present at 8 with one override to 6.
+select pg_temp.act_as('25280000-0000-0000-0000-0000000001a4');
+select attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d1'), 'roster_tick',
+  '[{"worker_id": "25280000-0000-0000-0000-000000001f02", "status": "present", "hours": 8}]');
 select pg_temp.act_as('25280000-0000-0000-0000-0000000001a6');
 select is(attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d1'), 'roster_tick',
   '[{"worker_id": "25280000-0000-0000-0000-000000001f01", "status": "absent"}]'), 1,
@@ -67,6 +70,11 @@ select is(attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d
 select throws_ok($$ select attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d1'), 'roster_tick',
   '[{"worker_id": "25280000-0000-0000-0000-000000001f02", "status": "absent"}]') $$,
   '42501', 'not authorized', 'AC-ATT-DEFAULT-2 the same user cannot mark someone they do not manage');
+-- 2671: the manager reads the report's record, and no other crew member's.
+select is((select count(*)::int from attendance_days where work_date = pg_temp.d('d1')), 1,
+  'AC-ATT-DEFAULT-6 the manager reads the record of the person they manage');
+select is((select count(*)::int from attendance_days where worker_id = '25280000-0000-0000-0000-000000001f02'), 0,
+  'AC-ATT-DEFAULT-7 the manager reads nothing of a person they do not manage');
 select pg_temp.act_as('25280000-0000-0000-0000-0000000001a5');
 select throws_ok($$ select attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d1'), 'roster_tick',
   '[{"worker_id": "25280000-0000-0000-0000-000000001f01", "status": "present", "hours": 8}]') $$,
@@ -76,6 +84,7 @@ select is(attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d
   '[{"worker_id": "25280000-0000-0000-0000-000000001f02", "status": "present", "hours": 8}]'), 1,
   'AC-ATT-DEFAULT-4 the crew''s field controller keeps the right');
 select pg_temp.act_as('25280000-0000-0000-0000-0000000001b1');
+select is((select count(*)::int from attendance_days), 0, 'AC-ATT-DEFAULT-8 another organisation reads no attendance');
 select throws_ok($$ select attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('d1'), 'roster_tick',
   '[{"worker_id": "25280000-0000-0000-0000-000000001f01", "status": "absent"}]') $$,
   'P0002', 'work order not found', 'AC-ATT-DEFAULT-5 another organisation cannot mark');

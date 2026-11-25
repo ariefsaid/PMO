@@ -25,6 +25,7 @@ export const crewRepository = {
   update: (id: string, patch: Partial<crews.CrewInput> & { archived_at?: string | null }) => wrap(() => crews.updateCrew(id, patch)),
   roles: (crewId: string) => wrap(() => crews.listStandardRoles(crewId)),
   workers: () => wrap(() => crews.listCrewWorkers()),
+  managedPeople: (managerId: string) => wrap(() => crews.listManagedPeopleIds(managerId)),
   workerRefs: () => wrap(() => crews.listCrewWorkerRefs()),
   allRoles: () => wrap(() => crews.listAllStandardRoles()),
   allMembers: () => wrap(() => crews.listAllCrewMembers()),

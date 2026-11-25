@@ -185,6 +185,16 @@ export async function listStandardRoles(crewId: string): Promise<CrewStandardRol
   return rows.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 }
 
+/** The people whose recorded manager is this user: the roster rows they may mark themselves (OD-R1125-1). RLS lets a manager read their reports. */
+export async function listManagedPeopleIds(managerId: string): Promise<string[]> {
+  const rows = await fetchAllRowsByKeyset<{ id: string }>(async (afterId, limit) => {
+    let q = supabase.from('people').select('id').eq('manager_id', managerId).is('archived_at', null).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit) as unknown as Page<{ id: string }>;
+  });
+  return rows.map((r) => r.id);
+}
+
 /** Live people by name. */
 export async function listCrewWorkers(): Promise<CrewWorkerRow[]> {
   const rows = await fetchAllRowsByKeyset<CrewWorkerRow>(async (afterId, limit) => {

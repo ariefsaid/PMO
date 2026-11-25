@@ -36,6 +36,11 @@ export function useCrewWorkers() {
   return useOrgQuery(['crew-workers'], () => crewRepository.workers());
 }
 
+/** Ids of the people whose recorded manager is the signed-in user (the per-row attendance right). */
+export function useManagedPeople(managerId: string | null) {
+  return useOrgQuery(['managed-people', managerId], () => crewRepository.managedPeople(managerId as string), { enabled: Boolean(managerId) });
+}
+
 export function useCrewMembers(crewId: string | null) {
   return useOrgQuery(['crew-members', crewId], () => crewRepository.members(crewId as string), { enabled: Boolean(crewId) });
 }
