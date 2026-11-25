@@ -1,9 +1,11 @@
 // @e2e-isolation: serial — turns the org-wide "receive goods against orders" switch on and off (Admin); project, warehouse, item and purchase are this run's own, and the ledger codes carry a per-run suffix.
 /**
  * JOB-PU14 — receive at the yard or site: the storekeeper receives 37 of an order for 40 against the site store; the site's stock
- * rises by 37 and the order reads "Ordered 40 · Received 37 · Outstanding 3".
+ * rises by 37, and a purchasing user reads "Ordered 40 · Received 37 · Outstanding 3" on the purchase's items tab.
+ * Ruled: the storekeeper receives blind and is never shown ordered or outstanding quantities, so the order's count is read by purchasing.
  */
 import { expect, test } from '@playwright/test';
+import { signIn } from '../helpers';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { ORG_ID, need, ok, ownProject, runId, serviceClient } from '../support/jobFixtures';
@@ -57,14 +59,15 @@ test.afterAll(async () => {
   if (!receivingWasOn) ok('receiving restore', await admin.rpc('set_order_receiving_enabled', { p_enabled: false }));
 });
 
-test('JOB-PU14 the storekeeper receives 37 of 40 at the site and the order reads 3 outstanding', async ({ page }) => {
+test('JOB-PU14 the storekeeper receives 37 of 40 at the site and a purchasing user reads 3 outstanding on the order', async ({ page }) => {
   await storekeeper.signIn(page);
   await page.goto('/stock/new/receive');
   await page.getByLabel(/^Purchase order/).selectOption({ label: poNumber });
 
-  // The order's own count of what has arrived: nothing yet, 40 outstanding.
-  const progress = page.getByText(/Ordered 40 · Received 0 · Outstanding 40/);
-  await expect(progress).toBeVisible({ timeout: 20_000 });
+  // Blind receipt: the storekeeper is not shown what was ordered or what is outstanding.
+  await expect(page.getByLabel(/^Counted quantity/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/Ordered 40/)).toHaveCount(0);
+  await expect(page.getByText(/Outstanding \d/)).toHaveCount(0);
 
   await page.getByLabel(/^Warehouse/).selectOption({ label: label(site) });
   await page.getByLabel(/^Counted quantity/).fill('37');
@@ -72,10 +75,15 @@ test('JOB-PU14 the storekeeper receives 37 of 40 at the site and the order reads
   await page.getByRole('dialog', { name: 'Record this counted quantity?' }).getByRole('button', { name: 'Record receipt' }).click();
   await expect(page.getByText('Receipt posted')).toBeVisible({ timeout: 20_000 });
 
-  // The goal: the site's stock rose by 37 and the order shows 3 still to come.
-  await expect(page.getByText(/Ordered 40 · Received 37 · Outstanding 3/)).toBeVisible({ timeout: 20_000 });
+  // The goal, first half: the site's stock rose by 37.
   await page.goto('/stock');
   await page.getByPlaceholder('Search items').fill(item.code);
   const row = page.getByRole('row').filter({ hasText: site.name });
   await expect(row).toContainText('37', { timeout: 20_000 });
+
+  // Second half: a purchasing user reads the order's count on the purchase's items tab: 3 still to come.
+  await signIn(page, 'finance@acme.test');
+  await page.goto(`/procurement/${purchase.id}`);
+  await page.getByRole('tab', { name: 'Items' }).click();
+  await expect(page.getByText(/Ordered 40 · Received 37 · Outstanding 3/)).toBeVisible({ timeout: 20_000 });
 });
