@@ -4185,3 +4185,21 @@ Director decisions (binding until revised). One line each: the rule, the reason,
   The supplier follows the price visibility setting.
 
 - **DD-R1124-22 Hourly equipment rental checks.** A rental term may use an hourly rate. The equipment officer enters contracted hours for each period and dated broken hours; proven broken hours reduce billable hours, floored at zero. Calendar days and working hours never infer the contracted quantity. The officer compares supplier quantity, rate, deduction and evidence and records checked or disputed; Finance retains approval and payment. Existing daily and monthly bases retain their calculations. Saved checks link to the supplier invoice; disputed checks require an officer note and remain visible as nonblocking warnings to Finance on the purchase record.
+
+## Owner rulings of 25 November: attendance default, clearance checklist and four kept rules (2026-11-25; map #2755)
+
+Six questions left by the 25 November audit of the 15 December test cases. Rulings 3 to 6 are **for now**: the built rule stands and
+the owner may revisit it after the client's tests.
+
+- **OD-R1125-1 Nobody is present or absent by default.** A crew member with no attendance record for the day reads "Not yet present"
+  ("Belum hadir") until someone marks them. The person themself or their direct supervisor marks present or absent. A recorder's
+  attendance form no longer starts un-recorded members as present.
+- **OD-R1125-2 The cleared-for-site checklist is the pre-start job for a selected person.** PMO keeps no applicant record; applicant
+  tracking and interviews stay outside PMO. The HR Officer ticks the checklist on the person.
+- **OD-R1125-3 (for now) A quantity change request is accepted by the roles the organisation lists, and the contract revision is
+  written when the client's acceptance is recorded.** The version history shows the reason.
+- **OD-R1125-4 (for now) Both material-use warning levels also fire on issued material, and the warning reaches the project's
+  engineers as well as its manager.**
+- **OD-R1125-5 (for now) The needed-by date is required when an order is sent to the supplier,** where the organisation switches the
+  rule on; it stays optional on the request.
+- **OD-R1125-6 (for now) A field account does not raise material requests.** A full role such as the Site Supervisor raises them.
