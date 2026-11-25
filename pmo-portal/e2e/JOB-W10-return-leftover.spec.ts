@@ -1,8 +1,9 @@
 // @e2e-isolation: self-isolated — creates its own disposable storekeeper login, item, site location and work item per run, and deletes all owned rows in finally.
-/** JOB-W10 — a closing job's leftover material is returned by the storekeeper to the warehouse; the warehouse balance rises back to 10 and the
- *  ledger carries the return.
- *  Partly landed: the return posts; the rule that a closing work order's balance must reach zero is held (not tested). */
+/** JOB-W10 — a closing job's leftover material is returned by the storekeeper to the warehouse; the warehouse balance rises back to 10, the
+ *  ledger carries the return, and the work order's own stock balance falls (4 issued to it, 0 after the return). */
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
+import { signIn } from './helpers';
 import { need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, SEED_PROJECT_ID, SEED_PROJECT_NAME, userClient } from './support/stockFixture';
@@ -18,6 +19,8 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
   let itemId = '';
   let unitId = '';
   let siteId = '';
+  const workOrderId = randomUUID();
+  let workOrderMade = false;
   const docIds: string[] = [];
   try {
     const item = await makeItem(admin, sfx, 'RET');
@@ -28,9 +31,24 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
     await keeperOf(admin, site.id, storekeeper.id);
     const work = await makeWorkItem(admin, sfx);
     docIds.push(await postReceive(admin, site.id, item.id, '10', '25'));
-    const issued = await admin.rpc('create_stock_document', { p_header: { kind: 'issue', warehouse_id: site.id, project_id: SEED_PROJECT_ID }, p_lines: [{ item_id: item.id, quantity: '4', boq_item_id: work.id }], p_post: true });
+    const project = need('project', await svc.from('projects').select('org_id,currency').eq('id', SEED_PROJECT_ID).single());
+    ok('work order', await svc.from('work_orders').insert({ id: workOrderId, org_id: project.org_id, project_id: SEED_PROJECT_ID,
+      title: `Leftover work ${sfx}`, wo_number: `WO-W10-${sfx}`, status: 'Issued', issued_at: new Date().toISOString(),
+      order_value: 10000, tax_treatment: 'exclusive', tax_amount: 0, currency: project.currency }));
+    workOrderMade = true;
+    const issued = await admin.rpc('create_stock_document', { p_header: { kind: 'issue', warehouse_id: site.id, project_id: SEED_PROJECT_ID, work_order_id: workOrderId }, p_lines: [{ item_id: item.id, quantity: '4', boq_item_id: work.id }], p_post: true });
     if (issued.error) throw issued.error;
     docIds.push(issued.data as string);
+
+    // 0. The work order's own stock balance, before the return: 4 issued to it.
+    const woBalance = async () => {
+      await page.goto(`/projects/${SEED_PROJECT_ID}/contract?wo=${workOrderId}`);
+      const card = page.getByTestId(`customer-order-${workOrderId}`);
+      await card.getByRole('button', { name: 'Stock for this work order' }).click();
+      return card.getByRole('row').filter({ hasText: site.code }).getByRole('cell').nth(4);
+    };
+    await signIn(page, 'admin@acme.test');
+    await expect(await woBalance()).toHaveText('4', { timeout: 20_000 });
 
     // 1. Storekeeper returns the 4 leftover units from the site store to the project.
     await storekeeper.signIn(page);
@@ -54,12 +72,16 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
     await page.goto('/stock');
     await page.getByPlaceholder('Search items').fill(item.code);
     await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: site.name })).toContainText('10');
+    // ...and the work order's balance falls: the 4 issued to it are returned, so it holds 0.
+    await signIn(page, 'admin@acme.test');
+    await expect(await woBalance()).toHaveText('0', { timeout: 20_000 });
   } finally {
     const ids = docIds.filter(Boolean);
     if (ids.length) {
       const list = ids.map((id) => `'${id}'`).join(',');
       sqlAsOwner(`delete from stock_ledger where document_id in (${list}); delete from stock_document_lines where document_id in (${list}); delete from stock_documents where id in (${list});`);
     }
+    if (workOrderMade) ok('work order cleanup', await svc.from('work_orders').delete().eq('id', workOrderId));
     if (siteId) {
       sqlAsOwner(`delete from stock_balances where warehouse_id = '${siteId}'; delete from stock_warehouse_keepers where warehouse_id = '${siteId}';`);
       ok('location cleanup', await svc.from('stock_warehouses').delete().eq('id', siteId));

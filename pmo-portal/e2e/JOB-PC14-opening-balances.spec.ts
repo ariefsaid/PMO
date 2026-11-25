@@ -73,17 +73,26 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
     await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 });
     await page.goto('/finance/opening-balances');
     await expect(page.getByRole('heading', { name: 'Opening balances' })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId('ob-total-stock')).toContainText('1 location');
-    await expect(page.getByTestId('ob-total-certified')).toContainText('1 work order');
-    await expect(page.getByTestId('ob-total-claimed')).toBeVisible();
+    // Source figures: 40 certified and 30 claimed of a line at 25 each, and 12 counted at 25 each.
+    // Money is matched as digits with either separator style, exactly: 1,000.00 / 1.000,00 and never a longer number that merely contains it.
+    const amount = (n: string) => new RegExp(`(?:^|\\D)${n.replace(/(\d)(?=(\d{3})+$)/g, '$1[.,\\s]?')}(?:[.,]00)?(?:\\D|$)`);
+    const totalCell = (id: string) => page.getByTestId(id).getByRole('cell').last();
+    await expect(page.getByTestId('ob-total-stock').getByRole('cell').nth(1)).toHaveText('1 location');
+    await expect(totalCell('ob-total-stock')).toHaveText(amount('300'));
+    await expect(page.getByTestId('ob-total-certified').getByRole('cell').nth(1)).toHaveText('1 work order');
+    await expect(totalCell('ob-total-certified')).toHaveText(amount('1000'));
+    await expect(totalCell('ob-total-claimed')).toHaveText(amount('750'));
     const orderCard = page.getByRole('region', { name: new RegExp(wo.wo_number) });
     await expect(orderCard).toContainText(`OPN-${run.slice(-5)}`, { timeout: 20_000 });
-    await expect(orderCard).toContainText('40');
-    await expect(orderCard).toContainText('30');
+    const orderRow = orderCard.getByRole('row').filter({ hasText: `OPN-${run.slice(-5)}` });
+    await expect(orderRow.getByRole('cell').nth(1)).toHaveText('40');
+    await expect(orderRow.getByRole('cell').nth(2)).toHaveText('30');
+    await expect(orderRow.getByRole('cell').nth(3)).toHaveText(amount('750'));
     await expect(orderCard).toContainText(`${run} from the source file`);
     const stockCard = page.getByRole('region', { name: new RegExp(warehouse.code) });
-    await expect(stockCard).toContainText(item.code);
-    await expect(stockCard).toContainText('12');
+    const stockRow = stockCard.getByRole('row').filter({ hasText: item.code });
+    await expect(stockRow.getByRole('cell').nth(1)).toHaveText('12');
+    await expect(stockRow.getByRole('cell').nth(2)).toHaveText(amount('300'));
 
     // The running work order itself opens from the same record.
     await page.goto(`/work-orders/${wo.id}`);

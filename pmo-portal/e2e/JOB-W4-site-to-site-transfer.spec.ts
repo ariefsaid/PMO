@@ -48,8 +48,9 @@ test('JOB-W4 material coordinator transfers between sites: 4 at the sender, 6 at
     await page.getByPlaceholder('Search items').fill(item.code);
     const rowB = page.getByRole('row').filter({ hasText: siteB.name });
     const rowC = page.getByRole('row').filter({ hasText: siteC.name });
-    await expect(rowB).toContainText('4');
-    await expect(rowC).toContainText('6');
+    // The on-hand quantity cell itself (first number of the row's quantity), not any digit in the row's text.
+    await expect(rowB.locator('span.tabular-nums').first()).toHaveText(/^4(?:[.,]0+)?(?:\s|$)/);
+    await expect(rowC.locator('span.tabular-nums').first()).toHaveText(/^6(?:[.,]0+)?(?:\s|$)/);
   } finally {
     const docIds = [receiptId, transferId].filter(Boolean);
     if (docIds.length) {
