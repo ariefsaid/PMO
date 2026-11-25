@@ -59,5 +59,15 @@ describe('ScheduleThisReport', () => {
     const trigger = await screen.findByRole('button', { name: /Send this report every/ });
     await user.click(trigger);
     const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByRole('checkbox', { name: 'Sari' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
+  });
+
+  it('an Admin is offered the field account too', async () => {
+    const user = userEvent.setup();
+    mount('Admin');
+    await user.click(await screen.findByRole('button', { name: /Send this report every/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByRole('checkbox', { name: 'Budi' })).toBeInTheDocument();
   });
 });
