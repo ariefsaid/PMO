@@ -147,11 +147,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     next.set('view', 'list');
     setSearchParams(next, { replace: true });
   }, [hashTaskId, searchParams, setSearchParams, view]);
+  // #2905: opening the drawer writes ?open=, so `searchParams` — and with it react-router's
+  // `setSearchParams` — changes identity on every drawer toggle. `onOpenTask` sits among the
+  // columns' deps (#2104: stable callbacks so the memoised tables bail out), so the callback
+  // reads the router through a latest ref and keeps ONE identity for the page's life; the
+  // updater form still sees the fresh params at call time.
+  const setSearchParamsRef = useRef(setSearchParams);
+  useEffect(() => { setSearchParamsRef.current = setSearchParams; }, [setSearchParams]);
   const openTask = useCallback((task: TaskWithRefs) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('open', task.id);
-    setSearchParams(next);
-  }, [searchParams, setSearchParams]);
+    setSearchParamsRef.current((current) => {
+      const next = new URLSearchParams(current);
+      next.set('open', task.id);
+      return next;
+    });
+  }, []);
   const closeTask = useCallback(() => {
     const next = new URLSearchParams(searchParams);
     next.delete('open');

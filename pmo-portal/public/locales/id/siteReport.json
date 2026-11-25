@@ -216,6 +216,7 @@
     "none": "Belum ada foto",
     "paperForm": "Formulir kertas",
     "retry": "Coba lagi",
+    "submittedOnly": "Foto hanya dapat ditambahkan sebelum laporan dikirim.",
     "title": "Foto"
   },
   "progress": {

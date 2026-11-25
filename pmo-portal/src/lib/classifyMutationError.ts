@@ -245,7 +245,9 @@ const POSTGRES_AUTHORED_42501 = [
   /violates row-level security policy/i,
 ];
 
-function isPostgresAuthored42501(message: string): boolean {
+/** Exported for data-access layers whose backend writes a Postgres-authored refusal without a
+ *  usable code (e.g. a Supabase Storage upload), so they can pin the code the classifier maps. */
+export function isPostgresAuthored42501(message: string): boolean {
   return POSTGRES_AUTHORED_42501.some((re) => re.test(message));
 }
 
