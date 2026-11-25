@@ -28,13 +28,14 @@ const EarnedBilledProfit: React.FC<{ projectId: string }> = ({ projectId }) => {
   const canView = may('view', 'workOrderPlan');
   const setting = useOrgSwitch('disciplineProfit', canView);
   const on = canView && setting.data === true;
-  // #2895: the switch decides whether the panel SHOWS, not whether its reads run — a role that may see
-  // the panel starts all four reads together with the switch read, one round earlier than before. A role
-  // without the right (canView false) still asks for nothing at all.
-  const pva = useProjectPlanVsActual(projectId, canView);
-  const eb = useWorkOrderEarnedBilled(projectId, canView);
-  const revenue = useDisciplineRevenue(projectId, canView);
-  const disciplines = useCostDisciplines(canView);
+  // #2895 review: the rollup reads stay gated on the switch being ON (the sibling DisciplineProfit's
+  // rule, and the hooks' own contracts). The switch read is session-cached, so a warm mount of an
+  // on-organisation resolves it from cache and the reads still start at once; an off-organisation
+  // pays none of them for a panel it will never see.
+  const pva = useProjectPlanVsActual(projectId, on);
+  const eb = useWorkOrderEarnedBilled(projectId, on);
+  const revenue = useDisciplineRevenue(projectId, on);
+  const disciplines = useCostDisciplines(on);
 
   const disciplineName = useMemo(() => {
     const m = new Map((disciplines.data ?? []).map((d) => [d.id, d.name]));
