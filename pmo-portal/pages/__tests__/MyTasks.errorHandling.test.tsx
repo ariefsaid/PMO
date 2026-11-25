@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -59,13 +60,13 @@ import MyTasks from '../MyTasks';
 
 const renderMyTasks = () =>
   render(
-    <ImpersonationProvider realRole="Engineer">
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ImpersonationProvider realRole="Engineer">
       <MemoryRouter>
         <ToastProvider>
           <MyTasks />
         </ToastProvider>
       </MemoryRouter>
-    </ImpersonationProvider>,
+    </ImpersonationProvider></QueryClientProvider>,
   );
 
 beforeEach(() => {

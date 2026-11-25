@@ -315,7 +315,7 @@ function DataTableRowInner<Row>({
             )}
           >
             <LeadSlot lead={colIndex === 0 ? col.lead?.(row) : undefined}>
-            {colIndex === 0 && canActivate && onActivate ? (
+            {colIndex === 0 && canActivate && onActivate && columns[0].ownActivation !== true ? (
               <RowOpenControl href={rowHref} label={accessibleRowLabel(row) ?? ''} onActivate={() => onActivate(row)}>
                 {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
               </RowOpenControl>

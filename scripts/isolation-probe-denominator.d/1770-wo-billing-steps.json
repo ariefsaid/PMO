@@ -15,7 +15,7 @@
     "notify_wo_step_opened(work_order_billing_steps)",
     "set_billing_step_template_roles(uuid,jsonb)",
     "set_default_billing_step_template(uuid)",
-    "skip_work_order_step(uuid)",
+    "skip_work_order_step(uuid,text)",
     "wo_step_owner_matches(text,uuid)",
     "wo_step_readable(uuid,text,text[])"
   ]

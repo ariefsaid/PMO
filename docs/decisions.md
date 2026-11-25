@@ -4187,3 +4187,21 @@ Director decisions (binding until revised). One line each: the rule, the reason,
 - **DD-R1124-22 Hourly equipment rental checks.** A rental term may use an hourly rate. The equipment officer enters contracted hours for each period and dated broken hours; proven broken hours reduce billable hours, floored at zero. Calendar days and working hours never infer the contracted quantity. The officer compares supplier quantity, rate, deduction and evidence and records checked or disputed; Finance retains approval and payment. Existing daily and monthly bases retain their calculations. Saved checks link to the supplier invoice; disputed checks require an officer note and remain visible as nonblocking warnings to Finance on the purchase record.
 - **DD-R1125-2 Work in hand and capacity-based months of work in hand sit under Projects (`/projects`, `/projects/work-in-hand`) and on the Management Dashboard, with monthly capacity configured by Admin in the organisation's currency.** Months of work in hand divides work in hand in the organisation's default currency by the Admin-set monthly capacity (`organizations.work_in_hand_monthly_capacity`), rather than completed-month billing; when no capacity is set, the months line states so. Work in hand in other currencies is shown beside it, labelled, and explicitly stated as not included in months with no currency conversion (`docs/specs/work-in-hand-capacity.spec.md`, migration 2530).
 - **DD-R1125-4 Each work order gets its own cloud folder under its project's folder when a connected Microsoft 365 default library is present, and the Project Administrator job role creates and uploads Draft work-order documents only (`work_order_id` not null):** the work-order folder is created on first upload (or explicit create-folder action) nested inside the project's folder without altering project-level folder detection, and falls back to existing PMO private storage when no default library is connected (no new org setting). Project Administrator gains create, Draft own-author update/upload, storage upload, and work-order folder ensure/link rights strictly on readable projects and work orders in their active organisation, respecting document category visibility and hidden job roles, with zero delete, status approval/transition, project-level, or procurement rights (`docs/specs/work-order-cloud-folder.spec.md`, migration 2630).
+
+## Owner rulings of 25 November: attendance default, clearance checklist and four kept rules (2026-11-25; map #2755)
+
+Six questions left by the 25 November audit of the 15 December test cases. Rulings 3 to 6 are **for now**: the built rule stands and
+the owner may revisit it after the client's tests.
+
+- **OD-R1125-1 Nobody is present or absent by default.** A crew member with no attendance record for the day reads "Not yet present"
+  ("Belum hadir") until someone marks them. The person themself or their direct supervisor marks present or absent. A recorder's
+  attendance form no longer starts un-recorded members as present.
+- **OD-R1125-2 The cleared-for-site checklist is the pre-start job for a selected person.** PMO keeps no applicant record; applicant
+  tracking and interviews stay outside PMO. The HR Officer ticks the checklist on the person.
+- **OD-R1125-3 (for now) A quantity change request is accepted by the roles the organisation lists, and the contract revision is
+  written when the client's acceptance is recorded.** The version history shows the reason.
+- **OD-R1125-4 (for now) Both material-use warning levels also fire on issued material, and the warning reaches the project's
+  engineers as well as its manager.**
+- **OD-R1125-5 (for now) The needed-by date is required when an order is sent to the supplier,** where the organisation switches the
+  rule on; it stays optional on the request.
+- **OD-R1125-6 (for now) A field account does not raise material requests.** A full role such as the Site Supervisor raises them.

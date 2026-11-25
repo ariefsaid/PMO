@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -50,7 +51,9 @@ import MyTasks from '../MyTasks';
 describe('AC-RLT-014 My tasks rows show the followed record', () => {
   it('shows the number and status of a readable record, the placeholder for an unreadable one, and nothing for a plain task', () => {
     render(
-      <ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><MyTasks /></ToastProvider></MemoryRouter></ImpersonationProvider>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><MyTasks /></ToastProvider></MemoryRouter></ImpersonationProvider>
+      </QueryClientProvider>,
     );
     expect(screen.getByRole('link', { name: /EXP-0007/ })).toHaveAttribute('href', '/expenses/c1');
     expect(screen.getByText('Approved')).toBeInTheDocument();
@@ -61,7 +64,9 @@ describe('AC-RLT-014 My tasks rows show the followed record', () => {
   it('NFR-RLT-001 asks for the linked status of the whole page at once, only for tasks that carry a link', () => {
     h.ids.length = 0;
     render(
-      <ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><MyTasks /></ToastProvider></MemoryRouter></ImpersonationProvider>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><MyTasks /></ToastProvider></MemoryRouter></ImpersonationProvider>
+      </QueryClientProvider>,
     );
     expect(h.ids.at(-1)).toEqual(['t1', 't2']);
   });
