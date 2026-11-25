@@ -40,6 +40,6 @@ test('AC-STG-010: an Admin renames a stage and the sales lead works the board un
     ok('restore the stage', await db.from('pipeline_stage_config').update(before)
       .eq('org_id', ORG_ID).eq('status', 'Quotation Submitted').select('status'));
     const removed = await db.from('projects').delete().eq('org_id', ORG_ID).eq('name', deal);
-    if (removed.error) throw removed.error;
+    expect(removed.error).toBeNull();
   }
 });

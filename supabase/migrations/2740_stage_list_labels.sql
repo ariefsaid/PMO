@@ -33,6 +33,7 @@ on conflict (org_id, status) do nothing;
 -- house search_path. create or replace keeps 0213's ACL (revoked from public, anon, authenticated).
 create or replace function public.seed_org_defaults(p_org_id uuid) returns void
 language sql security definer set search_path = public, pg_temp as $$
+  -- drops: the closing parenthesis of the old five-row list (0591's Negotiation line); the seven non-pipeline rows follow it.
   insert into public.pipeline_stage_config (org_id, status, win_probability) values
     (p_org_id, 'Leads',               0.100),
     (p_org_id, 'Quotation Submitted', 0.200),

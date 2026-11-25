@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { StageNameRow } from '@/src/lib/status/orgStageNames';
 
 /**
@@ -31,7 +32,7 @@ export async function saveStageName(status: string, names: { en: string; id: str
   const { data, error } = await supabase
     .from('pipeline_stage_config')
     .update({ label_en: names.en.trim() || null, label_id: names.id.trim() || null })
-    .eq('status', status as never)
+    .eq('status', status as ProjectStatus)
     .select('status');
   if (error) throw new AppError(error.message, error.code);
   if (!data?.length) throw new AppError('not authorized', '42501');

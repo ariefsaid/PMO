@@ -6,7 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { saveStageName, validateStageName } from '@/src/lib/db/stageNames';
 import { ORG_STAGE_NAMES_KEY, useOrgStageNames } from '@/src/hooks/useOrgStageNames';
-import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
+import { projectStatusGroup, type ProjectStatus, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { STATUS_MAP, shippedStatusLabel } from '@/src/lib/status/statusMap';
 import type { StageNameRow } from '@/src/lib/status/orgStageNames';
 
@@ -84,7 +84,7 @@ const StageNamesCard: React.FC = () => {
         <div key={g} className="mt-4">
           <h3 className="text-control font-semibold text-foreground">{groupTitle[g]}</h3>
           <ul className="divide-y divide-border">
-            {rows.filter((r) => projectStatusGroup(r.status as never) === g).map((r) => <StageRow key={r.status} row={r} others={others(r.status)} />)}
+            {rows.filter((r) => projectStatusGroup(r.status as ProjectStatus) === g).map((r) => <StageRow key={r.status} row={r} others={others(r.status)} />)}
           </ul>
         </div>
       ))}
