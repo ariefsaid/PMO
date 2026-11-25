@@ -52,6 +52,7 @@ insert into la_fn_allow values
   ('actor_may_read_purchase_cases', 'helper', 'scalar inspection predicate: explicitly false for field accounts and requires the held Procurement Manager key; the field-account denial is proved and mutation-checked in 2422_purchase_case_read.test.sql'),
   ('actor_may_see_prices', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_may_see_prices_now', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
+  ('actor_shown_prices', 'helper', 'the signed-in price gate the restrictive price policies read (2700); returns a boolean about the caller only'),
   ('actor_sees_prices', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('auth_manager_id', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('auth_org_id', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),

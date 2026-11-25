@@ -4,3 +4,4 @@ set_hide_prices_enabled  # 1215: active Admin of the caller org
 get_may_see_prices  # 1215: caller's own price visibility
 actor_may_see_prices  # 1215: caller's own price visibility
 actor_may_see_prices_now  # 1215: caller's own price visibility (view helper)
+actor_shown_prices  # 2700: caller's own price gate (policy helper)

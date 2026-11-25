@@ -2,6 +2,7 @@
   "definer_functions": [
     "actor_may_see_prices()",
     "actor_may_see_prices_now()",
+    "actor_shown_prices()",
     "get_hide_prices_enabled()",
     "get_may_see_prices()",
     "org_hide_prices_enabled(uuid)",

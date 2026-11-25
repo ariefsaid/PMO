@@ -1,0 +1,69 @@
+// @e2e-isolation: serial — turns the org-wide "hide prices from requesters" setting on (Admin) and restores it; the request is this run's own.
+/**
+ * JOB-HPG (#2788) — the database keeps the hide-prices promise on every way of reading: with the setting on, a Site Supervisor opens
+ * their own request on screen, and the same signed-in session asking the database directly for that request's table, its lines and
+ * its order gets no price (the request comes back only through the price-free read, without its total). Finance still reads the total.
+ */
+import { expect, test, type Page } from '@playwright/test';
+import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
+import { roleJobUser } from '../support/roleJobUser';
+import { ok, runId, serviceClient } from '../support/jobFixtures';
+import { userClient } from '../support/stockFixture';
+
+test.setTimeout(120_000);
+
+let requester: Awaited<ReturnType<typeof roleJobUser>>;
+let purchase: ProcurementFixture;
+let pricesWereHidden = false;
+
+test.beforeAll(async () => {
+  const svc = serviceClient('JOB-HPG');
+  const admin = await userClient('admin@acme.test');
+  const org = await svc.from('organizations').select('hide_prices_from_requesters').eq('id', '00000000-0000-0000-0000-000000000001').single();
+  ok('hide-prices setting read', org);
+  pricesWereHidden = Boolean((org.data as { hide_prices_from_requesters: boolean }).hide_prices_from_requesters);
+  ok('hide prices', await admin.rpc('set_hide_prices_enabled', { p_enabled: true }));
+  requester = await roleJobUser(svc, 'site_supervisor', runId('hpg-requester'));
+  purchase = await createProcurementFixture({ status: 'Approved', title: 'JOB-HPG any way', withSupplier: true, requestedBy: requester.id });
+});
+
+test.afterAll(async () => {
+  await purchase?.cleanup();
+  await requester?.cleanup();
+  if (!pricesWereHidden) {
+    const admin = await userClient('admin@acme.test');
+    const r = await admin.rpc('set_hide_prices_enabled', { p_enabled: false });
+    if (r.error) throw new Error(`JOB-HPG restore setting: ${r.error.message}`);
+  }
+});
+
+/** Reads a REST path with the page's own signed-in session, as any client of that person could. */
+async function readAsPage(page: Page, path: string): Promise<unknown> {
+  return page.evaluate(async ({ url, key, path }) => {
+    const stored = Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    const token = stored ? (JSON.parse(localStorage.getItem(stored) as string) as { access_token: string }).access_token : '';
+    const res = await fetch(`${url}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${token}` } });
+    return res.json();
+  }, { url: process.env.SUPABASE_URL as string, key: process.env.VITE_SUPABASE_ANON_KEY as string, path });
+}
+
+test('JOB-HPG the Site Supervisor opens their request and no way of reading returns a price', async ({ page }) => {
+  await requester.signIn(page);
+  await page.goto('/');
+  await page.getByRole('link', { name: /Purchasing|Procurement/ }).first().click();
+  await expect(page.getByText(purchase.code).first()).toBeVisible({ timeout: 20_000 });
+
+  // The same session asks the database directly.
+  expect(await readAsPage(page, `procurements?select=id,total_value&id=eq.${purchase.id}`)).toEqual([]);
+  expect(await readAsPage(page, `procurement_items?select=id,rate,amount&procurement_id=eq.${purchase.id}`)).toEqual([]);
+  expect(await readAsPage(page, `procurements_masked?select=code,total_value,vendor_id&id=eq.${purchase.id}`))
+    .toEqual([{ code: purchase.code, total_value: null, vendor_id: null }]);
+  expect(await readAsPage(page, `procurement_items_masked?select=name,rate,amount&procurement_id=eq.${purchase.id}`))
+    .toEqual([{ name: 'Fixture line', rate: null, amount: null }]);
+
+  // Finance, who may see prices, reads the real total of the same request.
+  const finance = await userClient('finance@acme.test');
+  const priced = await finance.from('procurements').select('total_value').eq('id', purchase.id).single();
+  ok('finance read', priced);
+  expect(Number((priced.data as { total_value: number }).total_value)).toBe(12000);
+});
