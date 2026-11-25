@@ -4,10 +4,10 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 
 /** #2596 AC-DSF-018 (off = invisible) and FR-DSF-008 (a day worked without a record is flagged on the work-order page). */
-const h = vi.hoisted(() => ({ enabled: false, role: 'Engineer', days: [] as unknown[] }));
+const h = vi.hoisted(() => ({ enabled: false, role: 'Engineer', days: [] as unknown[], args: [] as unknown[][] }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled, isPending: false }) }));
 vi.mock('@/src/hooks/useSafetyDays', () => ({
-  useSafetyWorkOrderDays: () => ({ data: h.days, isPending: false, isError: false, refetch: vi.fn() }),
+  useSafetyWorkOrderDays: (...a: unknown[]) => ({ data: (h.args.push(a), h.days), isPending: false, isError: false, refetch: vi.fn() }),
   useSafetyMutations: () => ({ createDay: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { project_manager_id: 'pm1' } }) }));
@@ -17,13 +17,32 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { SafetySection, SafetyTodayLink } from './SafetySection';
+import { formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { getActiveLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const auth = { currentUser: { id: 'u1', org_id: 'o1' } } as never;
 const renderIt = () => render(
   <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={auth}><ToastProvider><MemoryRouter>
     <SafetySection workOrderId="w1" projectId="p1" status="Issued" />
   </MemoryRouter></ToastProvider></AuthContext.Provider></QueryClientProvider>);
-beforeEach(() => { h.enabled = false; h.role = 'Engineer'; h.days = []; });
+beforeEach(() => { h.enabled = false; h.role = 'Engineer'; h.days = []; h.args = []; });
+
+describe('#1126 the day is the organisation\'s, not the browser\'s', () => {
+  it('lists the last 30 days up to the organisation\'s today, and the today link asks for that day', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    h.enabled = true;
+    try {
+      renderIt();
+      expect(h.args).toContainEqual(['w1', '2026-10-28', '2026-11-26', true]);
+      h.args = [];
+      render(<QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={auth}><ToastProvider><MemoryRouter>
+        <SafetyTodayLink workOrderId="w1" projectId="p1" status="Issued" /></MemoryRouter></ToastProvider></AuthContext.Provider></QueryClientProvider>);
+      expect(h.args).toContainEqual(['w1', '2026-11-26', '2026-11-26', true]);
+    } finally { resetActiveLocale(); vi.useRealTimers(); }
+  });
+});
 
 describe('SafetySection', () => {
   it('is omitted when rendered outside the app providers (an isolated page test)', () => {
@@ -71,7 +90,7 @@ describe('SafetySection', () => {
 });
 
 describe('SafetyTodayLink', () => {
-  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const today = formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
   const renderLink = () => render(
     <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={auth}><ToastProvider><MemoryRouter>
       <SafetyTodayLink workOrderId="w1" projectId="p1" status="Issued" />

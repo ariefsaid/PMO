@@ -55,6 +55,7 @@ vi.mock('@/src/lib/refusals', () => ({
   useRefusalLine: () => (e: unknown) => `refused: ${(e as Error).message}`,
   useRefusalText: () => (e: unknown) => ({ known: false, headline: `refused: ${(e as Error).message}`, detail: '' }),
 }));
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { BillingStepsSection } from './BillingStepsSection';
 
 const step = (p: Partial<WorkOrderStep> & Pick<WorkOrderStep, 'id' | 'position' | 'name'>): WorkOrderStep => ({
@@ -83,6 +84,17 @@ beforeEach(() => {
 });
 
 describe('BillingStepsSection', () => {
+  it('#1126 the age of an open step counts to the organisation\'s day, not the browser\'s', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      renderIt({ today: undefined });
+      const row = screen.getByTestId('wo-billing-steps').querySelector('[aria-label="Step two"]') as HTMLElement;
+      expect(within(row).getByText('266 days past target')).toBeInTheDocument();
+    } finally { resetActiveLocale(); vi.useRealTimers(); }
+  });
+
   it('AC-WQE-006 only Admin can mark an existing work-order step for claim evidence', async () => {
     h.role = 'Admin';
     const user = renderIt();
