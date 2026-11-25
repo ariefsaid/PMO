@@ -1,11 +1,11 @@
 -- work_order_candidates.test.sql — #2595 (docs/specs/candidate-work-orders.spec.md).
--- Migrations under test: 1405 (tables, guards, RLS), 1406 (create + template), 1407 (decide), 1408 (proof bucket).
+-- Migrations under test: 1405 (tables, guards, RLS), 1406 (create; its template editor was dropped in 2680), 1407 (decide), 1408 (proof bucket).
 -- AC-CWO-001..014 and 017. Every denial asserts the errcode AND the message.
 -- Mutation checks (spec): drop the project-manager gate in decide_work_order_candidate -> AC-CWO-008 red; drop the
 -- required-items test -> AC-CWO-004 red; drop the repeat-accept guard -> AC-CWO-006 red.
 begin;
 create extension if not exists pgtap;
-select plan(65);
+select plan(61);
 
 -- ── Fixtures (as the table owner): org A (admin, project manager of d1, another project manager, engineer, finance) and org B.
 insert into organizations (id, name, default_currency) values
@@ -47,17 +47,14 @@ select is((select count(*)::int from work_order_candidate_items where candidate_
   'AC-CWO-003 with no saved template a candidate has no items');
 select is((select count(*)::int from work_order_checklist_items), 0, 'AC-CWO-003 no item text is supplied by the system');
 
--- ── Template: Admin only (FR-CWO-007)
-select pg_temp.act_as('25950000-0000-0000-0000-0000000000a4');
-select throws_ok($$ select public.set_work_order_candidate_template('[{"label":"x"}]'::jsonb) $$, '42501',
-  'only an administrator can edit the assessment checklist', 'FR-CWO-007 an engineer cannot edit the checklist');
-select pg_temp.act_as('25950000-0000-0000-0000-0000000000a1');
-select throws_ok($$ select public.set_work_order_candidate_template('[{"label":"  "}]'::jsonb) $$, '22023',
-  'CWO_TEMPLATE: every item needs a label of 1 to 200 characters', 'FR-CWO-007 a blank label is refused');
-select is(public.set_work_order_candidate_template('[{"label":"Alpha check"},{"label":"Beta check","required":true},{"label":"Gamma check","required":false}]'::jsonb), 3,
-  'AC-CWO-001 admin saves a template of 3 items');
+-- ── Template: the org's list (edited since 2680 through set_work_order_check_template, proven in 2680_wo_capture_checks)
+reset role;
+insert into work_order_checklist_items (org_id, label, position, required) values
+  ('25950000-0000-0000-0000-00000000000a', 'Alpha check', 1, true), ('25950000-0000-0000-0000-00000000000a', 'Beta check', 2, true),
+  ('25950000-0000-0000-0000-00000000000a', 'Gamma check', 3, false);
 insert into cwo_ids select 'ta', id from work_order_checklist_items where label = 'Alpha check';
 insert into cwo_ids select 'tg', id from work_order_checklist_items where label = 'Gamma check';
+set local role authenticated;
 
 -- ── AC-CWO-001 create copies the template; roles that may create
 select pg_temp.act_as('25950000-0000-0000-0000-0000000000a2');
@@ -76,9 +73,11 @@ select is((select array_agg(label order by position) from work_order_candidate_i
   array['Alpha check', 'Beta check', 'Gamma check'], 'AC-CWO-001 items copy the template in order');
 
 -- ── AC-CWO-002 a later template edit never changes an existing candidate
+reset role;
+update work_order_checklist_items set label = 'Alpha renamed' where id = (select v from cwo_ids where k = 'ta');
+update work_order_checklist_items set archived_at = now() where org_id = '25950000-0000-0000-0000-00000000000a' and id <> (select v from cwo_ids where k = 'ta');
+set local role authenticated;
 select pg_temp.act_as('25950000-0000-0000-0000-0000000000a1');
-select is(public.set_work_order_candidate_template(format('[{"id":"%s","label":"Alpha renamed"}]', (select v from cwo_ids where k = 'ta'))::jsonb), 1,
-  'AC-CWO-002 admin renames one item and archives the rest');
 select is((select count(*)::int from work_order_checklist_items where archived_at is null), 1, 'AC-CWO-002 the template now has one live item');
 select is((select array_agg(label order by position) from work_order_candidate_items where candidate_id = (select v from cwo_ids where k = 'c1')),
   array['Alpha check', 'Beta check', 'Gamma check'], 'AC-CWO-002 the open candidate''s items are unchanged');

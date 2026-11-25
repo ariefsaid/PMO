@@ -1,0 +1,6 @@
+{
+  "definer_functions": [
+    "cancel_work_order(uuid,text)",
+    "set_work_order_check_template(jsonb)"
+  ]
+}

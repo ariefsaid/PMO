@@ -61,7 +61,7 @@ import OrgModules from './admin/OrgModules';
 import { ModuleGate } from '@/src/components/admin/ModuleGate';
 import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
-import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
+import WorkOrderCheckTemplate from './admin/WorkOrderCheckTemplate';
 import SafetyLists from './admin/SafetyLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
@@ -388,7 +388,7 @@ const SelectedAdministrationPanel: React.FC<{
             <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
             <NonWorkingDatesCard />
             <SiteCheckpointTemplate />
-            <WorkOrderCandidateTemplate />
+            <WorkOrderCheckTemplate />
             <ModuleGate module="moduleSiteDay"><SafetyLists /></ModuleGate>
             <CostDisciplines />
             <WorkOrderCloseoutTemplate />

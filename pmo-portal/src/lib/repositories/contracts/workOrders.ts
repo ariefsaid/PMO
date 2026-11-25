@@ -1,3 +1,4 @@
+import type { CandidateRecord } from '@/src/lib/db/workOrderCandidateRecords';
 /** Delivery contracts: milestones, work orders, progress billing, acceptances. */
 import type { TaskGroupRow, TaskGroupInput, TaskGroupPatch } from '@/src/lib/db/taskGroups';
 import type { CommandIntent } from './commandIntent';
@@ -79,6 +80,10 @@ export interface WorkOrderRepository {
   setValue(input: SetWorkOrderValueInput): Promise<void>;
   /** Status moves; `overCommitAck` is sent only for an issue that actually exceeds the ceiling. */
   transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
+  /** Cancel with a reason (#2898): `cancel_work_order`, then the transition's own gates. */
+  cancel(id: string, reason: string): Promise<void>;
+  /** The retired candidate work orders of a project, read-only (#2898 keeps them readable). */
+  listCandidateRecords(projectId: string): Promise<CandidateRecord[]>;
   /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
   /** OD-BILL-1: per-work-order billing for one project (view work_order_billing, RLS-scoped). */

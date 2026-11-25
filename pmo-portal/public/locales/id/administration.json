@@ -645,22 +645,25 @@
       }
     },
     "modulesNav": "Modul",
-    "candidateTemplate": {
-      "saved": "Daftar pemeriksaan disimpan",
-      "title": "Daftar pemeriksaan kandidat $t(common:terms.clientWorkOrder)",
-      "helper": "Pemeriksaan yang dilakukan sebelum kandidat $t(common:terms.clientWorkOrder) diterima. Kandidat menyalin daftar ini saat dibuka, sehingga perubahan berikutnya tidak mengubah kandidat yang sudah terbuka.",
-      "loadError": "Daftar pemeriksaan tidak dapat dimuat",
-      "empty": "Belum ada pemeriksaan. Tanpa pemeriksaan, kandidat dapat langsung diterima.",
+    "checkTemplate": {
+      "title": "Pemeriksaan standar untuk $t(common:terms.clientWorkOrder) baru",
+      "helper": "Saat $t(common:terms.clientWorkOrder) dicatat sebagai draf, setiap baris menjadi tugas dengan tenggat sebanyak hari itu. Pemegang peran kerja tersebut menjadi penanggung jawab; bila lebih dari satu orang atau tidak ada, penerbit yang memilih.",
+      "saved": "Pemeriksaan standar disimpan",
+      "loadError": "Pemeriksaan standar tidak dapat dimuat",
+      "empty": "Belum ada pemeriksaan standar. $t(common:terms.clientWorkOrder) baru dimulai tanpa pemeriksaan.",
       "itemLabel": "Pemeriksaan {{n}}",
-      "requiredFor": "Wajib: {{name}}",
-      "required": "Wajib",
-      "up": "Naikkan {{name}}",
-      "down": "Turunkan {{name}}",
+      "up": "Pindahkan {{name}} ke atas",
+      "down": "Pindahkan {{name}} ke bawah",
       "remove": "Hapus {{name}}",
       "removeShort": "Hapus",
       "add": "Tambah pemeriksaan",
-      "save": "Simpan daftar",
-      "discard": "Buang perubahan"
+      "save": "Simpan pemeriksaan",
+      "discard": "Buang perubahan",
+      "chooseRole": "Pilih peran kerja",
+      "roleFor": "Peran kerja untuk pemeriksaan {{n}}",
+      "daysFor": "Hari untuk pemeriksaan {{n}}",
+      "daysPlaceholder": "Hari",
+      "daysUnit": "hari"
     },
     "accountMap": {
       "adminOnly": "Hanya Admin yang dapat mengubah ini."

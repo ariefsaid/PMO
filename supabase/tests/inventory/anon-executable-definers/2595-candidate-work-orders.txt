@@ -1,4 +1,3 @@
 # #2595 candidate work orders: authenticated RPCs, each re-asserting org, active membership and role in its body
 create_work_order_candidate
 decide_work_order_candidate
-set_work_order_candidate_template

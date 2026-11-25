@@ -23,6 +23,7 @@ import {
   listAllWorkOrders,
   setWorkOrderValue,
   transitionWorkOrder,
+  cancelWorkOrder,
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
 import { getWorkOrderBilledMonths, listWorkOrderAcceptanceAge, listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
@@ -52,6 +53,7 @@ import {
   confirmWorkOrderAcceptance,
 } from '@/src/lib/db/workOrderAcceptances';
 import { wrap } from './repositoryErrors';
+import { listCandidateRecords } from '@/src/lib/db/workOrderCandidateRecords';
 import { dispatchCreate } from './repositoryDispatch';
 import type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 
@@ -87,6 +89,8 @@ export const workOrderRepository: WorkOrderRepository = {
   update: (id, patch) => wrap(() => updateWorkOrder(id, patch)),
   setValue: (input) => wrap(() => setWorkOrderValue(input)),
   transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
+  cancel: (id, reason) => wrap(() => cancelWorkOrder(id, reason)),
+  listCandidateRecords: (projectId) => wrap(() => listCandidateRecords(projectId)),
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
   billing: (projectId) => wrap(() => listWorkOrderBilling(projectId)),
   billedMonths: (workOrderId) => wrap(() => getWorkOrderBilledMonths(workOrderId)),
