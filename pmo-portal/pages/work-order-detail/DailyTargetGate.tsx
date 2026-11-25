@@ -3,9 +3,10 @@ import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePlanSettings } from '@/src/hooks/useWorkOrderRevenuePlan';
+import type { SourceGroup } from '@/src/lib/workOrderCostView';
 import { DailyTargetView } from './DailyTargetView';
 
-interface Props { workOrderId: string }
+interface Props { workOrderId: string; costGroups?: SourceGroup[] | null }
 
 /**
  * Shows the daily target view only while the organisation has switched the revenue plan on (#2671 FR-WRP-001, #2672
@@ -19,9 +20,9 @@ export const DailyTargetGate: React.FC<Props> = (props) => {
   return <Inner {...props} />;
 };
 
-const Inner: React.FC<Props> = ({ workOrderId }) => {
+const Inner: React.FC<Props> = ({ workOrderId, costGroups }) => {
   const canView = usePermission()('view', 'workOrderRevenuePlan');
   const settings = useRevenuePlanSettings();
   if (!canView || settings.data?.enabled !== true) return null;
-  return <DailyTargetView workOrderId={workOrderId} />;
+  return <DailyTargetView workOrderId={workOrderId} costGroups={costGroups} />;
 };

@@ -232,7 +232,7 @@ const WorkOrderDetail: React.FC = () => {
           <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
           <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
           {/* #2672: the daily target view; same switch and role gate as the plan above. */}
-          <DailyTargetGate workOrderId={row.id} />
+          <DailyTargetGate workOrderId={row.id} costGroups={groups} />
         </PageGroup>
         {hasMaterial && (
           <PageGroup id="wo-material" label={groupLabels.material}>

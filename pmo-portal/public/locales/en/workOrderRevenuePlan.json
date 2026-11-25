@@ -81,7 +81,17 @@
     "nonWorking": "Non-working day",
     "nonWorkingLabelled": "Non-working day: {{label}}",
     "empty": "No working days in this month.",
-    "loadError": "Couldn't load the daily target"
+    "loadError": "Couldn't load the daily target",
+    "cost": {
+      "labour": "Labour",
+      "equipment": "Equipment",
+      "material": "Material",
+      "other": "Other",
+      "total": "Cost",
+      "net": "Revenue less cost",
+      "caption": "Daily cost and revenue for {{month}}",
+      "undated": "Not dated to a day: {{amount}}"
+    }
   },
   "dailyRollup": {
     "title": "Daily target, month to date",

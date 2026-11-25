@@ -10,8 +10,13 @@ import { formatDate, formatExactMoney, formatNumberMax2, formatShortAmount, form
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { asOfForMonth, shiftMonth, visibleDays } from '@/src/lib/dailyTarget';
+import { buildDailyCost, DAY_CATEGORIES, type DailyCostCells, type SourceGroup } from '@/src/lib/workOrderCostView';
 
-interface Props { workOrderId: string }
+interface Props {
+  workOrderId: string;
+  /** The cost list's own groups (lines + amounts): the days' cost is grouped from these, never re-read or re-priced (#1126). */
+  costGroups?: SourceGroup[] | null;
+}
 
 /**
  * Daily target on the work-order page (#2672, FR-WDT-020): the month's days against the target, month to date and the
@@ -19,7 +24,7 @@ interface Props { workOrderId: string }
  * one (OD-SCOPE-7). Shows ONLY what the database derived. A refused caller sees "restricted", never a zero; a month with
  * no target says so (FR-WDT-015). The parent mounts this only while the organisation's switch is on.
  */
-export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
+export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = null }) => {
   const { t } = useTranslation('workOrderRevenuePlan');
   const today = useOrgToday();
   const currentMonth = `${today.slice(0, 7)}-01`;
@@ -29,6 +34,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
   const title = t('daily.title', 'Daily target');
   const rows = useMemo(() => visibleDays(data?.days ?? []), [data]);
   const chart = useMemo(() => rows.map((d) => ({ date: d.date.slice(8), target: Number(d.target), actual: Number(d.actual) })), [rows]);
+  const daily = useMemo(() => (costGroups && data ? buildDailyCost(costGroups, data.currency) : null), [costGroups, data]);
   const monthLabel = formatUtcMonthYearFull(new Date(`${month}T00:00:00Z`));
 
   const nav = (
@@ -130,6 +136,64 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
           </table>
         </div>
       )}
+      {daily && <DailyCostTable daily={daily} month={data.month.slice(0, 7)} revenue={Object.fromEntries(data.days.map((d) => [d.date, d.actual]))} money={money} t={t} caption={monthLabel} />}
     </RecordSection>
+  );
+};
+
+const toMoney = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
+
+/**
+ * Cost beside revenue, per day (#1126): labour, equipment, material, other, the day's cost and revenue less cost. A column with
+ * no readable figure is not drawn; an unreadable day shows "—", never 0. A cost with no day gets its own line, not a share of any day.
+ */
+const DailyCostTable: React.FC<{
+  daily: ReturnType<typeof buildDailyCost>; month: string; revenue: Record<string, string>; caption: string;
+  money: (v: string) => string; t: (k: string, d: string, o?: Record<string, unknown>) => string;
+}> = ({ daily, month, revenue, caption, money, t }) => {
+  const days = Object.entries(daily.days).filter(([d]) => d.startsWith(month));
+  const shown = (c: DailyCostCells | null, k: keyof DailyCostCells) => typeof c?.[k] === 'number';
+  const all = [...days.map(([, c]) => c), ...(daily.undated ? [daily.undated] : [])];
+  const cols = DAY_CATEGORIES.filter((k) => all.some((c) => shown(c, k)));
+  const hasTotal = all.some((c) => shown(c, 'total'));
+  const cell = (v: number | null | undefined) => (typeof v === 'number' ? money(toMoney(v)) : '—');
+  const label: Record<string, string> = {
+    labour: t('daily.cost.labour', 'Labour'), equipment: t('daily.cost.equipment', 'Equipment'),
+    material: t('daily.cost.material', 'Material'), other: t('daily.cost.other', 'Other'),
+  };
+  if (cols.length === 0 && !hasTotal) return null;
+  return (
+    <>
+      {days.length > 0 && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-control" data-testid="wo-daily-cost-table">
+            <caption className="sr-only">{t('daily.cost.caption', 'Daily cost and revenue for {{month}}', { month: caption })}</caption>
+            <thead><tr className="text-right text-muted-foreground">
+              <th scope="col" className="py-1 pr-4 text-left font-normal">{t('daily.day', 'Day')}</th>
+              {cols.map((k) => <th key={k} scope="col" className="py-1 pr-4 font-normal">{label[k]}</th>)}
+              {hasTotal && <th scope="col" className="py-1 pr-4 font-normal">{t('daily.cost.total', 'Cost')}</th>}
+              {hasTotal && <th scope="col" className="py-1 font-normal">{t('daily.cost.net', 'Revenue less cost')}</th>}
+            </tr></thead>
+            <tbody>
+              {days.map(([date, c]) => (
+                <tr key={date} className="border-t border-border" data-testid={`wo-daily-cost-row-${date}`}>
+                  <th scope="row" className="py-1 pr-4 text-left font-normal">{formatDate(date)}</th>
+                  {cols.map((k) => <td key={k} className="py-1 pr-4 text-right tabular-nums" data-testid={`wo-daily-cost-${k}-${date}`}>{cell(c[k])}</td>)}
+                  {hasTotal && <td className="py-1 pr-4 text-right tabular-nums" data-testid={`wo-daily-cost-total-${date}`}>{cell(c.total)}</td>}
+                  {hasTotal && <td className="py-1 text-right tabular-nums" data-testid={`wo-daily-cost-net-${date}`}>
+                    {c.total === null ? '—' : money(toMoney((Math.round(Number(revenue[date] ?? 0) * 100) - Math.round(c.total * 100)) / 100))}
+                  </td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {typeof daily.undated?.total === 'number' && (
+        <p className="mt-2 text-control text-muted-foreground" data-testid="wo-daily-cost-undated">
+          {t('daily.cost.undated', 'Not dated to a day: {{amount}}', { amount: money(toMoney(daily.undated.total)) })}
+        </p>
+      )}
+    </>
   );
 };

@@ -81,7 +81,17 @@
     "nonWorking": "Hari tidak kerja",
     "nonWorkingLabelled": "Hari tidak kerja: {{label}}",
     "empty": "Tidak ada hari kerja pada bulan ini.",
-    "loadError": "Target harian tidak dapat dimuat"
+    "loadError": "Target harian tidak dapat dimuat",
+    "cost": {
+      "labour": "Tenaga kerja",
+      "equipment": "Alat",
+      "material": "Bahan",
+      "other": "Lainnya",
+      "total": "Biaya",
+      "net": "Pendapatan dikurangi biaya",
+      "caption": "Biaya dan pendapatan harian untuk {{month}}",
+      "undated": "Tanpa tanggal: {{amount}}"
+    }
   },
   "dailyRollup": {
     "title": "Target harian, bulan berjalan",

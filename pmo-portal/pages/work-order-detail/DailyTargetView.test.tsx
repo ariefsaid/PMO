@@ -9,6 +9,8 @@ import enRp from '../../public/locales/en/workOrderRevenuePlan.json';
 import { formatExactMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { DailyTarget, DailyTargetDay } from '@/src/lib/dailyTarget';
+import { buildCostView } from '@/src/lib/workOrderCostView';
+import type { CostSource, WorkOrderCostLine } from '@/src/lib/db/workOrderCosts';
 import { DailyTargetView } from './DailyTargetView';
 
 const state = vi.hoisted(() => ({ query: {} as Record<string, unknown>, asked: [] as unknown[] }));
@@ -105,5 +107,42 @@ describe('DailyTargetView (#2672)', () => {
   it('AC-WDT-013 every English key has an Indonesian translation', () => {
     const keys = (o: Record<string, unknown>, p = ''): string[] => Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' && v !== null ? keys(v as Record<string, unknown>, `${p}${k}.`) : [`${p}${k}`]));
     expect(keys(idRp).sort()).toEqual(keys(enRp).sort());
+  });
+
+  describe('#1126 cost beside revenue per day', () => {
+    const line = (source: CostSource, id: string, occurredOn: string | null): WorkOrderCostLine => ({ source, recordId: id, projectId: 'p', workOrderId: 'w', disciplineId: null, occurredOn, reference: id, quantity: null, quantityUnit: null });
+    const idr = (amount: number) => ({ amount, currency: 'IDR' });
+    const groups = buildCostView(
+      [line('equipment_usage', 'e1', '2026-12-01'), line('stock_document', 's1', '2026-12-01'), line('expense_claim', 'c1', '2026-12-02'), line('equipment_usage', 'e2', null), line('stock_document', 's2', '2026-11-30')],
+      { equipment_usage: { e1: idr(30), e2: idr(5.5) }, stock_document: { s1: idr(20), s2: idr(99) }, expense_claim: { c1: idr(7) } },
+    );
+    it('shows each day\'s cost by kind, its total and revenue less cost, from the cost list\'s own figures', () => {
+      state.query = ok(target());
+      render(<DailyTargetView workOrderId="w" costGroups={groups} />);
+      expect(screen.getByTestId('wo-daily-cost-equipment-2026-12-01').textContent).toBe(money('30.00'));
+      expect(screen.getByTestId('wo-daily-cost-material-2026-12-01').textContent).toBe(money('20.00'));
+      expect(screen.getByTestId('wo-daily-cost-total-2026-12-01').textContent).toBe(money('50.00'));
+      expect(screen.getByTestId('wo-daily-cost-net-2026-12-01').textContent).toBe(money('30.00'));
+      expect(screen.getByTestId('wo-daily-cost-net-2026-12-02').textContent).toBe(money('-7.00'));
+      expect(screen.queryByTestId('wo-daily-cost-row-2026-11-30')).toBeNull();
+      expect(screen.queryByText('Labour')).toBeNull();
+    });
+    it('a cost with no day is named apart and spread over no day', () => {
+      state.query = ok(target());
+      render(<DailyTargetView workOrderId="w" costGroups={groups} />);
+      expect(screen.getByTestId('wo-daily-cost-undated').textContent).toBe(`Not dated to a day: ${money('5.50')}`);
+    });
+    it('a caller who cannot read any cost amount sees revenue and target only', () => {
+      state.query = ok(target());
+      render(<DailyTargetView workOrderId="w" costGroups={buildCostView(groups.flatMap((g) => g.lines), { equipment_usage: null, stock_document: null, expense_claim: null })} />);
+      expect(screen.queryByTestId('wo-daily-cost-table')).toBeNull();
+      expect(screen.queryByTestId('wo-daily-cost-undated')).toBeNull();
+      expect(screen.getByTestId('wo-daily-table')).toBeTruthy();
+    });
+    it('without cost groups the view is unchanged', () => {
+      state.query = ok(target());
+      render(<DailyTargetView workOrderId="w" />);
+      expect(screen.queryByTestId('wo-daily-cost-table')).toBeNull();
+    });
   });
 });
