@@ -42,7 +42,7 @@ const Card_: React.FC<{ assetIds: string[] }> = ({ assetIds }) => {
   if (q.isPending || q.isError || rows.length === 0) return null;
   return (
     <Card className="mt-4">
-      <CardHead title={t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')} />
+      <CardHead>{t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')}</CardHead>
       <CardPad><VendorResponseSummaryTable rows={rows} /></CardPad>
     </Card>
   );
