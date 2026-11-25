@@ -59,8 +59,10 @@ describe('BillingBoard', () => {
     expect(cards.every((card) => !/IDR|USD|Rp|\$|1,250/.test(card.textContent ?? ''))).toBe(true);
     const totals = screen.getAllByTestId('billing-board-column-totals');
     expect(totals).toHaveLength(2);
-    expect(totals[0].textContent).toContain('IDR total');
-    expect(totals[1].textContent).toContain('USD total');
+    // TC-PFE-21: the total reads as money (grouped, currency named once), not the raw exact string.
+    expect(totals[0].textContent).toMatch(/IDR\s?1,250 total/);
+    expect(totals[0].textContent).not.toContain('1250.00');
+    expect(totals[1].textContent).toMatch(/USD\s?26 total|\$26 total/);
     expect(screen.getByRole('heading', { name: /All steps done/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /complete|move/i })).toBeNull();
   });

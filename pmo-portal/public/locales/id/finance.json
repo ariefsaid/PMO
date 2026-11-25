@@ -1177,7 +1177,7 @@
     "empty": "Tidak ada klaim untuk ditampilkan",
     "emptySub": "Klaim muncul di sini setelah memiliki langkah penagihan. Buka klaim di tab Kontrak proyek, lalu tambahkan langkahnya.",
     "entryLink": "Papan penagihan",
-    "columnTotal": "Total {{amount}} {{currency}}"
+    "columnTotal": "Total {{amount}}"
   },
   "billingPlan": {
     "title": "Rencana penagihan",

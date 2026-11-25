@@ -66,6 +66,7 @@ import SafetyLists from './admin/SafetyLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
 import OrgAttendanceTarget from './admin/OrgAttendanceTarget';
+import OrgWorkInHandCapacity from './admin/OrgWorkInHandCapacity';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
 import LabourCostSettings from './admin/LabourCostSettings';
@@ -394,6 +395,7 @@ const SelectedAdministrationPanel: React.FC<{
             <WorkOrderLists />
             <ModuleGate module="moduleSiteDay"><OrgPerformanceIndices /></ModuleGate>
             <OrgAttendanceTarget />
+            <OrgWorkInHandCapacity />
             <IssueClosingReportSettings />
           </div>
         </div>

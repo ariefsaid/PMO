@@ -216,8 +216,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   // revisions stay listed (never hidden), but each sits under its latest so the latest is read first.
   const isEarlierRevision = useCallback((doc: ProjectDocumentRow) => childDocumentsByParentId.has(doc.id), [childDocumentsByParentId]);
 
-  // The tree's tops: every linked Microsoft folder in the register, by its stored reference.
+  // The tree's tops: every linked Microsoft project folder in the register (work-order folders live on their work order).
   const folderRoots = useMemo<FolderTreeRoot[]>(() => all.flatMap((doc) => {
+    if (doc.work_order_id) return [];
     const reference = isMicrosoftFolder(doc) ? projectReference(doc) : null;
     return reference ? [{ key: doc.id, title: doc.title, drive_id: reference.drive_id, item_id: reference.item_id, web_url: reference.web_url }] : [];
   }), [all]);
@@ -320,9 +321,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   });
   const mobileCardDetails = buildDocumentMobileCardDetails({ categoryName, cells, microsoftCell, canEditDoc });
 
+  const projectHasFolder = all.some((d) => !d.work_order_id && d.source === 'onedrive' && d.ms_item_kind === 'folder');
   const folder = useRecordFolderAction({
     target: { kind: 'project', id: projectId },
-    hasFolder: all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder'),
+    hasFolder: projectHasFolder,
     onChooseExisting: () => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); },
   });
   // Every way to add a document sits inside the tab's one "Add document" control.
@@ -337,7 +339,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       label: t('m365Documents.link', 'Link from Microsoft 365'),
       onSelect: () => setMicrosoftEntry({ kind: 'create' }),
     }] : []),
-    ...(folder.allowed && !all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder') ? [{
+    ...(folder.allowed && !projectHasFolder ? [{
       key: 'folder',
       label: folder.pending ? t('projectDetail.documents.add.folderPending', 'Creating folder…') : folder.label,
       onSelect: () => { void folder.start(); },

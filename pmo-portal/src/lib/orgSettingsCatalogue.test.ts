@@ -13,6 +13,8 @@ import siteReportEn from '@/public/locales/en/siteReport.json';
 import siteReportId from '@/public/locales/id/siteReport.json';
 import emailNotificationsEn from '@/public/locales/en/emailNotifications.json';
 import emailNotificationsId from '@/public/locales/id/emailNotifications.json';
+import workInHandEn from '@/public/locales/en/workInHand.json';
+import workInHandId from '@/public/locales/id/workInHand.json';
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
 
@@ -134,12 +136,14 @@ describe('organisation settings catalogue (#2746)', () => {
       ...commonItems,
       workOrderChecklist: billingStepsEn.settings.workOrderChecklist,
       qsReportRevenue: { name: siteReportEn.revenue.qsAccess, summary: siteReportEn.revenue.qsAccessHelp },
+      workInHandCapacity: workInHandEn.setting,
       pcmScheduledReports: { name: emailNotificationsEn.scheduled.pcmSettingName, summary: emailNotificationsEn.scheduled.pcmSettingSummary },
     };
     const itemsId: Record<string, { name: string; summary: string }> = {
       ...commonItemsId,
       workOrderChecklist: billingStepsId.settings.workOrderChecklist,
       qsReportRevenue: { name: siteReportId.revenue.qsAccess, summary: siteReportId.revenue.qsAccessHelp },
+      workInHandCapacity: workInHandId.setting,
       pcmScheduledReports: { name: emailNotificationsId.scheduled.pcmSettingName, summary: emailNotificationsId.scheduled.pcmSettingSummary },
     };
     for (const key of orgSettingKeys) {

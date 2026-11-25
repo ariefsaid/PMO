@@ -50,7 +50,7 @@ const Row: React.FC<{ settingKey: OrgSettingKey; name: string; summary: string }
 };
 
 export default function AllSettings() {
-  const { t } = useTranslation(['common', 'billingSteps']);
+  const { t } = useTranslation(['common', 'billingSteps', 'workInHand']);
   const canView = usePermission()('view', 'user');
   const text = orgSettingText(t);
   const groups = orgSettingGroupLabels(t);

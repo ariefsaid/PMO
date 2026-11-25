@@ -5,6 +5,7 @@ import type { DashboardFigure } from './FigureGroup';
 import type { DashboardPeriod } from './usePeriod';
 import { periodDateRange } from './usePeriod';
 import { useDashboard, useSalesPipeline, useWinRate } from '@/src/hooks/useDashboard';
+import { packMoneyByProject } from '@/src/lib/projectPortfolio';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { selectInvoicedTrend, trendWindow, type InvoicedTrend } from '@/src/lib/dashboardTrend';
 import { useOverdueInvoiceFacts, usePaidPaymentFacts, useHasAnySalesInvoice, useHasAnyIncomingPayment } from '@/src/hooks/useRevenue';
@@ -78,6 +79,8 @@ export interface CompanyFiguresResult {
   /** Left to bill per signed-contract project at the latest pack month (org currency, known rows only), largest first. */
   leftToBillByProject: Array<{ id: string; name: string; amount: number }> | undefined;
   collectedPending: boolean;
+  /** Contract value and billed per project, from the same pack (see packMoneyByProject). */
+  projectMoney: ReturnType<typeof packMoneyByProject>;
 }
 
 export interface FigureStatus { pending: boolean; error: boolean; retry?: () => void }
@@ -510,6 +513,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     payablesPending: procurements.isPending || orgDay.isPending,
     payablesError: procurements.isError || orgDay.isError,
     leftToBillByProject,
+    projectMoney: packMoneyByProject(pack.data),
     collectedPending: payments.isPending,
     today, period: periodFigures,
     todayPending: dashboard.isPending || invoices.isPending || procurements.isPending || workOrders.isPending || pack.isPending || orgDay.isPending || anyInvoice.isLoading || anyPayment.isLoading,

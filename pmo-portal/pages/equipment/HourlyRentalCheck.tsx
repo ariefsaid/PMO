@@ -34,7 +34,7 @@ export default function HourlyRentalCheck({ assetId, from, to }: { assetId: stri
         setProblem(t('availability.amountInvalid', 'Enter the amount as a number with at most 2 decimals')); return;
       }
       setResult(await repositories.equipmentAvailability.hourlyRentalCheck({ assetId, from, to, contractedHours, invoiceHours,
-        broken: days as { date: string; hours: string }[], state, invoiceId, note }));
+        broken: days as { date: string; hours: string }[], state, invoiceId: invoiceId || undefined, note }));
       if (state) await refreshChecks();
     } catch (error) { setProblem(classifyMutationError(error).headline); }
     finally { setBusy(false); }

@@ -60,7 +60,7 @@ export const billingStagesRepository: BillingStagesRepository = {
   boardWorkOrderSteps: (projectId) => wrap(() => listBoardWorkOrderSteps(projectId)),
   waitingWorkOrderSteps: () => wrap(() => getWaitingWorkOrderSteps()),
   completeWorkOrderStep: (stepId, doneOn) => wrap(() => completeWorkOrderStep(stepId, doneOn)),
-  skipWorkOrderStep: (stepId) => wrap(() => skipWorkOrderStep(stepId)),
+  skipWorkOrderStep: (stepId, reason) => wrap(() => skipWorkOrderStep(stepId, reason)),
   assignWorkOrderStep: (stepId, personId) => wrap(() => assignWorkOrderStep(stepId, personId)),
   setWorkOrderStepClaimEvidence: (stepId, enabled) => wrap(() => setWorkOrderStepClaimEvidence(stepId, enabled)),
   addWorkOrderStep: (workOrderId, afterPosition, step) => wrap(() => addWorkOrderStep(workOrderId, afterPosition, step)),

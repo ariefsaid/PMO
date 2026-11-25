@@ -11,6 +11,7 @@ describe('invalidateProcurementCase', () => {
     expect(keys).toEqual([
       ['procurement', 'o1', 'c1'],
       ['procurements', 'o1'],
+      ['record-history', 'o1'], // #2888
       ['project-committed-spend', 'o1', 'pOld'],
       ['project-reserved-spend', 'o1', 'pOld'],
       ['project-committed-spend', 'o1', 'pNew'],
@@ -23,7 +24,7 @@ describe('invalidateProcurementCase', () => {
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, 'invalidateQueries');
     invalidateProcurementCase(qc, 'o1', 'c1');
-    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toEqual([['procurement', 'o1', 'c1'], ['procurements', 'o1']]);
+    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toEqual([['procurement', 'o1', 'c1'], ['procurements', 'o1'], ['record-history', 'o1']]);
   });
 
   it('reads the project from the cached detail', () => {

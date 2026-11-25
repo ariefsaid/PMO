@@ -42,7 +42,7 @@ const EXTRA = {
   'callback.ts': 'if (!tokenRes.ok || !validTokenPair(tokenData)) { // mutation-witness:callback-token-pair\n',
   'refresh.ts': 'if (!validTokenPair(rotated)) return false; // mutation-witness:refresh-token-pair\n',
   'microsoftTransport.ts': 'await fetchImpl(input, { ...init, redirect: "error" }); // mutation-witness:microsoft-redirect\n    }, timeoutMs); // mutation-witness:microsoft-body-timeout\n',
-  'recordFolders.ts': 'matches = matches.filter((m) => !taken.has(m.item_id)); // mutation-witness:exclude-shared\n  if (!rate.exceeded) return null; // mutation-witness:rate-limit\n',
+  'recordFolders.ts': 'if (!visible) return DENIED(); // mutation-witness:folder-category-visible\nmatches = matches.filter((m) => !taken.has(m.item_id)); // mutation-witness:exclude-shared\n  if (!rate.exceeded) return null; // mutation-witness:rate-limit\n',
   'recordFolderSearch.ts': 'if (page === MAX_LISTING_PAGES - 1) return incomplete("page_limit"); // mutation-witness:page-cap-incomplete\n        if (!folderNameMatchesCode(folder.name, convention.term)) continue; // mutation-witness:strict-boundary\n',
   'recordFolderParents.ts': 'if (receiptOnConflict && !await onCreated(x)) { // mutation-witness:conflict-receipt\n',
   'folderBudget.ts': 'return left <= 0 ? null : Math.min(FETCH, left); // mutation-witness:deadline-spent\n',

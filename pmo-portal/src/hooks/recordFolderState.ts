@@ -30,6 +30,8 @@ export function invalidateRecordFolderRegister(
 ): void {
   if (target.kind === 'project') {
     void qc.invalidateQueries({ queryKey: ['project-documents', orgId, target.id] });
+  } else if (target.kind === 'work_order') {
+    void qc.invalidateQueries({ queryKey: ['project-documents', orgId] });
   } else {
     void qc.invalidateQueries({ queryKey: procurementDocumentsKey(orgId, target.id) });
     void qc.invalidateQueries({ queryKey: ['procurement', orgId, target.id] });

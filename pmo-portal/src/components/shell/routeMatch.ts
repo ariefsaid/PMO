@@ -381,6 +381,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/finance/billing-plan': '/finance/receivables',
   // 1124d-rolescreens: HR Officer read-only timesheet review list sits under Timesheets.
   '/timesheets/review': '/timesheets',
+  // M8: Work in hand under Projects highlights Projects in the rail.
+  '/projects/work-in-hand': '/projects',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -412,6 +414,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
   '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
   '/timesheets/review': { label: 'Timesheet review', i18nKey: 'timesheets:review.title' }, // i18n-exempt: translated at render
+  '/projects/work-in-hand': { label: 'Work in hand', i18nKey: 'workInHand:title' }, // i18n-exempt: translated at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */

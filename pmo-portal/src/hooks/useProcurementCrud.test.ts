@@ -69,6 +69,13 @@ describe('AC-PROC-002..005 useProcurementCrudMutations (detail-scoped, invalidat
     ).toBe(true);
   });
 
+  it('#2888 a header update invalidates the record history', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementCrudMutations('pr1'), { wrapper: Wrapper });
+    await act(async () => { await result.current.updateHeader.mutateAsync({ title: 'T2', projectId: null, vendorId: 'v9' }); });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['record-history', 'org-1'] });
+  });
   it('AC-PROC-003: createItem / updateItem / deleteItem delegate + invalidate the detail key', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');

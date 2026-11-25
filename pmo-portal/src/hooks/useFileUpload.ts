@@ -5,7 +5,8 @@ import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTranspo
 import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_MB } from '@/src/lib/fileConstants';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
 import { useAuth } from '@/src/auth/useAuth';
-import { UploadFailure, uploadRecordFile } from '@/src/lib/m365/uploadClient';
+import { AppError } from '@/src/lib/appError';
+import { UploadFailure, uploadRecordFile, type UploadFailureKind } from '@/src/lib/m365/uploadClient';
 import { useUploadFailureText } from '@/src/hooks/useUploadDestination';
 
 /**
@@ -26,6 +27,20 @@ export interface UploadArgs {
   destination?: 'private' | 'microsoft';
   /** The row's current private path: removed best-effort AFTER a SharePoint upload took its place. */
   oldPath?: string | null;
+  /** When uploading a work-order document to Microsoft without a WO folder yet, ensures it first. */
+  workOrderId?: string | null;
+  /** Whether the target work order already has a linked SharePoint folder row. */
+  hasRecordFolder?: boolean;
+}
+
+function mapEnsureErrorToUploadKind(error: unknown): UploadFailureKind {
+  if (error instanceof AppError) {
+    if (error.code === 'SCOPE_INSUFFICIENT') return 'consent';
+    if (error.code === 'NOT_CONNECTED' || error.code === 'CONNECTION_STALE' || error.code === 'CONNECTION_REVOKED') return 'connection';
+    if (error.code === 'FORBIDDEN') return 'access';
+    if (error.code === 'NOT_ENTITLED') return 'entitlement';
+  }
+  return 'unavailable';
 }
 
 export function useFileUpload(projectId: string) {
@@ -33,8 +48,11 @@ export function useFileUpload(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const failureText = useUploadFailureText();
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['linked-folder-tree'] });
+    void qc.invalidateQueries({ queryKey: ['linked-folder-files'] });
+    return qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
+  };
 
   // Per-doc progress state
   const [progress, setProgress] = useState<Record<string, number>>({});
@@ -68,7 +86,26 @@ export function useFileUpload(projectId: string) {
    * leaves the previous attachment exactly as it was and never falls back to private storage. The old private
    * object goes only after the attach landed, and only best-effort.
    */
-  const uploadToMicrosoft = async (docId: string, file: File, oldPath: string | null, signal: AbortSignal) => {
+  const uploadToMicrosoft = async (
+    docId: string,
+    file: File,
+    oldPath: string | null,
+    signal: AbortSignal,
+    workOrderId?: string | null,
+    hasRecordFolder?: boolean,
+  ) => {
+    if (workOrderId && !hasRecordFolder) {
+      let ensured;
+      try {
+        ensured = await repositories.m365RecordFolders.ensure({ kind: 'work_order', id: workOrderId });
+      } catch (err) {
+        throw new UploadFailure(mapEnsureErrorToUploadKind(err));
+      }
+      if (ensured.state !== 'created' && ensured.state !== 'linked' && ensured.state !== 'already_linked') {
+        throw new UploadFailure('folder');
+      }
+      invalidate();
+    }
     const reference = await uploadRecordFile({ kind: 'project_document', id: docId }, file, signal);
     setProgress((prev) => ({ ...prev, [docId]: 100 }));
     try {
@@ -80,7 +117,14 @@ export function useFileUpload(projectId: string) {
     return reference.item_id;
   };
 
-  const uploadDocumentFile = async (docId: string, file: File, destination: 'private' | 'microsoft' = 'private', knownOldPath: string | null = null) => {
+  const uploadDocumentFile = async (
+    docId: string,
+    file: File,
+    destination: 'private' | 'microsoft' = 'private',
+    knownOldPath: string | null = null,
+    workOrderId?: string | null,
+    hasRecordFolder?: boolean,
+  ) => {
     setProgress((prev) => ({ ...prev, [docId]: 0 }));
     clearError(docId);
 
@@ -88,7 +132,9 @@ export function useFileUpload(projectId: string) {
     abortRefs.current[docId] = controller;
 
     try {
-      if (destination === 'microsoft') return await uploadToMicrosoft(docId, file, knownOldPath, controller.signal);
+      if (destination === 'microsoft') {
+        return await uploadToMicrosoft(docId, file, knownOldPath, controller.signal, workOrderId, hasRecordFolder);
+      }
       const { signedUrl, path, oldPath } = await repositories.document.prepareUpload(docId, file.name);
       const ext = getExtension(file.name);
       const contentType = FILE_MIME_BY_EXT[ext] || file.type || 'application/octet-stream';
@@ -133,7 +179,8 @@ export function useFileUpload(projectId: string) {
   // that the caller branched between without consuming separate status. ONE mutation now services
   // both document actions; the upload-vs-replace distinction stays a caller-side user action.
   const upload = useMutation({
-    mutationFn: async ({ docId, file, destination, oldPath }: UploadArgs) => uploadDocumentFile(docId, file, destination, oldPath),
+    mutationFn: async ({ docId, file, destination, oldPath, workOrderId, hasRecordFolder }: UploadArgs) =>
+      uploadDocumentFile(docId, file, destination, oldPath, workOrderId, hasRecordFolder),
     onSuccess: (_data, variables) => {
       invalidate();
       clearProgress(variables.docId);

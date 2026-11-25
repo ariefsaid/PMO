@@ -17,7 +17,6 @@ import {
   openCallerRecordFolderAccess,
   type RecordFolderEnsureAccess,
   type RecordFolderLibrary,
-  type RecordFolderReadAccess,
 } from "./graphRead.ts";
 import { createGraphBudget, type GraphBudget } from "./folderBudget.ts";
 import { createFolderDiscovery, type FolderDiscovery } from "./recordFolderSearch.ts";
@@ -29,7 +28,8 @@ import {
   resolveOrCreateFolder,
   verifyDriveBelongsToSite,
 } from "./recordFolderParents.ts";
-import { validFolderWriteName } from "./graphFolderWrite.ts";
+import { safeGraphId, validFolderWriteName } from "./graphFolderWrite.ts";
+import { folderNameMatchesCode } from "../_shared/microsoftFolderConvention.ts";
 import {
   type EnsureRecordFolderRequest,
   type RecordFolderOutcome,
@@ -76,7 +76,7 @@ export function parseEnsureRequest(body: unknown): EnsureRecordFolderRequest | n
   if (!isRecord(body)) return null;
   const keys = Object.keys(body).sort().join(",");
   if (keys !== "action,id,kind" || body.action !== "ensure_record_folder") return null;
-  if (body.kind !== "project" && body.kind !== "procurement") return null;
+  if (body.kind !== "project" && body.kind !== "procurement" && body.kind !== "work_order") return null;
   if (typeof body.id !== "string" || !UUID.test(body.id)) return null;
   return { action: "ensure_record_folder", kind: body.kind, id: body.id };
 }
@@ -84,7 +84,7 @@ export function parseEnsureRequest(body: unknown): EnsureRecordFolderRequest | n
 // ── caller-RLS reads ──────────────────────────────────────────────────────────
 
 export interface FolderIdentity {
-  convention: { term: string; parentSegments: string[] };
+  convention: { term: string; parentSegments: string[]; parentItemId?: string };
   name: string;
 }
 
@@ -93,7 +93,7 @@ export interface DefaultSnapshot extends RecordFolderLibrary {
 }
 
 type RecordLoad =
-  | { state: "ok"; identity: FolderIdentity | null }
+  | { state: "ok"; identity: FolderIdentity | null; projectId?: string; projectFolderName?: string | null }
   | { state: "denied" }
   | { state: "error" };
 
@@ -105,6 +105,19 @@ function identityFor(
   target: RecordFolderTarget,
   row: Record<string, unknown>,
 ): FolderIdentity | null {
+  if (target.kind === "work_order") {
+    const number = nonEmpty(row.wo_number);
+    const title = nonEmpty(row.title);
+    const term = number ?? title;
+    if (!term) return null;
+    const rawSubject = typeof row.title === "string" ? row.title : "";
+    if ((number && CONTROL.test(number)) || CONTROL.test(rawSubject)) return null;
+    const rawName = number ? `${number.trim()} ${rawSubject}` : rawSubject.trim();
+    const name = safeRecordFolderName(rawName);
+    const sanitizedTerm = safeRecordFolderName(term.trim());
+    if (!sanitizedTerm || !validFolderWriteName(name) || !folderNameMatchesCode(name, sanitizedTerm)) return null;
+    return { convention: { term: sanitizedTerm, parentSegments: ["Projects"] }, name };
+  }
   const number = target.kind === "project"
     ? nonEmpty(row.code) ?? nonEmpty(row.pmo_project_number)
     : nonEmpty(row.pr_number) ?? nonEmpty(row.code);
@@ -135,6 +148,35 @@ export async function loadRecord(
   orgId: string,
   target: RecordFolderTarget,
 ): Promise<RecordLoad> {
+  if (target.kind === "work_order") {
+    const { data, error } = await deps.callerClient!
+      .from("work_orders")
+      .select("id,org_id,project_id,wo_number,title")
+      .eq("id", target.id)
+      .limit(1);
+    if (error) return { state: "error" };
+    const wo = Array.isArray(data) ? data[0] : undefined;
+    if (!isRecord(wo) || wo.id !== target.id || wo.org_id !== orgId || typeof wo.project_id !== "string") {
+      return { state: "denied" };
+    }
+    const { data: projData, error: projError } = await deps.callerClient!
+      .from("projects")
+      .select("id,org_id,code,pmo_project_number,name")
+      .eq("id", wo.project_id)
+      .limit(1);
+    if (projError) return { state: "error" };
+    const project = Array.isArray(projData) ? projData[0] : undefined;
+    if (!isRecord(project) || project.id !== wo.project_id || project.org_id !== orgId) {
+      return { state: "denied" };
+    }
+    const projectIdentity = identityFor({ kind: "project", id: wo.project_id }, project);
+    return {
+      state: "ok",
+      identity: identityFor(target, wo),
+      projectId: wo.project_id,
+      projectFolderName: projectIdentity?.name ?? null,
+    };
+  }
   const columns = target.kind === "project"
     ? "id,org_id,code,pmo_project_number,name"
     : "id,org_id,code,pr_number,title,created_at";
@@ -156,11 +198,18 @@ export async function findExistingFolder(
   deps: HandlerDeps,
   target: RecordFolderTarget,
 ): Promise<{ id: string } | null | "error"> {
-  const project = target.kind === "project";
-  const { data, error } = await deps.callerClient!
-    .from(project ? "project_documents" : "procurement_documents")
-    .select("id,ms_linked_at")
-    .eq(project ? "project_id" : "procurement_id", target.id)
+  const isProc = target.kind === "procurement";
+  let query = deps.callerClient!
+    .from(isProc ? "procurement_documents" : "project_documents")
+    .select("id,ms_linked_at");
+  if (target.kind === "work_order") {
+    query = query.eq("work_order_id", target.id);
+  } else if (target.kind === "project") {
+    query = query.eq("project_id", target.id).is("work_order_id", null);
+  } else {
+    query = query.eq("procurement_id", target.id);
+  }
+  const { data, error } = await query
     .eq("source", "onedrive")
     .eq("ms_item_kind", "folder")
     .order("ms_linked_at")
@@ -169,6 +218,28 @@ export async function findExistingFolder(
   if (error || !Array.isArray(data)) return "error";
   const row = data[0];
   return isRecord(row) && typeof row.id === "string" ? { id: row.id } : null;
+}
+
+/** Parent project's linked SharePoint folder when matching the org default drive. */
+async function findProjectParentFolder(
+  deps: HandlerDeps,
+  projectId: string,
+  driveId: string,
+): Promise<string | null | "error"> {
+  const { data, error } = await deps.callerClient!
+    .from("project_documents")
+    .select("id,ms_drive_id,ms_item_id,ms_linked_at")
+    .eq("project_id", projectId)
+    .is("work_order_id", null)
+    .eq("source", "onedrive")
+    .eq("ms_item_kind", "folder")
+    .order("ms_linked_at")
+    .order("id")
+    .limit(1);
+  if (error || !Array.isArray(data)) return "error";
+  const row = data[0];
+  if (!isRecord(row) || row.ms_drive_id !== driveId) return null;
+  return safeGraphId(row.ms_item_id) ? row.ms_item_id : null;
 }
 
 export async function readDefaultSnapshot(
@@ -280,19 +351,26 @@ async function linkedElsewhere(
   driveId: string,
   itemIds: string[],
 ): Promise<Set<string>> {
-  const project = target.kind === "project";
-  const { data, error } = await deps.callerClient!
-    .from(project ? "project_documents" : "procurement_documents")
-    .select("ms_item_id")
+  const isProc = target.kind === "procurement";
+  let query = deps.callerClient!
+    .from(isProc ? "procurement_documents" : "project_documents")
+    .select(target.kind === "work_order" ? "ms_item_id,work_order_id" : "ms_item_id")
     .eq("source", "onedrive")
     .eq("ms_item_kind", "folder")
     .eq("ms_drive_id", driveId)
-    .in("ms_item_id", itemIds)
-    .neq(project ? "project_id" : "procurement_id", target.id);
+    .in("ms_item_id", itemIds);
+  if (target.kind === "project") {
+    query = query.is("work_order_id", null).neq("project_id", target.id);
+  } else if (isProc) {
+    query = query.neq("procurement_id", target.id);
+  }
+  const { data, error } = await query;
   const taken = new Set<string>();
   if (error || !Array.isArray(data)) return taken;
   for (const row of data) {
-    if (isRecord(row) && typeof row.ms_item_id === "string") taken.add(row.ms_item_id);
+    if (!isRecord(row) || typeof row.ms_item_id !== "string") continue;
+    if (target.kind === "work_order" && row.work_order_id === target.id) continue;
+    taken.add(row.ms_item_id);
   }
   return taken;
 }
@@ -352,6 +430,17 @@ function parentFailureResult(parent: ParentFailure): HandlerResult {
   }
 }
 
+export async function folderCategoryVisible(
+  deps: HandlerDeps,
+  orgId: string,
+): Promise<boolean | "error"> {
+  const { data, error } = await deps.callerClient!.rpc("m365_folder_category_visible", {
+    p_org_id: orgId,
+  });
+  if (error) return "error";
+  return data === true;
+}
+
 /** Per-user throttle (availability guard, fail-open like every request-rate limiter): 429 when exceeded. */
 export async function folderRateLimited(
   deps: HandlerDeps,
@@ -377,6 +466,7 @@ export async function folderRateLimited(
 export async function authorizeFolderCaller(
   deps: HandlerDeps,
   requireRole: (role: string) => boolean,
+  allowProjectAdmin = false,
 ): Promise<{ orgId: string } | HandlerResult> {
   if (!deps.callerClient) {
     return failure(500, "INTERNAL_ERROR", "caller client missing");
@@ -387,7 +477,12 @@ export async function authorizeFolderCaller(
       serviceClient: deps.serviceClient,
       userId: deps.userId,
     });
-    return requireRole(role) ? { orgId } : DENIED();
+    if (requireRole(role)) return { orgId };
+    if (allowProjectAdmin && role === "Engineer") {
+      const { data, error } = await deps.callerClient.rpc("actor_holds_job_role", { p_key: "project_administrator" });
+      if (!error && data === true) return { orgId };
+    }
+    return DENIED();
   } catch (err) {
     if (err instanceof M365HandlerError) return errorResult(err);
     throw err;
@@ -406,7 +501,11 @@ export async function handleEnsureRecordFolder(
   }
   const target: RecordFolderTarget = { kind: request.kind, id: request.id };
 
-  const caller = await authorizeFolderCaller(deps, (role) => WRITER_ROLES.has(role));
+  const caller = await authorizeFolderCaller(
+    deps,
+    (role) => WRITER_ROLES.has(role),
+    target.kind === "work_order",
+  );
   if ("status" in caller) return caller;
 
   const record = await loadRecord(deps, caller.orgId, target);
@@ -424,7 +523,25 @@ export async function handleEnsureRecordFolder(
   if (snapshot === "error") return NO_PARENT_READ();
   if (snapshot === "unset") return outcomeResult({ state: "default_unset" });
   if (!record.identity) return outcomeResult({ state: "missing_identifier" });
-  const identity = record.identity;
+
+  if (target.kind === "project" || target.kind === "work_order") {
+    const visible = await folderCategoryVisible(deps, caller.orgId);
+    if (visible === "error") return NO_PARENT_READ();
+    if (!visible) return DENIED(); // mutation-witness:folder-category-visible
+  }
+
+  let identity = record.identity;
+  if (target.kind === "work_order" && record.projectId) {
+    const parentItemId = await findProjectParentFolder(deps, record.projectId, snapshot.drive_id);
+    if (parentItemId === "error") return NO_PARENT_READ();
+    if (parentItemId) {
+      identity = { ...identity, convention: { ...identity.convention, parentItemId } };
+    } else if (record.projectFolderName) {
+      identity = { ...identity, convention: { ...identity.convention, parentSegments: ["Projects", record.projectFolderName] } };
+    } else {
+      return outcomeResult({ state: "missing_identifier" });
+    }
+  }
 
   const limited = await folderRateLimited(deps, "ensure_record_folder", 30);
   if (limited) return limited;
@@ -471,12 +588,14 @@ async function createAndLink(
   ) return linkFailureResult("default_changed");
 
   const onCreated = recordFolderCreatedFor(deps, target);
-  const parents = await ensureConventionParents(
-    access,
-    snapshot.drive_id,
-    identity.convention.parentSegments,
-    onCreated,
-  );
+  const parents = identity.convention.parentItemId
+    ? { ok: true as const, parentId: identity.convention.parentItemId }
+    : await ensureConventionParents(
+      access,
+      snapshot.drive_id,
+      identity.convention.parentSegments,
+      onCreated,
+    );
   if (!parents.ok) return parentFailureResult(parents.failure);
   const leaf = await resolveOrCreateFolder(
     access,

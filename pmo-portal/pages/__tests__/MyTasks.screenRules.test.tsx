@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -20,17 +21,20 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
 }));
 
 vi.mock('@/src/hooks/useTaskLinkedRecords', () => ({ useTaskLinkedRecords: () => ({ data: undefined }) }));
+vi.mock('@/src/auth/useAuth', () => ({
+  useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' }, role: 'Engineer' }),
+}));
 
 import MyTasks from '../MyTasks';
 
 const renderMyTasks = () => render(
-  <ImpersonationProvider realRole="Engineer">
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ImpersonationProvider realRole="Engineer">
     <MemoryRouter>
       <ToastProvider>
         <MyTasks />
       </ToastProvider>
     </MemoryRouter>
-  </ImpersonationProvider>,
+  </ImpersonationProvider></QueryClientProvider>,
 );
 
 beforeEach(() => {

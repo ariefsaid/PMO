@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ListState } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyDeliveries, useMyHome, useMyTaskStatus } from '@/src/hooks/useMyHome';
-import { AbsentTodaySection, ClockInSection, DeliveriesSection, MyIssues, MyTasks, MyWorkOrders } from '@/src/components/my';
+import { AbsentTodaySection, ClockInSection, DeliveriesSection, MyIssues, MyNotices, MyTasks, MyWorkOrders } from '@/src/components/my';
 import { CrewRoster } from './myHome/CrewRoster';
 
 /**
@@ -34,6 +34,7 @@ const MyHome: React.FC = () => {
             {isForeman && <CrewRoster today={home.data.today} workOrders={home.data.work_orders} />}
             <DeliveriesSection deliveries={deliveries.data ?? []} />
             <MyIssues issues={home.data.issues} />
+            <MyNotices />
           </>
         )}
     </main>

@@ -14460,6 +14460,7 @@ export type Database = {
           stock_transfer_mode: string
           stock_wo_transfers: boolean
           tax_prepaid_account: string | null
+          work_in_hand_monthly_capacity: number | null
           work_order_checklist_enabled: boolean
         }
         Insert: {
@@ -14530,6 +14531,7 @@ export type Database = {
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_in_hand_monthly_capacity?: number | null
           work_order_checklist_enabled?: boolean
         }
         Update: {
@@ -14600,6 +14602,7 @@ export type Database = {
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_in_hand_monthly_capacity?: number | null
           work_order_checklist_enabled?: boolean
         }
         Relationships: [
@@ -17635,6 +17638,7 @@ export type Database = {
           source: Database["public"]["Enums"]["doc_source"] | null
           status: Database["public"]["Enums"]["doc_status"]
           title: string
+          work_order_id: string | null
         }
         Insert: {
           author_id?: string | null
@@ -17665,6 +17669,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title: string
+          work_order_id?: string | null
         }
         Update: {
           author_id?: string | null
@@ -17695,6 +17700,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -25630,6 +25636,7 @@ export type Database = {
           position: number
           project_id: string
           skipped_by: string | null
+          skipped_reason: string | null
           skipped_on: string | null
           started_on: string | null
           target_days: number | null
@@ -25651,6 +25658,7 @@ export type Database = {
           position: number
           project_id: string
           skipped_by?: string | null
+          skipped_reason?: string | null
           skipped_on?: string | null
           started_on?: string | null
           target_days?: number | null
@@ -25672,6 +25680,7 @@ export type Database = {
           position?: number
           project_id?: string
           skipped_by?: string | null
+          skipped_reason?: string | null
           skipped_on?: string | null
           started_on?: string | null
           target_days?: number | null
@@ -37868,7 +37877,7 @@ export type Database = {
         Args: { p_reason: string; p_stage: string }
         Returns: undefined
       }
-      skip_work_order_step: { Args: { p_step: string }; Returns: undefined }
+      skip_work_order_step: { Args: { p_reason: string; p_step: string }; Returns: undefined }
       spc_derive: { Args: { p_cert: string }; Returns: Json }
       spc_may_prepare: { Args: { p_project: string }; Returns: boolean }
       spc_may_read: { Args: { p_project: string }; Returns: boolean }

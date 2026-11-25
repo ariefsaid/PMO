@@ -50,6 +50,15 @@ describe('AC-M365DOC-071 — ensureRecordFolder transport', () => {
     expect(out).toEqual({ state: 'created', document_id: DOC });
   });
 
+  it('sends kind: work_order for work-order cloud folders', async () => {
+    invoke.mockResolvedValueOnce({ data: { state: 'created', document_id: DOC }, error: null });
+    const out = await ensureRecordFolder({ kind: 'work_order', id: ID });
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', {
+      body: { action: 'ensure_record_folder', kind: 'work_order', id: ID },
+    });
+    expect(out).toEqual({ state: 'created', document_id: DOC });
+  });
+
   it.each(['needs_choice', 'default_unset', 'missing_identifier'] as const)(
     'decodes the %s domain outcome',
     async (state) => {

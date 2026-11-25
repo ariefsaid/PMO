@@ -53,6 +53,8 @@ export interface QuantityVersion {
   request_id: string | null;
   created_by: string | null;
   created_at: string;
+  /** The reason on the request line that produced this version (change_request versions only). */
+  reason?: string;
 }
 export interface QuantityVersionRow extends QuantityVersion {
   valueCents: bigint | null;

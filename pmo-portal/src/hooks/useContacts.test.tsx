@@ -246,6 +246,14 @@ describe('useContactMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['contacts'] });
   });
 
+  it('#2888 update invalidates the record history', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useContactMutations(), { wrapper: wrap(client) });
+    await act(async () => { await result.current.update.mutateAsync({ id: 'ct1', input: contactInput }); });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['record-history', 'org-1'] });
+  });
+
   it('update invokes the repository with id + input', async () => {
     const { result } = renderHook(() => useContactMutations(), { wrapper: wrap(freshClient()) });
     await act(async () => {

@@ -1,4 +1,4 @@
-export type RecordFolderTarget = { kind: 'project' | 'procurement'; id: string };
+export type RecordFolderTarget = { kind: 'project' | 'procurement' | 'work_order'; id: string };
 export type RecordFolderOutcome =
   | { state: 'already_linked' | 'linked' | 'created'; document_id: string }
   | { state: 'needs_choice' | 'default_unset' | 'missing_identifier' };

@@ -531,6 +531,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Months of backlog** — Left to bill divided by the current billing rate, to one decimal; undefined (shown as "no billing rate") when the rate is undefined.
 
+**Monthly work capacity** — an Admin-configured monthly production capacity in the organisation's currency (`organizations.work_in_hand_monthly_capacity`), used to divide the organisation-currency value of work in hand into **months of work in hand**; other currencies are shown separately and not converted or included in months.
+
 ## Expenses & vendor tax
 
 **Expense claim** — a claimant's numbered staff expense record, whose amount is the sum of its lines, with purpose, currency, approval and payment state, optionally assigned to a project.

@@ -51,8 +51,12 @@ export async function sendForApproval(page: import('@playwright/test').Page) {
   const dest = page.getByLabel('Deliver to');
   if (await dest.isVisible() && !(await dest.inputValue())) await dest.selectOption({ index: 1 });
   await send.click();
-  if (await reason.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false) && !(await reason.inputValue())) {
-    await reason.fill('Extra for the slab');
-    if (await send.isEnabled()) await send.click();
+  if (await reason.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false)) {
+    // The request may already be on its way (the reason box can show while it is sent): give the page its own page first.
+    const sent = await page.waitForURL(/\/material-requests\/[0-9a-f-]{36}$/, { timeout: 2_000 }).then(() => true, () => false);
+    if (!sent && !(await reason.inputValue())) {
+      await reason.fill('Extra for the slab');
+      if (await send.isEnabled()) await send.click();
+    }
   }
 }

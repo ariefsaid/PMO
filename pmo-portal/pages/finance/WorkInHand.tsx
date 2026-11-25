@@ -8,6 +8,7 @@ import { useFigureReport, type HiddenFigure } from '@/src/components/ui/useFigur
 import { AccessDenied } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useWorkInHand } from '@/src/hooks/useWorkInHand';
+import { WorkInHandSummary } from '@/src/components/workInHand/WorkInHandSummary';
 import { formatExactCents } from '@/src/lib/exactDecimal';
 import { formatDay, formatExactMoney, formatMonthYearShort } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -51,7 +52,7 @@ const Totals: React.FC<{ group: WipCurrencyGroup }> = ({ group }) => {
   const tot: WipTotals = group.totals;
   const ratePresent = tot.ratePerMonthCents > 0n;
   return (
-    <KPIRow aria-label={group.currency} className="grid-cols-1 min-[640px]:grid-cols-3">
+    <KPIRow aria-label={group.currency} className="grid-cols-1 min-[640px]:grid-cols-2">
       <KPITile
         icon="grid" tone="blue" label={t('tile.left', 'Left to bill')}
         value={money(tot.leftToBillCents, group.currency)}
@@ -60,12 +61,6 @@ const Totals: React.FC<{ group: WipCurrencyGroup }> = ({ group }) => {
         icon="grid" tone="blue" label={t('tile.rate', 'Billing rate per month')}
         value={ratePresent ? money(tot.ratePerMonthCents, group.currency) : null}
         unavailableReason={ratePresent ? undefined : t('tile.rateUnknown', 'no row has a billing rate')}
-      />
-      <KPITile
-        icon="grid" tone="blue" label={t('tile.backlog', 'Months of backlog')}
-        value={tot.backlogTenths === null ? null : formatBacklogTenths(tot.backlogTenths)}
-        caption={tot.leftOutCount > 0 ? t('tile.backlogCaption', { count: tot.leftOutCount, defaultValue_one: '{{count}} row has no rate', defaultValue_other: '{{count}} rows have no rate' }) : undefined}
-        unavailableReason={tot.backlogTenths === null ? t('tile.rateUnknown', 'no row has a billing rate') : undefined}
       />
     </KPIRow>
   );
@@ -226,7 +221,7 @@ const WorkInHand: React.FC = () => {
       help={<>
         <p>{t('help.leftToBill', 'Left to bill is the value not yet invoiced: the contract or work-order value less invoiced work, before tax. Draft and cancelled invoices do not count.')}</p>
         <p>{t('help.rate', 'Billing rate per month is invoiced work in the last 6 complete months, divided by the months since billing began (at most 6).')}</p>
-        <p>{t('help.backlog', 'Months of backlog is Left to bill divided by the billing rate. A contract and its work orders are shown together and never added.')}</p>
+        <p>{t('help.backlog', "Months of backlog per row is Left to bill divided by the row's billing rate. Months of work in hand divides organisation-currency work in hand by the Admin's monthly capacity; other currencies are not converted or included.")}</p>
       </>}
       helpSubject={t('title', 'Work in hand')}
     />
@@ -258,6 +253,7 @@ const WorkInHand: React.FC = () => {
           <ListState variant="empty" title={t('empty.title', 'No contract is in work in hand')} action={{ label: t('empty.action', 'Open projects'), onClick: () => navigate('/projects') }} />
         ) : (
           <div className="space-y-[var(--space-panel-gap)]">
+            <WorkInHandSummary showLink={false} showHeader={false} testId="wih-capacity-summary" />
             {attention.length > 0 && (
               <Card role="region" aria-labelledby="wih-attention">
                 <CardHead id="wih-attention">{t('attention.title', 'Needs a look')}</CardHead>

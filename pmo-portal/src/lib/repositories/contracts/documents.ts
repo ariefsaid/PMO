@@ -19,6 +19,7 @@ export interface DocumentRepository {
     projectId: string,
     input: ProjectDocumentInput,
     authorId: string | null,
+    workOrderId?: string | null,
   ): Promise<ProjectDocumentRow>;
   /** Atomically link a Microsoft item; actor/time stamps are server-owned. */
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
