@@ -46,7 +46,7 @@ select ok(has_function_privilege('service_role','public.procurement_payment_allo
           and not has_function_privilege('authenticated','public.procurement_payment_allowed(uuid)','execute')
           and not has_function_privilege('anon','public.procurement_payment_allowed(uuid)','execute'),
   'C1 procurement_payment_allowed is executable by the service role only');
-select ok((select prosecdef and proconfig @> array['search_path=public, pg_catalog'] from pg_proc
+select ok((select prosecdef and proconfig @> array['search_path=public, pg_catalog, pg_temp'] from pg_proc
             where oid = 'public.procurement_payment_allowed(uuid)'::regprocedure),
   'C1 procurement_payment_allowed is SECURITY DEFINER with a pinned search_path');
 

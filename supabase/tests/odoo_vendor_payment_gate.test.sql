@@ -73,7 +73,7 @@ select is((select row(procurement_payment_allowed('05080000-0000-0000-0000-00000
 select ok(has_function_privilege('authenticated', 'public.resolve_held_outbox_command(uuid,text,text,text)', 'execute')
           and not has_function_privilege('anon', 'public.resolve_held_outbox_command(uuid,text,text,text)', 'execute'),
   'AC-OPP-064 resolve_held_outbox_command is executable by a signed-in member, never by anon');
-select ok((select prosecdef and proconfig @> array['search_path=public'] from pg_proc where oid = 'public.resolve_held_outbox_command(uuid,text,text,text)'::regprocedure),
+select ok((select prosecdef and proconfig @> array['search_path=public, pg_temp'] from pg_proc where oid = 'public.resolve_held_outbox_command(uuid,text,text,text)'::regprocedure),
   'AC-OPP-064 resolve_held_outbox_command is SECURITY DEFINER with a pinned search_path');
 
 -- ── 3) Who may not resolve ───────────────────────────────────────────────────────────────────────────────────────
