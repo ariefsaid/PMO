@@ -69,7 +69,7 @@ test('JOB-E1 a crane registered as rented from a vendor shows its terms and is o
 
   await page.goto('/equipment/availability');
   await page.getByRole('button', { name: 'Rental invoice check' }).click();
-  await expect(page.getByLabel('Rented machine').locator('option', { hasText: code })).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.getByLabel('Rented machine').locator('option', { hasText: `${code} Mobile crane` })).toHaveCount(1, { timeout: 20_000 });
 });
 
 test('JOB-E1 the equipment officer registers a rented crane with vendor and rate, puts it on a work order, and the work order lists it from that date', async ({ page }) => {

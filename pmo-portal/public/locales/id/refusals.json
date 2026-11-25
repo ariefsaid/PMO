@@ -551,5 +551,6 @@
   "IMPORT_EMPTY": "Tidak ada perintah kerja di dalam file.",
   "IMPORT_PROJECT": "Proyek tidak ditemukan.",
   "IMPORT_TOO_MANY": "Impor paling banyak 500 perintah kerja sekaligus.",
-  "IMPORT_ROW": "Baris {{row}} ditolak, jadi tidak ada yang diimpor: {{reason}}"
+  "IMPORT_ROW": "Baris {{row}} ditolak, jadi tidak ada yang diimpor: {{reason}}",
+  "EQ_TERMS_OWNED": "Syarat sewa hanya dapat diisi pada mesin sewaan. Minta Admin mengubah kepemilikannya terlebih dahulu."
 }
