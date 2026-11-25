@@ -60,7 +60,18 @@ test('JOB-H1 HR officer imports new people from a spreadsheet while skipping inv
     await expect(dialog.getByText('New').first()).toBeVisible({ timeout: 15_000 });
     await expect(dialog.getByText('No change').first()).toBeVisible();
     await expect(dialog.getByText('1 invalid')).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Download rows not imported' })).toBeVisible();
+    // The failed-rows file: the invalid row on "Not imported", the existing person on "Already there".
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      dialog.getByRole('button', { name: 'Download rows not imported' }).click(),
+    ]);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(await download.path());
+    const cellsOf = (name: string) => (wb.getWorksheet(name)?.getSheetValues() ?? []).flatMap((r) => (Array.isArray(r) ? r : [])).map((v) => String(v ?? ''));
+    expect(cellsOf('Not imported')).toContain(codes.invalid);
+    expect(cellsOf('Not imported')).not.toContain(codes.existing);
+    expect(cellsOf('Already there')).toContain(codes.existing);
+    expect(cellsOf('Already there')).not.toContain(codes.invalid);
     await expect(dialog.getByRole('button', { name: 'Add 3' })).toBeEnabled();
     await dialog.getByRole('button', { name: 'Add 3' }).click();
 

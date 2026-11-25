@@ -1,8 +1,9 @@
-// @e2e-isolation: self-isolated — creates its own disposable HR officer and construction manager logins, project, work order, crew, people and leave type per run; reads the org leave setting without mutating it, and deletes all owned rows in finally.
+// @e2e-isolation: self-isolated — creates its own disposable HR officer and HR manager logins, project, work order, crew, people and leave type per run; reads the org leave setting without mutating it, and deletes all owned rows in finally.
 /**
- * JOB-H5 — HR officer submits leave on behalf of a worker, construction manager approves, and the roster marks the day.
- * The HR officer requests leave for a rostered crew member (cannot approve their own entry); the worker's direct
- * manager (a construction manager) approves the request; the work-order roster for that day marks the worker On leave.
+ * JOB-H5 — HR officer submits leave on behalf of a worker, the HR manager approves, and the roster marks the days.
+ * The worker has no line manager, so the request routes to the HR Managers (2260). The HR officer requests leave for a rostered
+ * crew member (cannot approve their own entry); the HR manager approves it; the work-order roster marks that worker On leave
+ * on both days of the leave.
  */
 import { test, expect } from '@playwright/test';
 import { visibleToast } from './helpers';
@@ -12,7 +13,7 @@ import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(240_000);
 
-test('JOB-H5 HR officer files leave for a worker, construction manager approves it, and the roster shows On leave', async ({ page }) => {
+test('JOB-H5 HR officer files leave for a worker, the HR manager approves it, and the roster shows On leave on both days', async ({ page }) => {
   const svc = serviceClient('JOB-H5');
   const org = need('org leave check', await svc.from('organizations').select('leave_requests_enabled').eq('id', ORG_ID).single());
   if (!org.leave_requests_enabled) {
@@ -21,7 +22,7 @@ test('JOB-H5 HR officer files leave for a worker, construction manager approves 
 
   const run = runId('h5');
   const hrOfficer = await roleJobUser(svc, 'hr_officer', runId('h5-hro'));
-  const manager = await roleJobUser(svc, 'construction_manager', runId('h5-cm'));
+  const hrManager = await roleJobUser(svc, 'hr_manager', runId('h5-hrm'));
   const startDay = inDays(3);
   const endDay = inDays(4);
   let projectId = '';
@@ -42,12 +43,12 @@ test('JOB-H5 HR officer files leave for a worker, construction manager approves 
       org_id: ORG_ID, name: `${run} Annual`,
     }).select('id').single()).id;
 
-    // Seed the worker with manager_id pointing to the Construction Manager, plus a second person so the Person picker always renders.
+    // Seed the worker with no line manager (so the HR Managers decide), plus a second person so the Person picker always renders.
     workerId = need('worker', await svc.from('people').insert({
-      org_id: ORG_ID, code: `${run}-W1`, kind: 'own', name: `${run} Crew Worker`, manager_id: manager.id,
+      org_id: ORG_ID, code: `${run}-W1`, kind: 'own', name: `${run} Crew Worker`,
     }).select('id').single()).id;
     sparePersonId = need('spare person', await svc.from('people').insert({
-      org_id: ORG_ID, code: `${run}-W2`, kind: 'own', name: `${run} Second Worker`, manager_id: manager.id,
+      org_id: ORG_ID, code: `${run}-W2`, kind: 'own', name: `${run} Second Worker`,
     }).select('id').single()).id;
 
     crewId = need('crew', await svc.from('crews').insert({
@@ -75,21 +76,24 @@ test('JOB-H5 HR officer files leave for a worker, construction manager approves 
     // Separation of duties: the entrant cannot approve their own request.
     await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
 
-    // 2. Construction manager (direct manager) opens Leave and approves the pending request.
-    await manager.signIn(page);
+    // 2. The HR manager opens Leave and approves the pending request.
+    await hrManager.signIn(page);
     await page.goto('/leave');
     await expect(page.getByText(/Waiting for your decision/)).toBeVisible({ timeout: 20_000 });
     await page.getByRole('listitem', { name: new RegExp(`${run} Crew Worker`) }).first().getByRole('button', { name: 'Approve' }).click();
     await expect(visibleToast(page, 'Leave approved')).toBeVisible({ timeout: 15_000 });
 
-    // 3. Goal: the work-order roster for the approved leave day marks the worker On leave.
-    await page.goto(`/crews?view=roster&wo=${workOrderId}&date=${startDay}`);
-    await expect(page.getByText(`${run} Crew Worker`)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('On leave')).toBeVisible({ timeout: 20_000 });
+    // 3. Goal: the roster marks THIS worker On leave on both days of the leave.
+    for (const day of [startDay, endDay]) {
+      await page.goto(`/crews?view=roster&wo=${workOrderId}&date=${day}`);
+      const workerRow = page.getByRole('listitem').filter({ hasText: `${run} Crew Worker` });
+      await expect(workerRow).toBeVisible({ timeout: 20_000 });
+      await expect(workerRow.getByText('On leave')).toBeVisible({ timeout: 20_000 });
+    }
   } finally {
     if (leaveTypeId) {
       sqlAsOwner(`
-        delete from notifications where owner_id in ('${hrOfficer.id}', '${manager.id}');
+        delete from notifications where owner_id in ('${hrOfficer.id}', '${hrManager.id}');
         delete from leave_requests where leave_type_id = '${leaveTypeId}';
         delete from leave_types where id = '${leaveTypeId}';
       `);
@@ -106,6 +110,6 @@ test('JOB-H5 HR officer files leave for a worker, construction manager approves 
     if (workOrderId) ok('work order cleanup', await svc.from('work_orders').delete().eq('id', workOrderId));
     if (projectId) ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     await hrOfficer.cleanup();
-    await manager.cleanup();
+    await hrManager.cleanup();
   }
 });
