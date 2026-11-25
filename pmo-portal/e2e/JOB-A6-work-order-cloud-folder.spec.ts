@@ -24,6 +24,7 @@ async function mockCloudProvider(page: Page, woId: string, projectId: string, re
       contentType: 'application/json',
       body: JSON.stringify([{
         default_site_id: SITE,
+        default_site_name: 'Docs site',
         default_drive_id: DRIVE,
         default_drive_name: 'Documents',
         default_site_url: 'https://synthetic.sharepoint.com/sites/docs',
@@ -102,7 +103,7 @@ test('JOB-A6 TC-PA-13 Project Administrator creates and uploads work-order docum
     await expect(page.getByText(`${run} WO drawing`)).toBeVisible({ timeout: 15_000 });
 
     const chooserPromise = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Choose document file' }).click();
+    await page.getByRole('button', { name: /Upload/i }).click();
     const chooser = await chooserPromise;
     await chooser.setFiles({ name: 'wo-drawing.pdf', mimeType: 'application/pdf', buffer: PDF });
 
@@ -110,8 +111,9 @@ test('JOB-A6 TC-PA-13 Project Administrator creates and uploads work-order docum
     expect(recorded.ensureBodies).toContainEqual({ action: 'ensure_record_folder', kind: 'work_order', id: wo.id });
 
     // Project Administrator does not gain project-level document create rights
-    await page.goto(`/projects/${projectId}?tab=documents`);
-    await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible({ timeout: 20_000 });
+    await page.goto(`/projects/${projectId}`);
+    await page.getByRole('tab', { name: /^Documents/ }).click();
+    await expect(page.getByRole('heading', { name: 'Document register' })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('button', { name: 'Add document' })).toHaveCount(0);
   } finally {
     await cleanupAll(svc, [

@@ -17,7 +17,6 @@ let officer: Awaited<ReturnType<typeof createJobRoleUser>> | undefined;
 test.afterEach(async () => {
   try {
     if (!admin) return;
-    const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`JOB-BQ5 cleanup ${step}: ${e.message}`); };
     if (acceptanceId) {
       // Acceptances are managed by their RPC (a delete is refused for every client): this run's rows go as the database owner.
       sqlAsOwner(`delete from public.work_order_acceptance_lines where acceptance_id = '${acceptanceId}'; delete from public.work_order_acceptances where id = '${acceptanceId}';`);
@@ -35,7 +34,7 @@ test.afterEach(async () => {
 test('JOB-BQ5 a claim of 90 against an accepted 80 warns, is kept at 90, and accepted stays 80', async ({ page }) => {
   const db = serviceClient('JOB-BQ5');
   admin = db;
-  fx = await createBillingFixture(db, runId('JOBBQ5'), { workOrderValue: 1_000_000, lineQuantity: 100 });
+  fx = await createBillingFixture(db, runId('JOBBQ5'), { workOrderValue: 9_000_000, lineQuantity: 100 } /* the order must be worth the 90 km claimed (4,500,000) */);
   officer = await createJobRoleUser(db, ORG_ID, 'billing_officer');
   // The contract line and its work-order allocation are created large enough to hold the client's accepted 80 (a line with progress cannot be resized).
   const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
@@ -45,8 +44,8 @@ test('JOB-BQ5 a claim of 90 against an accepted 80 warns, is kept at 90, and acc
   }).select('id').single()).id as string;
   ok('acceptance line', await db.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: fx.boqId, quantity: 80 }));
 
-  // The order's contract-quantities table carries the item's accepted (confirmed BAST) quantity in its Delivered column.
-  const acceptedOf = (item: string) => page.getByRole('table', { name: /^Contract quantities for/ }).getByRole('row').filter({ hasText: item }).getByRole('cell').nth(2);
+  // The order's contract-quantities table carries the item's accepted (confirmed BAST) quantity in its Delivered column (the only figure with the unit beside it).
+  const acceptedOf = (item: string) => page.getByRole('table', { name: /^Contract quantities for/ }).getByRole('row').filter({ hasText: item });
   await officer.signIn(page);
   await page.goto(`/projects/${fx.projectId}/contract`);
   await expect(acceptedOf('Route survey')).toContainText(/80 km/, { timeout: 15_000 });

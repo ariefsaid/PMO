@@ -17,6 +17,8 @@ let workOrderId = '';
 let companyId = '';
 let templateId = '';
 let savedTemplateIds: string[] = [];
+// The logins go last: the templates, steps and orders they made reference their profiles, so deleting a login first fails.
+let users: Awaited<ReturnType<typeof createJobRoleUser>>[] = [];
 let priorChecklist = false;
 let priorDefault: string | null = null;
 
@@ -56,12 +58,15 @@ test.afterEach(async () => {
     fail('project', (await admin.from('projects').delete().eq('id', projectId)).error);
   }
   if (companyId) fail('client', (await admin.from('companies').delete().eq('id', companyId)).error);
+  const gone = users; users = [];
+  for (const u of gone) await u.remove();
 });
 
 test('JOB-BQ4 a work order takes its steps from a template and an added step leaves the template unchanged', async ({ page }) => {
   const db = admin as SupabaseClient;
   const adminUser = await createJobRoleUser(db, ORG_ID, 'administrator');
   const billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
+  users = [adminUser, billing];
   try {
     // 1. An Admin allows editing issued work-order checklists.
     await adminUser.signIn(page);
@@ -118,7 +123,6 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     const savedSteps = need('saved template steps', await db.from('billing_step_template_steps').select('id').eq('template_id', saved.id as string));
     expect(savedSteps.length).toBe(2);
   } finally {
-    await adminUser.remove();
-    await billing.remove();
+    // (the logins are removed in afterEach, after the rows they made)
   }
 });

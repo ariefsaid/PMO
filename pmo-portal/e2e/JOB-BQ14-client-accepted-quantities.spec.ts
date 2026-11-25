@@ -16,27 +16,32 @@ test.setTimeout(180_000);
 let admin: SupabaseClient | undefined;
 let fx: BillingFixture | undefined;
 let acceptanceId = '';
+// The logins go after the claim they raised: the claim references its creator, so deleting a login first fails.
+let users: { remove(): Promise<void> }[] = [];
 
 test.afterEach(async () => {
   if (!admin) return;
-  const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`JOB-BQ14 cleanup ${step}: ${e.message}`); };
   if (acceptanceId) {
     // Acceptances are managed by their RPC (a delete is refused for every client): this run's rows go as the database owner.
     sqlAsOwner(`delete from public.work_order_acceptance_lines where acceptance_id = '${acceptanceId}'; delete from public.work_order_acceptances where id = '${acceptanceId}';`);
     acceptanceId = '';
   }
-  if (fx) fail('surveys', (await admin.from('survey_records').delete().eq('work_order_id', fx.workOrderId)).error);
+  // Confirmed surveys are frozen for every client (SVY_FROZEN): this run's rows go as the database owner.
+  if (fx) sqlAsOwner(`delete from public.survey_records where work_order_id = '${fx.workOrderId}';`);
   await cleanupBilling(admin, fx);
   fx = undefined;
+  const gone = users; users = [];
+  for (const u of gone) await u.remove();
 });
 
 test('JOB-BQ14 measured and accepted quantities show per item and a claim is pre-filled from the accepted one', async ({ page }) => {
   const db = serviceClient('JOB-BQ14');
   admin = db;
   const run = runId('bq14');
-  fx = await createBillingFixture(db, run);
+  fx = await createBillingFixture(db, run, { workOrderValue: 1_000_000 }); // the order must be worth the 12 km claimed (600,000)
   const qs = await createJobRoleUser(db, ORG_ID, 'quantity_surveyor');
   const financeRole = await createJobRoleUser(db, ORG_ID, 'finance_officer');
+  users = [qs, financeRole];
   try {
     const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
     // Two surveys certified on the item (8 + 4 m), and the client's confirmed BAST accepting 12 m.
@@ -57,8 +62,8 @@ test('JOB-BQ14 measured and accepted quantities show per item and a claim is pre
     // 2. The quantity surveyor reads the item's measured and accepted quantities on the billing tab.
     await qs.signIn(page);
     await page.goto(`/projects/${fx.projectId}/contract`);
-    // The order's contract-quantities table carries the item's accepted (confirmed BAST) quantity in its Delivered column.
-    const deliveredOf = (item: string) => page.getByRole('table', { name: /^Contract quantities for/ }).getByRole('row').filter({ hasText: item }).getByRole('cell').nth(2);
+    // The order's contract-quantities table carries the item's accepted (confirmed BAST) quantity in its Delivered column (the only figure with the unit beside it).
+    const deliveredOf = (item: string) => page.getByRole('table', { name: /^Contract quantities for/ }).getByRole('row').filter({ hasText: item });
     await expect(deliveredOf('Route survey')).toContainText(/12 km/, { timeout: 15_000 });
 
     // 3–4. A new claim for the work order arrives pre-filled from the accepted quantity, and records it per item.
@@ -68,6 +73,8 @@ test('JOB-BQ14 measured and accepted quantities show per item and a claim is pre
     await page.getByRole('button', { name: /new claim/i }).click();
     const form = page.getByRole('dialog');
     await form.getByLabel(/^Bills$/i).selectOption(fx.workOrderId);
+    // The form offers the surveyed quantities as its starting point (one click); the line then holds the accepted 12.
+    await form.getByRole('button', { name: /^Start from the (surveyed|accepted BAST) quantities$/ }).click();
     await expect(form.getByLabel(/SURVEY/)).toHaveValue('12');
     await expect(form.getByTestId(`claim-survey-${fx.boqId}`)).toContainText(/Surveyed 12/);
     await form.getByRole('button', { name: /create claim/i }).click();
@@ -77,7 +84,6 @@ test('JOB-BQ14 measured and accepted quantities show per item and a claim is pre
     const cells = reconciliation.getByRole('row').filter({ hasText: 'Route survey' }).getByRole('cell');
     await expect(cells.nth(2)).toHaveText('12');
   } finally {
-    await qs.remove();
-    await financeRole.remove();
+    // (the logins are removed in afterEach, after the rows they made)
   }
 });
