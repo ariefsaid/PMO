@@ -18,9 +18,13 @@
 -- shape the work-order billing steps read, 1774/1936); never a light (field) account, which cannot open the item.
 -- The read is SECURITY INVOKER, so the role test goes through a definer helper: holds_job_role itself is not granted
 -- to authenticated (1840), and the invoker body runs with the caller's grants (as 1774 wraps wo_step_owner_matches).
+-- The helper answers only about the caller, returns one boolean and writes nothing; a light (field) job-role key is
+-- never a match, so it answers false for field accounts (AC-LA-014's helper rule).
 create function public.actor_holds_owner_job_role(p_key text) returns boolean
   language sql stable security definer set search_path = pg_catalog, public as $$
-  select coalesce(p_key is not null and public.holds_job_role(auth.uid(), p_key), false)                     -- mut:closeout_owner_read
+  select coalesce(p_key is not null
+                  and not public.is_light_role_key(p_key)                                          -- mut:closeout_owner_light_key
+                  and public.holds_job_role(auth.uid(), p_key), false)                             -- mut:closeout_owner_read
 $$;
 revoke all on function public.actor_holds_owner_job_role(text) from public, anon;
 grant execute on function public.actor_holds_owner_job_role(text) to authenticated, service_role;

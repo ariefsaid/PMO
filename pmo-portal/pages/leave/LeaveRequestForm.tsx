@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useLeaveMutations, useLeaveTypes } from '@/src/hooks/useLeave';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useLeaveErrorText } from '../crews/crewErrors';
 
 interface Requestable { id: string; name: string; is_self: boolean }
@@ -33,10 +33,11 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
   const people = useRequestablePeople();
   const types = useLeaveTypes();
   const { submit } = useLeaveMutations();
+  const today = useOrgToday();
   const liveTypes = (types.data ?? []).filter((x) => !x.archived_at);
   const [personId, setPersonId] = useState('');
   const [typeId, setTypeId] = useState('');
-  const [start, setStart] = useState(toIso(new Date()));
+  const [start, setStart] = useState(today);
   const [end, setEnd] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<SubmitError | null>(null);

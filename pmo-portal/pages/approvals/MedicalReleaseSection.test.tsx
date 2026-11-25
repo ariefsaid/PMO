@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -100,6 +101,24 @@ describe('medical release section (AC-MR-009)', () => {
     await user.selectOptions(screen.getByLabelText(/Person/), 'p1');
     await user.click(screen.getByRole('button', { name: 'Open release' }));
     expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ personId: 'p1', note: null }));
+  });
+
+  it('#1126 the return date starts on the organisation\'s day, not the browser\'s', async () => {
+    const user = userEvent.setup();
+    h.canEnter = true;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-30T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      page();
+      await user.click(screen.getByRole('button', { name: 'Open a release' }));
+      await user.selectOptions(screen.getByLabelText(/Person/), 'p1');
+      await user.click(screen.getByRole('button', { name: 'Open release' }));
+      expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ personId: 'p1', date: '2026-12-01', note: null }));
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
 
   it('an Admin withdraws a waiting release with a reason (1934)', async () => {
