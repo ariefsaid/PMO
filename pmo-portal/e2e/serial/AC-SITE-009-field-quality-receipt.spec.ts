@@ -17,7 +17,7 @@ test('AC-SITE-009 the field receiver counts nine of ten and records the required
   const unit=must('unit',await db.from('stock_units').insert({org_id:ORG_ID,code:run.slice(0,8),name:'Piece',whole_only:true}).select('id').single()).id;
   const item=must('item',await db.from('stock_items').insert({org_id:ORG_ID,code:run.slice(0,8),name:`Goods ${run}`,unit_id:unit,needs_quality_check:true}).select('id').single()).id;
   const wh:string[]=[]; for(const name of ['Origin','Destination']) wh.push(must('location',await db.from('stock_warehouses').insert({org_id:ORG_ID,code:`${name}-${run.slice(0,8)}`,name:`${name} ${run}`,kind:'central'}).select('id').single()).id);
-  must('opening stock',await sender.rpc('create_stock_document',{p_header:{kind:'receive',warehouse_id:wh[0]},p_lines:[{item_id:item,quantity:10,unit_cost:0}],p_post:true}));
+  must('opening stock',await sender.rpc('create_stock_document',{p_header:{kind:'receive',warehouse_id:wh[0]},p_lines:[{item_id:item,quantity:10,unit_cost:0,rejected:0}],p_post:true}));
   const transfer=must('send',await sender.rpc('send_stock_transfer',{p_header:{warehouse_id:wh[0],to_warehouse_id:wh[1],to_user_id:users[1]},p_lines:[{item_id:item,quantity:10}],p_client_request_id:crypto.randomUUID()}));
   await page.goto('/login'); await page.getByLabel(/email/i).fill(`receiver-${run}@example.invalid`); await page.getByLabel(/password/i).fill(password); await page.getByRole('button',{name:/sign in/i}).click(); await expect(page).toHaveURL(/\/my$/);
   await page.getByRole('region', { name: 'A delivery for you' }).getByRole('link',{name:/Count and confirm/}).click(); await expect(page).toHaveURL(new RegExp(`/stock/transfers/${transfer}$`)); await expect(page.getByText(`Goods ${run}`,{exact:false})).toBeVisible();

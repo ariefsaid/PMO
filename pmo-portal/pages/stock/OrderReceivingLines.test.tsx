@@ -15,7 +15,7 @@ describe('order receiving counted lines', () => {
       render(<I18nextProvider i18n={instance}><OrderReceivingLines lines={[
         { id: 'a', name: 'Goods', stock_item_id: 'stock', stock_name: 'Goods', unit: 'pc' },
         { id: 'b', name: 'Service', stock_item_id: null, stock_name: null, unit: null },
-      ]} quantities={{}} onChange={() => {}} /></I18nextProvider>);
+      ]} quantities={{}} onChange={() => {}} checks={{}} onCheck={() => {}} /></I18nextProvider>);
       expect(screen.getByText(language === 'en' ? 'Service or direct use: use the existing receipt path.' : 'Jasa atau pemakaian langsung: gunakan penerimaan yang sudah ada.')).toBeInTheDocument();
       expect(screen.getAllByRole('textbox')).toHaveLength(1);
       expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
