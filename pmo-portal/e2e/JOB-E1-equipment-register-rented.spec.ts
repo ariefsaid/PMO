@@ -99,7 +99,7 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   await pickComboboxOption(page, page, /^Project/, new RegExp(`${code} rented crane$`));
   await pickComboboxOption(page, page, /^Work order/, new RegExp(wo.title));
   await page.getByRole('button', { name: 'Add', exact: true }).click();
-  const row = page.getByRole('row', { name: new RegExp(`${pmCode}.*${code} rented crane`) }).first();
+  const row = page.getByRole('row', { name: new RegExp(`Rented crane.*${code} rented crane`) }).first();
   const cell = row.getByRole('textbox').nth(weekdayIndex);
   await cell.fill('8');
   await cell.press('Enter');
@@ -118,5 +118,5 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   await page.goto(`/work-orders/${wo.workOrderId}`);
   const equipment = page.getByTestId('cost-group-equipment_usage');
   await expect(equipment).toContainText(pmCode, { timeout: 20_000 });
-  await expect(equipment).toContainText(new RegExp(`\\b${workDay.getDate()} [A-Z][a-z]{2}( \\d{4})? · 8 hours`));
+  await expect(equipment).toContainText(new RegExp(`(?<!\\d)${workDay.getDate()} [A-Z][a-z]{2}( \\d{4})? · 8 hours`));
 });

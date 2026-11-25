@@ -1023,6 +1023,13 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
     expect(can('configure', 'equipmentAvailability', { realRole: 'Finance' })).toBe(false);
   });
 
+  it('DD-R1124-17 the Equipment Officer job role enters and edits rental terms; an Engineer without it, and another job role, do not', () => {
+    expect(can('manage', 'equipmentAvailability', { realRole: 'Engineer', builtInRoleKey: 'equipment_officer' })).toBe(true);
+    expect(can('manage', 'equipmentAvailability', { realRole: 'Engineer', builtInRoleKey: 'equipment_officer', record: { viewOnly: true } })).toBe(false);
+    expect(can('manage', 'equipmentAvailability', { realRole: 'Engineer', builtInRoleKey: 'storekeeper' })).toBe(false);
+    expect(can('configure', 'equipmentAvailability', { realRole: 'Engineer', builtInRoleKey: 'equipment_officer' })).toBe(false);
+  });
+
   it('AC-EQU-017 only Admin and Finance set what an hour is worth — never a PM or an Executive', () => {
     expect(allowedRoles('manage', 'equipmentCosting')).toEqual(['Admin', 'Finance']);
     expect(can('manage', 'equipmentCosting', { realRole: 'Project Manager' })).toBe(false);
