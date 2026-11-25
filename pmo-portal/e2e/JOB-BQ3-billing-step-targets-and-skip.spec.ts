@@ -41,6 +41,8 @@ test('JOB-BQ3 a claim shows an overdue step and lets an optional step be marked 
     const drawer = page.getByRole('dialog');
     const stages = drawer.getByRole('list', { name: 'Billing stages' });
     const step = stages.getByRole('listitem', { name: `${run} joint survey` });
+    // The first load of the contract route compiles on the dev server; wait for the stage list itself before reading it.
+    await expect(step).toBeVisible({ timeout: 30_000 });
     await expect(step).toContainText(/Overdue/);
     await expect(step).toContainText(/4 days, target 2/);
 
