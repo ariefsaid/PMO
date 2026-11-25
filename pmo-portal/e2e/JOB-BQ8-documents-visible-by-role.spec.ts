@@ -41,10 +41,13 @@ test.beforeEach(async () => {
   for (const [categoryId, role] of [[hiddenCategoryId, 'Engineer'], [hiddenCategoryId, 'Admin'], [openCategoryId, 'Engineer'], [openCategoryId, 'Admin']] as const) {
     ok('category role', await db.from('document_category_roles').insert({ category_id: categoryId, org_id: ORG_ID, role }));
   }
-  const newDoc = async (title: string, categoryId: string) => need('document', await db.from('project_documents').insert({
-    org_id: ORG_ID, project_id: projectId, category_id: categoryId, category: '', title, revision: 'A', status: 'Issued',
-    file_path: `${ORG_ID}/${projectId}/${crypto.randomUUID()}/report.pdf`,
-  }).select('id').single()).id as string;
+  const newDoc = async (title: string, categoryId: string) => {
+    const id = crypto.randomUUID();
+    return need('document', await db.from('project_documents').insert({
+      id, org_id: ORG_ID, project_id: projectId, category_id: categoryId, category: '', title, revision: 'A', status: 'Issued',
+      file_path: `${ORG_ID}/${projectId}/${id}/report.pdf`,
+    }).select('id').single()).id as string;
+  };
   hiddenDocId = await newDoc(`${run} commercial report`, hiddenCategoryId);
   openDocId = await newDoc(`${run} quality report`, openCategoryId);
   // Both documents are attached to this work order's BASTs — which is how a work order's Documents section finds them.

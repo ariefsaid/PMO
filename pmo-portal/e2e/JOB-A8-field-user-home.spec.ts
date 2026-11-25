@@ -40,6 +40,7 @@ test('JOB-A8 a field user sees only their tasks, clock-in, deliveries and issues
   worker = await roleJobUser(admin, 'field_user', sfx);
   projectId = need('project', await admin.from('projects').insert({
     org_id: ORG_ID, name: `Field work ${sfx}`, status: 'Ongoing Project', project_manager_id: PM_ID, contract_value: 500_000,
+    tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD',
   }).select('id').single()).id as string;
   workOrderId = need('work order', await admin.from('work_orders').insert({
     org_id: ORG_ID, project_id: projectId, title: `Field order ${sfx}`, status: 'Issued',

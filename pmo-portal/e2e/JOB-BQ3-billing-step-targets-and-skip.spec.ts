@@ -30,7 +30,7 @@ test('JOB-BQ3 a claim shows an overdue step and lets an optional step be marked 
     // Step 1 is optional and three days past its two-day target; step 2 waits behind it.
     need('steps', await db.from('claim_billing_stages').insert([
       { org_id: ORG_ID, claim_id: claim.id, project_id: fx.projectId, position: 1, name: `${run} joint survey`, client_side: false, started_on: inDays(-4), target_days: 2, optional: true },
-      { org_id: ORG_ID, claim_id: claim.id, project_id: fx.projectId, position: 2, name: `${run} client approval`, client_side: true },
+      { org_id: ORG_ID, claim_id: claim.id, project_id: fx.projectId, position: 2, name: `${run} client approval`, client_side: true, optional: false },
     ]).select('id').limit(1));
 
     // 1–3. The billing officer opens the claim: the step past its target reads overdue.

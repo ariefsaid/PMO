@@ -38,7 +38,8 @@ test('JOB-PC16 idle time recorded on a validated report becomes cost at the work
     const sheet = must('timesheet', await db.from('timesheets').insert({ org_id: org.id, user_id: engineer.id, week_start_date: week, status: 'Draft' }).select('id').single());
     must('hours', await db.from('timesheet_entries').insert({ org_id: org.id, timesheet_id: sheet.id, project_id: project.id, work_order_id: wo.id, entry_date: day, hours: 8 }).select('id'));
     must('approve hours', await db.from('timesheets').update({ status: 'Approved', approved_by: pcm.id, approved_at: new Date().toISOString() }).eq('id', sheet.id).select('id'));
-    const why = must('idle reason', await db.from('dsr_idle_reasons').insert({ org_id: org.id, label: 'Weather' }).select('id').single());
+    // The new org is seeded with the neutral idle-reason list, so use its own 'Weather' cause.
+    const why = must('idle reason', await db.from('dsr_idle_reasons').select('id').eq('org_id', org.id).eq('label', 'Weather').single());
     // The crew's report is already validated (signed off by the project manager); the journey's job is reading the cost it creates.
     const report = must('report', await db.from('daily_site_reports').insert({
       org_id: org.id, project_id: project.id, work_order_id: wo.id, work_date: day, author_id: engineer.id,
