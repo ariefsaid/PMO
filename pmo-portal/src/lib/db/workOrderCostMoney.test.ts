@@ -70,4 +70,9 @@ describe('work order money reads', () => {
     const result = await listWorkOrderCostMoney([line('timesheet_entry', 'ts1')]);
     expect(result.timesheet_entry).toBeUndefined();
   });
+  it('#2891 prices an approved expense claim from the project cost read, per record', async () => {
+    fetchRpc.mockResolvedValue({ data: [{ source: 'expense_claim', record_id: 'claim1', amount: '1000000.00', currency: 'IDR' }], error: null });
+    const result = await listWorkOrderCostMoney([line('expense_claim', 'claim1')]);
+    expect(result.expense_claim).toEqual({ claim1: { amount: 1000000, currency: 'IDR' } });
+  });
 });

@@ -25,7 +25,7 @@ test('JOB-F17 the site supervisor turns an open issue into a task the owner sees
     // The supervisor of the issue's work order (2380): the work order's responsible person.
     ok('responsible person', await db.from('work_orders').update({ responsible_person_id: supervisor.id }).eq('id', wo.workOrderId));
     await addIssueType(`${run} issue`);
-    need('issue', await db.from('incident_reports').insert({
+    const issue = need('issue', await db.from('incident_reports').insert({
       org_id: process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001', project_id: wo.projectId, work_order_id: wo.workOrderId,
       incident_date: inDays(0), type: `${run} issue`, severity: 'Low', status: 'Open', action: `${run} replace the guard rail`,
       assignee_id: ENGINEER_ID,
@@ -50,7 +50,14 @@ test('JOB-F17 the site supervisor turns an open issue into a task the owner sees
     // ...and the owner (the engineer) finds it in My Tasks.
     await signIn(page, 'engineer@acme.test');
     await page.goto('/my-tasks');
-    await expect(page.getByRole('link', { name: `${run} replace the guard rail` })).toBeVisible({ timeout: 20_000 });
+    const taskId = need('task', await db.from('tasks').select('id').eq('project_id', wo.projectId).eq('name', `${run} replace the guard rail`).single()).id;
+    const myTask = page.getByRole('link', { name: `${run} replace the guard rail` });
+    await expect(myTask).toBeVisible({ timeout: 20_000 });
+
+    // The task links back to the issue it came from: opened from My Tasks, it carries a link to that issue.
+    await myTask.click();
+    await expect(page.locator(`#task-${taskId}`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(`#task-${taskId}`).locator(`a[href="/incidents/${issue.id}"]`)).toBeVisible({ timeout: 20_000 });
   } finally {
     await db.from('incident_reports').update({ task_id: null }).eq('type', `${run} issue`);
     await cleanSiteIssue(`${run} issue`);

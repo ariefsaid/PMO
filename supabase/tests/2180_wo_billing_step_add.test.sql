@@ -362,7 +362,7 @@ select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.
 select pg_temp.as_user('b1');
 select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.step('21800000-0000-0000-0000-000000000032', 2), pg_temp.today())), 'ok',
   'AC-WCE-005 an Admin finishes the second step');
-select is(pg_temp.err(format('select skip_work_order_step(%L)', pg_temp.step('21800000-0000-0000-0000-000000000032', 3))), 'ok', 'AC-WCE-005 and skips the optional last one');
+select is(pg_temp.err(format('select skip_work_order_step(%L, ''No longer needed'')', pg_temp.step('21800000-0000-0000-0000-000000000032', 3))), 'ok', 'AC-WCE-005 and skips the optional last one');
 select is(pg_temp.states('21800000-0000-0000-0000-000000000032'), '1:Survey:done,2:Certified quantity:done,3:Invoice pack:skipped',
   'AC-WCE-005 control: every step of the second work order is finished');
 select pg_temp.as_user('b2');

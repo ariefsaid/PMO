@@ -68,3 +68,44 @@ test('JOB-F9 the storekeeper recounts a delivery of 10 as 9 and the shortfall of
     await keeper.cleanup();
   }
 });
+
+// The field-user half of the case: the delivery waits on the person's own home (/my), where they open it, count 9 and confirm.
+test('JOB-F9 the field user opens the delivery from their home, recounts 10 as 9 and the shortfall of 1 is recorded', async ({ page }) => {
+  const svc = serviceClient('JOB-F9');
+  const previous = await transferMode(svc);
+  const fieldUser = await roleJobUser(svc, 'field_user', `f9-field-${Date.now()}`);
+  let fx: SentTransfer | undefined;
+  try {
+    await setTransferMode('two_step');
+    fx = await sendTransfer(svc, fieldUser.id, '10');
+
+    // The field user works on a phone: the home screen is the phone one.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await fieldUser.signIn(page);
+    await expect(page).toHaveURL(/\/my$/, { timeout: 20_000 });
+    const delivery = page.getByRole('region', { name: 'A delivery for you' }).locator(`a[href="/stock/transfers/${fx.transferId}"]`);
+    await expect(delivery).toBeVisible({ timeout: 30_000 });
+    await expect(delivery).toContainText('Count and confirm');
+    await delivery.click();
+    await expect(page.getByRole('heading', { name: new RegExp(fx.number) })).toBeVisible({ timeout: 20_000 });
+
+    const counted = page.getByLabel(/^Counted/);
+    await expect(counted).toHaveValue(/10/);
+    await counted.fill('9');
+    await expect(page.getByLabel(/^Accepted/)).toHaveValue('9');
+    await expect(page.getByText(/1 short: it stays in transit/)).toBeVisible();
+    await page.getByRole('button', { name: 'Confirm receipt' }).click();
+    await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
+
+    await expect(page.getByText('Received, shortfall open')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText('1 short')).toBeVisible({ timeout: 20_000 });
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText('1 short')).toBeVisible({ timeout: 20_000 });
+  } finally {
+    if (previous !== 'two_step') {
+      if (fx) await closeShortfalls(svc, fx.transferId);
+      await setTransferMode(previous);
+    }
+    await fieldUser.cleanup();
+  }
+});

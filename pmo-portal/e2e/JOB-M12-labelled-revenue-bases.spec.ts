@@ -33,7 +33,10 @@ test('JOB-M12 executive reconciles claimed work with invoices while missing prog
     await page.goto(`/projects/${project.id}/orders`);
     const panel = page.getByTestId('earned-billed');
     const fmt = (value: string) => formatExactMoney(value, 'EUR', 'en-US')!;
-    await expect(panel.getByTestId(`earned-billed-row-${wo.id}-billed`)).toHaveText(fmt('80.00'));
+    // First load after a database reset with three browsers competing: the earned-billed data landed
+    // ~11.7 s after navigation in the failing full run (4.7 s of that before `load`), so the first
+    // assertion gets the sibling journeys' 20-second wait.
+    await expect(panel.getByTestId(`earned-billed-row-${wo.id}-billed`)).toHaveText(fmt('80.00'), { timeout: 20_000 });
     // The gap sits beside them: earned 125.00 less billed 80.00 = 45.00.
     await expect(panel.getByTestId(`earned-billed-row-${wo.id}-earned`)).toHaveText(fmt('125.00'));
     await expect(panel.getByTestId(`earned-billed-row-${wo.id}-gap`)).toHaveText(fmt('45.00'));

@@ -780,3 +780,26 @@ export async function findOpenTaskForRecord(
   if (error) throwWrite(error);
   return (data as Array<{ id: string; name: string; project_id: string | null }> | null)?.[0] ?? null;
 }
+
+// ── JOB-F17: the issue a task was made from ─────────────────────────────────────────────────────────────────
+/**
+ * The issue each of a page of tasks was made from, read from the `incident_tasks` join (migration 1390; one task has at
+ * most one issue — `task_id` is unique there). ONE read per BY_IDS_CHUNK of ids, never one per row; a task with no issue
+ * yields no entry. Row security answers readability of the join row; the link itself only navigates — the issue page
+ * still decides what its reader may open.
+ */
+export async function sourceIssuesOfTasks(taskIds: readonly string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [...new Set(taskIds)];
+  for (let i = 0; i < unique.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await supabase
+      .from('incident_tasks')
+      .select('task_id, incident_id')
+      .in('task_id', unique.slice(i, i + BY_IDS_CHUNK))
+      // `task_id` is unique in incident_tasks (1390), so the rows are bounded by the chunk size.
+      .limit(BY_IDS_CHUNK);
+    if (error) throwWrite(error);
+    for (const r of (data ?? []) as Array<{ task_id: string; incident_id: string }>) out.set(r.task_id, r.incident_id);
+  }
+  return out;
+}

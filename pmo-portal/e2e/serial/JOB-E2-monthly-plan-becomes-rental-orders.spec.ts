@@ -83,10 +83,19 @@ test('JOB-E2 a two-line monthly plan becomes two rental orders linked to the pla
     expect(linked.data).toHaveLength(2);
 
     await buyer.signIn(page);
+    // Each order is a rental order for one of the two planned units and names the monthly plan it came from.
+    const titles: string[] = [];
     for (const id of orderIds) {
       await page.goto(`/procurement/${id}`);
-      await expect(page.getByText(new RegExp(`${run.slice(0, 8)}`)).first()).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('rental-panel')).toContainText(/Rental|Sewa/, { timeout: 20_000 });
+      await expect(page.getByTestId('rental-panel')).toContainText(/\d+ \w+ – \d+ \w+/); // the rental period
+      titles.push((await page.getByRole('heading', { level: 1 }).first().innerText()).trim());
+      // TC-PFE-24: "each linked to the plan" from the Buyer's side: the order names the monthly plan it came from.
+      await page.getByRole('tab', { name: /^Line items/ }).click();
+      await expect(page.getByText(/Monthly plan \d{4}-\d{2}/).first()).toBeVisible();
     }
+    expect(titles.some((x) => x.startsWith(craneA))).toBe(true);
+    expect(titles.some((x) => x.startsWith(craneB))).toBe(true);
   } finally {
     if (typesBefore !== null || planBefore !== null) {
       // The plan's lines point at its orders, and the guard freezes an approved plan, so the run's rows go as the local owner.
