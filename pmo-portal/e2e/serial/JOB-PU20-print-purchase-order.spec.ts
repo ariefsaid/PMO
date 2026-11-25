@@ -57,7 +57,7 @@ test('JOB-PU20 the Buyer prints an approved purchase order with its lines', asyn
     const before = await svc.from('purchase_order_settings').select('print_enabled, signature_blocks, authorised_collectors').eq('org_id', ORG_ID).maybeSingle();
     if (before.error) throw before.error;
     printedBefore = before.data;
-    need('printing on', await admin.rpc('po_set_print_settings', {
+    ok('printing on', await admin.rpc('po_set_print_settings', {
       p_enabled: true,
       p_signature_blocks: printedBefore?.signature_blocks ?? ['Prepared by', 'Approved by', 'Vendor acceptance'],
       p_authorised_collectors: printedBefore?.authorised_collectors ?? [],

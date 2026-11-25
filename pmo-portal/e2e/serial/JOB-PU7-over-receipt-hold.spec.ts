@@ -50,7 +50,7 @@ test.beforeAll(async () => {
     org_id: ORG_ID, procurement_id: purchase.id, po_id: po.id, gr_number: `GR-7-${Date.now()}`,
     receipt_date: orgToday(), status: 'Partial',
   }).select('id').single());
-  ok('receipt line', await svc.from('procurement_receipt_lines').insert({ receipt_id: receipt.id, item_id: itemId, org_id: ORG_ID, quantity: 8 }));
+  ok('receipt line', await svc.from('procurement_receipt_lines').insert({ receipt_id: receipt.id, item_id: itemId, org_id: ORG_ID, quantity: 8, recorded_by: officer.id }));
   ok('ordered', await svc.from('procurements').update({ status: 'Ordered' }).eq('id', purchase.id));
 });
 
@@ -72,7 +72,7 @@ test.afterAll(async () => {
 });
 
 function billRow(page: import('@playwright/test').Page) {
-  return page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'VI', exact: true }) });
+  return page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Invoice', exact: true }) });
 }
 async function openMatch(page: import('@playwright/test').Page) {
   await page.getByRole('tab', { name: /^Files/ }).click();
@@ -91,7 +91,8 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await officer.signIn(page);
   await page.goto(purchase.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('btn-create-vi').click();
+  await page.getByRole('button', { name: 'Record another document' }).click();
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Supplier invoice', exact: true }).click();
   const form = page.getByTestId('form-create-vi');
   await expect(form).toBeVisible({ timeout: 15_000 });
   await form.getByTestId('vi-ref-input').fill(`INV-${Date.now()}`);
@@ -102,6 +103,7 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await form.getByTestId('btn-save-vi').click();
   await page.getByRole('dialog', { name: 'Record this supplier invoice?' }).getByRole('button', { name: 'Save supplier invoice' }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced', { timeout: 20_000 });
+  await page.getByRole('tab', { name: /^Files/ }).click();
   await expect(billRow(page).first()).toContainText(/12[.,]000/);
   invoiceId = need('invoice', await serviceClient('JOB-PU7').from('procurement_invoices').select('id').eq('procurement_id', purchase.id).limit(1).single()).id as string;
 
@@ -110,8 +112,8 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await page.getByRole('menuitem', { name: 'Edit bill lines', exact: true }).click();
   const editor = page.getByTestId('match-lines-editor');
   await expect(editor).toBeVisible({ timeout: 15_000 });
-  await editor.getByTestId(`match-qty-${itemId}`).fill('10');
-  await editor.getByTestId(`match-rate-${itemId}`).fill('1200');
+  await editor.getByLabel('Quantity').fill('10');
+  await editor.getByLabel('Rate').fill('1200');
   await page.getByRole('button', { name: 'Save lines' }).click();
   await expect(page.getByTestId('match-lines-result')).toContainText(/still held|does not yet match/i, { timeout: 20_000 });
   await page.getByRole('button', { name: 'Done' }).click();
@@ -128,7 +130,8 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await expect(line.getByRole('cell').nth(2)).toHaveText('10');
 
   // Separation of duties: the person who recorded the bill cannot approve its exception.
-  await drawer.getByRole('button', { name: 'Approve exception' }).click();
+  // The action sits in the drawer's header, above its body.
+  await page.getByRole('button', { name: 'Approve exception' }).click();
   const confirm = page.getByRole('dialog', { name: /Approve an exception for/ });
   await confirm.getByLabel('Reason').fill(REASON);
   await confirm.getByRole('button', { name: 'Approve exception' }).click();
@@ -141,7 +144,7 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await page.goto(purchase.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await openMatch(page);
-  await page.getByTestId('bill-match').getByRole('button', { name: 'Approve exception' }).click();
+  await page.getByRole('button', { name: 'Approve exception' }).click();
   const approve = page.getByRole('dialog', { name: /Approve an exception for/ });
   await approve.getByLabel('Reason').fill(REASON);
   await approve.getByRole('button', { name: 'Approve exception' }).click();

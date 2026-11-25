@@ -8,10 +8,9 @@ import { expect, test } from '@playwright/test';
 import { signIn } from '../helpers';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
-import { ORG_ID, need, ok, ownProject, runId, serviceClient } from '../support/jobFixtures';
+import { ORG_ID, need, ok, ownProject, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { orgToday } from '../support/jobJourney';
 import { keeperOf, makeItem, makeWarehouse, runSuffix, userClient } from '../support/stockFixture';
-import { label } from '../support/jobStock';
 
 test.setTimeout(180_000);
 
@@ -54,8 +53,23 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   // The posted receipt is a stock document: an append-only ledger row that points at this purchase, so the
   // purchase stays (per-run codes, unique names) and only the org switch and the login are restored here.
-  await storekeeper?.cleanup();
   const admin = await userClient('admin@acme.test');
+  // The keeper assignment points at the login, so the Admin releases it before the login goes.
+  if (site && storekeeper) ok('keeper release', await admin.rpc('set_stock_warehouse_keeper', { p_warehouse_id: site.id, p_user_id: storekeeper.id, p_assigned: false }));
+  // The storekeeper's posted receipt (stock document, its ledger rows, the receiving request and the order receipt) and the
+  // purchase's status events name the login; this run's own rows go as the local owner before the login does.
+  if (storekeeper && site) {
+    const docs = `select id from public.stock_documents where created_by = '${storekeeper.id}' and warehouse_id = '${site.id}'`;
+    sqlAsOwner(`delete from public.stock_ledger where document_id in (${docs});
+      delete from public.order_receiving_requests where stock_document_id in (${docs});
+      delete from public.stock_document_lines where document_id in (${docs});
+      delete from public.stock_documents where id in (${docs});
+      delete from public.stock_balances where warehouse_id = '${site.id}';
+      delete from public.procurement_receipt_lines where receipt_id in (select id from public.procurement_receipts where procurement_id = '${purchase.id}');
+      delete from public.procurement_receipts where procurement_id = '${purchase.id}';
+      delete from public.procurement_status_events where actor_id = '${storekeeper.id}';`);
+  }
+  await storekeeper?.cleanup();
   if (!receivingWasOn) ok('receiving restore', await admin.rpc('set_order_receiving_enabled', { p_enabled: false }));
 });
 
@@ -69,11 +83,11 @@ test('JOB-PU14 the storekeeper receives 37 of 40 at the site and a purchasing us
   await expect(page.getByText(/Ordered 40/)).toHaveCount(0);
   await expect(page.getByText(/Outstanding \d/)).toHaveCount(0);
 
-  await page.getByLabel(/^Warehouse/).selectOption({ label: label(site) });
+  await page.getByLabel(/^Warehouse/).selectOption({ label: site.name });
   await page.getByLabel(/^Counted quantity/).fill('37');
   await page.getByRole('button', { name: 'Record receipt' }).click();
   await page.getByRole('dialog', { name: 'Record this counted quantity?' }).getByRole('button', { name: 'Record receipt' }).click();
-  await expect(page.getByText('Receipt posted')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('status').filter({ hasText: 'Receipt posted' })).toBeVisible({ timeout: 20_000 });
 
   // The goal, first half: the site's stock rose by 37.
   await page.goto('/stock');

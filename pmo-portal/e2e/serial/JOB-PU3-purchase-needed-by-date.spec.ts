@@ -50,7 +50,7 @@ test('JOB-PU3 an order without a needed-by date is refused; the requester sets i
   await page.goto(purchase.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await recordOrderWithConfirm(page);
-  await expect(page.getByText(/Set the needed-by date before sending the order to the supplier/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('procurement-mutation-error')).toContainText(/Set the needed-by date before sending the order to the supplier/i, { timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved');
 
   // The requester sets the date on the request; it fills every line.
@@ -73,5 +73,6 @@ test('JOB-PU3 an order without a needed-by date is refused; the requester sets i
   await expect(page.getByTestId('order-needed-by-value')).toHaveText(needed, { timeout: 20_000 });
   await recordOrderWithConfirm(page);
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 20_000 });
+  await page.getByRole('tab', { name: /^Timeline/ }).click();
   await expect(page.getByText(/^PO-\d{10}$/).first()).toBeVisible({ timeout: 10_000 });
 });

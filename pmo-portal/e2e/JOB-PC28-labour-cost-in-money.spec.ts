@@ -61,7 +61,8 @@ test('JOB-PC28 approving eight normal and two overtime hours raises the work ord
 
     // The work order's labour cost is 1,100,000 for those ten hours.
     await page.goto(`/work-orders/${wo.id}`);
-    const total = page.getByTestId('cost-total-timesheet_entry');
+    // A project control manager reads labour as a cost by class (the Costs list shows hours only for this role).
+    const total = page.getByRole('table', { name: 'Labour cost by class' });
     await expect(total).toContainText(formatExactMoney('1100000', 'USD', 'en-US') ?? 'unformattable', { timeout: 30_000 });
   } finally {
     removeJobOrganization(org.id);
