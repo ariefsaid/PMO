@@ -1,0 +1,3 @@
+# #2898 work order capture: authenticated RPCs, each re-asserting org, active membership and role in its body; 2680_wo_capture_checks pgTAP.
+cancel_work_order  # cancel_work_order(uuid,text): the work order page's Cancel with a required reason
+set_work_order_check_template  # set_work_order_check_template(jsonb): Administration › Projects › Standard checks

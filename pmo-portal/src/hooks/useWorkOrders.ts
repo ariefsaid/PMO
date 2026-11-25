@@ -60,6 +60,7 @@ export function invalidateWorkOrderQueries(qc: QueryClient, orgId: string | unde
   void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
   void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId] });
   void qc.invalidateQueries({ queryKey: ['work-order-acceptances', orgId, projectId] });
+  void qc.invalidateQueries({ queryKey: ['work-order', orgId] }); // the work order's own page (#2898: issued or cancelled there)
 }
 
 /**
@@ -109,7 +110,12 @@ export function useWorkOrderMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { create, update, setValue, transition };
+  const cancel = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => repositories.workOrder.cancel(id, reason),
+    onSuccess: invalidate,
+  });
+
+  return { create, update, setValue, transition, cancel };
 }
 
 /** Every work order the reader may see, across projects (the menu's Work orders page). RLS-scoped, no money. */
