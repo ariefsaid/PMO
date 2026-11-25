@@ -335,3 +335,13 @@ vi.mock('@/src/hooks/useWaitingDecisions', () => ({
 }));
 
 vi.mock('@/src/hooks/usePurchaseCaseRead', () => ({ usePurchaseCaseRead: () => false }));
+
+// M8: Projects and Dashboard suites predating work-in-hand summary cards render without a QueryClient or mocked work-in-hand read.
+// Dedicated tests (useWorkInHand.test.tsx, WorkInHand.test.tsx, WorkInHandSummary.test.tsx) unmock or override this.
+vi.mock('@/src/hooks/useWorkInHand', () => ({
+  WORK_IN_HAND_KEY: 'work-in-hand',
+  WORK_IN_HAND_CAPACITY_KEY: 'work-in-hand-capacity',
+  useWorkInHand: () => ({ rows: [], facts: undefined, isLoading: false, isError: false, isSuccess: false, error: null, refetch: () => Promise.resolve() }),
+  useWorkInHandCapacity: () => ({ data: undefined, isLoading: false, isError: false, isSuccess: false, refetch: () => Promise.resolve() }),
+  useSetWorkInHandCapacity: () => ({ mutateAsync: async () => undefined, isPending: false }),
+}));

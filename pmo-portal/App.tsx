@@ -326,6 +326,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/finance/billing-plan', chunks: [BillingPlanPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/projects/work-in-hand', chunks: [WorkInHandPage], namespaces: ['workInHand', 'financeHub'] },
   { path: '/finance/work-in-hand', chunks: [WorkInHandPage], namespaces: ['workInHand', 'financeHub'] },
   { path: '/finance/opening-balances', chunks: [OpeningBalancesPage], namespaces: ['financeHub'] },
   { path: '/finance/statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
@@ -499,6 +500,7 @@ export const appRouteConfig: RouteObject[] = [
   //   :tab and defaults to 'overview'. A backward-compat alias keeps old /budget links working.
   // One-step create (#806): a static segment, so it outranks `:projectId` below.
   { path: '/projects/new', element: <ProjectNew /> },
+  { path: '/projects/work-in-hand', element: <WorkInHandAccessRoute><WorkInHandPage /></WorkInHandAccessRoute> },
   { path: '/projects/:projectId/:tab', element: <ProjectDetail /> },
   { path: '/projects/:projectId', element: <ProjectDetail /> },
   { path: '/sales', element: gated('sales_pipeline', <SalesPipeline />) },

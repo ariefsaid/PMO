@@ -14460,6 +14460,7 @@ export type Database = {
           stock_transfer_mode: string
           stock_wo_transfers: boolean
           tax_prepaid_account: string | null
+          work_in_hand_monthly_capacity: number | null
           work_order_checklist_enabled: boolean
         }
         Insert: {
@@ -14530,6 +14531,7 @@ export type Database = {
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_in_hand_monthly_capacity?: number | null
           work_order_checklist_enabled?: boolean
         }
         Update: {
@@ -14600,6 +14602,7 @@ export type Database = {
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_in_hand_monthly_capacity?: number | null
           work_order_checklist_enabled?: boolean
         }
         Relationships: [

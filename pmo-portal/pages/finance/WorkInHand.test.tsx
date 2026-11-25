@@ -212,4 +212,25 @@ describe('Work in hand screen', () => {
     expect(screen.queryByRole('heading', { name: 'My work in hand' })).toBeNull();
     expect(screen.queryByText('These figures cover only projects assigned to you.')).toBeNull();
   });
+
+  it('AC-M8-005 shows capacity-based months and non-included foreign currencies in the top summary', () => {
+    setData([
+      rated('idr', 'IDR Contract', '25000000.00', { billedToDate: '0.00', firstBillingMonth: null, windowMonths: [] }),
+      rated('usd', 'USD Contract', '900000.00', { currency: 'USD', billedToDate: '0.00', firstBillingMonth: null, windowMonths: [] }),
+    ], { monthlyCapacity: '2500000.00' });
+    renderPage();
+    const summary = screen.getByTestId('wih-capacity-summary');
+    expect(summary).toHaveTextContent('IDR 25,000,000');
+    expect(summary).toHaveTextContent('10.0 months');
+    expect(summary).toHaveTextContent('USD not included in months (no conversion)');
+  });
+
+  it('AC-M8-005 shows a sensible empty state in the summary when monthly capacity is unset', () => {
+    state.role = 'Admin';
+    setData([rated('idr', 'IDR Contract', '25000000.00')], { monthlyCapacity: null });
+    renderPage();
+    const summary = screen.getByTestId('wih-capacity-summary');
+    expect(summary).toHaveTextContent('No monthly capacity set');
+    expect(within(summary).getByRole('link', { name: 'Set capacity' })).toHaveAttribute('href', '/administration/projects#work-in-hand-capacity');
+  });
 });

@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { parseExactCents } from '@/src/lib/exactDecimal';
 import type { WipInputRow, WipWindowMonth } from '@/src/lib/workInHand';
 
 /**
@@ -19,6 +20,8 @@ export interface WorkInHand {
   asOf: string;
   timezone: string;
   orgCurrency: string;
+  /** Admin-configured monthly production capacity in `orgCurrency` (scale-two text), or null when unset. */
+  monthlyCapacity?: string | null;
   windowFrom: string;
   windowTo: string;
   truncated: boolean;
@@ -103,6 +106,7 @@ export function parseWorkInHand(data: unknown): WorkInHand {
     asOf: str(d.as_of, 'as_of'),
     timezone: str(d.timezone, 'timezone'),
     orgCurrency: str(d.org_currency, 'org_currency'),
+    monthlyCapacity: d.monthly_capacity === undefined || d.monthly_capacity === null ? null : money(d.monthly_capacity, 'monthly_capacity'),
     windowFrom: str(d.window_from, 'window_from'),
     windowTo: str(d.window_to, 'window_to'),
     truncated: bool(d.truncated, 'truncated'),
@@ -113,9 +117,64 @@ export function parseWorkInHand(data: unknown): WorkInHand {
   };
 }
 
-/** Left to bill inputs for every contract on hand and Issued work order (Admin, Executive, Finance only; refused otherwise). */
+export type MonthlyCapacityIssue = 'invalid' | 'positive' | 'precision';
+
+/** Shared capacity validation matching the database check constraint (> 0, at most two decimal places) without float rounding. */
+export function monthlyCapacityIssue(value: string | number | null): MonthlyCapacityIssue | null {
+  if (value === null) return null;
+  let text: string;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return 'invalid';
+    if (value <= 0) return 'positive';
+    text = String(value);
+    if (/[eE]/.test(text)) return 'precision';
+  } else {
+    text = value.trim();
+    if (text === '') return null;
+  }
+  if (!/^-?\d+(?:\.\d+)?$/.test(text)) return 'invalid';
+  if (text.startsWith('-') || /^0+(?:\.0+)?$/.test(text)) return 'positive';
+  const cents = parseExactCents(text);
+  if (cents === null) return 'precision';
+  return cents <= 0n ? 'positive' : null;
+}
+
+/** Left to bill inputs for every contract on hand and Issued work order (Admin, Executive, Finance, and PM for assigned projects). */
 export async function getWorkInHand(asOf?: string): Promise<WorkInHand> {
   const { data, error } = await supabase.rpc('get_work_in_hand', asOf ? { p_as_of: asOf } : {});
   if (error) throw new AppError(error.message, error.code);
   return parseWorkInHand(data);
+}
+
+/** Reads the organisation's monthly capacity setting (in org currency) under RLS; `org_id` is never sent. */
+export async function getWorkInHandMonthlyCapacity(): Promise<number | null> {
+  const { data, error } = await supabase.from('organizations').select('work_in_hand_monthly_capacity').limit(1);
+  if (error) throw new AppError(error.message, error.code);
+  const value = data?.[0]?.work_in_hand_monthly_capacity;
+  return value === null || value === undefined ? null : Number(value);
+}
+
+/**
+ * Sets or clears (`null`) the organisation's monthly capacity in the organisation's currency.
+ * Enforced in Postgres by the Admin-only `organizations_update_work_in_hand_capacity` policy and column grant.
+ */
+export async function setWorkInHandMonthlyCapacity(value: number | null): Promise<void> {
+  const issue = monthlyCapacityIssue(value);
+  if (issue === 'invalid') throw new AppError('Enter a valid amount.', '22023');
+  if (issue === 'positive') throw new AppError('Monthly capacity must be greater than zero.', '22023');
+  if (issue === 'precision') throw new AppError('Give monthly capacity at most two decimals.', '22023');
+  const { data, error } = await supabase.from('organizations').select('id').limit(2);
+  if (error) throw new AppError(error.message, error.code);
+  if ((data?.length ?? 0) > 1) {
+    throw new AppError('More than one organization is readable; refusing to guess which one to change.', '22023');
+  }
+  const orgId = data?.[0]?.id;
+  if (!orgId) throw new AppError('No organization is readable for the current user.', '42501');
+  const { data: changed, error: updateError } = await supabase
+    .from('organizations')
+    .update({ work_in_hand_monthly_capacity: value })
+    .eq('id', orgId)
+    .select('id');
+  if (updateError) throw new AppError(updateError.message, updateError.code);
+  assertWriteLanded(changed, 'Only an Admin can change monthly work capacity.');
 }
