@@ -123,6 +123,7 @@ begin
     raise exception 'weekday is required for weekly and only then' using errcode = '22023';
   end if;
   if p_send_time is null or p_enabled is null then raise exception 'invalid setting' using errcode = '22023'; end if;
+  -- recipients: people of this organisation only; roles trimmed and de-duplicated
   select coalesce(array_agg(distinct pr.id), '{}') into v_users from public.profiles pr
     where pr.org_id = v_org and pr.id = any (coalesce(p_user_ids, '{}'));
   select coalesce(array_agg(distinct btrim(x)), '{}') into v_roles from unnest(coalesce(p_roles, '{}')) x where btrim(x) <> '';
@@ -146,14 +147,13 @@ grant execute on function public.save_scheduled_report(uuid, text, text, text, i
 
 create or replace function public.set_scheduled_report_enabled(p_id uuid, p_enabled boolean) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_org uuid := public.auth_org_id();
 begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() <> 'Admin' then raise exception 'admin only' using errcode = '42501'; end if;
   if p_enabled is null then raise exception 'invalid setting' using errcode = '22023'; end if;
   update public.scheduled_reports set enabled = p_enabled, updated_at = now()
-   where id = p_id and org_id = v_org and archived_at is null;
+   where id = p_id and org_id = public.auth_org_id() and archived_at is null;
   if not found then raise exception 'report not found' using errcode = 'P0002'; end if;
 end $$;
 revoke all on function public.set_scheduled_report_enabled(uuid, boolean) from public, anon;
@@ -161,13 +161,12 @@ grant execute on function public.set_scheduled_report_enabled(uuid, boolean) to 
 
 create or replace function public.archive_scheduled_report(p_id uuid) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_org uuid := public.auth_org_id();
 begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() <> 'Admin' then raise exception 'admin only' using errcode = '42501'; end if;
   update public.scheduled_reports set archived_at = now(), enabled = false, updated_at = now()
-   where id = p_id and org_id = v_org and archived_at is null;
+   where id = p_id and org_id = public.auth_org_id() and archived_at is null;
   if not found then raise exception 'report not found' using errcode = 'P0002'; end if;
 end $$;
 revoke all on function public.archive_scheduled_report(uuid) from public, anon;
