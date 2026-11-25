@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'crew' }), placeNew: vi.fn().mockResolvedValue(undefined), crews: [] as unknown[], role: 'Admin', users: [{ id: 'u1', full_name: 'Field user', email: null, status: 'active' }], members: [] as unknown[], roles: [] as unknown[], workers: [] as unknown[], setRole: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
@@ -46,6 +47,26 @@ describe('crew master', () => {
     await waitFor(() => expect(h.placeNew).toHaveBeenCalledWith(expect.objectContaining({
       person: expect.objectContaining({ display_name: 'New person', profile_id: null }), placement: expect.objectContaining({ crew_id: 'crew' }),
     })));
+  });
+  it('#1126 a new placement starts on the organisation\'s day, not the browser\'s', async () => {
+    const user = userEvent.setup();
+    h.crews = [{ id: 'crew', code: 'C1', name: 'Crew one', kind: 'own', field_controller_id: null, vendor_company_id: null }];
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      render(<ToastProvider><CrewList creating={false} onCloseCreate={vi.fn()} onCreate={vi.fn()} /></ToastProvider>);
+      await user.click(screen.getByRole('row', { name: /C1 Crew one/ }));
+      await user.click(screen.getAllByRole('button', { name: 'Add person' })[0]);
+      await user.click(screen.getByRole('combobox', { name: 'Person' }));
+      await user.type(await screen.findByRole('combobox', { name: /^Search people/ }), 'New person');
+      await user.click(await screen.findByRole('option', { name: /Add "New person" as a new person/ }));
+      await user.click(screen.getByRole('button', { name: 'Add person' }));
+      await waitFor(() => expect(h.placeNew).toHaveBeenCalledWith(expect.objectContaining({ placement: expect.objectContaining({ valid_from: '2026-11-26' }) })));
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
   it('lets an Executive select existing people without offering person creation', async () => {
     const user = userEvent.setup();

@@ -19,8 +19,10 @@ test('AC-SITE-013 HR officer receives medical warning through its medical right'
   await expect(page.getByRole('list',{name:'Notifications'}).getByText(`Medical ${run} expires in 7 days`)).toBeVisible();
   const plain=must('manager notice',await db.from('notifications').select('metadata').eq('owner_id',manager.id).eq('title',`Medical ${run} expires in 7 days`).single());
   expect(plain.metadata.entity.id).toBeNull(); expect(plain.metadata.email_owner_only).toBe(true);
-  await worker.signIn(page); await page.getByRole('button',{name:/^notifications/i}).click();
-  await expect(page.getByRole('heading',{name:'Notifications inbox'})).toBeVisible();
+  // The worker is a field account: it reads its own notices on My work, not in the shell's bell.
+  await worker.signIn(page); await page.goto('/');
+  await expect(page.getByRole('heading',{name:'My work'})).toBeVisible({timeout:20_000});
+  await expect(page.getByText('No notifications yet.')).toBeVisible({timeout:20_000});
   await expect(page.getByText(`Medical ${run} expires in 7 days`)).toHaveCount(0);
  } finally {
   if(document){await db.from('notifications').delete().eq('title',`Medical ${run} expires in 7 days`);await db.from('document_expiry_notices').delete().eq('document_id',document);await db.from('expiry_documents').delete().eq('id',document);}

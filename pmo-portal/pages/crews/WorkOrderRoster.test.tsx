@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string,
@@ -79,6 +80,19 @@ describe('work-order roster for a date (#2528)', () => {
     renderAt('/crews?view=roster');
     expect(h.rosterArgs.some((a) => (a as unknown[])[0] === 'wo1')).toBe(true);
     window.localStorage.removeItem('pmo.crews.lastWorkOrder');
+  });
+
+  it('#1126 with no date in the address the roster opens on the organisation\'s day', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      renderAt('/crews?view=roster&wo=wo1');
+      expect(h.rosterArgs).toContainEqual(['wo1', '2026-11-26']);
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
 
   it('asks for a work order first', () => {

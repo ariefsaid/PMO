@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, DateField, ListState, StatusPill } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
@@ -6,7 +6,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAttendanceRate, useAttendanceTarget } from '@/src/hooks/useAttendanceRate';
 import { isBelowTarget, type CrewAttendanceRateRow } from '@/src/lib/db/attendanceRate';
 import { formatPercent } from '@/src/lib/format';
-import { monthStart, toIso } from '../equipment/equipmentWeek';
+import { monthStart } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 
 /**
  * Attendance rate per crew and period against the organisation's target (#2706, FR-ATR-004..013).
@@ -58,7 +59,7 @@ const AttendanceRate: React.FC = () => {
   const canView = may('view', 'attendanceRate');
   const narrow = useIsNarrow();
   const target = useAttendanceTarget();
-  const today = useMemo(() => toIso(new Date()), []);
+  const today = useOrgToday();
   const [from, setFrom] = useState(() => monthStart(today));
   const [to, setTo] = useState(today);
   const rangeInvalid = from > to;

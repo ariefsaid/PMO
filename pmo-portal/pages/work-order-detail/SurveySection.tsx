@@ -11,7 +11,7 @@ import { useSurveyMutations, useSurveyRecords } from '@/src/hooks/useSurveyRecor
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useRefusalText } from '@/src/lib/refusals';
 import { formatIsoDay, formatNumberExact } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { milli } from '@/src/lib/progressBilling';
 import type { SurveyRecord } from '@/src/lib/db/surveyRecords';
 import SurveyModal, { type SurveyLineOption } from './SurveyModal';
@@ -32,7 +32,9 @@ export interface SurveySectionProps {
   today?: string;
 }
 
-const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, status, projectManagerId, lines, today = localToday() }) => {
+const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, status, projectManagerId, lines, today: todayProp }) => {
+  const orgDay = useOrgToday();
+  const today = todayProp ?? orgDay;
   const { t } = useTranslation('survey');
   const may = usePermission();
   const { currentUser } = useAuth();

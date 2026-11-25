@@ -6,7 +6,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
 import { useWorkOrderRoster } from '@/src/hooks/useCrews';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 
 /**
  * Today's crews on this work order (walk F7-3, PC9): the roster lives on Crews → Roster; this names who is on the work
@@ -14,7 +14,7 @@ import { toIso } from '../equipment/equipmentWeek';
  */
 const WorkOrderCrewLinkBody: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   const { t } = useTranslation('workOrders');
-  const roster = useWorkOrderRoster(workOrderId, toIso(new Date()));
+  const roster = useWorkOrderRoster(workOrderId, useOrgToday());
   const open = (
     <Link to={`/crews?view=roster&wo=${workOrderId}`} className="text-control font-medium text-primary-text hover:underline" data-testid="wo-crews-open">
       {t('crewsToday.open', 'Open crew roster')}

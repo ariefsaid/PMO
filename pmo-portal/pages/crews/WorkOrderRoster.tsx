@@ -13,7 +13,7 @@ import { useReleaseHolds } from '@/src/hooks/useMedicalRelease';
 import type { ReleaseState } from '@/src/lib/repositories/medicalRelease';
 import type { RosterCrew, WorkOrderCrewRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { WorkOrderPicker } from './CrewPickers';
 import { useCrewErrorText } from './crewErrors';
 
@@ -122,7 +122,7 @@ export const WorkOrderRoster: React.FC = () => {
   const { realRole, effectiveRole } = useEffectiveRole();
   const canManage = may('manage', 'workOrderRoster', { record: { viewOnly: realRole !== effectiveRole } });
   const { values, setFilter } = useUrlFilters(['wo', 'date']);
-  const today = toIso(new Date());
+  const today = useOrgToday();
   const workOrderId = values.wo || null;
   const date = ISO.test(values.date) ? values.date : today;
   const roster = useWorkOrderRoster(workOrderId, date);
