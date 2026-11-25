@@ -50,4 +50,28 @@ describe('MyNotices (#2887)', () => {
     show();
     expect(await screen.findByText('No notifications yet.')).toBeInTheDocument();
   });
+
+  it('F2 renders every fetched notice, not only the first ten', async () => {
+    const rows = Array.from({ length: 12 }, (_, i) => row(`n${i + 1}`));
+    listPage.mockResolvedValue({ rows, nextCursor: null });
+    show();
+    const list = await screen.findByRole('list', { name: 'Notifications' });
+    await waitFor(() => expect(list.querySelectorAll('li')).toHaveLength(12));
+    expect(screen.getByRole('button', { name: /Notice n12/ })).toBeInTheDocument();
+  });
+
+  it('F2 "Load more" fetches the next page and appends its notices', async () => {
+    const firstPage = Array.from({ length: 10 }, (_, i) => row(`p1-${i + 1}`));
+    const secondPage = Array.from({ length: 5 }, (_, i) => row(`p2-${i + 1}`));
+    const cursor = { createdAt: '2026-01-01T00:00:00Z', id: 'p1-10' };
+    listPage.mockResolvedValueOnce({ rows: firstPage, nextCursor: cursor })
+      .mockResolvedValueOnce({ rows: secondPage, nextCursor: null });
+    show();
+    const list = await screen.findByRole('list', { name: 'Notifications' });
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(listPage).toHaveBeenCalledWith({ cursor }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Notice p2-5/ })).toBeInTheDocument());
+    expect(list.querySelectorAll('li')).toHaveLength(15);
+  });
 });

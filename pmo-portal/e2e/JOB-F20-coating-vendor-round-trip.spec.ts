@@ -31,7 +31,15 @@ test('JOB-F20 the material coordinator sends pipe to the coating vendor and back
     await postTransfer(page, vendor, site, item.code, '20');
 
     await page.goto(`/stock/ledger?item=${item.id}`);
-    await expect.poll(() => page.getByRole('row').filter({ hasText: 'Transfer' }).count(), { timeout: 20_000 }).toBeGreaterThanOrEqual(2); // each leg may show on both of its warehouses
+    // Both legs are in the ledger: warehouse → vendor (out of the warehouse, into the vendor) and vendor → site (out of the vendor, into the site).
+    const leg = (wh: { code: string }, sign: '-' | '+') => page.getByRole('row')
+      .filter({ hasText: 'Transfer' })
+      .filter({ has: page.getByTestId('stock-ledger-warehouse-code').getByText(wh.code, { exact: true }) })
+      .filter({ has: page.getByTestId('stock-ledger-change').getByText(new RegExp(`^\\${sign}20$`)) });
+    await expect(leg(warehouse, '-')).toHaveCount(1, { timeout: 20_000 });
+    await expect(leg(vendor, '+')).toHaveCount(1);
+    await expect(leg(vendor, '-')).toHaveCount(1);
+    await expect(leg(site, '+')).toHaveCount(1);
     await expectOnHand(page, site, item.code, '20');
     await page.goto('/stock');
     await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${vendor.code} - ${vendor.name}` });

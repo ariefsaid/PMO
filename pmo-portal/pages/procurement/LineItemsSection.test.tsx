@@ -57,6 +57,11 @@ const catalog = vi.hoisted(() => ({ connected: false }));
 beforeEach(() => { vi.clearAllMocks(); catalog.connected = false; });
 afterEach(() => vi.unstubAllGlobals());
 
+it('shows a line\'s stored description under its name, also without an ERP catalogue', () => {
+  renderSection({ items: [{ ...items[0], description: 'Monthly plan 2026-12' }] });
+  expect(screen.getByText('Monthly plan 2026-12')).toBeInTheDocument();
+});
+
 function renderAddFlow(createFormLayout: boolean) {
   const onAdd = vi.fn().mockResolvedValue(undefined);
   const AddedItemFlow: React.FC = () => {

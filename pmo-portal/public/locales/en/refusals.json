@@ -357,6 +357,7 @@
   "WBS_NOT_YOURS_detail": "Ask the person named on the step, or an Admin or Finance person.",
   "WBS_OUT_OF_ORDER": "This step is not open yet.",
   "WBS_OUT_OF_ORDER_detail": "Finish the earlier billing steps first.",
+  "WBS_REASON": "Give a reason of 3 to 500 characters.",
   "WBS_SETTER_ROLE": "Only Finance or an Admin can change billing step templates and the default.",
   "WBS_SLOT": "That attachment is not on this billing step.",
   "WBS_TEMPLATE_NOT_FOUND": "That billing step template does not exist or is archived.",

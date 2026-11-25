@@ -17,6 +17,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
+import { useTaskSourceIssues } from '@/src/hooks/useTaskSourceIssues';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useTaskGroups } from '@/src/hooks/useTaskGroups';
 import { buildRollups, collectDescendants, countedTasks } from '@/src/lib/tasks/taskTree';
@@ -448,14 +449,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   // The task row stays TaskWithRefs end to end; hierarchy is only reflected in the primary cell.
   // #2104: every entry is a stable callback or a primitive, so the column factory keeps its identity
   // across unrelated re-renders and the memoised tables bail out.
+  // JOB-F17: the source-issue read is one per page; the Map itself is the read's cached result, so its
+  // identity changes only when a refetch lands.
+  const sourceIssues = useTaskSourceIssues(all.map((task) => task.id));
+  const sourceIssueMap = useMemo(() => sourceIssues.data ?? new Map<string, string>(), [sourceIssues.data]);
   const taskColumnDeps = useMemo(() => ({
     today,
     highlightedTaskId,
+    sourceIssues: sourceIssueMap,
+    onOpenTask: openTask,
     canSetStatus,
     statusBusy: updateStatus.isPending,
     onStatusChange: onRowStatusChange,
     pendingPushByTask,
-  }), [highlightedTaskId, canSetStatus, onRowStatusChange, pendingPushByTask, today, updateStatus.isPending]);
+  }), [highlightedTaskId, sourceIssueMap, openTask, canSetStatus, onRowStatusChange, pendingPushByTask, today, updateStatus.isPending]);
   const buildColumns = useProjectTaskColumns(taskColumnDeps);
 
   const rowMenu = useCallback((task: TaskWithRefs): RowMenuItem[] => {

@@ -38,10 +38,14 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
       id: woId, org_id: ORG_ID, project_id: projectId, title: `${run} works`, wo_number: `WO-${run}`, status: 'Issued',
       issued_at: new Date().toISOString(), order_value: 200_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD',
     }));
-    // The month's target: 2,200 spread over the month's working days (the shipped "Enter plan" month amount).
-    ok('plan', await svc.from('work_order_revenue_plan').insert({
-      org_id: ORG_ID, project_id: projectId, work_order_id: woId, plan_date: monthKey, amount: 2_200, source: 'month', month_key: monthKey,
-    }));
+    // The month's target 2,200 with a distinct per-day figure: 120 today, the rest (2,080) on one other day of the month.
+    // (Today is the 1st → the other day is the 2nd, still to come, so it counts in the month but not yet to date.)
+    const otherDay = today === monthKey ? `${today.slice(0, 7)}-02` : monthKey;
+    const mtdTarget = today === monthKey ? 120 : 2_200;
+    ok('plan', await svc.from('work_order_revenue_plan').insert([
+      { org_id: ORG_ID, project_id: projectId, work_order_id: woId, plan_date: today, amount: 120, source: 'date' },
+      { org_id: ORG_ID, project_id: projectId, work_order_id: woId, plan_date: otherDay, amount: 2_080, source: 'date' },
+    ]));
     const boqId = need('contract line', await svc.from('boq_items').insert({
       org_id: ORG_ID, project_id: projectId, item_code: `L-${run}`, description: `${run} measured work`, unit: 'm', quantity: 100, rate: 10,
     }).select('id').single()).id as string;
@@ -66,12 +70,14 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
     // The day itself: today's revenue next to its target and the gap.
     const todayRow = daily.getByTestId(`wo-daily-row-${today}`);
     await expect(todayRow).toBeVisible();
-    await expect(todayRow).toContainText(money('50.00'));
+    await expect(todayRow.locator('td').nth(0)).toHaveText(money('120.00'));
+    await expect(todayRow.locator('td').nth(1)).toHaveText(money('50.00'));
+    await expect(todayRow.locator('td').nth(2)).toHaveText(`${money('70.00')} behind target`);
     // The month to date: the target so far, the actual, and the gap said in words.
-    await expect(daily.getByTestId('wo-daily-mtd-target')).toHaveText(money('2200.00'));
+    await expect(daily.getByTestId('wo-daily-mtd-target')).toHaveText(money(mtdTarget.toFixed(2)));
     await expect(daily.getByTestId('wo-daily-mtd-actual')).toHaveText(money('50.00'));
     await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(/behind target|ahead of target|On target/);
-    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(`${money('2150.00')} behind target`);
+    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(`${money((mtdTarget - 50).toFixed(2))} behind target`);
     await expect(daily.getByTestId('wo-daily-projection')).not.toHaveText('Not enough working days yet');
   } finally {
     if (reportId) sqlAsOwner(`delete from public.dsr_progress_lines where report_id = '${reportId}'; delete from public.daily_site_reports where id = '${reportId}';`);

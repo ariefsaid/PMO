@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — owns its project_administrator login, project, work order, and created project_documents rows; Microsoft custody and org library settings are route-mocked with no live external calls; removes owned rows in finally.
 import { test, expect, type Page } from '@playwright/test';
-import { cleanupAll, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
+import { ORG_ID, cleanupAll, need, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
@@ -16,7 +16,7 @@ const WO_FOLDER_ID = 'synthetic-wo-folder-item';
 const UPLOADED_ITEM_ID = 'synthetic-wo-uploaded-item';
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
 
-async function mockCloudProvider(page: Page, woId: string, projectId: string, recorded: { ensureBodies: unknown[]; uploadCount: number; linkedFolder: boolean }) {
+async function mockCloudProvider(page: Page, woId: string, projectId: string, recorded: { ensureBodies: unknown[]; uploadCount: number; linkedFolder: boolean; createFolderRow: () => Promise<void> }) {
   await page.route('**/rest/v1/org_m365_document_settings*', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     return route.fulfill({
@@ -61,12 +61,14 @@ async function mockCloudProvider(page: Page, woId: string, projectId: string, re
     if (body.action === 'ensure_record_folder') {
       recorded.ensureBodies.push(body);
       recorded.linkedFolder = true;
+      await recorded.createFolderRow();
       return json({ state: 'created', document_id: '90000000-0000-0000-0000-000000000601' });
     }
     if (body.action === 'check_documents') return json({ checked: body.document_ids?.length ?? 0 });
     if (body.action === 'graph_proxy' && body.path?.includes(`/items/${WO_FOLDER_ID}/children`)) {
+      // The folder holds the file only once the upload has reached the provider stub.
       return json({
-        value: [{
+        value: recorded.uploadCount === 0 ? [] : [{
           id: UPLOADED_ITEM_ID,
           name: 'wo-drawing.pdf',
           webUrl: `https://synthetic.sharepoint.com/sites/docs/${UPLOADED_ITEM_ID}.pdf`,
@@ -87,7 +89,17 @@ test('JOB-A6 TC-PA-13 Project Administrator creates and uploads work-order docum
   const pa = await roleJobUser(svc, 'project_administrator', run);
   const { projectId, workOrders } = await projectWithWorkOrders(svc, run, ['Cloud folder WO']);
   const wo = workOrders[0]!;
-  const recorded = { ensureBodies: [] as unknown[], uploadCount: 0, linkedFolder: false };
+  // The provider stub's folder create leaves the work order's linked-folder row behind, as the real function does.
+  const recorded = {
+    ensureBodies: [] as unknown[], uploadCount: 0, linkedFolder: false,
+    async createFolderRow() {
+      need('folder row', await svc.from('project_documents').insert({
+        org_id: ORG_ID, project_id: projectId, work_order_id: wo.id, title: `${run} WO folder`, status: 'Draft', source: 'onedrive',
+        ms_drive_id: DRIVE, ms_item_id: WO_FOLDER_ID, ms_item_kind: 'folder', ms_item_name: 'Cloud folder WO',
+        ms_web_url: 'https://synthetic.sharepoint.com/sites/docs/wo-folder', ms_linked_by: pa.id, ms_linked_at: '2026-10-01T00:00:00Z',
+      }).select('id').single());
+    },
+  };
 
   try {
     await mockCloudProvider(page, wo.id, projectId, recorded);
@@ -108,6 +120,8 @@ test('JOB-A6 TC-PA-13 Project Administrator creates and uploads work-order docum
     await chooser.setFiles({ name: 'wo-drawing.pdf', mimeType: 'application/pdf', buffer: PDF });
 
     await expect.poll(() => recorded.uploadCount, { timeout: 15_000 }).toBe(1);
+    // It appears in that work order's folder, on screen, without reopening the page.
+    await expect(page.getByRole('link', { name: 'Open wo-drawing.pdf in SharePoint' })).toBeVisible({ timeout: 20_000 });
     expect(recorded.ensureBodies).toContainEqual({ action: 'ensure_record_folder', kind: 'work_order', id: wo.id });
 
     // Project Administrator does not gain project-level document create rights

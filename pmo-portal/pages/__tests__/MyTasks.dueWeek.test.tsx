@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -55,11 +56,13 @@ const makeTask = (id: string, endDate: string | null, status = 'To Do') => ({
 
 const renderMyTasks = (initialEntry = '/my-tasks') =>
   render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <ToastProvider>
-        <MyTasks />
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <ToastProvider>
+          <MyTasks />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {

@@ -1,4 +1,4 @@
-// @e2e-isolation: serial — switches the organisation's profit-per-discipline setting and its stock-issue costing date for the run and restores both in finally; the contract, disciplines, stock and item are this run's own and are deleted.
+// @e2e-isolation: serial — disconnects the seed organisation's accounting binding for the run (restored in afterAll), switches the organisation's profit-per-discipline setting and its stock-issue costing date for the run and restores both in finally; the contract, disciplines, stock and item are this run's own and are deleted.
 // JOB-M9 (acceptance 01-management, TC-M-09): profit per discipline. A contract with revenue and cost tagged to two
 // disciplines: the Executive opens the discipline view and each discipline shows revenue, cost and profit, and the
 // totals equal the project's.
@@ -8,8 +8,14 @@ import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/j
 import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { formatExactMoney } from '../../src/lib/format';
+import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
 
 test.setTimeout(180_000);
+
+// This client's organisation has no accounting system connected; stock-issue costing needs that, so the seed organisation is disconnected for the run and restored after.
+let noErp: NoErpHandle | undefined;
+test.beforeAll(async () => { noErp = await disconnectSeedOrgErp(); });
+test.afterAll(async () => { await noErp?.restore(); });
 
 type Actor = Awaited<ReturnType<typeof roleJobUser>>;
 const money = (value: string) => formatExactMoney(value, 'USD', 'en-US')!;
