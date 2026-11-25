@@ -1,10 +1,12 @@
 // @e2e-isolation: self-isolated — creates its own uniquely-named projects, work orders, crews and workers; approved attendance is immutable by design, so this run's rows stay, scoped to its own names; cleanup ends the roster and placements.
 /**
  * JOB-H8 — HR approves, seeing the work order (#2528). Two crews' days on two work orders are sent for approval by the field
- * controller. HR (the Admin) opens the weeks waiting for approval.
+ * controller. The approver opens the weeks waiting for approval.
  * Goal oracle: each waiting line shows the work order its hours belong to.
- * Partly built: the approval list names the worker, week and hours only; the work order per line is not shown yet, so this
- * journey is expected red on its last step until it is.
+ * Role note (TC-PA-06, 2026-11-24 walk): the acceptance case names the HR Officer, but this app separates the two jobs —
+ * crew time is approved by delivery roles only (`can('approve','attendance')`), while the HR Officer's read-only
+ * Timesheet review (`/timesheets/review`) groups by project and never names the work order. So this journey proves the
+ * rule on the approval surface that owns it; the case cannot be reached by its named role (recorded in the lane table).
  */
 import { test, expect } from '@playwright/test';
 import { signIn, visibleToast } from './helpers';

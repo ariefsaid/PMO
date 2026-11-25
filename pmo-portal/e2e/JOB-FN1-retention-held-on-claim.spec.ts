@@ -6,7 +6,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { loadEnv } from 'vite';
-import { signIn, requireServiceRoleKey } from './helpers';
+import { requireServiceRoleKey } from './helpers';
+import { roleJobUser } from './support/roleJobUser';
+import { runId, serviceClient } from './support/jobFixtures';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -19,6 +21,7 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 test.setTimeout(180_000);
 
 let admin: SupabaseClient | undefined;
+let financeManager: Awaited<ReturnType<typeof roleJobUser>>;
 let projectId = '';
 let companyId = '';
 let documentId = '';
@@ -33,6 +36,7 @@ test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('JOB-FN1 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
+  financeManager = await roleJobUser(serviceClient('JOB-FN1'), 'finance_manager', runId('fn1-fm'));
   tag = `JOB-FN1 ${Date.now()}`;
   const company = await admin.from('companies').insert({ org_id: ORG_ID, name: `${tag} Client`, type: 'Client' }).select('id').single();
   if (company.error) throw new Error(`JOB-FN1 fixture company: ${company.error.message}`);
@@ -113,6 +117,7 @@ test.afterEach(async () => {
     fail('company', (await admin.from('companies').delete().eq('id', companyId)).error);
     companyId = '';
   }
+  await financeManager.cleanup();
 });
 
 /** The project's "Billed to date" figure in the Contract tab's claims card (a bare number, as the card prints it). */
@@ -128,7 +133,7 @@ async function billedWork(page: Page): Promise<string> {
 }
 
 test('JOB-FN1 a claim under 10% retention shows the retention held', async ({ page }) => {
-  await signIn(page, 'finance@acme.test');
+  await financeManager.signIn(page);
   expect(await billedWork(page)).toBe('0');
   await page.getByRole('button', { name: localizedExact('Billing terms', 'Ketentuan penagihan') }).click();
   const terms = page.getByRole('dialog', { name: localizedExact('Billing terms', 'Ketentuan penagihan') });
@@ -151,4 +156,11 @@ test('JOB-FN1 a claim under 10% retention shows the retention held', async ({ pa
   await expect(claim).toContainText(/Retention held|Retensi ditahan/i);
   await expect(claim).toContainText(/20[.,]000/);
   await expect(claim).toContainText('10%');
+
+  // The case also expects the release date: schedule the whole held amount and see it dated on the claim.
+  const releases = claim.getByRole('region', { name: /Retention releases|Pelepasan retensi/i });
+  await expect(releases).toBeVisible({ timeout: 15_000 });
+  await releases.getByLabel(/^Amount$|^Jumlah$/i).fill('20000');
+  await releases.getByRole('button', { name: /Schedule release|Jadwalkan pelepasan/i }).click();
+  await expect(releases).toContainText(/Due|Jatuh tempo/i, { timeout: 15_000 });
 });

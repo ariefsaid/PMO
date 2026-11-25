@@ -6,8 +6,10 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { loadEnv } from 'vite';
-import { signIn, requireServiceRoleKey } from './helpers';
+import { requireServiceRoleKey } from './helpers';
 import { userClient } from './support/stockFixture';
+import { roleJobUser } from './support/roleJobUser';
+import { runId, serviceClient } from './support/jobFixtures';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -20,6 +22,7 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 test.setTimeout(180_000);
 
 let admin: SupabaseClient | undefined;
+let financeManager: Awaited<ReturnType<typeof roleJobUser>>;
 let projectId = '';
 let companyId = '';
 let documentId = '';
@@ -34,6 +37,7 @@ test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('JOB-FN2 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
+  financeManager = await roleJobUser(serviceClient('JOB-FN2'), 'finance_manager', runId('fn2-fm'));
   tag = `JOB-FN2 ${Date.now()}`;
   const company = await admin.from('companies').insert({ org_id: ORG_ID, name: `${tag} Client`, type: 'Client' }).select('id').single();
   if (company.error) throw new Error(`JOB-FN2 fixture company: ${company.error.message}`);
@@ -114,6 +118,7 @@ test.afterEach(async () => {
     fail('company', (await admin.from('companies').delete().eq('id', companyId)).error);
     companyId = '';
   }
+  await financeManager.cleanup();
 });
 
 test('JOB-FN2 a claim moves through its billing stages in order', async ({ page }) => {
@@ -124,7 +129,7 @@ test('JOB-FN2 a claim moves through its billing stages in order', async ({ page 
   ] });
   if (set.error) throw new Error(set.error.message);
 
-  await signIn(page, 'finance@acme.test');
+  await financeManager.signIn(page);
   await page.goto(`/projects/${projectId}/contract`);
   await page.getByRole('button', { name: localized('New claim', 'Tagihan baru') }).click();
   const claimForm = page.getByRole('dialog');
