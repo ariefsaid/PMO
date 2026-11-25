@@ -10,6 +10,7 @@
 // Output: <out>/summary.md (per screen / write / endpoint p50 p95 p99 and errors; DB connections, lock waits, CPU;
 // top statements) and <out>/raw.json.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -241,7 +242,7 @@ async function main() {
         ]);
         const [total, active, lockWait, rest, restActive, maxConn] = a.split('\t').map(Number);
         const cpu = Object.fromEntries(d.trim().split('\n').map((l) => { const [n, c] = l.split(' '); return [n.replace(/^supabase_|_pmo-portal$/g, ''), parseFloat(c)]; }));
-        samples.push({ t: Math.round((performance.now() - steadyAt) / 1000), total, active, lockWait, rest, restActive, maxConn, cpu, load: fs.readFileSync('/proc/loadavg', 'utf8').split(' ')[0] });
+        samples.push({ t: Math.round((performance.now() - steadyAt) / 1000), total, active, lockWait, rest, restActive, maxConn, cpu, load: os.loadavg()[0].toFixed(1) });
       } catch (e) { samples.push({ error: e.message }); }
     }
   })();
