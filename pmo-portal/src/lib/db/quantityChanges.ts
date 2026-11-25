@@ -182,7 +182,18 @@ export async function approvalState(requestId: string): Promise<QcrApprovalState
 export async function listVersions(boqItemId: string): Promise<QuantityVersion[]> {
   const data = await fetchAllPages((f, t) => supabase.from('boq_quantity_versions')
     .select('version_no, quantity, source, request_id, created_by, created_at').eq('boq_item_id', boqItemId).order('version_no').range(f, t));
-  return data.map((v) => ({ ...v, quantity: Number(v.quantity), source: v.source as QuantityVersion['source'] }));
+  // #2883: the reason lives on the request's line for this item; one read covers every request that produced a version.
+  const requestIds = [...new Set(data.map((v) => v.request_id).filter((id): id is string => Boolean(id)))];
+  const reasons = new Map<string, string>();
+  if (requestIds.length) {
+    const lines = await fetchAllPages((f, t) => supabase.from('quantity_change_request_lines')
+      .select('request_id, reason').eq('boq_item_id', boqItemId).in('request_id', requestIds).order('request_id').range(f, t));
+    for (const l of lines) reasons.set(l.request_id, l.reason);
+  }
+  return data.map((v) => {
+    const reason = v.request_id ? reasons.get(v.request_id) : undefined;
+    return { ...v, quantity: Number(v.quantity), source: v.source as QuantityVersion['source'], ...(reason ? { reason } : {}) };
+  });
 }
 
 const lineArgs = (lines: QcrRaiseInput['lines']) => lines.map((l) => ({ boq_item_id: l.boqItemId, requested_quantity: l.requestedQuantity, reason: l.reason }));

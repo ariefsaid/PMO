@@ -309,6 +309,7 @@ const VersionHistory: React.FC<{ line: QcrLine; currency: string }> = ({ line, c
               <span className="text-muted-foreground">{t(`lines.source.${v.source}`)}</span>
               <span className="tabular-nums">{money(v.value)}</span>
               {v.change !== null && <span className="tabular-nums" data-testid="qcr-version-change">{money(v.change)}</span>}
+              {v.reason && <span className="text-muted-foreground" data-testid="qcr-version-reason">{v.reason}</span>}
             </li>
           ))}
         </ol>

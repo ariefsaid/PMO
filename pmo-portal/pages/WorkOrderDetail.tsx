@@ -53,6 +53,7 @@ import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
 import { ResponsiblePersonSection } from './work-order-detail/ResponsiblePersonSection';
 import { WorkOrderAheadBadge } from './project-detail/tabs/WorkOrderAheadBadge';
 import { isMicrosoftFolder } from './project-detail/tabs/documentUtils';
+import { WorkOrderStockBalance } from './stock/WorkOrderStockBalance';
 import { PageGroup, PageIndex } from './work-order-detail/PageIndex';
 import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
 
@@ -225,6 +226,8 @@ const WorkOrderDetail: React.FC = () => {
         </PageGroup>
         {hasMaterial && (
           <PageGroup id="wo-material" label={groupLabels.material}>
+            {/* #2885: quantities for the stock roles, who have no Contract area; value shows only where the server sends it. */}
+            {stockOn && <div className="space-y-2"><h3 className="text-control font-medium">{t('stock:siteWork.balance.open', 'Stock for this work order')}</h3><WorkOrderStockBalance workOrderId={row.id} currency={row.currency} /></div>}
             {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
             {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
           </PageGroup>
