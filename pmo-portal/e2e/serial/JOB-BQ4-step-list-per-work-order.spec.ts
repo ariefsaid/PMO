@@ -59,7 +59,12 @@ test.afterEach(async () => {
   }
   if (companyId) fail('client', (await admin.from('companies').delete().eq('id', companyId)).error);
   const gone = users; users = [];
-  for (const u of gone) await u.remove();
+  for (const u of gone) {
+    // The default-template setting remembers who changed it and approvals notify people: both rows name the login.
+    fail('settings editor', (await admin.from('org_billing_step_settings').update({ updated_by: null }).eq('updated_by', u.id)).error);
+    fail('notifications', (await admin.from('notifications').delete().eq('owner_id', u.id)).error);
+    await u.remove();
+  }
 });
 
 test('JOB-BQ4 a work order takes its steps from a template and an added step leaves the template unchanged', async ({ page }) => {
@@ -89,6 +94,8 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     await row.getByRole('button', { name: /Use BQ4 .* for new work orders/ }).click();
     await expect(row.getByTestId('default-step-template')).toBeVisible({ timeout: 15_000 });
     await templates.getByRole('button', { name: 'Done' }).click();
+    // Done returns to Billing terms (the template choice is already saved); the officer closes it.
+    await terms.getByRole('button', { name: 'Close' }).click();
     await expect(terms).toBeHidden();
 
     // 3. A newly issued work order carries that list; the billing officer adds one step to it.
@@ -109,6 +116,7 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     const templates2 = page.getByRole('dialog', { name: 'Billing step templates' });
     await expect(templates2.getByRole('listitem').filter({ hasText: 'BQ4 ' })).toContainText('1 step');
     await templates2.getByRole('button', { name: 'Done' }).click();
+    await terms2.getByRole('button', { name: 'Close' }).click();
     await expect(terms2).toBeHidden();
 
     // 5. Saved deliberately, the work order's own list becomes a template of its own.
