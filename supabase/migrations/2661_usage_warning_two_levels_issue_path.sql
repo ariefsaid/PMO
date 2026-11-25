@@ -28,7 +28,7 @@ begin
   select pr.project_manager_id into v_pm from public.work_orders w
     join public.projects pr on pr.id = w.project_id and pr.org_id = w.org_id
     join public.profiles p on p.id = pr.project_manager_id and p.org_id = w.org_id
-   where w.id = p_work_order and public.is_active_member(pr.project_manager_id);
+   where w.id = p_work_order and public.is_active_member(pr.project_manager_id) and not public.is_light_role_key(p.built_in_role);
   for i in
     select c.stock_item_id as item_id
       from public.dsr_consumables c join public.daily_site_reports r on r.id = c.report_id
