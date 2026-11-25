@@ -21028,6 +21028,7 @@ export type Database = {
           frequency: string
           id: string
           kind: string
+          managed_by: string
           name: string
           org_id: string
           recipient_roles: string[]
@@ -21044,6 +21045,7 @@ export type Database = {
           frequency: string
           id?: string
           kind: string
+          managed_by?: string
           name: string
           org_id: string
           recipient_roles?: string[]
@@ -21060,6 +21062,7 @@ export type Database = {
           frequency?: string
           id?: string
           kind?: string
+          managed_by?: string
           name?: string
           org_id?: string
           recipient_roles?: string[]

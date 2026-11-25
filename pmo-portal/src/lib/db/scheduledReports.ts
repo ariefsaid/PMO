@@ -4,12 +4,15 @@ import { AppError } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 
 /**
- * Scheduled reports DAL (#2714; migrations 1225-1228). Reads are RLS-scoped (Admin only). Every write is a SECURITY DEFINER
- * RPC that re-checks the Admin role and the caller's organisation; org_id is never sent.
+ * Scheduled reports DAL (#2714; migrations 1225-1228, 2580). Reads are RLS-scoped (Admin, and a Project Control Manager for the kinds
+ * that role reads). Every write is a SECURITY DEFINER RPC that re-checks the caller's role, the schedule's managing role and the caller's
+ * organisation; org_id is never sent.
  */
 export const REPORT_KINDS = ['daily_progress', 'overdue_tasks'] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 export type ReportFrequency = 'daily' | 'weekly';
+/** The role that created a schedule and may change it besides an Admin (`scheduled_reports.managed_by`, written once at creation). */
+export type ScheduleManager = 'admin' | 'project_control_manager';
 
 export interface ScheduledReport {
   id: string;
@@ -23,13 +26,10 @@ export interface ScheduledReport {
   recipientUserIds: string[];
   recipientRoles: string[];
   enabled: boolean;
-  /** Creator base role and built-in role key used by policy.ts to gate PCM edits on Admin rows. */
-  creatorRole?: string | null;
-  creatorBuiltInRole?: string | null;
-  /** Test fixture flag for unit tests omitting profile lookups. */
-  editableByPcm?: boolean;
+  /** Server-set: which role created the schedule. Decides whether a Project Control Manager may edit, toggle or archive the row. */
+  managedBy?: ScheduleManager | null;
 }
-export type ScheduledReportInput = Omit<ScheduledReport, 'id'> & { id: string | null };
+export type ScheduledReportInput = Omit<ScheduledReport, 'id' | 'managedBy'> & { id: string | null };
 export interface ReportRecipientOption { id: string; name: string; builtInRole?: string | null }
 
 function fail(error: { message: string; code?: string }): never { throw new AppError(error.message, error.code); }
@@ -37,32 +37,18 @@ function fail(error: { message: string; code?: string }): never { throw new AppE
 export async function listScheduledReports(): Promise<ScheduledReport[]> {
   // The list has no provable ceiling (an Admin adds reports), so it is paged rather than silently truncated.
   const data = await fetchAllPages((f, t) => supabase.from('scheduled_reports')
-    .select('id, name, kind, frequency, weekday, send_time, recipient_user_ids, recipient_roles, enabled, created_by')
+    .select('id, name, kind, frequency, weekday, send_time, recipient_user_ids, recipient_roles, enabled, managed_by')
     .is('archived_at', null)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true })
     .range(f, t));
-  const creatorIds = [...new Set(data.map((r) => r.created_by).filter((id): id is string => Boolean(id)))];
-  const creatorRoles = new Map<string, { role: string; built_in_role: string | null }>();
-  if (creatorIds.length > 0) {
-    const { data: creators, error } = await supabase
-      .from('profiles')
-      .select('id, role, built_in_role')
-      .in('id', creatorIds)
-      .limit(creatorIds.length);
-    if (error) fail(error);
-    for (const c of creators ?? []) creatorRoles.set(c.id, { role: c.role, built_in_role: c.built_in_role });
-  }
-  // `kind` and `frequency` are `text` with a CHECK of the values below, which the generated row states as `string`.
-  return data.map((r) => {
-    const creator = r.created_by ? creatorRoles.get(r.created_by) : undefined;
-    return {
-      id: r.id, name: r.name, kind: r.kind as ReportKind, frequency: r.frequency as ReportFrequency, weekday: r.weekday,
-      sendTime: r.send_time.slice(0, 5), recipientUserIds: r.recipient_user_ids ?? [], recipientRoles: r.recipient_roles ?? [], enabled: r.enabled,
-      creatorRole: creator?.role ?? null,
-      creatorBuiltInRole: creator?.built_in_role ?? null,
-    };
-  });
+  // `kind` and `frequency` are `text` with a CHECK of the values below, which the generated row states as `string`;
+  // `managed_by` is `text` with a CHECK of its two values.
+  return data.map((r) => ({
+    id: r.id, name: r.name, kind: r.kind as ReportKind, frequency: r.frequency as ReportFrequency, weekday: r.weekday,
+    sendTime: r.send_time.slice(0, 5), recipientUserIds: r.recipient_user_ids ?? [], recipientRoles: r.recipient_roles ?? [], enabled: r.enabled,
+    managedBy: r.managed_by === 'project_control_manager' ? 'project_control_manager' : 'admin',
+  }));
 }
 
 /** Active members the Admin or Project Control Manager can pick as recipients. */

@@ -51,19 +51,32 @@ describe('AC-SCH-016 scheduledReport policy', () => {
     const pcmCtx = { realRole: 'Project Manager' as const, builtInRoleKey: 'project_control_manager' };
     expect(can('edit', 'scheduledReport', {
       ...pcmCtx,
-      record: { pcm_scheduled_reports_enabled: true, creatorRole: 'Project Manager', creatorBuiltInRole: 'project_control_manager' },
+      record: { pcm_scheduled_reports_enabled: true, managedBy: 'project_control_manager' },
     })).toBe(true);
     expect(can('edit', 'scheduledReport', {
       ...pcmCtx,
-      record: { pcm_scheduled_reports_enabled: true, creatorRole: 'Admin', creatorBuiltInRole: null },
+      record: { pcm_scheduled_reports_enabled: true, managedBy: 'admin' },
+    })).toBe(false);
+    // A row that does not say which role created it is not treated as the role's.
+    expect(can('edit', 'scheduledReport', {
+      ...pcmCtx,
+      record: { pcm_scheduled_reports_enabled: true },
     })).toBe(false);
     expect(can('edit', 'scheduledReport', {
       ...pcmCtx,
-      record: { pcm_scheduled_reports_enabled: true, creatorRole: 'Admin', creatorBuiltInRole: 'project_control_manager' },
+      record: { pcm_scheduled_reports_enabled: false, managedBy: 'project_control_manager' },
+    })).toBe(false);
+    expect(can('edit', 'scheduledReport', {
+      ...pcmCtx,
+      record: { pcm_scheduled_reports_enabled: true, managedBy: 'project_control_manager', viewOnly: true },
     })).toBe(false);
     expect(can('edit', 'scheduledReport', {
       realRole: 'Admin',
-      record: { creatorRole: 'Project Manager', creatorBuiltInRole: 'project_control_manager' },
+      record: { managedBy: 'project_control_manager' },
     })).toBe(true);
+    expect(can('edit', 'scheduledReport', {
+      realRole: 'Admin',
+      record: { managedBy: 'admin', viewOnly: true },
+    })).toBe(false);
   });
 });

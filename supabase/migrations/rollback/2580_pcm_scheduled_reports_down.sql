@@ -1,5 +1,5 @@
 -- Rollback 2580_pcm_scheduled_reports.sql: restore 1905 claim_email_outbox, 1463 scheduled_report_tick,
--- 1971 scheduled_report_content, 1228+1530 RPCs; drop helper, PCM policy and switch column.
+-- 1971 scheduled_report_content, 1228+1530 RPCs; drop both helpers, the PCM policy, the managing-role column and the switch column.
 
 create or replace function public.claim_email_outbox(p_limit integer default 20, p_lease interval default '5 minutes')
 returns table (id uuid, to_email text, event_key text, locale text, severity text, title text, body text, attempts integer, org_id uuid)
@@ -203,7 +203,9 @@ revoke all on function public.archive_scheduled_report(uuid) from public, anon;
 grant execute on function public.archive_scheduled_report(uuid) to authenticated;
 
 drop function if exists public.scheduled_report_may_read(text, uuid, uuid);
+drop function if exists public.scheduled_report_pcm_may_change(uuid, uuid);
 drop policy if exists scheduled_reports_pcm_read on public.scheduled_reports;
 revoke update(pcm_scheduled_reports_enabled) on public.organizations from authenticated;
 drop policy if exists organizations_update_pcm_scheduled_reports on public.organizations;
 alter table public.organizations drop column if exists pcm_scheduled_reports_enabled;
+alter table public.scheduled_reports drop column if exists managed_by;

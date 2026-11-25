@@ -19,8 +19,9 @@ const BLANK: ScheduledReportInput = {
 };
 
 /**
- * Scheduled reports (#2714, TC-PC-19). Admin always manages; an active Project Control Manager manages readable reports
- * when `pcm_scheduled_reports_enabled` is on. UX only: the RPCs (2580) re-check the role and recipient read rules.
+ * Scheduled reports (#2714, TC-PC-19). Admin always manages; an active Project Control Manager manages the kinds that role reads
+ * when `pcm_scheduled_reports_enabled` is on, and only the schedules that role created. UX only: the RPCs (2580) re-check the role,
+ * the schedule's managing role and the recipient read rules.
  */
 export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ standalone = false }) => {
   const { t } = useTranslation('emailNotifications');
@@ -64,9 +65,8 @@ export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ st
 
   if (!canManage) return null;
   const reports = query.data ?? [];
-  const recipientOptions = isAdmin
-    ? (people.data ?? [])
-    : (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
+  // The send path never emails a field account (it cannot read either report), so the form never offers one to anyone.
+  const recipientOptions = (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
 
   const valid = draft !== null && draft.name.trim() !== '' && draft.recipientUserIds.length + draft.recipientRoles.length > 0
     && (draft.frequency === 'daily' || draft.weekday !== null) && /^\d{2}:\d{2}$/.test(draft.sendTime);

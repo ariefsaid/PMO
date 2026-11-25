@@ -12,13 +12,13 @@ const IDLE_CLIENT = new QueryClient();
 
 /**
  * Who may open and manage scheduled reports (TC-PC-19): Admin always; an active Project Control Manager when the
- * organisation setting `pcm_scheduled_reports_enabled` is on (and for row edits/toggles/archives, only schedules that role created).
- * Safe when rendered without `AuthContext` in unit tests.
+ * organisation setting `pcm_scheduled_reports_enabled` is on (and for row edits/toggles/archives, only schedules that role created,
+ * which the server records on the row as `managedBy`). Safe when rendered without `AuthContext` in unit tests.
  */
 export function useScheduledReportsAccess(): {
   canManage: boolean;
   isAdmin: boolean;
-  canEditRow: (report: Pick<ScheduledReport, 'editableByPcm' | 'creatorRole' | 'creatorBuiltInRole'>) => boolean;
+  canEditRow: (report: Pick<ScheduledReport, 'managedBy'>) => boolean;
 } {
   const auth = useContext(AuthContext);
   const orgId = auth?.currentUser?.org_id;
@@ -47,14 +47,12 @@ export function useScheduledReportsAccess(): {
       pcm_scheduled_reports_enabled: pcmEnabled,
     },
   });
-  const canEditRow = (report: Pick<ScheduledReport, 'editableByPcm' | 'creatorRole' | 'creatorBuiltInRole'>) =>
+  const canEditRow = (report: Pick<ScheduledReport, 'managedBy'>) =>
     may('edit', 'scheduledReport', {
       record: {
         viewOnly,
         pcm_scheduled_reports_enabled: pcmEnabled,
-        editableByPcm: report.editableByPcm,
-        creatorRole: report.creatorRole,
-        creatorBuiltInRole: report.creatorBuiltInRole,
+        managedBy: report.managedBy,
       },
     });
   return { canManage, isAdmin, canEditRow };

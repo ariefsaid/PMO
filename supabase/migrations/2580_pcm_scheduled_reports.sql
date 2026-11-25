@@ -2,9 +2,11 @@
 -- Latest restated bodies: save_scheduled_report, set_scheduled_report_enabled, archive_scheduled_report (1228 + 1530 assert_not_light),
 -- scheduled_report_content (1971), scheduled_report_tick (1463), claim_email_outbox (1905).
 -- drops: replaces Admin-only guard in save_scheduled_report, set_scheduled_report_enabled, archive_scheduled_report with Admin or
--- active Project Control Manager (owning PCM-created readable schedules only; Admin schedules stay read-only to PCM);
--- widens scheduled_report_content may_see_revenue for active PCM and checks scheduled_report_may_read on all recipients;
--- replaces 1463's role-only light-account filter in scheduled_report_tick with scheduled_report_may_read across both user and role arms.
+-- active Project Control Manager (only schedules that role created, recorded in scheduled_reports.managed_by when the schedule is
+-- created; an Admin's schedules stay read-only to that role);
+-- widens scheduled_report_content may_see_revenue for active PCM and checks scheduled_report_may_read on every recipient;
+-- replaces 1463's role-only light-account filter in scheduled_report_tick with scheduled_report_may_read across both the user and
+-- the role arm, so a person named by an Admin who is a field account, or who becomes one, is not emailed either.
 -- Reverse: rollback/2580_pcm_scheduled_reports_down.sql
 
 alter table public.organizations add column pcm_scheduled_reports_enabled boolean not null default true;
@@ -12,6 +14,14 @@ grant update(pcm_scheduled_reports_enabled) on public.organizations to authentic
 create policy organizations_update_pcm_scheduled_reports on public.organizations for update to authenticated
   using (id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin')
   with check (id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin');
+
+-- Which role owns a schedule is settled when the schedule is created and does not follow the creator's later role: a schedule an
+-- Admin created stays the Admin's, and a schedule the Project Control Manager role created stays that role's to manage when its
+-- creator is promoted, reassigned or leaves. Every schedule that exists before this migration was created by an Admin.
+alter table public.scheduled_reports add column managed_by text not null default 'admin'
+  check (managed_by in ('admin', 'project_control_manager'));
+comment on column public.scheduled_reports.managed_by is
+  'The role that created this schedule and may change it besides an Admin: "admin" or "project_control_manager". Written once, when the schedule is created.';
 
 create policy scheduled_reports_pcm_read on public.scheduled_reports for select to authenticated
   using (
@@ -22,6 +32,10 @@ create policy scheduled_reports_pcm_read on public.scheduled_reports for select 
     and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = org_id), false)
   );
 
+-- Who may read a report of this kind: the people who may read the report's source rows in the application. Both reports are read
+-- by every active, non-banned member of the organisation who is not a field account (1040 daily_site_reports_select, 0646
+-- tasks_select, 1206 light-account policies). The save, re-enable, queue, content and delivery steps all ask this, so a change of
+-- role, status or ban after a schedule was saved takes effect at the next of those steps. A kind not listed here is read by nobody.
 create or replace function public.scheduled_report_may_read(p_kind text, p_org uuid, p_recipient uuid) returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
@@ -29,17 +43,26 @@ create or replace function public.scheduled_report_may_read(p_kind text, p_org u
       from public.profiles pr
      where pr.id = p_recipient
        and pr.org_id = p_org
+       and p_kind in ('daily_progress', 'overdue_tasks')
        and public.is_active_member(pr.id)
        and not public.is_light_role_key(pr.built_in_role)
-       and (
-         (p_kind in ('daily_progress', 'overdue_tasks')
-          and pr.role::text in ('Admin', 'Project Manager', 'Finance', 'Executive', 'Engineer'))
-         or pr.role = 'Admin'
-       )
   )
 $$;
 revoke all on function public.scheduled_report_may_read(text, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.scheduled_report_may_read(text, uuid, uuid) to service_role;
+
+-- May the Project Control Manager role change this schedule? True for a live schedule of a readable kind that role created; false
+-- for one an Admin created; null when the organisation has no such live schedule (the caller then reports it as not found, the
+-- same answer it gives for another organisation's schedule).
+create or replace function public.scheduled_report_pcm_may_change(p_id uuid, p_org uuid) returns boolean
+  language sql stable security definer set search_path = public, pg_temp as $$
+  select sr.managed_by = 'project_control_manager'
+    from public.scheduled_reports sr
+   where sr.id = p_id and sr.org_id = p_org and sr.archived_at is null
+     and sr.kind in ('daily_progress', 'overdue_tasks')
+$$;
+revoke all on function public.scheduled_report_pcm_may_change(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.scheduled_report_pcm_may_change(uuid, uuid) to service_role;
 
 create or replace function public.save_scheduled_report(
   p_id uuid, p_name text, p_kind text, p_frequency text, p_weekday integer, p_send_time time,
@@ -61,6 +84,8 @@ begin
     and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = v_org), false);
   if not (v_is_admin or v_is_pcm) then raise exception 'admin only' using errcode = '42501'; end if;
   if p_name is null or char_length(btrim(p_name)) not between 1 and 120 then raise exception 'invalid name' using errcode = '22023'; end if;
+  -- Kinds the Project Control Manager may not read are refused as "admin only" (not "unknown"). The kinds that role reads are
+  -- named here, apart from the full list on the next line, so a kind added to the full list is not handed to that role as well.
   if not v_is_admin and p_kind not in ('daily_progress','overdue_tasks') then raise exception 'admin only' using errcode = '42501'; end if;
   if p_kind not in ('daily_progress','overdue_tasks') then raise exception 'unknown report kind' using errcode = '22023'; end if;
   if p_frequency not in ('daily','weekly') then raise exception 'unknown frequency' using errcode = '22023'; end if;
@@ -92,25 +117,13 @@ begin
     raise exception 'between 1 and 50 recipients are required' using errcode = '22023';
   end if;
   if p_id is null then
-    insert into public.scheduled_reports (org_id, name, kind, frequency, weekday, send_time, recipient_user_ids, recipient_roles, enabled, created_by)
-      values (v_org, btrim(p_name), p_kind, p_frequency, p_weekday, p_send_time, v_users, v_roles, p_enabled, auth.uid())
+    insert into public.scheduled_reports (org_id, name, kind, frequency, weekday, send_time, recipient_user_ids, recipient_roles, enabled, created_by, managed_by)
+      values (v_org, btrim(p_name), p_kind, p_frequency, p_weekday, p_send_time, v_users, v_roles, p_enabled, auth.uid(),
+              case when v_is_admin then 'admin' else 'project_control_manager' end)
       returning id into v_id;
   else
     -- PCM manages only schedules created by the project_control_manager role; Admin-created schedules remain read-only to PCM.
-    if not v_is_admin and exists (
-      select 1 from public.scheduled_reports sr
-       where sr.id = p_id and sr.org_id = v_org and sr.archived_at is null
-         and (
-           sr.kind not in ('daily_progress','overdue_tasks')
-           or not exists (
-             select 1 from public.profiles c
-              where c.id = sr.created_by
-                and c.org_id = v_org
-                and c.built_in_role = 'project_control_manager'
-                and c.role <> 'Admin'
-           )
-         )
-    ) then
+    if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is false then
       raise exception 'admin only' using errcode = '42501';
     end if;
     update public.scheduled_reports set name = btrim(p_name), kind = p_kind, frequency = p_frequency, weekday = p_weekday,
@@ -140,22 +153,11 @@ begin
     and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = v_org), false);
   if not (v_is_admin or v_is_pcm) then raise exception 'admin only' using errcode = '42501'; end if;
   if p_enabled is null then raise exception 'invalid setting' using errcode = '22023'; end if;
-  if not v_is_admin and exists (
-    select 1 from public.scheduled_reports sr
-     where sr.id = p_id and sr.org_id = v_org and sr.archived_at is null
-       and (
-         sr.kind not in ('daily_progress','overdue_tasks')
-         or not exists (
-           select 1 from public.profiles c
-            where c.id = sr.created_by
-              and c.org_id = v_org
-              and c.built_in_role = 'project_control_manager'
-              and c.role <> 'Admin'
-         )
-       )
-  ) then
+  -- PCM manages only schedules created by the project_control_manager role; Admin-created schedules remain read-only to PCM.
+  if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is false then
     raise exception 'admin only' using errcode = '42501';
   end if;
+  -- Switching a schedule on sends it: the recipients saved earlier must each still be allowed to read the report.
   if not v_is_admin and p_enabled then
     select sr.kind, sr.recipient_user_ids, sr.recipient_roles
       into v_kind, v_users, v_roles
@@ -194,20 +196,8 @@ begin
   v_is_pcm := public.actor_holds_job_role('project_control_manager')
     and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = v_org), false);
   if not (v_is_admin or v_is_pcm) then raise exception 'admin only' using errcode = '42501'; end if;
-  if not v_is_admin and exists (
-    select 1 from public.scheduled_reports sr
-     where sr.id = p_id and sr.org_id = v_org and sr.archived_at is null
-       and (
-         sr.kind not in ('daily_progress','overdue_tasks')
-         or not exists (
-           select 1 from public.profiles c
-            where c.id = sr.created_by
-              and c.org_id = v_org
-              and c.built_in_role = 'project_control_manager'
-              and c.role <> 'Admin'
-         )
-       )
-  ) then
+  -- PCM manages only schedules created by the project_control_manager role; Admin-created schedules remain read-only to PCM.
+  if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is false then
     raise exception 'admin only' using errcode = '42501';
   end if;
   update public.scheduled_reports set archived_at = now(), enabled = false, updated_at = now()
@@ -304,6 +294,7 @@ begin
       on conflict do nothing;
     get diagnostics v_rows = row_count;
     continue when v_rows = 0;
+    -- Every resolved recipient, named by id or matched by role, must still be allowed to read the report today.
     insert into public.email_outbox (org_id, recipient_id, event_key, report_id, period_key, subject, body)
     select r.org_id, p.id, 'scheduled_report', r.id, v_key, c.subject, c.body
       from public.profiles p
@@ -336,13 +327,14 @@ begin
    where o.report_id is not null and o.status in ('pending','sending') and o.created_at < now() - interval '48 hours';
   update public.email_outbox o set status = 'failed', last_error = coalesce(o.last_error, 'lease expired')
    where o.status = 'sending' and o.lease_until < now() and o.attempts >= 5;
+  -- A report email is delivered only while its recipient may still read the report, has not opted out, and its schedule is
+  -- still switched on (archiving a schedule also switches it off).
   update public.email_outbox o set status = 'failed', last_error = 'ineligible'
     from public.scheduled_reports sr
    where o.report_id = sr.id
      and o.status in ('pending','sending')
      and (
        not sr.enabled
-       or sr.archived_at is not null
        or not public.scheduled_report_may_read(sr.kind, o.org_id, o.recipient_id)
        or exists (select 1 from public.email_user_prefs u where u.user_id = o.recipient_id and u.opted_out)
      );
