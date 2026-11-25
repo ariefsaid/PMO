@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, FieldError, ListState, TextField, useToast } from '@/src/components/ui';
@@ -18,49 +18,20 @@ import type { StageNameRow } from '@/src/lib/status/orgStageNames';
 const GROUPS: ProjectStatusGroup[] = ['pipeline', 'onHand', 'lost', 'internal'];
 const english = (_k: string, d: string) => d;
 const STAGE_ORDER = Object.keys(STATUS_MAP.project);
+const COLS = 'md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_minmax(0,1fr)]';
+type Draft = { en: string; id: string };
+type Lang = 'en' | 'id';
 
-const StageRow: React.FC<{ row: StageNameRow; others: (lang: 'en' | 'id') => string[] }> = ({ row, others }) => {
-  const { t } = useTranslation('administration');
+/** The names a stage's draft would show, per language, for the duplicate check across the whole list. */
+function shownName(row: StageNameRow, draft: Draft, lang: Lang): string {
+  return (draft[lang].trim() || (lang === 'en' ? shippedStatusLabel('project', row.status, english) : '')).toLowerCase();
+}
+
+const StageNamesCard: React.FC = () => {
+  const { t, i18n } = useTranslation('administration');
   const { t: tStatus } = useTranslation('status');
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [en, setEn] = useState(row.label_en ?? '');
-  const [id, setId] = useState(row.label_id ?? '');
-  const [error, setError] = useState<string>();
-  const [saving, setSaving] = useState(false);
-  useEffect(() => { setEn(row.label_en ?? ''); setId(row.label_id ?? ''); }, [row.label_en, row.label_id]);
-
-  const save = async (next: { en: string; id: string }) => {
-    const bad = validateStageName(next.en, others('en')) ?? validateStageName(next.id, others('id'));
-    if (bad) { setError(bad === 'tooLong' ? t('admin.stageNames.tooLong', 'Use 40 characters or fewer') : t('admin.stageNames.duplicate', 'Another stage already has this name')); return; }
-    setError(undefined); setSaving(true);
-    try {
-      await saveStageName(row.status, next);
-      await qc.invalidateQueries({ queryKey: [...ORG_STAGE_NAMES_KEY] });
-      toast(t('admin.stageNames.saved', 'Stage names saved'), undefined, 'success');
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      setError(detail || headline);
-    } finally { setSaving(false); }
-  };
-  const shipped = shippedStatusLabel('project', row.status, tStatus);
-
-  return (
-    <li data-testid={`stage-name-row-${row.status}`} className="grid gap-2 py-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-      <span className="text-control text-foreground">{shipped}</span>
-      <TextField label={t('admin.stageNames.english', 'English')} value={en} onChange={setEn} />
-      <TextField label={t('admin.stageNames.bahasa', 'Bahasa Indonesia')} value={id} onChange={setId} />
-      <span className="flex gap-2">
-        <Button variant="primary" size="sm" disabled={saving} onClick={() => void save({ en, id })}>{t('admin.stageNames.save', 'Save')}</Button>
-        <Button variant="outline" size="sm" disabled={saving || (!row.label_en && !row.label_id)} onClick={() => void save({ en: '', id: '' })}>{t('admin.stageNames.reset', 'Reset')}</Button>
-      </span>
-      {error && <FieldError id={`stage-name-error-${row.status}`}>{error}</FieldError>}
-    </li>
-  );
-};
-
-const StageNamesCard: React.FC = () => {
-  const { t } = useTranslation('administration');
   const query = useOrgStageNames();
   const groupTitle: Record<ProjectStatusGroup, string> = {
     pipeline: t('admin.stageNames.group.pipeline', 'Pipeline'),
@@ -68,9 +39,56 @@ const StageNamesCard: React.FC = () => {
     lost: t('admin.stageNames.group.lost', 'Lost'),
     internal: t('admin.stageNames.group.internal', 'Internal'),
   };
-  const rows = [...(query.data ?? [])].sort((a, b) => STAGE_ORDER.indexOf(a.status) - STAGE_ORDER.indexOf(b.status));
-  const others = (status: string) => (lang: 'en' | 'id') => rows.filter((r) => r.status !== status).map((r) =>
-    (lang === 'en' ? r.label_en : r.label_id) ?? (lang === 'en' ? shippedStatusLabel('project', r.status, english) : '')).filter(Boolean);
+  const rows = useMemo(
+    () => [...(query.data ?? [])].sort((a, b) => STAGE_ORDER.indexOf(a.status) - STAGE_ORDER.indexOf(b.status)),
+    [query.data],
+  );
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  // The shipped Bahasa wording for the placeholders: the Bahasa catalogue may not be loaded for an English reader yet.
+  const [, bump] = useState(0);
+  useEffect(() => { void Promise.resolve(i18n.loadLanguages?.('id')).then(() => bump((n) => n + 1)); }, [i18n]);
+  const idT = i18n.getFixedT?.('id', 'status');
+  const saved = (r: StageNameRow): Draft => ({ en: r.label_en ?? '', id: r.label_id ?? '' });
+  const draftOf = (r: StageNameRow): Draft => drafts[r.status] ?? saved(r);
+  const dirty = rows.filter((r) => {
+    const d = draftOf(r), s = saved(r);
+    return d.en.trim() !== s.en || d.id.trim() !== s.id;
+  });
+
+  const save = async () => {
+    const found: Record<string, string> = {};
+    for (const r of dirty) {
+      const d = draftOf(r);
+      const bad = (['en', 'id'] as const).map((lang) => {
+        const others = rows.filter((o) => o.status !== r.status).map((o) => shownName(o, draftOf(o), lang)).filter(Boolean);
+        return validateStageName(d[lang], others);
+      }).find(Boolean);
+      if (bad) found[r.status] = bad === 'tooLong' ? t('admin.stageNames.tooLong', 'Use 40 characters or fewer') : t('admin.stageNames.duplicate', 'Another stage already has this name');
+    }
+    setErrors(found);
+    if (Object.keys(found).length) return; // nothing is written until every name is acceptable
+    setSaving(true);
+    const results = await Promise.allSettled(dirty.map((r) => saveStageName(r.status, draftOf(r))));
+    const failed: Record<string, string> = {};
+    results.forEach((res, i) => {
+      if (res.status === 'rejected') {
+        const { headline, detail } = classifyMutationError(res.reason);
+        failed[dirty[i].status] = detail || headline;
+      }
+    });
+    setErrors(failed);
+    setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([status]) => status in failed)));
+    setSaving(false);
+    if (results.some((res) => res.status === 'fulfilled')) {
+      await qc.invalidateQueries({ queryKey: [...ORG_STAGE_NAMES_KEY] });
+      if (!Object.keys(failed).length) toast(t('admin.stageNames.saved', 'Stage names saved'), undefined, 'success');
+    }
+  };
+
+  const setField = (status: string, row: StageNameRow, lang: Lang, value: string) =>
+    setDrafts((d) => ({ ...d, [status]: { ...(d[status] ?? saved(row)), [lang]: value } }));
 
   return (
     <section id="stage-names" tabIndex={-1} className="scroll-mt-4" aria-labelledby="stage-names-heading">
@@ -80,14 +98,48 @@ const StageNamesCard: React.FC = () => {
         <ListState variant="error" title={t('admin.stageNames.loadError', "Couldn't load the stages")} onRetry={() => void query.refetch()} />
       ) : !query.data ? (
         <ListState variant="loading" rows={3} />
-      ) : GROUPS.map((g) => (
-        <div key={g} className="mt-4">
-          <h3 className="text-control font-semibold text-foreground">{groupTitle[g]}</h3>
-          <ul className="divide-y divide-border">
-            {rows.filter((r) => projectStatusGroup(r.status as ProjectStatus) === g).map((r) => <StageRow key={r.status} row={r} others={others(r.status)} />)}
-          </ul>
-        </div>
-      ))}
+      ) : (
+        <>
+          <div aria-hidden="true" className={`mt-4 hidden gap-3 border-b border-border pb-2 text-control text-muted-foreground md:grid ${COLS}`}>
+            <span>{t('admin.stageNames.stage', 'Stage')}</span>
+            <span>{t('admin.stageNames.english', 'English')}</span>
+            <span>{t('admin.stageNames.bahasa', 'Bahasa Indonesia')}</span>
+          </div>
+          {GROUPS.map((g) => (
+            <div key={g} className="mt-4">
+              <h3 className="text-control font-semibold text-foreground">{groupTitle[g]}</h3>
+              <ul className="divide-y divide-border">
+                {rows.filter((r) => projectStatusGroup(r.status as ProjectStatus) === g).map((r) => {
+                  const shipped = shippedStatusLabel('project', r.status, tStatus);
+                  const d = draftOf(r);
+                  const err = errors[r.status];
+                  return (
+                    <li key={r.status} data-testid={`stage-name-row-${r.status}`} className={`grid gap-2 py-2 md:items-center md:gap-3 ${COLS}`}>
+                      <span className="text-control text-foreground">{shipped}</span>
+                      <span className="flex items-center gap-2">
+                        <span aria-hidden="true" className="w-6 shrink-0 text-control text-muted-foreground md:hidden">EN</span>
+                        <TextField hideLabel fullWidth wrapperClassName="flex-1" label={t('admin.stageNames.inputEn', '{{stage}}, English name', { stage: shipped })}
+                          placeholder={shippedStatusLabel('project', r.status, english)} aria-invalid={Boolean(err) || undefined}
+                          value={d.en} onChange={(v) => setField(r.status, r, 'en', v)} />
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span aria-hidden="true" className="w-6 shrink-0 text-control text-muted-foreground md:hidden">ID</span>
+                        <TextField hideLabel fullWidth wrapperClassName="flex-1" label={t('admin.stageNames.inputId', '{{stage}}, Bahasa Indonesia name', { stage: shipped })}
+                          placeholder={shippedStatusLabel('project', r.status, idT ?? english)} aria-invalid={Boolean(err) || undefined}
+                          value={d.id} onChange={(v) => setField(r.status, r, 'id', v)} />
+                      </span>
+                      {err && <div className="md:col-span-3" data-testid={`stage-name-error-${r.status}`}><FieldError id={`stage-name-error-${r.status}`}>{err}</FieldError></div>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          <div className="mt-4 flex justify-end">
+            <Button variant="primary" disabled={saving || dirty.length === 0} onClick={() => void save()}>{t('admin.stageNames.save', 'Save')}</Button>
+          </div>
+        </>
+      )}
     </section>
   );
 };

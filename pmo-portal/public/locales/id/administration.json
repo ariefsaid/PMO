@@ -915,11 +915,13 @@
       "english": "Bahasa Inggris",
       "bahasa": "Bahasa Indonesia",
       "save": "Simpan",
-      "reset": "Kembalikan",
       "saved": "Nama tahapan disimpan",
       "tooLong": "Gunakan paling banyak 40 karakter",
       "duplicate": "Tahapan lain sudah memakai nama ini",
-      "loadError": "Tahapan tidak dapat dimuat"
+      "loadError": "Tahapan tidak dapat dimuat",
+      "stage": "Tahapan",
+      "inputEn": "{{stage}}, nama Inggris",
+      "inputId": "{{stage}}, nama Bahasa Indonesia"
     }
   },
   "exchangeRates": {

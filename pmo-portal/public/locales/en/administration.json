@@ -915,11 +915,13 @@
       "english": "English",
       "bahasa": "Bahasa Indonesia",
       "save": "Save",
-      "reset": "Reset",
       "saved": "Stage names saved",
       "tooLong": "Use 40 characters or fewer",
       "duplicate": "Another stage already has this name",
-      "loadError": "Couldn't load the stages"
+      "loadError": "Couldn't load the stages",
+      "stage": "Stage",
+      "inputEn": "{{stage}}, English name",
+      "inputId": "{{stage}}, Bahasa Indonesia name"
     }
   },
   "exchangeRates": {

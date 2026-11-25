@@ -14,9 +14,8 @@ test('AC-STG-010: an Admin renames a stage and the sales lead works the board un
     const admin = await browser.newPage();
     await login(admin, 'admin@acme.test');
     await admin.goto('/administration/projects');
-    const row = admin.getByTestId('stage-name-row-Quotation Submitted');
-    await row.getByLabel('English').fill('Proposal sent');
-    await row.getByRole('button', { name: 'Save' }).click();
+    await admin.getByLabel('Quotation submitted, English name').fill('Proposal sent');
+    await admin.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(admin.getByText('Stage names saved').first()).toBeVisible();
     await admin.close();
 
