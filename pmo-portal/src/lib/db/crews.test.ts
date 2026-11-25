@@ -74,6 +74,44 @@ describe('#2528 crews DAL', () => {
     expect(h.calls.from).toEqual(['people_directory']);
   });
 
+  it('OD-R1125-1 the managed-people read asks for the caller\'s live reports and returns their ids', async () => {
+    h.result.value = { data: [{ id: 'p2' }, { id: 'p1' }], error: null };
+    expect(await crews.listManagedPeopleIds('mgr-1')).toEqual(['p2', 'p1']);
+    expect(h.calls.from).toEqual(['people']);
+    expect(h.calls.eq).toEqual([['manager_id', 'mgr-1']]);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+    expect(h.calls.order).toContainEqual(['id', { ascending: true }]);
+    expect(JSON.stringify(h.calls.eq)).not.toContain('org_id');
+  });
+
+  it('OD-R1125-1 a manager of nobody gets an empty list', async () => {
+    h.result.value = { data: [], error: null };
+    expect(await crews.listManagedPeopleIds('mgr-1')).toEqual([]);
+  });
+
+  it('OD-R1125-1 the scan pages with the keyset cursor, so a capped first page loses nobody', async () => {
+    const fullPage = Array.from({ length: 1000 }, (_, i) => ({ id: `p${String(i).padStart(4, '0')}` }));
+    h.result.queue = [{ data: fullPage, error: null }, { data: [{ id: 'zzz' }], error: null }];
+    const ids = await crews.listManagedPeopleIds('mgr-1');
+    expect(ids).toHaveLength(1001);
+    expect(ids[ids.length - 1]).toBe('zzz');
+    expect(h.calls.gt).toContainEqual(['id', 'p0999']);
+  });
+
+  it('OD-R1125-1 a refused managed-people read is thrown, not swallowed, keeping its Postgres code', async () => {
+    h.result.value = { data: null, error: { message: 'row-level security', code: '42501' } };
+    await expect(crews.listManagedPeopleIds('mgr-1')).rejects.toMatchObject({ code: '42501' });
+    const err = await crewRepository.managedPeople('mgr-1').catch((e) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.code).toBe('42501');
+  });
+
+  it('OD-R1125-1 the repository exposes the managed-people read', async () => {
+    h.result.value = { data: [{ id: 'p1' }, { id: 'p2' }], error: null };
+    await expect(crewRepository.managedPeople('mgr-1')).resolves.toEqual(['p1', 'p2']);
+    expect(h.calls.eq).toEqual([['manager_id', 'mgr-1']]);
+  });
+
   it('lists live crews sorted by code', async () => {
     h.result.value = { data: [{ id: 'b', code: 'CR-2' }, { id: 'a', code: 'CR-1' }], error: null };
     expect((await crews.listCrews()).map((c) => c.code)).toEqual(['CR-1', 'CR-2']);
