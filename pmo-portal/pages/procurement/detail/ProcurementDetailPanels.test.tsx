@@ -39,6 +39,14 @@ const overdueInvoice: ErpPurchaseRow = {
 };
 
 describe('procurement record panels', () => {
+  it('a reader who cannot read payments sees the pay stage as paid from the purchase status, with no count or amount', () => {
+    const paid = { ...procurement, status: 'Paid', receipts: [{ id: 'r1', status: 'Complete' }] } as unknown as ProcurementDetail;
+    render(<ProcurementStageTracker procurement={paid} linkedDocuments={[]} isEngineer />);
+    const pay = within(screen.getByTestId('procurement-stage-tracker')).getByText('Pay').closest('li')!;
+    expect(pay).toHaveTextContent('Paid');
+    expect(pay).not.toHaveTextContent(/payment|\d/);
+  });
+
   it('PU14 one partial receipt against one order reads as partly received, never "1 of 1 orders received"', () => {
     const partlyReceived = {
       ...procurement, status: 'Ordered',

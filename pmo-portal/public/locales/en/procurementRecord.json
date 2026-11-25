@@ -106,6 +106,7 @@
     "records": "records",
     "startedAt": "Started at the {{stage}}",
     "partlyReceived": "Partly received",
+    "paid": "Paid",
     "purchaseRequest": "purchase request",
     "purchaseRequests": "purchase requests",
     "purchaseOrder": "order",

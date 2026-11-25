@@ -55,7 +55,7 @@ test('JOB-PU11 the request reads its order, receipt and payment as one checklist
   const stage = (name: string) => tracker.locator('li').filter({ has: page.getByText(name, { exact: true }) });
   await expect(stage('Order')).toContainText('1 order', { timeout: 20_000 });
   await expect(stage('Receive')).toContainText('1 receipt');
-  await expect(stage('Pay')).toContainText('1 payment');
+  await expect(stage('Pay')).toContainText('Paid');
   // Each stage carries the purchase's money, so the checklist is a checklist and not a set of ticks.
   await expect(stage('Order')).toContainText(/12[.,]000/);
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Paid');
