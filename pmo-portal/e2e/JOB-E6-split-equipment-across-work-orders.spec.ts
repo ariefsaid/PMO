@@ -62,6 +62,14 @@ test('JOB-E6 a crane used on two work orders in a day carries 5 hours on one and
   await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
   await expect(page.getByText('Nothing is waiting for approval this week')).toBeVisible({ timeout: 15_000 });
 
+  // Goal: each work order's own page shows its own hours of the crane.
+  for (const [x, hours] of [[a, 5], [b, 3]] as const) {
+    await page.goto(`/work-orders/${x.workOrderId}`);
+    const equipment = page.getByTestId('cost-group-equipment_usage');
+    await expect(equipment).toContainText(run, { timeout: 20_000 });
+    await expect(equipment).toContainText(new RegExp(`(?:^|\\D)${hours} hours`));
+    await expect(equipment).not.toContainText(new RegExp(`(?:^|\\D)${hours === 5 ? 3 : 5} hours`));
+  }
   for (const [x, hours] of [[a, 5], [b, 3]] as const) {
     const lines = must('cost lines', await db.from('work_order_cost_lines').select('quantity').eq('work_order_id', x.workOrderId).eq('source', 'equipment_usage'));
     expect(lines.reduce((sum: number, l: { quantity: string }) => sum + Number(l.quantity), 0)).toBe(hours);

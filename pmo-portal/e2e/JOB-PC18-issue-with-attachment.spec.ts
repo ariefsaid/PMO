@@ -44,6 +44,15 @@ test('JOB-PC18 a project administrator logs an issue with a screenshot and anoth
     await page.goto(issueUrl);
     await expect(page.getByTestId('incident-evidence').getByText('whatsapp-proof.png')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(fx.workOrders[0].number)).toBeVisible();
+    // The viewer opens the attachment: it opens in a new tab on a signed link that serves the file.
+    const opened = page.context().waitForEvent('page');
+    await page.getByTestId('incident-evidence').getByRole('button', { name: 'whatsapp-proof.png' }).click();
+    const tab = await opened;
+    await tab.waitForLoadState('domcontentloaded');
+    expect(tab.url()).toMatch(/\/storage\/v1\/object\/sign\/incident-files\//);
+    const served = await page.request.get(tab.url());
+    expect(served.ok()).toBe(true);
+    expect(served.headers()['content-type']).toContain('image/png');
   } finally {
     await cleanSiteIssue(type);
     await cleanupAll(admin, [['work_orders', 'id', woIds], ['projects', 'id', projectId ? [projectId] : []]]);
