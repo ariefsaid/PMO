@@ -86,9 +86,9 @@ test('AC-CRW-015 a crew\'s day is ticked, the week sent, a supervisor approves, 
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
   await expect(page.getByRole('row', { name: ana.name })).toBeVisible({ timeout: 20_000 });
+  await markEveryonePresent(page);
   await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
   await page.getByRole('textbox', { name: `Hours for ${budi.name}` }).fill('6');
-  await markEveryonePresent(page);
   await page.getByRole('button', { name: 'Save attendance' }).click();
   await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Send the week for approval' }).click();
