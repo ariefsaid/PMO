@@ -401,6 +401,12 @@ export async function transitionWorkOrder(
   if (error) throwWrite(error as PostgrestErrorLike);
 }
 
+/** Cancel a Draft or Issued work order with a reason (#2898, migration 2680); the transition's own gates still decide. */
+export async function cancelWorkOrder(id: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_work_order', { p_id: id, p_reason: reason });
+  if (error) throwWrite(error as PostgrestErrorLike);
+}
+
 /**
  * The project's derived drawdown (`get_project_drawdown`, SECURITY INVOKER — the caller's own RLS
  * is the tenancy boundary).

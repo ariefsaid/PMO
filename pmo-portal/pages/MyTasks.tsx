@@ -139,7 +139,7 @@ const MyTasks: React.FC = () => {
     return next;
   }, { replace: true });
   const [workOrderFilter, setWorkOrderFilter] = React.useState('all');
-  const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
+  const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string; status: TaskStatus } | null>(null);
   // R2: queue and search are URL-owned like the due=week drill, so Back/refresh keep them;
   // defaults stay out of the URL (empty = open queue, no search).
   const setParam = (key: string, value: string) => setSearchParams((current) => {
@@ -476,6 +476,11 @@ const MyTasks: React.FC = () => {
                         }}
                         linked={linkedRecords?.get(task.id)}
                       />
+                      {task.work_order_id && task.work_order_name && (
+                        <Link to={`/work-orders/${task.work_order_id}`} className="mt-0.5 inline-block text-control font-medium text-primary underline-offset-2 hover:underline">
+                          {task.work_order_name}
+                        </Link>
+                      )}
                       {(task.start_date || task.end_date) && (
                         <span className="mt-0.5 block text-control text-muted-foreground">
                           {task.start_date && (
@@ -505,7 +510,7 @@ const MyTasks: React.FC = () => {
                         type="button"
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
                         title={t('comments.open', 'Comments')}
-                        onClick={() => setCommentsTask({ id: task.id, name: task.name })}
+                        onClick={() => setCommentsTask({ id: task.id, name: task.name, status: task.status })}
                         className={ROW_ACTION_CLASS}
                       >
                         <Icon name="message" className="size-4" />

@@ -68,6 +68,7 @@ import {
   updateWorkOrder,
   setWorkOrderValue,
   transitionWorkOrder,
+  cancelWorkOrder,
   getProjectDrawdown,
   isLegalWorkOrderTransition,
   isOverCommitmentRefusal,
@@ -295,6 +296,13 @@ describe('transitionWorkOrder', () => {
     await transitionWorkOrder('wo-1', 'Cancelled');
     const args = h.calls.rpc[0][1] as Record<string, unknown>;
     expect(args.p_over_commit_ack).toBeUndefined();
+  });
+});
+
+describe('cancelWorkOrder', () => {
+  it('AC-WOC-002 sends the work order and the reason to the cancel step', async () => {
+    await cancelWorkOrder('wo-1', 'Client withdrew the order');
+    expect(h.calls.rpc[0]).toEqual(['cancel_work_order', { p_id: 'wo-1', p_reason: 'Client withdrew the order' }]);
   });
 });
 

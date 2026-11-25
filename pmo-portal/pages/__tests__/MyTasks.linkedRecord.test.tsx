@@ -24,6 +24,7 @@ const h = vi.hoisted(() => {
         { ...base, id: 't1', name: 'Chase the claim', status: 'In Progress', procurement_id: null, expense_claim_id: 'c1', material_request_id: null },
         { ...base, id: 't2', name: 'Chase the purchase', status: 'To Do', procurement_id: 'p1', expense_claim_id: null, material_request_id: null },
         { ...base, id: 't3', name: 'Plain task', status: 'To Do' },
+        { ...base, id: 't4', name: 'Check the drawings', status: 'To Do', work_order_id: 'wo-9', work_order_name: 'Site works' },
       ] as Array<Record<string, unknown>>,
       isPending: false, isError: false, refetch: vi.fn(),
     },
@@ -69,5 +70,13 @@ describe('AC-RLT-014 My tasks rows show the followed record', () => {
       </QueryClientProvider>,
     );
     expect(h.ids.at(-1)).toEqual(['t1', 't2']);
+  });
+  it('AC-WOC-004 a check on a work order names that work order and links to it', () => {
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><MyTasks /></ToastProvider></MemoryRouter></ImpersonationProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('link', { name: 'Site works' })).toHaveAttribute('href', '/work-orders/wo-9');
   });
 });

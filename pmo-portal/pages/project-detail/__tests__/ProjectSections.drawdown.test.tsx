@@ -60,9 +60,6 @@ vi.mock('../tabs/WorkOrdersTab', () => ({ default: () => null }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(4)}>Resolve procurement count</button> }));
 vi.mock('../tabs/TasksTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(5)}>Resolve task count</button> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(6)}>Resolve document count</button> }));
-// #2595's candidate section sits in the contract area; it needs a QueryClient this suite does not mount, and
-// it owns its own suite (tabs/__tests__/CandidateWorkOrders.test.tsx).
-vi.mock('../tabs/CandidateWorkOrders', () => ({ CandidateWorkOrders: () => null }));
 vi.mock('../ProjectBlocks', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../ProjectBlocks')>();
   return {

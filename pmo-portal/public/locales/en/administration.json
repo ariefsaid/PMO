@@ -645,22 +645,25 @@
       }
     },
     "modulesNav": "Modules",
-    "candidateTemplate": {
-      "saved": "Checklist saved",
-      "title": "Candidate work order checklist",
-      "helper": "The checks to make before a candidate work order is accepted. A candidate copies this list when it is opened, so later changes do not alter candidates already open.",
-      "loadError": "Couldn't load the checklist",
-      "empty": "No checks yet. Without any, a candidate can be accepted straight away.",
+    "checkTemplate": {
+      "title": "Standard checks for a new work order",
+      "helper": "When a work order is captured as a draft, each line becomes a task, due that many days later. The person holding the job role owns it; if several or nobody hold it, the issuer chooses.",
+      "saved": "Standard checks saved",
+      "loadError": "Couldn't load the standard checks",
+      "empty": "No standard checks. New work orders start with none.",
       "itemLabel": "Check {{n}}",
-      "requiredFor": "Required: {{name}}",
-      "required": "Required",
       "up": "Move {{name}} up",
       "down": "Move {{name}} down",
       "remove": "Remove {{name}}",
       "removeShort": "Remove",
       "add": "Add a check",
-      "save": "Save checklist",
-      "discard": "Discard changes"
+      "save": "Save checks",
+      "discard": "Discard changes",
+      "chooseRole": "Choose a job role",
+      "roleFor": "Job role for check {{n}}",
+      "daysFor": "Days for check {{n}}",
+      "daysPlaceholder": "Days",
+      "daysUnit": "days"
     },
     "accountMap": {
       "adminOnly": "Only an Admin can change this."

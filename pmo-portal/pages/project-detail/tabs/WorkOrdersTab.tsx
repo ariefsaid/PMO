@@ -1,7 +1,7 @@
 import { BillingReconciliation } from './BillingReconciliation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
   ListState,
@@ -113,6 +113,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
   const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
+  const navigate = useNavigate();
 
   // `undefined` = closed · `null` = create a draft · a row = edit that draft's body.
   const [formFor, setFormFor] = useState<WorkOrderRow | null | undefined>(undefined);
@@ -341,9 +342,11 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   };
 
   const runCreate = async (input: Parameters<typeof create.mutateAsync>[0]['input']) => {
-    await create.mutateAsync({ input });
+    const created = await create.mutateAsync({ input });
     toast(t('projectDetail.workOrders.toast.created', 'Draft work order created'), input.title, 'success');
     setFormFor(undefined);
+    // #2898: the captured Draft opens on its own page, where its checks are added and it is issued or cancelled.
+    if (created?.id) navigate(`/work-orders/${created.id}`);
   };
 
   const runUpdate = async (id: string, patch: Parameters<typeof update.mutateAsync>[0]['patch']) => {

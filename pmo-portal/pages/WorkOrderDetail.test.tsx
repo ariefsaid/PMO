@@ -38,6 +38,8 @@ vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual:
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 // #2578: the quantity-changes section has its own test (QuantityChangesSection.test.tsx); this file pins the existing sections.
 vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
+vi.mock('./work-order-detail/WorkOrderChecksSection', () => ({ WorkOrderChecksSection: (p: { workOrderId: string }) => <div data-testid="wo-checks-stub">{p.workOrderId}</div> }));
+vi.mock('./work-order-detail/WorkOrderDecision', () => ({ useWorkOrderDecision: () => ({ primaryAction: undefined, menuItems: [], dialogs: null }) }));
 vi.mock('./work-order-detail/MissingSection', () => ({ MissingSection: () => null }));
 vi.mock('./work-order-detail/SiteReportsSection', () => ({ SiteReportsSection: () => null }));
 vi.mock('@/src/hooks/useBillingSteps', () => ({ useWorkOrderSteps: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }) }));
@@ -170,6 +172,20 @@ describe('WorkOrderDetail', () => {
     h.canBilling = false;
     renderPage();
     expect(screen.queryByTestId('client-material-stub')).toBeNull();
+  });
+  it('AC-WOC-003 a Draft shows its checks before issue; an issued work order does not', () => {
+    const { unmount } = renderPage();
+    expect(screen.queryByTestId('wo-checks-stub')).toBeNull();
+    unmount();
+    h.wo = q({ ...WO, wo_number: null, status: 'Draft' });
+    renderPage();
+    expect(screen.getByTestId('wo-checks-stub').textContent).toBe('w1');
+  });
+  it('AC-WOC-002 a cancelled work order stays readable with the reason it was cancelled', () => {
+    h.wo = q({ ...WO, status: 'Cancelled', cancel_reason: 'Client withdrew the order' });
+    renderPage();
+    expect(screen.getByTestId('wo-cancel-reason').textContent).toBe('Cancelled because: Client withdrew the order');
+    expect(screen.getByText('Pump install')).toBeTruthy();
   });
   it('AC-WORP-001 a Draft shows "not yet numbered"', () => {
     h.wo = q({ ...WO, wo_number: null, status: 'Draft' });

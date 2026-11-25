@@ -249,6 +249,24 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
       <FormSection legend={t('projectDetail.workOrderForm.detailsLegend', 'The client’s order')}>
         <FormGrid>
           <TextField
+            id={poField.id}
+            label={t('projectDetail.workOrderForm.clientPoNumber', 'Client reference')}
+            value={poField.value}
+            onChange={poField.onChange}
+            onBlur={poField.onBlur}
+            helper={t(
+              'projectDetail.workOrderForm.clientPoHelper',
+              'The number on the client’s work order or PO. Ours is issued by the system.',
+            )}
+          />
+          <DateField
+            id={orderDateField.id}
+            label={t('projectDetail.workOrderForm.orderDate', 'Order date')}
+            value={orderDateField.value}
+            onChange={orderDateField.onChange}
+            onBlur={orderDateField.onBlur}
+          />
+          <TextField
             id={titleField.id}
             label={t('projectDetail.workOrderForm.title', 'Title')}
             required
@@ -261,24 +279,6 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
               'e.g. Phase 1 fabrication',
             )}
             fullWidth
-          />
-          <TextField
-            id={poField.id}
-            label={t('projectDetail.workOrderForm.clientPoNumber', 'Client PO number')}
-            value={poField.value}
-            onChange={poField.onChange}
-            onBlur={poField.onBlur}
-            helper={t(
-              'projectDetail.workOrderForm.clientPoHelper',
-              'The client’s own reference. Our WO number is issued by the system.',
-            )}
-          />
-          <DateField
-            id={orderDateField.id}
-            label={t('projectDetail.workOrderForm.orderDate', 'Order date')}
-            value={orderDateField.value}
-            onChange={orderDateField.onChange}
-            onBlur={orderDateField.onBlur}
           />
           <DateField
             id={startField.id}
