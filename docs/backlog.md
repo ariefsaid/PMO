@@ -10,6 +10,21 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
+**2026-11-26 — v0.45.0 is on production** (`production` == `main`, tag `v0.45.0`; cloud database at migration 2680;
+30 edge functions stamped with the release commit; live bundle reports 0.45.0). The release carries the 25 November
+round: acceptance journeys for a contractor client's test script (one per case, signed in as the job role), the app
+fixes those journeys found (#2894), attendance that starts as "Not yet present" (#2900), receipts readable under the
+ordering right (#2901), rental terms for the Equipment Officer (#2902), a quality check on receipt (#2903), scheduled
+reports managed by the Project Control Manager (#2875), a client's order captured as a Draft work order with checks
+as tasks, replacing the candidate assessment (#2908), four small fixes (#2909), and two rounds of "today is the
+organisation's day, not the browser's" on the Crews screens and five work order sections (#2910, #2912; the rest is
+#2911). Four release runs: three were red, each root-caused from its trace before a fix (a debounced search write that
+outlived its list; a late billing-stage read; a journey too long for its timeout; the browser-day defects, visible only
+after the organisation's midnight). Lesson recorded: the `integration-lanes` job reports success when the serial lane
+fails; read the lane log and the `integration-full` summary step. Built and waiting for the next release, not on
+`dev`: work order page reads (#2895), close-out owner notice (#2907). Open for the owner: role rights for ten steps of
+the client's process (#2904), the daily safety record's fixed five parts (#2899), the fixed sales stage list (#2906).
+
 **2026-11-24 — two releases reached `main` overnight; neither is on production.** (1) The fix round and the gap
 round (#2803 and #2804 into `dev`, #2808 into `main`), reviewed by spec, quality and security readers with findings
 fixed before merge (DD-R1123-1). (2) Three owner-feedback screens (#2809 into `dev`, #2810 into `main`): a work-order
