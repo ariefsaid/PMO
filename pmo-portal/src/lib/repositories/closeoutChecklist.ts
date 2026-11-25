@@ -1,5 +1,6 @@
 import {
-  assignCloseoutItemOwner, attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, getWorkOrderCloser, listOpenCloseoutDue, listWorkOrderCloseoutItems, setCloseoutTemplate,
+  assignCloseoutItemOwner, attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, getWaitingCloseoutItems,
+  getWorkOrderCloser, listOpenCloseoutDue, listWorkOrderCloseoutItems, setCloseoutTemplate,
 } from '@/src/lib/db/closeoutChecklist';
 import { wrap } from './repositoryErrors';
 import type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
@@ -11,6 +12,7 @@ export const closeoutChecklistRepository: CloseoutChecklistRepository = {
   setTemplate: (items) => wrap(() => setCloseoutTemplate(items)),
   listItems: (workOrderId) => wrap(() => listWorkOrderCloseoutItems(workOrderId)),
   listOpenDue: () => wrap(() => listOpenCloseoutDue()),
+  waitingItems: () => wrap(() => getWaitingCloseoutItems()),
   getCloser: (workOrderId) => wrap(() => getWorkOrderCloser(workOrderId)),
   attachDocument: (itemId, documentId) => wrap(() => attachCloseoutItemDocument(itemId, documentId)),
   completeItem: (itemId, doneOn) => wrap(() => completeCloseoutItem(itemId, doneOn)),
