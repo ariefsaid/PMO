@@ -556,5 +556,6 @@
   "IMPORT_PROJECT": "Proyek tidak ditemukan.",
   "IMPORT_TOO_MANY": "Impor paling banyak 500 perintah kerja sekaligus.",
   "IMPORT_ROW": "Baris {{row}} ditolak, jadi tidak ada yang diimpor: {{reason}}",
+  "EQ_TERMS_OWNED": "Syarat sewa hanya dapat diisi pada mesin sewaan. Minta Admin mengubah kepemilikannya terlebih dahulu.",
   "SCH_RECIPIENT_FORBIDDEN": "Pilih anggota dan peran aktif di organisasi Anda yang dapat membaca laporan ini."
 }

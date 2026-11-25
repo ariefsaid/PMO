@@ -283,7 +283,7 @@ const EquipmentAssetDetail: React.FC = () => {
           <span>{t('equipment:assets.unitLine', 'Logged in {{unit}}', { unit: unitLabel(t, asset.default_unit) })}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}
         </span>} />
-      {may('manage', 'equipmentAvailability', { record: { viewOnly: realRole !== effectiveRole } }) && <EquipmentRentalTerms key={asset.id} asset={asset} />}
+      {may('manage', 'equipmentAvailability', { record: { viewOnly: realRole !== effectiveRole, ownership: asset.ownership } }) && <EquipmentRentalTerms key={asset.id} asset={asset} />}
       <VendorResponsePanel asset={asset} today={today} />
       <ExpiryDocumentsCard kind="equipment" subjectId={asset.id} />
       <UsageCard assetId={asset.id} today={today} projectName={projectName} />

@@ -1333,7 +1333,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`) are the authority.
    *   view   ← every active member reads status (the bulk screen); metrics need the approval audience (`equipment_metrics`).
    *   create ← set status / attach proof: Admin, PM, Engineer (the field controller). Not Finance or Executive.
-   *   manage ← rental terms and reading the invoice check: Admin, Finance, the Equipment Manager job role, and a Project Manager holding no job role (1690). Other manager-level job roles never edit rates.
+   *   manage ← rental terms and reading the invoice check: Admin, Finance, the Equipment Officer and Equipment Manager job roles, and a Project Manager holding no job role (1690). Other manager-level job roles never edit rates.
    *   configure ← working hours per day, availability and use targets, the escalation limit: Admin, the Equipment Manager job role, and a Project Manager holding no job role (1690).
    *   approve ← stating a reason to include unproven days in the invoice check (a stored, audited record): Admin, Finance.
      */
@@ -1341,7 +1341,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     transition: (role, ctx) => ctx.record?.viewOnly !== true && (role === 'Finance' || equipmentManagerRights(role, ctx) || holds(ctx, 'equipment_officer')),
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
-    manage: (role, ctx) => ctx.record?.viewOnly !== true && (role === 'Finance' || equipmentManagerRights(role, ctx)),
+    manage: (role, ctx) => ctx.record?.viewOnly !== true && (role === 'Finance' || equipmentManagerRights(role, ctx) || (holds(ctx, 'equipment_officer') && ctx.record?.ownership !== 'owned')),
     configure: (role, ctx) => ctx.record?.viewOnly !== true && equipmentManagerRights(role, ctx),
     approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
   },

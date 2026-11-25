@@ -556,5 +556,6 @@
   "IMPORT_PROJECT": "That project was not found.",
   "IMPORT_TOO_MANY": "Import at most 500 work orders at a time.",
   "IMPORT_ROW": "Row {{row}} was refused, so nothing was imported: {{reason}}",
+  "EQ_TERMS_OWNED": "Rental terms can only be entered on a rented machine. Ask an Admin to change its ownership first.",
   "SCH_RECIPIENT_FORBIDDEN": "Choose active people and roles in your organisation who can read this report."
 }
