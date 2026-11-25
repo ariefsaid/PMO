@@ -225,3 +225,11 @@ it('local short-name save shows no external push badge and refreshes dependent p
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [key, 'org-1'] });
   }
 });
+
+it('#2888 a company update invalidates the record history', async () => {
+  const client = freshClient();
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(client) });
+  await act(async () => { await result.current.update.mutateAsync({ id: 'c1', input: { name: 'Example Legal Company', type: 'Client', short_name: 'Example' } }); });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['record-history', 'org-1'] });
+});

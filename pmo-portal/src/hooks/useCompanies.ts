@@ -172,6 +172,7 @@ export function useCompanyMutations() {
     qc.invalidateQueries({ queryKey: ['companies'] });
     // CW-4b: also bust the single-record family so an open `/companies/:id` detail page refetches.
     qc.invalidateQueries({ queryKey: ['company'] });
+    qc.invalidateQueries({ queryKey: ['record-history', orgId] }); // #2888
     qc.invalidateQueries({ queryKey: ['fk-options', 'vendor'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'client'] });
     invalidateProjectProjections(qc, orgId);

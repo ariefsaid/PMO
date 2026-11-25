@@ -56,8 +56,7 @@ test('JOB-M7 the Executive sees who created and who changed the record, each wit
   await dialog.getByRole('button', { name: /save project/i }).click();
   await expect(dialog).not.toBeVisible({ timeout: 20_000 });
 
-  // The Executive opens the record afresh and reads its History: each event names the person, their role, date and time.
-  await page.goto(`/projects/${projectId}`);
+  // The Executive reads the record's History in place, with no reload: each event names the person, their role, date and time.
   const activity = page.getByRole('region', { name: /Notes and activity|^Activity$/ });
   await expect(activity).toBeVisible({ timeout: 20_000 });
   await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
