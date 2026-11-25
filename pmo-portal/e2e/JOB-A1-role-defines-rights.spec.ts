@@ -33,10 +33,8 @@ test('JOB-A1 an administrator assigns the Quantity Surveyor role and that role g
     await page.goto('/site-reports');
     await expect(page.getByRole('button', { name: 'New report' }).first()).toBeVisible({ timeout: 20_000 });
 
-    // 3. …and is not offered the crew-time approval: no Approvals affordance, and the review surface refuses them.
-    await page.goto('/timesheets');
-    await expect(page.getByRole('link', { name: /^Approvals/ })).toHaveCount(0);
-    await expect(page.getByRole('tab', { name: 'Approvals' })).toHaveCount(0);
+    // 3. …and is not offered the crew-time approval: the review surface refuses them. (The global Approvals entry in the rail
+    // follows a person's decision standing, not this role's crew-time right, so it is not asserted here.)
     await page.goto('/timesheets/review');
     await expect(page.getByText("You don't have access to timesheet review")).toBeVisible({ timeout: 20_000 });
   } finally {

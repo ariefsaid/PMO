@@ -112,7 +112,7 @@ test('JOB-M9 the Executive sees revenue, cost and profit per discipline, and the
       sqlAsOwner(`delete from public.work_order_lines where work_order_id = '${woId}';
         delete from public.work_orders where id = '${woId}';
         delete from public.boq_items where project_id = '${projectId}';
-        delete from public.record_changes where entity_id = '${projectId}'::text;
+        delete from public.record_changes where entity_id = '${projectId}';
         delete from public.projects where id = '${projectId}';`);
     }
     if (discA) sqlAsOwner(`delete from public.cost_disciplines where id in ('${discA}','${discB}');`);

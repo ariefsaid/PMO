@@ -80,7 +80,7 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     await terms.getByRole('button', { name: 'Manage templates' }).click();
     const templates = page.getByRole('dialog', { name: 'Billing step templates' });
     const row = templates.getByRole('listitem').filter({ hasText: `BQ4 ` });
-    await expect(row).toContainText('1 steps');
+    await expect(row).toContainText('1 step');
     await row.getByRole('button', { name: /Use BQ4 .* for new work orders/ }).click();
     await expect(row.getByTestId('default-step-template')).toBeVisible({ timeout: 15_000 });
     await templates.getByRole('button', { name: 'Done' }).click();
@@ -102,7 +102,7 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     const terms2 = page.getByRole('dialog');
     await terms2.getByRole('button', { name: 'Manage templates' }).click();
     const templates2 = page.getByRole('dialog', { name: 'Billing step templates' });
-    await expect(templates2.getByRole('listitem').filter({ hasText: 'BQ4 ' })).toContainText('1 steps');
+    await expect(templates2.getByRole('listitem').filter({ hasText: 'BQ4 ' })).toContainText('1 step');
     await templates2.getByRole('button', { name: 'Done' }).click();
     await expect(terms2).toBeHidden();
 

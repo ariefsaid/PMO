@@ -34,6 +34,8 @@ test('JOB-PC28 approving eight normal and two overtime hours raises the work ord
       org_id: org.id, subject_kind: 'person', person_id: engineer.id, class_id: cls.id, basis: 'hourly', amount: 100_000,
       overtime_multiplier: 1.5, day_hours: 8, month_hours: 173, effective_from: inDays(-30),
     }).select('id'));
+    // The approvals queue lists a week for the owner's line manager, so the engineer reports to the project control manager.
+    must('line manager', await db.from('profiles').update({ manager_id: pcm.id }).eq('id', engineer.id).select('id'));
     const sheet = must('timesheet', await db.from('timesheets').insert({ org_id: org.id, user_id: engineer.id, week_start_date: week, status: 'Draft' }).select('id').single());
     must('ten hours', await db.from('timesheet_entries').insert({ org_id: org.id, timesheet_id: sheet.id, project_id: project.id, work_order_id: wo.id, entry_date: day, hours: 10 }).select('id'));
     must('submit', await db.from('timesheets').update({ status: 'Submitted', submitted_at: new Date().toISOString() }).eq('id', sheet.id).select('id'));

@@ -59,7 +59,7 @@ test('JOB-M7 the Executive sees who created and who changed the record, each wit
   // The Executive opens the record's History: each event names the person, their role, date and time.
   const activity = page.getByRole('region', { name: /Notes and activity|^Activity$/ });
   await expect(activity).toBeVisible({ timeout: 20_000 });
-  await activity.getByRole('button', { name: 'Changes', exact: true }).click();
+  await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
   const events = activity.getByTestId('history-event');
   await expect(events.first()).toBeVisible({ timeout: 20_000 });
 

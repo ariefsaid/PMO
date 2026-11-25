@@ -68,14 +68,15 @@ test('JOB-M5 the Project Manager sees the issued share against the progress shar
     await page.getByRole('searchbox', { name: /Search projects/i }).fill(`${run} contract`);
     await page.getByRole('link', { name: new RegExp(`${run} contract`) }).first().click();
     await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
-    // The project's Work orders tab (its own URL, as the tab opens it).
-    await page.goto(`/projects/${projectId}/orders`);
+    // The contract area, focused on the work order, holds its card.
+    await page.goto(`/projects/${projectId}/contract?wo=${woId}`);
     const card = page.getByTestId(`customer-order-${woId}`);
     await expect(card).toBeVisible({ timeout: 30_000 });
     // The card says how many items run ahead, before the stock section is opened (FR-MVP-008).
-    await expect(card).toContainText('Items issued ahead of progress: 1');
-    // Open its material (the work order's stock section).
+    await expect(card).toContainText('1 item ahead of progress');
+    // Open its material (the work order's stock section): the warning names the item.
     await card.getByRole('button', { name: 'Stock for this work order' }).click();
+    await expect(card.getByText('Items issued ahead of progress: 1')).toBeVisible();
     await expect(card.getByText(new RegExp(`${item.name}: issued 80% of planned, progress 40%, 40 points ahead`))).toBeVisible();
     await expect(card.getByRole('row').filter({ hasText: item.name })).toBeVisible();
   } finally {

@@ -46,10 +46,11 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
       org_id: ORG_ID, project_id: projectId, item_code: `L-${run}`, description: `${run} measured work`, unit: 'm', quantity: 100, rate: 10,
     }).select('id').single()).id as string;
     const lineId = need('work-order line', await svc.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: woId, boq_item_id: boqId, quantity: 100 }).select('id').single()).id as string;
-    // A validated report today: 5 measured at 10 → today's revenue 50.00.
+    // A validated report today: 5 measured at 10 → today's revenue 50.00. Another person validated it: the author never does.
+    const validator = need('validator profile', await svc.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single()).id as string;
     reportId = need('report', await svc.from('daily_site_reports').insert({
       org_id: ORG_ID, project_id: projectId, work_order_id: woId, work_date: today, status: 'validated',
-      author_id: actor.id, validated_by: actor.id, validated_at: new Date().toISOString(),
+      author_id: actor.id, validated_by: validator, validated_at: new Date().toISOString(),
     }).select('id').single()).id as string;
     ok('progress', await svc.from('dsr_progress_lines').insert({
       org_id: ORG_ID, report_id: reportId, position: 1, work_order_line_id: lineId, quantity: 5, unit: 'm',
@@ -67,10 +68,10 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
     await expect(todayRow).toBeVisible();
     await expect(todayRow).toContainText(money('50.00'));
     // The month to date: the target so far, the actual, and the gap said in words.
-    await expect(daily.getByTestId('wo-daily-mtd-target')).not.toHaveText('No target entered');
+    await expect(daily.getByTestId('wo-daily-mtd-target')).toHaveText(money('2200.00'));
     await expect(daily.getByTestId('wo-daily-mtd-actual')).toHaveText(money('50.00'));
     await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(/behind target|ahead of target|On target/);
-    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText('behind target');
+    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(`${money('2150.00')} behind target`);
     await expect(daily.getByTestId('wo-daily-projection')).not.toHaveText('Not enough working days yet');
   } finally {
     if (reportId) sqlAsOwner(`delete from public.dsr_progress_lines where report_id = '${reportId}'; delete from public.daily_site_reports where id = '${reportId}';`);
@@ -79,7 +80,7 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
         delete from public.work_order_lines where work_order_id = '${woId}';
         delete from public.work_orders where id = '${woId}';
         delete from public.boq_items where project_id = '${projectId}';
-        delete from public.record_changes where entity_id = '${projectId}'::text;
+        delete from public.record_changes where entity_id = '${projectId}';
         delete from public.projects where id = '${projectId}';`);
     }
     if (hadSettings && settingsRow) {

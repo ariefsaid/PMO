@@ -42,6 +42,10 @@ test('JOB-T9 a phase with three tasks shows two of three when two are done', asy
   await worker.signIn(page);
   await page.goto(`/projects/${projectId}/tasks`);
 
+  // The Task groups panel opens from the toolbar's options menu.
+  await page.getByRole('button', { name: 'More task options' }).click();
+  await page.getByRole('menuitem', { name: 'Task groups' }).click();
+
   // The group under the phase counts its done work: two of three.
   const panel = page.getByRole('region', { name: 'Task groups' });
   await expect(panel).toBeVisible({ timeout: 20_000 });

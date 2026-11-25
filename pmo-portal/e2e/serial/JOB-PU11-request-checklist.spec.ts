@@ -32,7 +32,7 @@ test.beforeAll(async () => {
   // "bill + payment" (on a purchase that holds a bill the stage counts both).
   paymentId = need('payment', await svc.from('payments').insert({
     org_id: ORG_ID, procurement_id: purchase.id, pay_number: `PAY-11-${Date.now()}`,
-    status: 'Cleared', date: orgToday(), amount: 12000, currency: 'USD',
+    status: 'Paid', date: orgToday(), amount: 12000, currency: 'USD',
   }).select('id').single()).id as string;
   ok('status', await svc.from('procurements').update({ status: 'Paid' }).eq('id', purchase.id));
 });

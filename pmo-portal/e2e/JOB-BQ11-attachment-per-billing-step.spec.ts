@@ -11,7 +11,13 @@ test.setTimeout(180_000);
 
 let admin: SupabaseClient;
 let fx: BillingFixture | undefined;
-test.afterEach(async () => { if (admin) { await cleanupBilling(admin, fx); fx = undefined; } });
+let users: Awaited<ReturnType<typeof createJobRoleUser>>[] = [];
+// The logins go after the claim and step rows they completed: those rows reference the user.
+test.afterEach(async () => {
+  if (admin) { await cleanupBilling(admin, fx); fx = undefined; }
+  const gone = users; users = [];
+  for (const u of gone) await u.remove();
+});
 
 test('JOB-BQ11 a step with a required file is refused without it, ticks once attached, and hands over to the next owner', async ({ page }) => {
   admin = serviceClient('JOB-BQ11');
@@ -24,9 +30,10 @@ test('JOB-BQ11 a step with a required file is refused without it, ticks once att
   ]);
   const billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
   const pm = await createJobRoleUser(db, ORG_ID, 'project_manager');
+  users = [billing, pm];
   // The next step belongs to the project's manager, so the hand-over names a different person's role.
   await db.from('projects').update({ project_manager_id: pm.id }).eq('id', fx.projectId).throwOnError();
-  try {
+  {
     await billing.signIn(page);
     await raiseClaimAndOpen(page, fx, '4');
     const claimId = need('claim', await db.from('progress_claims').select('id').eq('project_id', fx.projectId).single()).id as string;
@@ -62,8 +69,5 @@ test('JOB-BQ11 a step with a required file is refused without it, ticks once att
     const claim = page.getByRole('dialog');
     await expect(claim).toContainText('1 of 2 complete');
     await expect(claim.getByRole('listitem', { name: 'Client approval' })).toContainText('Current');
-  } finally {
-    await billing.remove();
-    await pm.remove();
   }
 });

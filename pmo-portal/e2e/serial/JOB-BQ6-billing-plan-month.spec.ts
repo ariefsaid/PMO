@@ -13,6 +13,7 @@ test.setTimeout(180_000);
 let admin: SupabaseClient | undefined;
 let projectId = '';
 let priorSettings: Record<string, unknown> | null = null;
+let billing: Awaited<ReturnType<typeof createJobRoleUser>> | undefined;
 
 test.beforeEach(async () => {
   admin = serviceClient('JOB-BQ6');
@@ -55,12 +56,15 @@ test.afterEach(async () => {
   // A confirmed acceptance is permanent by design, so the project is archived instead: its work leaves every plan. The client stays
   // (the archived project still references it).
   if (projectId) fail('archive project', (await admin.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', projectId)).error);
+  // The login goes last: the settings and target rows it wrote reference the user.
+  await billing?.remove();
+  billing = undefined;
 });
 
 test('JOB-BQ6 the billing officer picks two of three accepted work orders and the plan shows the picked total against the target', async ({ page }) => {
   const db = admin as SupabaseClient;
-  const billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
-  try {
+  billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
+  {
     await billing.signIn(page);
     await page.goto(`/finance/billing-plan?project=${projectId}`);
     await expect(page.getByTestId('billing-plan-target')).toContainText(/No target set/, { timeout: 15_000 });
@@ -82,7 +86,5 @@ test('JOB-BQ6 the billing officer picks two of three accepted work orders and th
     await expect(page.getByTestId('billing-plan-picked')).toContainText(/24[.,]000/);
     await expect(page.getByTestId('billing-plan-remaining')).toContainText(/6[.,]000/);
     await expect(page.getByTestId('billing-plan-summary')).toContainText(/Left to target/);
-  } finally {
-    await billing.remove();
   }
 });
