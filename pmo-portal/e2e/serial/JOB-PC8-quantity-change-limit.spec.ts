@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
+import { asUser } from '../qcrFixture';
 
 test.setTimeout(180_000);
 
@@ -100,6 +101,28 @@ test('JOB-PC8 a project control manager raises, revises and submits a quantity c
     expect(requestUrl).toMatch(/\/quantity-changes\//);
     await expect(page.getByTestId('wo-qcr-count')).toContainText('3 / 3');
     expect(wo.id).toBe(woId);
+
+    // 4. #2883: finance approves the first request, the project manager records the send and the client's acceptance,
+    //    and the work order's version history shows the reason the request gave.
+    const requestId = requestUrl.split('/').pop() ?? '';
+    const approved = await (await asUser('finance@acme.test')).rpc('qcr_approve', { p_request_id: requestId });
+    if (approved.error) throw new Error(`JOB-PC8 approve: ${approved.error.message}`);
+    const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
+    await page.goto(requestUrl);
+    await expect(page.getByTestId('qcr-status')).toHaveAttribute('data-status', 'approved', { timeout: 20_000 });
+    await page.getByTestId('qcr-file-input').setInputFiles({ name: 'letter.pdf', mimeType: 'application/pdf', buffer: PDF });
+    await expect(page.getByTestId('qcr-file')).toContainText('letter.pdf', { timeout: 15_000 });
+    await page.getByRole('button', { name: 'Record sent to client' }).click();
+    await page.getByRole('dialog').getByLabel('Client reference').fill('CLIENT-REF-PC8');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
+    await expect(page.getByTestId('qcr-status')).toHaveAttribute('data-status', 'sent_to_client', { timeout: 15_000 });
+    await page.getByTestId('qcr-file-input').setInputFiles({ name: 'acceptance.pdf', mimeType: 'application/pdf', buffer: PDF });
+    await expect(page.getByTestId('qcr-files')).toContainText('acceptance.pdf', { timeout: 15_000 });
+    await page.getByRole('button', { name: 'Client accepted' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
+    await expect(page.getByTestId('qcr-status')).toHaveAttribute('data-status', 'client_accepted', { timeout: 15_000 });
+    await page.getByRole('button', { name: 'Version history' }).click();
+    await expect(page.getByTestId('qcr-versions')).toContainText('Rock found below the design level');
   } finally {
     const { data: requests } = await svc.from('quantity_change_requests').select('id').eq('work_order_id', woId || '00000000-0000-0000-0000-000000000000');
     const requestIds = (requests ?? []).map((r) => r.id as string);
