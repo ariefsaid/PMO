@@ -12,8 +12,8 @@ import { useAuth } from '@/src/auth/useAuth';
 import {
   useAllCrewMembers, useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useWorkOrderRoster,
 } from '@/src/hooks/useCrews';
-import type { AttendanceDayRow, AttendanceStatus, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
-import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState } from '@/src/lib/attendanceTick';
+import type { AttendanceDayRow, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
+import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState, type TickStatus } from '@/src/lib/attendanceTick';
 import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
 import { WorkOrderPicker } from './CrewPickers';
@@ -21,7 +21,7 @@ import { useCrewErrorText } from './crewErrors';
 import { HeadCountSection } from './HeadCountSection';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const STATUSES: AttendanceStatus[] = ['present', 'absent', 'leave', 'off_rotation'];
+const STATUSES: TickStatus[] = ['unmarked', 'present', 'absent', 'leave', 'off_rotation'];
 const NO_HOLDS: ReadonlyMap<string, ReleaseState> = new Map();
 
 /** The tick form for one crew on one day (FR-CRW-009/010). Keyed by crew, date and held records, so it starts fresh. */
@@ -44,7 +44,8 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(() => crew.members.length === 0 || crew.members.some((m) => !held.some((day) => day.worker_id === m.worker_id)));
   const [problem, setProblem] = useState<string | null>(null);
-  const statusLabel = (s: AttendanceStatus) => ({
+  const statusLabel = (s: TickStatus) => ({
+    unmarked: t('crews:status.notYetPresent', 'Not yet present'),
     present: t('crews:status.present', 'Present'), absent: t('crews:status.absent', 'Absent'),
     leave: t('crews:status.leave', 'Leave'), off_rotation: t('crews:status.offRotation', 'Off rotation'),
   })[s];
@@ -205,13 +206,12 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td role="cell" className="py-2 pr-2 max-sm:col-span-2 max-sm:p-0">
-                    {/* The tick starts everyone as present for the person who will confirm it. A reader who cannot tick must not see that
-                        starting value as a fact: someone nobody has recorded yet is not recorded. */}
-                    {!canRecord && p.status === 'present' && !held.some((d) => d.worker_id === m.worker_id)
-                      ? <span className="text-control text-muted-foreground">{t('crews:status.notRecorded', 'Not recorded')}</span>
+                    {/* Nobody is present or absent by default: an un-recorded member reads "Not yet present" for every reader. */}
+                    {!canRecord && p.status === 'unmarked'
+                      ? <span className="text-control text-muted-foreground">{t('crews:status.notYetPresent', 'Not yet present')}</span>
                       : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
                       className={phoneControl}
-                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as AttendanceStatus })} disabled={locked}
+                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as TickStatus })} disabled={locked}
                       options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />}
                   </td>
                   <td role="cell" className="py-2 pr-2 max-sm:p-0">

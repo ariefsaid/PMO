@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickState } from './attendanceTick';
 
+/** Everyone marked present, as a recorder does by hand: nobody starts as present (OD-R1125-1). */
+const allPresent = (s: TickState): TickState => ({
+  ...s, people: Object.fromEntries(Object.entries(s.people).map(([id, p]) => [id, p.status === 'unmarked' ? { ...p, status: 'present' as const } : p])),
+});
+
 const members = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'].map((id) => ({ worker_id: id, off_rotation: false }));
 
 describe('attendance tick (#2528)', () => {
   it('AC-CRW-005 marking a 6-person crew present for 8 hours with one override to 6 yields six rows with the right hours', () => {
-    const state: TickState = { ...initialTickState(members, []), defaultHours: '8' };
+    const state: TickState = { ...allPresent(initialTickState(members, [])), defaultHours: '8' };
     state.people.w4 = { ...state.people.w4, hours: '6' };
     const { rows, errors } = buildTickRows(state);
     expect(errors).toEqual({});
@@ -17,7 +22,7 @@ describe('attendance tick (#2528)', () => {
   });
 
   it('AC-CRW-005 an absent person sends no hours, and a blank override falls back to the crew default', () => {
-    const state: TickState = { ...initialTickState(members.slice(0, 2), []), defaultHours: '7.5' };
+    const state: TickState = { ...allPresent(initialTickState(members.slice(0, 2), [])), defaultHours: '7.5' };
     state.people.w1 = { ...state.people.w1, status: 'absent', hours: '4' };
     state.people.w2 = { ...state.people.w2, hours: '  ' };
     expect(buildTickRows(state).rows).toEqual([
@@ -27,7 +32,7 @@ describe('attendance tick (#2528)', () => {
   });
 
   it('AC-CRW-005 hours outside 0..24 or a present day with no hours are field errors, not rows', () => {
-    const state: TickState = { ...initialTickState(members.slice(0, 2), []), defaultHours: '' };
+    const state: TickState = { ...allPresent(initialTickState(members.slice(0, 2), [])), defaultHours: '' };
     state.people.w1 = { ...state.people.w1, hours: '25' };
     const { rows, errors } = buildTickRows(state);
     expect(rows).toEqual([]);
@@ -41,6 +46,21 @@ describe('attendance tick (#2528)', () => {
     expect(buildTickRows(state).errors).toEqual({ w1: 'reasonRequired' });
     state.people.w1 = { ...state.people.w1, reason: 'Called in' };
     expect(buildTickRows(state).rows[0]).toMatchObject({ status: 'present', hours: 8, reason: 'Called in' });
+  });
+
+  it('OD-R1125-1 nobody starts present: an un-recorded member is unmarked and saving sends only who was marked', () => {
+    const state: TickState = { ...initialTickState(members.slice(0, 3), []), defaultHours: '8' };
+    expect(Object.values(state.people).map((p) => p.status)).toEqual(['unmarked', 'unmarked', 'unmarked']);
+    expect(buildTickRows(state)).toEqual({ rows: [], errors: {} });
+    state.people.w2 = { ...state.people.w2, status: 'present' };
+    state.people.w3 = { ...state.people.w3, status: 'absent' };
+    expect(buildTickRows(state).rows.map((r) => [r.worker_id, r.status])).toEqual([['w2', 'present'], ['w3', 'absent']]);
+  });
+
+  it('OD-R1125-1 a person who told the crew leader they are absent starts absent; an added follower starts unmarked', () => {
+    const s = initialTickState([{ worker_id: 'w1', off_rotation: false, reported_absent: true }], []);
+    expect(s.people.w1.status).toBe('absent');
+    expect(addFollower(s, 'w9').people.w9.status).toBe('unmarked');
   });
 
   it('pre-fills from records already held for the day', () => {
@@ -57,7 +77,8 @@ describe('attendance tick (#2528)', () => {
   });
 
   it('AC-FOL-008 a person added from another crew is sent with the followed crew; the crew\'s own members are not', () => {
-    const state = addFollower({ ...initialTickState(members.slice(0, 1), []), defaultHours: '8' }, 'w9');
+    const state = addFollower({ ...allPresent(initialTickState(members.slice(0, 1), [])), defaultHours: '8' }, 'w9');
+    state.people.w9 = { ...state.people.w9, status: 'present' };
     expect(state.order).toEqual(['w1', 'w9']);
     expect(buildTickRows(state, 'c-recv').rows).toEqual([
       { worker_id: 'w1', status: 'present', hours: 8, overtime_hours: null, reason: null },

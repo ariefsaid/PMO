@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { visibleToast } from './helpers';
 import { inDays, need, ORG_ID, serviceClient } from './support/jobJourney';
-import { endCrewRows, seedWorkOrder } from './support/crewJourney';
+import { endCrewRows, seedWorkOrder, markEveryonePresent } from './support/crewJourney';
 import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
@@ -64,6 +64,7 @@ test('JOB-F6 a worker on loan today serves the host crew\'s work order and its h
   const row = page.getByRole('row', { name: new RegExp(workerName) });
   await expect(row).toBeVisible({ timeout: 20_000 });
   await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
+  await markEveryonePresent(page);
   await page.getByRole('button', { name: 'Save attendance' }).click();
   await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
 

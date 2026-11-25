@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { signIn, visibleToast } from './helpers';
+import { markEveryonePresent } from './support/crewJourney';
 
 test.setTimeout(180_000);
 
@@ -39,6 +40,7 @@ test('JOB-F8 the Construction Manager sees both time records on the daily report
     await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
     await expect(page.getByRole('row', { name: `${run} Ana` })).toBeVisible({ timeout: 20_000 });
     await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
+    await markEveryonePresent(page);
     await page.getByRole('button', { name: 'Save attendance' }).click();
     await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
     const day = need('attendance day', await svc.from('attendance_days').select('work_date').eq('work_order_id', workOrderId).eq('worker_id', workerId).single());

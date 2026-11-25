@@ -64,7 +64,9 @@ describe('AC-MR-008 the tick screen and a worker whose medical release is not ap
 
   it('saves the others and leaves the held worker out of the recording', async () => {
     open();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Save attendance' }));
+    const user = userEvent.setup();
+    for (const n of ['Ana', 'Budi']) await user.selectOptions(screen.getByRole('combobox', { name: new RegExp(`Status for ${n}`) }), 'present');
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
     expect(h.record.mock.calls[0][0].rows.map((r: { worker_id: string }) => r.worker_id)).toEqual(['w2']);
   });
