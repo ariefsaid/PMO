@@ -1,5 +1,5 @@
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Button, Checkbox, ConfirmDialog, DateField, ListState, ReasonDialog, RecordSection, SelectField, TextField } from '@/src/components/ui';
@@ -15,13 +15,8 @@ import {
 } from '@/src/lib/db/thirdPartyInspections';
 import { repositories } from '@/src/lib/repositories';
 import { useRefusalText } from '@/src/lib/refusals';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
-
-/** The viewer's calendar day as YYYY-MM-DD (a planned date is a calendar date, not an instant). */
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 const RESULTS: InspectionResult[] = ['pass', 'fail', 'conditional'];
 
@@ -195,7 +190,7 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
   const list = useWorkOrderInspections(workOrderId);
   const costs = useInspectionCosts(workOrderId);
   const m = useInspectionMutations(workOrderId);
-  const today = useMemo(localToday, []);
+  const today = useOrgToday();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState('');

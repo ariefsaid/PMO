@@ -21,7 +21,7 @@ import { useStepTemplateMutations, useWorkOrderStepMutations, useWorkOrderSteps 
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useRefusalLine, useRefusalText } from '@/src/lib/refusals';
 import { formatIsoDay } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { mayActOnStep, mayChangeStepList, stepAgeDays, stepDaysOver, stepDueOn, stepInsertPlaces, stepStatus } from '@/src/lib/workOrderBillingSteps';
 import type { WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
@@ -216,7 +216,9 @@ const SaveTemplateModal: React.FC<{ workOrderId: string; steps: WorkOrderStep[];
   </EntityFormModal>;
 };
 
-const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, projectId, status, today = localToday() }) => {
+const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, projectId, status, today: todayProp }) => {
+  const orgDay = useOrgToday();
+  const today = todayProp ?? orgDay;
   const { t } = useTranslation('billingSteps');
   const auth = useContext(AuthContext);
   const { realRole, effectiveRole } = useEffectiveRole();

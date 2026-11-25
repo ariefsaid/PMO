@@ -11,6 +11,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, pinEnglishLocale } from '../helpers';
+import { orgToday } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -31,7 +32,7 @@ let personIds: string[] = [];
 let listIds: string[] = [];
 let flagBefore = false;
 let tag = '';
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const today = orgToday; // the organisation's day: the screen reads it, not the runner's
 const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`AC-DSF-015 fixture ${step}: ${e.message}`); };
 
 test.beforeEach(async () => {

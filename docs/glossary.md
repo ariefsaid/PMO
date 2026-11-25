@@ -695,6 +695,22 @@ of a work order.
 
 ## Work orders down to the cost line (#2516)
 
+**Check before issue** (work order) — something one named person must answer before a Draft work order is issued: a task on the Draft
+with an owner and a due date, closed by its owner with a note and proof. A check never blocks Issue; the Issue confirm names the
+checks still open (#2898).
+
+**Standard checks for a new work order** — an organisation's list of checks, each naming a job role and a number of days, copied onto
+every new Draft as tasks. When exactly one active person holds the role the task is theirs; otherwise it starts unassigned.
+
+**Cancel reason** (work order) — the reason recorded when a work order is cancelled (3 to 500 characters), shown on the work order
+and kept in its history.
+
+**Not yet present** (attendance; "Belum hadir") — a crew member with no attendance record for the day. Nobody is present or absent by
+default (OD-R1125-1).
+
+**Passed / Rejected** (receipt) — on an item flagged for a quality check, the quantities the receiver accepts and refuses. Only the
+passed quantity goes on hand and counts as received against the order.
+
 Terms added by the work-order map (#2517-#2531, #2542). **Work order**, **Discipline**, **Cost attribution**,
 **Work order line** and **Work order acceptance** are defined under *Progress & billing*.
 

@@ -12,7 +12,7 @@ import { useCrewLoanMutations, useCrewLoans, useSupervisorLoanCrews } from '@/sr
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import type { CrewLoanRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { uncoveredLoanDays } from '@/src/lib/crewLoanCoverage';
 import { useCrewErrorText } from './crewErrors';
 
@@ -25,7 +25,7 @@ const LendWorkerModal: React.FC<{ onClose: () => void; allowedCrewIds?: string[]
   const crews = useCrews();
   const workers = useCrewWorkers();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
-  const today = toIso(new Date());
+  const today = useOrgToday();
   const form = useEntityForm({
     initialValues: { home: '', worker: '', host: '', from: today, to: today },
     idPrefix: 'crew-loan',
@@ -117,8 +117,8 @@ export const CrewLoans: React.FC = () => {
   const [lending, setLending] = useState(false);
   const [ending, setEnding] = useState<CrewLoanRow | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const today = useOrgToday();
   if (!on) return null;
-  const today = toIso(new Date());
   const crewName = (id: string) => crews.data?.find((c) => c.id === id)?.name ?? '—';
   const workerName = (id: string) => workers.data?.find((w) => w.id === id)?.display_name ?? '—';
   const end = async () => {
