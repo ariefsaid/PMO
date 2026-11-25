@@ -37,6 +37,8 @@ const READ_FILE = `${CUSTODY}/graphRead.ts`;
 
 /** Each mutation neutralizes ONE tagged line; `killedBy` is the test step that must report FAILED. */
 export const MUTATIONS = [
+  { id: 'folder-category', file: ENSURE_FILE, tag: 'mutation-witness:folder-category-visible',
+    apply: (line) => line.replace('!visible', 'false'), killedBy: 'hidden folder category refuses' },
   { id: 'allowlist-always-true', file: WRITE_FILE, tag: 'mutation-witness:allowlist-always-true',
     apply: (line) => line.replace('{ // mutation-witness', '{ if (Date.now() > 0) return true; // mutation-witness'),
     killedBy: 'every other request shape is refused' },

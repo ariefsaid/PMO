@@ -84,7 +84,9 @@
   "documents": {
     "title": "Dokumen",
     "error": "Dokumen tidak dapat dimuat",
-    "empty": "Belum ada dokumen yang dapat Anda lihat untuk $t(common:terms.clientWorkOrder) ini."
+    "empty": "Belum ada dokumen yang dapat Anda lihat untuk $t(common:terms.clientWorkOrder) ini.",
+    "add": "Tambah dokumen",
+    "uploadAria": "Pilih file dokumen"
   },
   "openPage": "Buka halaman",
   "issues": {

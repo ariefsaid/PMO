@@ -1,0 +1,36 @@
+# Feature Spec: Work Order Cloud Folder and Scoped Upload
+
+**Feature key:** `work-order-cloud-folder`
+**Related ADRs:** ADR-0010 (Testing pyramid), ADR-0016 (Auth policy matrix), ADR-0089 (Microsoft record folders), ADR-0095 (Record file upload via token custody)
+**Job Story:** When a Project Administrator (or project document writer) opens a work order to attach and manage work-order documents, if the organisation uses a connected Microsoft 365 default library they get a dedicated work-order folder nested inside that project's cloud folder with uploaded files landing directly in SharePoint, and if no library is connected they upload cleanly to PMO private storage without losing any project-level isolation or approval Separation of Duties.
+
+## Denominator of Write Surfaces
+
+At head on `project_documents`:
+- `role_table_grants` grants `SELECT`, `INSERT` (explicit column allowlist + `work_order_id`), `UPDATE` (explicit column allowlist excluding `work_order_id`, `status`, `author_id`, `id`, `created_at`), and `DELETE` to `authenticated` (no privileges to `anon` or `PUBLIC`).
+- `project_documents` is written only by:
+  1. Direct table RLS + triggers (`guard_project_m365_source`, `guard_project_document_metadata_author`, `guard_project_document_file_path`, `guard_project_m365_identity`, `project_documents_category_visible_*`, `project_documents_insert_self_author`, `project_documents_delete_admin_only`).
+  2. `m365_link_record_folder` (+ helpers `m365_folder_linked_elsewhere`, `m365_record_folder_created`).
+  3. `m365-token-custody` edge function (`ensure_record_folder`, `upload_record_file` -> repository `attachMicrosoftUpload`).
+  4. `storage.objects` (`project-documents` bucket) + `confirmUpload`.
+  5. Unchanged writers keeping `work_order_id` out of PA reach: `transition_document_status`, `link_m365_documents_batch`, document-category refiling/management RPCs.
+
+## EARS Requirements
+
+1. **FR-WOF-001 (Work-order association on documents):** `project_documents` shall support a nullable `work_order_id uuid` referencing `public.work_orders(id) on delete set null`, settable on `INSERT` only, immutable via client `UPDATE`, and validated to belong to the same `org_id` and `project_id` as the document row.
+2. **FR-WOF-002 (Folder isolation between project and work orders):** Project-level folder queries (`project` target in `m365_link_record_folder`, `m365_folder_linked_elsewhere`, `m365_record_folder_candidates`, `link_m365_documents_batch`, and project `DocumentsTab`) shall evaluate only rows with `work_order_id IS NULL`. Work-order folder queries (`work_order` target) shall evaluate only rows with `work_order_id = <work_order_id>`.
+3. **FR-WOF-003 (Nested cloud folder hierarchy):** When the organisation has a connected M365 default library (`org_m365_document_settings`) and `ensure_record_folder` is called for `{ kind: 'work_order', id }`:
+   - If the work order already has a linked folder row (`work_order_id = id`, `source = 'onedrive'`, `ms_item_kind = 'folder'`), return `already_linked`.
+   - Otherwise resolve the parent project folder: use the project's linked SharePoint folder row (`work_order_id IS NULL`) when present on the default drive, or ensure the convention parent `['Projects', '<project-code> <project-name>']` in Graph without creating a project-level register row (`work_order_id IS NULL`).
+   - Discover or create `<wo_number> <title>` (or `<title>` when Draft has no `wo_number`) directly under that parent project folder, link it via `m365_link_record_folder('work_order', ...)`, and record `m365_record_folder_created`.
+4. **FR-WOF-004 (First-upload folder creation & disconnected parity):** On `Work orders -> [Work order] -> Documents`, uploading a file when the organisation uses the Microsoft destination (`useUploadDestination` resolves `'microsoft'`) automatically ensures the work order's SharePoint folder if none exists yet and uploads the file into that work order's folder (never falling back to private storage). When no Microsoft library/connection is configured (`destination === 'private'`), documents upload to PMO private storage unchanged.
+5. **FR-WOF-005 (Scoped Project Administrator rights):** An active member holding the `project_administrator` job role (`actor_holds_job_role('project_administrator')`, not a field/light account) is granted create, Draft-own upload/metadata-edit, private storage write (`project-documents`), and `work_order` folder ensure/link rights strictly when `work_order_id IS NOT NULL` on a work order and project the caller can read (`projects_select` & `work_orders_select`, same `org_id`) and whose document category is visible to `project_administrator` (`document_category_visible` / `hidden_job_roles`).
+6. **FR-WOF-006 (Preserved boundaries):** `project_administrator` gains zero write rights on project-level documents (`work_order_id IS NULL`), zero rights on `procurement` / `procurement_documents`, zero `DELETE` rights on `project_documents` or `storage.objects`, zero status transition rights (`transition_document_status`), and zero bypass of Draft-only, self-author, cross-org, unreadable-project, CLI-claim, or hidden-category guards.
+
+## Acceptance Criteria
+
+- **AC-WOF-001 (Given/When/Then):** Given a work order belonging to a project in the active org, when a document row is inserted with `work_order_id`, then `work_order_id` must match the row's `project_id` and `org_id` (mismatch refused) and client `UPDATE` cannot alter `work_order_id`.
+- **AC-WOF-002:** Given an org with `m365_integration` and default library connected, when `ensure_record_folder` is called for `kind: 'work_order'`, then the folder is resolved/created under the parent project's SharePoint folder (not at the drive root or alongside `Projects`), linked with `work_order_id = <id>`, and leaves project-level folder detection unaffected (`project` still has no folder unless separately linked).
+- **AC-WOF-003:** Given a work order with a linked folder in SharePoint, when a document on that work order (`work_order_id IS NOT NULL`) is uploaded via `upload_record_file` (`target_kind: 'project_document'`), then custody uploads the file to the work order's folder item (not the parent project's folder).
+- **AC-WOF-004:** Given an active member with `built_in_role = 'project_administrator'` (base `'Engineer'`), when they insert a Draft self-authored `project_documents` row with `work_order_id` in a readable project & visible category, upload to `project-documents` bucket, call `m365_link_record_folder('work_order', ...)`, or call custody `ensure_record_folder('work_order', ...)` and `upload_record_file` on that work-order document, all succeed; when they attempt the same with `work_order_id IS NULL` (`'project'`), on `'procurement'`, on a cross-org or unreadable project/WO, on a category hidden from `project_administrator`, to `DELETE`, or to call `transition_document_status`, every path refuses.
+- **AC-WOF-005:** Given the Work Order Detail screen signed in as `project_administrator` or Admin: with M365 connected, adding and uploading a document ensures the work order folder if missing, lands the uploaded file in the work order folder, and displays both the document and the work order's `LinkedFolderTree`; without M365 connected, uploading stores in PMO private storage as before.

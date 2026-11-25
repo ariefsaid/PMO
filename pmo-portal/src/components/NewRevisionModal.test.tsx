@@ -33,6 +33,7 @@ const baseDoc: ProjectDocumentRow = {
   ms_drift_state: null,
   ms_check_claim: null,
   ms_check_claimed_at: null,
+  work_order_id: null,
 };
 
 describe('NewRevisionModal', () => {

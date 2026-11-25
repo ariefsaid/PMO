@@ -55,6 +55,17 @@ vi.mock('./work-order-detail/ClientMaterialSection', () => ({
   ClientMaterialSection: (p: { workOrderId: string; allocationOptions: Array<{ value: string; label: string }> }) =>
     <div data-testid="client-material-stub" data-wo={p.workOrderId}>{p.allocationOptions.map((o) => o.label).join('|')}</div>,
 }));
+vi.mock('./work-order-detail/WorkOrderDocumentActions', () => ({
+  WorkOrderDocumentActions: (p: {
+    folderDoc: { id: string } | null;
+    children: (s: { headerActions: null; folderTree: React.ReactNode; renderRowAction: () => null; hiddenInput: null }) => React.ReactNode;
+  }) => p.children({
+    headerActions: null,
+    folderTree: p.folderDoc ? <div data-testid="wo-folder-stub">{p.folderDoc.id}</div> : null,
+    renderRowAction: () => null,
+    hiddenInput: null,
+  }),
+}));
 
 import WorkOrderDetail from './WorkOrderDetail';
 
@@ -424,5 +435,19 @@ describe('WorkOrderDetail', () => {
       await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
       expect(issueWaiting.refetch).toHaveBeenCalled();
     });
+  });
+
+  it('TC-PA-13 shows direct work-order documents and isolates the work-order folder root from the list', () => {
+    h.docs = q([
+      { id: 'd-folder', title: 'WO-0007 Pump install', work_order_id: 'w1', source: 'onedrive', ms_item_kind: 'folder', ms_drive_id: 'drv', ms_item_id: 'it', ms_web_url: 'https://contoso.sharepoint.com/wo' },
+      { id: 'd-direct', title: 'Site inspection', work_order_id: 'w1', source: null, file_path: null, status: 'Draft' },
+      { id: 'd-other', title: 'Other work order doc', work_order_id: 'w-other', source: null, file_path: null, status: 'Draft' },
+    ]);
+    renderPage();
+    expect(screen.getByTestId('wo-folder-stub').textContent).toBe('d-folder');
+    const docs = screen.getByTestId('wo-documents');
+    expect(within(docs).getByText('Site inspection')).toBeTruthy();
+    expect(within(docs).queryByText('WO-0007 Pump install')).toBeNull();
+    expect(within(docs).queryByText('Other work order doc')).toBeNull();
   });
 });

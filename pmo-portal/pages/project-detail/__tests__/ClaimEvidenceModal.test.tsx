@@ -13,7 +13,7 @@ const doc = (id: string, title: string, status: ProjectDocumentRow['status'], fi
   ms_drive_id: null, ms_item_id: null, ms_web_url: null, ms_item_name: null, ms_item_kind: null,
   ms_linked_by: null, ms_linked_at: null, ms_last_verified_at: null,
   ms_content_tag_at_issue: null, ms_version_id_at_issue: null, ms_drift_state: null,
-  ms_check_claim: null, ms_check_claimed_at: null,
+  ms_check_claim: null, ms_check_claimed_at: null, work_order_id: null,
 });
 const DOCS = [
   doc('doc-1', 'Progress report', 'Issued', 'docs/report.pdf'),

@@ -17638,6 +17638,7 @@ export type Database = {
           source: Database["public"]["Enums"]["doc_source"] | null
           status: Database["public"]["Enums"]["doc_status"]
           title: string
+          work_order_id: string | null
         }
         Insert: {
           author_id?: string | null
@@ -17668,6 +17669,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title: string
+          work_order_id?: string | null
         }
         Update: {
           author_id?: string | null
@@ -17698,6 +17700,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {
