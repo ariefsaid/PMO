@@ -6,13 +6,15 @@ import billingStepsEn from '@/public/locales/en/billingSteps.json';
 import billingStepsId from '@/public/locales/id/billingSteps.json';
 import siteReportEn from '@/public/locales/en/siteReport.json';
 import siteReportId from '@/public/locales/id/siteReport.json';
+import emailNotificationsEn from '@/public/locales/en/emailNotifications.json';
+import emailNotificationsId from '@/public/locales/id/emailNotifications.json';
 import { baseLevelOf } from '@/src/auth/builtInRoles';
 import { ORG_SETTINGS, orgSettingKeys } from './orgSettingsCatalogue';
 import { buildSettingsPaletteItems } from './orgSettingsPalette';
 
 /** #2746 AC-OSM-034: ⌘K finds a setting by its name in English or Bahasa and opens where it is changed. */
 const instance = i18next.createInstance();
-await instance.init({ lng: 'id', fallbackLng: 'en', ns: ['common', 'billingSteps', 'siteReport'], defaultNS: 'common', resources: { en: { common: en, billingSteps: billingStepsEn, siteReport: siteReportEn }, id: { common: id, billingSteps: billingStepsId, siteReport: siteReportId } } });
+await instance.init({ lng: 'id', fallbackLng: 'en', ns: ['common', 'billingSteps', 'siteReport', 'emailNotifications'], defaultNS: 'common', resources: { en: { common: en, billingSteps: billingStepsEn, siteReport: siteReportEn, emailNotifications: emailNotificationsEn }, id: { common: id, billingSteps: billingStepsId, siteReport: siteReportId, emailNotifications: emailNotificationsId } } });
 const tEn = instance.getFixedT('en');
 const tId = instance.getFixedT('id');
 

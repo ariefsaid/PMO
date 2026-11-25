@@ -4,13 +4,14 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { Role } from '@/src/auth/AuthContext';
+import { AuthContext, type Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 
-const { roleState, operatorState, listState, mutations, panelMounts } = vi.hoisted(() => ({
-  roleState: { value: 'Admin' as Role },
+const { roleState, operatorState, listState, mutations, panelMounts, pcmSwitchState } = vi.hoisted(() => ({
+  roleState: { value: 'Admin' as Role, builtInRole: null as string | null },
+  pcmSwitchState: { value: true },
   operatorState: {
     value: false,
     pending: false,
@@ -124,6 +125,21 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: {} }),
 }));
 
+vi.mock('@/src/components/emailNotifications/ScheduledReportsSetting', () => ({
+  ScheduledReportsSetting: () => <div>Scheduled reports panel</div>,
+}));
+vi.mock('@/src/lib/repositories/orgSwitches', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/orgSwitches')>();
+  return {
+    ...actual,
+    orgSwitchRepository: {
+      ...actual.orgSwitchRepository,
+      read: vi.fn((setting: string) =>
+        Promise.resolve(setting === 'pcmScheduledReports' ? pcmSwitchState.value : setting.startsWith('module')),
+      ),
+    },
+  };
+});
 // The shell owns route selection. These child doubles make mount isolation observable without
 // changing any of the existing panel contracts or hiding their query behavior behind assertions.
 vi.mock('./AdministrationCredits', () => ({
@@ -228,22 +244,25 @@ const ShellHarness: React.FC<{ path: string }> = ({ path }) => {
   );
   return (
     <QueryClientProvider client={queryClient}>
-      <ImpersonationProvider realRole={roleState.value}>
-        <MemoryRouter initialEntries={[path]}>
-          <ToastProvider>
-            <>
-              <AppRoutes />
-              <LocationProbe />
-            </>
-          </ToastProvider>
-        </MemoryRouter>
-      </ImpersonationProvider>
+      <AuthContext.Provider value={{ currentUser: { id: 'self-admin', org_id: 'org-1', role: roleState.value, built_in_role: roleState.builtInRole } } as never}>
+        <ImpersonationProvider realRole={roleState.value}>
+          <MemoryRouter initialEntries={[path]}>
+            <ToastProvider>
+              <>
+                <AppRoutes />
+                <LocationProbe />
+              </>
+            </ToastProvider>
+          </MemoryRouter>
+        </ImpersonationProvider>
+      </AuthContext.Provider>
     </QueryClientProvider>
   );
 };
 
-const renderShell = (path: string, role: Role = 'Admin', isOperator = false, pending = false) => {
+const renderShell = (path: string, role: Role = 'Admin', isOperator = false, pending = false, builtInRole: string | null = null) => {
   roleState.value = role;
+  roleState.builtInRole = builtInRole;
   operatorState.value = isOperator;
   operatorState.pending = pending;
   return render(<ShellHarness path={path} />);
@@ -251,6 +270,8 @@ const renderShell = (path: string, role: Role = 'Admin', isOperator = false, pen
 
 beforeEach(() => {
   roleState.value = 'Admin';
+  roleState.builtInRole = null;
+  pcmSwitchState.value = true;
   operatorState.value = false;
   operatorState.pending = false;
   operatorState.error = false;
@@ -649,5 +670,25 @@ describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => 
     for (const link of links) {
       expect(link.className).toContain('min-w-0');
     }
+  });
+});
+
+describe('TC-PC-19 Administration scheduled-reports route access', () => {
+  it('shows Scheduled reports in nav and renders the panel for an enabled Project Control Manager', async () => {
+    renderShell('/administration/scheduled-reports', 'Project Manager', false, false, 'project_control_manager');
+    expect(await screen.findByTestId('administration-panel-scheduled-reports')).toBeInTheDocument();
+    expect(screen.getByText('Scheduled reports panel')).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
+    expect(within(nav).getByRole('link', { name: 'Scheduled reports' })).toHaveAttribute('href', '/administration/scheduled-reports');
+  });
+
+  it('blocks Scheduled reports for a disabled Project Control Manager and for a plain Project Manager', async () => {
+    pcmSwitchState.value = false;
+    renderShell('/administration/scheduled-reports', 'Project Manager', false, false, 'project_control_manager');
+    expect(await screen.findByText(/Administration is an Admin, Executive, or platform Operator area/)).toBeInTheDocument();
+    cleanup();
+    pcmSwitchState.value = true;
+    renderShell('/administration/scheduled-reports', 'Project Manager', false, false, 'project_manager');
+    expect(screen.getByText(/Administration is an Admin, Executive, or platform Operator area/)).toBeInTheDocument();
   });
 });

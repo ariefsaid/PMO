@@ -144,7 +144,8 @@ const StockDocumentDetail: React.FC = () => {
     },
     {
       key: 'qty', header: d?.kind === 'count' ? t('count.detail.counted') : t('detail.columns.quantity'), align: 'num',
-      cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item?.unit.code}</span></span>,
+      cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item?.unit.code}</span>
+        {l.quantity && Number(l.qty_rejected ?? 0) > 0 && <span className="block text-sm text-muted-foreground">{t('quality.passedQty', { qty: formatQuantity(subtractDecimal(l.quantity, l.qty_rejected ?? '0'), loc) })} · {t('quality.rejectedQty', { qty: formatQuantity(l.qty_rejected ?? '0', loc), reason: l.reject_note ?? '' })}</span>}</span>,
       exportValue: (l) => l.quantity ?? l.counted_quantity ?? '',
     },
     ...(d?.kind === 'adjustment' ? [{

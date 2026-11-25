@@ -1,0 +1,8 @@
+{
+  "definer_functions": [
+    "scheduled_report_may_read(text,uuid,uuid)",
+    "scheduled_report_pcm_may_change(uuid,uuid)"
+  ],
+  "tables": [],
+  "edge_functions": []
+}

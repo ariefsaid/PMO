@@ -296,6 +296,7 @@
       "reason": "Reason"
     },
     "pickup": {
+      "needsQualityCheck": "This item needs a quality check, so it cannot be recorded as a pickup.",
       "locationRequired": "Choose where the material is received.",
       "title": "Record pickup",
       "submit": "Record pickup",

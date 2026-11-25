@@ -21034,6 +21034,7 @@ export type Database = {
           frequency: string
           id: string
           kind: string
+          managed_by: string
           name: string
           org_id: string
           recipient_roles: string[]
@@ -21050,6 +21051,7 @@ export type Database = {
           frequency: string
           id?: string
           kind: string
+          managed_by?: string
           name: string
           org_id: string
           recipient_roles?: string[]
@@ -21066,6 +21068,7 @@ export type Database = {
           frequency?: string
           id?: string
           kind?: string
+          managed_by?: string
           name?: string
           org_id?: string
           recipient_roles?: string[]
@@ -21465,8 +21468,10 @@ export type Database = {
           line_no: number
           occurred_on: string | null
           org_id: string
+          qty_rejected: number | null
           quantity: number | null
           reference: string | null
+          reject_note: string | null
           source_line_id: string | null
           unit_cost: number | null
         }
@@ -21481,8 +21486,10 @@ export type Database = {
           line_no: number
           occurred_on?: string | null
           org_id: string
+          qty_rejected?: number | null
           quantity?: number | null
           reference?: string | null
+          reject_note?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }
@@ -21497,8 +21504,10 @@ export type Database = {
           line_no?: number
           occurred_on?: string | null
           org_id?: string
+          qty_rejected?: number | null
           quantity?: number | null
           reference?: string | null
+          reject_note?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }

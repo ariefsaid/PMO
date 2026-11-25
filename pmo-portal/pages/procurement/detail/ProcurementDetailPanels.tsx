@@ -99,7 +99,9 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
         <ol className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {STAGES.map((stage, index) => {
             const count = rowsByStage[stage.key];
-            const done = count > 0 && (index < current || (index === current && procurement.status === 'Paid'));
+            // Payments are Finance's rows: an engineer reads the pay stage's state from the purchase's own status, never a count.
+            const paidByStatus = stage.key === 'pay' && isEngineer && count === 0 && procurement.status === 'Paid';
+            const done = (count > 0 || paidByStatus) && (index < current || (index === current && procurement.status === 'Paid'));
             const isCurrent = index === current && procurement.status !== 'Paid';
             const partial = stage.key === 'receive' && partialReceive;
             const date = dates[stage.key];
@@ -107,7 +109,9 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
             const state = partial
               // A receipt count says nothing about how much of the order arrived (PU14): one partial receipt is not "1 of 1 received".
               ? t('stage.partlyReceived', 'Partly received')
-              : count > 0
+              : paidByStatus
+                ? t('stage.paid', 'Paid')
+                : count > 0
                 ? (() => {
                     const document = stage.key === 'request'
                       ? count === 1 ? t('stage.purchaseRequest', 'purchase request') : t('stage.purchaseRequests', 'purchase requests')

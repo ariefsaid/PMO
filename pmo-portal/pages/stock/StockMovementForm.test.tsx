@@ -278,6 +278,47 @@ describe('StockMovementForm', () => {
     tagState.tags = [];
   });
 
+  async function pickReceiptItem(flagged: boolean) {
+    master.listItems.mockResolvedValue([{ ...item, needs_quality_check: flagged }]);
+    renderForm('receive', 'Project Manager');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cem');
+    await userEvent.click(await screen.findByRole('option', { name: /CEM - Cement 50kg/ }));
+    await userEvent.type(screen.getByLabelText(/^Quantity/), '10');
+    await userEvent.type(screen.getByLabelText(/^Unit cost/), '5');
+  }
+
+  it('D4 receiving an item flagged for a quality check asks how many passed and how many were rejected, and posts only a check that adds up', async () => {
+    await pickReceiptItem(true);
+    expect(screen.getByLabelText(/^Passed/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Post receipt' }));
+    expect(await screen.findByText('Enter a number, zero or more (3 decimals at most).')).toBeInTheDocument();
+    expect(documents.create).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByLabelText(/^Passed/), '8');
+    await userEvent.type(screen.getByLabelText(/^Rejected/), '1');
+    await userEvent.click(screen.getByRole('button', { name: 'Post receipt' }));
+    expect(await screen.findByText('Passed and rejected must add up to the quantity received.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/^Rejected/), '{backspace}2');
+    await userEvent.click(screen.getByRole('button', { name: 'Post receipt' }));
+    expect(await screen.findByText('Say why some is rejected.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Why is some rejected/), 'cracked');
+    await userEvent.click(screen.getByRole('button', { name: 'Post receipt' }));
+    expect(await screen.findByText(/passed 8, rejected 2/)).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+    await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(1));
+    expect(documents.create.mock.calls[0][0].lines[0]).toMatchObject({ itemId: 'i1', quantity: '10', unitCost: '5', rejected: '2', rejectNote: 'cracked' });
+  });
+
+  it('D4 an item that is not flagged is received as before, with no quality fields and no check on the line', async () => {
+    await pickReceiptItem(false);
+    expect(screen.queryByLabelText(/^Passed/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Post receipt' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+    await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(1));
+    expect(documents.create.mock.calls[0][0].lines[0]).not.toHaveProperty('rejected');
+  });
+
   it('AC-STK-032 loading, then populated', async () => {
     renderForm('receive');
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();

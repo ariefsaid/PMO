@@ -16,6 +16,7 @@ import { orderReceivingRepository as repository } from '@/src/lib/repositories/o
 import type { ReceiptCount } from '@/src/lib/db/orderReceiving';
 import { formatQuantity, isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { NO_QUALITY, qualityProblem, qualityWire, type QualityProblem, type QualityValue } from '@/src/lib/receiptQuality';
 import { OrderReceivingLines } from './OrderReceivingLines';
 
 export function OrderReceivingSetting() {
@@ -62,6 +63,8 @@ export default function OrderReceiving() {
   const [warehouse, setWarehouse] = useState('');
   const [date, setDate] = useState('');
   const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [checks, setChecks] = useState<Record<string, QualityValue>>({});
+  const [problems, setProblems] = useState<Record<string, QualityProblem | null>>({});
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -83,11 +86,25 @@ export default function OrderReceiving() {
   };
   const post = (count?: ReceiptCount) => run(async () => {
     const result = await repository.receive({ orderId, warehouseId: count?.warehouse_id ?? warehouse, date: count?.date ?? (date || day.day || ''),
-      lines: count ? count.lines.map((l) => ({ ...l, quantity: String(l.quantity) })) : Object.entries(quantities).filter(([, q]) => q !== '').map(([id, q]) => ({ item_id: id, quantity: normalizeDecimal(q) })),
+      lines: count ? count.lines.map((l) => ({ ...l, quantity: String(l.quantity) })) : Object.entries(quantities).filter(([, q]) => q !== '').map(([id, q]) => {
+        const flagged = data?.lines.find((l) => l.id === id)?.needs_quality_check;
+        const check = flagged ? qualityWire(checks[id] ?? NO_QUALITY) : null;
+        return { item_id: id, quantity: normalizeDecimal(q), ...(check ? { rejected: check.rejected, ...(check.rejectNote ? { reject_note: check.rejectNote } : {}) } : {}) };
+      }),
       requestId: count?.id ?? requestId });
     setMessage(t(result.status === 'posted' ? 'receiving.posted' : 'receiving.waiting'));
-    if (!count) { setQuantities({}); setRequestId(crypto.randomUUID()); }
+    if (!count) { setQuantities({}); setChecks({}); setProblems({}); setRequestId(crypto.randomUUID()); }
   });
+  // D4: a counted line whose item needs a quality check records only with a check that adds up.
+  const askToRecord = () => {
+    const found: Record<string, QualityProblem | null> = {};
+    for (const line of data?.lines ?? []) {
+      const q = normalizeDecimal(quantities[line.id] ?? '');
+      if (line.needs_quality_check && isPositiveDecimal(q)) found[line.id] = qualityProblem(q, checks[line.id] ?? NO_QUALITY);
+    }
+    setProblems(found);
+    if (Object.values(found).every((p) => p === null)) setConfirm(true);
+  };
   const pending = orders.isPending || warehouses.isPending || keepers.isPending;
   const failure = orders.isError || warehouses.isError || keepers.isError;
   return <div className="space-y-6">
@@ -95,7 +112,7 @@ export default function OrderReceiving() {
     <OrderReceivingSetting />
     {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => { void orders.refetch(); void warehouses.refetch(); void keepers.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
       <div className="grid gap-4 md:grid-cols-3">
-        <SelectField id="receipt-order" label={t('receiving.order')} value={orderId} onChange={(id) => { setSearch(id ? { order: id } : {}); setQuantities({}); setRequestId(crypto.randomUUID()); }} options={(orders.data ?? []).map((o) => ({ value: o.id, label: o.number }))} placeholder={t('receiving.chooseOrder')} />
+        <SelectField id="receipt-order" label={t('receiving.order')} value={orderId} onChange={(id) => { setSearch(id ? { order: id } : {}); setQuantities({}); setChecks({}); setProblems({}); setRequestId(crypto.randomUUID()); }} options={(orders.data ?? []).map((o) => ({ value: o.id, label: o.number }))} placeholder={t('receiving.chooseOrder')} />
         <SelectField id="receipt-warehouse" label={t('form.warehouse')} placeholder={t('form.warehousePlaceholder')} value={warehouse} onChange={setWarehouse} options={(warehouses.data ?? []).filter((w) => !w.archived_at).map((w) => ({ value: w.id, label: w.name }))} />
         <DateField id="receipt-date" label={t('receiving.date')} value={date || day.day || ''} onChange={setDate} />
       </div>
@@ -105,11 +122,11 @@ export default function OrderReceiving() {
           <div><h2 className="text-base font-semibold">{line.name}</h2><p className="text-control">{t('receiving.progress', { ordered: quantity(line.ordered), received: quantity(line.received), outstanding: quantity(line.outstanding) })}</p><p className="text-control text-muted-foreground">{t(`receiving.${line.status}`)}</p></div>
           {editable ? <div className="space-y-2"><ItemPicker id={`mapping-${line.id}`} label={t('receiving.stockItem')} value={line.stock_item_id} onChange={(id) => void run(() => repository.map(line.id, id))} />{line.stock_item_id && !data.requests.some((r) => r.lines.some((l) => l.item_id === line.id)) && <Button variant="outline" disabled={busy} onClick={() => void run(() => repository.map(line.id, null))}>{t('receiving.clearMapping')}</Button>}</div> : <p>{line.stock_name}</p>}
         </div>)}</section>}
-        <OrderReceivingLines lines={data.lines} quantities={quantities} disabled={busy || viewOnly} onChange={(id, q) => setQuantities((old) => ({ ...old, [id]: q }))} />
-        {canReceive && <Button variant="primary" loading={busy} disabled={!warehouse || !(date || day.day) || !Object.values(quantities).some((q) => isPositiveDecimal(normalizeDecimal(q))) || Object.values(quantities).some((q) => q !== '' && !isPositiveDecimal(normalizeDecimal(q)))} onClick={() => setConfirm(true)}>{t('receiving.record')}</Button>}
+        <OrderReceivingLines lines={data.lines} quantities={quantities} disabled={busy || viewOnly} onChange={(id, q) => setQuantities((old) => ({ ...old, [id]: q }))} checks={checks} onCheck={(id, v) => setChecks((old) => ({ ...old, [id]: v }))} problems={problems} />
+        {canReceive && <Button variant="primary" loading={busy} disabled={!warehouse || !(date || day.day) || !Object.values(quantities).some((q) => isPositiveDecimal(normalizeDecimal(q))) || Object.values(quantities).some((q) => q !== '' && !isPositiveDecimal(normalizeDecimal(q)))} onClick={askToRecord}>{t('receiving.record')}</Button>}
         <section className="space-y-4">{data.requests.map((count) => <div key={count.id} className="space-y-2 border-t border-border pt-4">
           <p className="text-control font-medium">{t(count.reversed ? 'receiving.reversed' : count.document_id ? 'receiving.posted' : count.approved ? 'receiving.approved' : 'receiving.waiting')}</p>
-          <ul className="text-control">{count.lines.map((line) => <li key={line.item_id}>{data.lines.find((l) => l.id === line.item_id)?.name}: {formatQuantity(String(line.quantity), getNumberLocale())}</li>)}</ul>
+          <ul className="text-control">{count.lines.map((line) => <li key={line.item_id}>{data.lines.find((l) => l.id === line.item_id)?.name}: {formatQuantity(String(line.quantity), getNumberLocale())}{Number(line.rejected ?? 0) > 0 && ` · ${t('quality.rejectedQty', { qty: formatQuantity(String(line.rejected), getNumberLocale()), reason: line.reject_note ?? '' })}`}</li>)}</ul>
           {count.document_id && <Link className="text-control text-primary underline" to={`/stock/documents/${count.document_id}`}>{t('receiving.openMovement')}</Link>}
           {!count.document_id && count.approved && count.receiver_id === user?.id && !viewOnly && <Button variant="outline" disabled={busy} onClick={() => void post(count)}>{t('receiving.recordApproved')}</Button>}
           {may('approve', 'orderReceiving', { currentUserId: user?.id, record: { viewOnly, receivingPurchaser: data.purchaser, created_by: count.receiver_id } }) && !count.reversed && (!count.document_id && !count.approved || count.document_id && may('post', 'stockDocument', { currentUserId: user?.id, record: { viewOnly, kind: 'adjustment', created_by: count.receiver_id } })) && <Button variant="outline" disabled={busy} onClick={() => { setReason(''); setDecision({ count, reverse: !!count.document_id }); }}>{t(count.document_id ? 'receiving.reverse' : 'receiving.approve')}</Button>}

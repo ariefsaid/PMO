@@ -9,6 +9,7 @@ import React from 'react';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext, type Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import en from '../../../public/locales/en/emailNotifications.json';
@@ -16,10 +17,13 @@ import id from '../../../public/locales/id/emailNotifications.json';
 
 const email = vi.hoisted(() => ({ getSettings: vi.fn(), setEvent: vi.fn(), setLocale: vi.fn(), getMyOptOut: vi.fn(), setMyOptOut: vi.fn() }));
 const sched = vi.hoisted(() => ({ list: vi.fn(), recipientOptions: vi.fn(), save: vi.fn(), setEnabled: vi.fn(), archive: vi.fn() }));
+const switches = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn() }));
 vi.mock('@/src/lib/repositories/emailNotifications', () => ({ emailNotificationsRepository: email }));
 vi.mock('@/src/lib/repositories/scheduledReports', () => ({ scheduledReportsRepository: sched }));
+vi.mock('@/src/lib/repositories/orgSwitches', () => ({ orgSwitchRepository: switches }));
 
 import { EmailNotificationsSetting } from './EmailNotificationsSetting';
+import { ScheduledReportsSetting } from './ScheduledReportsSetting';
 
 const events = (on: boolean) =>
   ['approval_request', 'billing_step', 'overdue_item', 'document_expiry'].map((event, i) => ({ event, enabled: on && i === 0, extraRoles: [] as string[] }));
@@ -43,13 +47,14 @@ const renderUi = (role: 'Admin' | 'Finance' = 'Admin', lng: 'en' | 'id' = 'en') 
   );
 
 beforeEach(() => {
-  [...Object.values(email), ...Object.values(sched)].forEach((f) => f.mockReset());
+  [...Object.values(email), ...Object.values(sched), ...Object.values(switches)].forEach((f) => f.mockReset());
   email.getSettings.mockResolvedValue({ locale: 'en', events: events(true) });
   sched.list.mockResolvedValue([REPORT]);
   sched.recipientOptions.mockResolvedValue([{ id: 'u1', name: 'Sari' }]);
   sched.save.mockResolvedValue('r2');
   sched.setEnabled.mockResolvedValue(undefined);
   sched.archive.mockResolvedValue(undefined);
+  switches.read.mockResolvedValue(true);
 });
 
 describe('AC-SCH-011 scheduled reports in the email card', () => {
@@ -117,5 +122,86 @@ describe('AC-SCH-011 scheduled reports in the email card', () => {
     expect(await screen.findByRole('heading', { name: 'Laporan terjadwal' })).toBeInTheDocument();
     expect(await screen.findByText(/Ringkasan kemajuan harian · Setiap hari pukul 08:00/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tambah laporan terjadwal' })).toBeInTheDocument();
+  });
+});
+
+const renderStandalone = (role: Role, builtInRole: string | null) =>
+  render(
+    <I18nextProvider i18n={i18n('en')}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+        <AuthContext.Provider value={{ currentUser: { id: 'u-pcm', org_id: 'org-1', role, built_in_role: builtInRole } } as never}>
+          <ImpersonationProvider realRole={role}>
+            <ToastProvider>
+              <ScheduledReportsSetting standalone />
+            </ToastProvider>
+          </ImpersonationProvider>
+        </AuthContext.Provider>
+      </QueryClientProvider>
+    </I18nextProvider>,
+  );
+
+describe('TC-PC-19 Project Control Manager scheduled reports', () => {
+  it('an enabled Project Control Manager manages the role\'s own schedules and sees only non-light recipients', async () => {
+    // The server lists a Project Control Manager only the schedules that role created.
+    sched.list.mockResolvedValue([{ ...REPORT, id: 'r-pcm', name: 'PCM summary', managedBy: 'project_control_manager' }]);
+    sched.recipientOptions.mockResolvedValue([
+      { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
+      { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
+      { id: 'u3', name: 'Dian', builtInRole: 'field_user' },
+    ]);
+    renderStandalone('Project Manager', 'project_control_manager');
+    expect(await screen.findByText('PCM summary')).toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /Project Control Managers can schedule/i })).toBeNull();
+
+    const pcmItem = screen.getByText('PCM summary').closest('li')!;
+    expect(within(pcmItem).getByRole('switch', { name: 'PCM summary' })).toBeInTheDocument();
+    expect(within(pcmItem).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(pcmItem).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a scheduled report' }));
+    const form = await screen.findByRole('form', { name: 'Scheduled report' });
+    expect(await within(form).findByRole('checkbox', { name: 'Sari' })).toBeInTheDocument();
+    expect(within(form).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
+    expect(within(form).queryByRole('checkbox', { name: 'Dian' })).toBeNull();
+  });
+
+  it('a Project Control Manager editing a schedule an Admin later gave a field account never sees that person, and the save still goes through', async () => {
+    sched.list.mockResolvedValue([{ ...REPORT, id: 'r-pcm', name: 'PCM summary', managedBy: 'project_control_manager', recipientUserIds: ['u1', 'u2'], recipientRoles: [] }]);
+    sched.recipientOptions.mockResolvedValue([
+      { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
+      { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
+    ]);
+    renderStandalone('Project Manager', 'project_control_manager');
+    const item = (await screen.findByText('PCM summary')).closest('li')!;
+    fireEvent.click(within(item).getByRole('button', { name: 'Edit' }));
+    const form = await screen.findByRole('form', { name: 'Scheduled report' });
+    expect(await within(form).findByRole('checkbox', { name: 'Sari' })).toBeChecked();
+    expect(within(form).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
+    fireEvent.click(within(form).getByRole('button', { name: 'Save report' }));
+    await waitFor(() => expect(sched.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'r-pcm', recipientUserIds: ['u1'] })));
+  });
+
+  it('an Admin is offered every active person, field accounts included', async () => {
+    sched.recipientOptions.mockResolvedValue([
+      { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
+      { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
+    ]);
+    renderUi();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a scheduled report' }));
+    const form = await screen.findByRole('form', { name: 'Scheduled report' });
+    expect(await within(form).findByRole('checkbox', { name: 'Budi' })).toBeInTheDocument();
+  });
+
+  it('a Project Control Manager has no access when the org setting is off, and a plain PM never does', async () => {
+    switches.read.mockResolvedValue(false);
+    renderStandalone('Project Manager', 'project_control_manager');
+    await waitFor(() => expect(switches.read).toHaveBeenCalledWith('pcmScheduledReports'));
+    expect(screen.queryByText('Scheduled reports')).toBeNull();
+    expect(sched.list).not.toHaveBeenCalled();
+
+    switches.read.mockResolvedValue(true);
+    renderStandalone('Project Manager', 'project_manager');
+    expect(screen.queryByText('Scheduled reports')).toBeNull();
+    expect(sched.list).not.toHaveBeenCalled();
   });
 });

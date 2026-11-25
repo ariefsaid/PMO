@@ -316,6 +316,9 @@
   "STK_WOT_PROJECT": "Kedua $t(common:terms.clientWorkOrder) harus berada di proyek yang sama.",
   "STK_WOT_SYSTEM": "Dokumen ini hanya ditulis oleh transfer antar $t(common:terms.clientWorkOrder).",
   "STK_ZERO_COST": "Barang ini harus diterima tanpa biaya.",
+  "STK_QUALITY_RECEIPT": "Barang ini perlu pemeriksaan mutu. Catat berapa yang lulus dan berapa yang ditolak saat barang diterima.",
+  "STK_QUALITY_FIGURES": "Catat pemeriksaan mutu barang ini: berapa yang lulus dan berapa yang ditolak, beserta alasannya.",
+  "RGO_NOTHING_TO_REVERSE": "Tidak ada barang dari penerimaan ini yang masuk ke stok, jadi tidak ada yang perlu dibalik.",
   "TPI_CANCEL_REASON": "Tulis alasan membatalkan inspeksi ini.",
   "TPI_CANCEL_REPORTED": "Inspeksi yang sudah dilaporkan tidak bisa dibatalkan.",
   "TPI_CANCEL_REQUIRED": "Inspeksi ini diwajibkan untuk satu tahap. Laporkan atau bebaskan saja.",
@@ -553,5 +556,6 @@
   "IMPORT_PROJECT": "Proyek tidak ditemukan.",
   "IMPORT_TOO_MANY": "Impor paling banyak 500 perintah kerja sekaligus.",
   "IMPORT_ROW": "Baris {{row}} ditolak, jadi tidak ada yang diimpor: {{reason}}",
-  "EQ_TERMS_OWNED": "Syarat sewa hanya dapat diisi pada mesin sewaan. Minta Admin mengubah kepemilikannya terlebih dahulu."
+  "EQ_TERMS_OWNED": "Syarat sewa hanya dapat diisi pada mesin sewaan. Minta Admin mengubah kepemilikannya terlebih dahulu.",
+  "SCH_RECIPIENT_FORBIDDEN": "Pilih anggota dan peran aktif di organisasi Anda yang dapat membaca laporan ini."
 }

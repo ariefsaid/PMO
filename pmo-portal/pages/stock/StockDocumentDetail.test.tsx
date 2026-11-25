@@ -386,6 +386,17 @@ it('JOB-1122-2 marks a tagged item on the document lines with the organisationâ€
   expect(screen.getAllByTestId('stock-item-tag')).toHaveLength(1);
 });
 
+it('D4 a receipt line shows how much passed and how much was rejected, and why; a line with no check shows nothing extra', async () => {
+  documents.get.mockResolvedValue(detail({ kind: 'receive', number: 'GR-1', lines: [
+    { id: 'l1', line_no: 1, item_id: 'i1', quantity: '10', counted_quantity: null, expected_quantity: null, direction: null, boq_item_id: null, source_line_id: null, qty_rejected: '2', reject_note: 'cracked', item: { code: 'CEM', name: 'Cement 50kg', tag: null, unit: { code: 'bag', whole_only: true } } },
+    { id: 'l2', line_no: 2, item_id: 'i2', quantity: '5', counted_quantity: null, expected_quantity: null, direction: null, boq_item_id: null, source_line_id: null, qty_rejected: null, reject_note: null, item: { code: 'CAB', name: 'Cable 4mm', tag: null, unit: { code: 'm', whole_only: false } } },
+  ] }));
+  renderPage();
+  expect(await screen.findByText(/passed 8/)).toBeInTheDocument();
+  expect(screen.getByText(/rejected 2: cracked/)).toBeInTheDocument();
+  expect(screen.getAllByText(/passed/)).toHaveLength(1);
+});
+
 it('lets other readers see attachments without giving them upload controls', async () => {
   documents.get.mockResolvedValue(detail({ created_by: 'another-user' }));
   files.list.mockResolvedValue([{ id: 'f1', file_path: 'org-1/d1/f1/slip.pdf', label: 'Slip', uploaded_by: 'me', created_at: '2026-10-30T03:00:00Z', archived_at: null }]);

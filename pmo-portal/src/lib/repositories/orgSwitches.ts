@@ -18,7 +18,7 @@ import { billingStagesRepository } from './billingStages';
 
 // ponytail: a literal until database.types.ts is regenerated (typed-client ticket); then derive it from the organizations Row.
 type OrgColumn =
-  | 'qs_report_revenue_enabled' | 'management_views_enabled' | 'clearance_checklist_enabled'
+  | 'qs_report_revenue_enabled' | 'pcm_scheduled_reports_enabled' | 'management_views_enabled' | 'clearance_checklist_enabled'
   | 'module_people_crews' | 'module_site_day' | 'module_stock' | 'module_purchasing_extras' | 'module_billing_extras';
 
 export type OrgModuleKey = 'modulePeopleCrews' | 'moduleSiteDay' | 'moduleStock' | 'modulePurchasingExtras' | 'moduleBillingExtras';
@@ -37,6 +37,7 @@ export interface OrgSwitch {
 
 export const ORG_SWITCHES = {
   qsReportRevenue: { source: { column: 'qs_report_revenue_enabled' }, manage: 'siteReportLists', writers: ['Admin'], refreshes: ['daily-site-reports'] },
+  pcmScheduledReports: { source: { column: 'pcm_scheduled_reports_enabled' }, manage: 'orgEmailNotifications', writers: ['Admin'], refreshes: ['scheduledReports'] },
   managementViews: { source: { column: 'management_views_enabled' }, manage: 'orgAccounting', writers: ['Admin'] },
   crewLoans: { source: { read: crewLoanRepository.enabled, write: crewLoanRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
   clearance: { source: { column: 'clearance_checklist_enabled' }, module: 'modulePeopleCrews', manage: 'clearanceItem', writers: ['Admin'], refreshes: ['clearance'] },
