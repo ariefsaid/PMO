@@ -40,6 +40,8 @@ const h = vi.hoisted(() => ({
   docs: [] as unknown[],
   docsState: { isPending: false, isError: false, refetch: vi.fn() },
   ordersState: { isPending: false, isError: false, refetch: vi.fn() },
+  boqPending: false,
+  claimsPending: false,
   tmClaims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   tmMutation: vi.fn().mockResolvedValue(undefined),
   overdue: [] as unknown[],
@@ -62,8 +64,8 @@ vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.revenueMo
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectBilling: () => h.billing,
-  useBoqItems: () => ({ data: h.boq, isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectClaims: () => ({ data: h.claims, isPending: false, isError: false, refetch: vi.fn() }),
+  useBoqItems: () => ({ data: h.boq, isPending: h.boqPending, isError: false, refetch: vi.fn() }),
+  useProjectClaims: () => ({ data: h.claims, isPending: h.claimsPending, isError: false, refetch: vi.fn() }),
   useProgressBillingMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], ...h.ordersState }) }));
@@ -141,6 +143,7 @@ beforeEach(() => {
   h.boq = BOQ; h.claims = CLAIMS; h.docs = DOCS;
   h.docsState = { isPending: false, isError: false, refetch: vi.fn() };
   h.ordersState = { isPending: false, isError: false, refetch: vi.fn() };
+  h.boqPending = false; h.claimsPending = false;
   h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.tmMutation.mockReset().mockResolvedValue(undefined);
   h.revenueMode = null; h.tmInvoice.mockReset().mockResolvedValue('tm-1');
@@ -193,6 +196,19 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('#2895 New claim renders while its sources still load, and each source keeps its own loading line', () => {
+    h.routeReady = false; // the claims card owns the primary action while the invoice route is not ready
+    h.boqPending = true; h.claimsPending = true;
+    h.billing = { data: null, isPending: true, isError: false, refetch: vi.fn() };
+    h.ordersState = { isPending: true, isError: false, refetch: vi.fn() };
+    renderTab();
+    expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
+    expect(screen.getByText('Loading contract lines…')).toBeInTheDocument();
+    expect(screen.getByText('Loading billing figures…')).toBeInTheDocument();
+    expect(screen.getByText('Loading claims…')).toBeInTheDocument();
+    expect(screen.getByText('Loading customer orders…')).toBeInTheDocument();
+  });
+
   it('AC-BSX-011 the overdue-step marker names the step and the days over on the claim row (#2680)', async () => {
     h.overdue = [{ claimId: 'k1', stepName: 'Client review', daysOver: 3 }];
     renderTab();
@@ -640,11 +656,13 @@ describe('BillingTab', () => {
     expect(h.docsState.refetch).toHaveBeenCalled();
   });
 
-  it('does not open a claim with unavailable customer orders', () => {
+  it('#2895 offers New claim while customer orders load, and the card still names the loading source', () => {
     h.routeReady = false;
     h.ordersState = { isPending: true, isError: false, refetch: vi.fn() };
     renderTab();
-    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
+    // #2895: the primary action no longer hides behind the five source reads; the claim form (and its
+    // disabled submit) is what refuses a claim whose sources have not landed — see "retains a claim draft".
+    expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     expect(screen.getByText('Loading customer orders…')).toBeInTheDocument();
   });
 
@@ -677,11 +695,13 @@ describe('BillingTab', () => {
     expect(h.m.createClaim.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b1', quantity: 2.5 }] }));
   });
 
-  it('offers retry for failed customer-order data without opening a claim', async () => {
+  it('#2895 offers retry for failed customer-order data, with the card error state beside the action', async () => {
     h.routeReady = false;
     h.ordersState = { isPending: false, isError: true, refetch: vi.fn() };
     const user = renderTab();
-    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
+    // #2895: the action stays; the per-source error (and the form's disabled submit, "retains a claim
+    // draft") is what stops a claim whose source failed. Retry stays on the card.
+    expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     expect(screen.getByText("Couldn't load customer orders")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(h.ordersState.refetch).toHaveBeenCalled();
