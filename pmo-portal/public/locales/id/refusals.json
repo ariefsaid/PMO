@@ -361,6 +361,8 @@
   "WBS_OUT_OF_ORDER": "Langkah ini belum dibuka.",
   "WBS_OUT_OF_ORDER_detail": "Selesaikan dulu langkah penagihan sebelumnya.",
   "WBS_REASON": "Tulis alasan 3 sampai 500 karakter.",
+  "WOC_REASON": "Tulis alasan 3 sampai 500 karakter.",
+  "WOC_TEMPLATE": "Setiap baris perlu pemeriksaan 1 sampai 200 karakter, peran kerja, dan 1 sampai 365 hari.",
   "WBS_SETTER_ROLE": "Hanya Keuangan atau Admin yang dapat mengubah templat langkah penagihan dan templat bawaan.",
   "WBS_SLOT": "Lampiran itu tidak ada pada langkah penagihan ini.",
   "WBS_TEMPLATE_NOT_FOUND": "Templat langkah penagihan itu tidak ada atau sudah diarsipkan.",

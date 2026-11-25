@@ -49,6 +49,8 @@ const { listState, drawdownState, mutations, lineState, boqState, quantityMutati
 
 // #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
 vi.mock('@/src/components/tasks/WorkOrderOpenTasks', () => ({ WorkOrderOpenTasks: () => null }));
+const checksState = vi.hoisted(() => ({ data: [] as { name: string; status: string }[] }));
+vi.mock('@/src/hooks/useWorkOrderChecks', () => ({ useWorkOrderChecks: () => ({ data: checksState.data }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
 }));
@@ -157,6 +159,7 @@ const renderTab = (role: Role = 'Project Manager') => {
 };
 
 beforeEach(() => {
+  checksState.data = [];
   listState.data = [];
   listState.isPending = false;
   listState.isFetching = false;
@@ -414,6 +417,17 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('your supervisor'));
     expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before it can be issued.');
+  });
+
+  it('AC-WOC-003 the list\'s Issue confirm names the checks still open and still issues', async () => {
+    listState.data = [row()];
+    checksState.data = [{ name: 'Drawings checked', status: 'Done' }, { name: 'Permit checked', status: 'To Do' }];
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(screen.getByRole('button', { name: /^Issue$/i }));
+    expect(screen.getByTestId('wo-issue-open-checks')).toHaveTextContent('Still open: Permit checked');
+    await user.click(screen.getByRole('button', { name: /Issue work order/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledOnce();
   });
 
   it('requires a current decision while an issue confirmation is open', async () => {

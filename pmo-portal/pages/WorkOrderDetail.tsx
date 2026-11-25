@@ -56,6 +56,8 @@ import { isMicrosoftFolder } from './project-detail/tabs/documentUtils';
 import { WorkOrderStockBalance } from './stock/WorkOrderStockBalance';
 import { PageGroup, PageIndex } from './work-order-detail/PageIndex';
 import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
+import { WorkOrderChecksSection } from './work-order-detail/WorkOrderChecksSection';
+import { useWorkOrderDecision } from './work-order-detail/WorkOrderDecision';
 
 /** The page's groups in reading order (walk T-G1): the index names them and jumps between them. */
 const PAGE_GROUPS = ['scope', 'cost', 'material', 'billing', 'inspections', 'closeout', 'documents', 'issues'] as const;
@@ -108,6 +110,7 @@ const WorkOrderDetail: React.FC = () => {
   const disciplines = useCostDisciplines(Boolean(wo.data));
   const canPlanView = may('view', 'workOrderPlan');
   const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data));
+  const decision = useWorkOrderDecision(wo.data ?? null);
 
   const allocationOptions = useMemo(
     () => (allocations.data ?? []).map((a) => {
@@ -180,6 +183,8 @@ const WorkOrderDetail: React.FC = () => {
           <WorkOrderAheadBadge workOrderId={row.id} href={`/projects/${row.project_id}/work-orders`} />
           {row.client_po_number && <span>{t('clientPo', 'Client PO {{po}}', { po: row.client_po_number })}</span>}
         </span>}
+        primaryAction={decision.primaryAction}
+        menuItems={decision.menuItems.length > 0 ? decision.menuItems : undefined}
         stats={[
           { label: t('project', 'Project'), value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
@@ -200,10 +205,15 @@ const WorkOrderDetail: React.FC = () => {
           {issueWaitingText}
         </p>
       )}
+      {row.status === 'Cancelled' && row.cancel_reason && (
+        <p data-testid="wo-cancel-reason" className="text-control text-foreground">{t('decision.cancelledBecause', 'Cancelled because: {{reason}}', { reason: row.cancel_reason })}</p>
+      )}
+      {decision.dialogs}
       <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <PageIndex entries={indexEntries} />
       <RecordStack>
+        {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
         <PageGroup id="wo-scope" label={groupLabels.scope}>
           <SiteCheckpointFlag workOrderId={row.id} />
           <WorkOrderCheckpoints workOrderId={row.id} projectManagerId={project.data?.project_manager_id ?? null} status={row.status} />

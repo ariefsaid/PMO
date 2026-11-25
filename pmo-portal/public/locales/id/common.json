@@ -2891,8 +2891,8 @@
       "projectUpdated": "Proyek diperbarui"
     },
     "workOrderForm": {
-      "clientPoHelper": "Referensi milik klien. Nomor WO kita diterbitkan oleh sistem.",
-      "clientPoNumber": "Nomor PO klien",
+      "clientPoHelper": "Nomor pada dokumen pesanan atau PO klien. Nomor kita diterbitkan oleh sistem.",
+      "clientPoNumber": "Referensi klien",
       "create": "Buat draft",
       "description": "Lingkup",
       "detailsLegend": "Order dari klien",

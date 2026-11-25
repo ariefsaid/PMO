@@ -2891,8 +2891,8 @@
       "projectUpdated": "Project updated"
     },
     "workOrderForm": {
-      "clientPoHelper": "The client’s own reference. Our WO number is issued by the system.",
-      "clientPoNumber": "Client PO number",
+      "clientPoHelper": "The number on the client’s work order or PO. Ours is issued by the system.",
+      "clientPoNumber": "Client reference",
       "create": "Create draft",
       "description": "Scope",
       "detailsLegend": "The client’s order",

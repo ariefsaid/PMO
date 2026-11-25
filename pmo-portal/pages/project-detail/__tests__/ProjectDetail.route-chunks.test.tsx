@@ -77,10 +77,6 @@ vi.mock('../tabs/DocumentsTab', () => {
   routeChunkState.loads.documents += 1;
   return { default: () => <div data-testid="tab-documents">Documents panel</div> };
 });
-// #2595's candidate section sits in the contract area beside the work-orders panel; it owns its own suite
-// (tabs/__tests__/CandidateWorkOrders.test.tsx) and needs auth + a QueryClient, neither of which this
-// route-chunk test provides.
-vi.mock('../tabs/CandidateWorkOrders', () => ({ CandidateWorkOrders: () => null }));
 
 vi.mock('@/src/hooks/useProjects', () => ({
   useProject: (id: string) => ({

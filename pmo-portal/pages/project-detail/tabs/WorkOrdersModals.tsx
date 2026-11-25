@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { OpenChecksWarning } from '@/pages/work-order-detail/OpenChecksWarning';
 import {
   ConfirmDialog,
 } from '@/src/components/ui';
@@ -136,9 +137,14 @@ const WorkOrdersModals: React.FC<{
     if (p.to === 'Issued') {
       return {
         title: t('projectDetail.workOrders.confirm.issue.title', 'Issue this work order?'),
-        description: t(
-          'projectDetail.workOrders.confirm.issue.body',
-          'It gets our WO number, starts drawing down the project’s contract, and its content is frozen from then on. Amending an issued work order means cancelling it and raising a replacement.',
+        description: (
+          <div className="flex flex-col gap-2">
+            <p>{t(
+              'projectDetail.workOrders.confirm.issue.body',
+              'It gets our WO number, starts drawing down the project’s contract, and its content is frozen from then on. Amending an issued work order means cancelling it and raising a replacement.',
+            )}</p>
+            <OpenChecksWarning projectId={projectId} workOrderId={p.row.id} />
+          </div>
         ),
         confirmLabel: t('projectDetail.workOrders.confirm.issue.confirm', 'Issue work order'),
         tone: 'default' as const,

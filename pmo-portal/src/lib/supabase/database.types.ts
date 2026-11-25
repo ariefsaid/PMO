@@ -26008,8 +26008,10 @@ export type Database = {
           id: string
           label: string
           org_id: string
+          owner_job_role: string | null
           position: number
           required: boolean
+          target_days: number | null
         }
         Insert: {
           archived_at?: string | null
@@ -26017,8 +26019,10 @@ export type Database = {
           id?: string
           label: string
           org_id?: string
+          owner_job_role?: string | null
           position?: number
           required?: boolean
+          target_days?: number | null
         }
         Update: {
           archived_at?: string | null
@@ -26026,8 +26030,10 @@ export type Database = {
           id?: string
           label?: string
           org_id?: string
+          owner_job_role?: string | null
           position?: number
           required?: boolean
+          target_days?: number | null
         }
         Relationships: [
           {
@@ -26948,6 +26954,7 @@ export type Database = {
           area_lat: number | null
           area_lng: number | null
           area_radius_m: number | null
+          cancel_reason: string | null
           cancelled_at: string | null
           client_po_number: string | null
           closed_at: string | null
@@ -26988,6 +26995,7 @@ export type Database = {
           area_lat?: number | null
           area_lng?: number | null
           area_radius_m?: number | null
+          cancel_reason?: string | null
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
@@ -27028,6 +27036,7 @@ export type Database = {
           area_lat?: number | null
           area_lng?: number | null
           area_radius_m?: number | null
+          cancel_reason?: string | null
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
@@ -29993,6 +30002,10 @@ export type Database = {
       }
       cancel_subcontract_certificate: {
         Args: { p_certificate: string; p_reason: string }
+        Returns: undefined
+      }
+      cancel_work_order: {
+        Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
       capture_assigned_gl: {
@@ -37767,10 +37780,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      set_work_order_candidate_template: {
-        Args: { p_items: Json }
-        Returns: number
-      }
       set_work_order_check_in_area: {
         Args: {
           p_lat: number
@@ -37779,6 +37788,10 @@ export type Database = {
           p_work_order: string
         }
         Returns: undefined
+      }
+      set_work_order_check_template: {
+        Args: { p_items: Json }
+        Returns: number
       }
       set_stock_issue_cost_date: {
         Args: { p_effective_on: string | null }
