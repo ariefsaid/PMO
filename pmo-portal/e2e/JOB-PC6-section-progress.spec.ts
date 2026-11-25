@@ -73,7 +73,10 @@ test('JOB-PC6 planner sections receive the progress recorded by a field administ
     const sectionA = page.getByTestId('wo-section-A');
     const sectionB = page.getByTestId('wo-section-B');
     const remainder = page.getByTestId('wo-section-remainder');
-    await expect(sectionA).toContainText('A · Front A');
+    // First load after a database reset with three browsers competing: the sections data landed
+    // ~12.2 s after navigation in the failing full run (6.5 s of that before `load`), so the first
+    // assertion gets the sibling journeys' 20-second wait.
+    await expect(sectionA).toContainText('A · Front A', { timeout: 20_000 });
     await expect(sectionA.getByText('Validated: 12.500 m', { exact: true })).toBeVisible();
     await expect(sectionB).toContainText('B · Front B');
     await expect(sectionB).not.toContainText('12.500 m');
