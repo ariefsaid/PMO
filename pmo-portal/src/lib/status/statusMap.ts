@@ -1,4 +1,5 @@
 import type { StatusVariant } from '@/src/components/ui/StatusPill';
+import { orgStageName } from './orgStageNames';
 
 /**
  * THE status vocabulary (ux/1110 F1a): one map per record type from the STORED state to its label
@@ -295,9 +296,14 @@ export function statusVariantOf(record: StatusRecord, state: string): StatusVari
   return toneVariant(statusTone(record, state));
 }
 
+/** The shipped display name of a state, ignoring any organisation name (#2906: the Admin screen shows it). */
+export function shippedStatusLabel(record: StatusRecord, state: string, t: StatusTranslate): string {
+  return entryFor(record, state)?.label(t) ?? state;
+}
+
 /** The one display name of a state. An unknown state reads as its stored text, untranslated. */
 export function statusLabel(record: StatusRecord, state: string, t: StatusTranslate): string {
-  return entryFor(record, state)?.label(t) ?? state;
+  return (record === 'project' ? orgStageName(state) : undefined) ?? shippedStatusLabel(record, state, t);
 }
 
 /** Every record type, for pickers and the coverage tests. */

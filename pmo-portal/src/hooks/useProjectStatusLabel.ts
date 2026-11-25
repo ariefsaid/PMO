@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { stageLabelForStatus } from '@/components/procurement';
+import { orgStageName } from '@/src/lib/status/orgStageNames';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 /**
@@ -24,7 +25,7 @@ export function useProjectStatusLabel(): (status: string) => string {
     Declined: t('projects.status.declined', 'Declined'),
     'Internal Project': t('projects.status.internalProject', 'Internal Project'),
   };
-  return (status) => labels[status] ?? status;
+  return (status) => orgStageName(status) ?? labels[status] ?? status;
 }
 
 /**
@@ -44,7 +45,7 @@ export function useSalesStageLabel(): (col: { title: string; testId: string }) =
     'stage-Won': t('projects.kanban.won', 'Won'),
     'stage-Lost': t('sales.stage.lost', 'Lost'),
   };
-  return (col) => labels[col.testId] ?? col.title;
+  return (col) => (col.testId.startsWith('stage-') ? orgStageName(col.testId.slice(6)) : undefined) ?? labels[col.testId] ?? col.title;
 }
 
 /** Display the shared full purchasing-state noun without changing its stored enum. */

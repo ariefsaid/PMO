@@ -12,6 +12,7 @@ import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
 import { repositories } from '@/src/lib/repositories';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 import { formatIsoDay, formatPercent } from '@/src/lib/format';
+import { orgStageName } from '@/src/lib/status/orgStageNames';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import {
   LEGAL_PROJECT_TRANSITIONS, PIPELINE_STATUSES, projectStatusGroup, type TransitionProjectOpts,
@@ -34,9 +35,21 @@ export const NEXT_STAGE_KEY: Record<string, string> = {
   'Tender Submitted': 'negotiation',
 };
 
+/** The stage key behind each journey step; Won and Lost are group words, not stages (#2906). */
+const JOURNEY_STAGE_KEY: Partial<Record<DealJourneyStage, string>> = {
+  Leads: 'Leads',
+  Quotation: 'Quotation Submitted',
+  'Pre-Qualification': 'PQ Submitted',
+  Tender: 'Tender Submitted',
+  Negotiation: 'Negotiation',
+};
+
 export function useStageJourneyStepLabel(): (step: DealJourneyStage) => string {
   const { t } = useTranslation('project');
   return (step) => {
+    const key = JOURNEY_STAGE_KEY[step];
+    const named = key ? orgStageName(key) : undefined;
+    if (named) return named;
     switch (step) {
       case 'Leads':
         return t('projectDetail.pipeline.journey.leads', 'Leads');
@@ -93,9 +106,11 @@ export function useDealActions(project: ProjectWithRefs) {
   const canDecline = legal.includes('Declined');
   const nextStage = legal.find((s) => PIPELINE_STATUSES.includes(s));
   const nextStageKey = nextStage ? NEXT_STAGE_KEY[status] : undefined;
-  const nextStageLabel = nextStageKey
-    ? t(`projectDetail.pipeline.nextStage.${nextStageKey}`, NEXT_STAGE_LABEL[status])
-    : (nextStage ? (NEXT_STAGE_LABEL[status] ?? stageLabel(nextStage)) : null);
+  const nextStageLabel = nextStage && orgStageName(nextStage)
+    ? orgStageName(nextStage)!
+    : nextStageKey
+      ? t(`projectDetail.pipeline.nextStage.${nextStageKey}`, NEXT_STAGE_LABEL[status])
+      : (nextStage ? (NEXT_STAGE_LABEL[status] ?? stageLabel(nextStage)) : null);
   const isTerminal = projectStatusGroup(status as never) !== 'pipeline';
 
   const [error, setError] = useState<string | null>(null);

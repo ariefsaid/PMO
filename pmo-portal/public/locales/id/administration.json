@@ -902,6 +902,24 @@
       "saved": "Peran catatan waktu disimpan",
       "loadError": "Peran catatan waktu tidak dapat dimuat",
       "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
+    "stageNames": {
+      "title": "Tahapan penjualan dan proyek",
+      "helper": "Ganti nama tahapan agar sesuai dengan proses Anda. Nama kosong memakai nama bawaan. Catatan, filter, dan laporan tetap berjalan.",
+      "group": {
+        "pipeline": "Jalur penjualan",
+        "onHand": "Sedang berjalan",
+        "lost": "Kalah",
+        "internal": "Internal"
+      },
+      "english": "Bahasa Inggris",
+      "bahasa": "Bahasa Indonesia",
+      "save": "Simpan",
+      "reset": "Kembalikan",
+      "saved": "Nama tahapan disimpan",
+      "tooLong": "Gunakan paling banyak 40 karakter",
+      "duplicate": "Tahapan lain sudah memakai nama ini",
+      "loadError": "Tahapan tidak dapat dimuat"
     }
   },
   "exchangeRates": {
