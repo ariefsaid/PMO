@@ -57,7 +57,7 @@ test('JOB-E2 a two-line monthly plan becomes two rental orders linked to the pla
     }
     // 2. She submits it; the plan now waits for a second spender.
     await page.getByRole('button', { name: 'Submit for approval' }).click();
-    await expect(page.getByTestId('equipment-plan')).toContainText(/Submitted|Diajukan/i, { timeout: 20_000 });
+    await expect(page.getByTestId('equipment-plan')).toContainText(/Waiting for approval|Menunggu persetujuan/i, { timeout: 20_000 });
 
     // 3. The Finance Manager approves it, which converts it into rental orders.
     await finance.signIn(page);
@@ -105,6 +105,8 @@ test('JOB-E2 a two-line monthly plan becomes two rental orders linked to the pla
       ok('vendor cleanup', await svc.from('companies').delete().eq('id', vendorId));
       ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     }
+    // The approval created the orders for this run's logins: their create-intent and status rows go before the logins do.
+    sqlAsOwner(`delete from procurement_create_intents where actor_id in ('${finance.id}','${buyer.id}','${manager.id}'); delete from procurement_status_events where actor_id in ('${finance.id}','${buyer.id}','${manager.id}');`);
     await finance.cleanup();
     await buyer.cleanup();
     await manager.cleanup();

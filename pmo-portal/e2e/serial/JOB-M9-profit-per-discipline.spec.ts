@@ -1,4 +1,4 @@
-// @e2e-isolation: serial — switches the organisation's profit-per-discipline setting for the run and restores it in finally; the contract, disciplines, stock and item are this run's own and are deleted.
+// @e2e-isolation: serial — switches the organisation's profit-per-discipline setting and its stock-issue costing date for the run and restores both in finally; the contract, disciplines, stock and item are this run's own and are deleted.
 // JOB-M9 (acceptance 01-management, TC-M-09): profit per discipline. A contract with revenue and cost tagged to two
 // disciplines: the Executive opens the discipline view and each discipline shows revenue, cost and profit, and the
 // totals equal the project's.
@@ -21,6 +21,7 @@ test('JOB-M9 the Executive sees revenue, cost and profit per discipline, and the
   const actor: Actor = await roleJobUser(svc, 'executive', run);
   const stock = await userClient('admin@acme.test');
   let previousSetting: boolean | null = null;
+  let costingBefore: { effective_on: string | null } | null | undefined;
   let projectId = ''; let woId = ''; let discA = ''; let discB = ''; let reportId = '';
   let itemId = ''; let siteId = ''; const docIds: string[] = [];
 
@@ -28,6 +29,11 @@ test('JOB-M9 the Executive sees revenue, cost and profit per discipline, and the
     const org = need('org', await svc.from('organizations').select('discipline_profit_enabled').eq('id', ORG_ID).single());
     previousSetting = org.discipline_profit_enabled as boolean;
     ok('setting on', await svc.from('organizations').update({ discipline_profit_enabled: true }).eq('id', ORG_ID));
+    // The Admin counts stock issues as project cost from yesterday, so today's issues count (the organisation's stock-issue costing date); remembered for the reset.
+    const costing = await svc.from('stock_issue_cost_settings').select('effective_on').eq('org_id', ORG_ID).maybeSingle();
+    ok('costing date read', costing);
+    costingBefore = costing.data;
+    ok('costing date', await stock.rpc('set_stock_issue_cost_date', { p_effective_on: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) }));
 
     const clientId = need('client', await svc.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
     projectId = need('project', await svc.from('projects').insert({
@@ -68,10 +74,10 @@ test('JOB-M9 the Executive sees revenue, cost and profit per discipline, and the
     const yard = await makeWarehouse(stock, suffix, 'M9', 'central');
     siteId = yard.id;
     docIds.push(await postReceive(stock, yard.id, itemId, '100', '2'));
-    for (const [quantity, disciplineId] of [['50', discA], ['25', discB]] as const) {
+    for (const [quantity, disciplineId, boqId] of [['50', discA, boqA], ['25', discB, boqB]] as const) {
       const issue = await stock.rpc('create_stock_document', {
         p_header: { kind: 'issue', warehouse_id: yard.id, project_id: projectId },
-        p_lines: [{ item_id: itemId, quantity }], p_post: true,
+        p_lines: [{ item_id: itemId, quantity, boq_item_id: boqId }], p_post: true,
       });
       if (issue.error) throw new Error('issue: ' + issue.error.message);
       docIds.push(issue.data as string);
@@ -116,6 +122,7 @@ test('JOB-M9 the Executive sees revenue, cost and profit per discipline, and the
         delete from public.projects where id = '${projectId}';`);
     }
     if (discA) sqlAsOwner(`delete from public.cost_disciplines where id in ('${discA}','${discB}');`);
+    if (costingBefore !== undefined) ok('restore costing date', await stock.rpc('set_stock_issue_cost_date', { p_effective_on: costingBefore?.effective_on ?? null }));
     if (previousSetting !== null) ok('restore setting', await svc.from('organizations').update({ discipline_profit_enabled: previousSetting }).eq('id', ORG_ID));
     await actor.cleanup();
   }

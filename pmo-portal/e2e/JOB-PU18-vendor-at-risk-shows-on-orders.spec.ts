@@ -57,7 +57,7 @@ test('JOB-PU18 a supplier marked at risk shows on the supplier and on its orders
     // 2. Sets it to at risk, with a reason.
     const status = page.getByLabel(/^Status$/);
     await status.selectOption('at_risk');
-    await page.getByLabel(/^Reason$/).fill('Payables are over three months old and deliveries are late');
+    await page.getByRole('textbox', { name: 'Reason' }).fill('Payables are over three months old and deliveries are late');
     await page.getByRole('button', { name: 'Save status' }).click();
     await expect(page.getByTestId('supply-risk-current')).toContainText(/At risk|Berisiko/, { timeout: 20_000 });
 

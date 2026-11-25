@@ -42,7 +42,7 @@ async function withDocuments(title: string, opts: { receipt: boolean; invoice: b
       amount: 12000, tax_treatment: 'exclusive', tax_amount: 0,
     }).select('id').single()).id as string;
   }
-  ok('status', await svc.from('procurements').update({ status: 'Vendor Invoiced' }).eq('id', fixture.id));
+  ok('status', await svc.from('procurements').update({ status: 'Vendor Invoiced', approved_total_value: 12000 }).eq('id', fixture.id));
   return { ...fixture, poId: po.id as string, invoiceId };
 }
 

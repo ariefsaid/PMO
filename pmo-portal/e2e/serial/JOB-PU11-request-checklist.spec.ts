@@ -34,6 +34,9 @@ test.beforeAll(async () => {
     org_id: ORG_ID, procurement_id: purchase.id, pay_number: `PAY-11-${Date.now()}`,
     status: 'Paid', date: orgToday(), amount: 12000, currency: 'USD',
   }).select('id').single()).id as string;
+  // The approver's recorded amount: a purchase that went through approval cannot be paid without one.
+  // Two writes: the Paid guard reads the amount as it stood before the update.
+  ok('approved amount', await svc.from('procurements').update({ approved_total_value: 12000 }).eq('id', purchase.id));
   ok('status', await svc.from('procurements').update({ status: 'Paid' }).eq('id', purchase.id));
 });
 

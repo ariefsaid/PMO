@@ -50,7 +50,7 @@ test.beforeAll(async () => {
     org_id: ORG_ID, procurement_id: purchase.id, po_id: po.id, gr_number: `GR-7-${Date.now()}`,
     receipt_date: orgToday(), status: 'Partial',
   }).select('id').single());
-  ok('receipt line', await svc.from('procurement_receipt_lines').insert({ receipt_id: receipt.id, item_id: itemId, org_id: ORG_ID, quantity: 8 }));
+  ok('receipt line', await svc.from('procurement_receipt_lines').insert({ receipt_id: receipt.id, item_id: itemId, org_id: ORG_ID, quantity: 8, recorded_by: officer.id }));
   ok('ordered', await svc.from('procurements').update({ status: 'Ordered' }).eq('id', purchase.id));
 });
 
@@ -91,7 +91,8 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await officer.signIn(page);
   await page.goto(purchase.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('btn-create-vi').click();
+  await page.getByRole('button', { name: 'Record another document' }).click();
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Supplier invoice', exact: true }).click();
   const form = page.getByTestId('form-create-vi');
   await expect(form).toBeVisible({ timeout: 15_000 });
   await form.getByTestId('vi-ref-input').fill(`INV-${Date.now()}`);

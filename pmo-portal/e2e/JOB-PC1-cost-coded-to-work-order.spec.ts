@@ -32,6 +32,10 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
     projectId = fx.projectId;
     woId = fx.workOrders[0].id;
     const wo = fx.workOrders[0];
+    // The contract work item the issue is taken to (a stock issue names one of the project's work items).
+    const work = need('work item', await svc.from('boq_items').insert({
+      org_id: ORG_ID, project_id: projectId, item_code: `PC1-${sfx}`, description: `${run} piling works`, unit: 'm', quantity: 100, rate: 10,
+    }).select('id, item_code, description').single());
 
     // Admin registers the crane and names the same person keeper of the site store (the case's one person; the store is theirs).
     assetId = need('asset', await svc.from('equipment_assets').insert({ org_id: ORG_ID, code: `CR-${sfx.toUpperCase()}`, name: `${run} crane`, default_unit: 'hours' }).select('id').single()).id as string;
@@ -80,6 +84,7 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
     await page.goto('/stock/new/issue');
     await page.getByLabel(/^Warehouse/).selectOption({ label: `${warehouse.code} - ${warehouse.name}` });
     await page.getByLabel(/^Project/).selectOption({ label: `${run} project` });
+    await page.getByLabel(/^Work item/).selectOption({ label: `${work.item_code} - ${work.description}` });
     await page.getByRole('combobox', { name: /^Item/ }).click();
     await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(item.code);
     await page.getByRole('option', { name: new RegExp(item.code) }).click();
@@ -112,6 +117,7 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
       delete from public.equipment_usage_entries where asset_id = '${assetId || '00000000-0000-0000-0000-000000000000'}';
       delete from public.equipment_assets where id = '${assetId || '00000000-0000-0000-0000-000000000000'}';
       delete from public.timesheets where user_id = '${pa.id}';
+      delete from public.boq_items where project_id = '${projectId || '00000000-0000-0000-0000-000000000000'}';
       delete from public.work_orders where id = '${woId || '00000000-0000-0000-0000-000000000000'}';
       delete from public.projects where id = '${projectId || '00000000-0000-0000-0000-000000000000'}';`);
     ok('login cleanup', await svc.from('profiles').delete().eq('id', pa.id));
