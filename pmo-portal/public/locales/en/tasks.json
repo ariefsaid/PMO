@@ -93,7 +93,6 @@
     "unlinked": "Stopped following the record."
   },
   "sourceIssue": {
-    "from": "From issue",
-    "open": "Open the source issue"
+    "from": "From issue"
   }
 }

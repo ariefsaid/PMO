@@ -14,8 +14,9 @@ export const SourceIssueLink: React.FC<{ incidentId: string; className?: string 
     <Link
       to={`/incidents/${incidentId}`}
       className={className ?? 'font-medium text-primary underline-offset-2 hover:underline'}
-      aria-label={t('sourceIssue.open', 'Open the source issue')}
     >
+      {/* #2905: no aria-label — the accessible name must be the visible words ("From issue"), so
+          voice control saying the visible words activates the link (WCAG 2.5.3 Label in Name). */}
       {t('sourceIssue.from', 'From issue')}
     </Link>
   );
