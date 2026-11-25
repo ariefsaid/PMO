@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { sortPortfolioRows, type ProjectPortfolioRow } from './projectPortfolio';
+import { packMoneyByProject, sortPortfolioRows, type ProjectPortfolioRow } from './projectPortfolio';
+import type { ManagementPack } from './reports/managementPack';
 
 const row = (overrides: Partial<ProjectPortfolioRow>): ProjectPortfolioRow => ({
   id: 'p1', name: 'Project', actualCurrency: 'IDR', spent: 80, budget: 100, budgetCurrency: 'IDR',
   doneMilestones: 2, totalMilestones: 4, lateMilestones: 0, plannedPct: 60, actualPct: 50,
+  contractValue: null, billed: null, contractCurrency: null,
   ...overrides,
 });
 
@@ -29,5 +31,23 @@ describe('project portfolio sorting', () => {
     expect(sortPortfolioRows(rows, { key: 'lateMilestones', dir: 'asc' }).map((item) => item.id)).toEqual(['b', 'a', 'missing']);
     expect(sortPortfolioRows(rows, { key: 'plannedPct', dir: 'asc' }).map((item) => item.id)).toEqual(['b', 'a', 'missing']);
     expect(sortPortfolioRows(rows, { key: 'actualPct', dir: 'asc' }).map((item) => item.id)).toEqual(['a', 'b', 'missing']);
+  });
+});
+
+describe('packMoneyByProject', () => {
+  it('TC-M-10 reads contract value and invoiced-to-date from the management pack at its latest month, in whole units', () => {
+    const pack = {
+      months: ['2026-10-01', '2026-11-01'],
+      rows: [
+        { kind: 'contract', projectId: 'p1', currency: 'USD', contractNet: 30000000, months: [{ month: '2026-10-01', invoicedToDate: 1 }, { month: '2026-11-01', invoicedToDate: 10000000 }] },
+        { kind: 'contract', projectId: 'p2', currency: 'USD', contractNet: null, months: [{ month: '2026-11-01', invoicedToDate: 5000000 }] },
+        { kind: 'other', projectId: null, currency: 'USD', contractNet: null, months: [] },
+      ],
+    } as unknown as ManagementPack;
+    expect(packMoneyByProject(undefined)).toEqual({});
+    expect(packMoneyByProject(pack)).toEqual({
+      p1: { contractValue: 300000, billed: 100000, currency: 'USD' },
+      p2: { contractValue: null, billed: 50000, currency: 'USD' },
+    });
   });
 });

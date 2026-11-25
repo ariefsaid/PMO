@@ -714,6 +714,8 @@
     "portfolioProject": "Proyek",
     "portfolioSpent": "Pengeluaran",
     "portfolioBudget": "Anggaran aktif",
+    "portfolioContract": "Nilai kontrak",
+        "portfolioBilled": "Ditagihkan",
     "portfolioDone": "Milestone selesai",
     "portfolioLate": "Milestone terlambat",
     "portfolioPlanned": "Progres terencana",

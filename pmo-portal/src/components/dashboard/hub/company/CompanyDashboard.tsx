@@ -334,6 +334,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const portfolioRows = portfolioProjects.map((project) => {
     const budget = budgetByProject.get(project.id);
     const milestones = portfolioMilestones.data?.[project.id];
+    const money = figures.projectMoney[project.id];
     return {
       id: project.id,
       name: projectDisplayName(project),
@@ -346,6 +347,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       lateMilestones: milestones?.lateCount ?? null,
       plannedPct: milestones?.plannedPct ?? null,
       actualPct: portfolioDelivery.data?.[project.id]?.deliveryPct ?? null,
+      contractValue: money?.contractValue ?? null,
+      billed: money?.billed ?? null,
+      contractCurrency: money?.currency ?? null,
     };
   });
   const portfolioPending = projects.isPending || (portfolioIds.length > 0 && (portfolioMilestones.isPending || portfolioDelivery.isPending || budgetReview.isPending));

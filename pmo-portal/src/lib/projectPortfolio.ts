@@ -1,3 +1,5 @@
+import type { ManagementPack } from './reports/managementPack';
+
 export interface ProjectPortfolioRow {
   id: string;
   name: string;
@@ -10,10 +12,31 @@ export interface ProjectPortfolioRow {
   lateMilestones: number | null;
   plannedPct: number | null;
   actualPct: number | null;
+  /** From the management pack (the Reports figures): contract value, invoiced to date, whole units, in `contractCurrency`. */
+  contractValue: number | null;
+  billed: number | null;
+  contractCurrency: string | null;
+}
+
+/** Per project: contract value and invoiced-to-date at the pack's latest month: the same figures as Reports. */
+export function packMoneyByProject(pack: ManagementPack | undefined): Record<string, { contractValue: number | null; billed: number | null; currency: string }> {
+  const out: Record<string, { contractValue: number | null; billed: number | null; currency: string }> = {};
+  const month = pack?.months[pack.months.length - 1];
+  if (!pack || !month) return out;
+  for (const row of pack.rows) {
+    if (row.kind !== 'contract' || !row.projectId) continue;
+    const snapshot = row.months.find((entry) => entry.month === month);
+    out[row.projectId] = {
+      contractValue: row.contractNet === null ? null : row.contractNet / 100,
+      billed: snapshot ? snapshot.invoicedToDate / 100 : null,
+      currency: row.currency,
+    };
+  }
+  return out;
 }
 
 export interface PortfolioSort {
-  key: 'risk' | 'name' | 'spent' | 'budget' | 'doneMilestones' | 'lateMilestones' | 'plannedPct' | 'actualPct';
+  key: 'risk' | 'name' | 'spent' | 'budget' | 'contractValue' | 'billed' | 'doneMilestones' | 'lateMilestones' | 'plannedPct' | 'actualPct';
   dir: 'asc' | 'desc';
 }
 

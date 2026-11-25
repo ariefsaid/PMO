@@ -44,7 +44,7 @@ describe('BillingBoard in Bahasa Indonesia', () => {
     expect(within(first).getByText('Menunggu Keuangan', { exact: false })).toBeTruthy();
     expect(within(second).getByText('1 hari di langkah ini')).toBeTruthy();
     expect(screen.getAllByTestId('billing-board-column-totals')).toHaveLength(2);
-    expect(screen.getAllByTestId('billing-board-column-totals').some((node) => node.textContent?.includes('USD'))).toBe(true);
+    expect(screen.getAllByTestId('billing-board-column-totals').some((node) => /^Total .*26/.test(node.textContent ?? ''))).toBe(true);
     expect(first.textContent).not.toMatch(/IDR|USD|Rp|\$|1\.250/);
     expect(screen.getByTestId('billing-board-truncated').textContent).toContain('yang tertua');
     expect(screen.queryByText(/days on this step|days past target|Billing board/)).toBeNull();

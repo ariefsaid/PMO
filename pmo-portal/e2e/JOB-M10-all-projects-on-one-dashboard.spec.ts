@@ -2,9 +2,7 @@
 // entitlement is granted by rewriting this page's org_features read (as AC-WIH-017 does), never a shared row.
 // JOB-M10 (acceptance 01-management, TC-M-10): all projects on one view. Two contracts with billing: the Executive sees both
 // with their value, what is billed and what is left to bill.
-// Path note (class c): the acceptance script names the Dashboard. The home dashboard carries the company tiles and a
-// left-to-bill ranking; the per-project value / billed / left-to-bill table is Reports (the management pack), so the journey
-// follows the app's path and keeps the case's goal oracle.
+// The Dashboard's project portfolio carries value and billed per project; Reports (the management pack) also carries left to bill.
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ok, ORG_ID, runId, serviceClient } from './support/jobFixtures';
@@ -62,6 +60,16 @@ test('JOB-M10 the Executive sees both contracts with their value, billed and lef
   // The executive's dashboard, then the one table that lists every project with its money.
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
+  // TC-M-10: the dashboard's project portfolio lists every project with its contract value and what is billed.
+  const portfolio = page.getByTestId('project-portfolio-table');
+  await expect(portfolio).toBeVisible({ timeout: 30_000 });
+  for (const c of contracts) {
+    const row = portfolio.getByRole('row').filter({ hasText: c.name }).first();
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    const grouped = (n: number) => new RegExp(n.toLocaleString('en-US').replace(/,/g, '[.,\\s]?'));
+    await expect(row).toContainText(grouped(c.value));
+    await expect(row).toContainText(grouped(c.billed));
+  }
   await page.goto('/finance/reports');
   await expect(page.getByTestId('management-pack-table-card')).toBeVisible({ timeout: 30_000 });
 

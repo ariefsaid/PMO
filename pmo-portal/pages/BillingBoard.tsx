@@ -9,6 +9,8 @@ import { useBillingBoard } from '@/src/hooks/useBillingBoard';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { groupBoard, type BoardCard, type BoardColumn } from '@/src/lib/billingBoard';
 import { BOARD_LIMIT } from '@/src/lib/db/billingBoard';
+import { formatExactMoney } from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { BillingBoardWorkOrderSteps } from './BillingBoardWorkOrderSteps';
 
 /**
@@ -62,7 +64,7 @@ const Column: React.FC<{ column: BoardColumn }> = ({ column }) => {
       </h2>
       <div data-testid="billing-board-column-totals" className="mb-2 space-y-0.5 text-control tabular-nums text-muted-foreground">
         {column.totals.map((total) => (
-          <p key={total.currency}>{t('billingBoard.columnTotal', { defaultValue: '{{amount}} {{currency}} total', amount: total.amount ?? '—', currency: total.currency })}</p>
+          <p key={total.currency}>{t('billingBoard.columnTotal', { defaultValue: '{{amount}} total', amount: (total.amount !== null && formatExactMoney(total.amount, total.currency, getNumberLocale(), { wholeUnits: true })) || `${total.currency} —` })}</p>
         ))}
       </div>
       {column.allDone && <p className="mb-2 text-control text-muted-foreground">{t('billingBoard.allDoneHint', 'Ready to invoice. Age counts from the last step.')}</p>}
