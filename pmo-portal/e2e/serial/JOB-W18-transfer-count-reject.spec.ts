@@ -62,7 +62,7 @@ test('JOB-W18 the receiver counts less and rejects part, and the transfer shows 
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 
     // 3. Goal: the transfer shows the sent, counted and rejected quantities.
-    const line = page.locator('li').filter({ hasText: item.code }).last();
+    const line = page.getByRole('region', { name: 'Lines' }).getByRole('listitem').filter({ hasText: item.code });
     await expect(line).toContainText('Sent 10');
     await expect(line).toContainText('counted 8');
     await expect(line).toContainText('rejected 2: Two were crushed in the truck');

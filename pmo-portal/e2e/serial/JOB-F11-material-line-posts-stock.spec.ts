@@ -6,7 +6,7 @@
  * start − 3, and the corrected report shows its own posted document.
  */
 import { test, expect } from '@playwright/test';
-import { ORG_ID, need, ok, profileId, runId, serviceClient } from '../support/jobFixtures';
+import { ORG_ID, need, ok, profileId, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { roleJobUser } from '../support/roleJobUser';
 import { ADMIN_SEED_EMAIL } from '../support/transferJourney';
@@ -27,7 +27,7 @@ test('JOB-F11 validating a report with a material line of 5 falls site stock by 
   const pm1 = await roleJobUser(svc, 'project_manager', runId('f11-pm1'));
   const pm2 = await roleJobUser(svc, 'project_manager', runId('f11-pm2'));
   const run = runId('f11');
-  let projectId = ''; let workOrderId = '';
+  let projectId = ''; let workOrderId = ''; let siteId = '';
   try {
     // Settings as an Admin would leave them for this shop: material lines post, and a project manager validates a report.
     ok('stock setting', await admin.rpc('set_dsr_stock_issue', { p_on: true, p_items: 'all' }));
@@ -37,6 +37,7 @@ test('JOB-F11 validating a report with a material line of 5 falls site stock by 
     projectId = need('project', await svc.from('projects').insert({ org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD' }).select('id').single()).id;
     // The site location must be an open site/yard/staging warehouse of the work order's own project (guard 1320).
     const site = await makeWarehouse(svc, sfx, 'SITE', 'site', projectId);
+    siteId = site.id;
     const item = await makeItem(svc, sfx, 'PIPE');
     ok('consumable', await svc.from('stock_items').update({ consumable: true }).eq('id', item.id));
     await keeperOf(admin, site.id, await profileId(svc, ADMIN_SEED_EMAIL));
@@ -75,7 +76,8 @@ test('JOB-F11 validating a report with a material line of 5 falls site stock by 
     await expect(page.getByTestId('dsr-stock-posted')).toBeVisible({ timeout: 20_000 });
     await expectOnHand(page, site, item.code, '45');
 
-    // 3. A correction reverses that issue and posts the corrected line of 3.
+    // 3. A correction reverses that issue and posts the corrected line of 3 (the stock check above left the report, so open it again).
+    await page.goto(reportUrl);
     await page.getByRole('button', { name: 'Correct' }).click();
     const dialog = page.getByRole('dialog', { name: 'Correct this report' });
     await dialog.getByRole('textbox').fill('Recount on site: 3 used, not 5');
@@ -110,8 +112,12 @@ test('JOB-F11 validating a report with a material line of 5 falls site stock by 
     if (projectId) {
       ok('reports cleanup', await svc.from('daily_site_reports').delete().eq('project_id', projectId));
       if (workOrderId) ok('allocations cleanup', await svc.from('work_order_lines').delete().eq('work_order_id', workOrderId));
+      // The posted issue and its reversal point at the contract item, and the site location belongs to the project; they go first (the ledger is append-only, so only the owner can).
+      const docs = `select id from stock_documents where project_id = '${projectId}'${siteId ? ` or warehouse_id = '${siteId}'` : ''} or id in (select document_id from stock_document_lines where boq_item_id in (select id from boq_items where project_id = '${projectId}'))`;
+      sqlAsOwner(`delete from stock_ledger where document_id in (${docs}); delete from stock_document_lines where document_id in (${docs}); delete from stock_documents where id in (${docs});`);
       ok('boq cleanup', await svc.from('boq_items').delete().eq('project_id', projectId));
       ok('work orders cleanup', await svc.from('work_orders').delete().eq('project_id', projectId));
+      if (siteId) sqlAsOwner(`delete from stock_balances where warehouse_id = '${siteId}'; delete from stock_warehouse_keepers where warehouse_id = '${siteId}'; delete from stock_warehouses where id = '${siteId}';`);
       ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     }
     await pm2.cleanup(); await pm1.cleanup(); await author.cleanup();

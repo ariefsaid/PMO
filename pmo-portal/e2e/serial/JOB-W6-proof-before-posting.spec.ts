@@ -89,8 +89,10 @@ test('JOB-W6 the receiver is refused without the signed paper, and later the one
     await page.goto(`/stock/transfers/${transferIds[1]}`);
     await page.getByLabel('Counted').fill('2');
     await page.getByRole('checkbox', { name: 'Confirm the handover in PMO now' }).click();
-    await page.getByLabel('Kind of proof').selectOption({ label: 'Photo of the signed paper' });
-    await page.getByLabel('Photo of the signed paper').setInputFiles(photo('signed.jpg'));
+    // The page also lists "Handover confirmations" with its own proof picker: take the one inside the receiving form.
+    const receiving = page.locator('form').filter({ has: page.getByRole('button', { name: 'Confirm receipt' }) });
+    await receiving.getByLabel('Kind of proof').selectOption({ label: 'Photo of the signed paper' });
+    await receiving.getByLabel('Photo of the signed paper').setInputFiles(photo('signed.jpg'));
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('region', { name: 'Summary' })).toContainText('Proof complete');
