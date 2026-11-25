@@ -195,7 +195,7 @@ No scheduled CI runs: agent evals run manually and locally (the `agent-evals` wo
   `vitest --changed` or the full suite locally — CI owns the full run on the push-to-`dev` backstop and the
   release PR; a local near-full run queues every parallel build behind one lock for hours), the touched e2e journeys (`scripts/e2e-local.sh
   <fragment>`); UI changes also run `node scripts/affected-e2e.mjs` (`--run` executes them; it refuses >40 specs locally, `--allow-broad` overrides), rendered captures for UI (`scripts/ux-proof.sh`), and for DB changes only the touched pgTAP
-  files (`supabase test db <files>`; CI's `pgtap` job is the full proof) — DB work under `scripts/with-db-lock.sh`;
+  files (`supabase test db <files>`; CI's `pgtap` job is the full proof) plus `npm run migration-registers` (static; `docs/runbooks/migration-registers.md`) — DB work under `scripts/with-db-lock.sh`;
   `scripts/with-test-lock.sh` only for the rare deliberate full run (`npm run verify:locked`). `db reset` (and `e2e-local.sh --reset`)
   only when your branch adds/changes a migration or seed. Reviewers and release-engineer read the builder's
   gate evidence and re-run only a targeted check they doubt — no outer re-verify chains.
