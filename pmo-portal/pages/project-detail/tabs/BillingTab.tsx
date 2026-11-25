@@ -7,6 +7,7 @@ import {
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
+import { useClaimBillingTrace } from '@/src/hooks/useBillingStages';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, formatCurrency, formatDay, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, milli, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
@@ -160,6 +161,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const canReadClaims = may('view', 'progressClaim');
   const openRecordId = searchParams.get('open');
   const openRecordType = searchParams.get('openType');
+  // #2893: a deep-linked claim (?open=<id>&openType=billingClaim) starts its billing-stage read HERE, in
+  // parallel with the claims list — not after the list arrives and the drawer mounts its stage panel. The
+  // drawer's ClaimBillingStages reads the same query key, so nothing is fetched twice and the stage list is
+  // already cached when the drawer opens.
+  useClaimBillingTrace(openRecordType === 'billingClaim' && canReadClaims ? openRecordId ?? '' : '', projectId);
   const setOpenRecord = (id: string, type: 'billingBoq' | 'billingClaim') => {
     const next = new URLSearchParams(searchParams);
     next.set('open', id);
