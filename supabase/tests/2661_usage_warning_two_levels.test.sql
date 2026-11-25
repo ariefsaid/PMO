@@ -3,7 +3,7 @@
 -- MUTATION: replace the recipient loop's `select v_resp union select v_pm` with `select v_resp` -> 'the project manager is told' goes red.
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(18);
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('26610000-0000-0000-0000-0000000000a1', 'TL Org A', 'IDR', 'UTC', true), ('26610000-0000-0000-0000-0000000000a2', 'TL Org B', 'IDR', 'UTC', true);
 insert into auth.users (id, email) values
@@ -39,10 +39,10 @@ create function pg_temp._issue(p_wo uuid, p_num text, p_qty numeric) returns voi
 declare v_doc uuid := gen_random_uuid(); v_line uuid := gen_random_uuid();
 begin
   insert into stock_documents (id, org_id, number, kind, status, warehouse_id, project_id, occurred_on, created_by, work_order_id)
-  values (v_doc, '26610000-0000-0000-0000-0000000000a1', p_num, 'issue', 'Draft', '26610000-0000-0000-0000-0000000000f3', '26610000-0000-0000-0000-0000000000c1', current_date, '26610000-0000-0000-0000-0000000000b2', p_wo);
+  values (v_doc, '26610000-0000-0000-0000-0000000000a1', p_num, 'issue', 'Draft', '26610000-0000-0000-0000-0000000000f3', (select project_id from work_orders where id = p_wo), current_date, '26610000-0000-0000-0000-0000000000b2', p_wo);
   insert into stock_document_lines (id, org_id, document_id, line_no, item_id, quantity) values (v_line, '26610000-0000-0000-0000-0000000000a1', v_doc, 1, '26610000-0000-0000-0000-0000000000f2', p_qty);
   insert into stock_ledger (org_id, document_id, line_id, item_id, warehouse_id, project_id, kind, qty_delta, value_delta, qty_after, value_after, occurred_on, posted_by)
-  values ('26610000-0000-0000-0000-0000000000a1', v_doc, v_line, '26610000-0000-0000-0000-0000000000f2', '26610000-0000-0000-0000-0000000000f3', '26610000-0000-0000-0000-0000000000c1', 'issue', -p_qty, 0, 0, 0, current_date, '26610000-0000-0000-0000-0000000000b2');
+  values ('26610000-0000-0000-0000-0000000000a1', v_doc, v_line, '26610000-0000-0000-0000-0000000000f2', '26610000-0000-0000-0000-0000000000f3', (select project_id from work_orders where id = p_wo), 'issue', -p_qty, 0, 0, 0, current_date, '26610000-0000-0000-0000-0000000000b2');
   update stock_documents set status = 'Posted', posted_by = '26610000-0000-0000-0000-0000000000b2', posted_at = now() where id = v_doc;
 end $$;
 create function pg_temp._told(p_user uuid, p_like text) returns integer language sql as $$
@@ -89,5 +89,21 @@ insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) valu
 select pg_temp._issue_then_tie('26610000-0000-0000-0000-0000000000d3', 'TL-6', 105);
 select is(pg_temp._alerts('26610000-0000-0000-0000-0000000000d3'), 2, 'an issue tied to its work order after posting raises both levels');
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b1', '%TL WO tied%'), 2, 'and the responsible person is told both');
+-- a project whose manager is a field account: that manager gets no warning, the responsible person still does
+insert into auth.users (id, email) values ('26610000-0000-0000-0000-0000000000b5', 'tl-field@example.com');
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
+  ('26610000-0000-0000-0000-0000000000b5', '26610000-0000-0000-0000-0000000000a1', 'TL Field Manager', 'tl-field@example.com', 'Engineer', 'active', 'foreman');
+insert into projects (id, org_id, name, status, project_manager_id) values
+  ('26610000-0000-0000-0000-0000000000c2', '26610000-0000-0000-0000-0000000000a1', 'TL Field Site', 'Ongoing Project', '26610000-0000-0000-0000-0000000000b5');
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, responsible_person_id) values
+  ('26610000-0000-0000-0000-0000000000d4', '26610000-0000-0000-0000-0000000000a1', '26610000-0000-0000-0000-0000000000c2', 'TL WO field', 'Issued', 10000, 'exclusive', 0, '26610000-0000-0000-0000-0000000000b1');
+insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
+  ('26610000-0000-0000-0000-0000000000e2', '26610000-0000-0000-0000-0000000000a1', '26610000-0000-0000-0000-0000000000c2', 'B2', 'Slab', 'm3', 10, 1000);
+insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values ('26610000-0000-0000-0000-0000000000a1', '26610000-0000-0000-0000-0000000000d4', '26610000-0000-0000-0000-0000000000e2', 10);
+insert into boq_material_allowances (org_id, boq_item_id, item_id, planned_quantity)
+  values ('26610000-0000-0000-0000-0000000000a1', '26610000-0000-0000-0000-0000000000e2', '26610000-0000-0000-0000-0000000000f2', 100);
+select pg_temp._issue('26610000-0000-0000-0000-0000000000d4', 'TL-7', 85);
+select is(pg_temp._told('26610000-0000-0000-0000-0000000000b5', '%'), 0, 'a project manager who is a field account is not told');
+select is(pg_temp._told('26610000-0000-0000-0000-0000000000b1', '%TL WO field%'), 1, 'the responsible person still is');
 select * from finish();
 rollback;

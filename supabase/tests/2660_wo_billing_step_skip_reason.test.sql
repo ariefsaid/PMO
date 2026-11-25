@@ -2,7 +2,7 @@
 -- MUTATION: drop the `v_reason is null or ...` refusal in skip_work_order_step and 'a blank reason is refused' goes red.
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(10);
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('26600000-0000-0000-0000-0000000000a1', 'SR Org A', 'IDR', 'UTC', true), ('26600000-0000-0000-0000-0000000000a2', 'SR Org B', 'IDR', 'UTC', true);
 insert into auth.users (id, email) values
@@ -33,6 +33,7 @@ select pg_temp.as_user('b1');
 select is(pg_temp.err($$select skip_work_order_step('26600000-0000-0000-0000-000000000051', null)$$), '23514 WBS_REASON', 'AC-WBS-007 a missing reason is refused');
 select is(pg_temp.err($$select skip_work_order_step('26600000-0000-0000-0000-000000000051', '   ')$$), '23514 WBS_REASON', 'AC-WBS-007 a blank reason is refused');
 select is(pg_temp.err($$select skip_work_order_step('26600000-0000-0000-0000-000000000051', 'ab')$$), '23514 WBS_REASON', 'AC-WBS-007 a two-character reason is refused');
+select is(pg_temp.err(format('select skip_work_order_step(%L, %L)', '26600000-0000-0000-0000-000000000051', repeat('x', 501))), '23514 WBS_REASON', 'AC-WBS-007 a reason over 500 characters is refused');
 select pg_temp.as_user('b0');
 select is(pg_temp.err($$select skip_work_order_step('26600000-0000-0000-0000-000000000051', 'Client waived it')$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-007 another organisation cannot skip the step');
 select pg_temp.as_user('b2');
