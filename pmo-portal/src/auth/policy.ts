@@ -141,6 +141,7 @@ export type Entity =
   | 'orgAccounting'
   | 'orgFeedback'
   | 'orgEmailNotifications'
+  | 'scheduledReport'
   | 'costAttribution'
   | 'workOrderPlan'
   | 'workOrderSection'
@@ -268,6 +269,10 @@ export interface PolicyContext {
     submitted_by?: string | null;
     /** Work-order section foreman (#2576) — the only non-structure caller who may set a section's readiness. */
     foreman_id?: string | null;
+    /** Scheduled report (2580): the role that created the row and may change it besides an Admin, `admin` or `project_control_manager`. */
+    managedBy?: string | null;
+    /** TC-PC-19 (2580): the organisation setting that lets a Project Control Manager schedule reports. */
+    pcm_scheduled_reports_enabled?: boolean;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
      *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
      *  assigned to someone else is still yours to edit. */
@@ -1244,6 +1249,22 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgFeedback: { manage: allow(ADMIN) },
   // #2711: which events send email, the extra roles copied, the email language. Mirrors set_email_* (1223: active Admin). UX ONLY.
   orgEmailNotifications: { manage: allow(ADMIN) },
+  // TC-PC-19 (2580): Admin always manages scheduled reports; an active Project Control Manager manages the kinds that role reads when
+  // the org switch is on, and only the schedules that role created (`managed_by`). An Admin's schedules are read-only to that role.
+  scheduledReport: {
+    view: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
+    manage: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (role === 'Admin' || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
+    edit: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (role === 'Admin' ||
+        (holds(ctx, 'project_control_manager') &&
+          ctx.record?.pcm_scheduled_reports_enabled === true &&
+          ctx.record?.managedBy === 'project_control_manager')),
+  },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },

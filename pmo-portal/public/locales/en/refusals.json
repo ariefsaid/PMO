@@ -555,5 +555,6 @@
   "IMPORT_EMPTY": "There are no work orders in the file.",
   "IMPORT_PROJECT": "That project was not found.",
   "IMPORT_TOO_MANY": "Import at most 500 work orders at a time.",
-  "IMPORT_ROW": "Row {{row}} was refused, so nothing was imported: {{reason}}"
+  "IMPORT_ROW": "Row {{row}} was refused, so nothing was imported: {{reason}}",
+  "SCH_RECIPIENT_FORBIDDEN": "Choose active people and roles in your organisation who can read this report."
 }

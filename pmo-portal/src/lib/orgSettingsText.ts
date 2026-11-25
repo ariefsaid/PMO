@@ -66,6 +66,7 @@ export const orgSettingText = (t: TFunction): Record<OrgSettingKey, { name: stri
   equipmentTargets: { name: t('allSettings.item.equipmentTargets.name', 'Equipment targets'), summary: t('allSettings.item.equipmentTargets.summary', 'Sets the availability and use targets and when a down machine is escalated.') },
   emailNotifications: { name: t('allSettings.item.emailNotifications.name', 'Email notifications'), summary: t('allSettings.item.emailNotifications.summary', 'Chooses which events send email, to whom besides the people involved, and in which language.') },
   scheduledReports: { name: t('allSettings.item.scheduledReports.name', 'Scheduled reports'), summary: t('allSettings.item.scheduledReports.summary', 'Emails a report to chosen people on a schedule.') },
+  pcmScheduledReports: { name: t('emailNotifications:scheduled.pcmSettingName', 'Project Control Manager schedules reports'), summary: t('emailNotifications:scheduled.pcmSettingSummary', 'Lets the Project Control Manager create and manage scheduled reports they can read.') },
   m365DefaultLibrary: { name: t('allSettings.item.m365DefaultLibrary.name', 'Default document library'), summary: t('allSettings.item.m365DefaultLibrary.summary', 'Chooses the Microsoft 365 library new project folders are created in.') },
   feedbackSurveys: { name: t('allSettings.item.feedbackSurveys.name', 'Feedback surveys'), summary: t('allSettings.item.feedbackSurveys.summary', 'Asks people short in-app feedback questions.') },
 });

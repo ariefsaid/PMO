@@ -318,6 +318,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
   { path: '/administration/all-settings', chunks: [AllSettingsPage] },
+  { path: '/administration/scheduled-reports', chunks: [AdministrationPage], namespaces: ['administration', 'emailNotifications'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
