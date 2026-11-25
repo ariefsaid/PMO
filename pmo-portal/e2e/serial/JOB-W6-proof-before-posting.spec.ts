@@ -34,7 +34,7 @@ test('JOB-W6 the receiver is refused without the signed paper, and later the one
     const unit = need('unit', await admin.from('stock_units').insert({ code: `W6U${sfx}`, name: `Unit ${sfx}`, whole_only: true }).select('id').single());
     unitId = unit.id;
     // A stock tag that requires the signed paper.
-    tagId = need('tag', await admin.from('stock_tags').insert({ name: `Signed paper ${sfx}`, proof_required: 'paper' }).select('id').single()).id;
+    tagId = need('tag', await admin.from('stock_tags').insert({ name: `Signed paper ${sfx}`, proof_required: 'paper', zero_cost: true }).select('id').single()).id;
     const item = need('item', await admin.from('stock_items').insert({ code: `E2E-W6${sfx}`, name: `E2E item ${sfx}`, unit_id: unit.id, tag_id: tagId }).select('id, code').single());
     itemId = item.id;
     const source = await makeWarehouse(admin, sfx, 'SRC', 'central');
@@ -43,7 +43,7 @@ test('JOB-W6 the receiver is refused without the signed paper, and later the one
     whIds.push(dest.id);
     await keeperOf(admin, source.id, sender.id);
     await keeperOf(admin, dest.id, receiver.id);
-    receiptId = await postReceive(admin, source.id, item.id, '10', '20');
+    receiptId = await postReceive(admin, source.id, item.id, '10', '0');
 
     expect((await admin.rpc('set_stock_transfer_mode', { p_mode: 'two_step' })).error).toBeNull();
     modeChanged = true;

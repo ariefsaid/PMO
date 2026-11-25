@@ -67,8 +67,8 @@ test('JOB-F21 the project administrator enters consumables on the daily report a
     const reportUrl = new URL(page.url()).pathname;
     await page.getByRole('button', { name: 'Add consumable' }).click();
     await page.getByLabel('Stock item').selectOption({ label: `${item.code} · ${item.name}` });
-    await page.getByLabel('Quantity').fill('2');
-    await page.getByLabel('Used on contract item').selectOption({ label: `W-${sfx} · Weld joints` });
+    await page.getByLabel(/^Quantity/).last().fill('2');
+    // One contract item on the work order: the report takes it itself, so there is no "Used on contract item" choice to make.
 
     // 2. Submit with the paper form's photo, then the project manager validates it.
     await page.getByTestId('dsr-photo-input').setInputFiles({ name: 'paper-form.png', mimeType: 'image/png', buffer: PNG });

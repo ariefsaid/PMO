@@ -1,9 +1,10 @@
 // @e2e-isolation: serial — sets the organisation-wide material-request chain and borrowing approver, which every material-request journey reads; removes its own request, reservation and fixtures in finally.
 /** JOB-W9 — stock reserved per work order, borrowing approved: with 100 units held and 40 reserved for work order A, work order B's request for 70
  *  is marked as borrowing 10 and takes the borrowing approval step. */
-import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
+import { pickComboboxOption } from '../helpers';
+import { sendForApproval } from '../support/mrqJobFixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 
@@ -14,6 +15,7 @@ test('JOB-W9 a request over the free stock is marked borrowing and takes the bor
   const admin = await userClient('admin@acme.test');
   const coordinatorName = runId('w9-mc');
   const coordinator = await roleJobUser(svc, 'material_coordinator', coordinatorName);
+  const requester = await roleJobUser(svc, 'engineer', runId('w9-req'));
   const run = runSuffix();
   let projectId = '';
   let woA = '';
@@ -63,19 +65,19 @@ test('JOB-W9 a request over the free stock is marked borrowing and takes the bor
     await expect(dialog).toBeHidden({ timeout: 20_000 });
     await expect(page.getByRole('row').filter({ hasText: store.name })).toContainText('40');
 
-    // 2. Work order B asks for 70 — more than the 60 free.
-    const engineer = await userClient('engineer@acme.test');
-    const needed = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
-    const saved = await engineer.rpc('mrq_save_draft', {
-      p_request_id: null, p_header: { work_order_id: woB, needed_by: needed, to_warehouse_id: site.id, note: null },
-      p_lines: [{ item_id: item.id, quantity: '70', over_plan_reason: 'Extra for the second work order' }], p_client_request_id: randomUUID(),
-    });
-    if (saved.error) throw new Error(`draft: ${saved.error.message}`);
-    requestId = saved.data as string;
-    const sub = await engineer.rpc('mrq_submit', { p_request_id: requestId, p_client_request_id: randomUUID() });
-    if (sub.error) throw new Error(`submit: ${sub.error.message}`);
+    // 2. Work order B asks for 70 — more than the 60 free. An engineer raises it on the New request screen.
+    await requester.signIn(page);
+    await page.goto('/material-requests/new');
+    await pickComboboxOption(page, page, /^project/i, new RegExp(`${run} project`));
+    await pickComboboxOption(page, page, /^work order/i, new RegExp(`WO-B-${run}`));
+    await page.getByLabel(/^item/i).selectOption({ label: `${item.code} · ${item.name}` });
+    await page.getByLabel(/^quantity/i).fill('70');
+    await sendForApproval(page);
+    await expect(page).toHaveURL(/\/material-requests\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+    requestId = page.url().split('/').pop() ?? '';
 
     // 3. Goal: the coordinator reads the request marked as borrowing, with the borrowing approval step added.
+    await coordinator.signIn(page);
     await page.goto(`/material-requests/${requestId}`);
     await expect(page.getByText('Borrowing.')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/10 of this request comes from stock reserved for another work order/)).toBeVisible();
@@ -97,6 +99,7 @@ test('JOB-W9 a request over the free stock is marked borrowing and takes the bor
     if (projectId) ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     if (itemId) ok('item cleanup', await svc.from('stock_items').delete().eq('id', itemId));
     if (unitId) ok('unit cleanup', await svc.from('stock_units').delete().eq('id', unitId));
+    await requester.cleanup();
     await coordinator.cleanup();
   }
 });

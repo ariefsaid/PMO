@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 import { pickComboboxOption } from '../helpers';
 import { mrqSetup, sendForApproval } from '../support/mrqJobFixture';
 import { roleJobUser } from '../support/roleJobUser';
-import { runId, serviceClient } from '../support/jobFixtures';
+import { runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { SEED_PROJECT_NAME, userClient } from '../support/stockFixture';
 import { inDays } from '../support/jobJourney';
 
@@ -46,6 +46,9 @@ test('JOB-PU15 a request for tomorrow sent after the cut-off is refused naming t
     await expect(page).toHaveURL(/\/material-requests\/[0-9a-f-]{36}$/, { timeout: 20_000 });
     await expect(page.getByText('Waiting for approval').first()).toBeVisible();
   } finally {
+    // The accepted request names the requester as its creator; remove this run's request (and its steps, lines, events) before the profile goes.
+    const mine = `select id from material_requests where created_by = '${requester.id}'`;
+    sqlAsOwner(`delete from material_request_events where request_id in (${mine}); delete from material_request_steps where request_id in (${mine}); delete from material_request_lines where request_id in (${mine}); delete from material_requests where created_by = '${requester.id}';`);
     await requester.cleanup();
   }
 });

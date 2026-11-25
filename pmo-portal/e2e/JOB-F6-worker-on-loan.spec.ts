@@ -14,6 +14,8 @@ import { endCrewRows, seedWorkOrder } from './support/crewJourney';
 import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
+// The placement dates come from the org's Jakarta calendar day (inDays); the roster and attendance read the browser's day, which the config pins to UTC. Read both on the same day.
+test.use({ timezoneId: 'Asia/Jakarta' });
 const must = need('JOB-F6');
 let db: SupabaseClient;
 // Built per test so a `--list` run needs no environment.

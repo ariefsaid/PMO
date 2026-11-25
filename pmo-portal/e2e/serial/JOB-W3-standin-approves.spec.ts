@@ -2,7 +2,7 @@
 /** JOB-W3 — three approvers and a stand-in: a request waits on its engineer step, the person the engineer named as stand-in approves it, the
  *  request moves on to construction, and the history shows the stand-in approved for the engineer. */
 import { test, expect } from '@playwright/test';
-import { runId, serviceClient } from '../support/jobFixtures';
+import { runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { clearStandIns, mrqSetup, submittedRequest } from '../support/mrqJobFixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { userClient } from '../support/stockFixture';
@@ -52,6 +52,8 @@ test('JOB-W3 a named stand-in approves the engineer step and the history shows w
     await expect(page.getByText('Waiting for approval').first()).toBeVisible();
     await expect(page.getByText(new RegExp(`for ${engineerName}`)).first()).toBeVisible();
   } finally {
+    // A revoked stand-in row still points at both profiles; remove this run's rows before their profiles go.
+    sqlAsOwner(`delete from approval_stand_ins where delegator_id in ('${engineer.id}', '${standIn.id}') or stand_in_id in ('${engineer.id}', '${standIn.id}');`);
     await engineer.cleanup();
     await standIn.cleanup();
   }
