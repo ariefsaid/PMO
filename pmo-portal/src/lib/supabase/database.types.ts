@@ -25633,6 +25633,7 @@ export type Database = {
           position: number
           project_id: string
           skipped_by: string | null
+          skipped_reason: string | null
           skipped_on: string | null
           started_on: string | null
           target_days: number | null
@@ -25654,6 +25655,7 @@ export type Database = {
           position: number
           project_id: string
           skipped_by?: string | null
+          skipped_reason?: string | null
           skipped_on?: string | null
           started_on?: string | null
           target_days?: number | null
@@ -25675,6 +25677,7 @@ export type Database = {
           position?: number
           project_id?: string
           skipped_by?: string | null
+          skipped_reason?: string | null
           skipped_on?: string | null
           started_on?: string | null
           target_days?: number | null
@@ -37871,7 +37874,7 @@ export type Database = {
         Args: { p_reason: string; p_stage: string }
         Returns: undefined
       }
-      skip_work_order_step: { Args: { p_step: string }; Returns: undefined }
+      skip_work_order_step: { Args: { p_reason: string; p_step: string }; Returns: undefined }
       spc_derive: { Args: { p_cert: string }; Returns: Json }
       spc_may_prepare: { Args: { p_project: string }; Returns: boolean }
       spc_may_read: { Args: { p_project: string }; Returns: boolean }

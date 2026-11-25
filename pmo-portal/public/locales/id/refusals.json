@@ -357,6 +357,7 @@
   "WBS_NOT_YOURS_detail": "Minta orang yang ditunjuk pada langkah, atau Admin atau petugas Keuangan.",
   "WBS_OUT_OF_ORDER": "Langkah ini belum dibuka.",
   "WBS_OUT_OF_ORDER_detail": "Selesaikan dulu langkah penagihan sebelumnya.",
+  "WBS_REASON": "Tulis alasan 3 sampai 500 karakter.",
   "WBS_SETTER_ROLE": "Hanya Keuangan atau Admin yang dapat mengubah templat langkah penagihan dan templat bawaan.",
   "WBS_SLOT": "Lampiran itu tidak ada pada langkah penagihan ini.",
   "WBS_TEMPLATE_NOT_FOUND": "Templat langkah penagihan itu tidak ada atau sudah diarsipkan.",

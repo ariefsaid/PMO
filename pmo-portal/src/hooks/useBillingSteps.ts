@@ -110,7 +110,10 @@ export function useWorkOrderStepMutations() {
     mutationFn: ({ stepId, doneOn }: { stepId: string; doneOn: string }) => repositories.billingStages.completeWorkOrderStep(stepId, doneOn),
     onSuccess: invalidate,
   });
-  const skip = useMutation({ mutationFn: (stepId: string) => repositories.billingStages.skipWorkOrderStep(stepId), onSuccess: invalidate });
+  const skip = useMutation({
+    mutationFn: ({ stepId, reason }: { stepId: string; reason: string }) => repositories.billingStages.skipWorkOrderStep(stepId, reason),
+    onSuccess: invalidate,
+  });
   const assign = useMutation({
     mutationFn: ({ stepId, personId }: { stepId: string; personId: string | null }) => repositories.billingStages.assignWorkOrderStep(stepId, personId),
     onSuccess: invalidate,
