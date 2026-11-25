@@ -139,6 +139,49 @@ describe('reads', () => {
     await expect(getWorkOrder('wo-1')).resolves.toEqual({ id: 'wo-1', status: 'Draft', issue_eligibility: 'allowed' });
   });
 
+  it('#2895 asks for the issue decision while the row is still being read — the id is already known', async () => {
+    const oneShotBuilder = (pending: Promise<unknown>) => {
+      const b: Record<string, unknown> = {};
+      const chain = () => b;
+      b.select = chain; b.eq = chain; b.order = chain; b.gt = chain; b.limit = chain; b.maybeSingle = chain;
+      b.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => pending.then(resolve, reject);
+      return b;
+    };
+    let resolveRow: (v: unknown) => void = () => undefined;
+    let resolveRpc: (v: { data: unknown; error: unknown }) => void = () => undefined;
+    const rowRead = new Promise((resolve) => { resolveRow = resolve; });
+    const rpcRead = new Promise((resolve) => { resolveRpc = resolve; });
+    h.from.mockImplementationOnce(() => oneShotBuilder(rowRead));
+    h.rpc.mockImplementationOnce((name: string, args: unknown) => {
+      h.calls.rpc.push([name, args]);
+      return rpcRead as unknown as Promise<{ data: unknown; error: unknown }>;
+    });
+    const pending = getWorkOrder('wo-1');
+    await Promise.resolve();
+    // the decision read is already in flight while the row read has not returned
+    expect(h.calls.rpc).toContainEqual(['work_order_issue_eligibility', { p_ids: ['wo-1'] }]);
+    resolveRow({ data: { id: 'wo-1', status: 'Draft' }, error: null });
+    resolveRpc({ data: [{ work_order_id: 'wo-1', reason: 'allowed' }], error: null });
+    await expect(pending).resolves.toEqual({ id: 'wo-1', status: 'Draft', issue_eligibility: 'allowed' });
+  });
+
+  it('#2895 an unreadable row still returns null, whatever the decision read did', async () => {
+    const oneShotBuilder = (pending: Promise<unknown>) => {
+      const b: Record<string, unknown> = {};
+      const chain = () => b;
+      b.select = chain; b.eq = chain; b.order = chain; b.gt = chain; b.limit = chain; b.maybeSingle = chain;
+      b.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => pending.then(resolve, reject);
+      return b;
+    };
+    let resolveRow: (v: unknown) => void = () => undefined;
+    const rowRead = new Promise((resolve) => { resolveRow = resolve; });
+    h.from.mockImplementationOnce(() => oneShotBuilder(rowRead));
+    h.rpcResult.value = { data: [{ work_order_id: 'wo-1', reason: 'allowed' }], error: null };
+    const pending = getWorkOrder('wo-1');
+    resolveRow({ data: null, error: null });
+    await expect(pending).resolves.toBeNull();
+  });
+
   it('returns null for an unreadable work order rather than a fabricated row', async () => {
     h.result.value = { data: null, error: null };
     await expect(getWorkOrder('wo-1')).resolves.toBeNull();

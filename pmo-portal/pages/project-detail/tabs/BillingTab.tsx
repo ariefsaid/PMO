@@ -228,7 +228,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     { query: workOrders, name: t('projectDetail.billing.sources.orders', 'customer orders') },
     { query: allocations, name: t('projectDetail.billing.sources.allocations', 'order allocations') },
   ];
-  const claimDataReady = claimSources.every(({ query }) => !query.isPending && !query.isError && query.data != null);
   const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
@@ -585,12 +584,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <CardHead
         level={2}
         className="text-base"
-        actions={(may('edit', 'billingStage') || (canBill && claimDataReady && !canStartInvoice)) && (
+        actions={(may('edit', 'billingStage') || (canBill && !canStartInvoice)) && (
           <div className="flex flex-wrap items-center gap-2">
             {may('edit', 'billingStage') && (
               <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>{t('projectDetail.billing.terms.title', 'Billing terms')}</Button>
             )}
-            {canBill && claimDataReady && !canStartInvoice && (
+            {/* #2895: the card's own loading lines and the claim form's per-source states carry the waits — the
+                primary action does not hide behind the five source reads (the form submits only once they land). */}
+            {canBill && !canStartInvoice && (
               <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
             )}
           </div>

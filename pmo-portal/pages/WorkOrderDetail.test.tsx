@@ -22,17 +22,18 @@ vi.mock('@/src/hooks/useOperationalWaitingRoute', async (orig) => {
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
-vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs, useWorkOrderIssues: () => h.issues, useWorkOrderOpenTasks: () => h.tasks }));
+  docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown,
+  reads: { alloc: [] as unknown[], claimDocs: [] as unknown[], issues: [] as unknown[], tasks: [] as unknown[], steps: [] as unknown[], costLines: [] as unknown[], billedMonths: [] as unknown[], disciplines: [] as unknown[] } }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: (id: string | undefined) => { h.reads.alloc.push(id); return h.alloc; }, useWorkOrderClaimDocuments: (id: string | undefined) => { h.reads.claimDocs.push(id); return h.claimDocs; }, useWorkOrderIssues: (id: string | undefined, enabled: boolean) => { h.reads.issues.push([id, enabled]); return h.issues; }, useWorkOrderOpenTasks: (id: string | undefined) => { h.reads.tasks.push(id); return h.tasks; } }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance' } }) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: () => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: (id: string | undefined, enabled: boolean) => { h.reads.billedMonths.push([id, enabled]); return { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; } }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
-  useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs, useWorkOrderTimesheetLabels: () => h.labels,
+  useWorkOrderCostLines: (id: string | null) => { h.reads.costLines.push(id); return h.lines; }, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: (enabled: boolean = true) => { h.reads.disciplines.push(enabled); return h.discs; }, useWorkOrderTimesheetLabels: () => h.labels,
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
@@ -42,7 +43,7 @@ vi.mock('./work-order-detail/WorkOrderChecksSection', () => ({ WorkOrderChecksSe
 vi.mock('./work-order-detail/WorkOrderDecision', () => ({ useWorkOrderDecision: () => ({ primaryAction: undefined, menuItems: [], dialogs: null }) }));
 vi.mock('./work-order-detail/MissingSection', () => ({ MissingSection: () => null }));
 vi.mock('./work-order-detail/SiteReportsSection', () => ({ SiteReportsSection: () => null }));
-vi.mock('@/src/hooks/useBillingSteps', () => ({ useWorkOrderSteps: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useBillingSteps', () => ({ useWorkOrderSteps: (workOrderId: string | undefined) => { h.reads.steps.push(workOrderId); return { data: [], isLoading: false, isError: false, refetch: vi.fn() }; } }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));
 // The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
 vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
@@ -102,9 +103,27 @@ beforeEach(async () => {
   h.links = q({});
   h.labels = q({});
   h.discs = q([{ id: 'd1', code: 'MECH', name: 'Mechanical' }]);
+  for (const key of Object.keys(h.reads) as Array<keyof typeof h.reads>) h.reads[key].length = 0;
 });
 
 describe('WorkOrderDetail', () => {
+  it('#2895 the reads that need only the route id start together with the record read, not after it', () => {
+    h.wo = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    renderPage();
+    // the record is still loading — the page shows its loading shell and no header yet
+    expect(screen.queryByTestId('wo-order-value')).toBeNull();
+    // every read keyed by the work-order id is already in flight with that id
+    expect(h.reads.steps).toEqual(['w1']);
+    expect(h.reads.alloc).toEqual(['w1']);
+    expect(h.reads.claimDocs).toEqual(['w1']);
+    expect(h.reads.tasks).toEqual(['w1']);
+    expect(h.reads.issues).toEqual([['w1', true]]);
+    expect(h.reads.costLines).toEqual(['w1']);
+    expect(h.reads.billedMonths).toEqual([['w1', true]]);
+    // the org-wide discipline list does not wait for the record either
+    expect(h.reads.disciplines).toEqual([true]);
+  });
+
   it('AC-WOS-001 places the sections block for this work order', () => {
     renderPage();
     expect(screen.getByTestId('sections-stub').textContent).toBe('w1');

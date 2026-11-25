@@ -75,7 +75,9 @@ const WorkOrderDetail: React.FC = () => {
   const may = usePermission();
   const stockOn = useFeature('stock');
   const wo = useWorkOrder(id);
-  const woSteps = useWorkOrderSteps(wo.data ? id : undefined);
+  // #2895: every read keyed by the route id starts WITH the record read, not one render round behind it.
+  // Reads that genuinely need the record (the project-scoped ones below) still wait for `project_id`.
+  const woSteps = useWorkOrderSteps(id);
   const roleName = useBuiltInRoleName();
   // A Draft is ASSIGNED to the people 1560 puts on the waiting list for the issue step — never everyone the issue gate
   // would admit. 1560 only assigns a Draft while it carries priced money with a recorded author, so the read is gated
@@ -88,10 +90,10 @@ const WorkOrderDetail: React.FC = () => {
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
   const issuesOn = useFeature('incidents');
-  const issues = useWorkOrderIssues(wo.data ? id : undefined, issuesOn);
-  const openTasks = useWorkOrderOpenTasks(wo.data ? id : undefined);
-  const allocations = useWorkOrderAllocations(wo.data ? id : undefined);
-  const claimDocs = useWorkOrderClaimDocuments(wo.data ? id : undefined);
+  const issues = useWorkOrderIssues(id, issuesOn);
+  const openTasks = useWorkOrderOpenTasks(id);
+  const allocations = useWorkOrderAllocations(id);
+  const claimDocs = useWorkOrderClaimDocuments(id);
   const boq = useBoqItems(projectId);
   const bastList = useWorkOrderAcceptances(projectId);
   const bastMutations = useWorkOrderAcceptanceMutations(projectId);
@@ -100,14 +102,14 @@ const WorkOrderDetail: React.FC = () => {
   const [confirmFor, setConfirmFor] = useState<{ acceptance: WorkOrderAcceptanceWithLines; error: string | null } | null>(null);
   const canBilling = may('view', 'salesInvoice');
   const billing = useWorkOrderBilling(projectId, canBilling && Boolean(wo.data));
-  const billedMonths = useWorkOrderBilledMonths(id, canBilling && Boolean(wo.data));
+  const billedMonths = useWorkOrderBilledMonths(id, canBilling);
   const docs = useDocuments(projectId);
-  const costLines = useWorkOrderCostLines(wo.data ? id ?? null : null);
+  const costLines = useWorkOrderCostLines(id ?? null);
   const flatLines = useMemo(() => Object.values(costLines.data ?? {}).flat(), [costLines.data]);
-  const labels = useWorkOrderTimesheetLabels(wo.data ? id ?? null : null, flatLines);
-  const links = useWorkOrderCostLinks(wo.data ? id ?? null : null, flatLines);
-  const money = useWorkOrderCostMoney(wo.data ? id ?? null : null, flatLines);
-  const disciplines = useCostDisciplines(Boolean(wo.data));
+  const labels = useWorkOrderTimesheetLabels(id ?? null, flatLines);
+  const links = useWorkOrderCostLinks(id ?? null, flatLines);
+  const money = useWorkOrderCostMoney(id ?? null, flatLines);
+  const disciplines = useCostDisciplines();
   const canPlanView = may('view', 'workOrderPlan');
   const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data));
   const decision = useWorkOrderDecision(wo.data ?? null);
