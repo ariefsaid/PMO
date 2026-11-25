@@ -59,7 +59,7 @@ test('JOB-A3 an administrator imports a project\'s work orders from the template
     await expect(dialog).toBeHidden();
 
     // 3. Goal: the project shows the imported work order.
-    await expect(page.getByText(title).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('article[data-testid^="customer-order-"]').getByText(title)).toBeVisible({ timeout: 20_000 });
   } finally {
     if (projectId) {
       ok('work order cleanup', await svc.from('work_orders').delete().eq('project_id', projectId));

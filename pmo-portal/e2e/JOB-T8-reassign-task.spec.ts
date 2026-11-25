@@ -50,7 +50,8 @@ test('JOB-T8 reassigning a task moves it from one My tasks to the other', async 
   // It left A's My tasks.
   await from.signIn(page);
   await page.goto('/my-tasks');
-  await expect(page.getByTestId('my-tasks-open-count')).toBeVisible({ timeout: 15_000 });
+  // A has no task left, so the page shows its empty state, not the open count.
+  await expect(page.getByText('No tasks assigned to you')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(name, { exact: true })).toHaveCount(0);
 
   // And it is in B's.
