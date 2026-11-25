@@ -5,7 +5,7 @@
  */
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
+import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { createJobRoleUser } from './support/jobRoleUser';
 
 test.setTimeout(180_000);
@@ -63,7 +63,8 @@ test.afterEach(async () => {
   if (!admin) return;
   const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`JOB-BQ8 cleanup ${step}: ${e.message}`); };
   if (workOrderId) {
-    fail('acceptances', (await admin.from('work_order_acceptances').delete().eq('work_order_id', workOrderId)).error);
+    // Acceptances are managed by their RPC (a delete is refused for every client): this run's rows go as the database owner.
+    sqlAsOwner(`delete from public.work_order_acceptance_lines where acceptance_id in (select id from public.work_order_acceptances where work_order_id = '${workOrderId}'); delete from public.work_order_acceptances where work_order_id = '${workOrderId}';`);
     fail('work order', (await admin.from('work_orders').delete().eq('id', workOrderId)).error);
   }
   if (projectId) fail('documents', (await admin.from('project_documents').delete().eq('project_id', projectId)).error);

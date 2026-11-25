@@ -8,17 +8,17 @@ export interface BillingFixture {
   companyId: string; projectId: string; boqId: string; workOrderId: string; workOrderNumber: string; entryId: string; documentId: string; documentTitle: string;
 }
 
-export async function createBillingFixture(admin: SupabaseClient, run: string, opts: { progressQty?: number; workOrderValue?: number } = {}): Promise<BillingFixture> {
+export async function createBillingFixture(admin: SupabaseClient, run: string, opts: { progressQty?: number; workOrderValue?: number; lineQuantity?: number } = {}): Promise<BillingFixture> {
   const companyId = need('client', await admin.from('companies').insert({ org_id: ORG_ID, name: `${run} Client`, type: 'Client' }).select('id').single()).id as string;
   const projectId = need('project', await admin.from('projects').insert({
     org_id: ORG_ID, name: run, status: 'Ongoing Project', currency: 'IDR', client_id: companyId, contract_value: 10_000_000,
     tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 12, tax_base_numerator: 11, tax_base_denominator: 12,
   }).select('id').single()).id as string;
-  const boqId = need('line', await admin.from('boq_items').insert({ org_id: ORG_ID, project_id: projectId, item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, rate: 50_000 }).select('id').single()).id as string;
+  const boqId = need('line', await admin.from('boq_items').insert({ org_id: ORG_ID, project_id: projectId, item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: opts.lineQuantity ?? 10, rate: 50_000 }).select('id').single()).id as string;
   const workOrderId = crypto.randomUUID();
   const workOrderNumber = `WO-${run}`;
   ok('work order', await admin.from('work_orders').insert({ id: workOrderId, org_id: ORG_ID, project_id: projectId, title: `${run} Order`, status: 'Issued', wo_number: workOrderNumber, order_value: opts.workOrderValue ?? 500_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'IDR' }));
-  ok('allocation', await admin.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: boqId, quantity: 10 }));
+  ok('allocation', await admin.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: boqId, quantity: opts.lineQuantity ?? 10 }));
   const month = `${new Date().toISOString().slice(0, 7)}-01`;
   const entryId = need('progress', await admin.from('project_progress_entries').insert({ org_id: ORG_ID, project_id: projectId, month, pct_complete: 60 }).select('id').single()).id as string;
   ok('progress quantity', await admin.from('progress_assessment_quantities').insert({ org_id: ORG_ID, entry_id: entryId, boq_item_id: boqId, quantity_to_date: opts.progressQty ?? 6 }));

@@ -17,6 +17,8 @@ let workOrderId = '';
 let companyId = '';
 let templateId = '';
 let savedTemplateIds: string[] = [];
+// The logins go last: the templates, steps and orders they made reference their profiles, so deleting a login first fails.
+let users: Awaited<ReturnType<typeof createJobRoleUser>>[] = [];
 let priorChecklist = false;
 let priorDefault: string | null = null;
 
@@ -56,12 +58,20 @@ test.afterEach(async () => {
     fail('project', (await admin.from('projects').delete().eq('id', projectId)).error);
   }
   if (companyId) fail('client', (await admin.from('companies').delete().eq('id', companyId)).error);
+  const gone = users; users = [];
+  for (const u of gone) {
+    // The default-template setting remembers who changed it and approvals notify people: both rows name the login.
+    fail('settings editor', (await admin.from('org_billing_step_settings').update({ updated_by: null }).eq('updated_by', u.id)).error);
+    fail('notifications', (await admin.from('notifications').delete().eq('owner_id', u.id)).error);
+    await u.remove();
+  }
 });
 
 test('JOB-BQ4 a work order takes its steps from a template and an added step leaves the template unchanged', async ({ page }) => {
   const db = admin as SupabaseClient;
   const adminUser = await createJobRoleUser(db, ORG_ID, 'administrator');
   const billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
+  users = [adminUser, billing];
   try {
     // 1. An Admin allows editing issued work-order checklists.
     await adminUser.signIn(page);
@@ -84,6 +94,8 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     await row.getByRole('button', { name: /Use BQ4 .* for new work orders/ }).click();
     await expect(row.getByTestId('default-step-template')).toBeVisible({ timeout: 15_000 });
     await templates.getByRole('button', { name: 'Done' }).click();
+    // Done returns to Billing terms (the template choice is already saved); the officer closes it.
+    await terms.getByRole('button', { name: 'Close' }).click();
     await expect(terms).toBeHidden();
 
     // 3. A newly issued work order carries that list; the billing officer adds one step to it.
@@ -104,6 +116,7 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     const templates2 = page.getByRole('dialog', { name: 'Billing step templates' });
     await expect(templates2.getByRole('listitem').filter({ hasText: 'BQ4 ' })).toContainText('1 step');
     await templates2.getByRole('button', { name: 'Done' }).click();
+    await terms2.getByRole('button', { name: 'Close' }).click();
     await expect(terms2).toBeHidden();
 
     // 5. Saved deliberately, the work order's own list becomes a template of its own.
@@ -118,7 +131,6 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     const savedSteps = need('saved template steps', await db.from('billing_step_template_steps').select('id').eq('template_id', saved.id as string));
     expect(savedSteps.length).toBe(2);
   } finally {
-    await adminUser.remove();
-    await billing.remove();
+    // (the logins are removed in afterEach, after the rows they made)
   }
 });

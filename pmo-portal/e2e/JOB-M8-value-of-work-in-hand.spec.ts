@@ -79,13 +79,13 @@ test('JOB-M8 the Executive sees, per work order, the value left to bill and the 
   await expect(row).toBeVisible({ timeout: 30_000 });
   // Columns: value, billed, left to bill, billing rate per month, months of backlog, months toggle.
   const cell = (i: number) => row.locator('td').nth(i);
-  await expect(cell(0)).toContainText(/300,000\.00/);    // the work order's value
-  await expect(cell(1)).toContainText(/100,000\.00/);    // billed
-  await expect(cell(2)).toContainText(/200,000\.00/);    // value left to bill
+  await expect(cell(0)).toContainText(/\$300,000/);    // the work order's value
+  await expect(cell(1)).toContainText(/\$100,000/);    // billed
+  await expect(cell(2)).toContainText(/\$200,000/);    // value left to bill
   // Months of work it represents: billed 100,000 over the 2 complete months since billing began = 50,000 a month;
   // 200,000 left / 50,000 = 4.0 months (never "No billing rate").
   await expect(row).not.toContainText('No billing rate');
-  await expect(cell(3)).toContainText(/50,000\.00/);
+  await expect(cell(3)).toContainText(/\$50,000/);
   await expect(cell(4)).toHaveText('4.0');
   // The months behind the figure can be opened.
   await page.getByTestId(`wih-toggle-${woId}`).click();

@@ -57,6 +57,14 @@ test('JOB-M10 the Executive sees both contracts with their value, billed and lef
     await route.fulfill({ response, json: [...rows.filter((r) => r.feature_key !== 'revenue'), { feature_key: 'revenue', enabled: true }] });
   });
 
+  // The portfolio table is the organisation's "management views" setting (off by default; an Admin turns it on). Read it as on for this page only.
+  await page.route('**/rest/v1/organizations?*', async (route) => {
+    if (route.request().method() !== 'GET' || !/management_views_enabled/.test(route.request().url())) { await route.fallback(); return; }
+    const response = await route.fetch();
+    if (!response.ok()) { await route.fulfill({ response }); return; }
+    const rows = (await response.json()) as Array<Record<string, unknown>>;
+    await route.fulfill({ response, json: rows.map((r) => ({ ...r, management_views_enabled: true })) });
+  });
   // The executive's dashboard, then the one table that lists every project with its money.
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 30_000 });

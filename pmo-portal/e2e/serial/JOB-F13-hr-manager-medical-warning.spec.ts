@@ -79,8 +79,9 @@ test('JOB-F13 a medical check 14 days from expiry warns the HR officer and the c
     expect(workerNotes).toHaveLength(0);
     await worker.signIn(page);
     await page.goto('/');
-    await page.getByRole('button', { name: /^notifications/i }).click();
-    await expect(page.getByRole('list', { name: 'Notifications' }).getByText(new RegExp(typeName))).toHaveCount(0);
+    // A field user's own screen has no notifications bell: nothing about the warning may be on it.
+    await expect(page.getByRole('heading', { name: 'My work' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(new RegExp(typeName))).toHaveCount(0);
   } finally {
     if (docId) {
       ok('notices cleanup', await svc.from('document_expiry_notices').delete().eq('document_id', docId));
