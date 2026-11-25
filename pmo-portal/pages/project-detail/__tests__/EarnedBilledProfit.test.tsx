@@ -127,12 +127,14 @@ describe('EarnedBilledProfit', () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it('AC-EBR-001/002 renders nothing, and asks for no revenue, while the setting is off or the role cannot read work-order money', () => {
+  it('AC-EBR-001/002 renders nothing while the setting is off or the role cannot read work-order money; #2895 a permitted role\'s reads start with the switch read', () => {
     setData([ebRow()]);
     h.setting = { data: false };
     const off = render(<EarnedBilledProfit projectId="p1" />);
     expect(off.container.textContent).toBe('');
-    expect(h.asked.every((a) => a === false)).toBe(true);
+    // #2895: the switch decides whether the panel SHOWS, not whether its reads run — the reads start
+    // together with the switch read instead of one round behind it (the issue's named waterfall).
+    expect(h.asked).toEqual([true]);
     off.unmount();
     h.setting = { data: true }; h.role = 'Engineer'; h.asked = [];
     const eng = render(<EarnedBilledProfit projectId="p1" />);

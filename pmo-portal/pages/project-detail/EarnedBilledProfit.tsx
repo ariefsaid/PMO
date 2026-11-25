@@ -28,10 +28,13 @@ const EarnedBilledProfit: React.FC<{ projectId: string }> = ({ projectId }) => {
   const canView = may('view', 'workOrderPlan');
   const setting = useOrgSwitch('disciplineProfit', canView);
   const on = canView && setting.data === true;
-  const pva = useProjectPlanVsActual(projectId, on);
-  const eb = useWorkOrderEarnedBilled(projectId, on);
-  const revenue = useDisciplineRevenue(projectId, on);
-  const disciplines = useCostDisciplines(on);
+  // #2895: the switch decides whether the panel SHOWS, not whether its reads run — a role that may see
+  // the panel starts all four reads together with the switch read, one round earlier than before. A role
+  // without the right (canView false) still asks for nothing at all.
+  const pva = useProjectPlanVsActual(projectId, canView);
+  const eb = useWorkOrderEarnedBilled(projectId, canView);
+  const revenue = useDisciplineRevenue(projectId, canView);
+  const disciplines = useCostDisciplines(canView);
 
   const disciplineName = useMemo(() => {
     const m = new Map((disciplines.data ?? []).map((d) => [d.id, d.name]));
