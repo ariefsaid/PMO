@@ -40,6 +40,9 @@
     "removeDescription": "Item ini akan dihapus dari pengadaan. Anda dapat menambahkannya kembali selama pengadaan masih berupa draf.",
     "removeItem": "Hapus item",
     "searchItem": "Cari kode atau nama item…",
+    "standardItemsList": "Saran item standar",
+    "showStandardItems": "Lihat daftar item standar",
+    "clearStandardItem": "Lepas tautan item standar",
     "unknownCurrencyAmount": "Tidak diketahui"
   },
   "create": {
@@ -1123,5 +1126,19 @@
     "saved": "Siapa yang dapat memesan pembelian tersimpan",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "turnOn": "Aktifkan peran bawaan di Administrasi > Orang > Peran bawaan untuk mencantumkan peran yang dapat memesan."
+  },
+  "orderNeededBy": {
+    "heading": "Dibutuhkan pada",
+    "help": "Wajib diisi sebelum pesanan dikirim ke pemasok. Tanggal ini mengisi setiap baris; satu baris boleh punya tanggal sendiri.",
+    "orderDate": "Pesanan dibutuhkan pada",
+    "lineDate": "Baris dibutuhkan pada",
+    "none": "—",
+    "save": "Simpan",
+    "saved": "Tersimpan",
+    "settingHeading": "Tanggal dibutuhkan pada pesanan",
+    "settingHelp": "Bila aktif, pesanan tidak dapat dikirim ke pemasok sebelum punya tanggal dibutuhkan. Pesanan yang dibuat sebelum ini diaktifkan tidak diblokir.",
+    "settingLabel": "Wajibkan tanggal dibutuhkan sebelum pesanan dikirim",
+    "loadError": "Tidak dapat memuat pengaturan ini",
+    "valueLoadError": "Tidak dapat memuat tanggal kebutuhan pesanan ini"
   }
 }

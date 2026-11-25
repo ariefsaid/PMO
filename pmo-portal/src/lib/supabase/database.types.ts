@@ -1383,6 +1383,7 @@ export type Database = {
       }
       billing_step_template_steps: {
         Row: {
+          claim_evidence_enabled: boolean
           client_side: boolean
           hidden_from_role_keys: string[]
           id: string
@@ -1396,6 +1397,7 @@ export type Database = {
           template_id: string
         }
         Insert: {
+          claim_evidence_enabled?: boolean
           client_side?: boolean
           hidden_from_role_keys?: string[]
           id?: string
@@ -1409,6 +1411,7 @@ export type Database = {
           template_id: string
         }
         Update: {
+          claim_evidence_enabled?: boolean
           client_side?: boolean
           hidden_from_role_keys?: string[]
           id?: string
@@ -1476,6 +1479,75 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      boq_item_area_rates: {
+        Row: {
+          area_id: string
+          boq_item_id: string
+          id: string
+          org_id: string
+          project_id: string
+          rate: number
+          set_at: string
+          set_by: string | null
+        }
+        Insert: {
+          area_id: string
+          boq_item_id: string
+          id?: string
+          org_id?: string
+          project_id: string
+          rate: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Update: {
+          area_id?: string
+          boq_item_id?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+          rate?: number
+          set_at?: string
+          set_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boq_item_area_rates_area_same_org"
+            columns: ["org_id", "area_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_areas"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_item_area_rates_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3956,6 +4028,7 @@ export type Database = {
       }
       crew_loans: {
         Row: {
+          created_by: string | null
           created_at: string
           home_crew_id: string
           host_crew_id: string
@@ -3967,6 +4040,7 @@ export type Database = {
           worker_id: string
         }
         Insert: {
+          created_by?: string | null
           created_at?: string
           home_crew_id: string
           host_crew_id: string
@@ -3978,6 +4052,7 @@ export type Database = {
           worker_id: string
         }
         Update: {
+          created_by?: string | null
           created_at?: string
           home_crew_id?: string
           host_crew_id?: string
@@ -4576,6 +4651,9 @@ export type Database = {
           weather_note: string | null
           work_date: string
           work_order_id: string
+          area_id: string | null
+          crew_id: string | null
+          person_id: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -4604,6 +4682,9 @@ export type Database = {
           weather_note?: string | null
           work_date: string
           work_order_id: string
+          area_id?: string | null
+          crew_id?: string | null
+          person_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -4632,6 +4713,9 @@ export type Database = {
           weather_note?: string | null
           work_date?: string
           work_order_id?: string
+          area_id?: string | null
+          crew_id?: string | null
+          person_id?: string | null
         }
         Relationships: [
           {
@@ -9969,6 +10053,62 @@ export type Database = {
           },
         ]
       }
+      headcount_day_documents: {
+        Row: {
+          attached_at: string
+          attached_by: string
+          document_id: string
+          headcount_id: string
+          id: string
+          org_id: string
+        }
+        Insert: {
+          attached_at?: string
+          attached_by?: string
+          document_id: string
+          headcount_id: string
+          id?: string
+          org_id?: string
+        }
+        Update: {
+          attached_at?: string
+          attached_by?: string
+          document_id?: string
+          headcount_id?: string
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "headcount_day_documents_attached_by_fkey"
+            columns: ["attached_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_day_documents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_day_documents_headcount_id_fkey"
+            columns: ["headcount_id"]
+            isOneToOne: false
+            referencedRelation: "headcount_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_day_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       headcount_days: {
         Row: {
           approved_at: string | null
@@ -14119,6 +14259,29 @@ export type Database = {
           },
         ]
       }
+      org_setup_workflow_settings: {
+        Row: {
+          enabled: boolean
+          org_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Update: {
+          enabled?: boolean
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_setup_workflow_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_term_keys: {
         Row: {
           term_key: string
@@ -14240,6 +14403,7 @@ export type Database = {
           clearance_checklist_enabled: boolean
           created_at: string
           crew_loans_enabled: boolean
+          daily_report_validate_roles: string[]
           default_currency: string
           default_locale: string
           default_number_locale: string | null
@@ -14261,6 +14425,7 @@ export type Database = {
           leave_approver_role: string | null
           leave_requests_enabled: boolean
           lifecycle_state: string | null
+          management_views_enabled: boolean
           module_billing_extras: boolean
           module_people_crews: boolean
           module_purchasing_extras: boolean
@@ -14288,11 +14453,15 @@ export type Database = {
           safety_records_enabled: boolean
           sector_options: string[]
           service_line_options: string[]
+          po_needed_by_required_from: string | null
+          stock_handover_scope: string
           stock_proof_timing: string
           stock_reservations: boolean
           stock_transfer_mode: string
           stock_wo_transfers: boolean
           tax_prepaid_account: string | null
+          work_in_hand_monthly_capacity: number | null
+          work_order_checklist_enabled: boolean
         }
         Insert: {
           attendance_backdate_days?: number
@@ -14305,6 +14474,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14326,6 +14496,7 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          management_views_enabled?: boolean
           module_billing_extras?: boolean
           module_people_crews?: boolean
           module_purchasing_extras?: boolean
@@ -14353,11 +14524,15 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
+          stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_in_hand_monthly_capacity?: number | null
+          work_order_checklist_enabled?: boolean
         }
         Update: {
           attendance_backdate_days?: number
@@ -14370,6 +14545,7 @@ export type Database = {
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
+          daily_report_validate_roles?: string[]
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14391,6 +14567,7 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          management_views_enabled?: boolean
           module_billing_extras?: boolean
           module_people_crews?: boolean
           module_purchasing_extras?: boolean
@@ -14418,11 +14595,15 @@ export type Database = {
           safety_records_enabled?: boolean
           sector_options?: string[]
           service_line_options?: string[]
+          po_needed_by_required_from?: string | null
+          stock_handover_scope?: string
           stock_proof_timing?: string
           stock_reservations?: boolean
           stock_transfer_mode?: string
           stock_wo_transfers?: boolean
           tax_prepaid_account?: string | null
+          work_in_hand_monthly_capacity?: number | null
+          work_order_checklist_enabled?: boolean
         }
         Relationships: [
           {
@@ -16162,6 +16343,7 @@ export type Database = {
           procurement_id: string
           quantity: number
           rate: number
+          stock_item_id: string | null
           work_order_id: string | null
         }
         Insert: {
@@ -16179,6 +16361,7 @@ export type Database = {
           procurement_id: string
           quantity?: number
           rate?: number
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Update: {
@@ -16196,6 +16379,7 @@ export type Database = {
           procurement_id?: string
           quantity?: number
           rate?: number
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Relationships: [
@@ -17454,6 +17638,7 @@ export type Database = {
           source: Database["public"]["Enums"]["doc_source"] | null
           status: Database["public"]["Enums"]["doc_status"]
           title: string
+          work_order_id: string | null
         }
         Insert: {
           author_id?: string | null
@@ -17484,6 +17669,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title: string
+          work_order_id?: string | null
         }
         Update: {
           author_id?: string | null
@@ -17514,6 +17700,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
           title?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -20847,6 +21034,7 @@ export type Database = {
           frequency: string
           id: string
           kind: string
+          managed_by: string
           name: string
           org_id: string
           recipient_roles: string[]
@@ -20863,6 +21051,7 @@ export type Database = {
           frequency: string
           id?: string
           kind: string
+          managed_by?: string
           name: string
           org_id: string
           recipient_roles?: string[]
@@ -20879,6 +21068,7 @@ export type Database = {
           frequency?: string
           id?: string
           kind?: string
+          managed_by?: string
           name?: string
           org_id?: string
           recipient_roles?: string[]
@@ -21278,8 +21468,10 @@ export type Database = {
           line_no: number
           occurred_on: string | null
           org_id: string
+          qty_rejected: number | null
           quantity: number | null
           reference: string | null
+          reject_note: string | null
           source_line_id: string | null
           unit_cost: number | null
         }
@@ -21294,8 +21486,10 @@ export type Database = {
           line_no: number
           occurred_on?: string | null
           org_id: string
+          qty_rejected?: number | null
           quantity?: number | null
           reference?: string | null
+          reject_note?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }
@@ -21310,8 +21504,10 @@ export type Database = {
           line_no?: number
           occurred_on?: string | null
           org_id?: string
+          qty_rejected?: number | null
           quantity?: number | null
           reference?: string | null
+          reject_note?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }
@@ -25301,6 +25497,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          description: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -25310,6 +25507,7 @@ export type Database = {
           id?: string
           name: string
           org_id?: string
+          description?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -25319,6 +25517,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          description?: string | null
         }
         Relationships: [
           {
@@ -25429,6 +25628,7 @@ export type Database = {
       work_order_billing_steps: {
         Row: {
           assignee_id: string | null
+          claim_evidence_enabled: boolean
           created_at: string
           done_at: string | null
           done_by: string | null
@@ -25442,6 +25642,7 @@ export type Database = {
           position: number
           project_id: string
           skipped_by: string | null
+          skipped_reason: string | null
           skipped_on: string | null
           started_on: string | null
           target_days: number | null
@@ -25449,6 +25650,7 @@ export type Database = {
         }
         Insert: {
           assignee_id?: string | null
+          claim_evidence_enabled?: boolean
           created_at?: string
           done_at?: string | null
           done_by?: string | null
@@ -25462,6 +25664,7 @@ export type Database = {
           position: number
           project_id: string
           skipped_by?: string | null
+          skipped_reason?: string | null
           skipped_on?: string | null
           started_on?: string | null
           target_days?: number | null
@@ -25469,6 +25672,7 @@ export type Database = {
         }
         Update: {
           assignee_id?: string | null
+          claim_evidence_enabled?: boolean
           created_at?: string
           done_at?: string | null
           done_by?: string | null
@@ -25482,6 +25686,7 @@ export type Database = {
           position?: number
           project_id?: string
           skipped_by?: string | null
+          skipped_reason?: string | null
           skipped_on?: string | null
           started_on?: string | null
           target_days?: number | null
@@ -25803,8 +26008,10 @@ export type Database = {
           id: string
           label: string
           org_id: string
+          owner_job_role: string | null
           position: number
           required: boolean
+          target_days: number | null
         }
         Insert: {
           archived_at?: string | null
@@ -25812,8 +26019,10 @@ export type Database = {
           id?: string
           label: string
           org_id?: string
+          owner_job_role?: string | null
           position?: number
           required?: boolean
+          target_days?: number | null
         }
         Update: {
           archived_at?: string | null
@@ -25821,8 +26030,10 @@ export type Database = {
           id?: string
           label?: string
           org_id?: string
+          owner_job_role?: string | null
           position?: number
           required?: boolean
+          target_days?: number | null
         }
         Relationships: [
           {
@@ -26695,6 +26906,12 @@ export type Database = {
           },
         ]
       }
+      stock_issue_cost_settings: {
+        Row: { org_id: string; effective_on: string | null; updated_by: string | null; updated_at: string }
+        Insert: { org_id: string; effective_on?: string | null; updated_by?: string | null; updated_at?: string }
+        Update: { org_id?: string; effective_on?: string | null; updated_by?: string | null; updated_at?: string }
+        Relationships: []
+      }
       work_order_stock_settings: {
         Row: {
           issue_progress_threshold_pct: number | null
@@ -26737,6 +26954,7 @@ export type Database = {
           area_lat: number | null
           area_lng: number | null
           area_radius_m: number | null
+          cancel_reason: string | null
           cancelled_at: string | null
           client_po_number: string | null
           closed_at: string | null
@@ -26777,6 +26995,7 @@ export type Database = {
           area_lat?: number | null
           area_lng?: number | null
           area_radius_m?: number | null
+          cancel_reason?: string | null
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
@@ -26817,6 +27036,7 @@ export type Database = {
           area_lat?: number | null
           area_lng?: number | null
           area_radius_m?: number | null
+          cancel_reason?: string | null
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
@@ -27678,6 +27898,7 @@ export type Database = {
           procurement_id: string | null
           quantity: number | null
           rate: number | null
+          stock_item_id: string | null
           work_order_id: string | null
         }
         Insert: {
@@ -27693,6 +27914,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Update: {
@@ -27708,6 +27930,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          stock_item_id?: string | null
           work_order_id?: string | null
         }
         Relationships: [
@@ -29049,7 +29272,15 @@ export type Database = {
         Returns: boolean
       }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_read_purchase_cases: {
+        Args: never
+        Returns: boolean
+      }
       actor_may_order_purchases: { Args: never; Returns: boolean }
+      stock_transfer_receiving_items: { Args: { p_transfer: string }; Returns: { item_id: string; item_code: string; item_name: string; needs_quality_check: boolean; from_name: string; to_name: string; proof_rule: string }[] }
+      assign_closeout_item_owner: { Args: { p_item: string; p_role?: string }; Returns: undefined }
+      supervisor_loan_crews: { Args: Record<PropertyKey, never>; Returns: string[] }
+      actor_may_task_incident: { Args: { p_incident: string }; Returns: boolean }
       actor_may_task_issue: { Args: { p_work_order: string }; Returns: boolean }
       actor_may_run_billing_steps: { Args: never; Returns: boolean }
       actor_may_see_billing_steps: { Args: never; Returns: boolean }
@@ -29076,6 +29307,10 @@ export type Database = {
           p_entered_on: string
           p_stage: Database["public"]["Enums"]["project_status"]
         }
+        Returns: string
+      }
+      add_work_order_step: {
+        Args: { p_after_position: number | null; p_step: Json; p_work_order: string }
         Returns: string
       }
       add_task_to_incident: {
@@ -29405,6 +29640,10 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_rows: Json }
         Returns: Json
       }
+      attach_headcount_document: {
+        Args: { p_document: string; p_headcount: string }
+        Returns: string
+      }
       attach_survey_document: {
         Args: { p_document: string; p_id: string }
         Returns: undefined
@@ -29544,6 +29783,8 @@ export type Database = {
           all_done: boolean
           claim_created_at: string
           claim_id: string
+          claim_value: string
+          currency: string
           current_name: string
           current_position: number
           current_stage_id: string
@@ -29560,6 +29801,19 @@ export type Database = {
           today: string
           wo_number: string
           work_order_id: string
+        }[]
+      }
+      billing_unaccepted_progress: {
+        Args: { p_project?: string }
+        Returns: {
+          boq_item_id: string
+          description: string | null
+          item_code: string | null
+          project_id: string
+          project_name: string
+          quantity: string
+          today: string
+          unit: string | null
         }[]
       }
       billing_claim_invoiced: { Args: { p_claim: string }; Returns: boolean }
@@ -29748,6 +30002,10 @@ export type Database = {
       }
       cancel_subcontract_certificate: {
         Args: { p_certificate: string; p_reason: string }
+        Returns: undefined
+      }
+      cancel_work_order: {
+        Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
       capture_assigned_gl: {
@@ -31183,6 +31441,8 @@ export type Database = {
       }
       cus_generate_plan: { Args: { p_work_order_id: string }; Returns: number }
       cus_get_plan: { Args: { p_work_order_id: string }; Returns: Json }
+      cus_approve_plan: { Args: { p_work_order_id: string }; Returns: undefined }
+      cus_plan_approval_status: { Args: { p_work_order_id: string }; Returns: Json }
       cus_item_ok: { Args: { p_item_id: string }; Returns: boolean }
       cus_plan_fingerprint: {
         Args: { p_work_order_id: string }
@@ -31249,6 +31509,7 @@ export type Database = {
         Args: { p_link_id: string }
         Returns: undefined
       }
+      detach_headcount_document: { Args: { p_id: string }; Returns: undefined }
       discard_odoo_mirror: {
         Args: { p_actor_id: string; p_org_id: string }
         Returns: undefined
@@ -31287,6 +31548,7 @@ export type Database = {
       }
       dsr_line_rate: {
         Args: {
+          p_area?: string
           p_as_of: string
           p_sub_stage: string
           p_variant: string
@@ -31352,7 +31614,7 @@ export type Database = {
           project_id: string
           report_id: string
           submitted_at: string
-          total_revenue: number
+          total_revenue: number | null
           unrated_lines: number
           waiting_for_validator: boolean
           work_date: string
@@ -31547,6 +31809,10 @@ export type Database = {
         }[]
       }
       equipment_org_today: { Args: { p_org: string }; Returns: string }
+      equipment_plan_purchase_submit_context: {
+        Args: { p_purchase: string }
+        Returns: Json
+      }
       equipment_plan_approver_ok: {
         Args: { p_plan_id: string }
         Returns: boolean
@@ -32264,6 +32530,14 @@ export type Database = {
         Args: { p_document_id: string }
         Returns: Json
       }
+      get_order_receiving_enabled: { Args: Record<PropertyKey, never>; Returns: boolean }
+      set_order_receiving_enabled: { Args: { p_enabled: boolean }; Returns: undefined }
+      list_receiving_orders: { Args: Record<PropertyKey, never>; Returns: Json }
+      read_order_receiving: { Args: { p_po: string }; Returns: Json }
+      map_order_stock: { Args: { p_item: string; p_stock_item: string | null }; Returns: undefined }
+      receive_order_goods: { Args: { p_po: string; p_warehouse: string; p_date: string; p_lines: Json; p_request: string }; Returns: Json }
+      approve_order_receiving: { Args: { p_request: string; p_reason: string }; Returns: undefined }
+      reverse_order_receiving: { Args: { p_request: string; p_reason: string }; Returns: string }
       get_stock_erp_value: { Args: { p_document_id: string }; Returns: number }
       get_stock_free_reserved: {
         Args: { p_item_id?: string; p_warehouse_id?: string }
@@ -32636,6 +32910,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: boolean
       }
+      import_work_orders: {
+        Args: { p_project: string; p_rows: Json }
+        Returns: Json
+      }
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
@@ -32853,6 +33131,7 @@ export type Database = {
           start_date: string
           status: string
           type_name: string
+          waiting_for_names: string[]
         }[]
       }
       light_can_see_crew: { Args: { p_crew: string }; Returns: boolean }
@@ -34458,6 +34737,26 @@ export type Database = {
           work_order_id: string
         }[]
       }
+      opening_balances_overview: {
+        Args: never
+        Returns: {
+          as_of: string
+          certified_value: number
+          claimed_value: number
+          currency: string
+          id: string
+          kind: string
+          label: string
+          line_count: number
+          lines: Json
+          loaded_at: string
+          loaded_by_name: string
+          note: string
+          stock_quantity: number
+          stock_value: number
+          sub_label: string
+        }[]
+      }
       opening_history_plan: {
         Args: { p_as_of: string; p_lines: Json; p_org: string }
         Returns: {
@@ -35339,6 +35638,17 @@ export type Database = {
           earned_quantity: number
           earned_value: number
           rate: number
+        }[]
+      }
+      project_management_overview: {
+        Args: { p_ids: string[] }
+        Returns: {
+          done_count: number
+          late_count: number
+          planned_pct: number | null
+          project_id: string
+          today: string
+          total_count: number
         }[]
       }
       project_mapped_actuals: {
@@ -36765,6 +37075,10 @@ export type Database = {
         Args: { p_decider_roles: string[]; p_second_record_roles: string[] }
         Returns: undefined
       }
+      set_daily_report_validate_roles: {
+        Args: { p_roles: string[] }
+        Returns: string[]
+      }
       set_billing_plan_month_target: {
         Args: { p_month: string; p_target: number }
         Returns: undefined
@@ -36812,6 +37126,10 @@ export type Database = {
       set_billing_step_template_roles: {
         Args: { p_roles: Json; p_template: string }
         Returns: number
+      }
+      set_boq_item_area_rate: {
+        Args: { p_area: string; p_boq_item: string; p_rate?: number }
+        Returns: undefined
       }
       set_boq_item_discipline: {
         Args: { p_discipline: string; p_item: string }
@@ -37008,9 +37326,21 @@ export type Database = {
         Args: { p_enabled: boolean }
         Returns: boolean
       }
+      set_org_work_order_checklist_edit: {
+        Args: { p_enabled: boolean }
+        Returns: boolean
+      }
+      set_work_order_step_claim_evidence: {
+        Args: { p_step: string; p_enabled: boolean }
+        Returns: undefined
+      }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number }
         Returns: number
+      }
+      save_work_order_steps_as_template: {
+        Args: { p_name: string; p_work_order: string }
+        Returns: string
       }
       set_payment_channel_settings: {
         Args: { p_enabled: boolean }
@@ -37292,7 +37622,13 @@ export type Database = {
         Returns: number
       }
       set_site_checkpoint_list: { Args: { p_items: Json }; Returns: number }
+      get_work_order_material_completion: { Args: { p_work_order_id: string }; Returns: Json }
+      set_po_needed_by_required: { Args: { p_on: boolean }; Returns: boolean }
+      set_procurement_needed_by: { Args: { p_id: string; p_needed_by: string | null; p_lines?: Json | null }; Returns: boolean }
+      po_needed_by_required_from_of: { Args: { p_org: string }; Returns: string }
+      set_stock_handover_scope: { Args: { p_scope: string }; Returns: string }
       set_stock_proof_timing: { Args: { p_timing: string }; Returns: string }
+      stock_handover_scope_of: { Args: { p_org: string }; Returns: string }
       set_stock_reorder_level: {
         Args: {
           p_item_id: string
@@ -37444,10 +37780,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      set_work_order_candidate_template: {
-        Args: { p_items: Json }
-        Returns: number
-      }
       set_work_order_check_in_area: {
         Args: {
           p_lat: number
@@ -37456,6 +37788,14 @@ export type Database = {
           p_work_order: string
         }
         Returns: undefined
+      }
+      set_work_order_check_template: {
+        Args: { p_items: Json }
+        Returns: number
+      }
+      set_stock_issue_cost_date: {
+        Args: { p_effective_on: string | null }
+        Returns: string | null
       }
       set_work_order_issue_threshold: {
         Args: { p_threshold_pct: number }
@@ -37556,7 +37896,7 @@ export type Database = {
         Args: { p_reason: string; p_stage: string }
         Returns: undefined
       }
-      skip_work_order_step: { Args: { p_step: string }; Returns: undefined }
+      skip_work_order_step: { Args: { p_reason: string; p_step: string }; Returns: undefined }
       spc_derive: { Args: { p_cert: string }; Returns: Json }
       spc_may_prepare: { Args: { p_project: string }; Returns: boolean }
       spc_may_read: { Args: { p_project: string }; Returns: boolean }

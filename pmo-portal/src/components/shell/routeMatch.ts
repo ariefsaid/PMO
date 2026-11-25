@@ -55,8 +55,8 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'shell.nav.procurement',
     path: '/procurement',
     detail: { pattern: '/procurement/:procurementId', param: 'procurementId' },
-    // Mirror Rail: Exec·PM·Finance·Admin (Engineer has no Procurement nav — rbac-visibility §E).
-    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
+    // Mirror Rail, including requesters opening their own purchases.
+    roles: [UserRole.Engineer, UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
     feature: 'procurement',
   },
   {
@@ -379,6 +379,10 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
   '/finance/billing-board': '/finance/receivables',
   '/finance/billing-plan': '/finance/receivables',
+  // 1124d-rolescreens: HR Officer read-only timesheet review list sits under Timesheets.
+  '/timesheets/review': '/timesheets',
+  // M8: Work in hand under Projects highlights Projects in the rail.
+  '/projects/work-in-hand': '/projects',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -409,6 +413,8 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
   '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
+  '/timesheets/review': { label: 'Timesheet review', i18nKey: 'timesheets:review.title' }, // i18n-exempt: translated at render
+  '/projects/work-in-hand': { label: 'Work in hand', i18nKey: 'workInHand:title' }, // i18n-exempt: translated at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -425,6 +431,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   'exchange-rates': 'Exchange rates',
   terminology: 'Terminology',
   'cost-attribution': 'Cost attribution',
+  'scheduled-reports': 'Scheduled reports',
 } as const;
 
 /**
@@ -449,6 +456,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   'exchange-rates': 'admin.nav.exchangeRates',
   terminology: 'administration:terminology.nav',
   'cost-attribution': 'costAttribution:title',
+  'scheduled-reports': 'emailNotifications:scheduled.title',
 };
 
 const administrationBreadcrumbForPath = (

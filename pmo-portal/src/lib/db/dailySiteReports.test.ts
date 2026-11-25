@@ -4,17 +4,19 @@ import { AppError } from '@/src/lib/appError';
 /** #1522 daily site report DAL: list filter/order/paging (AC-DSR-015), the write payloads (no org_id), refusals. */
 const h = vi.hoisted(() => {
   const result = { value: {} as { data: unknown; error: unknown } };
+  const directoryResult = { value: {} as { data: unknown; error: unknown } };
+  let table = '';
   const calls: Array<[string, unknown[]]> = [];
   const rpcCalls: Array<[string, unknown]> = [];
   const builder: Record<string, unknown> = {};
-  for (const k of ['select', 'eq', 'is', 'gte', 'lte', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
+  for (const k of ['select', 'eq', 'is', 'gte', 'lte', 'order', 'range', 'in', 'limit', 'insert', 'update', 'maybeSingle'] as const) {
     builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
   }
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
-  const from = vi.fn((t: string) => { calls.push(['from', [t]]); return builder; });
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(table === 'people_directory' ? directoryResult.value : result.value);
+  const from = vi.fn((t: string) => { table = t; calls.push(['from', [t]]); return builder; });
   const rpc = vi.fn((n: string, a?: unknown) => { rpcCalls.push([n, a]); return Promise.resolve(result.value); });
   const storage = { upload: vi.fn(() => Promise.resolve({ error: null })), remove: vi.fn(() => Promise.resolve({ error: null })) };
-  return { from, rpc, calls, rpcCalls, result, storage };
+  return { from, rpc, calls, rpcCalls, result, directoryResult, storage };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc, storage: { from: () => h.storage } } }));
 
@@ -24,6 +26,7 @@ beforeEach(() => {
   h.calls.length = 0; h.rpcCalls.length = 0;
   h.storage.upload.mockClear(); h.storage.remove.mockClear();
   h.result.value = { data: [], error: null };
+  h.directoryResult.value = { data: [], error: null };
 });
 
 describe('AC-DSR-015 list', () => {
@@ -51,18 +54,49 @@ describe('AC-DSR-015 list', () => {
   });
 });
 
+describe('AC-SRC crew and person link', () => {
+  it('AC-SRC-006 filters the list by crew and reads the crew name', async () => {
+    h.result.value = { data: [{ id: 'r1', work_orders: null, author: null, crew: { name: 'Pipe crew' } }], error: null };
+    const page = await dal.listReports({ crewId: 'c1' });
+    expect(h.calls).toContainEqual(['eq', ['crew_id', 'c1']]);
+    expect(page.rows[0].crew_name).toBe('Pipe crew');
+  });
+
+  it('AC-SRC-006 reads a named-person link through the safe directory view', async () => {
+    h.result.value = { data: [{ id: 'r1', person_id: 'person1', work_orders: null, author: null, crew: null }], error: null };
+    h.directoryResult.value = { data: [{ id: 'person1', name: 'Roster person' }], error: null };
+    const page = await dal.listReports({});
+    expect(h.calls).toContainEqual(['from', ['people_directory']]);
+    expect(h.calls).toContainEqual(['in', ['id', ['person1']]]);
+    expect(h.calls).toContainEqual(['limit', [dal.DSR_PAGE_SIZE]]);
+    expect(page.rows[0].person_name).toBe('Roster person');
+  });
+
+  it('AC-SRC-004 a save sends the link keys only when given: leaving them out keeps the stored link', async () => {
+    h.result.value = { data: 'r1', error: null };
+    await dal.saveDraft({ id: 'r1', workOrderId: 'w1', workDate: '2026-03-10', progress: [], idle: [], consumables: [] });
+    const without = (h.rpcCalls[0] as [string, { p: Record<string, unknown> }])[1].p;
+    expect(without).not.toHaveProperty('crew_id');
+    expect(without).not.toHaveProperty('person_id');
+    expect(without).not.toHaveProperty('area_id');
+    await dal.saveDraft({ id: 'r1', workOrderId: 'w1', workDate: '2026-03-10', crewId: 'c1', personId: null, areaId: 'a1', progress: [], idle: [], consumables: [] });
+    const withKeys = (h.rpcCalls[1] as [string, { p: Record<string, unknown> }])[1].p;
+    expect(withKeys).toMatchObject({ crew_id: 'c1', person_id: null, area_id: 'a1' });
+  });
+});
+
 describe('writes', () => {
   it('saves a draft with a client request id and never sends org_id', async () => {
     h.result.value = { data: 'r1', error: null };
     await expect(dal.saveDraft({
       clientRequestId: 'c1', workOrderId: 'w1', workDate: '2026-03-10', startTime: '07:00', endTime: '',
-      progress: [{ workOrderLineId: 'l1', subStage: '', quantity: '10' }], idle: [{ minutes: 30, reasonId: 'i1' }], consumables: [],
+      progress: [{ workOrderLineId: 'l1', subStage: '', quantity: '10', sectionId: 'section-a' }], idle: [{ minutes: 30, reasonId: 'i1' }], consumables: [],
     })).resolves.toBe('r1');
     const [name, args] = h.rpcCalls[0] as [string, { p: Record<string, unknown> }];
     expect(name).toBe('dsr_save_draft');
     expect(args.p).not.toHaveProperty('org_id');
     expect(args.p).toMatchObject({ client_request_id: 'c1', work_order_id: 'w1', start_time: '07:00', end_time: null,
-      progress: [{ work_order_line_id: 'l1', sub_stage: null, quantity: '10' }], idle: [{ minutes: 30, reason_id: 'i1' }] });
+      progress: [{ work_order_line_id: 'l1', sub_stage: null, quantity: '10', section_id: 'section-a' }], idle: [{ minutes: 30, reason_id: 'i1' }] });
   });
 
   it('AC-DSR-005 a refusal keeps its Postgres code so the screen can explain it', async () => {
@@ -86,6 +120,26 @@ describe('writes', () => {
     const path = (h.storage.upload.mock.calls[0] as unknown as [string])[0];
     expect(path).toMatch(/^o1\/r1\/[0-9a-f-]{36}\/form/);
     expect(h.storage.remove).toHaveBeenCalledWith([path]);
+  });
+});
+
+describe('#2897 photo upload refusals', () => {
+  it('a database-authored upload refusal carries 42501 so the screen can say the submitted rule', async () => {
+    h.storage.upload.mockResolvedValueOnce({ error: { message: 'new row violates row-level security policy' } } as never);
+    const file = new File(['x'], 'form.jpg', { type: 'image/jpeg' });
+    const err = await dal.uploadPhoto({ id: 'r1', org_id: 'o1' }, file).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    // Nothing was uploaded, so there is no orphan object to remove.
+    expect(h.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('a non-database storage failure stays unclassified, keeping the generic recoverable handling', async () => {
+    h.storage.upload.mockResolvedValueOnce({ error: { message: 'network unreachable' } } as never);
+    const file = new File(['x'], 'form.jpg', { type: 'image/jpeg' });
+    const err = await dal.uploadPhoto({ id: 'r1', org_id: 'o1' }, file).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBeUndefined();
   });
 });
 

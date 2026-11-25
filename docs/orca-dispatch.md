@@ -49,6 +49,35 @@ If capacity stays idle, record the concrete dependency, memory constraint, scope
 of useful work; a ready label is not execution evidence. Keep launch receipts and observed running
 state distinct, and resolve a stalled launch before reporting it as progress.
 
+## Token discipline (lessons of 25 Nov 2026)
+
+One night spent most of two providers' quotas on repeat work. These rules prevent each cause.
+
+- **No model watches CI.** A builder's task ends at push and PR. The coordinator reads CI itself
+  (`gh pr view --json statusCheckRollup`, one-shot timer). A top-tier model polling a 40-minute run
+  is the single largest waste.
+- **One integration branch from the first ready slice.** Builders never re-merge `dev` one by one:
+  every merge to `dev` put every other open PR in conflict and each builder redid merge, push and CI
+  three or four times. The integration writer merges and resolves.
+- **Builders do not edit `docs/decisions.md`.** It conflicted on every branch. A builder writes the
+  decision text in its report; the integration writer adds the entry and assigns the number.
+- **A new browser journey runs in a browser before its branch reaches `dev`**: one `scripts/ci-e2e.sh`
+  on the batch branch, or the single spec locally on a current schema. A journey first run by the
+  release PR costs a whole release run per failure round (six red runs in one night).
+- **Never merge to `dev` while a release run is in flight.** It cancels the run and its evidence.
+- **Restating a function or policy starts from its latest body.** Sweep every later migration first;
+  three rules were silently dropped in one week by restating an older body.
+- **Check quota before a fan-out, and cap it at three workers per provider.** Eleven parallel
+  workers emptied a provider's window in minutes; a weekly cap then removed it for six days.
+- **Workers push after each commit.** A quota death then leaves a branch another model can finish.
+- **A walk result is a claim.** Stage the test site for every case's precondition and check it before
+  walking; verify each failure against the code before building anything (45 of 80 were staging or
+  walker mistakes).
+- **Close what you open.** A walk worker closes its browser sessions; after a walk the coordinator
+  checks for leftover browser processes.
+- **Local schema behind `dev`?** `scripts/with-db-lock.sh supabase migration up --local` moves it
+  forward and keeps the data; no reset needed for diagnosis.
+
 ## Mechanics
 
 Load the `orchestration` skill (supervised workers, tasks, waits) and `orca-cli` (worktrees,

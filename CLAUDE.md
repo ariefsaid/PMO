@@ -316,6 +316,12 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
   pgTAP as the leading token of the test description; Playwright as the leading token of the `test(...)`
   title with file `e2e/<AC-id>-<slug>.spec.ts`. An AC may be referenced at multiple layers but has exactly
   one owning layer (recorded in the plan's traceability table).
+- **Role-job test (binding, owner 2026-11-24).** A fix or feature that exists for a role's job needs one
+  test that signs in as that **job role** (not a higher access level) and does the job **on the screen**,
+  worded from the customer's own acceptance script where one exists. A database test of the rule proves the
+  rule, not the job: three released job-role rights passed pgTAP and still gave the role no usable action.
+  Any setup the job needs (a setting, a template naming the owner role) is created in the test as an Admin
+  would, or the feature ships with a working default.
 - **BDD authoring rule (binding).** A test encodes the **user's real, intuitive journey to the task's goal**
   and asserts that **goal** — the app conforms to the test, never the test to the app. On failure: fix the
   **app**; only for a *deliberate* UX change (e.g. a new confirm-before-write step, back-nav moving to the

@@ -1,15 +1,17 @@
 // @e2e-isolation: self-isolated — creates its own uniquely-named projects, work orders, crews and workers; approved attendance is immutable by design, so this run's rows stay, scoped to its own names; cleanup ends the roster and placements.
 /**
  * JOB-H8 — HR approves, seeing the work order (#2528). Two crews' days on two work orders are sent for approval by the field
- * controller. HR (the Admin) opens the weeks waiting for approval.
+ * controller. The approver opens the weeks waiting for approval.
  * Goal oracle: each waiting line shows the work order its hours belong to.
- * Partly built: the approval list names the worker, week and hours only; the work order per line is not shown yet, so this
- * journey is expected red on its last step until it is.
+ * Role note (TC-PA-06, 2026-11-24 walk): the acceptance case names the HR Officer, but this app separates the two jobs —
+ * crew time is approved by delivery roles only (`can('approve','attendance')`), while the HR Officer's read-only
+ * Timesheet review (`/timesheets/review`) groups by project and never names the work order. So this journey proves the
+ * rule on the approval surface that owns it; the case cannot be reached by its named role (recorded in the lane table).
  */
 import { test, expect } from '@playwright/test';
 import { signIn, visibleToast } from './helpers';
 import { ENGINEER_ID, inDays, need, ORG_ID, serviceClient } from './support/jobJourney';
-import { endCrewRows, seedWorkOrder } from './support/crewJourney';
+import { endCrewRows, seedWorkOrder, markEveryonePresent } from './support/crewJourney';
 
 test.setTimeout(240_000);
 const must = need('JOB-H8');
@@ -36,6 +38,7 @@ test('JOB-H8 HR sees which work order each waiting line of hours belongs to', as
     await page.goto(`/crews?view=attendance&wo=${j.wo.workOrderId}`);
     await expect(page.getByRole('row', { name: j.worker })).toBeVisible({ timeout: 20_000 });
     await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
+    await markEveryonePresent(page);
     await page.getByRole('button', { name: 'Save attendance' }).click();
     await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Send the week for approval' }).click();

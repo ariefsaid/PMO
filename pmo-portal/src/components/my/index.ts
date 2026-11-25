@@ -5,3 +5,4 @@ export { MyIssues } from './MyIssues';
 export { MyDeliveries } from './MyDeliveries';
 export { MyWorkOrders } from './MyWorkOrders';
 export { AbsentTodaySection } from './AbsentTodaySection';
+export { MyNotices } from './MyNotices';

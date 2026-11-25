@@ -39,64 +39,6 @@
     "actual": "Aktual"
   },
   "projectDetail": {
-    "candidates": {
-      "status": {
-        "open": "Terbuka",
-        "passed": "Lulus",
-        "failed": "Gagal",
-        "notApplicable": "Tidak berlaku"
-      },
-      "noItems": "Kandidat ini tidak memiliki butir pemeriksaan.",
-      "checklist": "Daftar pemeriksaan penilaian",
-      "addCheck": "Tambah pemeriksaan",
-      "add": "Tambah",
-      "optional": "Opsional",
-      "overdue": "Terlambat",
-      "statusLabel": "Hasil",
-      "owner": "Penanggung jawab",
-      "noOwner": "Belum ada penanggung jawab",
-      "target": "Tanggal target",
-      "note": "Catatan",
-      "needNote": "Tambahkan catatan untuk menandai tidak berlaku.",
-      "proof": "Bukti",
-      "removeProof": "Hapus {{name}}",
-      "noProof": "Belum ada bukti",
-      "attach": "Lampirkan bukti",
-      "title": "Kandidat $t(common:terms.clientWorkOrder)",
-      "new": "Kandidat baru",
-      "loadError": "Kandidat tidak dapat dimuat",
-      "empty": "Belum ada kandidat. Buka satu untuk menilai pekerjaan sebelum $t(common:terms.clientWorkOrder) dibuat.",
-      "accepted": "Diterima",
-      "rejected": "Ditolak",
-      "assessing": "Dinilai",
-      "acceptedToast": "Kandidat diterima. Draf $t(common:terms.clientWorkOrder) telah dibuat.",
-      "rejectedToast": "Kandidat ditolak.",
-      "offered": "Ditawarkan {{date}}",
-      "ready": "{{ready}} dari {{required}} pemeriksaan wajib siap",
-      "overdueCount": "{{n}} terlambat",
-      "hide": "Sembunyikan pemeriksaan",
-      "show": "Tampilkan pemeriksaan",
-      "acceptedBecause": "Diterima karena",
-      "rejectedBecause": "Ditolak karena",
-      "openDraft": "Buka draf $t(common:terms.clientWorkOrder)",
-      "reopen": "Buka kandidat baru untuk tawaran ini",
-      "notReady": "Belum siap diterima: {{names}}",
-      "reject": "Tolak",
-      "accept": "Terima",
-      "rejectTitle": "Tolak kandidat ini",
-      "acceptTitle": "Terima kandidat ini",
-      "reasonLabel": "Alasan",
-      "acceptHelp": "Menerima akan membuat draf $t(common:terms.clientWorkOrder). Draf itu belum diterbitkan dan belum bernilai.",
-      "rejectHelp": "Alasan tetap tercatat.",
-      "newFor": "Kandidat baru untuk tawaran ini",
-      "create": "Buka kandidat",
-      "created": "Kandidat dibuka",
-      "errCreate": "Hanya administrator, insinyur, atau manajer proyek ini yang dapat membuka kandidat.",
-      "titleLabel": "Judul",
-      "referenceLabel": "Referensi klien",
-      "offeredLabel": "Ditawarkan pada",
-      "descriptionLabel": "Deskripsi"
-    },
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",
       "title": "Kontrak",
@@ -404,6 +346,16 @@
         "prefill": "Mulai dari penilaian {{month}}",
         "kindProgress": "Progres: kuantitas terhadap bill of quantities"
       },
+      "areaRates": {
+        "title": "Tarif per wilayah",
+        "hint": "Laporan harian pada perintah kerja di suatu wilayah dihargai dengan tarif wilayah itu. Wilayah tanpa tarif memakai tarif baris.",
+        "loadError": "Tarif wilayah tidak dapat dimuat.",
+        "rate": "Tarif untuk {{name}}",
+        "save": "Simpan",
+        "saved": "Tarif wilayah disimpan",
+        "removed": "Tarif wilayah dihapus",
+        "invalid": "Isi tarif di atas 0, atau kosongkan untuk menghapusnya."
+      },
       "boqForm": {
         "quantity": "Kuantitas",
         "subtitle": "Harga belum termasuk pajak. $t(common:terms.clientWorkOrder) mengambil kuantitas dari suatu baris saat Anda mengalokasikannya.",
@@ -544,6 +496,7 @@
         "unhide": "Tampilkan lagi kepada {{role}}"
       },
       "templates": {
+        "claimEvidence": "Dokumen di langkah ini dihitung sebagai bukti tagihan",
         "title": "Templat langkah penagihan",
         "help": "Templat adalah daftar langkah yang dipakai tim Anda. Muat ke proyek atau klaim; templat disalin, jadi perubahan templat berikutnya tidak mengubah yang sudah dibuat.",
         "manage": "Kelola templat",
@@ -1404,7 +1357,8 @@
         "editOrder": "Ubah pesanan",
         "orderMenuLabel": "Tindakan untuk {{order}}",
         "viewPo": "Lihat PO pelanggan",
-        "cancelGeneric": "Batal"
+        "cancelGeneric": "Batal",
+        "import": "Impor perintah kerja"
       },
       "filter": {
         "orders": "Pesanan",
@@ -1444,7 +1398,8 @@
         "noGroup": "Tanpa grup"
       },
       "areaLabel": "Wilayah",
-      "groupLabel": "Grup"
+      "groupLabel": "Grup",
+      "importLoadFailed": "Tidak dapat membuka impor. Coba lagi."
     },
     "contract": {
       "orders": "Pesanan pelanggan",

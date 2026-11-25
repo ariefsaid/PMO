@@ -36,7 +36,9 @@ export function useRecordFolderAction({ target, hasFolder, onChooseExisting }: R
 
   // Explicit view-only gate: `usePermission` binds the REAL role but does not itself refuse impersonation.
   const allowed = m365 && roles.realRole === roles.effectiveRole
-    && may('create', target.kind === 'project' ? 'document' : 'procDoc');
+    && (target.kind === 'procurement'
+      ? may('create', 'procDoc')
+      : may('create', 'document', target.kind === 'work_order' ? { record: { work_order_id: target.id } } : undefined));
 
   async function reconnect(folders: boolean) {
     setReconnectFailed(false);

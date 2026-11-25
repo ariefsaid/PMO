@@ -638,25 +638,32 @@
         "noticesHeading": "Notices (off until you choose)",
         "label": "Billing extras",
         "helper": "Revenue per discipline, the revenue plan, idle time as cost, and the reminder for work that is done but not claimed."
+      },
+      "managementViews": {
+        "label": "Management views",
+        "helper": "Show the project portfolio and progress not yet accepted by the client."
       }
     },
     "modulesNav": "Modules",
-    "candidateTemplate": {
-      "saved": "Checklist saved",
-      "title": "Candidate work order checklist",
-      "helper": "The checks to make before a candidate work order is accepted. A candidate copies this list when it is opened, so later changes do not alter candidates already open.",
-      "loadError": "Couldn't load the checklist",
-      "empty": "No checks yet. Without any, a candidate can be accepted straight away.",
+    "checkTemplate": {
+      "title": "Standard checks for a new work order",
+      "helper": "When a work order is captured as a draft, each line becomes a task, due that many days later. The person holding the job role owns it; if several or nobody hold it, the issuer chooses.",
+      "saved": "Standard checks saved",
+      "loadError": "Couldn't load the standard checks",
+      "empty": "No standard checks. New work orders start with none.",
       "itemLabel": "Check {{n}}",
-      "requiredFor": "Required: {{name}}",
-      "required": "Required",
       "up": "Move {{name}} up",
       "down": "Move {{name}} down",
       "remove": "Remove {{name}}",
       "removeShort": "Remove",
       "add": "Add a check",
-      "save": "Save checklist",
-      "discard": "Discard changes"
+      "save": "Save checks",
+      "discard": "Discard changes",
+      "chooseRole": "Choose a job role",
+      "roleFor": "Job role for check {{n}}",
+      "daysFor": "Days for check {{n}}",
+      "daysPlaceholder": "Days",
+      "daysUnit": "days"
     },
     "accountMap": {
       "adminOnly": "Only an Admin can change this."
@@ -872,6 +879,17 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
+    },
+    "dsrValidateRoles": {
+      "title": "Validate daily site reports",
+      "intro": "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Tick job roles whose active holders may also validate reports across your organisation.",
+      "legend": "Job roles that validate daily site reports",
+      "loadError": "Couldn't load site report validator roles",
+      "adminOnly": "Only an Admin can change this.",
+      "viewOnly": "Exit view-as mode to change this setting.",
+      "turnOn": "Turn on built-in roles in Administration > People to assign this capability.",
+      "save": "Save",
+      "saved": "Site report validator roles saved"
     },
     "attendanceRoles": {
       "title": "Time records",
@@ -1093,7 +1111,8 @@
     "daysInvalid": "Enter 1 to 5 whole numbers of days, from 1 to 365, separated by commas.",
     "daysLabel": "Warn this many days before expiry",
     "daysHelp": "Up to 5 values, for example 30, 14, 7.",
-    "daysSave": "Save warning days"
+    "daysSave": "Save warning days",
+    "medicalNotice": "Expiry warnings go to the people team and direct manager. The worker is told after release is approved."
   },
   "labourCost": {
     "title": "Labour cost",
@@ -1318,5 +1337,16 @@
       "missing": "Not done"
     },
     "navLabel": "Clearance"
-  }
+  },
+  "stockIssueCost": {
+    "title": "Stock issue costing",
+    "enabled": "Count stock issues as cost",
+    "date": "Effective date",
+    "save": "Save",
+    "saved": "Stock costing saved",
+    "loadError": "Couldn't load stock costing",
+    "migration": "Migrate existing stock costs before enabling this setting.",
+    "erp": "This setting is available for organisations using PMO-paid costs."
+  },
+  "documentTypesNav": "Document types"
 }

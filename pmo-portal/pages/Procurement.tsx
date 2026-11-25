@@ -1,3 +1,5 @@
+import { usePurchaseCaseRead } from '@/src/hooks/usePurchaseCaseRead';
+import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -157,6 +159,8 @@ const ProcurementPage: React.FC = () => {
     }
   }, [location.search, navigate]);
 
+  const mayOrder = useMayOrderPurchases();
+  const mayReadAllCases = usePurchaseCaseRead();
   const isEngineer = realRole === 'Engineer';
   const isProjectManager = realRole === 'Project Manager';
   const canSeeOrphans = realRole === 'Finance' || realRole === 'Admin';
@@ -230,11 +234,12 @@ const ProcurementPage: React.FC = () => {
   const linkedDocuments = useErpPurchases(undefined, { enabled: !isEngineer });
   const all = useMemo(() => {
     const rows = withLinkedDocuments(data, linkedDocuments.data) ?? [];
+    if (mayOrder || mayReadAllCases) return rows;
     if (isEngineer) return userId ? rows.filter((row) => row.requested_by_id === userId) : [];
     // A PM sees projects they manage plus every request they raised themselves (incl. overhead).
     if (isProjectManager) return userId ? rows.filter((row) => row.requested_by_id === userId || row.project?.project_manager_id === userId) : [];
     return rows;
-  }, [data, linkedDocuments.data, isEngineer, isProjectManager, userId]);
+  }, [data, linkedDocuments.data, isEngineer, isProjectManager, userId, mayOrder, mayReadAllCases]);
 
   const needsYouRows = useMemo(() => all.flatMap((row) => {
     const result = needsYou(row, { role: realRole, userId });
@@ -463,7 +468,7 @@ const ProcurementPage: React.FC = () => {
     >
       <div className="space-y-4">
         <FigureHiddenLine />
-        {(isEngineer || isProjectManager) && (
+        {!mayOrder && !mayReadAllCases && (isEngineer || isProjectManager) && (
           <p className="text-sm text-muted-foreground">
             {isEngineer
               ? t('description.engineer', 'Track the procurements you raised, from request through payment.')

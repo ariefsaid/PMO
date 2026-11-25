@@ -10,23 +10,23 @@ import { useReleaseHolds } from '@/src/hooks/useMedicalRelease';
 import type { ReleaseState } from '@/src/lib/repositories/medicalRelease';
 import { useAuth } from '@/src/auth/useAuth';
 import {
-  useAllCrewMembers, useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useWorkOrderRoster,
+  useAllCrewMembers, useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useManagedPeople, useWorkOrderRoster,
 } from '@/src/hooks/useCrews';
-import type { AttendanceDayRow, AttendanceStatus, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
-import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState } from '@/src/lib/attendanceTick';
+import type { AttendanceDayRow, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
+import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState, type TickStatus } from '@/src/lib/attendanceTick';
 import { formatDay, formatNumberMax2 } from '@/src/lib/format';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { WorkOrderPicker } from './CrewPickers';
 import { useCrewErrorText } from './crewErrors';
 import { HeadCountSection } from './HeadCountSection';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const STATUSES: AttendanceStatus[] = ['present', 'absent', 'leave', 'off_rotation'];
+const STATUSES: TickStatus[] = ['unmarked', 'present', 'absent', 'leave', 'off_rotation'];
 const NO_HOLDS: ReadonlyMap<string, ReleaseState> = new Map();
 
 /** The tick form for one crew on one day (FR-CRW-009/010). Keyed by crew, date and held records, so it starts fresh. */
-export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; canManage?: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState> }> = ({
-  crew, workOrderId, date, held, canRecord, canManage = false, releaseHolds = NO_HOLDS,
+export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; canMarkRow?: (workerId: string) => boolean; canManage?: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState> }> = ({
+  crew, workOrderId, date, held, canRecord, canMarkRow = () => false, canManage = false, releaseHolds = NO_HOLDS,
 }) => {
   const { t } = useTranslation('crews');
   const writeError = useCrewErrorText();
@@ -44,7 +44,8 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(() => crew.members.length === 0 || crew.members.some((m) => !held.some((day) => day.worker_id === m.worker_id)));
   const [problem, setProblem] = useState<string | null>(null);
-  const statusLabel = (s: AttendanceStatus) => ({
+  const statusLabel = (s: TickStatus) => ({
+    unmarked: t('crews:status.notYetPresent', 'Not yet present'),
     present: t('crews:status.present', 'Present'), absent: t('crews:status.absent', 'Absent'),
     leave: t('crews:status.leave', 'Leave'), off_rotation: t('crews:status.offRotation', 'Off rotation'),
   })[s];
@@ -82,7 +83,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const save = async () => {
     setProblem(null);
     // A person whose medical release is not approved cannot be recorded (the database refuses it): leave them out of the save.
-    const built = buildTickRows({ ...state, order: state.order.filter((id) => !releaseHolds.has(id)) }, crew.crew_id);
+    const built = buildTickRows({ ...state, order: state.order.filter((id) => !releaseHolds.has(id) && (canRecord || canMarkRow(id))) }, crew.crew_id);
     setErrors(built.errors);
     if (Object.keys(built.errors).length > 0) return;
     setBusy(true);
@@ -178,7 +179,8 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
               if (!p) return null;
               const err = errors[m.worker_id];
               const hold = releaseHolds.get(m.worker_id);
-              const locked = !canRecord || busy || hold !== undefined;
+              const rowMay = canRecord || canMarkRow(m.worker_id);   // the recorder, or the manager recorded on this person
+              const locked = !rowMay || busy || hold !== undefined;
               const phoneControl = 'max-sm:min-h-11 max-sm:h-11';
               return (
                 <tr role="row" key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-2 max-sm:py-3">
@@ -205,13 +207,12 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td role="cell" className="py-2 pr-2 max-sm:col-span-2 max-sm:p-0">
-                    {/* The tick starts everyone as present for the person who will confirm it. A reader who cannot tick must not see that
-                        starting value as a fact: someone nobody has recorded yet is not recorded. */}
-                    {!canRecord && p.status === 'present' && !held.some((d) => d.worker_id === m.worker_id)
-                      ? <span className="text-control text-muted-foreground">{t('crews:status.notRecorded', 'Not recorded')}</span>
+                    {/* Nobody is present or absent by default: an un-recorded member reads "Not yet present" for every reader. */}
+                    {!rowMay && p.status === 'unmarked'
+                      ? <span className="text-control text-muted-foreground">{t('crews:status.notYetPresent', 'Not yet present')}</span>
                       : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
                       className={phoneControl}
-                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as AttendanceStatus })} disabled={locked}
+                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as TickStatus })} disabled={locked}
                       options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />}
                   </td>
                   <td role="cell" className="py-2 pr-2 max-sm:p-0">
@@ -250,10 +251,10 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
           </div>
         )}
         {canRecord && dirty && <p className="mb-3 text-sm text-muted-foreground">{t('crews:saveBeforeSending', 'Save attendance before sending the week.')}</p>}
-        {canRecord && (
+        {(canRecord || rows.some((m) => canMarkRow(m.worker_id))) && (
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="primary" onClick={() => void save()} disabled={busy}>{t('crews:save', 'Save attendance')}</Button>
-            <Button variant="outline" onClick={() => void sendWeek()} disabled={busy || dirty}>{t('crews:sendWeek', 'Send the week for approval')}</Button>
+            {canRecord && <Button variant="outline" onClick={() => void sendWeek()} disabled={busy || dirty}>{t('crews:sendWeek', 'Send the week for approval')}</Button>}
           </div>
         )}
       </CardPad>
@@ -344,7 +345,7 @@ export const AttendanceTick: React.FC = () => {
   const viewOnly = realRole !== effectiveRole;
   const userId = useAuth().currentUser?.id ?? null;
   const { values, setFilter, setFilters } = useUrlFilters(['wo', 'date', 'crew']);
-  const today = toIso(new Date());
+  const today = useOrgToday();
   const workOrderId = values.wo || null;
   const date = ISO.test(values.date) ? values.date : today;
   const roster = useWorkOrderRoster(workOrderId, date);
@@ -352,6 +353,10 @@ export const AttendanceTick: React.FC = () => {
   const crews = roster.data ?? [];
   const crew = crews.find((c) => c.crew_id === values.crew) ?? crews[0] ?? null;
   const canRecord = crew ? may('create', 'attendance', { currentUserId: userId, record: { field_controller_id: crew.field_controller_id, viewOnly } }) : false;
+  const reports = useManagedPeople(userId);
+  const canMarkRow = (workerId: string) => crew !== null && may('create', 'attendance', {
+    currentUserId: userId, record: { manager_id: (reports.data ?? []).includes(workerId) ? userId : null, viewOnly },
+  });
   const canManage = may('manage', 'crew', { record: { viewOnly } });
   const canApprove = may('approve', 'attendance', { currentUserId: userId, record: { viewOnly } });
   const holds = useReleaseHolds(workOrderId ? date : null);
@@ -377,7 +382,7 @@ export const AttendanceTick: React.FC = () => {
         <p className="text-sm text-foreground">{t('crews:noCrewThatDay', 'No crew serves this work order that day')}</p>
       )}
       {workOrderId && crew && !day.isPending && !day.isError && (
-        <TickForm key={`${crew.crew_id}:${date}:${heldKey}`} crew={crew} workOrderId={workOrderId} date={date} held={day.data ?? []} canRecord={canRecord}
+        <TickForm key={`${crew.crew_id}:${date}:${heldKey}`} crew={crew} workOrderId={workOrderId} date={date} held={day.data ?? []} canRecord={canRecord} canMarkRow={canMarkRow}
           canManage={canManage} releaseHolds={holds.data} />
       )}
       {workOrderId && crew && !day.isPending && !day.isError && (

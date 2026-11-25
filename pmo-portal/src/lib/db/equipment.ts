@@ -22,6 +22,8 @@ export type EquipmentAllocationRow = Database['public']['Functions']['list_equip
 export type EquipmentUsageTotalRow = Database['public']['Functions']['list_equipment_usage_totals']['Returns'][number];
 export type UsageStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
 export interface UsageInput {
+  work_order_id?: string | null;
+  discipline_id?: string | null;
   id?: string;
   asset_id: string;
   project_id: string;

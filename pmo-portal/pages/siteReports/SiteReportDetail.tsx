@@ -11,10 +11,13 @@ import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { useWorkOrderSectionRollup } from '@/src/hooks/useWorkOrderSections';
 import { useProject } from '@/src/hooks/useProjects';
 import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
 } from '@/src/hooks/useDailySiteReports';
+import { useDailyReportValidateRoles } from '@/src/hooks/useDailyReportValidateRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
@@ -29,9 +32,11 @@ import {
 } from './siteReportForm';
 import { missingPartsFrom } from './emptyReport';
 import { SiteReportPhotos } from './SiteReportPhotos';
+import { SiteReportWho } from './SiteReportWho';
 import { SiteCheckpoints } from './SiteCheckpoints';
 import SiteReportPeopleHours from './SiteReportPeopleHours';
 import { SiteReportStock } from './SiteReportStock';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useDsrStockSettings } from '@/src/hooks/useDsrStockIssue';
 
 type Dialog = 'return' | 'correct' | null;
@@ -60,18 +65,25 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const navigate = useNavigate();
   const { toast } = useToast();
   const narrow = useIsNarrow();
-  const userId = useAuth().currentUser?.id ?? null;
+  const currentUser = useAuth().currentUser;
+  const userId = currentUser?.id ?? null;
+  const builtInRoleKey = currentUser?.built_in_role ?? null;
+  const dailyReportValidateRoles = useDailyReportValidateRoles().data;
   const { realRole } = useEffectiveRole();
   const roleLabels = useRoleLabels();
+  const jobRoleLabel = useBuiltInRoleName();
   const { report } = detail;
+  const sections = useWorkOrderSectionRollup(report.work_order_id);
   const project = useProject(report.project_id).data ?? null;
-  const ctx = { realRole, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
+  const qsReportRevenue = useOrgSwitch('qsReportRevenue').data === true;
+  const ctx = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { status: report.status, qs_report_revenue_enabled: qsReportRevenue, author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
   const editable = (report.status === 'draft' || report.status === 'returned')
     && (report.author_id === userId || can('create', 'dailySiteReport', ctx));
   const mayWithdraw = report.status === 'submitted' && report.author_id === userId;
   const mayValidate = report.status === 'submitted' && can('approve', 'dailySiteReport', ctx);
   const mayCorrect = report.status === 'validated' && !report.superseded_at && can('revise', 'dailySiteReport', ctx);
   const seeRevenue = can('view', 'dailySiteReportRevenue', ctx);
+  const seeWorkOrderRevenue = can('view', 'dailySiteReportRevenue', { ...ctx, record: { ...ctx.record, qs_report_revenue_enabled: false } });
 
   // fix-waiting item 3: who the submitted report waits for, from the server's own route. The route is
   // SECURITY INVOKER over the existing report/project/profile policies and binds ONE visible Submitted
@@ -82,6 +94,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const route = useDsrValidationRoute(report.status === 'submitted' ? report.id : null);
   const waitingLabels = {
     role: (role: string) => roleLabels.label(role as UserRole),
+    jobRole: jobRoleLabel,
     financeAdmin: waitingRoleLabel('roleFinanceAdmin', t),
     nobody: t('detail.nobodyCanValidate', 'Nobody active can validate this report right now.'),
     unavailable: t('common:uxs32.routeUnavailable', "Couldn't verify who can approve right now."),
@@ -104,7 +117,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const lookups = useDsrLookups(report.work_order_id, report.id);
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
   const revenue = useDailySiteReportRevenue(report.id, seeRevenue);
-  const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeRevenue);
+  const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeWorkOrderRevenue);
   const m = useDailySiteReportMutations();
   const stockOn = useDsrStockSettings().data?.enabled === true;
 
@@ -203,7 +216,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
         }
         stats={seeRevenue ? [
           { label: t('revenue.day', 'Day revenue'), value: <span data-testid="dsr-total">{money(lineRevenue.total)}</span> },
-          ...(woRevenue.data !== undefined && detail.workOrder ? [{ label: t('revenue.toDate', 'Validated to date'), value: `${money(woRevenue.data)} / ${money(detail.workOrder.orderValue)}` }] : []),
+          ...(seeWorkOrderRevenue && woRevenue.data !== undefined && detail.workOrder ? [{ label: t('revenue.toDate', 'Validated to date'), value: `${money(woRevenue.data)} / ${money(detail.workOrder.orderValue)}` }] : []),
         ] : undefined}
         actions={narrow ? undefined : (
           <div className="flex flex-wrap gap-2">
@@ -248,13 +261,19 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
               const saved = detail.progress[i];
               const rated = saved && saved.work_order_line_id === line.workOrderLineId ? lineRevenue.lines[i] : undefined;
               const item = itemById.get(line.workOrderLineId);
+              const hasSection = (sections.data ?? []).some(s => s.sectionId) || Boolean(line.sectionId);
               return (
-                <li key={i} className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                <li key={i} className={`grid gap-2 sm:items-end ${hasSection ? 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]' : 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]'}`}>
                   {editable ? (
                     <>
                       <SelectField label={t('progress.item', 'Contract item')} value={line.workOrderLineId} error={errText(`progress.${i}.item`)}
                         onChange={(v) => update({ progress: form.progress.map((p, j) => (j === i ? { ...p, workOrderLineId: v } : p)) })}
                         options={[{ value: '', label: t('progress.pickItem', 'Choose an item') }, ...items.map((it) => ({ value: it.id, label: `${it.item_code} · ${it.description}` }))]} />
+                      {hasSection && <SelectField label={t('progress.section', 'Section')} value={line.sectionId ?? ''}
+                        onChange={(v) => update({ progress: form.progress.map((p, j) => j === i ? { ...p, sectionId: v } : p) })}
+                        options={[{ value: '', label: t('progress.outsideSections', 'Outside sections') },
+                          ...(sections.data ?? []).filter(s => s.sectionId && (!s.archivedAt || s.sectionId === line.sectionId))
+                            .map(s => ({ value: s.sectionId as string, label: `${s.code} · ${s.name}` }))]} />}
                       {/* A hand-priced line has no stages: a sub-stage there removes its rate (dsr_line_rate). Kept when a draft already holds one. */}
                       {(item?.catalogue_item_id || line.subStage)
                         ? <TextField label={t('progress.stage', 'Sub-stage')} value={line.subStage}
@@ -266,7 +285,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
                     </>
                   ) : (
                     <>
-                      <span className="text-foreground">{item ? `${item.item_code} · ${item.description}` : '—'}{line.subStage ? ` · ${line.subStage}` : ''}</span>
+                      <span className="text-foreground">{item ? `${item.item_code} · ${item.description}` : '—'}{line.subStage ? ` · ${line.subStage}` : ''}{line.sectionId ? ` · ${sections.data?.find(s => s.sectionId === line.sectionId)?.name ?? t('progress.section', 'Section')}` : ''}</span>
                       <span className="tabular-nums text-foreground">{line.quantity} {saved?.unit ?? item?.unit ?? ''}</span>
                     </>
                   )}
@@ -285,6 +304,8 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             </Button>
           )}
         </RecordSection>
+
+        <SiteReportWho form={form} editable={editable} onChange={update} />
 
         <RecordSection title={t('hours.title', 'Hours and weather')}>
           <div className="grid gap-3 sm:grid-cols-3">

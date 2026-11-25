@@ -86,7 +86,8 @@ set local request.jwt.claims='{"sub":"02840000-0000-0000-0000-0000000000a3","rol
 select lives_ok($$select transition_procurement('02840000-0000-0000-0000-000000000012','Paid')$$,'AC-PMC-003 scheduled payment is settled');
 reset role;
 select is((select count(*)::int from payments where procurement_id='02840000-0000-0000-0000-000000000012' and status='Paid'),2,'AC-PMC-003 every scheduled payment row changes to Paid');
-select is((select date from payments where id='02840000-0000-0000-0000-000000000090'),current_date,'AC-PMC-003 missing scheduled-payment date is filled at settlement');
+-- Settlement uses the organisation calendar (2001), which may differ from the UTC session day.
+select is((select date from payments where id='02840000-0000-0000-0000-000000000090'),public.native_org_today('02840000-0000-0000-0000-000000000001'),'AC-PMC-003 missing scheduled-payment date is filled at settlement');
 select is((select date from payments where id='02840000-0000-0000-0000-000000000091'),'2026-01-01'::date,'AC-PMC-003 existing scheduled-payment date is preserved');
 select is((select count(*)::int from payments where procurement_id='02840000-0000-0000-0000-000000000012'),2,'AC-PMC-003 settling scheduled payments does not insert another');
 set local role authenticated;

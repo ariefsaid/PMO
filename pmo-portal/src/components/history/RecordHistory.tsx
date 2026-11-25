@@ -116,8 +116,8 @@ const RecordName: React.FC<{ ev: HistoryEvent; refs: RefMaps; kinds: Record<stri
   );
 };
 
-const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean; enumLabel: EnumLabel }> = ({
-  ev, refs, showRecord, enumLabel,
+const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; roles: Map<string, string>; showRecord: boolean; enumLabel: EnumLabel }> = ({
+  ev, refs, roles, showRecord, enumLabel,
 }) => {
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -127,6 +127,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
     ev.actorId === null
       ? t('history.system', 'System')
       : refs.profiles.get(ev.actorId) || t('history.unknownUser', 'Unknown user');
+  const actorRole = ev.actorId === null ? null : roles.get(ev.actorId) ?? null;
   const entries = Object.entries(ev.changes);
   const hasDetails = ev.op === 'insert' || entries.length > 0;
   const labels = useMemo(() => fieldLabels(t), [t]);
@@ -169,6 +170,11 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
       )}
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
+        {actorRole && (
+          <span className="break-words text-muted-foreground" data-testid="history-actor-role">
+            {actorRole}
+          </span>
+        )}
         <time dateTime={ev.createdAt} title={formatRelativeTime(ev.createdAt)} className="text-sm text-muted-foreground">
           {absolute}
         </time>
@@ -200,10 +206,11 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
 const HistoryEventGroup: React.FC<{
   events: HistoryEvent[];
   refs: RefMaps;
+  roles: Map<string, string>;
   enumLabel: EnumLabel;
   entityType: string;
   includeChildren: boolean;
-}> = ({ events, refs, enumLabel, entityType, includeChildren }) => {
+}> = ({ events, refs, roles, enumLabel, entityType, includeChildren }) => {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const eventsId = useId();
@@ -226,6 +233,7 @@ const HistoryEventGroup: React.FC<{
             key={`${ev.source}-${ev.id}`}
             ev={ev}
             refs={refs}
+            roles={roles}
             enumLabel={enumLabel}
             showRecord={includeChildren && ev.entityType !== entityType}
           />
@@ -295,7 +303,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     return present.size;
   }, [events]);
   const showKindChips = controlledKind === undefined && kindFilters && (kindKey !== 'all' || kindsPresent >= 2);
-  const { refs, nameLookupFailed } = useHistoryRefs({ entityType, entityId, enabled: true, companyIds, recordIdsByType });
+  const { refs, roles, nameLookupFailed } = useHistoryRefs({ entityType, entityId, enabled: true, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
 
@@ -357,6 +365,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
                 key={group.key}
                 events={group.events}
                 refs={refs}
+                roles={roles}
                 enumLabel={enumLabel}
                 entityType={entityType}
                 includeChildren={includeChildren}
@@ -366,6 +375,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
                 key={group.key}
                 ev={group.events[0]}
                 refs={refs}
+                roles={roles}
                 enumLabel={enumLabel}
                 showRecord={includeChildren && group.events[0].entityType !== entityType}
               />

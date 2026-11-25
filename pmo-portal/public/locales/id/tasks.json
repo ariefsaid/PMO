@@ -2,7 +2,9 @@
   "dueThisWeek": "Jatuh tempo minggu ini",
   "clearDueWeek": "Hapus filter jatuh tempo minggu ini",
   "myTasks": {
-    "openTasksShort": "Aktif"
+    "openTasksShort": "Aktif",
+    "overdueShort": "Terlambat",
+    "nothingOverdue": "Tidak ada yang terlambat"
   },
   "push": {
     "pushing": "Mengirim…",
@@ -89,5 +91,8 @@
     },
     "unlink": "Berhenti mengikuti catatan ini",
     "unlinked": "Berhenti mengikuti catatan."
+  },
+  "sourceIssue": {
+    "from": "Dari isu"
   }
 }

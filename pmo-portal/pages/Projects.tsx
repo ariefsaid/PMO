@@ -31,6 +31,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
+import { WorkInHandSummary } from '@/src/components/workInHand/WorkInHandSummary';
 
 /** The page's one hidden-figures line: names a column the table dropped, and where it is fixed. */
 const ProjectsHiddenFigures: React.FC<{ reason: string | null; setupLink?: { to: string; label: string } }> = ({ reason, setupLink }) => {
@@ -249,6 +250,8 @@ const Projects: React.FC = () => {
         onFilter={(next) => model.setWorkingSet((ws) => ({ ...ws, filter: next }))} />}
       {...toolbar}
     >
+      {/* M8: Work in hand value and capacity-based months under Projects for eligible roles. */}
+      <WorkInHandSummary testId="projects-work-in-hand" className="mb-4" />
       {/* Body */}
       {projectScopeRead && tasksError && (
         <ListState variant="error" title={t('projectDetail.tasks.errorTitle', "Couldn't load tasks")} onRetry={() => void refetchTasks()} />

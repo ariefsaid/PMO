@@ -31,6 +31,8 @@ import { PerformanceIndices } from './work-order-detail/PerformanceIndices';
 import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
+import { MaterialCompletionLink } from './work-order-detail/MaterialCompletionLink';
+import { SiteReportsSection } from './work-order-detail/SiteReportsSection';
 import { MissingSection } from './work-order-detail/MissingSection';
 import { missingStepsFromSource } from '@/src/lib/workOrderMissing';
 import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
@@ -50,8 +52,12 @@ import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
 import { ResponsiblePersonSection } from './work-order-detail/ResponsiblePersonSection';
 import { WorkOrderAheadBadge } from './project-detail/tabs/WorkOrderAheadBadge';
+import { isMicrosoftFolder } from './project-detail/tabs/documentUtils';
+import { WorkOrderStockBalance } from './stock/WorkOrderStockBalance';
 import { PageGroup, PageIndex } from './work-order-detail/PageIndex';
 import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
+import { WorkOrderChecksSection } from './work-order-detail/WorkOrderChecksSection';
+import { useWorkOrderDecision } from './work-order-detail/WorkOrderDecision';
 
 /** The page's groups in reading order (walk T-G1): the index names them and jumps between them. */
 const PAGE_GROUPS = ['scope', 'cost', 'material', 'billing', 'inspections', 'closeout', 'documents', 'issues'] as const;
@@ -104,6 +110,7 @@ const WorkOrderDetail: React.FC = () => {
   const disciplines = useCostDisciplines(Boolean(wo.data));
   const canPlanView = may('view', 'workOrderPlan');
   const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data));
+  const decision = useWorkOrderDecision(wo.data ?? null);
 
   const allocationOptions = useMemo(
     () => (allocations.data ?? []).map((a) => {
@@ -142,10 +149,14 @@ const WorkOrderDetail: React.FC = () => {
   const groups = useMemo(() => (costLines.data ? buildCostView(flatLines, money.data ?? {}) : null), [costLines.data, flatLines, money.data]);
   // The cost read's reason per record, so a line says why it carries no amount (PU16), from the one read that decides it.
   const costReasons = useMemo(() => Object.fromEntries((pva.data?.costLines ?? []).flatMap((l) => l.recordId ? [[`${l.source}:${l.recordId}`, l.reason]] : [])), [pva.data]);
+  const woFolderDoc = useMemo(
+    () => (docs.data ?? []).find((d) => d.work_order_id === id && isMicrosoftFolder(d)) ?? null,
+    [docs.data, id],
+  );
   const documents = useMemo(() => {
     const ids = new Set([...acceptances.map((a) => a.document_id).filter((d): d is string => Boolean(d)), ...(claimDocs.data ?? [])]);
-    return (docs.data ?? []).filter((d) => ids.has(d.id));
-  }, [docs.data, acceptances, claimDocs.data]);
+    return (docs.data ?? []).filter((d) => (d.work_order_id === id && !isMicrosoftFolder(d)) || ids.has(d.id));
+  }, [docs.data, acceptances, claimDocs.data, id]);
 
   if (wo.isPending) return <><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" shape="detail" rows={5} /></>;
   if (wo.isError) {
@@ -172,6 +183,8 @@ const WorkOrderDetail: React.FC = () => {
           <WorkOrderAheadBadge workOrderId={row.id} href={`/projects/${row.project_id}/work-orders`} />
           {row.client_po_number && <span>{t('clientPo', 'Client PO {{po}}', { po: row.client_po_number })}</span>}
         </span>}
+        primaryAction={decision.primaryAction}
+        menuItems={decision.menuItems.length > 0 ? decision.menuItems : undefined}
         stats={[
           { label: t('project', 'Project'), value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
@@ -192,10 +205,15 @@ const WorkOrderDetail: React.FC = () => {
           {issueWaitingText}
         </p>
       )}
+      {row.status === 'Cancelled' && row.cancel_reason && (
+        <p data-testid="wo-cancel-reason" className="text-control text-foreground">{t('decision.cancelledBecause', 'Cancelled because: {{reason}}', { reason: row.cancel_reason })}</p>
+      )}
+      {decision.dialogs}
       <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <PageIndex entries={indexEntries} />
       <RecordStack>
+        {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
         <PageGroup id="wo-scope" label={groupLabels.scope}>
           <SiteCheckpointFlag workOrderId={row.id} />
           <WorkOrderCheckpoints workOrderId={row.id} projectManagerId={project.data?.project_manager_id ?? null} status={row.status} />
@@ -204,6 +222,7 @@ const WorkOrderDetail: React.FC = () => {
             onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
           <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
           <WorkOrderCrewLink workOrderId={row.id} />
+          <SiteReportsSection workOrderId={row.id} />
         </PageGroup>
         <PageGroup id="wo-cost" label={groupLabels.cost}>
           <CostSection reasons={costReasons} labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
@@ -217,6 +236,8 @@ const WorkOrderDetail: React.FC = () => {
         </PageGroup>
         {hasMaterial && (
           <PageGroup id="wo-material" label={groupLabels.material}>
+            {/* #2885: quantities for the stock roles, who have no Contract area; value shows only where the server sends it. */}
+            {stockOn && <div className="space-y-2"><h3 className="text-control font-medium">{t('stock:siteWork.balance.open', 'Stock for this work order')}</h3><WorkOrderStockBalance workOrderId={row.id} currency={row.currency} /></div>}
             {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
             {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
           </PageGroup>
@@ -263,13 +284,22 @@ const WorkOrderDetail: React.FC = () => {
         </PageGroup>
         <PageGroup id="wo-closeout" label={groupLabels.closeout}>
           <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+          <MaterialCompletionLink workOrderId={row.id} />
           <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
             steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
             scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}
             scopeError={allocations.isError || boq.isError || bastList.isError} />
         </PageGroup>
         <PageGroup id="wo-documents" label={groupLabels.documents}>
-          <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
+          <DocumentsSection
+            workOrderId={row.id}
+            projectId={row.project_id}
+            folderDoc={woFolderDoc}
+            documents={documents}
+            isPending={docs.isPending || bastList.isPending || claimDocs.isPending}
+            isError={docs.isError || bastList.isError || claimDocs.isError}
+            onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }}
+          />
           <SafetySection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         </PageGroup>
         <PageGroup id="wo-issues" label={groupLabels.issues}>

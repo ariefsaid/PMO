@@ -638,25 +638,32 @@
         "noticesHeading": "Pemberitahuan (mati sampai Anda memilih)",
         "label": "Tambahan penagihan",
         "helper": "Pendapatan per disiplin, rencana pendapatan, waktu menganggur sebagai biaya, dan pengingat untuk pekerjaan yang selesai tetapi belum ditagih."
+      },
+      "managementViews": {
+        "label": "Tampilan manajemen",
+        "helper": "Tampilkan portofolio proyek dan progres yang belum diterima oleh klien."
       }
     },
     "modulesNav": "Modul",
-    "candidateTemplate": {
-      "saved": "Daftar pemeriksaan disimpan",
-      "title": "Daftar pemeriksaan kandidat $t(common:terms.clientWorkOrder)",
-      "helper": "Pemeriksaan yang dilakukan sebelum kandidat $t(common:terms.clientWorkOrder) diterima. Kandidat menyalin daftar ini saat dibuka, sehingga perubahan berikutnya tidak mengubah kandidat yang sudah terbuka.",
-      "loadError": "Daftar pemeriksaan tidak dapat dimuat",
-      "empty": "Belum ada pemeriksaan. Tanpa pemeriksaan, kandidat dapat langsung diterima.",
+    "checkTemplate": {
+      "title": "Pemeriksaan standar untuk $t(common:terms.clientWorkOrder) baru",
+      "helper": "Saat $t(common:terms.clientWorkOrder) dicatat sebagai draf, setiap baris menjadi tugas dengan tenggat sebanyak hari itu. Pemegang peran kerja tersebut menjadi penanggung jawab; bila lebih dari satu orang atau tidak ada, penerbit yang memilih.",
+      "saved": "Pemeriksaan standar disimpan",
+      "loadError": "Pemeriksaan standar tidak dapat dimuat",
+      "empty": "Belum ada pemeriksaan standar. $t(common:terms.clientWorkOrder) baru dimulai tanpa pemeriksaan.",
       "itemLabel": "Pemeriksaan {{n}}",
-      "requiredFor": "Wajib: {{name}}",
-      "required": "Wajib",
-      "up": "Naikkan {{name}}",
-      "down": "Turunkan {{name}}",
+      "up": "Pindahkan {{name}} ke atas",
+      "down": "Pindahkan {{name}} ke bawah",
       "remove": "Hapus {{name}}",
       "removeShort": "Hapus",
       "add": "Tambah pemeriksaan",
-      "save": "Simpan daftar",
-      "discard": "Buang perubahan"
+      "save": "Simpan pemeriksaan",
+      "discard": "Buang perubahan",
+      "chooseRole": "Pilih peran kerja",
+      "roleFor": "Peran kerja untuk pemeriksaan {{n}}",
+      "daysFor": "Hari untuk pemeriksaan {{n}}",
+      "daysPlaceholder": "Hari",
+      "daysUnit": "hari"
     },
     "accountMap": {
       "adminOnly": "Hanya Admin yang dapat mengubah ini."
@@ -872,6 +879,17 @@
       "saved": "Target kehadiran disimpan",
       "title": "Target kehadiran",
       "turnOff": "Matikan"
+    },
+    "dsrValidateRoles": {
+      "title": "Validasi laporan harian lokasi",
+      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Centang jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
+      "legend": "Jabatan yang memvalidasi laporan harian lokasi",
+      "loadError": "Peran validator laporan lokasi tidak dapat dimuat",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "viewOnly": "Keluar dari mode lihat-sebagai untuk mengubah pengaturan ini.",
+      "turnOn": "Aktifkan peran bawaan di Administrasi > Orang untuk menetapkan kemampuan ini.",
+      "save": "Simpan",
+      "saved": "Peran validator laporan lokasi disimpan"
     },
     "attendanceRoles": {
       "title": "Catatan waktu",
@@ -1093,7 +1111,8 @@
     "daysInvalid": "Isi 1 sampai 5 bilangan bulat hari, dari 1 sampai 365, dipisahkan koma.",
     "daysLabel": "Ingatkan sekian hari sebelum kedaluwarsa",
     "daysHelp": "Sampai 5 nilai, misalnya 30, 14, 7.",
-    "daysSave": "Simpan hari peringatan"
+    "daysSave": "Simpan hari peringatan",
+    "medicalNotice": "Peringatan kedaluwarsa diterima tim SDM dan atasan langsung. Pekerja diberi tahu setelah izin disetujui."
   },
   "labourCost": {
     "title": "Biaya tenaga kerja",
@@ -1318,5 +1337,16 @@
       "expired": "Kedaluwarsa",
       "missing": "Belum selesai"
     }
-  }
+  },
+  "stockIssueCost": {
+    "title": "Biaya pengeluaran stok",
+    "enabled": "Hitung pengeluaran stok sebagai biaya",
+    "date": "Tanggal berlaku",
+    "save": "Simpan",
+    "saved": "Pengaturan biaya stok disimpan",
+    "loadError": "Pengaturan biaya stok tidak dapat dimuat",
+    "migration": "Migrasikan biaya stok yang ada sebelum mengaktifkan pengaturan ini.",
+    "erp": "Pengaturan ini tersedia untuk organisasi yang menggunakan biaya pembayaran PMO."
+  },
+  "documentTypesNav": "Jenis dokumen"
 }

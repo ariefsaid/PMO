@@ -10,6 +10,7 @@ import type { WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  effectiveRole: null as string | null,
   key: 'billing_officer' as string | null,
   steps: undefined as unknown,
   state: { isError: false, refetch: vi.fn() },
@@ -17,13 +18,26 @@ const h = vi.hoisted(() => ({
   skip: vi.fn(),
   assign: vi.fn(),
   attach: vi.fn(),
+  markEvidence: vi.fn(),
+  add: vi.fn(),
+  saveAsTemplate: vi.fn(),
+  save: vi.fn(),
+  checklistEnabled: true,
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.checklistEnabled }) }));
+
 vi.mock('@/src/hooks/useBillingSteps', () => ({
   useWorkOrderSteps: () => ({ data: h.steps, ...h.state }),
   useWorkOrderStepMutations: () => ({
     complete: { mutateAsync: h.complete, isPending: false }, skip: { mutateAsync: h.skip, isPending: false },
     assign: { mutateAsync: h.assign, isPending: false }, attach: { mutateAsync: h.attach, isPending: false },
+    markEvidence: { mutateAsync: h.markEvidence, isPending: false },
+    add: { mutateAsync: h.add, isPending: false }, saveAsTemplate: { mutateAsync: h.saveAsTemplate, isPending: false },
+  }),
+  useStepTemplateMutations: () => ({
+    save: { mutateAsync: h.save, isPending: false }, saveWorkOrder: { mutateAsync: h.saveAsTemplate, isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({
@@ -37,7 +51,11 @@ vi.mock('@/src/hooks/useUsers', () => ({
   ] }),
 }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => `role:${k}` }));
-vi.mock('@/src/lib/refusals', () => ({ useRefusalLine: () => (e: unknown) => `refused: ${(e as Error).message}` }));
+vi.mock('@/src/lib/refusals', () => ({
+  useRefusalLine: () => (e: unknown) => `refused: ${(e as Error).message}`,
+  useRefusalText: () => (e: unknown) => ({ known: false, headline: `refused: ${(e as Error).message}`, detail: '' }),
+}));
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { BillingStepsSection } from './BillingStepsSection';
 
 const step = (p: Partial<WorkOrderStep> & Pick<WorkOrderStep, 'id' | 'position' | 'name'>): WorkOrderStep => ({
@@ -60,11 +78,36 @@ function renderIt(props: Partial<React.ComponentProps<typeof BillingStepsSection
 }
 
 beforeEach(() => {
-  h.role = 'Finance'; h.key = 'billing_officer'; h.steps = steps(); h.state = { isError: false, refetch: vi.fn() };
-  for (const f of [h.complete, h.skip, h.assign, h.attach]) f.mockReset().mockResolvedValue(undefined);
+  h.effectiveRole=null; h.role = 'Finance'; h.key = 'billing_officer'; h.steps = steps(); h.checklistEnabled = true; h.state = { isError: false, refetch: vi.fn() };
+  for (const f of [h.complete, h.skip, h.assign, h.attach, h.markEvidence, h.add, h.saveAsTemplate, h.save]) f.mockReset().mockResolvedValue(undefined);
+
 });
 
 describe('BillingStepsSection', () => {
+  it('#1126 the age of an open step counts to the organisation\'s day, not the browser\'s', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      renderIt({ today: undefined });
+      const row = screen.getByTestId('wo-billing-steps').querySelector('[aria-label="Step two"]') as HTMLElement;
+      expect(within(row).getByText('266 days past target')).toBeInTheDocument();
+    } finally { resetActiveLocale(); vi.useRealTimers(); }
+  });
+
+  it('AC-WQE-006 only Admin can mark an existing work-order step for claim evidence', async () => {
+    h.role = 'Admin';
+    const user = renderIt();
+    const row = screen.getByTestId('wo-billing-steps').querySelector('[aria-label="Step two"]') as HTMLElement;
+    await user.click(within(row).getByRole('checkbox', { name: 'Documents here count as claim evidence' }));
+    expect(h.markEvidence).toHaveBeenCalledWith({ stepId: 's2', enabled: true });
+  });
+
+  it('AC-WQE-006 Finance cannot mark an existing work-order step', () => {
+    renderIt();
+    expect(screen.queryByRole('checkbox', { name: 'Documents here count as claim evidence' })).not.toBeInTheDocument();
+  });
+
   it('AC-WBS-012 shows the chain: step, role, person, target, status, documents', () => {
     renderIt();
     const rows = within(screen.getByRole('list', { name: 'Billing steps' })).getAllByTestId('wo-billing-step');
@@ -123,10 +166,178 @@ describe('BillingStepsSection', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('refused: WBS_DATE_FUTURE: nope');
   });
 
+  describe('editing the list (wo-checklist-edit.spec.md)', () => {
+    it('AC-WCE-001 a runner adds a step: its name, owner role and place go to the database, and the form closes', async () => {
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      await user.type(screen.getByLabelText('Step name'), 'Joint survey sign-off');
+      await user.selectOptions(screen.getByLabelText('Owner role'), 'quantity_surveyor');
+      expect(screen.getByLabelText('Position')).toHaveValue('2');
+      await user.selectOptions(screen.getByLabelText('Position'), '3');
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: 3, step: { name: 'Joint survey sign-off', ownerRoleKey: 'quantity_surveyor' } });
+      expect(screen.queryByLabelText('Step name')).not.toBeInTheDocument();
+    });
+
+    it('AC-WCE-005 a step is offered a place after the current step or later, never before it', async () => {
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      const options = within(screen.getByLabelText('Position')).getAllByRole('option').map((o) => [o.getAttribute('value'), o.textContent]);
+      expect(options).toEqual([['2', 'After Step two'], ['3', 'After Step three']]);
+      expect(within(screen.getByLabelText('Owner role')).getAllByRole('option').map((o) => o.textContent)).not.toContain('role:foreman');
+    });
+
+    it('AC-WCE-001 a step without a name is not sent, and Cancel closes the form', async () => {
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+      await user.type(screen.getByLabelText('Step name'), '   ');
+      expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(screen.queryByLabelText('Step name')).not.toBeInTheDocument();
+    });
+
+    it('AC-WCE-001 a list with nothing open offers one place, the end; a step without an owner role carries only its name', async () => {
+      h.steps = [step({ id: 's1', position: 1, name: 'Done long ago', startedOn: '2026-03-01', doneOn: '2026-03-03' })];
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      expect(screen.queryByLabelText('Position')).not.toBeInTheDocument();
+      await user.type(screen.getByLabelText('Step name'), 'Archive note');
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: null, step: { name: 'Archive note', ownerRoleKey: null } });
+    });
+
+    it('AC-WCE-005 a hidden finished tail is appended after by sending the end sentinel, not the visible row count', async () => {
+      h.steps = [
+        step({ id: 's1', position: 1, name: 'Plan', startedOn: '2026-03-01', doneOn: '2026-03-03' }),
+        step({ id: 's3', position: 3, name: 'Report', startedOn: '2026-03-04', doneOn: '2026-03-05' }),
+      ];
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      await user.type(screen.getByLabelText('Step name'), 'Close-out note');
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: null, step: { name: 'Close-out note', ownerRoleKey: null } });
+    });
+
+    it('AC-WCE-003 the refusal sentence shows and the typed step stays when the database refuses', async () => {
+      h.add.mockRejectedValue(new AppError('WBS_STEP_CLOSED: a new step goes after the current step', '55000'));
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      await user.type(screen.getByLabelText('Step name'), 'Too early');
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('refused: WBS_STEP_CLOSED: a new step goes after the current step');
+      expect(screen.getByLabelText('Step name')).toHaveValue('Too early');
+    });
+
+    it('AC-WCE-003 a reader who may not run the checklist sees no way to add a step', () => {
+      h.key = 'quality_manager'; h.role = 'Project Manager';
+      renderIt();
+      expect(screen.queryByRole('button', { name: 'Add step' })).not.toBeInTheDocument();
+    });
+
+    it('AC-WCE-006 existing organisations see neither checklist edit action while the setting is off', () => {
+      h.checklistEnabled = false;
+      renderIt();
+      expect(screen.queryByRole('button', { name: 'Add step' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Save as template' })).not.toBeInTheDocument();
+    });
+
+    it('AC-WBS-007 steps cannot be added once the work order is no longer issued; the finished list can still be saved as a template', () => {
+      renderIt({ status: 'Closed' });
+      expect(screen.queryByRole('button', { name: 'Add step' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save as template' })).toBeInTheDocument();
+    });
+
+    it('AC-WCE-002 Save as template sends the list in order with its owner job roles and checklist slots, then says it saved', async () => {
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Save as template' }));
+      expect(screen.getByText('3 steps, in this order, with their owner roles.')).toBeInTheDocument();
+      await user.type(screen.getByLabelText('Template name'), 'Remote site');
+      await user.click(screen.getByRole('button', { name: 'Save template' }));
+      expect(h.saveAsTemplate).toHaveBeenCalledWith({ workOrderId: 'w1', name: 'Remote site' });
+      expect(h.save).not.toHaveBeenCalled();
+      expect(await screen.findByRole('status')).toHaveTextContent('Saved as template "Remote site".');
+      expect(screen.queryByLabelText('Template name')).not.toBeInTheDocument();
+    });
+
+    it('AC-WCE-002 a template without a name is not saved', async () => {
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Save as template' }));
+      expect(screen.getByRole('button', { name: 'Save template' })).toBeDisabled();
+      await user.type(screen.getByLabelText('Template name'), '   ');
+      expect(screen.getByRole('button', { name: 'Save template' })).toBeDisabled();
+    });
+
+    it('AC-WCE-002 a name an active template already uses is said to be taken', async () => {
+      h.saveAsTemplate.mockRejectedValue(new AppError('WBS_TEMPLATE_TAKEN: an active template with this name already exists', '23505'));
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Save as template' }));
+      await user.type(screen.getByLabelText('Template name'), 'WCE template');
+      await user.click(screen.getByRole('button', { name: 'Save template' }));
+      expect(await screen.findByText('A template with this name already exists. Choose another name.')).toBeInTheDocument();
+      expect(h.save).not.toHaveBeenCalled();
+    });
+
+    it('AC-WCE-002 only Finance or an Admin can save a template; anyone who runs the steps can add one', () => {
+      h.role = 'Project Manager'; h.key = 'project_manager';
+      renderIt();
+      expect(screen.queryByRole('button', { name: 'Save as template' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Add step' })).toBeInTheDocument();
+    });
+
+    it('AC-WCE-002 nothing is saved from an empty list, but its first step can be added and a refusal there is shown', async () => {
+      h.steps = [];
+      h.add.mockRejectedValue(new AppError("WBS_STEP_ADD_PM: only the project's manager can add a step to this checklist", '42501'));
+      const user = renderIt();
+      expect(screen.queryByRole('button', { name: 'Save as template' })).not.toBeInTheDocument();
+      expect(screen.getByTestId('wo-billing-steps-empty')).toHaveTextContent('No billing steps to show');
+      await user.click(screen.getByRole('button', { name: 'Add step' }));
+      await user.type(screen.getByLabelText('Step name'), 'Kick-off record');
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(h.add).toHaveBeenCalledWith({ workOrderId: 'w1', afterPosition: null, step: { name: 'Kick-off record', ownerRoleKey: null } });
+      expect(await screen.findByRole('alert')).toHaveTextContent('refused: WBS_STEP_ADD_PM');
+    });
+  });
+
   it('an optional current step can be skipped', async () => {
     h.steps = [step({ id: 's8', position: 1, name: 'Maybe', optional: true, ownerRoleKey: 'billing_officer', startedOn: '2026-03-10' })];
     const user = renderIt();
     await user.click(screen.getByRole('button', { name: 'Skip Maybe' }));
-    expect(h.skip).toHaveBeenCalledWith('s8');
+    // Skipping asks for a reason first: nothing is sent until one is typed.
+    const dialog = screen.getByRole('dialog', { name: 'Skip Maybe' });
+    expect(screen.getByRole('button', { name: 'Skip step' })).toBeDisabled();
+    expect(h.skip).not.toHaveBeenCalled();
+    // A reason the database finds too short is refused and shown; the dialog stays open.
+    h.skip.mockRejectedValueOnce(new AppError('WBS_REASON: give a reason of 3 to 500 characters', '23514'));
+    await user.type(within(dialog).getByRole('textbox'), 'ab');
+    await user.click(screen.getByRole('button', { name: 'Skip step' }));
+    expect(h.skip).toHaveBeenLastCalledWith({ stepId: 's8', reason: 'ab' });
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    // With a valid reason (trimmed) the step is skipped.
+    await user.clear(within(dialog).getByRole('textbox'));
+    await user.type(within(dialog).getByRole('textbox'), '  Client waived it  ');
+    await user.click(screen.getByRole('button', { name: 'Skip step' }));
+    expect(h.skip).toHaveBeenLastCalledWith({ stepId: 's8', reason: 'Client waived it' });
   });
+});
+
+it('AC-SITE-BQ10 an inspector files evidence on an owned step with no template slots', async () => {
+ h.role='Engineer'; h.key='quality_inspector';
+ h.steps=[step({id:'quality',position:1,name:'Quality',ownerRoleKey:'quality_inspector',startedOn:'2026-03-10',documents:[]})];
+ const user=renderIt();
+ await user.selectOptions(screen.getByRole('combobox',{name:'Additional document'}),'d1');
+ await user.click(screen.getByRole('button',{name:'Attach additional document'}));
+ expect(h.attach).toHaveBeenCalledWith({stepId:'quality',slotId:null,documentId:'d1'});
+});
+
+it('AC-SITE-BQ10 an Admin viewing as an Engineer cannot attach extra evidence', () => {
+ h.role='Admin'; h.effectiveRole='Engineer';
+ h.steps=[step({id:'quality',position:1,name:'Quality',startedOn:'2026-03-10',documents:[]})];
+ renderIt();
+ expect(screen.queryByRole('combobox',{name:'Additional document'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Attach additional document'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Add step'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Save as template'})).not.toBeInTheDocument();
+ expect(h.attach).not.toHaveBeenCalled();
 });

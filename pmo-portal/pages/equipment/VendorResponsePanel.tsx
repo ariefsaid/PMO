@@ -79,7 +79,7 @@ const Panel: React.FC<{ assetId: string; today: string }> = ({ assetId, today })
   const summary = vendorResponseSummary(rows.flatMap((r) => (r.vendor_id ? [{ vendorId: r.vendor_id, responseMinutes: r.response_minutes }] : [])));
   return (
     <Card className="mb-6">
-      <CardHead title={t('equipment:vendorResponse.title', 'Vendor response to breakdowns')} />
+      <CardHead>{t('equipment:vendorResponse.title', 'Vendor response to breakdowns')}</CardHead>
       <CardPad>
         <ul className="grid gap-2">
           {rows.map((r) => (

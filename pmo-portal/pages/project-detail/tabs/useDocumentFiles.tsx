@@ -14,7 +14,12 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { isMicrosoftFolder } from './documentUtils';
 
-export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], canEditDoc: (doc: ProjectDocumentRow) => boolean) {
+export function useDocumentFiles(
+  projectId: string,
+  all: ProjectDocumentRow[],
+  canEditDoc: (doc: ProjectDocumentRow) => boolean,
+  options?: { workOrderId?: string; hasFolder?: boolean },
+) {
   const { t } = useTranslation('project');
   const { toast } = useToast();
   const viewer = useViewerOnDemand();
@@ -67,7 +72,13 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
       return;
     }
     const where = destination.kind === 'microsoft' ? 'microsoft' : 'private';
-    const args = { docId: activeFileDoc.docId, file, destination: where, oldPath: target.file_path } as const;
+    const args = {
+      docId: activeFileDoc.docId,
+      file,
+      destination: where,
+      oldPath: target.file_path,
+      ...(options?.workOrderId ? { workOrderId: options.workOrderId, hasRecordFolder: Boolean(options.hasFolder) } : {}),
+    } as const;
     // OE13R01-001: upload and replace share ONE hook mutation; `mode` only records which user
     // action opened the chooser (labels, dedupe of identical args).
     upload.mutate(args);

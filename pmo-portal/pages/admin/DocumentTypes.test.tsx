@@ -3,16 +3,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
-import type { Role } from '@/src/auth/AuthContext';
+import { AuthContext, type Role } from '@/src/auth/AuthContext';
 import { BahasaProvider } from '@/test/bahasa';
 
 const h = vi.hoisted(() => ({
   role: 'Admin' as string,
+  effectiveRole: null as string | null,
+  builtInRole: null as string | null,
   types: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   days: { data: [30, 14, 7] as number[] | undefined, isError: false, refetch: vi.fn() },
   create: vi.fn(), update: vi.fn(), archive: vi.fn(), setDays: vi.fn(),
 }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1', built_in_role: h.builtInRole } }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.effectiveRole ?? h.role) as Role }) }));
 vi.mock('@/src/hooks/useDocumentExpiry', () => ({
   useAdminDocumentTypes: () => h.types,
   useDocumentWarningDays: () => h.days,
@@ -23,11 +26,20 @@ import DocumentTypes from './DocumentTypes';
 import { parseWarningDays } from '@/src/lib/db/documentExpiry';
 
 const type = (over: Record<string, unknown> = {}) => ({ id: 't1', name: 'Safety passport', applies_to: 'person', is_medical: false, notify_roles: ['Admin'], notify_person: false, ...over });
-const renderIt = (wrap = false) => render(wrap ? <BahasaProvider><ToastProvider><DocumentTypes /></ToastProvider></BahasaProvider> : <ToastProvider><DocumentTypes /></ToastProvider>);
+const renderIt = (wrap = false) => {
+  const tree = (
+    <AuthContext.Provider value={{ currentUser: { id: 'u1', org_id: 'org-1', built_in_role: h.builtInRole }, role: h.role } as never}>
+      <ToastProvider><DocumentTypes /></ToastProvider>
+    </AuthContext.Provider>
+  );
+  return render(wrap ? <BahasaProvider>{tree}</BahasaProvider> : tree);
+};
 
 describe('Document types screen (#2614)', () => {
   beforeEach(() => {
     h.role = 'Admin';
+    h.effectiveRole = null;
+    h.builtInRole = null;
     h.types = { data: [type()], isPending: false, isError: false, refetch: vi.fn() };
     h.days = { data: [30, 14, 7], isError: false, refetch: vi.fn() };
     h.create.mockReset().mockResolvedValue({}); h.update.mockReset().mockResolvedValue(undefined);
@@ -156,6 +168,77 @@ describe('Document types screen (#2614)', () => {
     expect(screen.getByRole('button', { name: 'Tambah jenis dokumen' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan hari peringatan' })).toBeInTheDocument();
     expect(screen.queryByText('Add document type')).toBeNull();
+  });
+
+  it('AC-HMDT-001, AC-HMDT-003 HR Manager add form offers only non-medical person types and edits only non-medical person rows', async () => {
+    const user = userEvent.setup();
+    h.role = 'Project Manager';
+    h.builtInRole = 'hr_manager';
+    h.types = {
+      data: [
+        type({ id: 't1', name: 'Safety passport', applies_to: 'person', is_medical: false }),
+        type({ id: 't2', name: 'Fitness check', applies_to: 'person', is_medical: true }),
+        type({ id: 't3', name: 'Crane cert', applies_to: 'equipment', is_medical: false }),
+      ],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
+    renderIt();
+    expect(screen.getByRole('button', { name: 'Edit Safety passport' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Fitness check' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit Crane cert' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Add document type' }));
+    const dialog = within(screen.getByRole('dialog'));
+    const applies = dialog.getByLabelText('Applies to') as HTMLSelectElement;
+    expect(Array.from(applies.options).map((o) => o.value)).toEqual(['person']);
+    expect(dialog.queryByRole('option', { name: 'Equipment' })).toBeNull();
+    expect(dialog.queryByRole('checkbox', { name: /Medical document/i })).toBeNull();
+
+    await user.type(dialog.getByLabelText(/^Name/), 'Work permit');
+    await user.click(dialog.getByRole('button', { name: 'Save document type' }));
+    expect(h.create).toHaveBeenCalledWith({
+      name: 'Work permit',
+      applies_to: 'person',
+      is_medical: false,
+      notify_roles: ['Admin'],
+      notify_person: false,
+    });
+  });
+
+  it('AC-HMDT-002, AC-HMDT-004 Admin keeps Equipment and Medical options; HR Manager in Bahasa sees only Orang', async () => {
+    const user = userEvent.setup();
+    h.role = 'Admin';
+    h.builtInRole = 'hr_manager';
+    const { unmount } = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Add document type' }));
+    const adminDialog = within(screen.getByRole('dialog'));
+    expect(Array.from((adminDialog.getByLabelText('Applies to') as HTMLSelectElement).options).map((o) => o.value)).toEqual(['person', 'equipment']);
+    expect(adminDialog.getByRole('checkbox', { name: /Medical document/i })).toBeInTheDocument();
+    unmount();
+
+    h.role = 'Project Manager';
+    h.builtInRole = 'hr_manager';
+    renderIt(true);
+    await user.click(screen.getByRole('button', { name: 'Tambah jenis dokumen' }));
+    const idDialog = within(screen.getByRole('dialog'));
+    const idApplies = idDialog.getByLabelText('Berlaku untuk') as HTMLSelectElement;
+    expect(Array.from(idApplies.options).map((o) => o.text)).toEqual(['Personel']);
+    expect(idDialog.queryByRole('checkbox', { name: /Dokumen medis/i })).toBeNull();
+  });
+});
+
+describe('medical expiry recipient explanation', () => {
+  it('AC-SR-005 medical type shows the release rule instead of a worker expiry switch', async () => {
+    h.role = 'Admin'; h.effectiveRole = null; h.builtInRole = null;
+    const user = userEvent.setup();
+    renderIt();
+    await user.click(screen.getByRole('button', { name: 'Add document type' }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.click(dialog.getByRole('checkbox', { name: /Medical document/i }));
+    expect(dialog.queryByRole('checkbox', { name: 'Also tell the person' })).toBeNull();
+    expect(dialog.getByText(/Expiry warnings go to the people team and direct manager/)).toBeInTheDocument();
   });
 });
 

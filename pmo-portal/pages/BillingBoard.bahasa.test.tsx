@@ -7,9 +7,11 @@ import type { BoardRow } from '@/src/lib/billingBoard';
 
 const rows: BoardRow[] = [
   { claimId: 'c1', projectId: 'p1', projectName: 'Proyek Utara', workOrderId: 'w1', woNumber: 'WO-7', claimCreatedAt: '2026-01-01T00:00:00Z',
+    claimValue: '1250.00', currency: 'IDR',
     stepCount: 3, stepsDone: 1, currentPosition: 2, currentName: 'Persetujuan', ownerRole: 'Finance', startedOn: '2026-01-01', lastCompletedOn: null,
     dueOn: '2026-01-08', allDone: false, today: '2026-01-11' },
   { claimId: 'c2', projectId: 'p2', projectName: 'Proyek Selatan', workOrderId: null, woNumber: null, claimCreatedAt: '2026-01-01T00:00:00Z',
+    claimValue: '25.50', currency: 'USD',
     stepCount: 2, stepsDone: 2, currentPosition: null, currentName: null, ownerRole: null, startedOn: null, lastCompletedOn: '2026-01-10',
     dueOn: null, allDone: true, today: '2026-01-11' },
 ];
@@ -41,6 +43,9 @@ describe('BillingBoard in Bahasa Indonesia', () => {
     expect(within(first).getByText('3 hari lewat target')).toBeTruthy();
     expect(within(first).getByText('Menunggu Keuangan', { exact: false })).toBeTruthy();
     expect(within(second).getByText('1 hari di langkah ini')).toBeTruthy();
+    expect(screen.getAllByTestId('billing-board-column-totals')).toHaveLength(2);
+    expect(screen.getAllByTestId('billing-board-column-totals').some((node) => /^Total .*26/.test(node.textContent ?? ''))).toBe(true);
+    expect(first.textContent).not.toMatch(/IDR|USD|Rp|\$|1\.250/);
     expect(screen.getByTestId('billing-board-truncated').textContent).toContain('yang tertua');
     expect(screen.queryByText(/days on this step|days past target|Billing board/)).toBeNull();
   });

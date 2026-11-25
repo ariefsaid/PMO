@@ -69,5 +69,8 @@
   },
   "workOrders": {
     "empty": "You are not on a work order today"
+  },
+  "notices": {
+    "title": "Notices"
   }
 }

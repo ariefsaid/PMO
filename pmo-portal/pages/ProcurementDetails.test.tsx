@@ -5,6 +5,9 @@ const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }))
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 // #1671: the shared ownership mock plus the org-binding answer the Void bill control reads; unset reads as "not known" (control hidden).
 const orgBinding = vi.hoisted(() => ({ bound: null as boolean | null }));
+const purchaseReader = vi.hoisted(() => ({ allowed: false }));
+vi.mock('@/src/hooks/usePurchaseCaseRead', () => ({ usePurchaseCaseRead: () => purchaseReader.allowed }));
+afterEach(() => { purchaseReader.allowed = false; });
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => {
   const shared = await import('@/test/domainOwnershipMock');
   return { useDomainOwnershipMode: (domain: string) => ({ ...shared.useDomainOwnershipMode(domain), orgBound: orgBinding.bound }) };
@@ -428,6 +431,37 @@ const chooseRecordKind = async (label: string) => {
   await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
   await userEvent.click(await screen.findByRole('menuitem', { name: label }));
 };
+
+it('AC-PURCHASE-READ lets the procurement manager inspect another manager’s order without gaining actions', () => {
+  mockEffectiveRole = 'Project Manager';
+  purchaseReader.allowed = true;
+  detailState.data = { ...orderedProcurement, requested_by_id: 'other-requester', project: { ...baseProcurement.project, project_manager_id: 'other-manager' } };
+  renderPage();
+  expect(screen.queryByTestId('procurement-no-access')).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: orderedProcurement.title })).toBeInTheDocument();
+  expect(screen.getByText('PO-2601100001')).toBeInTheDocument();
+  expect(screen.getAllByText('VQ-2601100001').length).toBeGreaterThan(0);
+  expect(screen.getByText('GR-2601100001')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /edit|approve|order|record|add/i })).not.toBeInTheDocument();
+});
+
+it.each(['Approved', 'Rejected', 'Ordered'] as const)('JOB-PU4-READ named decider retains status after %s without ordering rights', (status) => {
+  mockEffectiveRole = 'Project Manager';
+  purchaseReader.allowed = false;
+  detailState.data = { ...orderedProcurement, status, approved_by_id: status === 'Rejected' ? null : 'u-alice', statusEvents: status === 'Rejected' ? [{ id: 'decision', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Rejected', actor_id: 'u-alice', notes: null, created_at: '2026-06-05T00:00:00Z', org_id: 'org-1' }] : [], requested_by_id: 'other-requester', project: { ...baseProcurement.project, project_manager_id: 'other-manager' }, approvalRoute: { procurementId: 'proc-001', route: 'project', reason: 'within_budget', approvers: [{ id: 'u-alice', fullName: 'Alice' }], requestAmount: 50000, lineBudget: 100000, lineUsed: 50000 } };
+  renderPage();
+  expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', status);
+  expect(screen.getByRole('tab', { name: /^Timeline/ })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /edit|approve|order|record|add/i })).not.toBeInTheDocument();
+});
+
+it('AC-PURCHASE-READ keeps an unrelated manager outside the inspection scope', () => {
+  mockEffectiveRole = 'Project Manager';
+  purchaseReader.allowed = false;
+  detailState.data = { ...orderedProcurement, requested_by_id: 'other-requester', project: { ...baseProcurement.project, project_manager_id: 'other-manager' } };
+  renderPage();
+  expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+});
 
 // ---------------------------------------------------------------------------
 // D1 — AC-804: loading / empty / error+retry states (NFR-PROC-UI-001)
@@ -1050,17 +1084,18 @@ describe('Action bar covers mid-flow transitions', () => {
     expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
   });
 
-  it('AC-PFE-010: Record another document is filtered by what the role may record', async () => {
-    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+  it.each([
+    ['Draft', ['Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment', 'Link from accounting system']],
+    ['Vendor Quoted', ['Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment', 'Add quotation', 'Link from accounting system']],
+  ] as const)('AC-PFE-010: Finance capture in %s follows its role and sourcing stage', async (status, expected) => {
+    detailState.data = { ...baseProcurement, status, requested_by_id: 'u-other' };
     renderPage('proc-001', 'files');
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
-    // Finance may request, source, invoice and pay; it is not the requester and not a receiver, so no receipt.
+    // Finance keeps its document rights; supplier quotations start after Request quotations.
+    // It is neither the requester nor a receiver, so neither stage offers a receipt.
     const menu = await screen.findByRole('menu', { name: /record another document/i });
-    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment',
-      'Add quotation', 'Link from accounting system',
-    ]);
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(expected);
     await userEvent.click(screen.getByRole('menuitem', { name: 'Supplier invoice' }));
     expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
   });

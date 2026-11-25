@@ -2,7 +2,9 @@
   "dueThisWeek": "Due this week",
   "clearDueWeek": "Clear the due-this-week filter",
   "myTasks": {
-    "openTasksShort": "Open"
+    "openTasksShort": "Open",
+    "overdueShort": "Overdue",
+    "nothingOverdue": "Nothing is overdue"
   },
   "push": {
     "pushing": "Pushing…",
@@ -89,5 +91,8 @@
     },
     "unlink": "Stop following this record",
     "unlinked": "Stopped following the record."
+  },
+  "sourceIssue": {
+    "from": "From issue"
   }
 }

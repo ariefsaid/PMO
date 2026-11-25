@@ -1,3 +1,4 @@
+import type { CandidateRecord } from '@/src/lib/db/workOrderCandidateRecords';
 /** Delivery contracts: milestones, work orders, progress billing, acceptances. */
 import type { TaskGroupRow, TaskGroupInput, TaskGroupPatch } from '@/src/lib/db/taskGroups';
 import type { CommandIntent } from './commandIntent';
@@ -22,6 +23,7 @@ import type {
   WorkOrderListRow,
   WorkOrderStatus,
   WorkOrderInput,
+  WorkOrderImportRow,
   WorkOrderPatch,
   SetWorkOrderValueInput,
   ProjectDrawdown,
@@ -33,6 +35,7 @@ import type {
   MilestoneInput,
   MilestonePatch,
   ProjectDeliverySummary,
+  ProjectMilestoneOverview,
   MilestoneDate,
 } from '@/src/lib/db/milestones';
 
@@ -40,6 +43,7 @@ export interface MilestoneRepository {
   list: (projectId: string) => Promise<MilestoneWithProgress[]>;
   deliveryForProjects: (ids: string[]) => Promise<Record<string, number>>;
   deliverySummaryForProjects: (ids: string[]) => Promise<Record<string, ProjectDeliverySummary>>;
+  managementOverviewForProjects: (ids: string[]) => Promise<Record<string, ProjectMilestoneOverview>>;
   /** Dated milestones for a set of projects — the read-only calendar view (one batched read). */
   milestoneDatesForProjects: (ids: string[]) => Promise<MilestoneDate[]>;
   create: (input: MilestoneInput, projectId: string) => Promise<MilestoneRow>;
@@ -68,12 +72,18 @@ export interface WorkOrderRepository {
   listAll(): Promise<WorkOrderListRow[]>;
   get(id: string): Promise<WorkOrderRow | null>;
   create(projectId: string, input: WorkOrderInput): Promise<WorkOrderRow>;
+  /** Spreadsheet import: Draft work orders (area, scope lines) for one project, all saved or none (FR-WOI-003). */
+  importBatch(projectId: string, rows: WorkOrderImportRow[]): Promise<{ created: number; lines: number }>;
   /** Body only — never the value or its tax basis (0197 §5(a) revoked those from the grant). */
   update(id: string, patch: WorkOrderPatch): Promise<void>;
   /** The value AND the basis that describes it, in one witnessed call. */
   setValue(input: SetWorkOrderValueInput): Promise<void>;
   /** Status moves; `overCommitAck` is sent only for an issue that actually exceeds the ceiling. */
   transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
+  /** Cancel with a reason (#2898): `cancel_work_order`, then the transition's own gates. */
+  cancel(id: string, reason: string): Promise<void>;
+  /** The retired candidate work orders of a project, read-only (#2898 keeps them readable). */
+  listCandidateRecords(projectId: string): Promise<CandidateRecord[]>;
   /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
   /** OD-BILL-1: per-work-order billing for one project (view work_order_billing, RLS-scoped). */

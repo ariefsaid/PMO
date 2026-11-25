@@ -1,7 +1,7 @@
 import { BillingReconciliation } from './BillingReconciliation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button,
   ListState,
@@ -58,6 +58,7 @@ import {
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
 import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
+import { WorkOrderImport } from '../WorkOrderImport';
 import { WorkOrderListsProvider } from '@/src/components/WorkOrderListsProvider';
 import { bucketWorkOrders, type WorkOrderGroupBy } from '@/src/lib/workOrderGrouping';
 
@@ -112,6 +113,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
   const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
+  const navigate = useNavigate();
 
   // `undefined` = closed · `null` = create a draft · a row = edit that draft's body.
   const [formFor, setFormFor] = useState<WorkOrderRow | null | undefined>(undefined);
@@ -241,6 +243,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   const revenueMode = useRevenueMode();
   const revenueRouteReady = useRevenueRouteReady(revenueMode);
   const canViewBilling = may('view', 'salesInvoice');
+  const canReadClaims = may('view', 'progressClaim');
   const canInvoice = may('create', 'salesInvoice') && revenueRouteReady && Boolean(clientId);
   const erp = useErpItemOptions('sales');
   const invoicesQuery = useSalesInvoices(projectId, { enabled: canViewBilling });
@@ -339,9 +342,11 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   };
 
   const runCreate = async (input: Parameters<typeof create.mutateAsync>[0]['input']) => {
-    await create.mutateAsync({ input });
+    const created = await create.mutateAsync({ input });
     toast(t('projectDetail.workOrders.toast.created', 'Draft work order created'), input.title, 'success');
     setFormFor(undefined);
+    // #2898: the captured Draft opens on its own page, where its checks are added and it is issued or cancelled.
+    if (created?.id) navigate(`/work-orders/${created.id}`);
   };
 
   const runUpdate = async (id: string, patch: Parameters<typeof update.mutateAsync>[0]['patch']) => {
@@ -544,8 +549,8 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
     setPoDrawerFor(openRecordType === 'workOrder' ? rows.find((row) => row.id === openRecordId) ?? null : null);
     setLineDrawerFor(openRecordType === 'workOrderLine' ? drawerLineRows.find((line) => line.key === openRecordId) ?? null : null);
     setInvoiceDrawerFor(openRecordType === 'workOrderInvoice' ? invoiceRows.find((invoice) => invoice.id === openRecordId) ?? null : null);
-    setClaimDrawerFor(openRecordType === 'workOrderClaim' && canViewBilling ? claimRows.find((claim) => claim.id === openRecordId) ?? null : null);
-  }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canViewBilling]);
+    setClaimDrawerFor(openRecordType === 'workOrderClaim' && canReadClaims ? claimRows.find((claim) => claim.id === openRecordId) ?? null : null);
+  }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canReadClaims]);
 
   // #2668: the draft list and the order cards as functions of the rows they show, so a group heading can wrap each bucket.
   const renderDrafts = (list: WorkOrderRow[]) => list.length > 0 && (
@@ -636,7 +641,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
       {/* The claims come first: billing the work done is what waits on Finance here (screen rules: what waits on you leads). */}
       <WorkOrdersClaimsCard
-        visible={canViewBilling}
+        visible={canReadClaims}
         currency={currency}
         boqRows={boqRows}
         summary={summary}
@@ -679,6 +684,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
+            <WorkOrderImport projectId={projectId} currency={currency} projectManagerId={projectManagerId} />
             <ExportButton size="sm" rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
               label={t('common.export', 'Export')} />
           </div>

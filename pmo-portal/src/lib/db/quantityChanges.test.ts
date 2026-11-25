@@ -7,7 +7,7 @@ const h = vi.hoisted(() => {
   const calls: Array<[string, unknown[]]> = [];
   const rpcCalls: Array<[string, unknown]> = [];
   const builder: Record<string, unknown> = {};
-  for (const k of ['select', 'eq', 'is', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
+  for (const k of ['select', 'eq', 'in', 'is', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
     builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
   }
   const next = () => (result.queue.length ? result.queue.shift()! : result.value);
@@ -174,6 +174,14 @@ describe('AC-QCR detail and derived reads (#2578)', () => {
     await expect(dal.approvalState('q1')).resolves.toEqual({ can_approve: true, reason: null, eligible_approver_exists: true });
     h.result.queue = [{ data: [], error: null }];
     await expect(dal.approvalState('q1')).resolves.toEqual({ can_approve: false, reason: 'role', eligible_approver_exists: false });
+  });
+
+  it('#2883 listVersions carries the reason of the request that produced a version', async () => {
+    h.result.queue = [
+      { data: [{ version_no: 2, quantity: '9', source: 'change_request', request_id: 'q1', created_by: 'u1', created_at: 't' }], error: null },
+      { data: [{ request_id: 'q1', reason: 'Rock found below the design level' }], error: null },
+    ];
+    await expect(dal.listVersions('b1')).resolves.toEqual([{ version_no: 2, quantity: 9, source: 'change_request', request_id: 'q1', created_by: 'u1', created_at: 't', reason: 'Rock found below the design level' }]);
   });
 
   it('listVersions numbers every quantity; updateDraft sends null lines only when clearing', async () => {

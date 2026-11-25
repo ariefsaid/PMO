@@ -20,6 +20,7 @@ const FUNCTION_NAME = 'm365-token-custody';
 const SAFE_ERROR = 'Microsoft could not create or link this folder. Please try again.';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const KINDS = new Set(['project', 'procurement']);
+const ENSURE_KINDS = new Set(['project', 'procurement', 'work_order']);
 const LINKED_STATES = new Set(['already_linked', 'linked', 'created']);
 const DOMAIN_STATES = new Set(['needs_choice', 'default_unset', 'missing_identifier']);
 const BUCKETS = ['linked', 'needs_choice', 'missing', 'failed', 'skipped'] as const;
@@ -40,7 +41,7 @@ function malformed(): AppError {
 }
 
 export function validRecordFolderTarget(target: RecordFolderTarget): boolean {
-  return isRecord(target) && KINDS.has(target.kind) && typeof target.id === 'string' && UUID.test(target.id);
+  return isRecord(target) && ENSURE_KINDS.has(target.kind) && typeof target.id === 'string' && UUID.test(target.id);
 }
 
 function decodeOutcome(data: unknown): RecordFolderOutcome {

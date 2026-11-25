@@ -14,7 +14,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from, storage: { from: () => ({ upload: h.upload, createSignedUrl: h.signed }) } } }));
 
-import { getMovementProofStatus, getTransferSettings, getStockTransfer, handoverPhotoUrl, listHandoverConfirmations, listStockTransfers, receiveStockTransfer, recallStockTransfer, recordStockHandover, resolveStockShortfall, sendStockTransfer, setItemQualityCheck, setProofTiming, setTagProofRule, setTransferMode, uploadHandoverPhoto } from './stockTransfers';
+import { getMovementProofStatus, getTransferSettings, getStockTransfer, handoverPhotoUrl, listHandoverConfirmations, listStockTransfers, receiveStockTransfer, recallStockTransfer, recordStockHandover, resolveStockShortfall, sendStockTransfer, setItemQualityCheck, setHandoverScope, setProofTiming, setTagProofRule, setTransferMode, uploadHandoverPhoto } from './stockTransfers';
 
 beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); h.upload.mockClear(); h.fromCalls.length = 0; });
 
@@ -47,9 +47,14 @@ describe('stockTransfers DAL', () => {
   });
   it('AC-TST-026 the settings read defaults to one_step and before_posting when nothing is set', async () => {
     h.queue.push({ data: null, error: null });
-    expect(await getTransferSettings()).toEqual({ mode: 'one_step', proofTiming: 'before_posting' });
-    h.queue.push({ data: { stock_transfer_mode: 'two_step', stock_proof_timing: 'may_follow' }, error: null });
-    expect(await getTransferSettings()).toEqual({ mode: 'two_step', proofTiming: 'may_follow' });
+    expect(await getTransferSettings()).toEqual({ mode: 'one_step', proofTiming: 'before_posting', handoverScope: 'transfers' });
+    h.queue.push({ data: { stock_transfer_mode: 'two_step', stock_proof_timing: 'may_follow', stock_handover_scope: 'transfers_and_issues' }, error: null });
+    expect(await getTransferSettings()).toEqual({ mode: 'two_step', proofTiming: 'may_follow', handoverScope: 'transfers_and_issues' });
+  });
+  it('AC-HSC-008 the handover scope is written through the Admin RPC', async () => {
+    h.queue.push({ data: 'transfers_and_issues', error: null });
+    await setHandoverScope('transfers_and_issues');
+    expect(h.rpc).toHaveBeenCalledWith('set_stock_handover_scope', { p_scope: 'transfers_and_issues' });
   });
   it('AC-TST-024 a transfer maps its lines in order with quantities as strings', async () => {
     h.queue.push({ data: { id: 't', number: 'TST-1', from_warehouse_id: 'a', to_warehouse_id: 'b', transit_warehouse_id: 'c', status: 'Sent', sent_by: 'u', sent_at: 'x',
@@ -154,4 +159,11 @@ describe('stockTransfers reads and setup (#2685/#2690)', () => {
     h.queue.push({ data: [{ id: 'i1' }], error: null });
     await setItemQualityCheck('i1', false);
   });
+});
+
+it('AC-SITE-009 receiver reads item identity and quality requirement without master access', async () => {
+ h.queue.push({data:{id:'tr',number:'T',stock_transfer_lines:[{id:'ln',line_no:1,item_id:'it',qty_sent:10}]},error:null});
+ h.queue.push({data:[{item_id:'it',item_code:'GOODS',item_name:'Delivery goods',needs_quality_check:true,from_name:'Origin',to_name:'Site'}],error:null});
+ const transfer=await getStockTransfer('tr');
+ expect(transfer?.lines[0]).toMatchObject({itemName:'GOODS - Delivery goods',needsQualityCheck:true});
 });

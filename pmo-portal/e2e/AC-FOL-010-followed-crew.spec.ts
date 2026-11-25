@@ -37,6 +37,7 @@ test('AC-FOL-010 a person who followed another crew today is recorded there, wit
   await page.getByRole('listbox').getByRole('option', { name: new RegExp(workerName) }).click();
   const row = page.getByRole('row', { name: new RegExp(workerName) });
   await expect(row.getByText('Followed this crew today')).toBeVisible();
+  await row.getByRole('combobox').selectOption('present');
   await page.getByRole('button', { name: 'Save attendance' }).click();
   await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
 

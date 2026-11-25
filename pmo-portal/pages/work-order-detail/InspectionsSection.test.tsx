@@ -1,13 +1,16 @@
+vi.mock("@/src/hooks/useOrderJobRoles", () => ({ useMayOrderPurchases: () => h.mayOrder }));
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { InspectionsSection } from './InspectionsSection';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /** #2580 — the work-order page's inspections panel: the money fence is the server's, the screen shows what it was given (FR-TPI-008, FR-TPI-017). */
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string,
+  mayOrder: false,
   list: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   costs: { data: [] as unknown[] },
   files: { data: [] as unknown[] },
@@ -31,6 +34,7 @@ const insp = (extra: Record<string, unknown>) => ({
 });
 
 beforeEach(() => {
+  h.mayOrder = false;
   h.role = 'Project Manager';
   h.list = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.costs = { data: [] };
@@ -39,6 +43,17 @@ beforeEach(() => {
 });
 
 describe('InspectionsSection', () => {
+  it('#1126 an inspection planned for the organisation\'s yesterday is overdue, whatever the browser\'s day', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      h.list = { data: [insp({ planned_date: '2026-11-25' })], isPending: false, isError: false, refetch: vi.fn() };
+      render(<InspectionsSection workOrderId="wo" />);
+      expect(screen.getByText('Overdue')).toBeInTheDocument();
+    } finally { resetActiveLocale(); vi.useRealTimers(); }
+  });
+
   it('shows the empty state and the request action to a role that may create', () => {
     render(<InspectionsSection workOrderId="wo" />);
     expect(screen.getByText('No third-party inspections on this work order yet.')).toBeTruthy();
@@ -119,4 +134,11 @@ describe('InspectionsSection', () => {
     render(<InspectionsSection workOrderId="wo" />);
     expect(screen.getByText("Couldn't load the inspections")).toBeTruthy();
   });
+});
+
+it("JOB-BQ9 Buyer opens the linked quality purchase", () => {
+ h.role = "Engineer"; h.mayOrder = true;
+ h.list.data = [insp({ id: "buyer-inspection", status: "purchase_raised", procurement_id: "purchase" })];
+ render(<InspectionsSection workOrderId="wo" />);
+ expect(screen.getByRole("link", { name: "Purchase raised, no cost yet" })).toHaveAttribute("href", "/procurement/purchase");
 });

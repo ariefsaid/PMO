@@ -87,6 +87,13 @@ vi.mock('@/src/hooks/useOrderJobRoles', () => ({
   useOrderJobRolesMutation: () => ({ mutateAsync: async () => [], isPending: false }),
 }));
 
+// 2290: the site-report validator job-role list is read on SiteReports and SiteReportDetail, whose existing suites render without a QueryClient.
+vi.mock('@/src/hooks/useDailyReportValidateRoles', () => ({
+  DAILY_REPORT_VALIDATE_ROLES_KEY: 'daily-report-validate-roles',
+  useDailyReportValidateRoles: () => ({ data: [], isPending: false, isError: false, refetch: () => Promise.resolve() }),
+  useSaveDailyReportValidateRoles: () => ({ mutateAsync: async () => [], isPending: false }),
+}));
+
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({
@@ -325,4 +332,16 @@ vi.mock('@/src/hooks/useWaitingDecisions', () => ({
     ['decision-standing', orgId, userId] as const,
   useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
   useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
+}));
+
+vi.mock('@/src/hooks/usePurchaseCaseRead', () => ({ usePurchaseCaseRead: () => false }));
+
+// M8: Projects and Dashboard suites predating work-in-hand summary cards render without a QueryClient or mocked work-in-hand read.
+// Dedicated tests (useWorkInHand.test.tsx, WorkInHand.test.tsx, WorkInHandSummary.test.tsx) unmock or override this.
+vi.mock('@/src/hooks/useWorkInHand', () => ({
+  WORK_IN_HAND_KEY: 'work-in-hand',
+  WORK_IN_HAND_CAPACITY_KEY: 'work-in-hand-capacity',
+  useWorkInHand: () => ({ rows: [], facts: undefined, isLoading: false, isError: false, isSuccess: false, error: null, refetch: () => Promise.resolve() }),
+  useWorkInHandCapacity: () => ({ data: undefined, isLoading: false, isError: false, isSuccess: false, refetch: () => Promise.resolve() }),
+  useSetWorkInHandCapacity: () => ({ mutateAsync: async () => undefined, isPending: false }),
 }));

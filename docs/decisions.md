@@ -3956,12 +3956,18 @@ Managers sit at Project Manager rank or above (Finance Manager at Finance, Execu
   [Orca dispatch — Batch integration](orca-dispatch.md#batch-integration-owner-2026-11-23).
   Existing acceptance, explicit safety stops and production approval requirements remain intact.
 
+## Decisions for the 24 November management views round
+
+- **DD-MV-1 Billing board column totals.** A billing-board column shows its open-claim count and exact total claim value grouped by currency. Each claim card continues to omit the amount. This supersedes the board-wide reading of OD-BBD-4 that amounts stay only on claims; it preserves OD-BBD-4's per-card rule. The board read remains limited to Finance, Executive and Admin at the database boundary (`docs/specs/billing-board.spec.md`, migrations 2283).
+
 ## Decisions from the 22 November fix round and gap round (2026-11-22)
 
 Owner rulings (changing one needs the owner):
 - **OD-R1122-1 New features are on for every organisation.** A feature no longer ships behind its own switch. Five module switches per organisation (people and crews, site day, stock, purchasing extras, billing extras) let an Admin turn a module off; a module starts off for an existing organisation only when it has no data in it. Settings that change who can see, approve or pay, or that change a money figure, stay individual and off (price visibility, labour cost, approval by amount, monthly equipment plan, site reports posting stock, email per event). The older per-feature switches are deleted in a later release (#2796).
 - **OD-R1122-2 Price visibility is a promise the database keeps.** When the setting ships, a person who may not see prices reads none by any route. It covers purchases, orders, vendor bills, payments, stock values, quotations, request-for-quotation amounts, order changes, equipment rental rates, contract and rate-catalogue rates and subcontract certificate rates. Budgets, bills of quantity and revenue stay visible. The settings card stays held until then (#2699, #2788 to #2790).
 - **OD-R1122-3 People documents.** The HR Manager and HR Officer see the status and dates of medical documents, in the app and by email, and read, add and renew every person's other documents. Everyone else is unchanged.
+  - **Read with DD-R1124-15 (Director, 24 November; the owner may revisit it):** for a medical document type the person's direct manager
+    also receives the expiry warning, as a plain notice that carries no access to the document. OD-R1122-3's own text is unchanged.
 - **OD-R1122-4 Five role rights that nothing used are removed** (stock post, stock approve, crew time approve, billing-stage run, invoice raise). A right is added back with its rule when a ticket needs it.
 - **OD-R1122-5 The gap round is built now** (map #2755, 26 items), including a manager's approval of a medical release in a minimal form, brought forward from the later-quarter list (#2770). Two items wait for a customer answer: who enters and validates a site report (#2756), and whether a crew may work several work orders in one day (#2757; OD-CRW-2 stands until then, #2767).
 
@@ -3974,7 +3980,229 @@ Director decisions (binding until revised):
 - **DD-R1122-6 One writer per branch.** After an app restart, list live workers before starting a replacement; a worktree made from a non-`dev` base has its upstream unset, and every push names its branch. Temporary rule-breaking commits for mutation checks go to throwaway `mut/` branches.
 - **DD-R1122-7 A browser journey is not deleted because its setup step went away.** It is re-aimed at its goal.
 - **DD-R1122-8 Gap-round defaults, each a setting where a customer may differ:** over-claim is a warning, refusal is optional (#2775); the work order's billing checklist is advisory and the claim's own steps keep gating the invoice (#2774, pending the owner's reading of OD-SCOPE-6); a purchase line may name its work order, cost is not split per line (#2785, #2762); a Buyer orders only approved purchases (#2781); class rates price crew members with no login only (#2764).
-- **DD-R1123-1 Review rulings on both rounds (23 November), all proven in the database:** a person's manager link is set by an Admin or the people team, and only an Admin names themselves; a medical document's expiry notice goes to the person and to holders of the medical right (other document types still notify the manager); nobody enters the second time record for, or decides the hours of, their own day; a Project Manager-level reader sees labour-class and head-count cost per work order and discipline, without class or quantity; a medical release can be withdrawn by an Admin or the people team and its decider reassigned by an Admin, and is refused at creation when its only decider would be its creator; equipment rights follow the Equipment Manager job role (a Project Manager with no job role keeps them); the browser location permission is site-wide; a billing step's owner is found by the one deciding function, so a person at the matching access level with no job role yet counts.
+- **DD-R1123-1 Review rulings on both rounds (23 November), all proven in the database:** a person's manager link is set by an Admin or the people team, and only an Admin names themselves; a medical document's expiry warning goes to holders of the medical right and the direct manager, excluding the worker before release approval (other document types keep their per-type person switch); nobody enters the second time record for, or decides the hours of, their own day; a Project Manager-level reader sees labour-class and head-count cost per work order and discipline, without class or quantity; a medical release can be withdrawn by an Admin or the people team and its decider reassigned by an Admin, and is refused at creation when its only decider would be its creator; equipment rights follow the Equipment Manager job role (a Project Manager with no job role keeps them); the browser location permission is site-wide; a billing step's owner is found by the one deciding function, so a person at the matching access level with no job role yet counts.
 - **DD-R1123-2 A test count that changes because a rule deliberately changed is updated with the reason recorded;** its who-is-affected oracle stays.
 - **DD-R1123-3 Task progress counts leaves (#2807):** a task counts toward milestone, delivery and dashboard figures when it has no live subtask; a parent shows a roll-up only. Regrouping never moves a figure; a project that already has subtasks sees its figure change once. A parent's own status and due date feed no overdue figure; a subtask with no phase or group takes its parent's; a group is its own named container and need not be a milestone.
 
+## Owner rulings of 24 November: the 23 walk decisions, and the Director's calls of the same day (2026-11-24; map #2516)
+
+The walks of 24 November did each 15 December story on screen as the job role the client gives it, and left 23 questions that only the
+owner or the client could answer. The owner answered all 23 that morning; the number of each ruling below is the number of its question.
+**Pending customer confirmation** means the owner passed the question to the customer in simpler words and the built default stands
+until they answer. **Deferred** means after go-live. What a build made of a ruling is in the spec it names.
+
+Owner rulings (changing one needs the owner):
+- **OD-R1124-1 Leave is decided by the worker's own line manager.** The active manager on the person's record is the only decider, also
+  when the worker has no login; a Project Manager who is not that manager does not decide it. With no manager set, or an inactive one,
+  the request goes to the HR Manager, then to an Admin. The person and whoever entered the request never decide it, whatever their role,
+  and the waiting list and the notices name the people who must act. The leave approver-role setting of the leave-requests spec is kept
+  for compatibility only and takes no part in the decision (`docs/specs/people-approval-routing.spec.md`).
+- **OD-R1124-2 A close-out checklist item may name the job role that owns it, and a document is required on every item.** The holder of
+  that job role attaches the document and marks the item done, beside Finance, Admin and the project's manager; an item with no named
+  owner keeps those three. The document is required whoever marks the item: the owner kept the rule and dropped the recommended exemption
+  for items marked "no document needed". The owner job role is chosen on the checklist template and copied onto the work order when it
+  is issued. Extends OD-WCO-6 (`docs/specs/work-order-closeout-checklist.spec.md`).
+- **OD-R1124-3 The Quality Inspector may raise an inspection's purchase.** Its approval goes to the Quality Manager or an approver above
+  them, never to the person who raised it (`docs/specs/people-approval-routing.spec.md`). A purchase raised for an inspection is money
+  path and ships alone.
+- **OD-R1124-4 Handover proof is two organisation settings, not a question put to the client.** (a) *Handover scope*: which stock
+  movements need a signed handover document, transfers between locations only (the default) or also issues to a project or work order.
+  (b) *Proof timing*: the document before posting, or it may follow, in which case the movement posts and stands on the "proof still
+  owed" list until the paper is attached. Both are changed by an Admin only and sit together in Administration, Stock settings. Extends
+  OD-SCOPE-10, which decides what counts as proof per stock tag (`docs/specs/stock-handover-scope.spec.md`).
+- **OD-R1124-5 Material completion is a printable screen, not only an attached document.** One read-only page per work order: each
+  material's issued, returned, moved in, moved out, counted difference and balance, with totals. Printed to PDF it is attached to the
+  close-out item as its document; values show only to a reader with cost access. Built limit: a counted difference appears only for count
+  documents that name the work order (`docs/specs/work-order-material-completion.spec.md`).
+- **OD-R1124-6 An order carries one needed-by date and every line follows it.** Pending customer confirmation; built default is an
+  organisation setting, off by default. When an Admin turns it on (Administration, Accounting), an order created from then on cannot be
+  sent to the supplier (the move to Ordered) without its header date. The date fills every line, a line may carry its own where it
+  differs, and the dates freeze once the order is sent (`docs/specs/order-needed-by.spec.md`).
+- **OD-R1124-7 A quality check on goods received from a supplier waits for the customer.** Pending customer confirmation; not built.
+  Built default: a supplier's goods enter stock in full as counted, as today. The rule put to the customer is the one a two-step transfer
+  already has: the storekeeper records pass or fail with the accepted and rejected quantities, and only the accepted part enters stock.
+- **OD-R1124-8 Goods are received against the purchase order.** Per order line the storekeeper records the quantity counted; it enters
+  stock at the order line's cost, and the order shows received and outstanding per line. The storekeeper never types a price and does not
+  see the ordered quantity (a blind receipt). An excess over the outstanding quantity needs a second person with purchasing rights to
+  approve it. A per-organisation setting, off by default for existing organisations. It changes stock value and the purchase money path,
+  so it ships alone (#2792, `docs/specs/receive-against-order.spec.md`).
+- **OD-R1124-9 Stock issued to a work order is that work order's cost.** A posted issue counts at its stock-ledger value and a return
+  takes it off. The bill of a purchase that was received into stock is then left out of work order and project cost, so nothing counts
+  twice; a purchase delivered straight to a work order counts as before. A per-organisation setting with an effective date, set by an
+  Admin under Administration, Accounting, off by default so history is never restated silently
+  (`docs/specs/stock-issue-direct-cost.spec.md`).
+- **OD-R1124-10 No company-wide list of late tasks.** Executives judge projects, not tasks: against budget, milestones and schedule. The
+  executive home shows each active delivery project's spending against budget, its completed and late milestones and its planned against
+  actual progress, worst first, each row opening the project; the per-project late filter stays. Behind the management views module switch,
+  which is off until an Admin turns it on (`docs/specs/management-views-1124.spec.md`).
+- **OD-R1124-11 A Project Manager sees work in hand for the projects they manage.** The company-wide total stays with Finance, Executive
+  and Admin; the read is limited in the database. The owner's yes was to the question in general terms; limiting it to the manager's own
+  projects is the Director's reading, stated to the owner. Changes the first default of #2663 (work in hand for Finance, Executive and
+  Admin only).
+- **OD-R1124-12 A daily site report can name its crew, or one person when no crew applies.** The link is optional, on create and edit,
+  and shows on the report, in the list (filter by crew) and on the work order; a foreman's report starts with the crew they lead;
+  existing reports stay valid without one. Targets per crew per day follow from the link and are built only if time allows before 15
+  December; until then the daily target stays an entered figure per work order (OD-SCOPE-7,
+  `docs/specs/site-report-crew-link.spec.md`).
+- **OD-R1124-13 The Engineer may create the consumables plan; the Project Control Manager approves it.** A plan takes effect only when
+  its current version is approved. The creator never approves their own plan, so one the Project Control Manager created is approved by
+  an Admin or the project's Project Manager. Material requests are checked against the approved plan only.
+- **OD-R1124-14 Rates per area are generic, never a client rule.** An organisation keeps its own list of areas, a work order may carry
+  one, and a contract line may carry a rate per area. A daily report takes the rate of its own area when it names one, else of its work
+  order's area, and may still be overridden as today; the rate freezes at validation. An organisation with no areas sees no change. Built
+  narrow: an area rate sits on a hand-priced contract line and prices daily reports, not invoices or progress claims
+  (`docs/specs/areas-and-area-rates.spec.md`).
+- **OD-R1124-15 Opening balances load by the command line and show on a screen.** The command-line load stays (OD-CQ-4). Finance and
+  Admin get a read-only screen of what was loaded, when and by whom, with totals to check against the source file, linked from the
+  Finance hub; loading through the screen is not built this round. It shows the two kinds the command line loads: running work orders'
+  certified and claimed figures, and stock per location and item. Behind the setup workflows switch, off by default
+  (`docs/specs/opening-balances-screen.spec.md`).
+- **OD-R1124-16 The Project Administrator records a guard head count; approval stays separate.** When recording a head count day, for
+  guards or a crew, the recorder may attach a photo or document, and the approver sees it before approving; an approved line is final.
+  Built with the file optional: a line with no file can still be approved (`docs/specs/headcount-evidence.spec.md`).
+- **OD-R1124-17 Work orders import from a spreadsheet template, in the 15 December scope.** On a project, an Admin or its Project
+  Manager downloads a template, fills one row per work order (scope lines on a second sheet), sees every row checked, and confirms once:
+  every work order is created as a draft, or none. Issuing, and the number, follow the existing rules. Behind the setup workflows switch,
+  off by default (`docs/specs/work-order-import.spec.md`).
+- **OD-R1124-18 The work-order page stays one page, opened through a jump index.** The owner has not chosen between an index and tabs.
+  The index of page groups is built; the owner judges the rendered page (OD-VISUAL-RESET) before anything else is built.
+- **OD-R1124-19 Which figure is "progress" on a work order with monthly assessments and validated daily reports goes back to the
+  customer, in simpler words.** Pending customer confirmation. Built default: the billing reconciliation takes progress from the latest
+  monthly assessment and shows the claim figures beside it. Recommended to the customer: validated, approved daily reports are progress;
+  the monthly figure is only a fallback for a work order with no daily reports; both are shown. Confirmed on the owner's side: a daily
+  report counts only once it is validated and approved by the parties concerned.
+- **OD-R1124-20 The billing plan shows two kinds of candidate, each labelled.** Progress not yet accepted by the client, and progress
+  accepted but not yet claimed. Until now a candidate was accepted work only (OD-MBP-1). The new group is behind the management views
+  module switch (`docs/specs/management-views-1124.spec.md`).
+- **OD-R1124-21 Money appears on the billing board.** Each step column shows its count and its total claim value per currency, and the
+  board stays Finance, Executive and Admin only. This replaces the earlier reading that the board carries no money (OD-BBD-4). DD-MV-1
+  is the built form and keeps the amount off each claim card.
+- **OD-R1124-22 One billing step list is deferred until after go-live.** Claim steps would start from the work order's billing checklist,
+  giving one list with one owner vocabulary. The owner leaned to after 15 December; the Director's reading: a generic tidy-up, not
+  client-custom, and not needed for 15 December. Until then the work order's checklist stays advisory and the claim's own steps gate
+  the invoice, as DD-R1122-8 says; meanwhile an issued work order's own checklist can take an extra step, and a good list can be saved
+  as a template, behind a per-organisation setting that is off by default (`docs/specs/wo-checklist-edit.spec.md`).
+- **OD-R1124-23 Only the step's owner or an Admin completing a claim step is deferred until after go-live, with OD-R1124-22.** The owner
+  sent the question back with 22, so nothing tightens now: a claim step with a named owner may be completed by that owner beside Admin,
+  Finance and the project's Project Managers (DD-R1124-4), and the claim's creator is not refused.
+
+Director decisions (binding until revised). One line each: the rule, the reason, and what is a setting.
+- **DD-R1124-1 A job-role right is today's rule or "holds that job role".** Every right given to a named built-in role has one database
+  gate (`actor_holds_job_role`) that the app's `can()` mirrors; a person with no job role keeps the access-level rule unchanged.
+  Separation of duties stays on every right, with a "not your own" refusal where the holder could otherwise close their own work. Reason:
+  the built-in roles started from five access levels and carried few rights of their own, so a job done as that role met an access-level
+  refusal. The first set, each with a database proof (migrations 2040 to 2051): the Material Coordinator, at its officer level unchanged,
+  posts a count difference or a loss someone else drafted, records the client's reservation and release, attaches and completes the
+  close-out items it owns, and sees the stock-without-cover flag per location as yes or no, with no value; the Storekeeper keeps crew
+  tools and tool-damage reports for crews at locations it keeps; the HR Officer creates and updates people, including by import, reads
+  and ticks the cleared-for-site checklist (medical-tied items stay behind the medical right), files leave for a worker and reads every
+  timesheet for review, and does not approve timesheets; the HR Manager sets document-expiry warning days and recipients; the Quantity
+  Surveyor records a quantity survey and reads surveys and claims, and still cannot confirm one; the Buyer adds and selects supplier
+  quotes on a purchase assigned for ordering and names the supplier on an approved purchase before ordering, and cannot approve or
+  change an amount after approval; the Procurement Manager sets a vendor's supply-risk status; the Planner creates work-order sections
+  and prepares revenue targets (DD-R1124-2); the Project Control Manager reads checkpoint days and the missed-checkpoint view on every work order; a document
+  category can be hidden from named job roles (glossary: *Job-role right*, *Held job role*, *Hidden from job roles*).
+- **DD-R1124-2 Project Control Manager reads revenue, plans and cost performance across the organisation and writes work-order revenue targets.** Planner writes monthly and daily targets and reads the work-order revenue plan only; general revenue and cost reads stay unchanged. These target writes use the existing organisation scope; project-role assignment is a later refinement. Contract-item edits retain their existing rule. Existing approval routes retain their accountable approver.
+- **DD-R1124-3 Who validates a daily site report is a setting.** An Admin names the manager and officer job roles that may validate,
+  return and correct another person's report (Administration, Project setup). Pending customer confirmation (#2756); built default: no
+  job role holds it, so the validators are today's, Admin, Finance and the project's own Project Manager. The author never validates
+  their own report (`docs/specs/daily-report-validate-roles.spec.md`).
+- **DD-R1124-4 A claim billing step follows its owner.** A step with a named owner may be completed by that owner (its access-level
+  owner role, or the holder of its owner job role, with the run-steps right) beside Admin, Finance and the project's Project Managers; a
+  step with no owner keeps today's rule. The claim's creator is not refused (OD-R1124-23). Reason: the surveyor records surveys and
+  completes their own steps without gaining a say on anyone else's.
+- **DD-R1124-5 A Site Supervisor lends a worker between any two crews rostered today on a work order they are assigned to today,** as
+  well as between crews they control. Both ends stay in the organisation and on current rosters, and the loan keeps its author. Reason:
+  at a contractor the foreman runs the crew and the supervisor oversees work orders, so a right limited to crews the supervisor controls
+  would miss most real loans.
+- **DD-R1124-6 A Site Supervisor may raise a task from an issue** on a work order they are assigned to today, or a project-level issue
+  when they are assigned to a work order of that project. Future and expired assignments do not count.
+- **DD-R1124-7 The HR Officer and HR Manager may create, edit and archive a person's medical documents,** as they do a person's other
+  documents. Made on the owner's people-documents ruling (OD-R1122-3), read on 24 November as covering medical documents too, as the
+  built-in role design says. Reading, notices, storage and download rules for medical documents are unchanged. It is a change of who may
+  write, not only of the form (migration 2360).
+- **DD-R1124-8 The reporter of an issue may record its root cause and add follow-up tasks on that issue while it is open,** and gains
+  no right to close it. Reason: whoever raised an issue knows what must be followed up; closing stays with the people already entitled.
+- **DD-R1124-9 An Admin may correct the owner job role of an unfinished close-out item while its work order is issued.** Completed items
+  and the template's own contents are kept, and the change is recorded. Reason: an issued checklist is a snapshot (OD-WCO-3), so an
+  item that should have named a role is corrected on the work order, not by re-issuing it.
+- **DD-R1124-10 A medical document's expiry warning reaches the holders of the medical right whether or not their access level is on
+  the document type's notify list.** The worker is excluded before release approval; the direct manager receives a plain notice only (DD-R1124-15). Other document types retain the Admin-controlled person switch.
+  Other document types keep their notify list.
+- **DD-R1124-11 The project total labels Invoiced and Claimed apart.** Invoiced is submitted invoices; Claimed also counts live claims
+  not yet invoiced, including billing not assigned to a work order. The wording for missing progress is distinct from the wording for
+  work that is not rated, and no existing figure changes its meaning. Reason: one total was being read as two different things.
+- **DD-R1124-12 The home "needs you" list keeps every item the person's roles entitle them to,** after its preferred items, so a step
+  waiting on a role is never dropped from the list (DD-R1122-2).
+- **DD-R1124-13 Receiving against an order: who does what.** Purchasing maps each order line to a stock item before the receipt, and
+  the receiver never changes it; a line with no mapping keeps the service or direct-use path. The receipt's cost is the order line's
+  rate converted at the receipt date, with the rate recorded on the receipt (ADR-0124); no rate for that day refuses the receipt. The
+  switch is refused while a connected accounting system owns purchasing or inventory.
+- **DD-R1124-14 Questions parked for the owner; the shipped rule stands and nothing is built until each is answered.** (a) Resolved: Planner prepares monthly and daily revenue targets under DD-R1124-2; other revenue and cost reads stay unchanged.
+  (b) Whether the Quantity Surveyor may create a progress claim: today Admin, Finance and the project's Project Manager; the surveyor
+  records surveys and reads claims, and widening would let the recorder of a survey author the claim built on it. (c) Whether the Buyer
+  may prepare a subcontract certificate: today Finance, Admin and the owning Project Manager. (d) Material the client supplies itself:
+  PMO records it as a pickup on the work order with the slip; whether stock Receive also offers that path. (e) A daily-rate money check
+  that the customer assigns to the HR Officer, who reads no cost figures: another role for it, or that one figure for the HR Officer.
+  (f) Two time records for one day are settled on the daily site report; whether timesheet approvals become a second doorway to that
+  decision. (g) Resolved: Planner writes work-order crew placements, without worker membership rights. (h) Whether lost-time timestamps and checkpoint
+  times also move into the daily report; today they live on the work order's checkpoints and crew punctuality. (i) Whether the Projects
+  page also links to work in hand; today it is reached through Finance. (j) Resolved: Equipment Officer reads monthly availability and use figures, without cost rights. (k) A history of requested quantity revisions; until then a contract version records an
+  accepted change only, never a saved request. The build-level limits of the same round are in the lanes' open lists under
+  `docs/briefs/decisions-1124/`.
+- **DD-R1124-15 For a medical document type the person's direct manager also receives the expiry warning, as a *plain notice*:** the
+  person, the document type and the date only, with no link and no access to the document; reading the document stays behind the medical
+  right (OD-R1122-3). This amends the notice rule of DD-R1123-1: the worker is excluded before release approval, holders of the
+  medical right continue to receive it. Reason: the manager is warned early for every other document type and needs the date to plan work; a plain notice
+  gives the date and nothing of the medical content. A Director decision of 24 November, not recorded as an owner ruling; the owner may
+  revisit it.
+- **DD-R1124-16 The Procurement Manager reads every purchase case in their own organisation, read only:** the case with its quotations,
+  order, receipts and bill. The right adds no ordering, approval or edit authority; those stay with the roles that hold them today
+  (DD-R1124-1). Reason: the role's job is to oversee buying across projects, so it must see every case and not only those of the projects
+  it manages. Not a setting: it follows the job role.
+- **DD-R1124-17 A stock count at a project location may name the work order it is counted for:** its posted difference then appears on
+  that work order's material completion report (extending OD-R1124-5) and, when issued stock counts as work-order cost is switched on
+  (OD-R1124-9), enters that work order's and project's cost at the stock ledger's valuation (`-value_delta`: a shortage adds cost, a gain
+  reduces it). A count with no work order behaves unchanged, and count separation of duties (counter is not approver) is unchanged
+  (`docs/specs/stock-count-work-order.spec.md`, migration 2590).
+- **DD-R1124-23 Quality documents filed once against a work order are reused by every later claim of that work order, without re-upload.**
+  Issued or approved documents attached to a work order's billing steps are automatically snapshotted into `progress_claim_evidence` when a
+  claim is created or a time-and-materials claim is signed off for that work order, and propagated to existing open (un-withdrawn, un-invoiced) claims on new attachment, so every claim
+  shows them and satisfies its invoice evidence gate without re-upload. Replacing a document on a slot or superseding a revision leaves
+  earlier claims pointing at the document and revision they were submitted with, while later claims receive the replacement. No rights or
+  money change. Only documents on designated steps of the claim's own work order are reused (migration 2600).
+
+- **DD-R1124-24 An Admin designates which work-order billing steps supply claim evidence.** The designation is stored on a template step and copied to the issued work order; an Admin can also designate an existing work-order step. Unmarked steps default off, and only documents from designated steps of the claim's own work order are automatically reused. There is no separate organisation switch.
+
+- **DD-R1124-17 Equipment Officer registers and edits assets in their own organisation:** existing editable asset fields only; deletion remains Admin-only. Rental-term and cost rights remain unchanged. The right follows the job role.
+- **DD-R1124-18 Project Control Manager reads the rate catalogue across their own organisation:** items, locations, rates and stage weights, including projects managed by another person. Catalogue write rights, field-account restrictions and organisation isolation remain unchanged. The role already reads project cost performance.
+
+- **DD-R1124-19 A Quantity Surveyor reads the priced progress of one validated daily site report in their organisation.** An Admin can turn this report-only read off in Administration; its default is on. The frozen quantity × contract rate keeps its meaning. Cost, work-order revenue totals, other revenue reads and all writes keep their existing gates.
+- **DD-R1124-20 Equipment plan approval and rental purchase creation remain one operation.** Procurement orders the resulting purchases through the existing purchase approval and ordering path; the Buyer gains no plan approval or author impersonation right. Self-approval rules remain unchanged.
+- **DD-R1124-21 The Buyer may submit a Draft purchase generated by an Approved equipment plan in their organisation.** The existing ordering-right setting decides who may do this. The plan author stays the requester; ordinary Draft submission and the normal approval route stay unchanged. The submitting Buyer is an interested party and cannot approve that request, including after a role change.
+- **DD-R1125-1 Quoted buying follows the ordering right.** A person who may order purchases may start quotations for an approved request;
+  approval routing and separation of duties remain unchanged. The order carries the winning quotation's amount.
+  The supplier follows the price visibility setting.
+
+- **DD-R1124-22 Hourly equipment rental checks.** A rental term may use an hourly rate. The equipment officer enters contracted hours for each period and dated broken hours; proven broken hours reduce billable hours, floored at zero. Calendar days and working hours never infer the contracted quantity. The officer compares supplier quantity, rate, deduction and evidence and records checked or disputed; Finance retains approval and payment. Existing daily and monthly bases retain their calculations. Saved checks link to the supplier invoice; disputed checks require an officer note and remain visible as nonblocking warnings to Finance on the purchase record.
+- **DD-R1125-2 Work in hand and capacity-based months of work in hand sit under Projects (`/projects`, `/projects/work-in-hand`) and on the Management Dashboard, with monthly capacity configured by Admin in the organisation's currency.** Months of work in hand divides work in hand in the organisation's default currency by the Admin-set monthly capacity (`organizations.work_in_hand_monthly_capacity`), rather than completed-month billing; when no capacity is set, the months line states so. Work in hand in other currencies is shown beside it, labelled, and explicitly stated as not included in months with no currency conversion (`docs/specs/work-in-hand-capacity.spec.md`, migration 2530).
+- **DD-R1125-4 Each work order gets its own cloud folder under its project's folder when a connected Microsoft 365 default library is present, and the Project Administrator job role creates and uploads Draft work-order documents only (`work_order_id` not null):** the work-order folder is created on first upload (or explicit create-folder action) nested inside the project's folder without altering project-level folder detection, and falls back to existing PMO private storage when no default library is connected (no new org setting). Project Administrator gains create, Draft own-author update/upload, storage upload, and work-order folder ensure/link rights strictly on readable projects and work orders in their active organisation, respecting document category visibility and hidden job roles, with zero delete, status approval/transition, project-level, or procurement rights (`docs/specs/work-order-cloud-folder.spec.md`, migration 2630).
+
+## Owner rulings of 25 November: attendance default, clearance checklist and four kept rules (2026-11-25; map #2755)
+
+Six questions left by the 25 November audit of the 15 December test cases. Rulings 3 to 6 are **for now**: the built rule stands and
+the owner may revisit it after the client's tests.
+
+- **OD-R1125-1 Nobody is present or absent by default.** A crew member with no attendance record for the day reads "Not yet present"
+  ("Belum hadir") until someone marks them. The person themself or their direct supervisor marks present or absent. A recorder's
+  attendance form no longer starts un-recorded members as present.
+- **OD-R1125-2 The cleared-for-site checklist is the pre-start job for a selected person.** PMO keeps no applicant record; applicant
+  tracking and interviews stay outside PMO. The HR Officer ticks the checklist on the person.
+- **OD-R1125-3 (for now) A quantity change request is accepted by the roles the organisation lists, and the contract revision is
+  written when the client's acceptance is recorded.** The version history shows the reason.
+- **OD-R1125-4 (for now) Both material-use warning levels also fire on issued material, and the warning reaches the project's
+  engineers as well as its manager.**
+- **OD-R1125-5 (for now) The needed-by date is required when an order is sent to the supplier,** where the organisation switches the
+  rule on; it stays optional on the request.
+- **OD-R1125-6 (for now) A field account does not raise material requests.** A full role such as the Site Supervisor raises them.
+- **DD-R1125-2 A Project Control Manager may create and manage scheduled reports for reports they can already read in their own organisation.** Each schedule records at creation who manages it (`admin` or the Project Control Manager role). That role lists and manages only the schedules it manages; Admin-managed schedules are not listed to it and its writes on them are refused. An Admin can switch the right off in Administration; the default is on. Recipients are checked at save, at re-enable and at queue time, and a schedule managed by the role never queues to a field account. Admin-managed schedules behave as before and the delivery step is unchanged (`docs/specs/scheduled-email-reports.spec.md`, migration 2580).

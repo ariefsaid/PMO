@@ -51,6 +51,13 @@ describe('OrgModules (#2746)', () => {
     expect(within(screen.getByRole('region', { name: 'Billing extras' })).getByText('done-not-claimed reminder setting')).toBeInTheDocument();
   });
 
+  it('AC-MV-007 an Admin can enable management views for the organisation', async () => {
+    stored.managementViews = false;
+    render(<OrgModules />);
+    await userEvent.click(screen.getByRole('switch', { name: 'Management views' }));
+    expect(mutate).toHaveBeenCalledWith('managementViews', true);
+  });
+
   it('a module that is off hides its own settings (nothing is deleted)', () => {
     stored.moduleStock = false;
     render(<OrgModules />);

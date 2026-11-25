@@ -46,7 +46,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   // Walk M8: work in hand (the company's order book in months) is reached from the work orders, for the roles its route admits.
   const may = usePermission();
   const revenueOn = useFeature('revenue');
-  const workInHand = !projectId && revenueOn && may('view', 'finance')
+  const workInHand = !projectId && revenueOn && may('view', 'workInHand')
     ? <Link to="/finance/work-in-hand" className={buttonClasses('outline')} data-testid="work-orders-work-in-hand">{t('all.workInHand', 'Work in hand')}</Link>
     : undefined;
 

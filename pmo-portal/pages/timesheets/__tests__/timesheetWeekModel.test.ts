@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planCopyLastWeekRows } from '../timesheetWeekModel';
+import { datesInWeek, entriesToGridRows, planCopyLastWeekRows } from '../timesheetWeekModel';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 import type { EditRow } from '@/src/lib/timesheet-edit';
 
@@ -138,5 +138,35 @@ describe('planCopyLastWeekRows — cell hygiene', () => {
     const existing = row({ project_id: 'p-m', project: 'Mid Project', code: 'M' });
     const plan = planCopyLastWeekRows(source, LAST_WEEK_DATES, [existing], 'Unknown Project');
     expect(plan.rows.map((r) => r.project_id)).toEqual(['p-m', 'p-a', 'p-z']);
+  });
+});
+
+describe('entriesToGridRows — work-order grouping for review (AC-TRW-001, AC-TRW-003)', () => {
+  const weekDates = datesInWeek(new Date(2026, 9, 19));
+
+  it('keeps default project-only grouping for employee self-entry (r.id === project_id)', () => {
+    const entries = [
+      entry({ id: 'e1', project_id: 'p-1', work_order_id: 'wo-1', entry_date: LAST_WEEK_DATES[0], hours: 4, work_order: { wo_number: 'WO-001', title: 'Civil' } }),
+      entry({ id: 'e2', project_id: 'p-1', work_order_id: 'wo-2', entry_date: LAST_WEEK_DATES[1], hours: 6, work_order: { wo_number: 'WO-002', title: 'Piping' } }),
+    ];
+    const rows = entriesToGridRows(entries, weekDates, 'Unknown Project');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe('p-1');
+    expect(rows[0].hours).toEqual([4, 6, 0, 0, 0, 0, 0]);
+  });
+
+  it('splits lines by work order and attaches workOrderLabel when groupByWorkOrder is enabled', () => {
+    const entries = [
+      entry({ id: 'e1', project_id: 'p-1', work_order_id: 'wo-2', entry_date: LAST_WEEK_DATES[1], hours: 5, work_order: { wo_number: 'WO-002', title: 'Piping' } }),
+      entry({ id: 'e2', project_id: 'p-1', work_order_id: 'wo-1', entry_date: LAST_WEEK_DATES[0], hours: 8, work_order: { wo_number: 'WO-001', title: 'Civil' } }),
+      entry({ id: 'e3', project_id: 'p-1', work_order_id: null, entry_date: LAST_WEEK_DATES[2], hours: 3, work_order: null }),
+    ];
+    const rows = entriesToGridRows(entries, weekDates, 'Unknown Project', { groupByWorkOrder: true });
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => ({ id: r.id, workOrderLabel: r.workOrderLabel ?? null, hours: r.hours }))).toEqual([
+      { id: 'p-1:', workOrderLabel: null, hours: [0, 0, 3, 0, 0, 0, 0] },
+      { id: 'p-1:wo-1', workOrderLabel: 'WO-001 · Civil', hours: [8, 0, 0, 0, 0, 0, 0] },
+      { id: 'p-1:wo-2', workOrderLabel: 'WO-002 · Piping', hours: [0, 5, 0, 0, 0, 0, 0] },
+    ]);
   });
 });

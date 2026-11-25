@@ -10,7 +10,11 @@ export interface SiteReportForm {
   weatherId: string;
   weatherNote: string;
   note: string;
-  progress: { workOrderLineId: string; subStage: string; quantity: string }[];
+  /** Optional links (migrations 2130, 2132): a crew, or a named person when no crew applies; an area that overrides the work order's for the rate. */
+  crewId: string;
+  personId: string;
+  areaId: string;
+  progress: { workOrderLineId: string; subStage: string; quantity: string; sectionId?: string }[];
   idle: { minutes: string; reasonId: string }[];
   consumables: { stockItemId: string; quantity: string; workOrderLineId?: string }[];
 }
@@ -18,7 +22,7 @@ export interface SiteReportForm {
 export type SiteReportFormErrors = Partial<Record<string, string>>;
 
 export const EMPTY_SITE_REPORT_FORM: SiteReportForm = {
-  startTime: '', endTime: '', weatherId: '', weatherNote: '', note: '', progress: [], idle: [], consumables: [],
+  startTime: '', endTime: '', weatherId: '', weatherNote: '', note: '', crewId: '', personId: '', areaId: '', progress: [], idle: [], consumables: [],
 };
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '');
@@ -30,7 +34,10 @@ export function siteReportFormFromDetail(d: DsrReportDetail): SiteReportForm {
     weatherId: d.report.weather_id ?? '',
     weatherNote: d.report.weather_note ?? '',
     note: d.report.note ?? '',
-    progress: d.progress.map((l) => ({ workOrderLineId: l.work_order_line_id, subStage: l.sub_stage ?? '', quantity: String(l.quantity) })),
+    crewId: d.report.crew_id ?? '',
+    personId: d.report.person_id ?? '',
+    areaId: d.report.area_id ?? '',
+    progress: d.progress.map((l) => ({ workOrderLineId: l.work_order_line_id, subStage: l.sub_stage ?? '', quantity: String(l.quantity), ...(l.section_id ? { sectionId: l.section_id } : {}) })),
     idle: d.idle.map((l) => ({ minutes: String(l.minutes), reasonId: l.reason_id })),
     consumables: d.consumables.map((l) => ({ stockItemId: l.stock_item_id, quantity: String(l.quantity), ...(l.work_order_line_id ? { workOrderLineId: l.work_order_line_id } : {}) })),
   };
@@ -76,7 +83,11 @@ export function siteReportDraftInput(
     weatherId: f.weatherId || null,
     weatherNote: f.weatherNote.trim() || null,
     note: f.note.trim() || null,
-    progress: f.progress.map((l) => ({ workOrderLineId: l.workOrderLineId, subStage: l.subStage.trim() || null, quantity: l.quantity.trim() })),
+    // A crew wins: one report carries one link (the database refuses both).
+    crewId: f.crewId || null,
+    personId: f.crewId ? null : f.personId || null,
+    areaId: f.areaId || null,
+    progress: f.progress.map((l) => ({ workOrderLineId: l.workOrderLineId, subStage: l.subStage.trim() || null, quantity: l.quantity.trim(), ...(l.sectionId !== undefined ? { sectionId: l.sectionId || null } : {}) })),
     idle: f.idle.map((l) => ({ minutes: Number(l.minutes), reasonId: l.reasonId })),
     consumables: f.consumables.map((l) => ({ stockItemId: l.stockItemId, quantity: l.quantity.trim(), ...(l.workOrderLineId ? { workOrderLineId: l.workOrderLineId } : {}) })),
   };

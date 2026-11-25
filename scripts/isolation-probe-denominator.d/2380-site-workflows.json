@@ -1,0 +1,9 @@
+{
+  "definer_functions": [
+    "actor_may_task_incident(uuid)",
+    "assign_closeout_item_owner(uuid,text)",
+    "stock_transfer_receiving_items(uuid)",
+    "supervisor_loan_crews()",
+    "supervisor_may_lend_crew(uuid)"
+  ]
+}

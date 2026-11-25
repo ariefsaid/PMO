@@ -1,5 +1,5 @@
 -- 1471_procurement_plan_author_cannot_approve_purchase.test.sql — the author of a monthly equipment plan cannot approve the
--- purchases that the plan created (SoD): the author priced the lines and the plan approver became the requester, so the
+-- legacy purchases that the plan created (SoD): before 2571 the plan approver became the requester, so the
 -- requester ≠ approver rule alone does not reach them. Migrations under test: 1471 (and 1351, 1358, 1359, 1016, 1017, 0243).
 -- Every denial asserts errcode AND message. Mutation: the guard trigger is dropped in-transaction and the approval goes through.
 begin;
@@ -63,6 +63,12 @@ set local role authenticated;
 -- the plan approver (Finance) approves the plan: the two Draft purchases are theirs
 select pg_temp._as('47010000-0000-0000-0000-0000000000a4');
 select lives_ok($$ select public.approve_equipment_plan('47010000-0000-0000-0000-000000000b01') $$, 'the plan approver approves the plan');
+-- Retain the historical requester shape to test 1471 independently of the new requester=author rule.
+-- Submitted historical purchases are not backfilled by 2571; new-generation identity is owned by AC-EPS-002.
+reset role;
+update procurements set requested_by_id='47010000-0000-0000-0000-0000000000a4'
+where id in (select procurement_id from equipment_plan_lines where plan_id='47010000-0000-0000-0000-000000000b01');
+set local role authenticated;
 select is((select count(*)::int from procurements p join equipment_plan_lines l on l.procurement_id = p.id
             where l.plan_id = '47010000-0000-0000-0000-000000000b01' and p.requested_by_id = '47010000-0000-0000-0000-0000000000a4'), 2,
   'both purchases are requested by the plan approver, so the requester rule alone never reaches the plan''s author');

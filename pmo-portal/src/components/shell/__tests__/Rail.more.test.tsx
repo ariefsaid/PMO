@@ -62,7 +62,7 @@ describe('Rail navigation groups', () => {
     ['Executive', ['/approvals', '/', '/finance', '/finance/billing-board', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/sales', '/companies', '/contacts', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests']],
     ['Project Manager', ['/approvals', '/', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
     ['Finance', ['/approvals', '/', '/finance', '/finance/billing-board', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
-    ['Engineer', ['/approvals', '/', '/projects', '/work-orders', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/material-requests', '/my-tasks']],
+    ['Engineer', ['/approvals', '/', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/material-requests', '/my-tasks']],
     ['Admin', ['/approvals', '/', '/projects', '/work-orders', '/procurement', '/stock', '/equipment', '/equipment/assets', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/sales', '/companies', '/contacts', '/finance', '/finance/billing-board', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks']],
   ] as const)('%s keeps its destination set, in the order that role works', (role, expectedHrefs) => {
     roleState.role = role;
@@ -139,7 +139,7 @@ describe('Rail navigation groups', () => {
     roleState.role = 'Engineer';
     renderRail();
     expect(screen.getByRole('link', { name: 'Calendar' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Procurement' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Procurement' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
   });
 });

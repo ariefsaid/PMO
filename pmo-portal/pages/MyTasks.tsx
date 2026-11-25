@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, Icon, buttonClasses, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { useTaskLinkedRecords } from '@/src/hooks/useTaskLinkedRecords';
+import { useTaskSourceIssues } from '@/src/hooks/useTaskSourceIssues';
 import { LinkedRecordLine } from '@/src/components/tasks/LinkedRecordLine';
+import { SourceIssueLink } from '@/src/components/tasks/SourceIssueLink';
 import { recordLinkOf } from '@/src/lib/db/tasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
@@ -137,7 +139,7 @@ const MyTasks: React.FC = () => {
     return next;
   }, { replace: true });
   const [workOrderFilter, setWorkOrderFilter] = React.useState('all');
-  const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
+  const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string; status: TaskStatus } | null>(null);
   // R2: queue and search are URL-owned like the due=week drill, so Back/refresh keep them;
   // defaults stay out of the URL (empty = open queue, no search).
   const setParam = (key: string, value: string) => setSearchParams((current) => {
@@ -146,12 +148,15 @@ const MyTasks: React.FC = () => {
     else next.delete(key);
     return next;
   }, { replace: true });
-  const queue = searchParams.get('queue') === 'completed' ? 'completed' : 'open';
-  const setQueue = (next: 'open' | 'completed') => setParam('queue', next === 'completed' ? next : '');
+  const queue = searchParams.get('queue') === 'completed' ? 'completed'
+    : searchParams.get('queue') === 'overdue' ? 'overdue' : 'open';
+  const setQueue = (next: 'open' | 'overdue' | 'completed') => setParam('queue', next === 'open' ? '' : next);
   const search = searchParams.get('q') ?? '';
   const setSearch = (value: string) => setParam('q', value);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
+  // JOB-F17: the issue each task was made from — one read for the page, keyed by the sorted ids.
+  const { data: sourceIssues } = useTaskSourceIssues((tasks ?? []).map((task) => task.id));
   // #2587: the live status of every followed record on the page, one read for all rows (never one per row).
   const { data: linkedRecords } = useTaskLinkedRecords(
     (tasks ?? []).filter((task) => recordLinkOf({ procurement_id: task.procurement_id ?? null, expense_claim_id: task.expense_claim_id ?? null, material_request_id: task.material_request_id ?? null })).map((task) => task.id),
@@ -183,13 +188,15 @@ const MyTasks: React.FC = () => {
     return tasks.filter((task) => {
       if (workOrderFilter === 'none' ? task.work_order_id != null : workOrderFilter !== 'all' && task.work_order_id !== workOrderFilter) return false;
       const isCompleted = task.status === 'Done';
-      if (isCompleted !== (queue === 'completed')) return false;
+      if (queue === 'completed' ? !isCompleted : isCompleted) return false;
+      // M6: the Overdue queue is every open task past its deadline — the set a manager chases.
+      if (queue === 'overdue' && !isOverdueTask(task, today)) return false;
       // #1461 due=week: open tasks due by the end of this week (the figure's counted set).
       if (dueBy && !isCompleted && !(task.end_date !== null && task.end_date <= dueBy)) return false;
       if (!normalizedSearch) return true;
       return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
-  }, [tasks, queue, search, dueBy, workOrderFilter]);
+  }, [tasks, queue, search, dueBy, workOrderFilter, today]);
 
   // Unknown (list not loaded) is null: the open-task figure is a fact only once the read has
   // landed, and it never renders as a fabricated 0 (unknown-as-zero audit F19).
@@ -300,6 +307,7 @@ const MyTasks: React.FC = () => {
             onChange={setQueue}
             options={[
               { value: 'open', label: t('tasks:myTasks.openTasksShort', 'Open'), ariaLabel: t('myTasks.openTasks', 'Open tasks') },
+              { value: 'overdue', label: t('tasks:myTasks.overdueShort', 'Overdue') },
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
@@ -370,7 +378,9 @@ const MyTasks: React.FC = () => {
           <p className="text-sm text-muted-foreground">
             {search.trim()
               ? t('myTasks.noSearchResults', 'No tasks match your search')
-              : t('myTasks.noTasksInView', 'No tasks in this view')}
+              : queue === 'overdue'
+                ? tasksT('myTasks.nothingOverdue', 'Nothing is overdue')
+                : t('myTasks.noTasksInView', 'No tasks in this view')}
           </p>
         </div>
       )}
@@ -449,6 +459,12 @@ const MyTasks: React.FC = () => {
                           </LateText>
                         )}
                       </div>
+                      {sourceIssues?.get(task.id) && (
+                        <SourceIssueLink
+                          incidentId={sourceIssues.get(task.id)!}
+                          className="mt-0.5 inline-block text-control font-medium text-primary underline-offset-2 hover:underline"
+                        />
+                      )}
                       <LinkedRecordLine
                         className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-control"
                         task={{
@@ -460,6 +476,11 @@ const MyTasks: React.FC = () => {
                         }}
                         linked={linkedRecords?.get(task.id)}
                       />
+                      {task.work_order_id && task.work_order_name && (
+                        <Link to={`/work-orders/${task.work_order_id}`} className="mt-0.5 inline-block text-control font-medium text-primary underline-offset-2 hover:underline">
+                          {task.work_order_name}
+                        </Link>
+                      )}
                       {(task.start_date || task.end_date) && (
                         <span className="mt-0.5 block text-control text-muted-foreground">
                           {task.start_date && (
@@ -489,7 +510,7 @@ const MyTasks: React.FC = () => {
                         type="button"
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
                         title={t('comments.open', 'Comments')}
-                        onClick={() => setCommentsTask({ id: task.id, name: task.name })}
+                        onClick={() => setCommentsTask({ id: task.id, name: task.name, status: task.status })}
                         className={ROW_ACTION_CLASS}
                       >
                         <Icon name="message" className="size-4" />

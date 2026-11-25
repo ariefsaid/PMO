@@ -8,11 +8,12 @@ import {
   loadStepTemplateOntoProject, moveClaimStep, removeClaimStep, saveStepTemplate, updateClaimStep,
 } from '@/src/lib/db/billingSteps';
 import {
-  assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getDefaultStepTemplateId, getWaitingWorkOrderSteps,
-  listBoardWorkOrderSteps, listWorkOrderSteps, setDefaultStepTemplate, skipWorkOrderStep,
+  addWorkOrderStep, assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getDefaultStepTemplateId, getWaitingWorkOrderSteps,
+  getWorkOrderChecklistEnabled, listBoardWorkOrderSteps, listWorkOrderSteps, saveWorkOrderChecklistAsTemplate,
+  setDefaultStepTemplate, setWorkOrderChecklistEnabled, setWorkOrderStepClaimEvidence, skipWorkOrderStep,
 } from '@/src/lib/db/workOrderBillingSteps';
 import { getBillingBoard } from '@/src/lib/db/billingBoard';
-import { getPlanCandidates, getPlanSettings, saveMonthTarget, savePlanReminder, savePlanSettings } from '@/src/lib/db/billingPlan';
+import { getPlanCandidates, getPlanSettings, getUnacceptedProgressCandidates, saveMonthTarget, savePlanReminder, savePlanSettings } from '@/src/lib/db/billingPlan';
 import { wrap } from './repositoryErrors';
 import type { BillingStagesRepository } from './contracts/billingStages';
 
@@ -23,6 +24,7 @@ import type { BillingStagesRepository } from './contracts/billingStages';
 export const billingStagesRepository: BillingStagesRepository = {
   readBoard: (projectId) => wrap(() => getBillingBoard(projectId)),
   readPlanCandidates: (projectId) => wrap(() => getPlanCandidates(projectId)),
+  readUnacceptedProgress: (projectId) => wrap(() => getUnacceptedProgressCandidates(projectId)),
   getPlanSettings: () => wrap(() => getPlanSettings()),
   savePlanSettings: (input) => wrap(() => savePlanSettings(input)),
   savePlanReminder: (input) => wrap(() => savePlanReminder(input)),
@@ -58,8 +60,13 @@ export const billingStagesRepository: BillingStagesRepository = {
   boardWorkOrderSteps: (projectId) => wrap(() => listBoardWorkOrderSteps(projectId)),
   waitingWorkOrderSteps: () => wrap(() => getWaitingWorkOrderSteps()),
   completeWorkOrderStep: (stepId, doneOn) => wrap(() => completeWorkOrderStep(stepId, doneOn)),
-  skipWorkOrderStep: (stepId) => wrap(() => skipWorkOrderStep(stepId)),
+  skipWorkOrderStep: (stepId, reason) => wrap(() => skipWorkOrderStep(stepId, reason)),
   assignWorkOrderStep: (stepId, personId) => wrap(() => assignWorkOrderStep(stepId, personId)),
+  setWorkOrderStepClaimEvidence: (stepId, enabled) => wrap(() => setWorkOrderStepClaimEvidence(stepId, enabled)),
+  addWorkOrderStep: (workOrderId, afterPosition, step) => wrap(() => addWorkOrderStep(workOrderId, afterPosition, step)),
+  saveWorkOrderChecklistAsTemplate: (workOrderId, name) => wrap(() => saveWorkOrderChecklistAsTemplate(workOrderId, name)),
+  workOrderChecklistEnabled: () => wrap(() => getWorkOrderChecklistEnabled()),
+  setWorkOrderChecklistEnabled: (enabled) => wrap(() => setWorkOrderChecklistEnabled(enabled)),
   attachWorkOrderStepDocument: (stepId, slotId, documentId) => wrap(() => attachWorkOrderStepDocument(stepId, slotId, documentId)),
   defaultStepTemplateId: () => wrap(() => getDefaultStepTemplateId()),
   setDefaultStepTemplate: (templateId) => wrap(() => setDefaultStepTemplate(templateId)),

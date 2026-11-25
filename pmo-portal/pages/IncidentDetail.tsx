@@ -19,6 +19,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { can } from '@/src/auth/policy';
+import { isLightAccount } from '@/src/auth/lightAccount';
 import { useIncident, useIncidentMutations, useIncidentFiles, useIncidentEvidenceMutations, useAssigneeOptions, useSupervisorMayTask } from '@/src/hooks/useIncidents';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -78,12 +79,14 @@ const IncidentDetail: React.FC = () => {
 
   // The person in charge may move their own issue forward (status, note, photos) — the database limits them to that.
   const isAssignee = Boolean(currentUser?.id && query.data?.assignee_id === currentUser.id);
+  const reporterMayFollowUp = Boolean(currentUser?.id && query.data?.reported_by === currentUser.id
+    && query.data?.status !== 'Closed' && !isLightAccount(currentUser) && realRole === effectiveRole);
   const canMakeTask = canEdit;
   // The Site Supervisor job role adds tasks to an issue on a work order it supervises (add_task_to_incident, 2041).
-  const supervisorMayTask = useSupervisorMayTask(query.data?.work_order_id, !canEdit && currentUser?.built_in_role === 'site_supervisor'
+  const supervisorMayTask = useSupervisorMayTask(query.data?.id, !canEdit && currentUser?.built_in_role === 'site_supervisor'
     && realRole === effectiveRole);
   // The root cause may be written by a manager or the person in charge (the issue guard decides).
-  const canEditRootCause = canEdit || isAssignee;
+  const canEditRootCause = canEdit || isAssignee || reporterMayFollowUp;
 
   const goBack = () => navigate('/incidents');
 
@@ -180,7 +183,7 @@ const IncidentDetail: React.FC = () => {
   const taskLines = incident.incident_tasks ?? [];
   const showTaskList = taskLines.length > 0;
   // The form that takes a name, a person and a day is there from the start, not only once a first task exists.
-  const canAddTask = (canMakeTask || supervisorMayTask) && Boolean(incident.project_id) && incident.status !== 'Closed';
+  const canAddTask = may('act', 'incident', {record: {project_id: incident.project_id, status: incident.status, mayTaskIssue: supervisorMayTask, reporterMayFollowUp, viewOnly: realRole !== effectiveRole}});
 
   const onMakeTask = async () => {
     try {

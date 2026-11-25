@@ -17,7 +17,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, storage: { from: () => ({ upload: h.upload, remove: h.remove }) }, from: () => ({ ...h.query, insert: h.insert, delete: h.deleteRow }) } }));
 
-import { archiveStockDocumentFile, getWorkOrderStockBalance, uploadStockDocumentFile, listStockTags, listStockDocumentFiles, deleteStockDocumentFile } from './stockSiteWork';
+import { archiveStockDocumentFile, getWorkOrderMaterialCompletion, getWorkOrderStockBalance, uploadStockDocumentFile, listStockTags, listStockDocumentFiles, deleteStockDocumentFile } from './stockSiteWork';
 
 beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); h.upload.mockReset(); h.remove.mockReset(); h.insert.mockReset(); h.deleteRow.mockReset(); h.pages.length = 0; h.range.mockClear(); });
 
@@ -97,4 +97,21 @@ it('removes the uploaded object when deleting a draft attachment', async () => {
   await deleteStockDocumentFile('f1', 'org/doc/f1/slip.pdf');
   expect(h.remove).toHaveBeenCalledWith(['org/doc/f1/slip.pdf']);
   expect(h.deleteRow).toHaveBeenCalledOnce();
+});
+
+describe('getWorkOrderMaterialCompletion (AC-WMC-006)', () => {
+  it('AC-WMC-006 maps the one read: figures stay decimal strings, cost fields appear only when the database sent them', async () => {
+    h.queue.push({ data: { rows: [{ item_id: 'i', item_code: 'PIPE', item_name: 'Pipe', unit_code: 'm', issued: '10', returned: '2', moved_in: '5', moved_out: '1', counted_difference: '-1', balance: '3' }],
+      totals: [{ unit_code: 'm', issued: '10', returned: '2', moved_in: '5', moved_out: '1', counted_difference: '-1', balance: '3' }], value_totals: null }, error: null });
+    const c = await getWorkOrderMaterialCompletion('wo1');
+    expect(h.rpc).toHaveBeenCalledWith('get_work_order_material_completion', { p_work_order_id: 'wo1' });
+    expect(c.rows[0]).toEqual({ itemId: 'i', itemCode: 'PIPE', itemName: 'Pipe', unitCode: 'm', issued: '10', returned: '2', movedIn: '5', movedOut: '1', countedDifference: '-1', balance: '3' });
+    expect(c.rows[0]).not.toHaveProperty('issuedValue');
+    expect(c.valueTotals).toBeNull();
+    h.queue.push({ data: { rows: [{ item_id: 'i', item_code: 'P', item_name: 'P', unit_code: 'm', issued: '1', returned: '0', moved_in: '0', moved_out: '0', counted_difference: '0', balance: '1', issued_value: '4.0000', returned_value: '0', balance_value: '4.0000' }],
+      totals: [], value_totals: { issued: '4.0000', returned: '0', balance: '4.0000' } }, error: null });
+    const withCost = await getWorkOrderMaterialCompletion('wo1');
+    expect(withCost.rows[0].issuedValue).toBe('4.0000');
+    expect(withCost.valueTotals).toEqual({ issued: '4.0000', returned: '0', balance: '4.0000' });
+  });
 });

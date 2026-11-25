@@ -167,6 +167,19 @@ describe('quantity change request record', () => {
     expect(screen.getByTestId('qcr-version-change').textContent).toMatch(/5,000,000\.00/);
   });
 
+  it('#2883 the version history shows the reason beside the revision a request produced', async () => {
+    h.detail = make('client_accepted');
+    h.versions = [
+      { version_no: 1, quantity: 1000, source: 'baseline', request_id: null, created_by: null, created_at: 'a' },
+      { version_no: 2, quantity: 1100, source: 'change_request', request_id: 'q1', created_by: 'pm', created_at: 'b', reason: 'Rock found below the design level' },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Version history' }));
+    const items = screen.getByTestId('qcr-versions').querySelectorAll('li');
+    expect(items[1].textContent).toContain('Rock found below the design level');
+    expect(items[0].textContent).not.toContain('Rock');
+  });
+
   it('a withdrawn request shows what it was withdrawn from', () => {
     h.detail = make('withdrawn', { withdrawn_from: 'returned', withdraw_reason: 'No longer needed', withdrawn_at: '2026-03-12T00:00:00Z' });
     renderPage();

@@ -10,16 +10,20 @@ import { test, expect } from '@playwright/test';
 import { signIn, pickComboboxOption } from './helpers';
 import { iso, need, ORG_ID, PM_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
+import { roleJobUser } from './support/roleJobUser';
+import { runId } from './support/jobFixtures';
 
 test.setTimeout(240_000);
 const must = need('JOB-E6');
 const db = serviceClient('JOB-E6');
 const run = `E2E-E6-${Date.now()}`;
 let a = { projectId: '', workOrderId: '', title: '' }; let b = a; let assetId = '';
+let officer: Awaited<ReturnType<typeof roleJobUser>>;
 const workDay = new Date(); workDay.setDate(workDay.getDate() - 7);
 const weekdayIndex = (workDay.getDay() + 6) % 7;
 
 test.beforeEach(async () => {
+  officer = await roleJobUser(db, 'equipment_officer', runId('e6-eo'));
   a = await seedWorkOrder(db, 'JOB-E6', run, 'A'); b = await seedWorkOrder(db, 'JOB-E6', run, 'B');
   assetId = must('asset', await db.from('equipment_assets').insert({ org_id: ORG_ID, code: run, name: `${run} crane`, default_unit: 'hours' }).select('id').single()).id;
 });
@@ -27,11 +31,12 @@ test.afterEach(async () => {
   await db.from('equipment_usage_entries').delete().eq('asset_id', assetId);
   await db.from('equipment_assets').delete().eq('id', assetId);
   for (const x of [a, b]) { await db.from('work_orders').delete().eq('id', x.workOrderId); await db.from('projects').delete().eq('id', x.projectId); }
+  await officer.cleanup();
   void PM_ID;
 });
 
 test('JOB-E6 a crane used on two work orders in a day carries 5 hours on one and 3 on the other', async ({ page }) => {
-  await signIn(page, 'engineer@acme.test');
+  await officer.signIn(page);
   for (const [x, hours] of [[a, '5'], [b, '3']] as const) {
     await page.goto(`/equipment?week=${iso(workDay)}`);
     await page.getByRole('button', { name: 'Add row' }).click();
@@ -57,6 +62,14 @@ test('JOB-E6 a crane used on two work orders in a day carries 5 hours on one and
   await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
   await expect(page.getByText('Nothing is waiting for approval this week')).toBeVisible({ timeout: 15_000 });
 
+  // Goal: each work order's own page shows its own hours of the crane.
+  for (const [x, hours] of [[a, 5], [b, 3]] as const) {
+    await page.goto(`/work-orders/${x.workOrderId}`);
+    const equipment = page.getByTestId('cost-group-equipment_usage');
+    await expect(equipment).toContainText(run, { timeout: 20_000 });
+    await expect(equipment).toContainText(new RegExp(`(?:^|\\D)${hours} hours`));
+    await expect(equipment).not.toContainText(new RegExp(`(?:^|\\D)${hours === 5 ? 3 : 5} hours`));
+  }
   for (const [x, hours] of [[a, 5], [b, 3]] as const) {
     const lines = must('cost lines', await db.from('work_order_cost_lines').select('quantity').eq('work_order_id', x.workOrderId).eq('source', 'equipment_usage'));
     expect(lines.reduce((sum: number, l: { quantity: string }) => sum + Number(l.quantity), 0)).toBe(hours);

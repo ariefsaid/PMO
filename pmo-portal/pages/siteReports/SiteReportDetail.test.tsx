@@ -40,6 +40,8 @@ const h = vi.hoisted(() => ({
   equipment: [] as unknown[],
   peopleHours: '8',
   userId: 'eng',
+  builtInRoleKey: null as string | null,
+  qsRevenue: true,
   realRole: 'Engineer',
   pm: 'pm' as string | null,
   pmName: 'Rina Wati' as string | null,
@@ -53,6 +55,9 @@ const h = vi.hoisted(() => ({
     withdraw: { mutateAsync: vi.fn(), isPending: false },
     correct: { mutateAsync: vi.fn(), isPending: false }, uploadPhoto: { mutateAsync: vi.fn(), isPending: false },
   },
+}));
+vi.mock('@/src/hooks/useWorkOrderSections', () => ({
+  useWorkOrderSectionRollup: () => ({ data: [{ sectionId: 'section-a', code: 'A', name: 'Front A', archivedAt: null }] }),
 }));
 vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useDailySiteReport: () => ({ data: h.detail, isPending: false, isError: false, refetch: vi.fn() }),
@@ -85,8 +90,10 @@ vi.mock('@/src/hooks/useDsrValidationRoute', async (importOriginal) => {
   };
 });
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master: { listItems: async () => [] } }, dailySiteReport: { photoUrl: vi.fn() } } }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1', built_in_role: h.builtInRoleKey } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
+
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.qsRevenue }) }));
 
 import SiteReportDetail from './SiteReportDetail';
 
@@ -95,7 +102,7 @@ const make = (status: string, extra: Partial<DsrReportDetail['report']> = {}): D
     id: 'r1', org_id: 'o1', project_id: 'p1', work_order_id: 'w1', work_date: '2026-03-10', status: status as DsrReportDetail['report']['status'],
     version: 1, supersedes_id: null, superseded_at: null, correction_reason: null, author_id: 'eng', submitted_at: null, validated_by: null,
     validated_at: null, returned_reason: null, variant_id: null, start_time: '07:00:00', end_time: '17:30:00', total_minutes: 630,
-    weather_id: null, weather_note: null, note: null, ...extra,
+    weather_id: null, weather_note: null, note: null, crew_id: null, person_id: null, area_id: null, ...extra,
   },
   workOrder: { label: 'WO-1 · Pipe run', currency: 'USD', orderValue: 1000 },
   progress: [
@@ -121,6 +128,7 @@ const renderPage = (lng: 'en' | 'id' = 'en') => render(
 );
 
 beforeEach(() => {
+  h.builtInRoleKey = null; h.qsRevenue = true;
   h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.pmName = 'Rina Wati'; h.noItems = false; h.equipment = []; h.peopleHours = '8';
   h.route = { routeKind: 'finance_admin', approvers: [] };
   h.routeError = false;
@@ -320,6 +328,22 @@ describe('site report record', () => {
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Saat ini tidak ada anggota aktif yang dapat memvalidasi laporan ini.');
     });
 
+    it('AC-DRVR-008 sole-Admin author with no PM and an assigned validator job role shows that job role instead of nobody, EN and ID', () => {
+      h.detail = make('submitted', { author_id: 'adm' });
+      h.userId = 'adm';
+      h.realRole = 'Admin';
+      h.pm = null;
+      h.pmName = null;
+      h.route = { routeKind: 'job_roles', approvers: [], validateRoles: ['site_supervisor'] };
+      const first = renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Site Supervisor');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Nobody active can validate');
+      first.unmount();
+
+      renderPage('id');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Pengawas Lapangan');
+    });
+
     it('the non-leaking unavailable shape, and a still-loading read, show no waiting claim at all', () => {
       h.detail = make('submitted');
       h.route = { routeKind: 'unavailable', approvers: [] };
@@ -377,5 +401,31 @@ describe('site report record', () => {
         unmount();
       }
     });
+  });
+});
+
+it('JOB-PC6 the field recorder selects the section when recording progress', async () => {
+  h.detail = make('draft');
+  const user = userEvent.setup();
+  renderPage();
+  const sections = screen.getAllByLabelText('Section');
+  await user.selectOptions(sections[0], 'section-a');
+  expect(sections[0]).toHaveValue('section-a');
+});
+
+
+describe('QS report revenue scope', () => {
+  it('AC-QSR-001 shows the validated day amount without the work-order total', () => {
+    h.builtInRoleKey = 'quantity_surveyor';
+    h.detail = make('validated');
+    renderPage();
+    expect(screen.getByTestId('dsr-total')).toHaveTextContent('50');
+    expect(screen.queryByText('Validated to date')).toBeNull();
+  });
+  it('AC-QSR-001 hides the amount while the organisation setting is off', () => {
+    h.builtInRoleKey = 'quantity_surveyor'; h.qsRevenue = false;
+    h.detail = make('validated');
+    renderPage();
+    expect(screen.queryByTestId('dsr-total')).toBeNull();
   });
 });

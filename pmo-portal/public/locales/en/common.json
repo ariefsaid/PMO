@@ -85,7 +85,7 @@
       },
       "stockTransfers": {
         "name": "Stock transfers and proof",
-        "summary": "Chooses one-step or two-step transfers and when proof is attached."
+        "summary": "Chooses one-step or two-step transfers, when proof is attached, and whether issues need a signed handover too."
       },
       "stockWoTransfers": {
         "name": "Work-order transfers",
@@ -182,6 +182,26 @@
       "feedbackSurveys": {
         "name": "Feedback surveys",
         "summary": "Asks people short in-app feedback questions."
+      },
+      "stockIssueCost": {
+        "name": "Stock issue costing",
+        "summary": "Counts issued stock as work-order cost from a chosen date."
+      },
+      "orderReceiving": {
+        "name": "Receive against order",
+        "summary": "Records counted goods against sent purchase orders."
+      },
+      "managementViews": {
+        "name": "Management views",
+        "summary": "Shows the project portfolio and progress not yet accepted by the client."
+      },
+      "orderNeededBy": {
+        "name": "Order needed-by date",
+        "summary": "Requires a needed-by date before an order is sent to the supplier."
+      },
+      "setupWorkflows": {
+        "name": "Setup workflows",
+        "summary": "Enables work-order imports and the opening balances overview."
       }
     },
     "paletteGroup": "Settings"
@@ -2871,8 +2891,8 @@
       "projectUpdated": "Project updated"
     },
     "workOrderForm": {
-      "clientPoHelper": "The client’s own reference. Our WO number is issued by the system.",
-      "clientPoNumber": "Client PO number",
+      "clientPoHelper": "The number on the client’s work order or PO. Ours is issued by the system.",
+      "clientPoNumber": "Client reference",
       "create": "Create draft",
       "description": "Scope",
       "detailsLegend": "The client’s order",

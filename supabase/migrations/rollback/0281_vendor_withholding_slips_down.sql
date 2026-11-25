@@ -49,7 +49,23 @@ REVOKE ALL ON FUNCTION public.record_history_visible(text,uuid) FROM public,anon
 GRANT EXECUTE ON FUNCTION public.record_history_visible(text,uuid) TO authenticated,service_role;
 DROP TABLE IF EXISTS public.vendor_withholding_slip_bills;
 DROP TABLE IF EXISTS public.vendor_withholding_slips;
-ALTER TABLE public.companies DROP CONSTRAINT IF EXISTS bupot_companies_org_id_id_uq;
-ALTER TABLE public.procurements DROP CONSTRAINT IF EXISTS bupot_procurements_org_id_id_uq;
-ALTER TABLE public.procurement_invoices DROP CONSTRAINT IF EXISTS bupot_invoices_org_id_id_uq;
+-- Tenant keys may also support later features. Keep any key still referenced by a foreign key.
+DO $shared_tenant_keys$
+DECLARE target record;
+BEGIN
+  FOR target IN
+    SELECT c.conname,c.conindid,t.relname FROM pg_constraint c
+    JOIN pg_class t ON t.oid=c.conrelid
+    JOIN pg_namespace n ON n.oid=t.relnamespace
+    WHERE n.nspname='public' AND (t.relname,c.conname) IN (
+      ('companies','bupot_companies_org_id_id_uq'),
+      ('procurements','bupot_procurements_org_id_id_uq'),
+      ('procurement_invoices','bupot_invoices_org_id_id_uq'))
+  LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint fk WHERE fk.contype='f' AND fk.conindid=target.conindid) THEN
+      EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT %I',target.relname,target.conname);
+    END IF;
+  END LOOP;
+END
+$shared_tenant_keys$;
 NOTIFY pgrst,'reload schema';

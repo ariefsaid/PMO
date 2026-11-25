@@ -1176,7 +1176,8 @@
     "error": "The billing board could not be loaded",
     "empty": "No claims to show",
     "emptySub": "Claims appear here once they have billing steps. Open a claim on the project's Contract tab and add its steps.",
-    "entryLink": "Billing board"
+    "entryLink": "Billing board",
+    "columnTotal": "{{amount}} total"
   },
   "billingPlan": {
     "title": "Billing plan",
@@ -1208,7 +1209,7 @@
     "truncated": "Showing the {{count}} largest. Filter by project to see the rest.",
     "error": "The billing plan could not be loaded",
     "empty": "No candidates to show",
-    "emptySub": "Work appears here once it is accepted and not yet claimed.",
+    "emptySub": "No measured progress is waiting for acceptance or ready to claim.",
     "settings": {
       "open": "Plan settings",
       "title": "Plan settings",
@@ -1232,6 +1233,13 @@
     },
     "ageSince_one": "{{count}} day since accepted",
     "ageSince_other": "{{count}} days since accepted",
+    "acceptedTitle": "Progress accepted by the client, not yet claimed",
+    "unacceptedTitle": "Progress not yet accepted by the client",
+    "unacceptedError": "Unaccepted progress could not be loaded",
+    "unacceptedEmpty": "No progress is waiting for client acceptance.",
+    "unacceptedTruncated": "Showing the {{count}} largest quantities. Filter by project to see the rest.",
+    "unacceptedQuantity": "{{quantity}} {{unit}} measured",
+    "progressItem": "Progress item",
     "overLimit_one": "Over the {{count}}-day limit",
     "overLimit_other": "Over the {{count}}-day limit",
     "overCount_one": "{{count}} line is over the day limit",

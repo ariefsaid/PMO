@@ -84,7 +84,9 @@
   "documents": {
     "title": "Dokumen",
     "error": "Dokumen tidak dapat dimuat",
-    "empty": "Belum ada dokumen yang dapat Anda lihat untuk $t(common:terms.clientWorkOrder) ini."
+    "empty": "Belum ada dokumen yang dapat Anda lihat untuk $t(common:terms.clientWorkOrder) ini.",
+    "add": "Tambah dokumen",
+    "uploadAria": "Pilih file dokumen"
   },
   "openPage": "Buka halaman",
   "issues": {
@@ -214,7 +216,8 @@
     "duplicateCode": "Entri aktif lain sudah memakai kode ini.",
     "adminOnly": "Hanya Admin yang dapat mengubah daftar ini.",
     "tooLong": "Gunakan paling banyak {{max}} karakter.",
-    "hint": "Daftar milik organisasi Anda sendiri. $t(common:terms.clientWorkOrder) dapat menyebutnya; daftar dapat dikelompokkan menurutnya."
+    "hint": "Daftar milik organisasi Anda sendiri. $t(common:terms.clientWorkOrder) dapat menyebutnya; daftar dapat dikelompokkan menurutnya.",
+    "description": "Deskripsi (opsional)"
   },
   "clientMaterial": {
     "awaiting": "Menunggu reservasi",
@@ -260,6 +263,7 @@
       "dateHelper": "Kosongkan untuk hari ini.",
       "location": "Diterima di",
       "locationPlaceholder": "Pilih lokasi",
+      "needsQualityCheck": "Barang ini perlu pemeriksaan mutu, sehingga tidak dapat dicatat sebagai pengambilan.",
       "locationRequired": "Pilih lokasi penerimaan material.",
       "paper": "Referensi surat jalan",
       "slipFailed": "Pengambilan tercatat, tetapi foto surat jalan belum tersimpan. Tambahkan di Lampiran pada tanda terima.",
@@ -404,5 +408,43 @@
     "none": "Tidak ada regu terjadwal hari ini",
     "people_one": "{{count}} orang",
     "people_other": "{{count}} orang"
+  },
+  "checks": {
+    "title": "Pemeriksaan sebelum terbit",
+    "error": "Pemeriksaan tidak dapat dimuat",
+    "empty": "Belum ada pemeriksaan.",
+    "allDone": "Semua {{count}} selesai",
+    "openCount": "{{open}} dari {{count}} terbuka",
+    "openWarning": "Masih terbuka: {{names}}",
+    "ownerFor": "Penanggung jawab {{name}}",
+    "chooseOwner": "Pilih penanggung jawab",
+    "name": "Pemeriksaan",
+    "owner": "Penanggung jawab",
+    "due": "Tenggat",
+    "add": "Tambah pemeriksaan"
+  },
+  "decision": {
+    "cancel": "Batalkan $t(common:terms.clientWorkOrder)",
+    "cancelReason": "Alasan pembatalan",
+    "cancelHelper": "Pembatalan bersifat final. Alasannya tetap tercatat pada $t(common:terms.clientWorkOrder) ini.",
+    "cancelledBecause": "Dibatalkan karena: {{reason}}"
+  },
+  "candidateRecords": {
+    "title": "Kandidat $t(common:terms.clientWorkOrder) terdahulu",
+    "error": "Kandidat terdahulu tidak dapat dimuat",
+    "status": {
+      "assessing": "Belum diputuskan",
+      "accepted": "Diterima",
+      "rejected": "Ditolak"
+    },
+    "check": {
+      "open": "Terbuka",
+      "passed": "Lulus",
+      "failed": "Gagal",
+      "notApplicable": "Tidak berlaku"
+    },
+    "openWorkOrder": "Buka $t(common:terms.clientWorkOrder)",
+    "checks_one": "{{count}} pemeriksaan",
+    "checks_other": "{{count}} pemeriksaan"
   }
 }

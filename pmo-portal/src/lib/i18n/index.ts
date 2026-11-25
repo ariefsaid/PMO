@@ -116,6 +116,25 @@ export const orgTermsPlugin = {
   },
 };
 
+// A backend completion frees i18next's concurrency slot and can start another queued read.
+// Keep the departing document's signal aborted so that queue cannot start new network work.
+let catalogueLifetime: AbortController | undefined;
+function catalogueSignal(): AbortSignal {
+  if (!catalogueLifetime) {
+    catalogueLifetime = new AbortController();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', (event) => {
+        // A cached document resumes its existing i18next queue when restored.
+        if (!event.persisted) catalogueLifetime?.abort();
+      });
+      window.addEventListener('pageshow', () => {
+        if (catalogueLifetime?.signal.aborted) catalogueLifetime = new AbortController();
+      });
+    }
+  }
+  return catalogueLifetime.signal;
+}
+
 /**
  * FR-L10N-043 — lazy per-locale load. i18next requests only the ACTIVE language plus `fallbackLng`,
  * so an `en` session fetches `/locales/en/*.json` and never touches `/locales/id/*.json`.
@@ -129,7 +148,12 @@ export const catalogueBackend: BackendModule = {
   type: 'backend',
   init: () => {},
   read(language: string, namespace: string, callback: ReadCallback) {
-    fetch(`/locales/${language}/${namespace}.json`)
+    const signal = catalogueSignal();
+    if (signal.aborted) {
+      callback(new Error('Catalogue document departed'), false);
+      return;
+    }
+    fetch(`/locales/${language}/${namespace}.json`, { signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((data) => callback(null, data))
       .catch((err: unknown) => callback(err instanceof Error ? err : new Error(String(err)), false));
@@ -147,6 +171,20 @@ export function createParseMissingKeyHandler(
 ): (key: string, defaultValue?: string) => string {
   // Per-instance, so two instances never suppress each other's on-demand load.
   const requestedNamespaces = new Set<string>();
+  // Batch misses discovered during a single render pass into one `loadNamespaces` call so i18next
+  // tracks them as one queue entry instead of emitting a separate `loaded` storm per namespace.
+  const pendingNamespaces = new Set<string>();
+  let flushScheduled = false;
+
+  const flushPending = (): void => {
+    flushScheduled = false;
+    if (pendingNamespaces.size === 0) return;
+    const batch = [...pendingNamespaces];
+    pendingNamespaces.clear();
+    // Fire-and-forget: i18next de-dupes concurrent requests for a namespace, a failed catalogue is
+    // recorded as attempted (no retry storm), and a 404 still leaves FR-L10N-041's English text up.
+    void instance.loadNamespaces(batch).catch(() => undefined);
+  };
 
   const loadOnDemand = (namespace: string): void => {
     if (namespace === DEFAULT_NS || requestedNamespaces.has(namespace)) return;
@@ -155,9 +193,11 @@ export function createParseMissingKeyHandler(
     if (typeof instance.loadNamespaces !== 'function' || typeof instance.hasLoadedNamespace !== 'function') return;
     if (instance.hasLoadedNamespace(namespace)) return;
     requestedNamespaces.add(namespace);
-    // Fire-and-forget: i18next de-dupes concurrent requests for a namespace, a failed catalogue is
-    // recorded as attempted (no retry storm), and a 404 still leaves FR-L10N-041's English text up.
-    void instance.loadNamespaces(namespace).catch(() => undefined);
+    pendingNamespaces.add(namespace);
+    if (!flushScheduled) {
+      flushScheduled = true;
+      queueMicrotask(flushPending);
+    }
   };
 
   return (key: string, defaultValue?: string): string => {
@@ -194,6 +234,37 @@ export const parseMissingKeyHandler = createParseMissingKeyHandler(i18next);
 let initPromise: Promise<I18nInstance> | null = null;
 
 /**
+ * Coalesce i18next's raw `loaded` event into one `catalogues-loaded` event per completed burst.
+ *
+ * i18next's BackendConnector emits `loaded` synchronously after EVERY individual JSON read — even
+ * with an empty `{}` payload while a multi-namespace batch is still in flight. Binding react-i18next
+ * directly to `loaded` forces every mounted `useTranslation()` subscriber through a synchronous
+ * `useSyncExternalStore` re-render on every file (30-46 full-app re-renders on cold boot). Filtering
+ * empty intermediate emissions and coalescing non-empty completions per macrotask keeps on-demand
+ * translations live while eliminating the main-thread stall.
+ */
+const CATALOGUES_LOADED_EVENT = 'catalogues-loaded';
+const coalescedLoadedInstances = new WeakSet<I18nInstance>();
+
+function installCoalescedLoadedEvent(instance: I18nInstance): void {
+  if (coalescedLoadedInstances.has(instance) || typeof instance.on !== 'function') return;
+  coalescedLoadedInstances.add(instance);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pendingPayload: Record<string, unknown> = {};
+  instance.on('loaded', (loaded: unknown) => {
+    if (!loaded || typeof loaded !== 'object' || Object.keys(loaded).length === 0) return;
+    Object.assign(pendingPayload, loaded);
+    if (timer !== null) return;
+    timer = setTimeout(() => {
+      timer = null;
+      const payload = pendingPayload;
+      pendingPayload = {};
+      instance.emit(CATALOGUES_LOADED_EVENT, payload);
+    }, 0);
+  });
+}
+
+/**
  * The i18next init options, as a value. Exported so `initI18n` and an isolated test instance run the
  * SAME config — a test that re-typed these options would certify the test, not the app.
  */
@@ -201,6 +272,7 @@ export function i18nInitOptions(
   locale: string = FALLBACK_LOCALE,
   instance: I18nInstance = i18next,
 ): Record<string, unknown> {
+  installCoalescedLoadedEvent(instance);
   const bootLocale = locale && isUsableLocaleTag(locale) ? locale : FALLBACK_LOCALE;
   return {
     lng: bootLocale,
@@ -225,9 +297,8 @@ export function i18nInitOptions(
     react: {
       useSuspense: false,
       // react-i18next's default is `languageChanged` only. An on-demand catalogue lands AFTER the
-      // first paint, so without `loaded` the subscribers would keep rendering the English fallback
-      // until some unrelated state changed.
-      bindI18n: 'languageChanged loaded',
+      // first paint, so we also bind to our coalesced `catalogues-loaded` event (never raw `loaded`).
+      bindI18n: `languageChanged ${CATALOGUES_LOADED_EVENT}`,
     },
   };
 }

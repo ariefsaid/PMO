@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFeature } from '@/src/auth/useFeature';
+import { useBuiltInRoleKey } from '@/src/auth/usePermission';
 import { can } from '@/src/auth/policy';
 import { useOptionalToast } from '@/src/components/ui/Toast';
 import { repositories } from '@/src/lib/repositories';
@@ -51,6 +52,7 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const roles = useRoles();
+  const builtInRoleKey = useBuiltInRoleKey();
   const toastApi = useOptionalToast();
   const { t } = useTranslation('recordFolders');
 
@@ -69,7 +71,9 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
   return useCallback((target: RecordFolderTarget): void => {
     try {
       if (!m365 || !orgId || !userId || viewOnly) return;
-      const allowed = can('create', target.kind === 'project' ? 'document' : 'procDoc', { realRole });
+      const allowed = target.kind === 'procurement'
+        ? can('create', 'procDoc', { realRole, builtInRoleKey })
+        : can('create', 'document', { realRole, builtInRoleKey, record: target.kind === 'work_order' ? { work_order_id: target.id } : undefined });
       if (!allowed) return;
 
       const key = recordFolderKey(orgId, userId, target);
@@ -116,5 +120,5 @@ export function useStartRecordFolder(): (target: RecordFolderTarget) => void {
     } catch {
       /* start() is fire-and-forget: nothing here may throw into a save-success path */
     }
-  }, [qc, m365, orgId, userId, realRole, viewOnly]);
+  }, [qc, m365, orgId, userId, realRole, builtInRoleKey, viewOnly]);
 }

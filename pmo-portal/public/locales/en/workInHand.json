@@ -23,7 +23,7 @@
     "title": "Couldn't load work in hand"
   },
   "help": {
-    "backlog": "Months of backlog is Left to bill divided by the billing rate. A contract and its work orders are shown together and never added.",
+    "backlog": "Months of backlog per row is Left to bill divided by the row's billing rate. Months of work in hand divides organisation-currency work in hand by the Admin's monthly capacity; other currencies are not converted or included.",
     "leftToBill": "Left to bill is the value not yet invoiced: the contract or work-order value less invoiced work, before tax. Draft and cancelled invoices do not count.",
     "rate": "Billing rate per month is invoiced work in the last 6 complete months, divided by the months since billing began (at most 6)."
   },
@@ -51,6 +51,9 @@
     "unpriced_other": "{{count}} invoices with no amount"
   },
   "loading": "Loading work in hand",
+  "access": {
+    "denied": "Work in hand is available to Finance, Executive, Admin, and Project Managers for their assigned projects."
+  },
   "row": {
     "hideMonths": "Hide months for {{name}}",
     "monthsCounted_one": "{{count}} month counted",
@@ -83,5 +86,39 @@
     "rate": "Billing rate per month",
     "rateUnknown": "no row has a billing rate"
   },
-  "title": "Work in hand"
+  "title": "Work in hand",
+  "titleManaged": "My work in hand",
+  "managedScope": "These figures cover only projects assigned to you.",
+  "capacitySetting": {
+    "title": "Monthly work capacity",
+    "helper": "Monthly production capacity in {{currency}}, used to divide work in hand into months. Leave it empty if no capacity is set yet.",
+    "label": "Monthly capacity ({{currency}})",
+    "save": "Save capacity",
+    "clear": "Clear capacity",
+    "saved": "Monthly work capacity saved",
+    "loadError": "Couldn't load monthly work capacity",
+    "invalid": "Enter a valid amount.",
+    "positive": "Monthly capacity must be greater than zero.",
+    "precision": "Give monthly capacity at most two decimals.",
+    "empty": "Not set: months of work in hand is not calculated until a monthly capacity is entered.",
+    "active": "Months of work in hand divides {{currency}} work in hand by this monthly capacity."
+  },
+  "setting": {
+    "name": "Monthly work capacity",
+    "summary": "Sets the monthly production capacity in the organisation currency for months of work in hand."
+  },
+  "summary": {
+    "openLink": "Open work in hand",
+    "value": "Value of work in hand",
+    "months": "Months of work in hand",
+    "monthsValue": "{{months}} months",
+    "capacityBasis": "Based on {{capacity}}/month",
+    "otherCurrencies": "Other currencies (not included in months): {{amounts}}",
+    "excludedFromMonths": "{{currencies}} not included in months (no conversion)",
+    "excludedIncomplete_one": "{{count}} contract excluded because its invoices cannot be totalled",
+    "excludedIncomplete_other": "{{count}} contracts excluded because their invoices cannot be totalled",
+    "excludedTruncated": "Contracts beyond the 500-contract limit are excluded because the list is capped at 500 contracts.",
+    "noCapacity": "No monthly capacity set",
+    "setCapacity": "Set capacity"
+  }
 }

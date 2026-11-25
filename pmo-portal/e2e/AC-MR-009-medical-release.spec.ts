@@ -70,6 +70,7 @@ test('AC-MR-009 the people team opens a release, the direct manager approves it,
   await page.goto(`/crews?view=attendance&wo=${workOrderId}&date=${today}`);
   const after = page.getByRole('row', { name: new RegExp(`${run} Worker`) });
   await expect(after.getByRole('combobox')).toBeEnabled({ timeout: 20_000 });
+  await after.getByRole('combobox').selectOption('present');
   await page.getByRole('button', { name: 'Save attendance' }).click();
   await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
 });

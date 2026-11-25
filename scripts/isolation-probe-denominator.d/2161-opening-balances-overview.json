@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "opening_balances_overview()"
+  ]
+}

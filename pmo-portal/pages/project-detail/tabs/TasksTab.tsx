@@ -17,6 +17,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
+import { useTaskSourceIssues } from '@/src/hooks/useTaskSourceIssues';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useTaskGroups } from '@/src/hooks/useTaskGroups';
 import { buildRollups, collectDescendants, countedTasks } from '@/src/lib/tasks/taskTree';
@@ -146,11 +147,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     next.set('view', 'list');
     setSearchParams(next, { replace: true });
   }, [hashTaskId, searchParams, setSearchParams, view]);
+  // #2905: opening the drawer writes ?open=, so `searchParams` — and with it react-router's
+  // `setSearchParams` — changes identity on every drawer toggle. `onOpenTask` sits among the
+  // columns' deps (#2104: stable callbacks so the memoised tables bail out), so the callback
+  // reads the router through a latest ref and keeps ONE identity for the page's life; the
+  // updater form still sees the fresh params at call time.
+  const setSearchParamsRef = useRef(setSearchParams);
+  useEffect(() => { setSearchParamsRef.current = setSearchParams; }, [setSearchParams]);
   const openTask = useCallback((task: TaskWithRefs) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('open', task.id);
-    setSearchParams(next);
-  }, [searchParams, setSearchParams]);
+    setSearchParamsRef.current((current) => {
+      const next = new URLSearchParams(current);
+      next.set('open', task.id);
+      return next;
+    });
+  }, []);
   const closeTask = useCallback(() => {
     const next = new URLSearchParams(searchParams);
     next.delete('open');
@@ -448,14 +458,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   // The task row stays TaskWithRefs end to end; hierarchy is only reflected in the primary cell.
   // #2104: every entry is a stable callback or a primitive, so the column factory keeps its identity
   // across unrelated re-renders and the memoised tables bail out.
+  // JOB-F17: the source-issue read is one per page; the Map itself is the read's cached result, so its
+  // identity changes only when a refetch lands.
+  const sourceIssues = useTaskSourceIssues(all.map((task) => task.id));
+  const sourceIssueMap = useMemo(() => sourceIssues.data ?? new Map<string, string>(), [sourceIssues.data]);
   const taskColumnDeps = useMemo(() => ({
     today,
     highlightedTaskId,
+    sourceIssues: sourceIssueMap,
+    onOpenTask: openTask,
     canSetStatus,
     statusBusy: updateStatus.isPending,
     onStatusChange: onRowStatusChange,
     pendingPushByTask,
-  }), [highlightedTaskId, canSetStatus, onRowStatusChange, pendingPushByTask, today, updateStatus.isPending]);
+  }), [highlightedTaskId, sourceIssueMap, openTask, canSetStatus, onRowStatusChange, pendingPushByTask, today, updateStatus.isPending]);
   const buildColumns = useProjectTaskColumns(taskColumnDeps);
 
   const rowMenu = useCallback((task: TaskWithRefs): RowMenuItem[] => {

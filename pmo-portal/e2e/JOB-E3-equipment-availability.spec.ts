@@ -6,7 +6,7 @@
  * Partly built: no target (85%) comparison is shown, so no pass/fail against a target is asserted.
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { roleJobUser } from './support/roleJobUser';
 import { need, ORG_ID, serviceClient } from './support/jobJourney';
 
 test.setTimeout(120_000);
@@ -14,8 +14,10 @@ const must = need('JOB-E3');
 const db = serviceClient('JOB-E3');
 const code = `000-E3-${Date.now().toString(36)}`;
 let assetId = '';
+let officer: Awaited<ReturnType<typeof roleJobUser>>;
 
 test.beforeEach(async () => {
+  officer = await roleJobUser(db, 'equipment_officer', `e3-${crypto.randomUUID()}`);
   assetId = must('asset', await db.from('equipment_assets').insert({ org_id: ORG_ID, code, name: 'Crane', default_unit: 'hours' }).select('id').single()).id;
   const days = Array.from({ length: 25 }, (_, i) => ({ org_id: ORG_ID, asset_id: assetId, status_date: `2026-09-${String(i + 1).padStart(2, '0')}`, status: i < 20 ? 'ready' : 'broken' }));
   must('statuses', await db.from('equipment_status_days').insert(days).select('id'));
@@ -24,10 +26,11 @@ test.afterEach(async () => {
   await db.from('equipment_status_days').delete().eq('asset_id', assetId);
   await db.from('equipment_status_history').delete().eq('asset_id', assetId);
   await db.from('equipment_assets').delete().eq('id', assetId);
+  await officer.cleanup();
 });
 
 test('JOB-E3 a crane worked 20 days and broken 5 reads 80% physical availability for the month', async ({ page }) => {
-  await signIn(page, 'admin@acme.test');
+  await officer.signIn(page);
   await page.goto('/equipment/availability');
   await expect(page.getByRole('heading', { name: 'This month' })).toBeVisible({ timeout: 20_000 });
   await page.getByLabel('Metric interval').selectOption('month');

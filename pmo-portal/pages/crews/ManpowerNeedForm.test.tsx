@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /** AC-MPN-008: the form sends the chosen position, head count and optional work order; the work order list follows the project; a refusal reads as its sentence. */
 const h = vi.hoisted(() => ({ create: vi.fn(), positions: [{ id: 'd1', code: 'WLD', name: 'Welder' }] as unknown[] }));
@@ -34,6 +35,24 @@ describe('AC-MPN-008 manpower need form', () => {
       project_id: 'pr1', discipline_id: 'd1', headcount: 4, work_order_id: 'w1', crew_id: null,
     })));
     expect(h.create.mock.calls[0][0]).not.toHaveProperty('org_id');
+  });
+
+  it('#1126 "needed by" starts on the organisation\'s day, not the browser\'s', async () => {
+    const user = userEvent.setup();
+    h.create.mockResolvedValue(undefined);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      view();
+      await user.selectOptions(screen.getByRole('combobox', { name: /Project/ }), 'pr1');
+      await user.selectOptions(screen.getByRole('combobox', { name: /Position/ }), 'd1');
+      await user.click(screen.getByRole('button', { name: 'Record need' }));
+      await waitFor(() => expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ needed_by: '2026-11-26' })));
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
 
   it('a duplicate link refusal never reads as a duplicate crew code', async () => {

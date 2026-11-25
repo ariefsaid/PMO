@@ -1,7 +1,7 @@
 -- 2046_project_control_role_rights.test.sql — project-control job-role rights (migration 2046).
--- The Project Control Manager reads revenue and cost-performance on every project of its organisation and changes none of it; a
--- Project Manager-level person with another job role or none keeps the own-projects scope; the Planner and the project-control
--- Engineer read no amounts. The Planner keeps sections; the Engineer plans consumables; the Project Administrator records head counts
+-- The Project Control Manager reads revenue and cost-performance on every project of its organisation and writes revenue targets (2515); a
+-- Project Manager-level person with another job role or none keeps the own-projects scope; the Planner reads only the work-order revenue plan; the project-control
+-- Engineer reads no amounts. The Planner keeps sections; the Engineer plans consumables; the Project Administrator records head counts
 -- and never approves them.
 -- MUTATION NOTES (remove the condition tagged in 2046; the named assertion must go red; restore):
 --   mut:rr_pcm_revenue ............ 'RR-PC-01 the Project Control Manager reads cost-performance on a project it does not manage'
@@ -88,7 +88,7 @@ create function pg_temp.hc(p_cmd text) returns text language sql as $$
 create function pg_temp.headcount() returns text language sql as $$
   select $h$select record_headcount_day('20460000-0000-0000-0000-000000000031', '20460000-0000-0000-0000-000000000041', current_date, '20460000-0000-0000-0000-000000000061', 4)$h$ $$;
 
--- ── revenue: the Project Control Manager reads, changes nothing ─────────────────────────────────────────────────────────────────
+-- ── revenue: Project Control Manager reads and prepares targets ─────────────────────────────────────────────────────────────────
 select is(pg_temp.err('a2', pg_temp.perf()), 'ok', 'RR-PC-01 the Project Control Manager reads cost-performance on a project it does not manage');
 select is(pg_temp.val('a2', $$select dsr_may_see_revenue('20460000-0000-0000-0000-0000000000c1')::text$$), 'true', 'RR-PC-01 and its revenue');
 select is(pg_temp.err('a2', $$select set_boq_item_discipline('20460000-0000-0000-0000-000000000e01', null)$$), '42501 you cannot change contract items on this project',
@@ -99,26 +99,28 @@ select is(pg_temp.err('a3', pg_temp.perf()), '42501 you cannot read revenue and 
 select is(pg_temp.err('a5', pg_temp.perf()), '42501 you cannot read revenue and cost on this project', 'RR-PC-03 a Project Manager with no job role who does not manage it is refused, as today');
 select is(pg_temp.err('a4', pg_temp.perf()), 'ok', 'RR-PC-03 the project''s own manager still reads it');
 select is(pg_temp.err('a4', $$select set_boq_item_discipline('20460000-0000-0000-0000-000000000e01', null)$$), 'ok', 'RR-PC-03 and still changes it');
-select is(pg_temp.err('a6', pg_temp.perf()), '42501 you cannot read revenue and cost on this project', 'RR-PC-04 the Planner reads no amounts');
+select is(pg_temp.err('a6', pg_temp.perf()), '42501 you cannot read revenue and cost on this project', 'RR-PC-04 the Planner reads no cost performance');
+-- Deliberate rule revision of DD-R1124-2: Planner prepares revenue targets; PCM is accountable.
+-- The work-order plan is admitted; general revenue, costs and contract edits remain refused.
 -- the revenue plan, through its own commands
-select is(pg_temp.err('a2', $$select wo_revenue_plan_set_day('20460000-0000-0000-0000-000000000031', '2026-11-02', 100)$$), '42501 WRP_ROLE',
-  'RR-PC-02 the Project Control Manager sets no day of the revenue plan');
-select is(pg_temp.err('a2', $$select wo_revenue_plan_set_month('20460000-0000-0000-0000-000000000031', '2026-11-01', 100)$$), '42501 WRP_ROLE',
-  'RR-PC-02 nor a month');
-select is(pg_temp.err('a2', $$select wo_revenue_plan_clear('20460000-0000-0000-0000-000000000031', '2026-11-01', '2026-11-30')$$), '42501 WRP_ROLE',
-  'RR-PC-02 nor clears one');
-select is(pg_temp.err('a6', $$select wo_revenue_plan_set_day('20460000-0000-0000-0000-000000000031', '2026-11-02', 100)$$), '42501 WRP_ROLE',
-  'RR-PC-04 the Planner sets no revenue plan');
+select is(pg_temp.err('a2', $$select wo_revenue_plan_set_day('20460000-0000-0000-0000-000000000031', '2026-11-02', 100)$$), 'ok',
+  'RR-PC-02 the Project Control Manager sets a day of the revenue plan');
+select is(pg_temp.err('a2', $$select wo_revenue_plan_set_month('20460000-0000-0000-0000-000000000031', '2026-11-01', 100)$$), 'ok',
+  'RR-PC-02 and a month');
+select is(pg_temp.err('a2', $$select wo_revenue_plan_clear('20460000-0000-0000-0000-000000000031', '2026-11-01', '2026-11-30')$$), 'ok',
+  'RR-PC-02 and clears one');
+select is(pg_temp.err('a6', $$select wo_revenue_plan_set_day('20460000-0000-0000-0000-000000000031', '2026-11-02', 100)$$), 'ok',
+  'RR-PC-04 the Planner sets revenue targets');
 select is(pg_temp.err('a7', $$select wo_revenue_plan_set_day('20460000-0000-0000-0000-000000000031', '2026-11-02', 100)$$), '42501 WRP_ROLE',
   'RR-PC-04 nor does the project-control Engineer');
-select is((select count(*)::int from work_order_revenue_plan where work_order_id = '20460000-0000-0000-0000-000000000031'), 0,
-  'RR-PC-04 no refused command left a plan row');
+select is((select count(*)::int from work_order_revenue_plan where work_order_id = '20460000-0000-0000-0000-000000000031'), 1,
+  'RR-PC-04 only the permitted Planner command left a plan row');
 select is(pg_temp.err('a4', $$select wo_revenue_plan_set_day('20460000-0000-0000-0000-000000000031', '2026-11-02', 100)$$), 'ok',
   'RR-PC-03 the project''s own manager still sets the plan');
 select is(pg_temp.err('a2', $$select wo_revenue_plan_vs_actual('20460000-0000-0000-0000-000000000031')$$), 'ok',
   'RR-PC-01 the Project Control Manager reads the plan against actuals');
-select is(pg_temp.err('a6', $$select wo_revenue_plan_vs_actual('20460000-0000-0000-0000-000000000031')$$), '42501 WRP_ROLE',
-  'RR-PC-04 the Planner does not read the plan');
+select is(pg_temp.err('a6', $$select wo_revenue_plan_vs_actual('20460000-0000-0000-0000-000000000031')$$), 'ok',
+  'RR-PC-04 the Planner reads this work-order plan only');
 select is(pg_temp.err('a7', pg_temp.perf()), '42501 you cannot read revenue and cost on this project', 'RR-PC-04 the project-control Engineer reads no amounts');
 select is(pg_temp.val('a6', $$select dsr_may_see_revenue('20460000-0000-0000-0000-0000000000c1')::text$$), 'false', 'RR-PC-04 the revenue gate refuses the Planner');
 

@@ -68,5 +68,32 @@
     "submitted": {
       "detailTo": "{{hours}} jam untuk {{week}} dikirim kepada {{name}} untuk disetujui"
     }
+  },
+  "review": {
+    "navLink": "Tinjau lembar waktu",
+    "title": "Tinjauan lembar waktu",
+    "deniedTitle": "Anda tidak memiliki akses ke tinjauan lembar waktu",
+    "deniedSub": "Tinjauan lembar waktu tersedia untuk Petugas SDM dan Admin.",
+    "from": "Dari",
+    "to": "Sampai",
+    "project": "Proyek",
+    "person": "Orang",
+    "allProjects": "Semua proyek",
+    "allPeople": "Semua orang",
+    "clearFilters": "Hapus filter",
+    "errorTitle": "Lembar waktu gagal dimuat",
+    "errorSub": "Periksa sambungan Anda lalu coba lagi.",
+    "empty": "Belum ada lembar waktu yang tercatat",
+    "filteredEmpty": "Tidak ada lembar waktu yang cocok dengan filter ini",
+    "unknownPerson": "Anggota tim",
+    "hoursTotal": "{{hours}} jam",
+    "showEntries": "Tampilkan rincian",
+    "hideEntries": "Sembunyikan rincian",
+    "showEntriesFor": "Tampilkan rincian untuk {{name}}",
+    "hideEntriesFor": "Sembunyikan rincian untuk {{name}}",
+    "pagination": "Halaman lembar waktu",
+    "showingRange": "Menampilkan {{from}}–{{to}} dari {{total}}",
+    "previous": "Sebelumnya",
+    "next": "Berikutnya"
   }
 }

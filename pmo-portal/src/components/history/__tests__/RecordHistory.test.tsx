@@ -254,6 +254,20 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     });
   });
 
+  it('M7 names each actor\'s job role beside the name, with the date and time', async () => {
+    repo.profile.listOrgProfiles.mockResolvedValueOnce([
+      { id: 'u1', full_name: 'Dana PM', role: 'Project Manager', built_in_role: 'project_manager' },
+    ]);
+    const createdAt = '2026-10-06T09:41:00.000Z';
+    repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert', createdAt })], nextCursor: null });
+    renderIt();
+
+    const row = await screen.findByTestId('history-event');
+    expect(within(row).getByText('Dana PM')).toBeInTheDocument();
+    expect(within(row).getByTestId('history-actor-role')).toHaveTextContent('Project Manager');
+    expect(row.querySelector('time')).toHaveAttribute('datetime', createdAt);
+  });
+
   it('AC-S23-001 leads with the business event and keeps actor and exact time secondary', async () => {
     const createdAt = '2026-10-06T09:41:00.000Z';
     repo.recordHistory.list.mockResolvedValue({

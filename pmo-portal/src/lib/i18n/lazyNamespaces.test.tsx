@@ -75,4 +75,76 @@ describe('#2097: a route renders through an on-demand catalogue, never a raw key
     instance.removeResourceBundle('en', 'crm');
     expect(createParseMissingKeyHandler(instance)('crm:unlisted.key')).toBe('unlisted.key');
   });
+
+  it('coalesces a burst of on-demand catalogues into one subscriber re-render instead of one per file', async () => {
+    const resolvers = new Map<string, () => void>();
+    const payloads: Record<string, object> = {
+      '/locales/id/common.json': { shell: { greeting: 'Halo' } },
+      '/locales/id/crm.json': { title: 'Perusahaan' },
+      '/locales/id/stock.json': { title: 'Stok' },
+      '/locales/id/equipment.json': { title: 'Peralatan' },
+      '/locales/id/journals.json': { title: 'Jurnal' },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/common.json') || url.includes('/locales/en/')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payloads[url] ?? {}) });
+      }
+      return new Promise((resolve) => {
+        resolvers.set(url, () => resolve({ ok: true, status: 200, json: () => Promise.resolve(payloads[url] ?? {}) }));
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const instance = createInstance();
+    await instance
+      .use(catalogueBackend)
+      .use(initReactI18next)
+      .init(i18nInitOptions('id', instance));
+
+    let siblingRenders = 0;
+    function Sibling() {
+      const { t } = useTranslation();
+      siblingRenders += 1;
+      return <span>{t('shell.greeting', 'Hello')}</span>;
+    }
+    function MultiNsScreen() {
+      const { t } = useTranslation();
+      return (
+        <p data-testid="multi">
+          {t('crm:title', 'Companies')}|{t('stock:title', 'Stock')}|{t('equipment:title', 'Equipment')}|{t('journals:title', 'Journals')}
+        </p>
+      );
+    }
+
+    render(
+      <I18nextProvider i18n={instance} defaultNS="common">
+        <Sibling />
+        <MultiNsScreen />
+      </I18nextProvider>,
+    );
+
+    const expectedUrls = [
+      '/locales/id/crm.json',
+      '/locales/id/stock.json',
+      '/locales/id/equipment.json',
+      '/locales/id/journals.json',
+    ];
+    await waitFor(() => {
+      for (const url of expectedUrls) expect(resolvers.has(url)).toBe(true);
+    });
+
+    const rendersBeforeBurst = siblingRenders;
+    // Resolve each file in its own microtask turn (as real HTTP responses arrive).
+    for (const url of expectedUrls) {
+      resolvers.get(url)?.();
+      await Promise.resolve();
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId('multi')).toHaveTextContent('Perusahaan|Stok|Peralatan|Jurnal');
+    });
+    // Four catalogues landing in one batch must trigger ONE subscriber update, not four.
+    expect(siblingRenders - rendersBeforeBurst).toBe(1);
+  });
 });

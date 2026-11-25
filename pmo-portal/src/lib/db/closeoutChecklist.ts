@@ -143,3 +143,8 @@ export async function getWorkOrderCloser(workOrderId: string): Promise<WorkOrder
   if (!data) return null;
   return { closedAt: data.closed_at, closedByName: (data.closer as { full_name: string | null } | null)?.full_name ?? null };
 }
+
+export async function assignCloseoutItemOwner(itemId: string, ownerRole: string): Promise<void> {
+ const { error } = await supabase.rpc('assign_closeout_item_owner', { p_item: itemId, p_role: ownerRole });
+ if (error) fail(error);
+}

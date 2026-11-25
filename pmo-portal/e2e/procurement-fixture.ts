@@ -36,6 +36,12 @@ export function serviceClient(): SupabaseClient {
 export async function createProcurementFixture(opts: {
   status: 'Draft' | 'Approved' | 'Ordered' | 'Received';
   title: string;
+  projectId?: string;
+  requestedBy?: string;
+  workOrderId?: string;
+  purchaseTypeId?: string;
+  rentalFrom?: string;
+  rentalTo?: string;
   /** Name the seeded supplier on the purchase (an order needs one). */
   withSupplier?: boolean;
   /** Unit price of the one line; the purchase total follows it. */
@@ -49,8 +55,12 @@ export async function createProcurementFixture(opts: {
     id,
     code,
     title: `${opts.title} ${code}`,
-    project_id: SEED_PROJECT_ID,
-    requested_by_id: PM_ID,
+    project_id: opts.projectId ?? SEED_PROJECT_ID,
+    work_order_id: opts.workOrderId,
+    purchase_type_id: opts.purchaseTypeId,
+    rental_from: opts.rentalFrom,
+    rental_to: opts.rentalTo,
+    requested_by_id: opts.requestedBy ?? PM_ID,
     status: opts.status,
     total_value: (opts.rate ?? 12000) * (opts.quantity ?? 1),
     ...(opts.status !== 'Draft' ? { approved_by_id: EXEC_ID } : {}),

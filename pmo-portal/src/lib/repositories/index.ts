@@ -20,7 +20,7 @@ import { recordHistoryRepository } from './recordHistory';
 import { projectStageRepository } from './projectStages';
 import { rateCatalogueRepository } from './rateCatalogue';
 import { dailySiteReportRepository } from './dailySiteReports';
-import { workOrderCandidateRepository } from './workOrderCandidates';
+import { workOrderCheckTemplateRepository } from './workOrderCheckTemplate';
 import { safetyDayRepository } from './safetyDays';
 import { quantityChangeRepository } from './quantityChanges';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
@@ -59,6 +59,7 @@ import { billingStagesRepository } from './billingStages';
 import { closeoutChecklistRepository } from './closeoutChecklist';
 import { surveyRecordRepository } from './surveyRecords';
 import { workInHandRepository } from './workInHand';
+import { openingBalanceRepository } from './openingBalances';
 import { taskProofRepository } from './taskProofs';
 import { thirdPartyInspectionRepository } from './thirdPartyInspections';
 import { commentRepository } from './comments';
@@ -150,9 +151,10 @@ export const repositories: Repositories = {
   closeoutChecklist: closeoutChecklistRepository,
   surveyRecord: surveyRecordRepository,
   dailySiteReport: dailySiteReportRepository,
-  workOrderCandidate: workOrderCandidateRepository,
+  workOrderCheckTemplate: workOrderCheckTemplateRepository,
   safetyDay: safetyDayRepository,
   workInHand: workInHandRepository,
+  openingBalances: openingBalanceRepository,
   quantityChange: quantityChangeRepository,
   stock: stockRepository,
   stockOpening: stockOpeningRepository,

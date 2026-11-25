@@ -238,7 +238,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     variant="primary"
                     size="sm"
                     onClick={() => void wiz.commit()}
-                    disabled={wiz.counts.valid === 0 || wiz.existingStatus === 'loading' || (matchOf(descriptor) != null && wiz.existingStatus === 'failed')}
+                    disabled={wiz.counts.valid === 0 || (descriptor.allOrNothing != null && (wiz.counts.invalid > 0 || wiz.alreadyCount > 0)) || wiz.existingStatus === 'loading' || (matchOf(descriptor) != null && wiz.existingStatus === 'failed')}
                     aria-describedby={nothingNew(wiz) ? NOTHING_NEW_ID : undefined}
                   >
                     {matchOf(descriptor) && wiz.existingStatus === 'ready' ? matchButtonLabel(t, wiz.matchCounts) : t('import:wizard.importButton', {
@@ -372,7 +372,7 @@ function MappingStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
       <p className="text-control text-muted-foreground">
         {t('import:mapping.requiredLegend', '* Required. The import cannot continue until it is matched.')}
       </p>
-      {descriptor.fields.map((field) => (
+      {descriptor.fields.filter((field) => !field.internal).map((field) => (
         <MappingRow
           key={field.key}
           field={field}
@@ -580,6 +580,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
           {descriptor.matchExisting && <Button variant="outline" size="sm" onClick={wiz.retryExisting}>{t('import:match.retry', 'Try again')}</Button>}
         </p>
       )}
+      {descriptor.allOrNothing && (wiz.counts.invalid > 0 || wiz.alreadyCount > 0) && <p role="status" className="text-control text-foreground">{descriptor.allOrNothing.blocked}</p>}
       {nothingNew(wiz) && <p role="status" id={NOTHING_NEW_ID} className="text-control text-foreground">{descriptor.matchExisting?.nothingToDo ?? descriptor.existingKeys?.nothingNew}</p>}
       <DataTable
         rows={wiz.validation}

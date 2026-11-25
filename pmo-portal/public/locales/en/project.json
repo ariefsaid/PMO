@@ -39,64 +39,6 @@
     "actual": "Actual"
   },
   "projectDetail": {
-    "candidates": {
-      "status": {
-        "open": "Open",
-        "passed": "Passed",
-        "failed": "Failed",
-        "notApplicable": "Not applicable"
-      },
-      "noItems": "This candidate has no checklist items.",
-      "checklist": "Assessment checklist",
-      "addCheck": "Add a check",
-      "add": "Add",
-      "optional": "Optional",
-      "overdue": "Overdue",
-      "statusLabel": "Result",
-      "owner": "Owner",
-      "noOwner": "No owner",
-      "target": "Target date",
-      "note": "Note",
-      "needNote": "Add a note to mark this not applicable.",
-      "proof": "Proof",
-      "removeProof": "Remove {{name}}",
-      "noProof": "No proof attached",
-      "attach": "Attach proof",
-      "title": "Candidate work orders",
-      "new": "New candidate",
-      "loadError": "Couldn't load the candidates",
-      "empty": "No candidates yet. Open one to assess the work before a work order is raised.",
-      "accepted": "Accepted",
-      "rejected": "Rejected",
-      "assessing": "Assessing",
-      "acceptedToast": "Candidate accepted. A draft work order was created.",
-      "rejectedToast": "Candidate rejected.",
-      "offered": "Offered {{date}}",
-      "ready": "{{ready}} of {{required}} required checks ready",
-      "overdueCount": "{{n}} overdue",
-      "hide": "Hide checks",
-      "show": "Show checks",
-      "acceptedBecause": "Accepted because",
-      "rejectedBecause": "Rejected because",
-      "openDraft": "Open the draft work order",
-      "reopen": "Open a new candidate for this offer",
-      "notReady": "Not ready to accept: {{names}}",
-      "reject": "Reject",
-      "accept": "Accept",
-      "rejectTitle": "Reject this candidate",
-      "acceptTitle": "Accept this candidate",
-      "reasonLabel": "Reason",
-      "acceptHelp": "Accepting creates a draft work order. It is not issued and carries no value yet.",
-      "rejectHelp": "The reason stays on the record.",
-      "newFor": "New candidate for this offer",
-      "create": "Open candidate",
-      "created": "Candidate opened",
-      "errCreate": "Only an administrator, an engineer or this project's manager can open a candidate.",
-      "titleLabel": "Title",
-      "referenceLabel": "Client reference",
-      "offeredLabel": "Offered on",
-      "descriptionLabel": "Description"
-    },
     "cascade": {
       "error": "Couldn't load the contract",
       "title": "Contract",
@@ -404,6 +346,16 @@
         "prefill": "Start from the {{month}} assessment",
         "kindProgress": "Progress: quantities against the bill of quantities"
       },
+      "areaRates": {
+        "title": "Rates by area",
+        "hint": "A daily report on a work order in an area is priced at that area's rate. An area with no rate uses the line's rate.",
+        "loadError": "Couldn't load the area rates.",
+        "rate": "Rate for {{name}}",
+        "save": "Save",
+        "saved": "Area rate saved",
+        "removed": "Area rate removed",
+        "invalid": "Enter a rate above 0, or leave it empty to remove it."
+      },
       "boqForm": {
         "quantity": "Quantity",
         "subtitle": "Rates exclude tax. Work orders take quantities from a line when you allocate it.",
@@ -544,6 +496,7 @@
         "unhide": "Show to {{role}} again"
       },
       "templates": {
+        "claimEvidence": "Documents here count as claim evidence",
         "title": "Billing step templates",
         "help": "A template is a list of steps your team uses. Load one onto a project or a claim; it is copied, so later edits to a template change nothing already made.",
         "manage": "Manage templates",
@@ -1404,7 +1357,8 @@
         "editOrder": "Edit order",
         "orderMenuLabel": "Actions for {{order}}",
         "viewPo": "View customer PO",
-        "cancelGeneric": "Cancel"
+        "cancelGeneric": "Cancel",
+        "import": "Import work orders"
       },
       "filter": {
         "orders": "Order",
@@ -1444,7 +1398,8 @@
         "noGroup": "No group"
       },
       "areaLabel": "Area",
-      "groupLabel": "Group"
+      "groupLabel": "Group",
+      "importLoadFailed": "Could not open the import. Try again."
     },
     "contract": {
       "orders": "Customer orders",

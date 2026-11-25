@@ -30,3 +30,10 @@ export async function getMayOrderPurchases(): Promise<boolean> {
   if (error) fail(error);
   return data === true;
 }
+
+/** The server's read-only purchase-case scope, independent of ordering. */
+export async function getMayReadPurchaseCases(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('actor_may_read_purchase_cases');
+  if (error) fail(error);
+  return data === true;
+}

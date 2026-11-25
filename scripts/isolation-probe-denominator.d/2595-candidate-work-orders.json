@@ -35,8 +35,7 @@
   ],
   "definer_functions": [
     "create_work_order_candidate(uuid,text,text,text,date,uuid)",
-    "decide_work_order_candidate(uuid,text,text)",
-    "set_work_order_candidate_template(jsonb)"
+    "decide_work_order_candidate(uuid,text,text)"
   ],
   "buckets": [
     "work-order-candidate-proofs"

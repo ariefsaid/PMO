@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatDay } from '@/src/lib/format';
 import { uncoveredLoanDays } from '@/src/lib/crewLoanCoverage';
 import crewsEn from '@/public/locales/en/crews.json';
@@ -24,6 +25,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
 }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled }) }));
 vi.mock('@/src/hooks/useCrewLoans', () => ({
+  useSupervisorLoanCrews: () => ({ data: [] }),
   useCrewLoans: () => ({ data: h.loans, isPending: false, isError: false }),
   useCrewLoanMutations: () => ({ lend: { mutateAsync: h.lend }, endLoan: { mutateAsync: h.endLoan } }),
 }));
@@ -115,6 +117,26 @@ describe('AC-LOAN-010 crew loans card', () => {
     const note = screen.getByTestId('loan-host-coverage');
     await waitFor(() => expect(note).toHaveTextContent('Pada hari-hari itu, orang ini tetap tercatat di daftar hadir Home crew.'));
     expect(note).not.toHaveTextContent('tidak akan muncul di daftar hadir pada hari tersebut');
+  });
+
+  it('#1126 a new loan starts on the organisation\'s day, not the browser\'s', async () => {
+    const user = userEvent.setup();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      view();
+      await user.click(screen.getAllByRole('button', { name: 'Lend worker' })[0]);
+      await user.selectOptions(screen.getByRole('combobox', { name: /Home crew/ }), 'a');
+      await user.selectOptions(screen.getByRole('combobox', { name: /Person/ }), 'w1');
+      h.schedule = [{ valid_from: '2000-01-01', valid_to: null }];
+      await user.selectOptions(screen.getByRole('combobox', { name: /Host crew/ }), 'b');
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Lend worker' }));
+      await waitFor(() => expect(h.lend).toHaveBeenCalledWith(expect.objectContaining({ valid_from: '2026-11-26', valid_to: '2026-11-26' })));
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
 
   it('lends a worker from the home crew to another crew', async () => {

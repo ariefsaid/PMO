@@ -6,6 +6,7 @@ import {
   listMilestones,
   getProjectsDelivery,
   getProjectsDeliverySummary,
+  getProjectMilestoneOverview,
   getProjectsMilestoneDates,
   createMilestone,
   updateMilestone,
@@ -17,10 +18,12 @@ import {
   listProjectWorkOrders,
   getWorkOrder,
   createWorkOrder,
+  importWorkOrders,
   updateWorkOrder,
   listAllWorkOrders,
   setWorkOrderValue,
   transitionWorkOrder,
+  cancelWorkOrder,
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
 import { getWorkOrderBilledMonths, listWorkOrderAcceptanceAge, listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
@@ -50,6 +53,7 @@ import {
   confirmWorkOrderAcceptance,
 } from '@/src/lib/db/workOrderAcceptances';
 import { wrap } from './repositoryErrors';
+import { listCandidateRecords } from '@/src/lib/db/workOrderCandidateRecords';
 import { dispatchCreate } from './repositoryDispatch';
 import type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 
@@ -57,6 +61,7 @@ export const milestoneRepository: MilestoneRepository = {
   list: (projectId) => wrap(() => listMilestones(projectId)),
   deliveryForProjects: (ids) => wrap(() => getProjectsDelivery(ids)),
   deliverySummaryForProjects: (ids) => wrap(() => getProjectsDeliverySummary(ids)),
+  managementOverviewForProjects: (ids) => wrap(() => getProjectMilestoneOverview(ids)),
   milestoneDatesForProjects: (ids) => wrap(() => getProjectsMilestoneDates(ids)),
   create: (input, projectId) => wrap(() => createMilestone(input, projectId)),
   update: (id, patch) => wrap(() => updateMilestone(id, patch)),
@@ -80,9 +85,12 @@ export const workOrderRepository: WorkOrderRepository = {
   listAll: () => wrap(() => listAllWorkOrders()),
   get: (id) => wrap(() => getWorkOrder(id)),
   create: (projectId, input) => wrap(() => createWorkOrder(projectId, input)),
+  importBatch: (projectId, rows) => wrap(() => importWorkOrders(projectId, rows)),
   update: (id, patch) => wrap(() => updateWorkOrder(id, patch)),
   setValue: (input) => wrap(() => setWorkOrderValue(input)),
   transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
+  cancel: (id, reason) => wrap(() => cancelWorkOrder(id, reason)),
+  listCandidateRecords: (projectId) => wrap(() => listCandidateRecords(projectId)),
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
   billing: (projectId) => wrap(() => listWorkOrderBilling(projectId)),
   billedMonths: (workOrderId) => wrap(() => getWorkOrderBilledMonths(workOrderId)),

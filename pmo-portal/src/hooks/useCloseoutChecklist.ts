@@ -50,5 +50,6 @@ export function useCloseoutItemMutations(workOrderId: string) {
     mutationFn: ({ itemId, doneOn }: { itemId: string; doneOn: string }) => repositories.closeoutChecklist.completeItem(itemId, doneOn),
     onSuccess: invalidate,
   });
-  return { attachDocument, completeItem };
+  const assignOwner = useMutation({ mutationFn: ({itemId, ownerRole}: {itemId: string; ownerRole: string}) => repositories.closeoutChecklist.assignOwner(itemId, ownerRole), onSuccess: invalidate });
+  return { attachDocument, completeItem, assignOwner };
 }

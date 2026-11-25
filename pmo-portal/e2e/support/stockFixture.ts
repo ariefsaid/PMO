@@ -2,13 +2,18 @@ import { execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SEED_PASSWORD } from '../helpers';
+import { ORG_ID, serviceClient } from './jobFixtures';
 
 /** Seed ids (supabase/seed.sql): the Engineer, and the delivery project the delivery-milestone journey leaves with no BoQ. */
 export const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
 export const SEED_PROJECT_ID = '40000000-0000-0000-0000-000000000013';
 export const SEED_PROJECT_NAME = 'Seabridge Terminal Delivery';
 
+// scripts/e2e-local.sh already exports these; fall back to the CLI only when run another way (concurrent `supabase status` calls fail under load).
+const FROM_RUN_ENV: Record<string, string | undefined> = { API_URL: process.env.SUPABASE_URL, ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY };
 function readSupabaseEnv(name: string): string {
+  const exported = FROM_RUN_ENV[name];
+  if (exported) return exported;
   const output = execSync('supabase status -o env', { encoding: 'utf8' });
   const match = output.match(new RegExp(`^${name}="([^"]+)"$`, 'm'));
   if (!match) throw new Error(`Missing ${name} from supabase status -o env`);
@@ -36,8 +41,16 @@ export async function makeItem(admin: SupabaseClient, sfx: string, tag = 'I') {
   const item = must<{ id: string; code: string; name: string }>(await admin.from('stock_items').insert({ code: `E2E-${tag}${sfx}`, name: `E2E item ${sfx}`, unit_id: unit.id }).select('id, code, name').single(), 'item');
   return item;
 }
-export async function makeWarehouse(admin: SupabaseClient, sfx: string, tag: string, kind: 'central' | 'site' | 'vendor') {
-  const wh = must<{ id: string; code: string; name: string }>(await admin.from('stock_warehouses').insert({ code: `E2E-${tag}${sfx}`, name: `E2E ${tag} ${sfx}`, kind }).select('id, code, name').single(), 'warehouse');
+export async function makeWarehouse(admin: SupabaseClient, sfx: string, tag: string, kind: 'central' | 'site' | 'vendor', projectId?: string) {
+  const wh = must<{ id: string; code: string; name: string }>(
+    await admin.from('stock_warehouses').insert({
+      code: `E2E-${tag}${sfx}`,
+      name: `E2E ${tag} ${sfx}`,
+      kind,
+      ...(projectId ? { project_id: projectId } : {}),
+    }).select('id, code, name').single(),
+    'warehouse',
+  );
   return wh;
 }
 export async function makeWorkItem(admin: SupabaseClient, sfx: string) {
@@ -49,8 +62,22 @@ export async function keeperOf(admin: SupabaseClient, warehouseId: string, userI
   if (error) throw new Error(`keeper: ${error.message}`);
 }
 export async function postReceive(client: SupabaseClient, warehouseId: string, itemId: string, qty: string, cost = '25') {
-  const r = await client.rpc('create_stock_document', {
-    p_header: { kind: 'receive', warehouse_id: warehouseId }, p_lines: [{ item_id: itemId, quantity: qty, unit_cost: cost }], p_post: true, p_client_request_id: randomUUID(),
-  });
-  return must<string>(r, 'receive');
+  // A plain receive is refused while the org's order-receiving switch is on (RGO_USE_ORDER); serial journeys leave it on. Turn it off for the receipt, then put it back.
+  const svc = serviceClient('postReceive');
+  const flag = await svc.from('order_receiving_settings').select('enabled').eq('org_id', ORG_ID).maybeSingle();
+  if (flag.error) throw new Error(`receiving switch read: ${flag.error.message}`);
+  const wasOn = flag.data?.enabled === true;
+  const setEnabled = async (enabled: boolean) => {
+    const w = await svc.from('order_receiving_settings').update({ enabled }).eq('org_id', ORG_ID);
+    if (w.error) throw new Error(`receiving switch: ${w.error.message}`);
+  };
+  if (wasOn) await setEnabled(false);
+  try {
+    const r = await client.rpc('create_stock_document', {
+      p_header: { kind: 'receive', warehouse_id: warehouseId }, p_lines: [{ item_id: itemId, quantity: qty, unit_cost: cost }], p_post: true, p_client_request_id: randomUUID(),
+    });
+    return must<string>(r, 'receive');
+  } finally {
+    if (wasOn) await setEnabled(true);
+  }
 }

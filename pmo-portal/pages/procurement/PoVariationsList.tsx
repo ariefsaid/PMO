@@ -30,14 +30,16 @@ const DEFAULT_REFUSAL_DETAILS: Record<string, string> = {
 };
 
 export interface PoVariationsListProps {
+  readOnly?: boolean;
   poId: string;
   projectId: string;
   currency: string;
 }
 
-export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projectId, currency }) => {
+export const PoVariationsList: React.FC<PoVariationsListProps> = ({ readOnly = false, poId, projectId, currency }) => {
   const { t } = useTranslation('procurement');
-  const may = usePermission();
+  const permission = usePermission();
+  const may: typeof permission = (...args) => !readOnly && permission(...args);
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const currentUserId = currentUser?.id;

@@ -7,11 +7,12 @@ import ProjectSections from '../ProjectSections';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
+  role: "Finance",
   drawdown: { committed: 500_000, draft: 100_000, ceiling: 900_000, currency: 'USD', basis: 'net' },
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance', canImpersonate: false, viewAs: vi.fn() }),
+  useEffectiveRole: () => ({ realRole: state.role, effectiveRole: state.role, canImpersonate: false, viewAs: vi.fn() }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Finance' }) }));
@@ -59,9 +60,6 @@ vi.mock('../tabs/WorkOrdersTab', () => ({ default: () => null }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(4)}>Resolve procurement count</button> }));
 vi.mock('../tabs/TasksTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(5)}>Resolve task count</button> }));
 vi.mock('../tabs/DocumentsTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(6)}>Resolve document count</button> }));
-// #2595's candidate section sits in the contract area; it needs a QueryClient this suite does not mount, and
-// it owns its own suite (tabs/__tests__/CandidateWorkOrders.test.tsx).
-vi.mock('../tabs/CandidateWorkOrders', () => ({ CandidateWorkOrders: () => null }));
 vi.mock('../ProjectBlocks', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../ProjectBlocks')>();
   return {
@@ -118,4 +116,10 @@ describe('Project contract drawdown (#566 / OD-CR-13)', () => {
     fireEvent.click(await screen.findByRole('button', { name: reportButton }));
     expect(screen.getByRole('tab', { name: `${label} ${count}` })).toBeInTheDocument();
   });
+});
+
+it("JOB-BQ5 a permitted claims reader at Engineer level can reach Contract", () => {
+  state.role = "Engineer";
+  render(<MemoryRouter><ProjectSections project={project} area="overview" setArea={vi.fn()} isPipeline={false} header={<h1>Alpha</h1>} /></MemoryRouter>);
+  expect(screen.getByRole("option", { name: "Contract" })).toBeVisible();
 });

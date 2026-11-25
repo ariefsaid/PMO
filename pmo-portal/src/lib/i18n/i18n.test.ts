@@ -18,13 +18,39 @@ describe('FR-L10N-043: lazy per-locale catalogue load', () => {
     // byte. A static `import`/`resources` block would; this fetch cannot.
     const cb = vi.fn();
     catalogueBackend.read!('en', 'common', cb);
-    expect(fetchMock).toHaveBeenCalledWith('/locales/en/common.json');
+    expect(fetchMock).toHaveBeenCalledWith('/locales/en/common.json', expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('loads any feature namespace lazily from the public locale path', () => {
     const cb = vi.fn();
     catalogueBackend.read!('en', 'billingFeature', cb);
-    expect(fetchMock).toHaveBeenCalledWith('/locales/en/billingFeature.json');
+    expect(fetchMock).toHaveBeenCalledWith('/locales/en/billingFeature.json', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('cancels catalogue reads on document departure, including reads queued by cancellation', async () => {
+    fetchMock.mockImplementation((_url: string, options?: RequestInit) => new Promise((_resolve, reject) => {
+      const signal = options?.signal;
+      const abort = () => reject(new DOMException('Document departed', 'AbortError'));
+      if (signal?.aborted) abort();
+      else signal?.addEventListener('abort', abort, { once: true });
+    }));
+    const first = vi.fn();
+    const queued = vi.fn();
+    catalogueBackend.read!('id', 'finance', first);
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(false);
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
+    catalogueBackend.read!('id', 'financeHub', queued);
+    await vi.waitFor(() => {
+      expect(first).toHaveBeenCalledWith(expect.any(Error), false);
+      expect(queued).toHaveBeenCalledWith(expect.any(Error), false);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event('pageshow'));
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ title: 'Piutang' }) });
+    const restored = vi.fn();
+    catalogueBackend.read!('id', 'finance', restored);
+    await vi.waitFor(() => expect(restored).toHaveBeenCalledWith(null, { title: 'Piutang' }));
   });
 
   it('registers the auth feature namespace for OAuth consent copy', () => {
@@ -122,8 +148,8 @@ describe('feature namespaces', () => {
     await instance.changeLanguage('id');
     view.rerender(React.createElement(I18nextProvider, { i18n: instance }, React.createElement(Feature)));
     await waitFor(() => expect(screen.getByText('Fitur Indonesia / Bersama')).toBeInTheDocument());
-    expect(runtimeFetch).toHaveBeenCalledWith('/locales/en/runtimeFeature.json');
-    expect(runtimeFetch).toHaveBeenCalledWith('/locales/id/runtimeFeature.json');
+    expect(runtimeFetch).toHaveBeenCalledWith('/locales/en/runtimeFeature.json', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(runtimeFetch).toHaveBeenCalledWith('/locales/id/runtimeFeature.json', expect.objectContaining({ signal: expect.any(AbortSignal) }));
     view.unmount();
   });
 

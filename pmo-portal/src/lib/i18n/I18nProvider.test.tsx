@@ -40,6 +40,7 @@ vi.mock('./index', async (importOriginal) => {
 
 import { I18nProvider } from './I18nProvider';
 import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
+import { I18nContext } from 'react-i18next';
 
 const INSTANT = '2026-06-14T23:30:00.000Z';
 
@@ -94,6 +95,24 @@ describe('I18nProvider starts i18next in the RESOLVED language (#2097)', () => {
     renderTree();
     await waitFor(() => expect(initI18nCalls.length).toBeGreaterThan(0));
     expect(initI18nCalls[0]).toBe('en');
+  });
+
+  it('provides common as defaultNS so consumers mounted before initI18n never fall back to translation.json', () => {
+    let seenDefaultNS: string | undefined;
+    function ContextProbe() {
+      const ctx = React.useContext(I18nContext) as { defaultNS?: string } | undefined;
+      seenDefaultNS = ctx?.defaultNS;
+      return null;
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nProvider>
+          <ContextProbe />
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+    expect(seenDefaultNS).toBe('common');
   });
 });
 

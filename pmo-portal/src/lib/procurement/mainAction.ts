@@ -45,25 +45,26 @@ export function allowedActions(
   hasValue: boolean,
   /** roles-that-decide FR-RTD-009: the viewer fills a built-in role the organisation lets order (the database gate's answer). */
   mayOrderByRole = false,
+  planPurchase?: { maySubmit: boolean; isSubmitter: boolean },
 ): ProcurementAction[] {
   const actions: ProcurementAction[] = [];
 
   const legal = (to: ProcurementStatus) => isLegalTransition(status, to);
 
   // Draft → Requested: the requester, any role; Admin break-glass (OD-PROC-1, FR-PROC-005)
-  if (legal('Requested') && (isRequester || role === 'Admin')) {
+  if (legal('Requested') && (isRequester || role === 'Admin' || (mayOrderByRole && planPurchase?.maySubmit === true))) {
     actions.push({ to: 'Requested', label: t('procurementDetail.action.submitRequest', 'Submit for approval'), variant: 'primary' });
   }
 
   // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
-  if (legal('Approved') && canApproveReject(role) && !isRequester && routeAllows) {
+  if (legal('Approved') && canApproveReject(role) && !isRequester && !planPurchase?.isSubmitter && routeAllows) {
     // Approve is the single per-screen CTA at this stage → the One-Blue `primary`
     // (polish #1). It previously read solid `success` green, which competed with
     // the system's one interactive blue (DESIGN.md One-Blue Rule). Reject stays a
     // quiet outline so only one affordance carries weight.
     actions.push({ to: 'Approved', label: t('procurementDetail.action.approve', 'Approve'), variant: 'primary' });
   }
-  if (legal('Rejected') && canApproveReject(role) && !isRequester && routeAllows) {
+  if (legal('Rejected') && canApproveReject(role) && !isRequester && !planPurchase?.isSubmitter && routeAllows) {
     actions.push({ to: 'Rejected', label: t('procurementRecord:action.return', 'Return'), variant: 'destructive' });
   }
 
@@ -77,7 +78,7 @@ export function allowedActions(
   // primary (OD-W5-2 — quoting first is the conventional lower-risk path). "Generate
   // Purchase Order" is a valid skip-to-PO path but is demoted to `outline` so only
   // ONE blue appears per stage (DESIGN.md One-Blue Rule). BOTH remain clickable.
-  if (legal('Vendor Quoted') && canSource(role)) {
+  if (legal('Vendor Quoted') && (canSource(role) || mayOrderByRole)) {
     actions.push({ to: 'Vendor Quoted', label: t('procurementRecord:action.requestQuotes', 'Request quotations'), variant: 'primary' });
   }
   if (legal('Ordered') && (canSource(role) || mayOrderByRole) && status === 'Approved') {

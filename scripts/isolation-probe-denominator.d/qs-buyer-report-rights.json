@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "equipment_plan_purchase_submit_context(uuid)"
+  ]
+}

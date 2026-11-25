@@ -4,19 +4,30 @@
  * from a hire vendor with a daily rate.
  * Goal oracle: the crane is in the asset register, its rental terms name the vendor and rate, and it is offered as a rented
  * machine for the rental invoice check.
- * Deployment to a work order is JOB-E6's journey (hours logged against a work order).
+ * The Equipment Officer's journey registers a rented crane and puts it on a work order (hours logged against it, approved by the project manager);
+ * the work order's cost section then lists the crane from that date.
  */
 import { test, expect } from '@playwright/test';
-import { signIn, visibleToast } from './helpers';
-import { need, ORG_ID, serviceClient } from './support/jobJourney';
+import { signIn, visibleToast, pickComboboxOption } from './helpers';
+import { iso, need, ORG_ID, serviceClient } from './support/jobJourney';
+import { seedWorkOrder } from './support/crewJourney';
+import { roleJobUser } from './support/roleJobUser';
+import { runId } from './support/jobFixtures';
 
 test.setTimeout(180_000);
 const must = need('JOB-E1');
 const db = serviceClient('JOB-E1');
 const code = `000-E1-${Date.now().toString(36)}`;
 let vendorId = ''; let vendorName = '';
+let manager: Awaited<ReturnType<typeof roleJobUser>>;
+let officer: Awaited<ReturnType<typeof roleJobUser>>;
+let wo = { projectId: '', workOrderId: '', title: '' };
+const workDay = new Date(); workDay.setDate(workDay.getDate() - 7);
+const weekdayIndex = (workDay.getDay() + 6) % 7;
 
 test.beforeEach(async () => {
+  manager = await roleJobUser(db, 'equipment_manager', runId('e1-em'));
+  officer = await roleJobUser(db, 'equipment_officer', runId('e1-eo'));
   vendorName = `Hire vendor ${code}`;
   vendorId = must('vendor', await db.from('companies').insert({ org_id: ORG_ID, name: vendorName, type: 'Vendor' }).select('id').single()).id;
 });
@@ -25,11 +36,15 @@ test.afterEach(async () => {
   for (const c of [code, pmCode]) {
     const asset = await db.from('equipment_assets').select('id').eq('code', c).maybeSingle();
     if (asset.data) {
+      await db.from('equipment_usage_entries').delete().eq('asset_id', asset.data.id);
       for (const table of ['equipment_rental_terms', 'equipment_status_days', 'equipment_status_history']) await db.from(table).delete().eq('asset_id', asset.data.id);
       await db.from('equipment_assets').delete().eq('id', asset.data.id);
     }
   }
+  if (wo.workOrderId) { await db.from('work_orders').delete().eq('id', wo.workOrderId); await db.from('projects').delete().eq('id', wo.projectId); wo = { projectId: '', workOrderId: '', title: '' }; }
   await db.from('companies').delete().eq('id', vendorId);
+  await manager.cleanup();
+  await officer.cleanup();
 });
 
 test('JOB-E1 a crane registered as rented from a vendor shows its terms and is offered for the rental check', async ({ page }) => {
@@ -54,16 +69,17 @@ test('JOB-E1 a crane registered as rented from a vendor shows its terms and is o
 
   await page.goto('/equipment/availability');
   await page.getByRole('button', { name: 'Rental invoice check' }).click();
-  await expect(page.getByLabel('Rented machine').locator('option', { hasText: code })).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.getByLabel('Rented machine').locator('option', { hasText: `${code} Mobile crane` })).toHaveCount(1, { timeout: 20_000 });
 });
 
-test('JOB-E1 the equipment manager adds a rented machine from the Equipment screen, vendor and rate on the same form', async ({ page }) => {
-  await signIn(page, 'pm@acme.test');
+test('JOB-E1 the equipment officer registers a rented crane with vendor and rate, puts it on a work order, and the work order lists it from that date', async ({ page }) => {
+  wo = await seedWorkOrder(db, 'JOB-E1', code, 'rented crane');
+  await officer.signIn(page);
   await page.goto('/equipment');
   await page.getByRole('button', { name: 'New equipment' }).click();
   const form = page.getByRole('dialog');
   await form.getByLabel(/^Code/).fill(pmCode);
-  await form.getByLabel(/^Name/).fill('Rented grader');
+  await form.getByLabel(/^Name/).fill('Rented crane');
   await form.getByLabel('Owned or rented').selectOption('rented');
   await form.getByLabel(/^Vendor/).selectOption({ label: vendorName });
   await form.getByRole('textbox', { name: /^Rate/ }).fill('900000');
@@ -71,9 +87,36 @@ test('JOB-E1 the equipment manager adds a rented machine from the Equipment scre
   await form.getByRole('button', { name: 'Create asset' }).click();
   await expect(visibleToast(page, 'Rented equipment added')).toBeVisible({ timeout: 15_000 });
 
-  // The goal: the machine is in the register, rented, and its rental terms name the vendor, editable by the same role.
+  // The machine is in the register, rented, and its rental terms name the vendor.
   await page.goto(`/equipment/assets?q=${pmCode}`);
-  await page.getByRole('link', { name: 'Open Rented grader' }).first().click();
+  await page.getByRole('link', { name: 'Open Rented crane' }).first().click();
   await expect(page.getByText(new RegExp(vendorName)).first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole('button', { name: 'Save rental terms' })).toBeVisible();
+
+  // Deploy it to the work order: the officer logs 8 hours of it there; the project manager approves the week.
+  await page.goto(`/equipment?week=${iso(workDay)}`);
+  await page.getByRole('button', { name: 'Add row' }).click();
+  await pickComboboxOption(page, page, /^Equipment/, new RegExp(pmCode));
+  await pickComboboxOption(page, page, /^Project/, new RegExp(`${code} rented crane$`));
+  await pickComboboxOption(page, page, /^Work order/, new RegExp(wo.title));
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  const row = page.getByRole('row', { name: new RegExp(`Rented crane.*${code} rented crane`) }).first();
+  const cell = row.getByRole('textbox').nth(weekdayIndex);
+  await cell.fill('8');
+  await cell.press('Enter');
+  await expect(row.getByText('Draft')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Submit week' }).click();
+  await expect(page.getByText('Submitted', { exact: true })).toHaveCount(1, { timeout: 15_000 });
+  await signIn(page, 'pm@acme.test');
+  await page.goto(`/equipment?week=${iso(workDay)}`);
+  await page.getByRole('tab', { name: 'Approvals' }).click();
+  await page.getByRole('button', { name: 'Approve week' }).click();
+  await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
+  await expect(page.getByText('Nothing is waiting for approval this week')).toBeVisible({ timeout: 15_000 });
+
+  // Goal: the work order lists the crane, with the day it was used and its hours.
+  await officer.signIn(page);
+  await page.goto(`/work-orders/${wo.workOrderId}`);
+  const equipment = page.getByTestId('cost-group-equipment_usage');
+  await expect(equipment).toContainText(pmCode, { timeout: 20_000 });
+  await expect(equipment).toContainText(new RegExp(`(?<!\\d)${workDay.getDate()} [A-Z][a-z]{2}( \\d{4})? · 8 hours`));
 });

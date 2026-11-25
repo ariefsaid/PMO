@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -9,14 +9,14 @@ import { useAuth } from '@/src/auth/useAuth';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useProject } from '@/src/hooks/useProjects';
 import { useSafetyMutations, useSafetyWorkOrderDays } from '@/src/hooks/useSafetyDays';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
 import type { SafetyWorkOrderDay } from '@/src/lib/db/safetyDays';
 
-const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /**
  * Daily safety records on the work-order page (#2596, FR-DSF-008). Shown only once the organisation has switched safety
@@ -44,10 +44,10 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
   const userId = useAuth().currentUser?.id ?? null;
   const project = useProject(projectId).data ?? null;
   const mayEnter = can('create', 'safetyDay', { realRole, currentUserId: userId, record: { project_manager_id: project?.project_manager_id ?? null } });
-  const today = useMemo(() => new Date(), []);
-  const days = useSafetyWorkOrderDays(workOrderId, isoDay(addDays(today, -29)), isoDay(today), true);
+  const today = useOrgToday();
+  const days = useSafetyWorkOrderDays(workOrderId, addDays(today, -29), today, true);
   const m = useSafetyMutations();
-  const [date, setDate] = useState(isoDay(today));
+  const [date, setDate] = useState(today);
 
   const open = async (row: { work_date: string; day_id: string | null }) => {
     if (row.day_id) { navigate(`/safety-days/${row.day_id}`); return; }
@@ -71,7 +71,7 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
     >
       {mayEnter && status === 'Issued' && (
         <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void open({ work_date: date, day_id: days.data?.find((d) => d.work_date === date)?.day_id ?? null }); }}>
-          <DateField label={t('day.date', 'Date')} value={date} onChange={setDate} max={isoDay(today)} />
+          <DateField label={t('day.date', 'Date')} value={date} onChange={setDate} max={today} />
           <Button type="submit" variant="primary" disabled={!date || m.createDay.isPending} data-testid="safety-new-day">{t('day.record', 'Record safety day')}</Button>
         </form>
       )}
@@ -122,7 +122,7 @@ const SafetyTodayBody: React.FC<{ workOrderId: string; projectId: string; status
   const userId = useAuth().currentUser?.id ?? null;
   const project = useProject(projectId).data ?? null;
   const mayEnter = can('create', 'safetyDay', { realRole, currentUserId: userId, record: { project_manager_id: project?.project_manager_id ?? null } });
-  const todayIso = isoDay(new Date());
+  const todayIso = useOrgToday();
   const days = useSafetyWorkOrderDays(workOrderId, todayIso, todayIso, true);
   const m = useSafetyMutations();
   const row = days.data?.find((d) => d.work_date === todayIso) ?? null;

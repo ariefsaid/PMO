@@ -16,12 +16,16 @@ export interface StockLineInput {
   sourceLineId?: string;
   countedQuantity?: string;
   direction?: 'in' | 'out';
+  /** A receipt's quality check: how many of the received quantity were rejected, and why. Set only on a receipt line; the passed part is the rest. */
+  rejected?: string;
+  rejectNote?: string;
 }
 export interface StockDocumentInput {
   kind: StockDocumentKind;
   warehouseId: string;
   toWarehouseId?: string;
   projectId?: string;
+  workOrderId?: string | null;
   procurementId?: string;
   reason?: string;
   note?: string;
@@ -29,15 +33,16 @@ export interface StockDocumentInput {
   lines: StockLineInput[];
 }
 
-const defined = (o: Record<string, unknown>): Record<string, string> =>
-  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Record<string, string>;
+const defined = (o: Record<string, unknown>): Record<string, string | null> =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Record<string, string | null>;
 const header = (i: StockDocumentInput) => defined({
   kind: i.kind, warehouse_id: i.warehouseId, to_warehouse_id: i.toWarehouseId, project_id: i.projectId,
-  procurement_id: i.procurementId, reason: i.reason, note: i.note, occurred_on: i.occurredOn,
+  work_order_id: i.workOrderId, procurement_id: i.procurementId, reason: i.reason, note: i.note, occurred_on: i.occurredOn,
 });
 const lines = (i: StockDocumentInput) => i.lines.map((l) => defined({
   item_id: l.itemId, quantity: l.quantity, unit_cost: l.unitCost, boq_item_id: l.boqItemId,
   source_line_id: l.sourceLineId, counted_quantity: l.countedQuantity, direction: l.direction,
+  rejected: l.rejected, reject_note: l.rejectNote,
 }));
 
 /** `clientRequestId` is stable across retries of one submit (FR-STK-015), so a replay returns the same document. */
@@ -151,6 +156,8 @@ export interface StockDocumentLine {
   id: string; line_no: number; item_id: string;
   quantity: string | null; counted_quantity: string | null; expected_quantity: string | null;
   direction: 'in' | 'out' | null; boq_item_id: string | null; source_line_id: string | null;
+  /** A receipt's quality check: null when the line carries none. */
+  qty_rejected: string | null; reject_note: string | null;
   /** `tag` is the organisation's own tag for the item (its word for client-supplied stock); null on an ordinary item. */
   item: { code: string; name: string; tag?: { name: string } | null; unit: { code: string; whole_only: boolean } } | null;
 }
@@ -158,7 +165,7 @@ export interface StockDocumentDetail extends StockDocumentListRow {
   procurement_id: string | null; reason: string | null; note: string | null; posted_by: string | null; posted_at: string | null; cancelled_at: string | null;
   lines: StockDocumentLine[];
 }
-const LINE_SELECT = 'stock_document_lines(id, line_no, item_id, quantity, counted_quantity, expected_quantity, direction, boq_item_id, source_line_id, item:stock_items(code,name,tag:stock_tags(name),unit:stock_units(code,whole_only)))';
+const LINE_SELECT = 'stock_document_lines(id, line_no, item_id, quantity, counted_quantity, expected_quantity, direction, boq_item_id, source_line_id, qty_rejected, reject_note, item:stock_items(code,name,tag:stock_tags(name),unit:stock_units(code,whole_only)))';
 const dec = (v: unknown) => (v === null || v === undefined ? null : String(v));
 
 export async function getStockDocument(id: string): Promise<StockDocumentDetail | null> {
@@ -167,7 +174,7 @@ export async function getStockDocument(id: string): Promise<StockDocumentDetail 
   if (!data) return null;
   const { stock_document_lines: ls, ...doc } = data as unknown as StockDocumentDetail & { stock_document_lines: StockDocumentLine[] };
   const lines = [...(ls ?? [])].sort((a, b) => a.line_no - b.line_no)
-    .map((l) => ({ ...l, quantity: dec(l.quantity), counted_quantity: dec(l.counted_quantity), expected_quantity: dec(l.expected_quantity) }));
+    .map((l) => ({ ...l, quantity: dec(l.quantity), counted_quantity: dec(l.counted_quantity), expected_quantity: dec(l.expected_quantity), qty_rejected: dec(l.qty_rejected) }));
   return { ...doc, lines };
 }
 

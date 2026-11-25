@@ -15,12 +15,13 @@ import { ListState } from '@/src/components/ui/ListState';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { ClaimsBoardLink } from '@/src/components/finance/ClaimsBoardLink';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useHomeLayout } from '@/src/hooks/useHomeLayout';
 import { can } from '@/src/auth/policy';
 import { useFinanceBudgetReview, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useProjects } from '@/src/hooks/useProjects';
-import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { useProjectManagementOverview, useProjectsDelivery, useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -55,6 +56,8 @@ import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard, LeftToBillSection } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 import { WorkOrdersTile } from '@/src/components/dashboard/WorkOrdersTile';
+import { WorkInHandSummary } from '@/src/components/workInHand/WorkInHandSummary';
+import { ProjectPortfolioTable } from './ProjectPortfolioTable';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 const MARGIN_HINT_KEY = 'pmo.home.marginTile';
@@ -70,12 +73,19 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const { realRole } = useEffectiveRole();
+  const managementViewsEnabled = useOrgSwitch('managementViews').data === true;
   const overview = useHomeLayout().homeLayout === 'overview';
   const canOpenAccounting = can('edit', 'budgetLine', { realRole });
   const periodState = usePeriod();
   const figures = useCompanyFigures(periodState.period);
   const needs = useNeedsYou(role);
   const projects = useProjects();
+  const portfolioProjects = managementViewsEnabled
+    ? (projects.data ?? []).filter((project) => ON_HAND_STATUSES.includes(project.status))
+    : [];
+  const portfolioIds = portfolioProjects.map((project) => project.id);
+  const portfolioMilestones = useProjectManagementOverview(portfolioIds);
+  const portfolioDelivery = useProjectsDeliverySummary(portfolioIds);
   const procurements = useProcurements({ lean: true });
   const pipeline = useSalesPipeline();
   const budgetReview = useFinanceBudgetReview();
@@ -144,7 +154,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
-    void procurements.refetch(); void budgetReview.refetch(); void projects.refetch();
+    void procurements.refetch(); void budgetReview.refetch();
+    void projects.refetch();
     if (finance) void financePosition.retry();
     void erpPurchases.refetch();
     if (attention.length > 0) void healthDelivery.refetch();
@@ -160,7 +171,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   }
 
   // "Waits on you": one row per kind, each a link to the fix.
-  const waitRows: WaitRow[] = WAIT_ORDER[role].flatMap((id) => needs.items.filter((item) => item.id === id)).map((item) => ({
+  const orderedNeeds = [
+    ...WAIT_ORDER[role].flatMap((id) => needs.items.filter((item) => item.id === id)),
+    ...needs.items.filter((item) => !WAIT_ORDER[role].includes(item.id)),
+  ];
+  const waitRows: WaitRow[] = orderedNeeds.map((item) => ({
     id: item.id,
     count: item.countLabel ?? item.count,
     label: item.id === 'approvals' ? t('home.approvalsCompact', 'Approvals') : item.label,
@@ -315,6 +330,31 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   ];
   const activeStatuses = new Set<string>(ACTIVE_PROJECT_STATUSES);
   const budgetRows = (budgetReview.data ?? []).filter((row) => activeStatuses.has(row.status)).slice(0, 5);
+  const budgetByProject = new Map((budgetReview.data ?? []).map((row) => [row.id, row]));
+  const portfolioRows = portfolioProjects.map((project) => {
+    const budget = budgetByProject.get(project.id);
+    const milestones = portfolioMilestones.data?.[project.id];
+    const money = figures.projectMoney[project.id];
+    return {
+      id: project.id,
+      name: projectDisplayName(project),
+      spent: budget?.spent ?? null,
+      actualCurrency: budget?.actual_currency ?? null,
+      budget: budget?.budget ?? null,
+      budgetCurrency: budget?.budget_currency ?? null,
+      doneMilestones: milestones?.doneCount ?? null,
+      totalMilestones: milestones?.totalCount ?? null,
+      lateMilestones: milestones?.lateCount ?? null,
+      plannedPct: milestones?.plannedPct ?? null,
+      actualPct: portfolioDelivery.data?.[project.id]?.deliveryPct ?? null,
+      contractValue: money?.contractValue ?? null,
+      billed: money?.billed ?? null,
+      contractCurrency: money?.currency ?? null,
+    };
+  });
+  const portfolioPending = projects.isPending || (portfolioIds.length > 0 && (portfolioMilestones.isPending || portfolioDelivery.isPending || budgetReview.isPending));
+  const portfolioError = projects.isError || (portfolioIds.length > 0 && (portfolioMilestones.isError || portfolioDelivery.isError || budgetReview.isError));
+  const retryPortfolio = () => { void projects.refetch(); void portfolioMilestones.refetch(); void portfolioDelivery.refetch(); void budgetReview.refetch(); };
 
   const waitsEl = <DashboardWaitsOnYou rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={needs.refetch} />;
   const overdueCard = (
@@ -437,6 +477,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         </CardPad>
       </Card>
     );
+    const portfolio = managementViewsEnabled
+      ? <ProjectPortfolioTable rows={portfolioRows} pending={portfolioPending} error={portfolioError} retry={retryPortfolio} />
+      : null;
     // Finance: who owes us (worst first), then what is ready to pay.
     // Executive and Admin: Sales as one full-width band (purchasing by stage sits under Finances).
     const lowerRows = finance ? (
@@ -479,7 +522,11 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
             <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-10')}>
               <WorkOrdersTile />
             </div>
+            <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-11')}>
+              <WorkInHandSummary testId="dashboard-work-in-hand" />
+            </div>
           </div>
+          {portfolio}
           {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}
         </div>
       </FigureScope>
@@ -493,12 +540,14 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         {header}
         {waitsEl}
         {finance ? <>{overdueCard}{readyCard}</> : offTrackEl}
+        {managementViewsEnabled && <ProjectPortfolioTable rows={portfolioRows} pending={portfolioPending} error={portfolioError} retry={retryPortfolio} />}
         {(() => {
           const tiles = tilesRow(finance ? 'grid-cols-2 min-[900px]:auto-cols-fr min-[900px]:grid-flow-col' : 'grid-cols-2 [&>*:last-child:nth-child(odd)]:col-span-2', positionTiles);
           // Executive: the position tiles and the Sales card share one row on desktop (Sales at half width); stacked on a phone.
           return finance ? tiles : <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">{tiles}{salesCard}</div>;
         })()}
         {finance && <BudgetReviewCard rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />}
+        <WorkInHandSummary testId="dashboard-work-in-hand" />
         <WorkOrdersTile />
         <Analysis title={t('home.analysis', 'Analysis')}>{analysis}</Analysis>
       </div>

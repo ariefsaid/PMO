@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -7,6 +8,8 @@ import {
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
+import { claimBillingTraceKey } from '@/src/hooks/useBillingStages';
+import { queryClient as fallbackQueryClient } from '@/src/lib/queryClient';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, formatCurrency, formatDay, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, milli, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
@@ -23,6 +26,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { ImportButton, ImportWizard } from '@/src/components/import';
 import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
+import BoqAreaRates from '../BoqAreaRates';
 import BoqDisciplinePicker from '../BoqDisciplinePicker';
 import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
@@ -156,8 +160,24 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     return () => { active = false; };
   }, [boqRows, projectId]);
   const canViewMoney = may('view', 'salesInvoice');
+  const canReadClaims = may('view', 'progressClaim');
   const openRecordId = searchParams.get('open');
   const openRecordType = searchParams.get('openType');
+  // #2893: a deep-linked claim (?open=<id>&openType=billingClaim) starts its billing-stage read HERE, in
+  // parallel with the claims list — not after the list arrives and the drawer mounts its stage panel. The
+  // drawer's ClaimBillingStages reads the same query key, so nothing is fetched twice and the stage list is
+  // already cached when the drawer opens. Prefetch through the tab's own query client, falling back to the
+  // app singleton — the read adds no provider requirement beyond what the tab already has.
+  const prefetchClient = useContext(QueryClientContext) ?? fallbackQueryClient;
+  useEffect(() => {
+    const claimId = openRecordType === 'billingClaim' && canReadClaims ? openRecordId ?? '' : '';
+    const orgId = currentUser?.org_id;
+    if (!claimId || !orgId || !projectId) return;
+    void prefetchClient.prefetchQuery({
+      queryKey: claimBillingTraceKey(orgId, claimId),
+      queryFn: () => repositories.billingStages.trace(claimId, projectId),
+    });
+  }, [openRecordType, openRecordId, canReadClaims, currentUser?.org_id, projectId, prefetchClient]);
   const setOpenRecord = (id: string, type: 'billingBoq' | 'billingClaim') => {
     const next = new URLSearchParams(searchParams);
     next.set('open', id);
@@ -178,14 +198,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     if (openRecordType === 'billingBoq') {
       setBoqDetailFor(boqRows.find((row) => row.id === openRecordId) ?? null);
       setClaimDetailFor(null);
-    } else if (openRecordType === 'billingClaim' && canViewMoney) {
+    } else if (openRecordType === 'billingClaim' && canReadClaims) {
       setClaimDetailFor(claimRows.find((row) => row.id === openRecordId) ?? null);
       setBoqDetailFor(null);
     } else {
       setBoqDetailFor(null);
       setClaimDetailFor(null);
     }
-  }, [openRecordId, openRecordType, boqRows, claimRows, canViewMoney]);
+  }, [openRecordId, openRecordType, boqRows, claimRows, canReadClaims]);
   const summary = billing.data ? summarizeBilling(billing.data) : null;
   const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
   // C5: no padded .00, but a real fraction is money and is never rounded away. In-page figures are bare (the
@@ -618,7 +638,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </Card>
   );
 
-  const claimDetailDrawer = canViewMoney && claimDetailFor && <Drawer open width="lg"
+  const claimDetailDrawer = canReadClaims && claimDetailFor && <Drawer open width="lg"
     title={claimDetailFor.kind === 'down_payment'
       ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
       : claimDetailFor.kind === 'time_materials'
@@ -731,7 +751,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {boqFormFor !== undefined && (
           <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
-            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
+            extra={boqFormFor ? <><BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /><BoqAreaRates boqItemId={boqFormFor.id} catalogueItemId={boqFormFor.catalogue_item_id ?? null} /></> : undefined} />
         )}
         {assessOpen && (
           <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
@@ -826,13 +846,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           </summary>
           <div className="mt-3 space-y-6">
             {boqCard}
-            {canViewMoney && claimsCard}
+            {canReadClaims && claimsCard}
           </div>
         </details>
       ) : (
         <>
           {boqCard}
-          {canViewMoney && claimsCard}
+          {canReadClaims && claimsCard}
         </>
       )}
 
@@ -845,7 +865,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {boqFormFor !== undefined && (
         <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
-            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
+            extra={boqFormFor ? <><BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /><BoqAreaRates boqItemId={boqFormFor.id} catalogueItemId={boqFormFor.catalogue_item_id ?? null} /></> : undefined} />
       )}
       {boqDetailDrawer}
       {claimDetailDrawer}

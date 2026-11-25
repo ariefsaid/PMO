@@ -7,6 +7,14 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ALL_ROLES } from '@/src/auth/coarseRoles';
 import en from '@/public/locales/en/common.json';
 import id from '@/public/locales/id/common.json';
+import billingStepsEn from '@/public/locales/en/billingSteps.json';
+import billingStepsId from '@/public/locales/id/billingSteps.json';
+import siteReportEn from '@/public/locales/en/siteReport.json';
+import siteReportId from '@/public/locales/id/siteReport.json';
+import emailNotificationsEn from '@/public/locales/en/emailNotifications.json';
+import emailNotificationsId from '@/public/locales/id/emailNotifications.json';
+import workInHandEn from '@/public/locales/en/workInHand.json';
+import workInHandId from '@/public/locales/id/workInHand.json';
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
 
@@ -122,8 +130,22 @@ describe('organisation settings catalogue (#2746)', () => {
 
   it('AC-OSM-032 every setting has a name and a summary in English and in Bahasa', () => {
     const text = orgSettingText(((k: string, d: string) => d) as never);
-    const items = (en as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
-    const itemsId = (id as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
+    const commonItems = (en as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
+    const commonItemsId = (id as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
+    const items: Record<string, { name: string; summary: string }> = {
+      ...commonItems,
+      workOrderChecklist: billingStepsEn.settings.workOrderChecklist,
+      qsReportRevenue: { name: siteReportEn.revenue.qsAccess, summary: siteReportEn.revenue.qsAccessHelp },
+      workInHandCapacity: workInHandEn.setting,
+      pcmScheduledReports: { name: emailNotificationsEn.scheduled.pcmSettingName, summary: emailNotificationsEn.scheduled.pcmSettingSummary },
+    };
+    const itemsId: Record<string, { name: string; summary: string }> = {
+      ...commonItemsId,
+      workOrderChecklist: billingStepsId.settings.workOrderChecklist,
+      qsReportRevenue: { name: siteReportId.revenue.qsAccess, summary: siteReportId.revenue.qsAccessHelp },
+      workInHandCapacity: workInHandId.setting,
+      pcmScheduledReports: { name: emailNotificationsId.scheduled.pcmSettingName, summary: emailNotificationsId.scheduled.pcmSettingSummary },
+    };
     for (const key of orgSettingKeys) {
       expect(text[key].name, key).toBeTruthy();
       expect(items[key]?.name, `en ${key}`).toBe(text[key].name);
@@ -132,5 +154,19 @@ describe('organisation settings catalogue (#2746)', () => {
       expect(itemsId[key]?.summary, `id ${key}`).toBeTruthy();
     }
     expect(Object.keys(items).sort()).toEqual([...orgSettingKeys].sort());
+  });
+
+  it('AC-OSM-032 report revenue setting copy comes from the site-report feature namespace', () => {
+    const t = vi.fn((key: string, fallback: string) => fallback);
+    orgSettingText(t as never);
+    expect(t).toHaveBeenCalledWith('siteReport:revenue.qsAccess', expect.any(String));
+    expect(t).toHaveBeenCalledWith('siteReport:revenue.qsAccessHelp', expect.any(String));
+  });
+
+  it('AC-OSM-032 checklist setting copy comes from the billing-steps feature namespace', () => {
+    const t = vi.fn((key: string, fallback: string) => fallback);
+    orgSettingText(t as never);
+    expect(t).toHaveBeenCalledWith('billingSteps:settings.workOrderChecklist.name', expect.any(String));
+    expect(t).toHaveBeenCalledWith('billingSteps:settings.workOrderChecklist.summary', expect.any(String));
   });
 });

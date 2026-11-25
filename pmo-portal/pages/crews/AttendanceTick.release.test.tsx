@@ -18,6 +18,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
     isPending: false, isError: false, refetch: vi.fn(),
   }),
   useAttendanceDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useManagedPeople: () => ({ data: [] }),
   useAwaitingAttendance: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useAllCrewMembers: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useCrewWorkers: () => ({ data: [] }),
@@ -27,6 +28,8 @@ vi.mock('@/src/hooks/useCrews', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useHeadcount', () => ({
+  useHeadcountEvidence: () => ({ data: [] }),
+  useHeadcountEvidenceMutations: () => ({ attachFile: { mutateAsync: vi.fn(), isPending: false }, detach: { mutateAsync: vi.fn(), isPending: false } }),
   useHeadcountDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useHeadcountMutations: () => ({ record: { mutateAsync: vi.fn() }, approve: { mutateAsync: vi.fn() }, clear: { mutateAsync: vi.fn() } }),
 }));
@@ -62,7 +65,9 @@ describe('AC-MR-008 the tick screen and a worker whose medical release is not ap
 
   it('saves the others and leaves the held worker out of the recording', async () => {
     open();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Save attendance' }));
+    const user = userEvent.setup();
+    for (const n of ['Ana', 'Budi']) await user.selectOptions(screen.getByRole('combobox', { name: new RegExp(`Status for ${n}`) }), 'present');
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
     expect(h.record.mock.calls[0][0].rows.map((r: { worker_id: string }) => r.worker_id)).toEqual(['w2']);
   });

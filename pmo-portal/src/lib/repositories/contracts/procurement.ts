@@ -28,6 +28,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 export interface ReceiptLineInput { itemRef: string; quantity: number }
 import type { ProcPhase, ProcurementFileRow, ProcurementFileParent } from '@/src/lib/db/procurementFiles';
 import type { PurchaseOrderSettings } from '@/src/lib/db/purchaseOrderSettings';
+import type { NeededByLine } from '@/src/lib/db/procurementNeededBy';
 
 /**
  * The lean `list()` row: exactly the columns the default select returns (the row, the project / vendor /
@@ -60,6 +61,14 @@ export interface ProcurementRepository {
   getProjectCommittedSpend(projectId: string): Promise<ProjectCommittedSpend>;
   /** Approved-but-not-yet-ordered demand for one project (ADR-0034). */
   getProjectReservedSpend(projectId: string): Promise<ProjectReservedSpend>;
+  /** Organisation-level needed-by requirement (1124d). */
+  getPoNeededByRequired(): Promise<boolean>;
+  /** Admin-only, audited setting change (1124d). */
+  setPoNeededByRequired(on: boolean): Promise<boolean>;
+  /** Header date used by the needed-by panel (1124d). */
+  getNeededBy(id: string): Promise<string | null>;
+  /** Set the header date and optional per-line exceptions; null clears an exception back to the header (1124d). */
+  setNeededBy(id: string, neededBy: string | null, lines: NeededByLine[]): Promise<void>;
   /**
    * Atomic vendor-invoice capture (transition + invoice + status event in one RPC). It is a case-aggregate
    * write — PMO-derived even on an externally-owned org (FR-ENA-101/073) — so it never routes external.
@@ -204,6 +213,8 @@ export interface ProcurementRepository {
   setOrderJobRoles(keys: string[]): Promise<string[]>;
   /** Whether the signed-in person fills one of those roles (the database gate). */
   mayOrderPurchases(): Promise<boolean>;
+  /** Read-only inspection scope; grants no action. */
+  mayReadPurchaseCases(): Promise<boolean>;
 }
 
 export interface ProcurementFileRepository {

@@ -1,11 +1,12 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
 import CostDisciplines from './admin/CostDisciplines';
 import WorkOrderLists from './admin/WorkOrderLists';
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -24,6 +25,7 @@ import YourPlan from './YourPlan';
 import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
 import { EmailNotificationsSetting } from '@/src/components/emailNotifications/EmailNotificationsSetting';
+import { ScheduledReportsSetting } from '@/src/components/emailNotifications/ScheduledReportsSetting';
 import AdministrationTerminology from './AdministrationTerminology';
 import AdministrationDocumentCategories from './AdministrationDocumentCategories';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
@@ -46,20 +48,25 @@ import OrderJobRolesSection from './admin/OrderJobRolesSection';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
+import OrgOrderNeededBy from './admin/OrgOrderNeededBy';
 import SiteReportLists from './admin/SiteReportLists';
+import DailyReportValidateRoles from './admin/DailyReportValidateRoles';
 import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
+import StockIssueCostSettings from './admin/StockIssueCostSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgAttendanceTimeRoles from './admin/OrgAttendanceTimeRoles';
 import OrgModules from './admin/OrgModules';
 import { ModuleGate } from '@/src/components/admin/ModuleGate';
+import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
-import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
+import WorkOrderCheckTemplate from './admin/WorkOrderCheckTemplate';
 import SafetyLists from './admin/SafetyLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
 import OrgAttendanceTarget from './admin/OrgAttendanceTarget';
+import OrgWorkInHandCapacity from './admin/OrgWorkInHandCapacity';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
 import LabourCostSettings from './admin/LabourCostSettings';
@@ -69,6 +76,7 @@ import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 export type AdministrationSection =
   | 'users'
   | 'people'
+  | 'document-types'
   | 'clearance'
   | 'integrations'
   | 'modules'
@@ -80,20 +88,22 @@ export type AdministrationSection =
   | 'terminology'
   | 'document-categories'
   | 'cost-attribution'
+  | 'scheduled-reports'
   | 'usage'
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'modules', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'document-types', 'integrations', 'modules', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
-const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
-const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'clearance', 'cost-attribution', ...OPERATOR_SECTIONS];
+const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'document-types', 'exchange-rates', 'cost-attribution'];
+const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'clearance', 'cost-attribution', 'scheduled-reports', ...OPERATOR_SECTIONS];
 
 /** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
 const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   users: 'Users',
   people: 'People',
+  'document-types': 'Document types',
   clearance: 'Clearance',
   integrations: 'Organization integrations',
   modules: 'Modules',
@@ -105,6 +115,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   terminology: 'Terminology',
   'document-categories': 'Document categories',
   'cost-attribution': 'Cost attribution',
+  'scheduled-reports': 'Scheduled reports',
   usage: 'Usage',
   features: 'Features',
 };
@@ -117,6 +128,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
 const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string> => ({
   users: t('admin.nav.users', SECTION_LABEL_DEFAULTS.users),
   people: t('administration:people.navLabel', SECTION_LABEL_DEFAULTS.people),
+  'document-types': t('administration:documentTypesNav', SECTION_LABEL_DEFAULTS['document-types']),
   clearance: t('administration:clearance.navLabel', SECTION_LABEL_DEFAULTS.clearance),
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
   modules: t('administration:admin.modulesNav', SECTION_LABEL_DEFAULTS.modules),
@@ -128,6 +140,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   terminology: t('administration:terminology.nav', SECTION_LABEL_DEFAULTS.terminology),
   'document-categories': t('administration:documentCategories.nav', SECTION_LABEL_DEFAULTS['document-categories']),
   'cost-attribution': t('costAttribution:title', SECTION_LABEL_DEFAULTS['cost-attribution']),
+  'scheduled-reports': t('emailNotifications:scheduled.title', SECTION_LABEL_DEFAULTS['scheduled-reports']),
   usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
   features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
 });
@@ -187,7 +200,7 @@ const AdministrationNavigation: React.FC<{
       </Link>
     ));
 
-  const listed = [...ORGANIZATION_SECTIONS, 'clearance' as const, 'cost-attribution' as const].filter((id) => sections.includes(id));
+  const listed = [...ORGANIZATION_SECTIONS, 'clearance' as const, 'cost-attribution' as const, 'scheduled-reports' as const].filter((id) => sections.includes(id));
   const operatorListed = isOperator ? OPERATOR_SECTIONS : [];
   const narrow = useIsNarrow();
   const navigate = useNavigate();
@@ -280,6 +293,7 @@ const SelectedAdministrationPanel: React.FC<{
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
 }> = ({ section, orgId, isOperator, label }) => {
+  const { t } = useTranslation(['billingSteps', 'siteReport']);
   switch (section) {
     case 'users':
       return (
@@ -287,13 +301,14 @@ const SelectedAdministrationPanel: React.FC<{
           <AdminUsers embedded />
         </div>
       );
+    case 'document-types':
+      return <div data-testid="administration-panel-document-types"><SectionName name={label('document-types')} /><DocumentTypes /></div>;
     case 'people':
       return (
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
-          <People />
           <OrgAttendanceTimeRoles />
-          <DocumentTypes />
+          <People />
           <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
         </div>
       );
@@ -326,6 +341,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <SectionName name={label('accounting')} />
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
+            <StockIssueCostSettings />
             <OrgTaxDefault />
             <OrgFiscalYearStart />
             <SpendApprovers />
@@ -334,10 +350,16 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgDownPaymentItem />
             <OrgClaimOverCap />
             <OrgProcurementGates />
+            <div id="work-order-checklist" className="scroll-mt-4">
+              <OrgSwitchSetting setting="workOrderChecklist"
+                label={t('billingSteps:settings.workOrderChecklist.label', 'Edit issued work-order checklists')}
+                helper={t('billingSteps:settings.workOrderChecklist.helper', 'When on, billing-step runners can add steps to issued work orders, and Finance or an Admin can save a checklist as a template for new work orders.')} />
+            </div>
             <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /><OrderJobRolesSection /></ModuleGate>
             <OrgThreeWayMatch />
             <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
             <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
+            <OrgOrderNeededBy />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>
@@ -358,17 +380,22 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <DailyReportValidateRoles />
+            <OrgSwitchSetting setting="qsReportRevenue"
+              label={t('siteReport:revenue.qsAccess', 'Quantity Surveyors see validated daily report revenue')}
+              helper={t('siteReport:revenue.qsAccessHelp', 'Shows frozen rates and amounts for one validated report. Other revenue and cost permissions stay unchanged.')} />
             <OrgIssueTypes />
             <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
             <NonWorkingDatesCard />
             <SiteCheckpointTemplate />
-            <WorkOrderCandidateTemplate />
+            <WorkOrderCheckTemplate />
             <ModuleGate module="moduleSiteDay"><SafetyLists /></ModuleGate>
             <CostDisciplines />
             <WorkOrderCloseoutTemplate />
             <WorkOrderLists />
             <ModuleGate module="moduleSiteDay"><OrgPerformanceIndices /></ModuleGate>
             <OrgAttendanceTarget />
+            <OrgWorkInHandCapacity />
             <IssueClosingReportSettings />
           </div>
         </div>
@@ -406,6 +433,13 @@ const SelectedAdministrationPanel: React.FC<{
           <AdministrationDocumentCategories />
         </div>
       );
+    case 'scheduled-reports':
+      return (
+        <div data-testid="administration-panel-scheduled-reports" className="min-w-0">
+          <SectionName name={label('scheduled-reports')} />
+          <ScheduledReportsSetting standalone />
+        </div>
+      );
     case 'usage':
       return (
         <div data-testid="administration-panel-usage" className="min-w-0">
@@ -428,7 +462,7 @@ const Administration: React.FC = () => {
   const { pathname, hash } = useLocation();
   const may = usePermission();
   const { currentUser } = useAuth();
-  const { realRole } = useEffectiveRole();
+  const { realRole, effectiveRole } = useEffectiveRole();
   const operatorMembership = useOperatorMembership();
   const section = administrationSectionForPath(pathname);
   const isAdminViewer = may('view', 'user');
@@ -441,17 +475,32 @@ const Administration: React.FC = () => {
   const operatorRoute = section !== undefined && isOperatorSection(section);
   const fxRoute = section === 'exchange-rates';
   const costAttributionRoute = section === 'cost-attribution';
-  const peopleRoute = section === 'people' && may('view', 'person');
+  const canViewPeople = may('view', 'person');
+  const peopleRoute = (section === 'people' || section === 'document-types') && canViewPeople;
   // #2707: the Clearance section exists only while the organisation setting is on (default off: Administration is unchanged).
   const clearanceEnabled = useOrgSwitch('clearance').data === true;
   const clearanceRoute = section === 'clearance' && may('view', 'personClearance');
   const showClearance = clearanceEnabled && may('view', 'personClearance');
-  const canEnterAdministration = isAdminViewer || isOperator || peopleRoute || clearanceRoute || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
-  const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance && !peopleRoute && !clearanceRoute);
+  const authCtx = useContext(AuthContext);
+  const builtInRoleKey = currentUser?.built_in_role ?? authCtx?.currentUser?.built_in_role ?? null;
+  const viewOnly = realRole !== effectiveRole;
+  const pcmScheduledReportsEnabled = useOrgSwitch(
+    'pcmScheduledReports',
+    builtInRoleKey === 'project_control_manager' && !viewOnly,
+  ).data === true;
+  const canManageScheduledReports = may('manage', 'scheduledReport', {
+    record: {
+      viewOnly,
+      pcm_scheduled_reports_enabled: pcmScheduledReportsEnabled,
+    },
+  });
+  const scheduledReportsRoute = section === 'scheduled-reports' && canManageScheduledReports;
+  const canEnterAdministration = isAdminViewer || isOperator || peopleRoute || clearanceRoute || scheduledReportsRoute || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
+  const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance && !peopleRoute && !clearanceRoute && !scheduledReportsRoute);
   const navigationSections: AdministrationSection[] = !isAdminViewer && !isFinance && !isOperator
-    ? ['people', ...(showClearance ? ['clearance' as const] : [])]
+    ? ['people', 'document-types', ...(showClearance ? ['clearance' as const] : []), ...(canManageScheduledReports ? ['scheduled-reports' as const] : [])]
     : isFinance
-    ? [...FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution), ...(showClearance ? ['clearance' as const] : [])]
+    ? [...FINANCE_SECTIONS.filter((id) => (id !== 'cost-attribution' || canManageCostAttribution) && (id !== 'document-types' || canViewPeople)), ...(showClearance ? ['clearance' as const] : [])]
     : [
       ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)
         // "Your plan" is the org Admin's read-only page (FR-PLN-014); an Operator reaches it too.
@@ -522,6 +571,13 @@ const Administration: React.FC = () => {
           {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
           <GateNotice variant="blocked">
             {t('administration:documentCategories.denied', 'Document categories are managed by an Admin.')}
+          </GateNotice>
+        </>
+      ) : section === 'scheduled-reports' && !canManageScheduledReports ? (
+        <>
+          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
+          <GateNotice variant="blocked">
+            {t('emailNotifications:scheduled.denied', 'Scheduled reports are managed by an Admin or an enabled Project Control Manager.')}
           </GateNotice>
         </>
       ) : operatorRoute && !isOperator ? (

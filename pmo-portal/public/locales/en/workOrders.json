@@ -84,7 +84,9 @@
   "documents": {
     "title": "Documents",
     "error": "Couldn't load the documents",
-    "empty": "No visible documents are linked to this work order yet."
+    "empty": "No visible documents are linked to this work order yet.",
+    "add": "Add document",
+    "uploadAria": "Choose document file"
   },
   "openPage": "Open page",
   "issues": {
@@ -214,7 +216,8 @@
     "duplicateCode": "Another live entry already uses this code.",
     "adminOnly": "Only an Admin can change this list.",
     "tooLong": "Use {{max}} characters or fewer.",
-    "hint": "Your organisation’s own list. Work orders can name one; the work-order list can be grouped by it."
+    "hint": "Your organisation’s own list. Work orders can name one; the work-order list can be grouped by it.",
+    "description": "Description (optional)"
   },
   "clientMaterial": {
     "title": "Client material",
@@ -293,6 +296,7 @@
       "reason": "Reason"
     },
     "pickup": {
+      "needsQualityCheck": "This item needs a quality check, so it cannot be recorded as a pickup.",
       "locationRequired": "Choose where the material is received.",
       "title": "Record pickup",
       "submit": "Record pickup",
@@ -404,5 +408,43 @@
     "none": "No crew rostered today",
     "people_one": "{{count}} person",
     "people_other": "{{count}} people"
+  },
+  "checks": {
+    "title": "Checks before issue",
+    "error": "Couldn't load the checks",
+    "empty": "No checks yet.",
+    "allDone": "All {{count}} done",
+    "openCount": "{{open}} of {{count}} open",
+    "openWarning": "Still open: {{names}}",
+    "ownerFor": "Owner of {{name}}",
+    "chooseOwner": "Choose owner",
+    "name": "Check",
+    "owner": "Owner",
+    "due": "Due",
+    "add": "Add check"
+  },
+  "decision": {
+    "cancel": "Cancel work order",
+    "cancelReason": "Reason for cancelling",
+    "cancelHelper": "Cancelling is final. The reason stays on the work order.",
+    "cancelledBecause": "Cancelled because: {{reason}}"
+  },
+  "candidateRecords": {
+    "title": "Earlier candidate work orders",
+    "error": "Couldn't load the earlier candidates",
+    "status": {
+      "assessing": "Not decided",
+      "accepted": "Accepted",
+      "rejected": "Rejected"
+    },
+    "check": {
+      "open": "Open",
+      "passed": "Passed",
+      "failed": "Failed",
+      "notApplicable": "Not applicable"
+    },
+    "openWorkOrder": "Open the work order",
+    "checks_one": "{{count}} check",
+    "checks_other": "{{count}} checks"
   }
 }

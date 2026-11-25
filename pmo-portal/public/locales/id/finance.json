@@ -1176,7 +1176,8 @@
     "error": "Papan penagihan tidak dapat dimuat",
     "empty": "Tidak ada klaim untuk ditampilkan",
     "emptySub": "Klaim muncul di sini setelah memiliki langkah penagihan. Buka klaim di tab Kontrak proyek, lalu tambahkan langkahnya.",
-    "entryLink": "Papan penagihan"
+    "entryLink": "Papan penagihan",
+    "columnTotal": "Total {{amount}}"
   },
   "billingPlan": {
     "title": "Rencana penagihan",
@@ -1208,7 +1209,7 @@
     "truncated": "Menampilkan {{count}} terbesar. Saring menurut proyek untuk melihat sisanya.",
     "error": "Rencana penagihan tidak dapat dimuat",
     "empty": "Tidak ada kandidat untuk ditampilkan",
-    "emptySub": "Pekerjaan muncul di sini setelah diterima dan belum diklaim.",
+    "emptySub": "Tidak ada progres terukur yang menunggu penerimaan atau siap diklaim.",
     "settings": {
       "open": "Pengaturan rencana",
       "title": "Pengaturan rencana",
@@ -1232,6 +1233,13 @@
     },
     "ageSince_one": "{{count}} hari sejak diterima",
     "ageSince_other": "{{count}} hari sejak diterima",
+    "acceptedTitle": "Progres diterima klien, belum diklaim",
+    "unacceptedTitle": "Progres belum diterima klien",
+    "unacceptedError": "Progres yang belum diterima tidak dapat dimuat",
+    "unacceptedEmpty": "Tidak ada progres yang menunggu penerimaan klien.",
+    "unacceptedTruncated": "Menampilkan {{count}} kuantitas terbesar. Saring menurut proyek untuk melihat sisanya.",
+    "unacceptedQuantity": "{{quantity}} {{unit}} terukur",
+    "progressItem": "Item progres",
     "overLimit_one": "Melewati batas {{count}} hari",
     "overLimit_other": "Melewati batas {{count}} hari",
     "overCount_one": "{{count}} baris melewati batas hari",

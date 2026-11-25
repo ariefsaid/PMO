@@ -126,7 +126,11 @@
     "pages": "Pages",
     "previous": "Previous",
     "status": "Status",
-    "title": "Reports"
+    "title": "Reports",
+    "crew": "Crew",
+    "allCrews": "All crews",
+    "crewLabel": "Crew {{name}}",
+    "personLabel": "Person {{name}}"
   },
   "lost": {
     "archived": "Archived",
@@ -144,7 +148,14 @@
     "pickProject": "Choose a project",
     "pickWorkOrder": "Choose a work order",
     "project": "Project",
-    "workOrder": "Work order"
+    "workOrder": "Work order",
+    "crew": "Crew (optional)",
+    "noCrew": "No crew",
+    "person": "Person (when no crew applies)",
+    "noPerson": "No person",
+    "loadingPeople": "Loading people…",
+    "peopleError": "Couldn't load people.",
+    "retryPeople": "Retry"
   },
   "newReport": "New report",
   "note": {
@@ -205,6 +216,7 @@
     "none": "No photos yet",
     "paperForm": "Paper form",
     "retry": "Retry",
+    "submittedOnly": "Photos can be added only before the report is submitted.",
     "title": "Photos"
   },
   "progress": {
@@ -219,7 +231,9 @@
     "stage": "Sub-stage",
     "title": "Progress",
     "unrated_one": "{{count}} line without a rate",
-    "unrated_other": "{{count}} lines without a rate"
+    "unrated_other": "{{count}} lines without a rate",
+    "section": "Section",
+    "outsideSections": "Outside sections"
   },
   "queue": {
     "due_one": "Due {{count}} day",
@@ -231,7 +245,9 @@
   },
   "revenue": {
     "day": "Day revenue",
-    "toDate": "Validated to date"
+    "toDate": "Validated to date",
+    "qsAccess": "Quantity Surveyors see validated daily report revenue",
+    "qsAccessHelp": "Shows frozen rates and amounts for one validated report. Other revenue and cost permissions stay unchanged."
   },
   "stock": {
     "title": "Stock",
@@ -273,5 +289,22 @@
     "hours": "start and end time",
     "photo": "a photo",
     "progress": "progress"
+  },
+  "who": {
+    "title": "Crew and area",
+    "crew": "Crew",
+    "noCrew": "No crew",
+    "person": "Person (when no crew applies)",
+    "noPerson": "No person",
+    "personHelp": "A report names a crew or a person, not both. Clear the crew to name a person.",
+    "area": "Rate area",
+    "areaDefault": "The work order's area",
+    "areaHelp": "Prices the report's lines at that area's rates. Leave it to use the work order's area."
+  },
+  "woSection": {
+    "title": "Site reports",
+    "empty": "No site reports on this work order yet.",
+    "error": "Couldn't load the site reports",
+    "more": "All site reports"
   }
 }

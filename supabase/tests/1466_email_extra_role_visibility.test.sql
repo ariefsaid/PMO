@@ -63,7 +63,8 @@ $$;
 --    event's extra roles are the copies.
 select is((select notify_roles from document_types where name = 'Work permit'), array['Admin'],
   'the person type''s notify roles default to Admin');
-select is(public.run_document_expiry_warnings('2026-11-20'), 2, 'the expiry run sends the two notices');
+-- Medical-right holders are primary warning recipients under the 24 November rule; recipient arrays below remain exact.
+select is(public.run_document_expiry_warnings('2026-11-20'), 3, 'the expiry run sends the permit notice and both medical-right notices');
 
 select is(pg_temp.outbox_recipients('14660000-0000-0000-0000-000000000102'::uuid),
   array['14660000-0000-0000-0000-0000000000a1'::uuid, '14660000-0000-0000-0000-0000000000a4'::uuid],
