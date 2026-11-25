@@ -34416,6 +34416,18 @@ export type Database = {
           step_name: string
         }[]
       }
+      my_waiting_closeout_items: {
+        Args: never
+        Returns: {
+          due_on: string
+          item_id: string
+          item_name: string
+          project_id: string
+          project_name: string
+          work_order_id: string
+          work_order_label: string
+        }[]
+      }
       my_waiting_decisions: {
         Args: never
         Returns: {

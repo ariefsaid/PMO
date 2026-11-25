@@ -32,6 +32,11 @@ export function useOpenCloseoutDue() {
   return useOrgQuery(['closeout-due'], () => repositories.closeoutChecklist.listOpenDue());
 }
 
+/** The viewer's waiting close-out items (#2907, the needs-you pointer). Derived on read: nothing to clear when an item is done. */
+export function useWaitingCloseoutItems(enabled: boolean) {
+  return useOrgQuery(['waiting-closeout-items'], () => repositories.closeoutChecklist.waitingItems(), { enabled });
+}
+
 /** Who closed a work order and when; read only once it is Closed. */
 export function useWorkOrderCloser(workOrderId: string | undefined, enabled: boolean) {
   return useOrgQuery(['work-order-closer', workOrderId], () => repositories.closeoutChecklist.getCloser(workOrderId as string), { enabled: enabled && Boolean(workOrderId) });

@@ -1,0 +1,3 @@
+{
+  "definer_functions": ["actor_holds_owner_job_role(text)"]
+}
