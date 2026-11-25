@@ -72,7 +72,7 @@ test.afterAll(async () => {
 });
 
 function billRow(page: import('@playwright/test').Page) {
-  return page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'VI', exact: true }) });
+  return page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Invoice', exact: true }) });
 }
 async function openMatch(page: import('@playwright/test').Page) {
   await page.getByRole('tab', { name: /^Files/ }).click();
@@ -103,6 +103,7 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await form.getByTestId('btn-save-vi').click();
   await page.getByRole('dialog', { name: 'Record this supplier invoice?' }).getByRole('button', { name: 'Save supplier invoice' }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced', { timeout: 20_000 });
+  await page.getByRole('tab', { name: /^Files/ }).click();
   await expect(billRow(page).first()).toContainText(/12[.,]000/);
   invoiceId = need('invoice', await serviceClient('JOB-PU7').from('procurement_invoices').select('id').eq('procurement_id', purchase.id).limit(1).single()).id as string;
 
@@ -111,8 +112,8 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await page.getByRole('menuitem', { name: 'Edit bill lines', exact: true }).click();
   const editor = page.getByTestId('match-lines-editor');
   await expect(editor).toBeVisible({ timeout: 15_000 });
-  await editor.getByTestId(`match-qty-${itemId}`).fill('10');
-  await editor.getByTestId(`match-rate-${itemId}`).fill('1200');
+  await editor.getByLabel('Quantity').fill('10');
+  await editor.getByLabel('Rate').fill('1200');
   await page.getByRole('button', { name: 'Save lines' }).click();
   await expect(page.getByTestId('match-lines-result')).toContainText(/still held|does not yet match/i, { timeout: 20_000 });
   await page.getByRole('button', { name: 'Done' }).click();

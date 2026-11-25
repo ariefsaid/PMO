@@ -45,6 +45,8 @@ test('JOB-PU9 the requester opens My requests and no price or supplier shows', a
   await page.getByRole('link', { name: /Purchasing|Procurement/ }).first().click();
   await expect(page.getByText(SEED_SUPPLIER_NAME, { exact: true })).toHaveCount(0);
   await page.getByText(purchase.code).first().click();
+  // The row opens its preview; the request itself is one step on.
+  await page.getByRole('dialog').getByRole('link', { name: 'Open full page' }).click();
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
 
   // The request itself is there — title, status, its line.

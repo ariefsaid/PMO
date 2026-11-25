@@ -56,8 +56,19 @@ test.afterAll(async () => {
   const admin = await userClient('admin@acme.test');
   // The keeper assignment points at the login, so the Admin releases it before the login goes.
   if (site && storekeeper) ok('keeper release', await admin.rpc('set_stock_warehouse_keeper', { p_warehouse_id: site.id, p_user_id: storekeeper.id, p_assigned: false }));
-  // The posted receipt moved the purchase on, so its status event names the storekeeper; this run's own events go before the login.
-  if (storekeeper) sqlAsOwner(`delete from public.procurement_status_events where actor_id = '${storekeeper.id}';`);
+  // The storekeeper's posted receipt (stock document, its ledger rows, the receiving request and the order receipt) and the
+  // purchase's status events name the login; this run's own rows go as the local owner before the login does.
+  if (storekeeper && site) {
+    const docs = `select id from public.stock_documents where created_by = '${storekeeper.id}' and warehouse_id = '${site.id}'`;
+    sqlAsOwner(`delete from public.stock_ledger where document_id in (${docs});
+      delete from public.order_receiving_requests where stock_document_id in (${docs});
+      delete from public.stock_document_lines where document_id in (${docs});
+      delete from public.stock_documents where id in (${docs});
+      delete from public.stock_balances where warehouse_id = '${site.id}';
+      delete from public.procurement_receipt_lines where receipt_id in (select id from public.procurement_receipts where procurement_id = '${purchase.id}');
+      delete from public.procurement_receipts where procurement_id = '${purchase.id}';
+      delete from public.procurement_status_events where actor_id = '${storekeeper.id}';`);
+  }
   await storekeeper?.cleanup();
   if (!receivingWasOn) ok('receiving restore', await admin.rpc('set_order_receiving_enabled', { p_enabled: false }));
 });
