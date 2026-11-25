@@ -91,5 +91,9 @@
     },
     "unlink": "Berhenti mengikuti catatan ini",
     "unlinked": "Berhenti mengikuti catatan."
+  },
+  "sourceIssue": {
+    "from": "Dari isu",
+    "open": "Buka isu sumbernya"
   }
 }

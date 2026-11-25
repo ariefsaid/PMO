@@ -175,7 +175,7 @@ select is(pg_temp.err(format('select complete_work_order_step(%L, current_date)'
   'AC-WBS-005 a reader without the run right who does not own the step is refused');
 select pg_temp.as_user('b7');
 select is(pg_temp.err(format('select complete_work_order_step(%L, current_date)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1))), '42501 LIGHT_ACCOUNT', 'AC-WBS-005 a field account is refused to complete');
-select is(pg_temp.err(format('select skip_work_order_step(%L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 3))), '42501 LIGHT_ACCOUNT', 'AC-WBS-005 a field account is refused to skip');
+select is(pg_temp.err(format('select skip_work_order_step(%L, ''No longer needed'')', pg_temp.step('17700000-0000-0000-0000-000000000032', 3))), '42501 LIGHT_ACCOUNT', 'AC-WBS-005 a field account is refused to skip');
 select is(pg_temp.err(format('select attach_work_order_step_document(%L, null, %L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1), '17700000-0000-0000-0000-000000000f01')), '42501 LIGHT_ACCOUNT',
   'AC-WBS-005 a field account is refused to attach');
 select is(pg_temp.err(format('select assign_work_order_step(%L, null)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1))), '42501 LIGHT_ACCOUNT', 'AC-WBS-005 a field account is refused to name a person');
@@ -188,7 +188,7 @@ select is(pg_temp.err(format('select attach_work_order_step_document(%L, (select
 select is(pg_temp.err(format('select complete_work_order_step(%L, current_date + 1)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1))), '22023 WBS_DATE_FUTURE', 'AC-WBS-007 a future finish date is refused');
 select is(pg_temp.err(format('select complete_work_order_step(%L, current_date - 1)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1))), '22023 WBS_DATE_BEFORE_START', 'AC-WBS-007 a date before the step started is refused');
 select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 3), pg_temp.today())), '55000 WBS_OUT_OF_ORDER', 'AC-WBS-007 a step that has not opened cannot be finished');
-select is(pg_temp.err(format('select skip_work_order_step(%L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1))), '55000 WBS_NOT_OPTIONAL', 'AC-WBS-007 only an optional step can be skipped');
+select is(pg_temp.err(format('select skip_work_order_step(%L, ''No longer needed'')', pg_temp.step('17700000-0000-0000-0000-000000000032', 1))), '55000 WBS_NOT_OPTIONAL', 'AC-WBS-007 only an optional step can be skipped');
 select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1), pg_temp.today())), 'ok', 'AC-WBS-005 the holder of the owner role finishes their step');
 select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1), pg_temp.today())), '55000 WBS_CLOSED', 'AC-WBS-007 a finished step cannot be finished again');
 reset role;
@@ -203,7 +203,7 @@ select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.
 select pg_temp.as_user('b3');
 select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 2), pg_temp.today())), 'ok', 'AC-WBS-005 the project''s manager finishes a step through the run right');
 -- the optional last step: skip, and the list ends
-select is(pg_temp.err(format('select skip_work_order_step(%L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 3))), 'ok', 'AC-WBS-007 an optional current step is skipped');
+select is(pg_temp.err(format('select skip_work_order_step(%L, ''No longer needed'')', pg_temp.step('17700000-0000-0000-0000-000000000032', 3))), 'ok', 'AC-WBS-007 an optional current step is skipped');
 reset role;
 select is((select skipped_on from work_order_billing_steps where id = pg_temp.step('17700000-0000-0000-0000-000000000032', 3)), pg_temp.today(), 'AC-WBS-007 the skip is dated');
 
@@ -250,7 +250,7 @@ insert into work_order_billing_steps (id, org_id, work_order_id, project_id, pos
   ('17700000-0000-0000-0000-0000000000e6', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-000000000036', '17700000-0000-0000-0000-0000000000c1', 1, 'Hidden from finance', true, '{finance_officer}', current_date);
 select pg_temp.as_user('b2');
 select is(pg_temp.err($$select complete_work_order_step('17700000-0000-0000-0000-0000000000e6', current_date)$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 a run holder the step is hidden from cannot complete it, and is told it is not found');
-select is(pg_temp.err($$select skip_work_order_step('17700000-0000-0000-0000-0000000000e6')$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 nor skip it');
+select is(pg_temp.err($$select skip_work_order_step('17700000-0000-0000-0000-0000000000e6', 'No longer needed')$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 nor skip it');
 select is(pg_temp.err($$select attach_work_order_step_document('17700000-0000-0000-0000-0000000000e6', null, '17700000-0000-0000-0000-000000000f01')$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 nor attach to it');
 select is(pg_temp.err($$select assign_work_order_step('17700000-0000-0000-0000-0000000000e6', null)$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 nor name a person on it');
 select pg_temp.as_user('b6');

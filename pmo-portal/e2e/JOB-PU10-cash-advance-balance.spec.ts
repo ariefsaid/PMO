@@ -93,19 +93,6 @@ test.beforeEach(async () => {
   await rpc(pm, 'submit plan', 'transition_imprest_plan', { p_id: planId, p_to: 'Submitted', p_notes: null });
   const exec = await asUser('exec@acme.test');
   await rpc(exec, 'approve plan', 'transition_imprest_plan', { p_id: planId, p_to: 'Approved', p_notes: null });
-
-  // Two purchases against the advance: the Engineer files each, the Executive approves, the custodian pays.
-  const engineer = await asUser('engineer@acme.test');
-  for (const [what, amount] of [['diesel', 500], ['welding rods', 300]] as const) {
-    const claim = need('claim', await engineer.from('expense_claims')
-      .insert({ kind: 'claim', title: `${tag} ${what}`, project_id: projectId, budget_category: 'Vehicle', imprest_float_id: floatId }).select('id').single());
-    ok('claim line', await engineer.from('expense_claim_lines')
-      .insert({ claim_id: claim.id, expense_date: new Date().toISOString().slice(0, 10), expense_type: 'Travel', description: what, amount }));
-    ok('claim receipt', await engineer.from('expense_claim_files').insert({ claim_id: claim.id, title: 'receipt', file_path: `${ORG_ID}/${claim.id}/${crypto.randomUUID()}/receipt.png` }));
-    await rpc(engineer, 'submit claim', 'transition_expense_claim', { p_id: claim.id, p_to: 'Submitted', p_notes: null, p_payment_reference: null });
-    await rpc(exec, 'approve claim', 'transition_expense_claim', { p_id: claim.id, p_to: 'Approved', p_notes: null, p_payment_reference: null });
-    await rpc(pm, 'pay claim', 'transition_expense_claim', { p_id: claim.id, p_to: 'Paid', p_notes: null, p_payment_reference: `PAY-${tag}-${what}` });
-  }
 });
 
 test.afterEach(async () => {
@@ -128,9 +115,34 @@ test.afterEach(async () => {
 });
 
 
-test('JOB-PU10 the finance officer reads the float as the advance minus the two purchases recorded against it', async ({ page }) => {
-  if (!officer) throw new Error('JOB-PU10 needs its Finance Officer login');
+test('JOB-PU10 the finance officer records two purchases against the advance and reads the balance as the advance minus them', async ({ page }) => {
+  if (!officer || !admin) throw new Error('JOB-PU10 needs its Finance Officer login');
+  const exec = await asUser('exec@acme.test');
+  const pm = await asUser('pm@acme.test');
   await officer.signIn(page);
+
+  // The officer records each purchase on the Expense screen, charged to the site cash. The Executive approves and the custodian pays (their acts, by RPC).
+  for (const [what, amount] of [['diesel', '500'], ['welding rods', '300']] as const) {
+    await page.goto('/expenses/new');
+    await page.getByRole('textbox', { name: /Title/ }).fill(`${tag} ${what}`);
+    await page.getByLabel('Project').selectOption({ label: tag });
+    await page.getByLabel('Budget category').selectOption({ label: 'Vehicle' });
+    await page.getByLabel('Charge to site cash').selectOption({ index: 1 });
+    await page.getByLabel(/^Date/).fill(new Date().toISOString().slice(0, 10));
+    await page.getByLabel(/^Type/).selectOption('Travel');
+    await page.getByLabel(/^Description/).fill(what);
+    await page.getByRole('textbox', { name: 'Amount' }).fill(amount);
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 15_000 });
+    const claimId = page.url().split('/').pop() as string;
+    // A float claim needs a receipt file to be submitted; Storage is off locally, so the row is written directly (as AC-IMP-090 does).
+    ok('claim receipt', await admin.from('expense_claim_files').insert({ org_id: ORG_ID, claim_id: claimId, title: 'receipt', file_path: `${ORG_ID}/${claimId}/${crypto.randomUUID()}/receipt.png`, uploaded_by_id: officer.id }));
+    await page.getByRole('button', { name: 'Submit for approval' }).click();
+    await expect(page.getByTestId('expense-status')).toHaveAttribute('data-status', 'Submitted', { timeout: 15_000 });
+    await rpc(exec, 'approve claim', 'transition_expense_claim', { p_id: claimId, p_to: 'Approved', p_notes: null, p_payment_reference: null });
+    await rpc(pm, 'pay claim', 'transition_expense_claim', { p_id: claimId, p_to: 'Paid', p_notes: null, p_payment_reference: `PAY-${tag}-${what}` });
+  }
+
   await page.goto(`/imprest/${floatId}`);
   await expect(page.getByTestId('figure-receipts')).toContainText(/\b800\b/, { timeout: 20_000 });
   await expect(page.getByTestId('figure-cash')).toContainText(/9[.,]200/);

@@ -69,5 +69,8 @@
   },
   "workOrders": {
     "empty": "Anda tidak terdaftar pada $t(common:terms.clientWorkOrder) hari ini"
+  },
+  "notices": {
+    "title": "Pemberitahuan"
   }
 }

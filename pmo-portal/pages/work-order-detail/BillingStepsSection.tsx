@@ -8,6 +8,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { Button } from '@/src/components/ui/Button';
+import { ReasonDialog } from '@/src/components/ui/ReasonDialog';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { DateField } from '@/src/components/ui/DateField';
 import { SelectField, TextField } from '@/src/components/ui/FormFields';
@@ -56,6 +57,8 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
   const line = useRefusalLine();
   const { complete, skip, assign, attach, markEvidence } = useWorkOrderStepMutations();
   const [doneOn, setDoneOn] = useState(today);
+  const [skipping, setSkipping] = useState(false);
+  const [skipError, setSkipError] = useState<string | null>(null);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const status = stepStatus(step);
   const actor = { userId: auth?.currentUser?.id ?? null, builtInRoleKey: auth?.currentUser?.built_in_role ?? null, role: realRole };
@@ -88,6 +91,7 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
         </StatusPill>
       </span>
     </div>
+    {status === 'skipped' && step.skippedReason && <p className="mt-1 text-control text-muted-foreground">{t('skipReason', 'Reason: {{reason}}', { reason: step.skippedReason })}</p>}
     <p className="mt-1 text-control text-muted-foreground">
       {step.ownerRoleKey ? roleName(step.ownerRoleKey) : t('noRole', 'No role set')}
       {' · '}
@@ -134,7 +138,12 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
       <Button variant="primary" size="sm" disabled={complete.isPending || missingRequired} aria-label={t('markDoneNamed', 'Mark {{item}} done', { item: step.name })}
         onClick={() => void run(() => complete.mutateAsync({ stepId: step.id, doneOn }))}>{t('markDone', 'Mark done')}</Button>
       {step.optional && <Button variant="outline" size="sm" disabled={skip.isPending} aria-label={t('skipNamed', 'Skip {{item}}', { item: step.name })}
-        onClick={() => void run(() => skip.mutateAsync(step.id))}>{t('skip', 'Skip')}</Button>}
+        onClick={() => { setSkipError(null); setSkipping(true); }}>{t('skip', 'Skip')}</Button>}
+      {skipping && <ReasonDialog open kind="return" maxLength={500} loading={skip.isPending} error={skipError}
+        title={t('skipTitle', 'Skip {{item}}', { item: step.name })} label={t('skipLabel', 'Reason for skipping')}
+        helper={t('skipHelp', 'Kept beside the step and in its history.')} confirmLabel={t('skipConfirm', 'Skip step')}
+        onConfirm={(reason) => { setSkipError(null); skip.mutateAsync({ stepId: step.id, reason }).then(() => setSkipping(false), (err) => setSkipError(line(err))); }}
+        onCancel={() => setSkipping(false)} />}
       {missingRequired && <p className="basis-full text-control text-muted-foreground">{t('needDocs', 'Attach every required document before marking this step done.')}</p>}
     </div>}
   </li>;

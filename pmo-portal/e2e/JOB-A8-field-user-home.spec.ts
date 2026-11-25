@@ -5,19 +5,34 @@
  * The person is a real `field_user` job role with its own login, never a shared access-level seed login.
  */
 import { test, expect } from '@playwright/test';
-import { serviceClient, need, ok, ORG_ID, PM_ID, runId } from './support/jobFixtures';
+import { randomUUID } from 'node:crypto';
+import { serviceClient, need, ok, ORG_ID, PM_ID, runId, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
+import { makeItem, makeWarehouse, runSuffix } from './support/stockFixture';
 
 test.setTimeout(150_000);
+// The case is a phone: sign in and read the home screen at a phone's width.
+test.use({ viewport: { width: 390, height: 844 } });
 
 const admin = serviceClient('JOB-A8');
 let projectId = '';
 let workOrderId = '';
 let crewId = '';
 let personId = '';
+let transferId = '';
+let stockIds: { warehouses: string[]; item: string; unit: string } | null = null;
 let worker: Awaited<ReturnType<typeof roleJobUser>>;
 
 test.afterEach(async () => {
+  if (transferId) {
+    sqlAsOwner(`delete from stock_transfer_lines where transfer_id = '${transferId}'; delete from stock_transfers where id = '${transferId}';`);
+  }
+  if (stockIds) {
+    sqlAsOwner(`delete from stock_warehouses where id in (${stockIds.warehouses.map((w) => `'${w}'`).join(',')});`);
+    await admin.from('stock_items').delete().eq('id', stockIds.item);
+    await admin.from('stock_units').delete().eq('id', stockIds.unit);
+  }
+  transferId = ''; stockIds = null;
   if (workOrderId) {
     await admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId);
     await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
@@ -62,11 +77,28 @@ test('JOB-A8 a field user sees only their tasks, clock-in, deliveries and issues
     org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, name: taskName, status: 'To Do', assignee_id: worker.id,
   }));
 
+  // A delivery sent to the worker by someone else, waiting for their count.
+  const sfx2 = runSuffix();
+  const item = await makeItem(admin, sfx2, 'A8');
+  const [source, dest] = [await makeWarehouse(admin, sfx2, 'A8F', 'central'), await makeWarehouse(admin, sfx2, 'A8T', 'site')];
+  // A transit location is only ever made by a transfer (the app refuses one by hand), so the local owner writes it, as a send would have.
+  const transit = randomUUID();
+  sqlAsOwner(`insert into stock_warehouses (id, org_id, code, name, kind) values ('${transit}', '${ORG_ID}', 'E2E-A8X${sfx2}', 'E2E in transit ${sfx2}', 'transit');`);
+  const unitId = need('unit', await admin.from('stock_items').select('unit_id').eq('id', item.id).single()).unit_id as string;
+  stockIds = { warehouses: [source.id, dest.id, transit], item: item.id, unit: unitId };
+  const deliveryNumber = `E2E-A8-${sfx2}`;
+  transferId = randomUUID();
+  sqlAsOwner(`insert into stock_transfers (id, org_id, number, from_warehouse_id, to_warehouse_id, transit_warehouse_id, to_user_id, sent_by, status, note)
+    values ('${transferId}', '${ORG_ID}', '${deliveryNumber}', '${source.id}', '${dest.id}', '${transit}', '${worker.id}', '${PM_ID}', 'Sent', 'Cable drum ${sfx2}');
+    insert into stock_transfer_lines (org_id, transfer_id, line_no, item_id, qty_sent) values ('${ORG_ID}', '${transferId}', 1, '${item.id}', 3);`);
+
   await worker.signIn(page);
   await expect(page).toHaveURL(/\/my$/, { timeout: 20_000 });
   await expect(page.getByRole('heading', { name: 'My tasks' })).toBeVisible();
   await expect(page.getByText(taskName, { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Clock in' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'A delivery for you' })).toBeVisible();
+  await expect(page.getByRole('link', { name: new RegExp(deliveryNumber) })).toContainText('Count and confirm');
   await expect(page.getByRole('heading', { name: 'Issues I reported' })).toBeVisible();
 
   // A light account has no shell navigation and no money surface: no budget, no price, no project page.

@@ -17,6 +17,7 @@ import type { TaskWithRefs, TaskStatus } from '@/src/lib/db/tasks';
 import { formatDay } from '@/src/lib/format';
 import { daysLate } from './taskViewModel';
 import { TaskStatusCell } from './TaskStatusCell';
+import { SourceIssueLink } from '@/src/components/tasks/SourceIssueLink';
 
 /**
  * OD-INT-9 subtask nesting — the horizontal indent applied per depth level in the Task-name
@@ -24,11 +25,15 @@ import { TaskStatusCell } from './TaskStatusCell';
  */
 const SUBTASK_INDENT_PX = 16;
 
-/** What the columns need from the workspace: today's org day, the highlighted row, and the
- *  permission/write seam (all decided in TasksTab, never re-derived here). */
+/** What the columns need from the workspace: today's org day, the highlighted row, the tasks' source issues (JOB-F17),
+ *  and the permission/write seam (all decided in TasksTab, never re-derived here). */
 export interface TaskColumnDeps {
   today: string;
   highlightedTaskId: string | null;
+  /** JOB-F17: the issue each task was made from (one page read), for the link back inside the task's anchor. */
+  sourceIssues: ReadonlyMap<string, string>;
+  /** The row's open action (the drawer); the name column draws its own activation control (ownActivation). */
+  onOpenTask: (task: TaskWithRefs) => void;
   canSetStatus: (task: TaskWithRefs) => boolean;
   statusBusy: boolean;
   onStatusChange: (task: TaskWithRefs, status: TaskStatus) => void;
@@ -49,7 +54,7 @@ function buildTaskColumns(
   deps: TaskColumnDeps,
   tree: TaskTreeView,
 ): Column<TaskWithRefs>[] {
-  const { today, highlightedTaskId, canSetStatus, statusBusy, onStatusChange, pendingPushByTask } = deps;
+  const { today, highlightedTaskId, sourceIssues, onOpenTask, canSetStatus, statusBusy, onStatusChange, pendingPushByTask } = deps;
   const { depths, rollups, collapsed, onToggle } = tree;
   return [
     {
@@ -57,6 +62,10 @@ function buildTaskColumns(
       header: t('projectDetail.tasks.column.task', 'Task'),
       kind: 'primary',
       primaryTitle: (task) => task.name,
+      // JOB-F17: the cell draws its own open control beside the source-issue link (ownActivation), so a
+      // link inside `#task-<id>` never sits inside another interactive element. Pointer activation on the
+      // rest of the row stays the table's row-click guard; the open control keeps the keyboard path.
+      ownActivation: true,
       // The indent and the fold toggle sit before the open-task button, never inside it (nested-interactive).
       lead: (task) => {
         const depth = depths.get(task.id) ?? 0;
@@ -79,13 +88,23 @@ function buildTaskColumns(
       cell: (task) => {
         const depth = depths.get(task.id) ?? 0;
         const rollup = rollups.get(task.id);
+        const sourceIssueId = sourceIssues.get(task.id);
         return <span
             id={`task-${task.id}`}
             className={`block min-w-0 whitespace-normal break-words ${rollup ? 'font-semibold' : depth > 0 ? 'font-normal' : 'font-semibold'}${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
             title={task.name}
           >
-            {depth > 0 && <span className="sr-only">{`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}</span>}
-            {task.name}
+            <button
+              type="button"
+              aria-label={t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })}
+              onClick={(e) => { e.stopPropagation(); onOpenTask(task); }}
+              className="block w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              {depth > 0 && <span className="sr-only">{`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}</span>}
+              {task.name}
+            </button>
+            {/* JOB-F17: a task made from an issue links back to it, inside the anchor My Tasks deep-links to. */}
+            {sourceIssueId && <SourceIssueLink incidentId={sourceIssueId} className="ml-2 text-control font-normal text-primary underline-offset-2 hover:underline" />}
           </span>;
       },
       secondaryCell: (task) => task.priority ? (

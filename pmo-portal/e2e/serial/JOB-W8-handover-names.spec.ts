@@ -66,8 +66,8 @@ test('JOB-W8 the material coordinator reads the sender and the receiver, each wi
     await coordinator.signIn(page);
     await page.goto(`/stock/transfers/${transferId}`);
     const summary = page.getByRole('region', { name: 'Summary' });
-    await expect(summary).toContainText(new RegExp(`Sent by ${senderName} on`));
-    await expect(summary).toContainText(new RegExp(`Received by ${receiverName} on`));
+    await expect(summary).toContainText(new RegExp(`Sent by ${senderName} on .*\\d{4}.*\\d{1,2}[:.]\\d{2}`));
+    await expect(summary).toContainText(new RegExp(`Received by ${receiverName} on .*\\d{4}.*\\d{1,2}[:.]\\d{2}`));
   } finally {
     if (transferId) {
       sqlAsOwner(`delete from stock_handover_confirmations where transfer_id = '${transferId}'; delete from stock_transfer_lines where transfer_id = '${transferId}'; delete from stock_transfers where id = '${transferId}';`);

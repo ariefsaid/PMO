@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -53,14 +54,17 @@ const LocationProbe: React.FC = () => {
 
 const renderPage = () =>
   render(
-    <ImpersonationProvider realRole="Engineer">
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <ImpersonationProvider realRole="Engineer">
       <MemoryRouter initialEntries={['/my-tasks']}>
         <ToastProvider>
           <LocationProbe />
           <MyTasks />
         </ToastProvider>
       </MemoryRouter>
-    </ImpersonationProvider>,
+      </ImpersonationProvider>
+
+    </QueryClientProvider>,
   );
 
 const probe = () => screen.getByTestId('location-probe');
