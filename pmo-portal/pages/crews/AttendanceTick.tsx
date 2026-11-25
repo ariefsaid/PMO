@@ -15,7 +15,7 @@ import {
 import type { AttendanceDayRow, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
 import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState, type TickStatus } from '@/src/lib/attendanceTick';
 import { formatDay, formatNumberMax2 } from '@/src/lib/format';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { WorkOrderPicker } from './CrewPickers';
 import { useCrewErrorText } from './crewErrors';
 import { HeadCountSection } from './HeadCountSection';
@@ -345,7 +345,7 @@ export const AttendanceTick: React.FC = () => {
   const viewOnly = realRole !== effectiveRole;
   const userId = useAuth().currentUser?.id ?? null;
   const { values, setFilter, setFilters } = useUrlFilters(['wo', 'date', 'crew']);
-  const today = toIso(new Date());
+  const today = useOrgToday();
   const workOrderId = values.wo || null;
   const date = ISO.test(values.date) ? values.date : today;
   const roster = useWorkOrderRoster(workOrderId, date);

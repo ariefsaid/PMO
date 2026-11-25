@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
   role: 'Engineer' as string,
@@ -74,6 +75,19 @@ describe('attendance tick screen (#2528)', () => {
     h.generate = vi.fn().mockResolvedValue({ mode: 'timesheet', timesheet_id: 't', changed: true });
     h.decide = vi.fn().mockResolvedValue(5);
     h.clear = vi.fn().mockResolvedValue(1);
+  });
+
+  it('#1126 the day defaults to the organisation\'s day, not the browser\'s', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      renderAt('/crews?view=attendance&wo=wo1');
+      expect(screen.getByLabelText('Date')).toHaveValue('26 Nov 2026');
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
 
   it('AC-CRW-005 the field controller marks a 6-person crew present for 8 hours, overrides one to 6 and attaches the group photo', async () => {
