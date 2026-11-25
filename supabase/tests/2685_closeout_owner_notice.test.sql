@@ -16,8 +16,8 @@
 --   scan: drop `and i.done_on is null`                  → reddens 'AC-2907-005 a done close-out item is never notified'
 begin;
 create extension if not exists pgtap;
--- 16 assertions.
-select plan(16);
+-- 17 assertions.
+select plan(17);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('29070000-0000-0000-0000-000000000a01', 'COT Org A', 'IDR', 'UTC'),
@@ -135,6 +135,9 @@ select is((select count(*)::int from public.my_waiting_closeout_items()), 0,
 select set_config('request.jwt.claims', json_build_object('sub', '29070000-0000-0000-0000-000000000b06')::text, true);
 select is((select count(*)::int from public.my_waiting_closeout_items()), 1,
   'AC-2907-006 the other organisation''s holder reads only their own organisation''s item');
+select set_config('request.jwt.claims', json_build_object('sub', '29070000-0000-0000-0000-000000000b02')::text, true);
+select is((select count(*)::int from public.my_waiting_closeout_items()), 0,
+  'AC-2907-006 a light job-role key is never a match: the foreman-owned item points at nobody (the helper answers false for field accounts)');
 reset role;
 
 select * from finish();
