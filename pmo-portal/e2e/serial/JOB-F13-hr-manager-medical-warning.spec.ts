@@ -5,8 +5,8 @@
  * check with its date; the scheduled warning job then runs.
  * Goal oracle: both the HR officer and the construction manager are warned, and the worker is not — the notice goes to the
  * manager and to the HR function, not to a field worker's own inbox.
- * Note: a worker WITH an account of their own is also told of their own medical expiry by design (2384); this case's worker
- * has no app account, as most site workers do not.
+ * The worker here HAS an app account: the rule excludes the worker's own account from a medical warning before release (2518),
+ * so the exclusion is exercised, not vacuous.
  */
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
@@ -23,6 +23,7 @@ test('JOB-F13 a medical check 14 days from expiry warns the HR officer and the c
   const run = runId('f13');
   const hrOfficer = await roleJobUser(svc, 'hr_officer', runId('f13-hr'));
   const manager = await roleJobUser(svc, 'construction_manager', runId('f13-cm'));
+  const worker = await roleJobUser(svc, 'field_user', runId('f13-w'));
   const typeName = `${run} Medical check`;
   const personName = `${run} Worker`;
   const expires = inDays(14);
@@ -35,7 +36,7 @@ test('JOB-F13 a medical check 14 days from expiry warns the HR officer and the c
       org_id: ORG_ID, name: typeName, applies_to: 'person', is_medical: true, notify_roles: [], notify_person: false,
     }).select('id').single()).id;
     personId = need('person', await svc.from('people').insert({
-      org_id: ORG_ID, code: run, name: personName, manager_id: manager.id,
+      org_id: ORG_ID, code: run, name: personName, manager_id: manager.id, profile_id: worker.id,
     }).select('id').single()).id;
     docId = need('medical document', await svc.from('expiry_documents').insert({
       org_id: ORG_ID, subject_kind: 'person', person_id: personId, type_id: typeId, expires_on: expires, medical_status: 'fit',
@@ -67,12 +68,19 @@ test('JOB-F13 a medical check 14 days from expiry warns the HR officer and the c
     await expect(page.getByRole('list', { name: 'Notifications' }).getByText(new RegExp(`${typeName} expires in 14 days`)))
       .toBeVisible({ timeout: 20_000 });
 
-    // ...and the worker, who has no app account, is not among the notice's addressees.
-    expect(need('worker link', await svc.from('people').select('profile_id').eq('id', personId).single()).profile_id).toBeNull();
+    // ...and the worker, who has an app account, is not warned: no notice row, no notification in their bell.
+    expect(need('worker link', await svc.from('people').select('profile_id').eq('id', personId).single()).profile_id).toBe(worker.id);
     const notices = await svc.from('document_expiry_notices').select('recipient_id').eq('document_id', docId);
     const recipients = new Set(((notices.data ?? []) as { recipient_id: string }[]).map((r) => r.recipient_id));
     expect(recipients.has(hrOfficer.id)).toBe(true);
     expect(recipients.has(manager.id)).toBe(true);
+    expect(recipients.has(worker.id)).toBe(false);
+    const workerNotes = need('worker notifications', await svc.from('notifications').select('id').eq('owner_id', worker.id).ilike('title', `%${typeName}%`));
+    expect(workerNotes).toHaveLength(0);
+    await worker.signIn(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: /^notifications/i }).click();
+    await expect(page.getByRole('list', { name: 'Notifications' }).getByText(new RegExp(typeName))).toHaveCount(0);
   } finally {
     if (docId) {
       ok('notices cleanup', await svc.from('document_expiry_notices').delete().eq('document_id', docId));
@@ -81,6 +89,7 @@ test('JOB-F13 a medical check 14 days from expiry warns the HR officer and the c
     }
     if (personId) ok('person cleanup', await svc.from('people').delete().eq('id', personId));
     if (typeId) ok('type cleanup', await svc.from('document_types').delete().eq('id', typeId));
+    await worker.cleanup();
     await manager.cleanup();
     await hrOfficer.cleanup();
   }

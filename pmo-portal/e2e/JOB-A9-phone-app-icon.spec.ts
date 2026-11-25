@@ -43,6 +43,14 @@ test('JOB-A9 the phone home icon opens PMO Portal', async ({ page, request }) =>
   expect(touchIcon).toBe('/apple-touch-icon.png');
   expect((await request.get(new URL(touchIcon!, page.url()).toString())).status()).toBe(200);
 
+  // Installable: a service worker is registered for the whole app and becomes active (a browser offers the icon only then).
+  const sw = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    return { scope: reg.scope, script: reg.active?.scriptURL ?? '' };
+  });
+  expect(sw.scope).toBe(new URL('/', page.url()).toString());
+  expect(sw.script).toBe(new URL('/sw.js', page.url()).toString());
+
   // The icon's start address opens PMO Portal itself (the signed-in shell, never an error page).
   await page.goto(manifest.start_url);
   await expect(page.getByRole('navigation', { name: /primary navigation/i })).toBeVisible({ timeout: 20_000 });

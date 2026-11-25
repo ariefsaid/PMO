@@ -3,7 +3,8 @@
  * JOB-F14 — HR manager configures a person document type's notified roles and expiry warning days.
  * The HR manager adds a non-medical person document type notifying Project Manager (alongside the direct manager)
  * and updates the organisation's expiry warning days; when a worker's document hits that warning day and the
- * warning job runs, the worker's direct manager (a construction manager) sees the expiry notification.
+ * warning job runs, the configured Project Manager (NOT the worker's direct manager) and the direct manager (a foreman, Engineer
+ * base, matched only as direct manager) are warned; a bystander of a role not ticked gets none.
  */
 import { test, expect } from '@playwright/test';
 import { visibleToast } from '../helpers';
@@ -17,7 +18,9 @@ test('JOB-F14 HR manager configures expiry recipients and warning days and the d
   const svc = serviceClient('JOB-F14');
   const run = runId('f14');
   const hrManager = await roleJobUser(svc, 'hr_manager', runId('f14-hrm'));
-  const manager = await roleJobUser(svc, 'construction_manager', runId('f14-cm'));
+  const manager = await roleJobUser(svc, 'foreman', runId('f14-fm'));
+  const pm = await roleJobUser(svc, 'project_manager', runId('f14-pm'));
+  const bystander = await roleJobUser(svc, 'field_user', runId('f14-by'));
   const typeName = `${run} Site Pass`;
   let previousDays: number[] | null = null;
   let daysTouched = false;
@@ -67,13 +70,23 @@ test('JOB-F14 HR manager configures expiry recipients and warning days and the d
 
     expect(Number(sql('select public.run_document_expiry_warnings();'))).toBeGreaterThanOrEqual(1);
 
-    // 4. Goal: the worker's direct manager (Construction Manager) sees the expiry warning in Notifications.
-    await manager.signIn(page);
+    // 4. Goal: the configured Project Manager (not the direct manager) and the direct manager see the warning; the bystander does not.
+    const warning = new RegExp(`${typeName} expires in ${targetDay} days`);
+    for (const who of [pm, manager]) {
+      await who.signIn(page);
+      await page.goto('/');
+      await page.getByRole('button', { name: /^notifications/i }).click();
+      await expect(page.getByRole('list', { name: 'Notifications' }).getByText(warning)).toBeVisible({ timeout: 20_000 });
+    }
+    await bystander.signIn(page);
     await page.goto('/');
     await page.getByRole('button', { name: /^notifications/i }).click();
-    await expect(
-      page.getByRole('list', { name: 'Notifications' }).getByText(new RegExp(`${typeName} expires in ${targetDay} days`)),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('list', { name: 'Notifications' }).getByText(warning)).toHaveCount(0);
+    const notices = await svc.from('document_expiry_notices').select('recipient_id').eq('document_id', docId);
+    const recipients = new Set(((notices.data ?? []) as { recipient_id: string }[]).map((n) => n.recipient_id));
+    expect(recipients.has(pm.id)).toBe(true);
+    expect(recipients.has(manager.id)).toBe(true);
+    expect(recipients.has(bystander.id)).toBe(false);
   } finally {
     if (daysTouched) {
       ok('restore warning days', await svc.from('organizations').update({ document_warning_days: previousDays ?? [30, 14, 7] }).eq('id', ORG_ID));
@@ -86,6 +99,8 @@ test('JOB-F14 HR manager configures expiry recipients and warning days and the d
     if (personId) await svc.from('people').delete().eq('id', personId);
     if (typeId) await svc.from('document_types').delete().eq('id', typeId);
     await hrManager.cleanup();
+    await bystander.cleanup();
+    await pm.cleanup();
     await manager.cleanup();
   }
 });
