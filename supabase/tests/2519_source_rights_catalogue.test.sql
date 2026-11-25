@@ -123,7 +123,8 @@ select is(array(select proname from cat_functions where prosrc ~* $re$actor_hold
  array['guard_work_order_section','wo_revenue_plan_vs_actual','wrp_writable_work_order'],
  'AC-SRCAT-PLANNER no other direct Planner function admission');
 select is(array(select proname from cat_functions where prosrc ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'equipment_officer'$re$ order by proname),
- array['equipment_metrics'],'AC-SRCAT-OFFICER only operational metrics admits Equipment Officer');
+ array['create_rented_equipment_asset','equipment_can_edit_terms','equipment_metrics'],
+ 'AC-SRCAT-OFFICER only operational metrics, rented-asset registration and the rental-terms check admit Equipment Officer');
 select is(array(select m[1] from cat_functions f cross join lateral
  regexp_matches(f.prosrc,$re$actor_holds_job_role[[:space:]]*\([[:space:]]*'([^']+)'$re$,'gi') m
  where f.proname='wrp_writable_work_order' order by m[1]),
@@ -138,11 +139,12 @@ select is(array(select tablename||':'||policyname from cat_policies
  array['work_order_crews:work_order_crews_insert','work_order_crews:work_order_crews_update',
  'work_order_sections:work_order_sections_insert','work_order_sections:work_order_sections_update'],
  'AC-SRCAT-PLANNER no financial table policy admits Planner');
--- DD-R1124-17 deliberately adds only asset-register create/edit for the Equipment Officer.
+-- DD-R1124-17 deliberately adds only asset-register create/edit and rental terms (register a rented asset, edit and read its terms) for the Equipment Officer.
 select is(array(select tablename||':'||policyname||':'||cmd from cat_policies
  where coalesce(qual,'')||coalesce(with_check,'') ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'equipment_officer'$re$ order by tablename,policyname,cmd),
- array['equipment_assets:equipment_officer_insert:INSERT','equipment_assets:equipment_officer_update:UPDATE'],
- 'AC-SRCAT-OFFICER only asset-register insert/update policies admit Officer');
+ array['equipment_assets:equipment_officer_insert:INSERT','equipment_assets:equipment_officer_update:UPDATE',
+ 'equipment_rental_terms:equipment_rental_terms_select:SELECT'],
+ 'AC-SRCAT-OFFICER only asset-register insert/update and the rental-terms read admit Officer');
 select ok(exists(select 1 from cat_policies where tablename='work_order_revenue_plan'
  and cmd='SELECT' and qual like '%dsr_may_see_revenue%'),
  'AC-SRCAT-PLANNER direct plan table still uses the general revenue gate');
