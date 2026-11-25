@@ -714,6 +714,8 @@
     "portfolioProject": "Project",
     "portfolioSpent": "Spent",
     "portfolioBudget": "Active budget",
+    "portfolioContract": "Contract value",
+        "portfolioBilled": "Billed",
     "portfolioDone": "Milestones done",
     "portfolioLate": "Milestones late",
     "portfolioPlanned": "Planned progress",

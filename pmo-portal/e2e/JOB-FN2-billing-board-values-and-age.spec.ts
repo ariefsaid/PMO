@@ -95,6 +95,8 @@ test('JOB-FN2 a Finance Manager reads each billing step with its value and its c
     const column = page.getByTestId('billing-board-column').filter({ has: page.getByRole('heading', { name: expected.name }) });
     await expect(column).toBeVisible({ timeout: 20_000 });
     await expect(column.getByTestId('billing-board-column-totals')).toContainText(expected.amount);
+    // The value reads as grouped money with the currency named once, not the raw exact string.
+    await expect(column.getByTestId('billing-board-column-totals')).not.toContainText(/\d{5}\.00/);
     const card = column.getByTestId('billing-board-card');
     await expect(card).toHaveCount(1);
     await expect(card.getByTestId('billing-board-age')).toContainText(expected.days);
