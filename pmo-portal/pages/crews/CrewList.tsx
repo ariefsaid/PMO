@@ -12,7 +12,7 @@ import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useCrewMembers, useCrewMutations, useCrewRoles, useCrewWorkers, useCrews } from '@/src/hooks/useCrews';
 import type { CrewKind, CrewMemberRow, CrewRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useCrewErrorText } from './crewErrors';
 
 interface RoleDraft { name: string; headcount: string }
@@ -110,8 +110,9 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
   const roles = useCrewRoles(crew.id);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [query, setQuery] = useState('');
+  const today = useOrgToday();
   const form = useEntityForm({
-    initialValues: { worker: '', newName: '', role: '', from: toIso(new Date()), to: '' },
+    initialValues: { worker: '', newName: '', role: '', from: today, to: '' },
     idPrefix: 'crew-place',
     requiredFields: ['from'],
     validate: (v) => (!v.worker && (!canCreatePerson || !v.newName.trim()) ? { worker: t('crews:personRequired', 'Choose a person or type a new name') } : {}),
@@ -224,7 +225,7 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
   const [problem, setProblem] = useState<string | null>(null);
   const nameOf = (id: string) => workers.data?.find((w) => w.id === id)?.display_name ?? '—';
   const roleOf = (id: string | null) => (id ? roles.data?.find((r) => r.id === id)?.name ?? '—' : null);
-  const today = toIso(new Date());
+  const today = useOrgToday();
   const end = async () => {
     const m = ending;
     if (!m) return;

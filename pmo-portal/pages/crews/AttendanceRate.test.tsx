@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { CrewAttendanceRateRow } from '@/src/lib/db/attendanceRate';
 
 /**
@@ -74,11 +75,26 @@ describe('attendance rate against the target (#2706)', () => {
 
   it('asks for the current month up to today by default', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 10, 21));
+    vi.setSystemTime(new Date('2026-11-21T05:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
     try {
       render(<AttendanceRate />);
       expect(h.args).toContainEqual(['2026-11-01', '2026-11-21']);
     } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
+  });
+
+  it('#1126 "today" is the organisation\'s day, not the browser\'s', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      render(<AttendanceRate />);
+      expect(h.args).toContainEqual(['2026-11-01', '2026-11-26']);
+    } finally {
+      resetActiveLocale();
       vi.useRealTimers();
     }
   });

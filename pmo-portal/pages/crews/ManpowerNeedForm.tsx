@@ -5,7 +5,7 @@ import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useCrewWorkOrders, useCrews } from '@/src/hooks/useCrews';
 import { useManpowerMutations } from '@/src/hooks/useManpowerNeeds';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useManpowerErrorText } from './manpowerErrors';
 
 /** Record a need: a position and head count wanted by a date for a project, optionally for one work order and crew (FR-MPN-001). */
@@ -19,8 +19,9 @@ export const ManpowerNeedForm: React.FC<{ onClose: () => void }> = ({ onClose })
   const crews = useCrews();
   const workOrders = useCrewWorkOrders();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+  const today = useOrgToday();
   const form = useEntityForm({
-    initialValues: { project: '', position: '', headcount: '1', neededBy: toIso(new Date()), workOrder: '', crew: '', note: '' },
+    initialValues: { project: '', position: '', headcount: '1', neededBy: today, workOrder: '', crew: '', note: '' },
     idPrefix: 'manpower-need',
     requiredFields: ['project', 'position', 'headcount', 'neededBy'],
     validate: (v) => (/^[0-9]{1,3}$/.test(v.headcount) && Number(v.headcount) >= 1 && Number(v.headcount) <= 500
