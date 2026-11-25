@@ -72,16 +72,20 @@ test('JOB-F14 HR manager configures expiry recipients and warning days and the d
 
     // 4. Goal: the configured Project Manager (not the direct manager) and the direct manager see the warning; the bystander does not.
     const warning = new RegExp(`${typeName} expires in ${targetDay} days`);
-    for (const who of [pm, manager]) {
-      await who.signIn(page);
-      await page.goto('/');
-      await page.getByRole('button', { name: /^notifications/i }).click();
-      await expect(page.getByRole('list', { name: 'Notifications' }).getByText(warning)).toBeVisible({ timeout: 20_000 });
-    }
-    await bystander.signIn(page);
+    // The Project Manager reads it in the shell's bell; the Foreman and the bystander are field accounts and read their own notices on My work.
+    await pm.signIn(page);
     await page.goto('/');
     await page.getByRole('button', { name: /^notifications/i }).click();
-    await expect(page.getByRole('list', { name: 'Notifications' }).getByText(warning)).toHaveCount(0);
+    await expect(page.getByRole('list', { name: 'Notifications' }).getByText(warning)).toBeVisible({ timeout: 20_000 });
+    await manager.signIn(page);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'My work' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('list', { name: 'Notifications' }).getByText(warning)).toBeVisible({ timeout: 20_000 });
+    await bystander.signIn(page);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'My work' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('No notifications yet.')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(warning)).toHaveCount(0);
     const notices = await svc.from('document_expiry_notices').select('recipient_id').eq('document_id', docId);
     const recipients = new Set(((notices.data ?? []) as { recipient_id: string }[]).map((n) => n.recipient_id));
     expect(recipients.has(pm.id)).toBe(true);
