@@ -61,7 +61,7 @@ async function ensureOpenPurchaseInvoice(suffix: string): Promise<string> {
   if (listBody.data && listBody.data.length > 0) return listBody.data[0]!.name;
 
   // none open → create + submit a fresh one (unpaid → open AP)
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10); // e2e-org-day: allow — bench-side posting date, never asserted on an org-day screen
   const createRes = await fetch(`${BENCH_URL}/api/resource/Purchase%20Invoice`, {
     method: 'POST',
     headers: h,
@@ -103,7 +103,7 @@ test.describe('AC-ENA-061: AP aging snapshot — report-RPC truth + provenance, 
     const piName = await ensureOpenPurchaseInvoice(suffix);
 
     try {
-      const reportDate = new Date().toISOString().slice(0, 10);
+      const reportDate = new Date().toISOString().slice(0, 10); // e2e-org-day: allow — the snapshot's own report_date, written and read back by this test
       const scope: AgingScope = {
         reportName: 'Accounts Payable',
         snapshotTable: 'erp_ap_aging_snapshot',

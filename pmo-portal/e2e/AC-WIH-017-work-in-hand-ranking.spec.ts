@@ -19,10 +19,11 @@ const svcKey = requireServiceRoleKey();
 test.skip(!svcKey, 'AC-WIH-017: SUPABASE_SERVICE_ROLE_KEY not set (local) — skipping');
 
 /** The 15th of the month `back` months before this one (UTC; the window is wide enough for a boundary day). */
+// e2e-org-day: allow — the ranking window spans whole months on both anchors; order, not bucket membership, is asserted.
 function dayInMonth(back: number): string {
   const d = new Date();
   const m = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - back, 15));
-  return m.toISOString().slice(0, 10);
+  return m.toISOString().slice(0, 10); // e2e-org-day: allow — month midpoints on a wide window; order, not bucket, is asserted
 }
 
 test('AC-WIH-017: Finance ranks work in hand, switches the order and opens a contract', async ({ page }) => {

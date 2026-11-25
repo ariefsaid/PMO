@@ -6,6 +6,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(120_000);
@@ -20,7 +21,7 @@ const shots = async (page: Page, locator: Locator, name: string) => {
   }
 };
 
-const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+const day = (offset: number) => inDays(offset); // work/report/invoice dates are read by the organisation's calendar
 
 test('AC-CSP-016 the project and the work order show the same cost and schedule indices', async ({ page }) => {
   const serviceKey = requireServiceRoleKey();
