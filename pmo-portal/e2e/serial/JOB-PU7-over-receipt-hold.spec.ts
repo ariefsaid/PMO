@@ -130,7 +130,8 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await expect(line.getByRole('cell').nth(2)).toHaveText('10');
 
   // Separation of duties: the person who recorded the bill cannot approve its exception.
-  await drawer.getByRole('button', { name: 'Approve exception' }).click();
+  // The action sits in the drawer's header, above its body.
+  await page.getByRole('button', { name: 'Approve exception' }).click();
   const confirm = page.getByRole('dialog', { name: /Approve an exception for/ });
   await confirm.getByLabel('Reason').fill(REASON);
   await confirm.getByRole('button', { name: 'Approve exception' }).click();
@@ -143,7 +144,7 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   await page.goto(purchase.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await openMatch(page);
-  await page.getByTestId('bill-match').getByRole('button', { name: 'Approve exception' }).click();
+  await page.getByRole('button', { name: 'Approve exception' }).click();
   const approve = page.getByRole('dialog', { name: /Approve an exception for/ });
   await approve.getByLabel('Reason').fill(REASON);
   await approve.getByRole('button', { name: 'Approve exception' }).click();

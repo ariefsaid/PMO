@@ -43,6 +43,7 @@ test('JOB-PU9 the requester opens My requests and no price or supplier shows', a
   await requester.signIn(page);
   await page.goto('/');
   await page.getByRole('link', { name: /Purchasing|Procurement/ }).first().click();
+  await expect(page.getByText(purchase.code).first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(SEED_SUPPLIER_NAME, { exact: true })).toHaveCount(0);
   await page.getByText(purchase.code).first().click();
   // The row opens its preview; the request itself is one step on.
@@ -55,12 +56,14 @@ test('JOB-PU9 the requester opens My requests and no price or supplier shows', a
 
   // …and no money: no line amounts, no stage amounts, no money panel, and the request total never renders.
   await page.getByRole('tab', { name: /^Line items/ }).click();
+  // Look only once the table has drawn its line: an absent header would otherwise pass before the table exists.
+  await expect(page.getByRole('cell', { name: 'Fixture line' }).first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('columnheader', { name: /Unit price/i })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: /Line total/i })).toHaveCount(0);
   await expect(page.getByText(/^Money ·/)).toHaveCount(0);
   await expect(page.getByText(/12[.,]000/)).toHaveCount(0);
   await expect(page.getByText(SEED_SUPPLIER_NAME, { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'More actions', exact: true }).first().click();
+  await page.getByRole('button', { name: 'More procurement actions', exact: true }).first().click();
   const downloaded = page.waitForEvent('download');
   await page.getByRole('menuitem', { name: 'Export', exact: true }).click();
   const path = await (await downloaded).path();
