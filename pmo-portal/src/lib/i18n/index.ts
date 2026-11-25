@@ -116,6 +116,25 @@ export const orgTermsPlugin = {
   },
 };
 
+// A backend completion frees i18next's concurrency slot and can start another queued read.
+// Keep the departing document's signal aborted so that queue cannot start new network work.
+let catalogueLifetime: AbortController | undefined;
+function catalogueSignal(): AbortSignal {
+  if (!catalogueLifetime) {
+    catalogueLifetime = new AbortController();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', (event) => {
+        // A cached document resumes its existing i18next queue when restored.
+        if (!event.persisted) catalogueLifetime?.abort();
+      });
+      window.addEventListener('pageshow', () => {
+        if (catalogueLifetime?.signal.aborted) catalogueLifetime = new AbortController();
+      });
+    }
+  }
+  return catalogueLifetime.signal;
+}
+
 /**
  * FR-L10N-043 — lazy per-locale load. i18next requests only the ACTIVE language plus `fallbackLng`,
  * so an `en` session fetches `/locales/en/*.json` and never touches `/locales/id/*.json`.
@@ -129,7 +148,12 @@ export const catalogueBackend: BackendModule = {
   type: 'backend',
   init: () => {},
   read(language: string, namespace: string, callback: ReadCallback) {
-    fetch(`/locales/${language}/${namespace}.json`)
+    const signal = catalogueSignal();
+    if (signal.aborted) {
+      callback(new Error('Catalogue document departed'), false);
+      return;
+    }
+    fetch(`/locales/${language}/${namespace}.json`, { signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((data) => callback(null, data))
       .catch((err: unknown) => callback(err instanceof Error ? err : new Error(String(err)), false));

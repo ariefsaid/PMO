@@ -84,7 +84,9 @@
   "documents": {
     "title": "Documents",
     "error": "Couldn't load the documents",
-    "empty": "No visible documents are linked to this work order yet."
+    "empty": "No visible documents are linked to this work order yet.",
+    "add": "Add document",
+    "uploadAria": "Choose document file"
   },
   "openPage": "Open page",
   "issues": {

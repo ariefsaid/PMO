@@ -1,0 +1,206 @@
+-- 2530_work_in_hand_capacity.sql — M8: Admin-configured monthly production capacity for work in hand.
+-- Spec: docs/specs/work-in-hand-capacity.spec.md (FR-M8-001..005).
+-- Rollback: supabase/migrations/rollback/2530_work_in_hand_capacity_down.sql.
+
+alter table public.organizations
+  add column if not exists work_in_hand_monthly_capacity numeric(18,2)
+    check (work_in_hand_monthly_capacity is null or work_in_hand_monthly_capacity > 0);
+
+comment on column public.organizations.work_in_hand_monthly_capacity is
+  'M8: Admin-configured monthly production capacity in the organisation''s default_currency; NULL = not set.';
+
+create policy organizations_update_work_in_hand_capacity on public.organizations for update to authenticated
+  using (id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin')
+  with check (id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.auth_role()) = 'Admin');
+
+grant update (work_in_hand_monthly_capacity) on public.organizations to authenticated;
+
+-- Restated from 2181_wo_checklist_edit_copy.sql with work_in_hand_monthly_capacity appended.
+drop trigger zz_audit_org_setting_change on public.organizations;
+create trigger zz_audit_org_setting_change after update on public.organizations for each row
+  execute function public.audit_org_setting_change(
+    'quantity_change_limit', 'built_in_roles_enabled', 'phone_check_in_supervisor_role', 'hide_prices_from_requesters',
+    'clearance_checklist_enabled', 'leave_requests_enabled', 'leave_approver_role', 'crew_loans_enabled',
+    'discipline_profit_enabled', 'performance_indices_enabled', 'performance_band_low', 'performance_band_high',
+    'stock_transfer_mode', 'stock_proof_timing', 'stock_wo_transfers', 'stock_reservations', 'reservation_borrow_mode',
+    'reservation_borrow_role', 'reservation_borrow_label', 'dsr_stock_issue', 'dsr_stock_issue_items',
+    'purchase_line_planning', 'safety_records_enabled', 'equipment_availability_target_pct',
+    'equipment_utilisation_target_pct', 'equipment_escalation_down_days', 'attendance_target_rate',
+    'module_people_crews', 'module_site_day', 'module_stock', 'module_purchasing_extras', 'module_billing_extras',
+    'work_order_checklist_enabled', 'work_in_hand_monthly_capacity');
+
+-- Restated from 2281_work_in_hand_project_manager_scope.sql (latest body) adding monthly_capacity to the jsonb output.
+create or replace function public.get_work_in_hand(p_as_of date default null)
+  returns jsonb language plpgsql stable security invoker set search_path = public, pg_temp as $$
+declare
+  v_org    uuid := public.auth_org_id();
+  v_role   public.user_role := public.auth_role();
+  v_tz     text;
+  v_cur    text;
+  v_cap    numeric(18,2);
+  v_as_of  date;
+  v_month  date;
+  v_from   date;
+  v_last   date;
+  v_bound  date;
+  v_result jsonb;
+begin
+  -- Gate first; Project Managers receive only assigned project rows, while the other roles retain the company-wide position.
+  if v_org is null or not public.is_active_member() then
+    raise exception 'your account is not an active member of this organisation' using errcode = '42501';
+  end if;
+  if v_role is null or v_role not in ('Admin', 'Executive', 'Finance', 'Project Manager') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  select coalesce(o.default_timezone, 'UTC'), o.default_currency
+    into v_tz, v_cur
+    from public.organizations o where o.id = v_org;
+  select o.work_in_hand_monthly_capacity
+    into v_cap
+    from public.organizations o where o.id = v_org;
+
+  -- The as-of date is the organisation's calendar date today; a supplied date is used as given (NFR-WIH-003).
+  v_as_of := coalesce(p_as_of, (now() at time zone v_tz)::date);
+  v_month := date_trunc('month', v_as_of)::date;
+  v_from  := (v_month - interval '6 months')::date;   -- first day of the window: the 6 complete months before the as-of month
+  v_last  := (v_month - interval '1 month')::date;    -- first day of the last complete month
+  v_bound := (v_month + interval '1 month')::date;    -- billed to date runs through the as-of month, as the pack's invoiced-to-date
+
+  with proj_all as (
+    -- The Contract on hand set (0919): on-hand status, not archived. Net of tax as get_project_billing.contract_net.
+    select p.id, p.name, p.code, p.pmo_project_number, p.status::text as status, p.currency,
+           case when p.tax_treatment = 'inclusive' then p.contract_value - coalesce(p.tax_amount, 0)
+                else p.contract_value end as contract_net
+      from public.projects p
+     where p.org_id = v_org
+       and p.status in ('Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out')
+       and p.archived_at is null
+       and (v_role <> 'Project Manager' or p.project_manager_id = auth.uid())
+     order by 7 desc nulls last, p.id
+     limit 501
+  ),
+  proj as (select * from proj_all order by contract_net desc nulls last, id limit 500),
+  inv as (
+    -- Dated work invoices of the on-hand contracts: submitted, a down payment bills no work (0262).
+    select w.project_id, w.work_order_id, w.currency, w.net, w.recovery, w.invoice_date
+      from public.sales_invoice_work_billed w
+     where w.org_id = v_org
+       and w.status in ('Submitted', 'Unpaid', 'Paid')
+       and not w.is_down_payment
+       and w.invoice_date is not null
+       and w.invoice_date < v_bound
+       and w.project_id in (select id from proj)
+  ),
+  c_ok as (
+    select i.project_id, date_trunc('month', i.invoice_date)::date as month, i.net + i.recovery as amt
+      from inv i join proj p on p.id = i.project_id
+     where i.net is not null and i.currency = p.currency
+  ),
+  c_issue as (
+    select i.project_id,
+           count(*) filter (where i.net is not null and i.currency <> p.currency)::int as foreign_count,
+           count(*) filter (where i.net is null)::int as unpriced_count
+      from inv i join proj p on p.id = i.project_id
+     group by i.project_id
+  ),
+  c_sum as (select project_id, sum(amt) as billed, min(month) as first_month from c_ok group by project_id),
+  c_win as (
+    select project_id, jsonb_agg(jsonb_build_object('month', month, 'billed', billed::text) order by month) as months
+      from (select project_id, month, sum(amt) as billed from c_ok
+             where month >= v_from and month <= v_last group by project_id, month) x
+     group by project_id
+  ),
+  wo_all as (
+    select b.work_order_id, b.project_id, b.wo_number, b.title, b.currency, b.order_net, b.figures_complete
+      from public.work_order_billing b
+     where b.org_id = v_org and b.status = 'Issued' and b.project_id in (select id from proj)
+     order by b.order_net desc nulls last, b.work_order_id
+     limit 3001
+  ),
+  wo as (select * from wo_all order by order_net desc nulls last, work_order_id limit 3000),
+  -- drops: the w_ok CTE's inline per-invoice rows; the same figure now comes from work_order_billed_months_core (one calculation, shared with get_work_order_billed_months).
+  -- 1790: the per-work-order monthly billed figure is ONE calculation, shared with get_work_order_billed_months.
+  w_ok as (
+    select c.work_order_id, c.month, c.billed as amt
+      from public.work_order_billed_months_core((select coalesce(array_agg(wo.work_order_id), '{}'::uuid[]) from wo), v_bound) c
+  ),
+  w_issue as (
+    select i.work_order_id,
+           count(*) filter (where i.net is not null and i.currency <> wo.currency)::int as foreign_count,
+           count(*) filter (where i.net is null)::int as unpriced_count
+      from inv i join wo on wo.work_order_id = i.work_order_id
+     group by i.work_order_id
+  ),
+  w_sum as (select work_order_id, sum(amt) as billed, min(month) as first_month from w_ok group by work_order_id),
+  w_win as (
+    select work_order_id, jsonb_agg(jsonb_build_object('month', month, 'billed', billed::text) order by month) as months
+      from (select work_order_id, month, sum(amt) as billed from w_ok
+             where month >= v_from and month <= v_last group by work_order_id, month) x
+     group by work_order_id
+  )
+  select jsonb_build_object(
+    'as_of', v_as_of,
+    'timezone', v_tz,
+    'org_currency', v_cur,
+    'monthly_capacity', case when v_cap is null then null else v_cap::text end,
+    'window_from', v_from,
+    'window_to', v_last,
+    'truncated', ((select count(*) from proj_all) > 500 or (select count(*) from wo_all) > 3000),
+    -- 0251: an undated down-payment invoice is not undated WORK; same count as get_management_pack.undated_invoice_count.
+    'undated_invoice_count', (select count(*)::int from public.sales_invoice_work_billed w
+                               where w.org_id = v_org and w.status in ('Submitted', 'Unpaid', 'Paid')
+                                 and w.net is not null and w.invoice_date is null and not w.is_down_payment
+                                 and (v_role <> 'Project Manager' or w.project_id in (
+                                   select pm.id from public.projects pm
+                                    where pm.org_id = v_org and pm.project_manager_id = auth.uid()
+                                      and pm.status in ('Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out')
+                                      and pm.archived_at is null
+                                 ))),
+    'no_value', coalesce((select jsonb_agg(jsonb_build_object('project_id', p.id, 'name', p.name, 'code', p.code,
+                                  'pmo_project_number', p.pmo_project_number, 'status', p.status, 'currency', p.currency)
+                                  order by p.name, p.id)
+                            from proj p where p.contract_net is null or p.contract_net <= 0), '[]'::jsonb),
+    'contracts', coalesce((select jsonb_agg(jsonb_build_object(
+        'project_id', p.id, 'name', p.name, 'code', p.code, 'pmo_project_number', p.pmo_project_number,
+        'status', p.status, 'currency', p.currency, 'contract_net', p.contract_net::text,
+        'incomplete', (coalesce(i.foreign_count, 0) > 0 or coalesce(i.unpriced_count, 0) > 0),
+        'foreign_currency_invoice_count', coalesce(i.foreign_count, 0),
+        'unpriced_invoice_count', coalesce(i.unpriced_count, 0),
+        'billed_to_date', case when coalesce(i.foreign_count, 0) > 0 or coalesce(i.unpriced_count, 0) > 0 then null
+                               else coalesce(s.billed, 0::numeric(14,2))::text end,
+        'first_billing_month', case when coalesce(i.foreign_count, 0) > 0 or coalesce(i.unpriced_count, 0) > 0 then null
+                                    else s.first_month end,
+        'window_months', case when coalesce(i.foreign_count, 0) > 0 or coalesce(i.unpriced_count, 0) > 0 then '[]'::jsonb
+                              else coalesce(w.months, '[]'::jsonb) end)
+        order by p.name, p.id)
+      from proj p
+      left join c_issue i on i.project_id = p.id
+      left join c_sum s on s.project_id = p.id
+      left join c_win w on w.project_id = p.id
+     where p.contract_net > 0), '[]'::jsonb),
+    'work_orders', coalesce((select jsonb_agg(jsonb_build_object(
+        'work_order_id', o.work_order_id, 'project_id', o.project_id, 'wo_number', o.wo_number, 'title', o.title,
+        'status', 'Issued', 'currency', o.currency, 'order_net', o.order_net::text,
+        'incomplete', not o.figures_complete,
+        'foreign_currency_invoice_count', coalesce(i.foreign_count, 0),
+        'unpriced_invoice_count', coalesce(i.unpriced_count, 0),
+        'billed_to_date', case when not o.figures_complete then null else coalesce(s.billed, 0::numeric(14,2))::text end,
+        'first_billing_month', case when not o.figures_complete then null else s.first_month end,
+        'window_months', case when not o.figures_complete then '[]'::jsonb else coalesce(w.months, '[]'::jsonb) end)
+        order by o.wo_number nulls last, o.work_order_id)
+      from wo o
+      left join w_issue i on i.work_order_id = o.work_order_id
+      left join w_sum s on s.work_order_id = o.work_order_id
+      left join w_win w on w.work_order_id = o.work_order_id), '[]'::jsonb)
+  ) into v_result;
+
+  return v_result;
+end;
+$$;
+comment on function public.get_work_in_hand(date) is
+  '#2575 / M8: Left to bill inputs per on-hand contract and Issued work order plus the organisation''s monthly_capacity. '
+  'Read-only; billed work only from sales_invoice_work_billed. Admin, Executive and Finance receive organization-wide rows; '
+  'Project Managers receive rows for their assigned projects only.';
+revoke all on function public.get_work_in_hand(date) from public, anon;
+grant execute on function public.get_work_in_hand(date) to authenticated;

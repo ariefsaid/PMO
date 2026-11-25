@@ -226,6 +226,7 @@ export type Entity =
   | 'crewLoan'
   | 'attendanceRate'
   | 'attendanceTarget'
+  | 'workInHandCapacity'
   | 'leaveRequest'
   | 'medicalRelease'
   | 'checkInSettings'
@@ -823,6 +824,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow([...MONEY_AUTHORITY, 'Project Manager']),
     viewAssigned: allow(['Project Manager']),
   },
+  /** M8: monthly capacity in org currency is Admin-only (enforced by organizations_update_work_in_hand_capacity + column grant). */
+  workInHandCapacity: { manage: allowUnlessViewOnly(ADMIN) },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
   /** The opening balances the CLI loaded at go-live (migration 2161). Read-only here; the database read is Admin and Finance only. */
   openingBalance: { view: allow(['Admin', 'Finance']) },
@@ -949,14 +952,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     transition: allow(DELIVERY), // only managers close
   },
   document: {
-    create: allow(MASTER_DATA),
+    create: (role, ctx) =>
+      has(MASTER_DATA, role)
+      || (Boolean(ctx.record?.work_order_id) && holds(ctx, 'project_administrator')),
     // Edit a document = ◆ AUTHOR (rbac-visibility §H): a master-data write-role who AUTHORED it,
-    // OR Admin (break-glass — edit is not an SoD axis, reading-rule 4). A non-author manager
-    // does NOT get Edit. Record-scoped (mirrors taskStatus): pass `{ currentUserId, record:
-    // { author_id } }` at the call-site. Deny-by-default authorship: with no record context only
-    // Admin passes (a non-Admin must prove authorship). RLS/RPC stays the authority.
+    // OR Admin (break-glass — edit is not an SoD axis, reading-rule 4), OR Project Administrator
+    // for a self-authored work-order document. A non-author manager does NOT get Edit.
+    // Record-scoped (mirrors taskStatus): pass `{ currentUserId, record: { author_id, work_order_id } }`.
+    // Deny-by-default authorship: with no record context only Admin passes. RLS/RPC stays the authority.
     edit: (role, ctx) => {
-      if (!has(MASTER_DATA, role)) return false;
+      if (!has(MASTER_DATA, role) && !(Boolean(ctx.record?.work_order_id) && holds(ctx, 'project_administrator'))) return false;
       if (role === 'Admin') return true;
       return !!ctx.currentUserId && ctx.record?.author_id === ctx.currentUserId;
     },

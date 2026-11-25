@@ -56,6 +56,7 @@ import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard, LeftToBillSection } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 import { WorkOrdersTile } from '@/src/components/dashboard/WorkOrdersTile';
+import { WorkInHandSummary } from '@/src/components/workInHand/WorkInHandSummary';
 import { ProjectPortfolioTable } from './ProjectPortfolioTable';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
@@ -333,6 +334,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const portfolioRows = portfolioProjects.map((project) => {
     const budget = budgetByProject.get(project.id);
     const milestones = portfolioMilestones.data?.[project.id];
+    const money = figures.projectMoney[project.id];
     return {
       id: project.id,
       name: projectDisplayName(project),
@@ -345,6 +347,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       lateMilestones: milestones?.lateCount ?? null,
       plannedPct: milestones?.plannedPct ?? null,
       actualPct: portfolioDelivery.data?.[project.id]?.deliveryPct ?? null,
+      contractValue: money?.contractValue ?? null,
+      billed: money?.billed ?? null,
+      contractCurrency: money?.currency ?? null,
     };
   });
   const portfolioPending = projects.isPending || (portfolioIds.length > 0 && (portfolioMilestones.isPending || portfolioDelivery.isPending || budgetReview.isPending));
@@ -517,6 +522,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
             <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-10')}>
               <WorkOrdersTile />
             </div>
+            <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-11')}>
+              <WorkInHandSummary testId="dashboard-work-in-hand" />
+            </div>
           </div>
           {portfolio}
           {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}
@@ -539,6 +547,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           return finance ? tiles : <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">{tiles}{salesCard}</div>;
         })()}
         {finance && <BudgetReviewCard rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />}
+        <WorkInHandSummary testId="dashboard-work-in-hand" />
         <WorkOrdersTile />
         <Analysis title={t('home.analysis', 'Analysis')}>{analysis}</Analysis>
       </div>

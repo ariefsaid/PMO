@@ -54,6 +54,7 @@ it('compares dated broken hours without saving and opens their proof', async () 
   await userEvent.click(screen.getByRole('button', { name: 'Compare hours' }));
   expect(await screen.findAllByText('176.00')).toHaveLength(2);
   expect(h.check).toHaveBeenCalledWith(expect.objectContaining({ state: null, broken: [{ date: '2026-09-01', hours: '24' }] }));
+  expect(h.check.mock.calls[0][0].invoiceId).toBeUndefined(); // #2889: no empty invoice id is sent
   await userEvent.click(screen.getByRole('button', { name: 'Open repair.pdf' }));
   expect(await screen.findByRole('link', { name: 'repair.pdf' })).toHaveAttribute('href','https://example.test/repair');
 });

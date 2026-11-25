@@ -29,9 +29,11 @@ test('JOB-WAIT-3/4/5 a request names who it waits for, a return tells the reques
     await page.goto('/');
     await page.getByRole('button', { name: /notifications/i }).click();
     const bell = page.getByRole('list', { name: 'Notifications' });
-    await expect(bell.getByText('Your material request was sent back')).toBeVisible({ timeout: 20_000 });
-    await expect(bell.getByText('Split the pour over two days')).toBeVisible();
-    await expect(bell.getByTestId('notification-entity-label').first()).toContainText(fx.requestNumber);
+    // The seeded requester keeps notifications from earlier runs: read the one that names this run's request.
+    const note = bell.getByRole('button').filter({ hasText: fx.requestNumber });
+    await expect(note.getByText('Your material request was sent back')).toBeVisible({ timeout: 20_000 });
+    await expect(note.getByText('Split the pour over two days')).toBeVisible();
+    await expect(note.getByTestId('notification-entity-label')).toContainText(fx.requestNumber);
 
     // JOB-WAIT-5: editing the returned request shows why it came back, and keeps the over-plan reason typed before.
     await page.goto(`/material-requests/${fx.requestId}/edit`);

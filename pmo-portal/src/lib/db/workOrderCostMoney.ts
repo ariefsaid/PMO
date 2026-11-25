@@ -14,7 +14,7 @@ const TABLE: Partial<Record<CostSource, 'purchase_requests' | 'purchase_orders' 
   vendor_bill: 'procurement_invoices',
 };
 const CHUNK = 200;
-const PRICED_BY_PROJECT_READ: readonly CostSource[] = ['equipment_usage', 'stock_document', 'timesheet_entry', 'attendance_day'];
+const PRICED_BY_PROJECT_READ: readonly CostSource[] = ['equipment_usage', 'stock_document', 'timesheet_entry', 'attendance_day', 'expense_claim'];
 
 export async function listWorkOrderCostMoney(lines: readonly WorkOrderCostLine[]): Promise<MoneyBySource> {
   const out: MoneyBySource = {};
@@ -70,7 +70,7 @@ export async function listWorkOrderCostMoney(lines: readonly WorkOrderCostLine[]
   }
   if (wanted.has('equipment_usage')) out.equipment_usage = foundIds.size === wanted.get('equipment_usage')!.size ? found.equipment_usage ?? {} : null;
   // A line the read did not price (a receipt, a day with no rate, a group row) shows no amount; it is never read as zero or as restricted.
-  for (const source of ['stock_document', 'timesheet_entry', 'attendance_day'] as const) if (found[source]) out[source] = found[source];
+  for (const source of ['stock_document', 'timesheet_entry', 'attendance_day', 'expense_claim'] as const) if (found[source]) out[source] = found[source];
   return out;
 }
 

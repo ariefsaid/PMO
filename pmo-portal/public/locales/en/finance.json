@@ -1177,7 +1177,7 @@
     "empty": "No claims to show",
     "emptySub": "Claims appear here once they have billing steps. Open a claim on the project's Contract tab and add its steps.",
     "entryLink": "Billing board",
-    "columnTotal": "{{amount}} {{currency}} total"
+    "columnTotal": "{{amount}} total"
   },
   "billingPlan": {
     "title": "Billing plan",

@@ -1,9 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const h = vi.hoisted(() => ({ rpc: vi.fn() }));
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
+const h = vi.hoisted(() => {
+  const queue: Array<{ data: unknown; error: unknown }> = [];
+  const calls = { from: [] as string[], select: [] as unknown[], limit: [] as unknown[], update: [] as unknown[], eq: [] as unknown[] };
+  const builder: Record<string, unknown> = {};
+  const chain = (name: 'select' | 'limit' | 'update' | 'eq') => (...args: unknown[]) => {
+    calls[name].push(args.length === 1 ? args[0] : args);
+    return builder;
+  };
+  builder.select = chain('select');
+  builder.limit = chain('limit');
+  builder.update = chain('update');
+  builder.eq = chain('eq');
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(queue.shift() ?? { data: null, error: null });
+  return {
+    rpc: vi.fn(),
+    from: vi.fn((table: string) => { calls.from.push(table); return builder; }),
+    calls,
+    queue,
+  };
+});
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 
-import { getWorkInHand, parseWorkInHand } from './workInHand';
+import {
+  getWorkInHand,
+  getWorkInHandMonthlyCapacity,
+  monthlyCapacityIssue,
+  parseWorkInHand,
+  setWorkInHandMonthlyCapacity,
+} from './workInHand';
 
 const CONTRACT = {
   project_id: 'p1', name: 'P1', code: null, pmo_project_number: 'PRJ-1', status: 'Ongoing Project', currency: 'IDR',
@@ -22,7 +47,14 @@ const PAYLOAD = {
   contracts: [CONTRACT], work_orders: [WORK_ORDER],
 };
 
-beforeEach(() => { h.rpc.mockReset(); });
+beforeEach(() => {
+  h.rpc.mockReset();
+  h.from.mockClear();
+  h.queue.length = 0;
+  for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) {
+    (h.calls[k] as unknown[]).length = 0;
+  }
+});
 
 describe('getWorkInHand', () => {
   it('calls the read with the as-of date (or null) and sends no org_id', async () => {
@@ -64,5 +96,57 @@ describe('getWorkInHand', () => {
       contracts: [{ ...CONTRACT, incomplete: true, foreign_currency_invoice_count: 1, billed_to_date: null, first_billing_month: null, window_months: [] }],
     });
     expect(r.rows[0]).toMatchObject({ incomplete: true, billedToDate: null, foreignCurrencyInvoiceCount: 1 });
+  });
+
+  it('parses monthly_capacity when set and rejects malformed values', () => {
+    expect(parseWorkInHand({ ...PAYLOAD, monthly_capacity: '2500000.00' }).monthlyCapacity).toBe('2500000.00');
+    expect(parseWorkInHand({ ...PAYLOAD, monthly_capacity: null }).monthlyCapacity).toBeNull();
+    expect(() => parseWorkInHand({ ...PAYLOAD, monthly_capacity: 'bad' })).toThrow();
+  });
+});
+
+describe('monthly work capacity setting (M8)', () => {
+  it('validates positive amounts with at most two decimal places using exact decimal strings/cents', () => {
+    expect(monthlyCapacityIssue(null)).toBeNull();
+    expect(monthlyCapacityIssue(2500000.5)).toBeNull();
+    expect(monthlyCapacityIssue(0.29)).toBeNull();
+    expect(monthlyCapacityIssue(1000.29)).toBeNull();
+    expect(monthlyCapacityIssue('0.29')).toBeNull();
+    expect(monthlyCapacityIssue('1000.29')).toBeNull();
+    expect(monthlyCapacityIssue(0)).toBe('positive');
+    expect(monthlyCapacityIssue('0.00')).toBe('positive');
+    expect(monthlyCapacityIssue(-10)).toBe('positive');
+    expect(monthlyCapacityIssue(Number.NaN)).toBe('invalid');
+    expect(monthlyCapacityIssue('abc')).toBe('invalid');
+    expect(monthlyCapacityIssue('2,500,000')).toBe('invalid');
+    expect(monthlyCapacityIssue(12.345)).toBe('precision');
+    expect(monthlyCapacityIssue('1000.295')).toBe('precision');
+  });
+
+  it('reads work_in_hand_monthly_capacity under RLS without sending org_id', async () => {
+    h.queue.push({ data: [{ work_in_hand_monthly_capacity: 2500000 }], error: null });
+    await expect(getWorkInHandMonthlyCapacity()).resolves.toBe(2500000);
+    expect(h.calls.from).toEqual(['organizations']);
+    expect(h.calls.select).toEqual(['work_in_hand_monthly_capacity']);
+
+    h.queue.push({ data: [{ work_in_hand_monthly_capacity: null }], error: null });
+    await expect(getWorkInHandMonthlyCapacity()).resolves.toBeNull();
+  });
+
+  it('writes capacity for the single readable org and refuses invalid values, multi-org, or silent RLS no-op', async () => {
+    await expect(setWorkInHandMonthlyCapacity(0)).rejects.toMatchObject({ code: '22023' });
+    await expect(setWorkInHandMonthlyCapacity(12.345)).rejects.toMatchObject({ code: '22023' });
+    expect(h.from).not.toHaveBeenCalled();
+
+    h.queue.push({ data: [{ id: 'org-1' }, { id: 'org-2' }], error: null });
+    await expect(setWorkInHandMonthlyCapacity(1000)).rejects.toMatchObject({ code: '22023' });
+
+    h.queue.push({ data: [{ id: 'org-1' }], error: null }, { data: [], error: null });
+    await expect(setWorkInHandMonthlyCapacity(1000)).rejects.toBeTruthy();
+
+    h.calls.update.length = 0;
+    h.queue.push({ data: [{ id: 'org-1' }], error: null }, { data: [{ id: 'org-1' }], error: null });
+    await setWorkInHandMonthlyCapacity(2500000);
+    expect(h.calls.update).toEqual([{ work_in_hand_monthly_capacity: 2500000 }]);
   });
 });

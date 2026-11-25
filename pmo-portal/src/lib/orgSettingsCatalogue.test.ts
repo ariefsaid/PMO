@@ -11,6 +11,8 @@ import billingStepsEn from '@/public/locales/en/billingSteps.json';
 import billingStepsId from '@/public/locales/id/billingSteps.json';
 import siteReportEn from '@/public/locales/en/siteReport.json';
 import siteReportId from '@/public/locales/id/siteReport.json';
+import workInHandEn from '@/public/locales/en/workInHand.json';
+import workInHandId from '@/public/locales/id/workInHand.json';
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: {} }));
 
@@ -128,8 +130,8 @@ describe('organisation settings catalogue (#2746)', () => {
     const text = orgSettingText(((k: string, d: string) => d) as never);
     const commonItems = (en as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
     const commonItemsId = (id as unknown as { allSettings: { item: Record<string, { name: string; summary: string }> } }).allSettings.item;
-    const items: Record<string, { name: string; summary: string }> = { ...commonItems, workOrderChecklist: billingStepsEn.settings.workOrderChecklist, qsReportRevenue: { name: siteReportEn.revenue.qsAccess, summary: siteReportEn.revenue.qsAccessHelp } };
-    const itemsId: Record<string, { name: string; summary: string }> = { ...commonItemsId, workOrderChecklist: billingStepsId.settings.workOrderChecklist, qsReportRevenue: { name: siteReportId.revenue.qsAccess, summary: siteReportId.revenue.qsAccessHelp } };
+    const items: Record<string, { name: string; summary: string }> = { ...commonItems, workOrderChecklist: billingStepsEn.settings.workOrderChecklist, qsReportRevenue: { name: siteReportEn.revenue.qsAccess, summary: siteReportEn.revenue.qsAccessHelp }, workInHandCapacity: workInHandEn.setting };
+    const itemsId: Record<string, { name: string; summary: string }> = { ...commonItemsId, workOrderChecklist: billingStepsId.settings.workOrderChecklist, qsReportRevenue: { name: siteReportId.revenue.qsAccess, summary: siteReportId.revenue.qsAccessHelp }, workInHandCapacity: workInHandId.setting };
     for (const key of orgSettingKeys) {
       expect(text[key].name, key).toBeTruthy();
       expect(items[key]?.name, `en ${key}`).toBe(text[key].name);

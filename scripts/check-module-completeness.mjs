@@ -51,6 +51,7 @@ export const CORE_ROUTES = {
   '/': 'dashboard — core (D5/core_feature_keys)',
   '/projects': 'projects — core',
   '/projects/new': 'projects — core',
+  '/projects/work-in-hand': 'work in hand under Projects (M8) — core surface, role-gated by WorkInHandAccessRoute',
   '/projects/:projectId/:tab': 'projects — core',
   '/projects/:projectId': 'projects — core',
   '/safety-days/:dayId': 'daily safety record (#2596) — a part of the work order, shown only when the organisation setting is on; no catalogue switch',

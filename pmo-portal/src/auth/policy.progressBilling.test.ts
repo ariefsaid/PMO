@@ -13,6 +13,11 @@ describe('progress billing policy', () => {
     expect(can('view', 'workInHand', as('Engineer'))).toBe(false);
     expect(can('viewAssigned', 'workInHand', as('Project Manager'))).toBe(true);
     expect(can('viewAssigned', 'workInHand', as('Finance'))).toBe(false);
+    expect(can('manage', 'workInHandCapacity', as('Admin'))).toBe(true);
+    expect(can('manage', 'workInHandCapacity', as('Finance'))).toBe(false);
+    expect(can('manage', 'workInHandCapacity', as('Executive'))).toBe(false);
+    expect(can('manage', 'workInHandCapacity', as('Project Manager'))).toBe(false);
+    expect(can('manage', 'workInHandCapacity', as('Engineer'))).toBe(false);
   });
 
   it.each([['Admin', true], ['Executive', true], ['Project Manager', true], ['Finance', true], ['Engineer', false]] as const)(

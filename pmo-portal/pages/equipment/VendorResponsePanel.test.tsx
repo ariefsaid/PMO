@@ -44,6 +44,10 @@ describe('VendorResponsePanel (#2702)', () => {
     ui({ id: 'a1', ownership: 'rented' });
     expect(screen.queryByText('Vendor response to breakdowns')).toBeNull();
   });
+  it('#2890 the card shows its heading', () => {
+    ui({ id: 'a1', ownership: 'rented' });
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Vendor response to breakdowns'); // drawn text, not a title attribute
+  });
   it('shows an awaiting breakdown with the record action for a status role', () => {
     ui({ id: 'a1', ownership: 'rented' });
     expect(screen.getByText('Awaiting response')).toBeInTheDocument();
@@ -56,6 +60,11 @@ describe('VendorResponsePanel (#2702)', () => {
     expect(screen.getAllByText('1 h 30 min').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Record response' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+  });
+  it('#2890 the register summary card shows its heading', () => {
+    h.rows = [row({ responded_at: '2024-03-04T01:30:00Z', response_minutes: 90 })];
+    render(<VendorResponseSummaryCard assets={[{ id: 'a1', ownership: 'rented' }]} />);
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Vendor response time, last 12 months');
   });
   it('the register summary renders nothing without a rented asset', () => {
     const { container } = render(<VendorResponseSummaryCard assets={[{ id: 'a1', ownership: 'owned' }]} />);

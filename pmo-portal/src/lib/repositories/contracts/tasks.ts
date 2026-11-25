@@ -43,6 +43,8 @@ export interface TaskRepository {
   linkedRecords(taskIds: readonly string[]): Promise<Map<string, TaskLinkedRecord>>;
   /** #2587: the open task that follows a record, or null (create-from-record opens it, never offers a second). */
   findOpenForRecord(type: RecordLinkType, recordId: string): Promise<{ id: string; name: string; project_id: string | null } | null>;
+  /** JOB-F17: the issue each task was made from (incident_tasks join), one batched read; a task with no issue is absent. */
+  sourceIssues(taskIds: readonly string[]): Promise<Map<string, string>>;
   /** Add a dependency edge (taskId depends on dependsOnId). */
   addDependency(taskId: string, dependsOnId: string): Promise<void>;
   /** Remove a dependency edge. */

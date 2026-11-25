@@ -21,83 +21,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { notificationBody, notificationTitle } from '@/src/lib/i18n/notificationCopy';
 import { Icon } from '@/src/components/ui/icons';
-import { cn } from '@/src/components/ui/cn';
 import { useAssistantPanel } from '@/src/hooks/useAssistantPanel';
 import { repositories } from '@/src/lib/repositories';
 import type { NotificationCursor, NotificationListItem as NotificationRow } from '@/src/lib/db/notifications';
-import { formatRelativeTime } from '@/src/lib/format';
-
-/** Notification severity → { dot color token, AA label text class }. Mirrors the
- * StatusPill dot+label grammar but is its own small table (notifications' severity
- * vocabulary — info/warning/critical — is not a workflow/category pill). */
-const SEVERITY_STYLE: Record<string, { dot: string; labelCls: string }> = {
-  info: { dot: 'hsl(var(--muted-foreground))', labelCls: 'text-muted-foreground' },
-  warning: { dot: 'hsl(var(--warning))', labelCls: 'text-warning-foreground' },
-  critical: { dot: 'hsl(var(--destructive))', labelCls: 'text-destructive-text' },
-};
-
-function severityStyle(severity: string) {
-  return SEVERITY_STYLE[severity] ?? SEVERITY_STYLE.info;
-}
-
-/** `metadata.entity.type` → the record's base list route. Only types with a
- * routable `/x/:id` detail page are resolvable (App.tsx route table); an
- * unrecognized type falls back to mark-read-only (no navigation). */
-const ENTITY_ROUTE_BASE: Record<string, string> = {
-  procurement_case: '/procurement',
-  incident: '/incidents',
-  project: '/projects',
-  company: '/companies',
-  contact: '/contacts',
-  opportunity: '/sales',
-  expense_claim: '/expenses',
-  sales_invoice: '/sales-invoices',
-  material_request: '/material-requests',
-  quantity_change_request: '/quantity-changes',
-  daily_site_report: '/site-reports',
-  subcontract_certificate: '/subcontract-certificates',
-  // #2800: an overdue close-out item opens its work order; an overdue clearance item opens that person's checklist.
-  work_order: '/work-orders',
-  person_clearance: '/administration/clearance',
-};
-
-/** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
- * a submitted timesheet opens the approvals page, an assigned task opens My tasks. */
-const ENTITY_LIST_ROUTE: Record<string, string> = {
-  timesheet: '/timesheets',
-  task: '/my-tasks',
-  imprest_plan: '/imprest',
-  imprest_replenishment: '/imprest',
-  expiry_document: '/equipment/expiring',
-  equipment_plan: '/equipment-plans',
-};
-
-interface NotificationEntity {
-  type?: string;
-  id?: string;
-  label?: string;
-}
-
-interface NotificationMetadata {
-  entity?: NotificationEntity;
-  run_id?: string;
-}
-
-function readMetadata(metadata: NotificationRow['metadata']): NotificationMetadata {
-  if (metadata !== null && typeof metadata === 'object' && !Array.isArray(metadata)) {
-    return metadata as NotificationMetadata;
-  }
-  return {};
-}
-
-function entityRoute(entity: NotificationEntity | undefined): string | null {
-  if (entity?.type && ENTITY_LIST_ROUTE[entity.type]) return ENTITY_LIST_ROUTE[entity.type];
-  if (!entity?.type || !entity.id) return null;
-  const base = ENTITY_ROUTE_BASE[entity.type];
-  return base ? `${base}/${entity.id}` : null;
-}
+import { NotificationItem } from './NotificationItem';
+import { entityRoute, readMetadata } from './notificationEntity';
 
 type InboxState =
   | { status: 'idle' }
@@ -106,7 +35,7 @@ type InboxState =
   | { status: 'ready'; rows: NotificationRow[]; nextCursor: NotificationCursor | null };
 
 export const NotificationBell: React.FC = () => {
-  const { t, i18n } = useTranslation(['common', 'incidents', 'notifications']);
+  const { t } = useTranslation(['common', 'incidents', 'notifications']);
   const navigate = useNavigate();
   const { openPanel, openThread } = useAssistantPanel();
   const [unread, setUnread] = useState(0);
@@ -314,55 +243,7 @@ export const NotificationBell: React.FC = () => {
           )}
           {inbox.status === 'ready' && inbox.rows.length > 0 && (
             <ul aria-label={t('shell.notifications.listLabel', 'Notifications')} className="flex max-h-96 flex-col gap-0.5 overflow-y-auto">
-              {inbox.rows.map((row) => {
-                const isUnread = row.read_at === null;
-                const sev = severityStyle(row.severity);
-                const body = notificationBody(row, t, i18n.language);
-                // fix-waiting item 4: a decision notification says WHAT was decided (the record's number or name), not only that something was.
-                const entityLabel = readMetadata(row.metadata).entity?.label?.trim() || null;
-                return (
-                  <li key={row.id}>
-                    <button
-                      type="button"
-                      onClick={() => void handleSelect(row)}
-                      className="flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="flex w-full items-center gap-1.5">
-                        <span
-                          data-severity-dot
-                          aria-hidden="true"
-                          className="size-1.5 shrink-0 rounded-full"
-                          style={{ background: sev.dot }}
-                        />
-                        <span
-                          className={cn('text-control font-semibold', sev.labelCls)}
-                        >
-                          {row.severity}
-                        </span>
-                        <span className="ml-auto shrink-0 text-support text-muted-foreground">
-                          {formatRelativeTime(row.created_at)}
-                        </span>
-                      </span>
-                      <span className={cn('break-words text-control', isUnread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
-                        {row.title === 'Issue is overdue' && readMetadata(row.metadata).entity?.type === 'incident'
-                          ? t('incidents:notification.overdue', 'Issue is overdue')
-                          : notificationTitle(row, t)}
-                      </span>
-                      {entityLabel && !(body ?? '').includes(entityLabel) && !notificationTitle(row, t).includes(entityLabel) && (
-                        <span className="break-words text-control font-medium text-foreground" data-testid="notification-entity-label">{entityLabel}</span>
-                      )}
-                      {body && (
-                        <span className="break-words text-control text-muted-foreground">{body}</span>
-                      )}
-                      <span className="text-control text-muted-foreground">
-                        {isUnread
-                          ? t('shell.notifications.unread', 'Unread')
-                          : t('shell.notifications.read', 'Read')}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
+              {inbox.rows.map((row) => <NotificationItem key={row.id} row={row} onSelect={(r) => void handleSelect(r)} />)}
               {inbox.nextCursor && (
                 <li>
                   <p aria-live="polite" className="px-2.5 py-1 text-control text-muted-foreground">

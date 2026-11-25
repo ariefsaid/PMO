@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — owns its engineer login, project, work order, contract line (with a unique work unit no other standard matches), stock item and usage standard; archives the standard and deletes its own rows in finally.
 // JOB-PC7 (project control): consumables calculated from usage standards. An administrator sets a usage standard per work unit;
-// an engineer checks the standard, generates the work order's consumable plan from its 150-unit scope, and inspects the formula breakdown.
+// an engineer opens the work order, generates its consumable plan from the 150-unit scope, and inspects the formula breakdown.
+// Ruled path: the plan is generated on the work order (the Usage standards screen has no volume entry), so the journey starts there.
 import { test, expect } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
@@ -56,14 +57,7 @@ test('JOB-PC7 engineer generates a work order consumable plan from usage standar
 
     await engineer.signIn(page);
 
-    // 1. Engineer confirms the active usage standard is listed for this work unit.
-    await page.goto('/stock/usage-standards');
-    await page.getByLabel('Work unit').fill(unit);
-    const stdRow = page.getByRole('row').filter({ hasText: unit });
-    await expect(stdRow).toContainText(item.code, { timeout: 20_000 });
-    await expect(stdRow).toContainText('1 lines');
-
-    // 2. Engineer opens the work order, generates the consumable plan (150 x 2 = 300), and inspects the breakdown.
+    // 1. Engineer opens the work order, generates the consumable plan (150 x 2 = 300), and inspects the breakdown.
     await page.goto(`/work-orders/${wo.id}`);
     const plan = page.getByTestId('consumable-plan');
     await expect(plan).toBeVisible({ timeout: 30_000 });
