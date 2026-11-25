@@ -7,7 +7,7 @@
  */
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
+import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { createJobRoleUser } from './support/jobRoleUser';
 import { cleanupBilling, createBillingFixture, type BillingFixture } from './support/billingFixture';
 
@@ -21,8 +21,8 @@ test.afterEach(async () => {
   if (!admin) return;
   const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`JOB-BQ14 cleanup ${step}: ${e.message}`); };
   if (acceptanceId) {
-    fail('acceptance lines', (await admin.from('work_order_acceptance_lines').delete().eq('acceptance_id', acceptanceId)).error);
-    fail('acceptance', (await admin.from('work_order_acceptances').delete().eq('id', acceptanceId)).error);
+    // Acceptances are managed by their RPC (a delete is refused for every client): this run's rows go as the database owner.
+    sqlAsOwner(`delete from public.work_order_acceptance_lines where acceptance_id = '${acceptanceId}'; delete from public.work_order_acceptances where id = '${acceptanceId}';`);
     acceptanceId = '';
   }
   if (fx) fail('surveys', (await admin.from('survey_records').delete().eq('work_order_id', fx.workOrderId)).error);
@@ -57,7 +57,9 @@ test('JOB-BQ14 measured and accepted quantities show per item and a claim is pre
     // 2. The quantity surveyor reads the item's measured and accepted quantities on the billing tab.
     await qs.signIn(page);
     await page.goto(`/projects/${fx.projectId}/contract`);
-    await expect(page.getByTestId(`boq-accepted-${fx.boqId}`)).toContainText(/12/, { timeout: 15_000 });
+    // The order's contract-quantities table carries the item's accepted (confirmed BAST) quantity in its Delivered column.
+    const deliveredOf = (item: string) => page.getByRole('table', { name: /^Contract quantities for/ }).getByRole('row').filter({ hasText: item }).getByRole('cell').nth(2);
+    await expect(deliveredOf('Route survey')).toContainText(/12 km/, { timeout: 15_000 });
 
     // 3–4. A new claim for the work order arrives pre-filled from the accepted quantity, and records it per item.
     await page.context().clearCookies();

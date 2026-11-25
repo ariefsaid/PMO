@@ -102,7 +102,7 @@ test('JOB-A6 TC-PA-13 Project Administrator creates and uploads work-order docum
     await expect(page.getByText(`${run} WO drawing`)).toBeVisible({ timeout: 15_000 });
 
     const chooserPromise = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: /Upload/i }).click();
+    await page.getByRole('button', { name: 'Choose document file' }).click();
     const chooser = await chooserPromise;
     await chooser.setFiles({ name: 'wo-drawing.pdf', mimeType: 'application/pdf', buffer: PDF });
 
