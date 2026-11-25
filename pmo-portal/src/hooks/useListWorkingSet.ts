@@ -146,7 +146,11 @@ export function useUrlSearchInput(
     (next: string) => {
       setText(next);
       clearTimeout(timer.current);
+      const typedAt = window.location.pathname;
       timer.current = setTimeout(() => {
+        // The router commits a new route as a transition, so this list can stay mounted a beat after the user
+        // opened a record; a write that comes due then must not navigate back to the list.
+        if (window.location.pathname !== typedAt) return;
         written.current = next;
         latestCommit.current(next);
       }, delayMs);

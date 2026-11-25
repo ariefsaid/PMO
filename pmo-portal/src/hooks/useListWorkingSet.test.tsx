@@ -331,6 +331,20 @@ function MeetingsHost() {
   );
 }
 
+describe('useUrlSearchInput — a record opened before the pause ends', () => {
+  it('JOB-M5: the pending search write does not drag the user back to the list after the record opened', async () => {
+    renderSearchAt('/projects');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search projects' }), { target: { value: 'harbor' } });
+    // The user follows a row link; while the list is still mounted (the router commits the new
+    // route as a transition) the search write comes due.
+    window.history.pushState(null, '', '/projects/p-1');
+    await new Promise((resolve) => setTimeout(resolve, SEARCH_DELAY_MS * 3));
+    await settle();
+    expect(window.location.pathname).toBe('/projects/p-1');
+    expect(window.location.search).toBe('');
+  });
+});
+
 describe('useListWorkingSet — writes before the location commits', () => {
   it('FR-LRC-001: a second write builds on the first even before the router re-renders, so a picked filter is not dropped', async () => {
     window.history.replaceState(null, '', '/meetings');
