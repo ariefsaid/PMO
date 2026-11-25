@@ -8,6 +8,8 @@ import { siteRole } from './support/siteRoleJourney';
 import { createBillingFixture, cleanupBilling } from './support/billingFixture';
 import { ORG_ID, inDays, need } from './support/jobJourney';
 
+test.setTimeout(180_000);
+
 test('JOB-BQ10 the quality document filed once is already attached on the work order second claim', async ({ page }) => {
   const inspector = await siteRole('quality_inspector');
   const billingOfficer = await siteRole('billing_officer', 'Finance');
@@ -24,6 +26,7 @@ test('JOB-BQ10 the quality document filed once is already attached on the work o
     await signIn(page, 'admin@acme.test');
     await page.goto(`/work-orders/${fixture.workOrderId}`);
     const stepRow = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
+    await expect(stepRow).toBeVisible({ timeout: 30_000 }); // first load of the work order route on the dev server
     const evidenceMark = stepRow.getByRole('checkbox', { name: 'Documents here count as claim evidence' });
     await evidenceMark.click();
     await expect(evidenceMark).toBeChecked();
@@ -33,6 +36,7 @@ test('JOB-BQ10 the quality document filed once is already attached on the work o
     await inspector.login(page);
     await page.goto(`/work-orders/${fixture.workOrderId}`);
     const quality = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
+    await expect(quality).toBeVisible({ timeout: 30_000 });
     await quality.getByRole('combobox', { name: 'Additional document' }).selectOption(fixture.documentId);
     await quality.getByRole('button', { name: 'Attach additional document' }).click();
     await expect(quality.getByRole('link', { name: fixture.documentTitle })).toBeVisible();
@@ -42,7 +46,9 @@ test('JOB-BQ10 the quality document filed once is already attached on the work o
     await billingOfficer.login(page);
     await page.goto(`/projects/${fixture.projectId}/contract`);
     for (let index = 0; index < 2; index++) {
-      await page.getByRole('button', { name: 'New claim' }).click();
+      const newClaim = page.getByRole('button', { name: 'New claim' });
+      await expect(newClaim).toBeVisible({ timeout: 30_000 });
+      await newClaim.click();
       const form = page.getByRole('dialog');
       await form.getByLabel('Bills', { exact: true }).selectOption(fixture.workOrderId);
       await form.getByLabel(/SURVEY/).fill(index === 0 ? '2' : '3');
