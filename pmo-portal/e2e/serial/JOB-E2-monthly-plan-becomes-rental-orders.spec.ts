@@ -6,7 +6,8 @@
  * line and the Buyer can open each of them.
  */
 import { randomUUID } from 'node:crypto';
-import { test, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { buyerTest as test } from '../support/buyerOrdering';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 import { userClient } from '../support/stockFixture';
@@ -37,8 +38,8 @@ test('JOB-E2 a two-line monthly plan becomes two rental orders linked to the pla
     const typeSettings = await svc.from('org_purchase_type_settings').select('enabled').eq('org_id', ORG_ID).maybeSingle();
     if (typeSettings.error) throw typeSettings.error;
     typesBefore = typeSettings.data;
-    need('purchase types on', await admin.rpc('set_purchase_types_enabled', { p_enabled: true }));
-    need('plan on', await admin.rpc('set_equipment_plan_settings', { p_enabled: true, p_approval_step: 'senior_role', p_allow_self_approval: false }));
+    ok('purchase types on', await admin.rpc('set_purchase_types_enabled', { p_enabled: true }));
+    ok('plan on', await admin.rpc('set_equipment_plan_settings', { p_enabled: true, p_approval_step: 'senior_role', p_allow_self_approval: false }));
 
     // 1. The Equipment Manager plans two rented units for the month.
     await manager.signIn(page);

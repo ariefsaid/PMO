@@ -36,6 +36,7 @@ test('JOB-BQ13 each claim sits in its step column with its age, and the step own
   run = runId('bq13');
   fx = await createBillingFixture(db, run);
   const billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
+  const financeManager = await createJobRoleUser(db, ORG_ID, 'finance_manager');
   try {
     const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
     // Three work orders on the one project, so the board's cards are told apart by their order number.
@@ -69,22 +70,26 @@ test('JOB-BQ13 each claim sits in its step column with its age, and the step own
       ok(`steps ${i + 1}`, await db.from('claim_billing_stages').insert(rows));
     }
 
-    // 1–3. The billing officer opens the board: every card is in its step's column, with its age.
+    // 1–3. The billing officer opens the board: every card is in its step's column, with its age. The finance manager reads the same board.
+    const firstOrderNumber = fx.workOrderNumber;
+    const readBoard = async () => {
+      await page.goto('/finance/billing-board');
+      await expect(page).toHaveURL(/\/finance\/billing-board/);
+      const expectation: Array<[string, string, string]> = [
+        [`${run} step one`, firstOrderNumber, `${plan[0].ageDays} days on this step`],
+        [`${run} step two`, `${run}-2`, `${plan[1].ageDays} days on this step`],
+        [`${run} step three`, `${run}-3`, `${plan[2].ageDays} days on this step`],
+      ];
+      for (const [column, order, age] of expectation) {
+        const col = page.getByTestId('billing-board-column').filter({ has: page.getByRole('heading', { name: column }) });
+        await expect(col).toBeVisible({ timeout: 15_000 });
+        const card = col.getByTestId('billing-board-card').filter({ hasText: order });
+        await expect(card).toContainText(age);
+        await expect(card).toContainText('Waiting on Finance');
+      }
+    };
     await billing.signIn(page);
-    await page.goto('/finance/billing-board');
-    await expect(page).toHaveURL(/\/finance\/billing-board/);
-    const expectation: Array<[string, string, string]> = [
-      [`${run} step one`, fx.workOrderNumber, `${plan[0].ageDays} days on this step`],
-      [`${run} step two`, `${run}-2`, `${plan[1].ageDays} days on this step`],
-      [`${run} step three`, `${run}-3`, `${plan[2].ageDays} days on this step`],
-    ];
-    for (const [column, order, age] of expectation) {
-      const col = page.getByTestId('billing-board-column').filter({ has: page.getByRole('heading', { name: column }) });
-      await expect(col).toBeVisible({ timeout: 15_000 });
-      const card = col.getByTestId('billing-board-card').filter({ hasText: order });
-      await expect(card).toContainText(age);
-      await expect(card).toContainText('Waiting on Finance');
-    }
+    await readBoard();
 
     // 4. Each step's owner role finds them waiting at home (the org-wide count is other work's, so only the pointer is asserted).
     await page.goto('/');
@@ -92,8 +97,15 @@ test('JOB-BQ13 each claim sits in its step column with its age, and the step own
     await expect(pointer).toBeVisible({ timeout: 15_000 });
     await pointer.click();
     await expect(page).toHaveURL(new RegExp(`/projects/${fx.projectId}/billing`));
-    await expect(page.getByRole('heading', { name: 'Billing claims' })).toBeVisible({ timeout: 15_000 });
+    // The pointer lands on the project's contract area, where each of the three claims' orders is listed.
+    for (const id of orderIds) await expect(page.getByTestId(`customer-order-${id}`)).toBeVisible({ timeout: 15_000 });
+
+    // The finance manager, also Finance, finds every claim in the same columns.
+    await page.context().clearCookies();
+    await financeManager.signIn(page);
+    await readBoard();
   } finally {
     await billing.remove();
+    await financeManager.remove();
   }
 });

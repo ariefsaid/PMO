@@ -31,10 +31,8 @@ test.beforeAll(async () => {
     .select('enabled,enabled_at,quantity_tolerance_pct,amount_tolerance_pct,updated_by').eq('org_id', ORG_ID).maybeSingle();
   ok('match settings read', current);
   before = (current.data as MatchSettings | null) ?? null;
-  ok('match on', await admin.from('org_three_way_match_settings').upsert({
-    org_id: ORG_ID, enabled: true, enabled_at: new Date().toISOString(), updated_by: '00000000-0000-0000-0000-0000000000a5',
-    quantity_tolerance_pct: 0, amount_tolerance_pct: 0,
-  }));
+  // The Admin switches the match on through its own writer; the table itself is read-only.
+  ok('match on', await admin.rpc('set_three_way_match_settings', { p_enabled: true, p_quantity_tolerance_pct: 0, p_amount_tolerance_pct: 0 }));
 
   officer = await roleJobUser(svc, 'finance_officer', runId('pu7-officer'), 'Finance');
   manager = await roleJobUser(svc, 'finance_manager', runId('pu7-manager'), 'Finance');
@@ -65,8 +63,11 @@ test.afterAll(async () => {
   }
   await purchase?.cleanup();
   const admin = await userClient('admin@acme.test');
-  if (before) ok('match restore', await admin.from('org_three_way_match_settings').upsert({ org_id: ORG_ID, ...before }));
-  else ok('match off', await admin.from('org_three_way_match_settings').delete().eq('org_id', ORG_ID));
+  ok('match restore', await admin.rpc('set_three_way_match_settings', {
+    p_enabled: before?.enabled ?? false,
+    p_quantity_tolerance_pct: before?.quantity_tolerance_pct ?? 0,
+    p_amount_tolerance_pct: before?.amount_tolerance_pct ?? 0,
+  }));
   await officer?.cleanup(); await manager?.cleanup();
 });
 
@@ -120,6 +121,11 @@ test('JOB-PU7 the over-receipt bill is held, the officer cannot approve it, and 
   const drawer = page.getByTestId('bill-match');
   await expect(drawer).toContainText('Billed more than received', { timeout: 20_000 });
   await expect(drawer).toContainText('Payments on this purchase are held');
+  // The quantities say why: 10 ordered, 8 received, 10 billed (2 over the receipt).
+  const line = drawer.getByTestId(`bill-match-line-${itemId}`);
+  await expect(line.getByRole('cell').nth(0)).toHaveText('10');
+  await expect(line.getByRole('cell').nth(1)).toHaveText('8');
+  await expect(line.getByRole('cell').nth(2)).toHaveText('10');
 
   // Separation of duties: the person who recorded the bill cannot approve its exception.
   await drawer.getByRole('button', { name: 'Approve exception' }).click();

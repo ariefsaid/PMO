@@ -14,15 +14,17 @@ test.setTimeout(180_000);
 
 let admin: SupabaseClient;
 let fx: BillingFixture | undefined;
-test.afterEach(async () => { if (admin) { await cleanupBilling(admin, fx); fx = undefined; } });
+let billing: Awaited<ReturnType<typeof createJobRoleUser>> | undefined;
+// The login is removed after the fixture rows it wrote: those rows reference the user.
+test.afterEach(async () => { if (admin) { await cleanupBilling(admin, fx); fx = undefined; } await billing?.remove(); billing = undefined; });
 
 test('JOB-BQ3 a claim shows an overdue step and lets an optional step be marked not needed with a reason', async ({ page }) => {
   admin = serviceClient('JOB-BQ3-TARGETS');
   const db = admin;
   const run = runId('bq3t');
   fx = await createBillingFixture(db, run);
-  const billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
-  try {
+  billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
+  {
     const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
     const claim = need('claim', await db.from('progress_claims').insert({
       org_id: ORG_ID, project_id: fx.projectId, kind: 'progress', currency: 'IDR', gross_amount: 1000, created_by: finance.id,
@@ -51,7 +53,5 @@ test('JOB-BQ3 a claim shows an overdue step and lets an optional step be marked 
     await expect(step).toContainText(/Reason: The client joined the final survey instead\./);
     await expect(stages.getByRole('listitem', { name: `${run} client approval` })).toContainText('Current');
     await expect(drawer).toBeVisible();
-  } finally {
-    await billing.remove();
   }
 });

@@ -55,7 +55,8 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
     const monday = page.getByRole('textbox', { name: new RegExp(`${run} project, Mon hours`, 'i') });
     await expect(monday).toBeVisible({ timeout: 15_000 });
     await monday.fill('4');
-    await pickComboboxOption(page.getByTestId('timesheets-row-attribution'), page, /^work order$/i, new RegExp(wo.number));
+    // The project's only issued work order is already chosen on the row: the chip names it, nothing to pick.
+    await expect(page.getByTestId('timesheets-row-attribution').getByRole('combobox', { name: /^work order$/i })).toContainText(new RegExp(wo.number), { timeout: 20_000 });
     await page.getByRole('button', { name: /save draft/i }).first().click();
     await expect(page.getByTestId('timesheets-save-status')).toHaveText('All changes saved', { timeout: 20_000 });
 

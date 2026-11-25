@@ -12,7 +12,9 @@ let worker: Awaited<ReturnType<typeof roleJobUser>>;
 
 test.afterEach(async () => {
   if (projectId) {
-    await admin.from('procurements').delete().eq('project_id', projectId);
+    // The task references the purchase, so it goes first.
+    ok('task cleanup', await admin.from('tasks').delete().eq('project_id', projectId));
+    ok('purchase cleanup', await admin.from('procurements').delete().eq('project_id', projectId));
     await dropProject(admin, projectId);
   }
   await worker?.cleanup();

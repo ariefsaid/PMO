@@ -36,7 +36,9 @@ test('JOB-PC20 a project control manager exports the work-order list and the fil
     const numbers: string[] = [];
     sheet.eachRow((row, index) => { if (index > 1) numbers.push((row.getCell(column).text ?? '').trim()); });
     for (const wo of fx.workOrders) expect(numbers.filter((n) => n === wo.number)).toHaveLength(1);
-    expect(new Set(numbers).size).toBe(numbers.length);
+    // Unnumbered Draft orders export a blank number, so only numbered rows are compared: no number repeats.
+    const numbered = numbers.filter((n) => n !== '');
+    expect(new Set(numbered).size).toBe(numbered.length);
   } finally {
     await cleanupAll(admin, [['work_orders', 'id', woIds], ['projects', 'id', projectId ? [projectId] : []]]);
     await pcm.cleanup();

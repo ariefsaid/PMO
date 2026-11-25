@@ -12,7 +12,9 @@ test.setTimeout(180_000);
 
 let admin: SupabaseClient;
 let fx: BillingFixture | undefined;
-test.afterEach(async () => { if (admin) { await cleanupBilling(admin, fx); fx = undefined; } });
+let billing: Awaited<ReturnType<typeof createJobRoleUser>> | undefined;
+// The login is removed after the fixture rows it wrote: those rows reference the user.
+test.afterEach(async () => { if (admin) { await cleanupBilling(admin, fx); fx = undefined; } await billing?.remove(); billing = undefined; });
 
 test('JOB-BQ3 a claim shows its current stage and the deadline warning, and finishing the stages clears the open work', async ({ page }) => {
   admin = serviceClient('JOB-BQ3');
@@ -27,9 +29,9 @@ test('JOB-BQ3 a claim shows its current stage and the deadline warning, and fini
   const day = today + 3 <= 28 ? today + 3 : today;
   const daysLeft = day - today;
   await admin.from('projects').update({ invoice_deadline_day: day, invoice_deadline_warn_days: 5 }).eq('id', fx.projectId).throwOnError();
-  const billing = await createJobRoleUser(admin, ORG_ID, 'billing_officer');
+  billing = await createJobRoleUser(admin, ORG_ID, 'billing_officer');
 
-  try {
+  {
     await billing.signIn(page);
     await raiseClaimAndOpen(page, fx, '4');
     const drawer = page.getByRole('dialog');
@@ -52,7 +54,5 @@ test('JOB-BQ3 a claim shows its current stage and the deadline warning, and fini
     await drawer.getByRole('button', { name: 'Complete Client approval' }).click();
     await expect(drawer).toContainText('3 of 3 complete');
     await expect(drawer.getByText(/Invoice deadline/)).toHaveCount(0);
-  } finally {
-    await billing.remove();
   }
 });
