@@ -264,7 +264,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
           <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} compact />
           <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.description ?? ''} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
         </div> : standardPicker(editDraft, (patch) => setEditDraft((d) => ({ ...d, ...patch })), `Edit description for ${it.name}`);
-        return <span className="font-medium">{it.name}{stockItems?.find((item) => item.id === it.stock_item_id) && <span className="block font-normal text-muted-foreground">{stockItems.find((item) => item.id === it.stock_item_id)?.code}</span>}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
+        return <span className="font-medium">{it.name}{stockItems?.find((item) => item.id === it.stock_item_id) && <span className="block font-normal text-muted-foreground">{stockItems.find((item) => item.id === it.stock_item_id)?.code}</span>}{it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
       },
     },
     { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: createFormLayout ? 80 : 88, cell: (row) => {

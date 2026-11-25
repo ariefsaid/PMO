@@ -48,8 +48,11 @@ export function useFileUpload(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const failureText = useUploadFailureText();
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['linked-folder-tree'] });
+    void qc.invalidateQueries({ queryKey: ['linked-folder-files'] });
+    return qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
+  };
 
   // Per-doc progress state
   const [progress, setProgress] = useState<Record<string, number>>({});
