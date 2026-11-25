@@ -32,6 +32,10 @@ test('JOB-F19 a near miss recorded on a work order is in the register with the w
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel(/^type/i).selectOption({ label: `${run} near miss` });
   await dialog.getByLabel(/severity/i).selectOption('Low');
+  // The form pre-fills the date from the browser's clock (IncidentFormModal.todayLocalISO), which on the
+  // UTC-pinned browser is the organisation's yesterday after 17:00 UTC; the filer means the organisation's
+  // day, so the journey states it explicitly — the same review any filer gives the pre-filled date.
+  await dialog.getByLabel(/^Date/i).fill(orgToday());
   await pickComboboxOption(dialog, page, /^Work order/, new RegExp(wo.title));
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
