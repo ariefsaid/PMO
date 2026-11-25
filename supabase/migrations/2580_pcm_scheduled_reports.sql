@@ -52,9 +52,9 @@ $$;
 revoke all on function public.scheduled_report_may_read(text, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.scheduled_report_may_read(text, uuid, uuid) to service_role;
 
--- May the Project Control Manager role change this schedule? True for a live schedule of a readable kind that role created; false
--- for one an Admin created; null when the organisation has no such live schedule (the caller then reports it as not found, the
--- same answer it gives for another organisation's schedule).
+-- May the Project Control Manager role change this schedule? True for a live schedule of a readable kind that role created;
+-- false for one an Admin created; null when the organisation has no such live schedule. A caller that is not an Admin treats
+-- anything but true as refused, so these cases all get the same answer.
 create or replace function public.scheduled_report_pcm_may_change(p_id uuid, p_org uuid) returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
   select sr.managed_by = 'project_control_manager'
@@ -124,7 +124,7 @@ begin
       returning id into v_id;
   else
     -- PCM manages only schedules created by the project_control_manager role; Admin-created schedules remain read-only to PCM.
-    if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is false then
+    if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is not true then
       raise exception 'admin only' using errcode = '42501';
     end if;
     update public.scheduled_reports set name = btrim(p_name), kind = p_kind, frequency = p_frequency, weekday = p_weekday,
@@ -155,7 +155,7 @@ begin
   if not (v_is_admin or v_is_pcm) then raise exception 'admin only' using errcode = '42501'; end if;
   if p_enabled is null then raise exception 'invalid setting' using errcode = '22023'; end if;
   -- PCM manages only schedules created by the project_control_manager role; Admin-created schedules remain read-only to PCM.
-  if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is false then
+  if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is not true then
     raise exception 'admin only' using errcode = '42501';
   end if;
   -- Switching a schedule on sends it: the recipients saved earlier must each still be allowed to read the report.
@@ -198,7 +198,7 @@ begin
     and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = v_org), false);
   if not (v_is_admin or v_is_pcm) then raise exception 'admin only' using errcode = '42501'; end if;
   -- PCM manages only schedules created by the project_control_manager role; Admin-created schedules remain read-only to PCM.
-  if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is false then
+  if not v_is_admin and public.scheduled_report_pcm_may_change(p_id, v_org) is not true then
     raise exception 'admin only' using errcode = '42501';
   end if;
   update public.scheduled_reports set archived_at = now(), enabled = false, updated_at = now()

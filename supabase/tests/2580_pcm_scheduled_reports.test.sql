@@ -6,7 +6,7 @@
 --   1. Drop `managed_by = 'project_control_manager'` from scheduled_reports_pcm_read -> 'AC-SCH-017 PCM does not read an Admin schedule'
 --   2. Make scheduled_report_pcm_may_change answer true for every schedule            -> 'AC-SCH-017 PCM cannot edit/enable/disable/archive Admin schedule'
 --   3. Skip that check in one RPC (save / set enabled / archive)                      -> the matching 'AC-SCH-017 PCM cannot ...' case
---   4. Drop `sr.org_id = p_org` in scheduled_report_pcm_may_change                    -> 'Org B PCM cannot tell an Org A Admin schedule from a missing one'
+--   4. Drop `sr.org_id = p_org` in scheduled_report_pcm_may_change                    -> 'Org B PCM gets the same answer for an Org A Admin schedule as for a missing one'
 --   5. Drop the pcm_scheduled_reports_enabled check in the read policy / save / set enabled / archive -> the matching 'AC-SCH-013 ... setting is off' case
 --   6. Remove the re-check of recipients in set_scheduled_report_enabled              -> 'AC-SCH-016 PCM cannot re-enable schedule with reclassified/banned recipient'
 --   7. Test the status column instead of is_active_member in scheduled_report_may_read -> 'AC-SCH-014 PCM cannot pick banned recipient'
@@ -223,9 +223,13 @@ select pg_temp.act_as('25800000-0000-0000-0000-0000000000a5');
 select throws_ok($$select save_scheduled_report(null, 'X', 'daily_progress', 'daily', null, '08:00', '{}', '{Finance}', true)$$, '42501', null, 'field account refused');
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from scheduled_reports), 0, 'Org B PCM sees no Org A report');
-select throws_ok($$select set_scheduled_report_enabled((select v from ids where k = 'pcm_daily'), true)$$, 'P0002', null, 'Org B PCM cannot toggle Org A report');
-select throws_ok($$select set_scheduled_report_enabled((select v from ids where k = 'adm_daily'), true)$$, 'P0002', null,
-  'Org B PCM cannot tell an Org A Admin schedule from a missing one');
+select throws_ok($$select set_scheduled_report_enabled((select v from ids where k = 'pcm_daily'), true)$$, '42501', 'admin only', 'Org B PCM cannot toggle Org A report');
+select throws_ok($$select set_scheduled_report_enabled((select v from ids where k = 'adm_daily'), true)$$, '42501', 'admin only',
+  'Org B PCM gets the same answer for an Org A Admin schedule as for a missing one');
+select throws_ok($$select set_scheduled_report_enabled('25800000-0000-0000-0000-0000000000ff', true)$$, '42501', 'admin only',
+  'Org B PCM gets the same answer for a schedule that does not exist');
+select throws_ok($$select archive_scheduled_report('25800000-0000-0000-0000-0000000000ff')$$, '42501', 'admin only',
+  'Org B PCM archiving a schedule that does not exist is refused the same way');
 
 -- Admin switches pcm_scheduled_reports_enabled OFF -> PCM is refused, Admin retains full control.
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000a1');
