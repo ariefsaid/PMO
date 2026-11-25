@@ -120,8 +120,7 @@ test('JOB-A6 TC-PA-13 Project Administrator creates and uploads work-order docum
     await chooser.setFiles({ name: 'wo-drawing.pdf', mimeType: 'application/pdf', buffer: PDF });
 
     await expect.poll(() => recorded.uploadCount, { timeout: 15_000 }).toBe(1);
-    // It appears in that work order's folder, on screen (the folder re-reads its listing when the page is opened again).
-    await page.reload();
+    // It appears in that work order's folder, on screen, without reopening the page.
     await expect(page.getByRole('link', { name: 'Open wo-drawing.pdf in SharePoint' })).toBeVisible({ timeout: 20_000 });
     expect(recorded.ensureBodies).toContainEqual({ action: 'ensure_record_folder', kind: 'work_order', id: wo.id });
 
