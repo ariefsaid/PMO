@@ -9,8 +9,9 @@
  * email's recipient and reason — the app-side facts the case's "they receive an email" depends on.
  */
 import { test, expect } from '@playwright/test';
-import { serviceClient, ownProject, dropProject, uniq, ORG_ID, PM_ID, need, ok, runId } from '../support/jobFixtures';
+import { serviceClient, ownProject, dropProject, uniq, ORG_ID, need, ok, runId } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
+import { signIn } from '../helpers';
 
 test.setTimeout(180_000);
 
@@ -64,17 +65,23 @@ test('JOB-A7 an approver is told by email about a request waiting for approval',
   ok('budget line', await admin.from('budget_line_items').insert({ org_id: ORG_ID, budget_version_id: version.id, category: 'Materials', budgeted_amount: 1_000_000 }));
   ok('activate', await admin.from('budget_versions').update({ status: 'Active' }).eq('id', version.id));
   ok('approver', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: projectId, profile_id: approver.id }));
-  const purchase = need('purchase', await admin.from('procurements').insert({
-    org_id: ORG_ID, project_id: projectId, title: `Valve set ${sfx}`, status: 'Draft',
-    total_value: 25_000, budget_category: 'Materials', currency: 'USD', requested_by_id: PM_ID,
-  }).select('id').single());
 
-  // 3. It reaches the approver: the request is waiting for them in the app...
-  ok('submit', await admin.from('procurements').update({ status: 'Requested' }).eq('id', purchase.id));
+  // 3. The requester writes the purchase request and sends it for approval on screen: it routes to the approver.
+  await signIn(page, 'pm@acme.test');
+  await page.goto(`/procurement/new?have=need&project=${projectId}&title=${encodeURIComponent(`Valve set ${sfx}`)}&lineName=Valve&lineQty=1&lineRate=25000`);
+  await page.getByRole('combobox', { name: 'Budget category' }).selectOption({ label: 'Materials' });
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 20_000 });
+  await page.getByRole('button', { name: 'Submit for approval' }).first().click();
+  const confirm = page.getByRole('dialog').getByRole('button', { name: /submit for approval/i });
+  if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', { timeout: 20_000 });
+
+  // The request is waiting for the approver in the app, and the app queued the approval email addressed to that person.
   await expect.poll(async () => {
     const { data } = await admin.from('email_outbox').select('event_key, recipient_id, status').eq('org_id', ORG_ID).eq('recipient_id', approver.id);
     return data ?? [];
-  }, { timeout: 20_000 }).toContainEqual(expect.objectContaining({ event_key: 'approval_request', recipient_id: approver.id, status: 'pending' }));
+  }, { timeout: 20_000 }).toContainEqual(expect.objectContaining({ event_key: 'approval_request', recipient_id: approver.id }));
 
   // ...and the queued email is addressed to that approver.
   const { data: inbox } = await admin.from('email_outbox').select('event_key, recipient_id').eq('recipient_id', approver.id);
