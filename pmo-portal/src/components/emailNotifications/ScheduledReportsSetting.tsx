@@ -65,11 +65,15 @@ export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ st
 
   if (!canManage) return null;
   const reports = query.data ?? [];
-  // The send path never emails a field account (it cannot read either report), so the form never offers one to anyone.
-  const recipientOptions = (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
+  // A Project Control Manager may name only people who can read the report (no field account). One a schedule already carries
+  // (an Admin added them) is neither shown nor sent back, so the manager never holds a recipient they cannot keep.
+  const recipientOptions = isAdmin ? (people.data ?? []) : (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
+  const shown = draft !== null && !isAdmin
+    ? { ...draft, recipientUserIds: draft.recipientUserIds.filter((id) => recipientOptions.some((p) => p.id === id)) }
+    : draft;
 
-  const valid = draft !== null && draft.name.trim() !== '' && draft.recipientUserIds.length + draft.recipientRoles.length > 0
-    && (draft.frequency === 'daily' || draft.weekday !== null) && /^\d{2}:\d{2}$/.test(draft.sendTime);
+  const valid = shown !== null && shown.name.trim() !== '' && shown.recipientUserIds.length + shown.recipientRoles.length > 0
+    && (shown.frequency === 'daily' || shown.weekday !== null) && /^\d{2}:\d{2}$/.test(shown.sendTime);
 
   return (
     <section className={standalone ? '' : 'mt-6 border-t border-border pt-4'} aria-labelledby="scheduled-reports-title">
@@ -131,10 +135,10 @@ export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ st
       {draft !== null ? (
         <form
           className="mt-3 grid max-w-xl gap-3 rounded-lg border border-border px-4 py-3"
-          onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(draft); }}
+          onSubmit={(e) => { e.preventDefault(); if (valid && shown) save.mutate(shown); }}
           aria-label={t('scheduled.formLabel', 'Scheduled report')}
         >
-          <ScheduledReportFields draft={draft} setDraft={setDraft} people={recipientOptions} />
+          <ScheduledReportFields draft={shown ?? draft} setDraft={setDraft} people={recipientOptions} />
           {error ? <p role="alert" className="text-control text-destructive-text">{error}</p> : null}
           <div className="flex gap-2">
             <Button type="submit" variant="primary" disabled={!valid} loading={save.isPending}>{t('scheduled.save', 'Save report')}</Button>

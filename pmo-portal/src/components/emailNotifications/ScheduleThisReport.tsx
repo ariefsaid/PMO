@@ -14,11 +14,11 @@ import { ScheduledReportFields } from './ScheduledReportFields';
  * scheduled-report form with the report fixed. UX only: save_scheduled_report (2580) re-checks the role.
  */
 export const ScheduleThisReport: React.FC<{ kind: ReportKind }> = ({ kind }) => {
-  const { canManage } = useScheduledReportsAccess();
-  return canManage ? <ScheduleThisReportDialog kind={kind} /> : null;
+  const { canManage, isAdmin } = useScheduledReportsAccess();
+  return canManage ? <ScheduleThisReportDialog kind={kind} isAdmin={isAdmin} /> : null;
 };
 
-const ScheduleThisReportDialog: React.FC<{ kind: ReportKind }> = ({ kind }) => {
+const ScheduleThisReportDialog: React.FC<{ kind: ReportKind; isAdmin: boolean }> = ({ kind, isAdmin }) => {
   const { t } = useTranslation('emailNotifications');
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -30,8 +30,8 @@ const ScheduleThisReportDialog: React.FC<{ kind: ReportKind }> = ({ kind }) => {
   const [draft, setDraft] = React.useState<ScheduledReportInput | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const people = useQuery({ queryKey: ['scheduledReportRecipients'], queryFn: () => scheduledReportsRepository.recipientOptions(), enabled: canManage && draft !== null });
-  // The send path never emails a field account (it cannot read either report), so the form never offers one to anyone.
-  const recipientOptions = (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
+  // A Project Control Manager may name only people who can read the report (no field account).
+  const recipientOptions = isAdmin ? (people.data ?? []) : (people.data ?? []).filter((p) => !isLightRoleKey(p.builtInRole));
   const save = useMutation({
     mutationFn: (v: ScheduledReportInput) => scheduledReportsRepository.save(v),
     onSuccess: () => {

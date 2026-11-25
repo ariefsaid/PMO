@@ -1,12 +1,12 @@
 -- 2580_pcm_scheduled_reports.sql — TC-PC-19: Project Control Manager manages scheduled reports created by that role for readable kinds.
 -- Latest restated bodies: save_scheduled_report, set_scheduled_report_enabled, archive_scheduled_report (1228 + 1530 assert_not_light),
--- scheduled_report_content (1971), scheduled_report_tick (1463), claim_email_outbox (1905).
+-- scheduled_report_content (1971), scheduled_report_tick (1463).
 -- drops: replaces Admin-only guard in save_scheduled_report, set_scheduled_report_enabled, archive_scheduled_report with Admin or
 -- active Project Control Manager (only schedules that role created, recorded in scheduled_reports.managed_by when the schedule is
--- created; an Admin's schedules stay read-only to that role);
--- widens scheduled_report_content may_see_revenue for active PCM and checks scheduled_report_may_read on every recipient;
--- replaces 1463's role-only light-account filter in scheduled_report_tick with scheduled_report_may_read across both the user and
--- the role arm, so a person named by an Admin who is a field account, or who becomes one, is not emailed either.
+-- created; an Admin's schedules are neither listed to that role nor writable by it);
+-- widens scheduled_report_content may_see_revenue for active PCM;
+-- scheduled_report_tick: a schedule the Project Control Manager role created never queues to a field account, named or by role;
+-- an Admin's schedules queue exactly as before (1463).
 -- Reverse: rollback/2580_pcm_scheduled_reports_down.sql
 
 alter table public.organizations add column pcm_scheduled_reports_enabled boolean not null default true;
@@ -29,13 +29,14 @@ create policy scheduled_reports_pcm_read on public.scheduled_reports for select 
     and (select public.is_active_member())
     and (select public.actor_holds_job_role('project_control_manager'))
     and kind in ('daily_progress', 'overdue_tasks')
+    and managed_by = 'project_control_manager'
     and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = org_id), false)
   );
 
 -- Who may read a report of this kind: the people who may read the report's source rows in the application. Both reports are read
 -- by every active, non-banned member of the organisation who is not a field account (1040 daily_site_reports_select, 0646
--- tasks_select, 1206 light-account policies). The save, re-enable, queue, content and delivery steps all ask this, so a change of
--- role, status or ban after a schedule was saved takes effect at the next of those steps. A kind not listed here is read by nobody.
+-- tasks_select, 1206 light-account policies). The Project Control Manager's save and re-enable steps ask this. A kind not listed
+-- here is read by nobody.
 create or replace function public.scheduled_report_may_read(p_kind text, p_org uuid, p_recipient uuid) returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
@@ -222,7 +223,6 @@ begin
   select pr.role::text, pr.built_in_role into v_role, v_built_in_role
     from public.profiles pr where pr.id = p_recipient and pr.org_id = p_org;
   if v_role is null then return; end if;   -- not a member of this organisation: no figures at all
-  if not public.scheduled_report_may_read(p_kind, p_org, p_recipient) then return; end if;
   select o.default_currency into v_cur from public.organizations o where o.id = p_org;
   v_head := p_name || E'\n' || public.scheduled_report_text(p_locale, p_kind) || E'\n' || public.scheduled_report_text(p_locale, 'period') || ': '
             || case when p_from = p_to then p_to::text else p_from::text || ' - ' || p_to::text end;
@@ -294,16 +294,17 @@ begin
       on conflict do nothing;
     get diagnostics v_rows = row_count;
     continue when v_rows = 0;
-    -- Every resolved recipient, named by id or matched by role, must still be allowed to read the report today.
+    -- A schedule an Admin created queues as 1463 has it. One the Project Control Manager role created never queues to a field
+    -- account, whether the person is named or matched by role, even when they became one after the schedule was saved.
     insert into public.email_outbox (org_id, recipient_id, event_key, report_id, period_key, subject, body)
     select r.org_id, p.id, 'scheduled_report', r.id, v_key, c.subject, c.body
       from public.profiles p
       cross join lateral public.scheduled_report_content(r.kind, r.org_id, p.id, v_from, v_date, r.loc, r.name) c
      where p.org_id = r.org_id
-       and (p.id = any (r.recipient_user_ids) or p.role::text = any (r.recipient_roles))
+       and (   (p.id = any (r.recipient_user_ids) and (r.managed_by = 'admin' or not public.is_light_role_key(p.built_in_role)))
+            or (p.role::text = any (r.recipient_roles) and not public.is_light_role_key(p.built_in_role)))
        and nullif(btrim(p.email), '') is not null
        and public.is_active_member(p.id)
-       and public.scheduled_report_may_read(r.kind, r.org_id, p.id)
        and not exists (select 1 from public.email_user_prefs u where u.user_id = p.id and u.opted_out)
     on conflict do nothing;
     get diagnostics v_rows = row_count;
@@ -317,43 +318,3 @@ begin
 end $$;
 revoke all on function public.scheduled_report_tick() from public, anon, authenticated;
 grant execute on function public.scheduled_report_tick() to service_role;
-
-create or replace function public.claim_email_outbox(p_limit integer default 20, p_lease interval default '5 minutes')
-returns table (id uuid, to_email text, event_key text, locale text, severity text, title text, body text, attempts integer, org_id uuid)
-  language plpgsql security definer set search_path = public, pg_temp as $$
-begin
-  if p_limit is null or p_limit not between 1 and 100 then raise exception 'limit 1..100' using errcode = '22023'; end if;
-  update public.email_outbox o set status = 'failed', last_error = 'stale'
-   where o.report_id is not null and o.status in ('pending','sending') and o.created_at < now() - interval '48 hours';
-  update public.email_outbox o set status = 'failed', last_error = coalesce(o.last_error, 'lease expired')
-   where o.status = 'sending' and o.lease_until < now() and o.attempts >= 5;
-  -- A report email is delivered only while its recipient may still read the report, has not opted out, and its schedule is
-  -- still switched on (archiving a schedule also switches it off).
-  update public.email_outbox o set status = 'failed', last_error = 'ineligible'
-    from public.scheduled_reports sr
-   where o.report_id = sr.id
-     and o.status in ('pending','sending')
-     and (
-       not sr.enabled
-       or not public.scheduled_report_may_read(sr.kind, o.org_id, o.recipient_id)
-       or exists (select 1 from public.email_user_prefs u where u.user_id = o.recipient_id and u.opted_out)
-     );
-  return query
-    with picked as (
-      select o.id from public.email_outbox o
-       where (o.status = 'pending' or (o.status = 'sending' and o.lease_until < now())) and o.attempts < 5
-       order by o.created_at limit p_limit for update skip locked
-    ), upd as (
-      update public.email_outbox o set status = 'sending', lease_until = now() + p_lease, attempts = o.attempts + 1
-        from picked where o.id = picked.id
-      returning o.id, o.org_id, o.notification_id, o.recipient_id, o.event_key, o.attempts, o.subject, o.body
-    )
-    select upd.id, pr.email::text, upd.event_key, coalesce(os.locale, 'en')::text,
-           coalesce(n.severity::text, 'info'), coalesce(upd.subject, n.title)::text, coalesce(upd.body, n.body)::text, upd.attempts, upd.org_id
-      from upd
-      join public.profiles pr on pr.id = upd.recipient_id
-      left join public.notifications n on n.id = upd.notification_id
-      left join public.email_org_settings os on os.org_id = upd.org_id;
-end $$;
-revoke all on function public.claim_email_outbox(integer, interval) from public, anon, authenticated;
-grant execute on function public.claim_email_outbox(integer, interval) to service_role;

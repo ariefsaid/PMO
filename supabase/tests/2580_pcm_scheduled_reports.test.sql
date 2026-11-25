@@ -1,6 +1,6 @@
 -- 2580_pcm_scheduled_reports.test.sql — TC-PC-19 (AC-SCH-013..017).
 -- Project Control Manager creates/manages only schedules that role created for readable kinds, picking active non-banned non-light org recipients;
--- Admin schedules stay read-only to PCM; send path (tick + content + delivery claim) and re-enable re-check recipient eligibility;
+-- Admin schedules are neither listed to PCM nor writable by it; the queue and re-enable re-check recipient eligibility for role-created schedules only;
 -- Admin keeps full control and toggles organizations.pcm_scheduled_reports_enabled.
 -- MUTATION NOTES (each edit must turn the named assertion red, then restore):
 --   1. Drop the pcm_scheduled_reports_enabled check in save_scheduled_report -> 'AC-SCH-013 PCM refused when setting is off'
@@ -8,18 +8,17 @@
 --   3. Drop the is_active_member check in scheduled_report_may_read         -> 'AC-SCH-014 PCM cannot pick banned recipient' & tick ban skip
 --   4. Remove the creator role check in save/set_enabled/archive RPCs       -> 'AC-SCH-017 PCM cannot edit/toggle/archive Admin schedule'
 --   5. Remove p_enabled re-check in set_scheduled_report_enabled            -> 'AC-SCH-016 PCM cannot re-enable schedule with reclassified/banned recipient'
---   6. Remove scheduled_report_may_read check in claim_email_outbox         -> 'AC-SCH-016 claim skips banned queued recipient'
 --   7. Move the non-admin p_kind guard below unknown kind in save_scheduled_report -> 'PCM refused with admin only on non-readable kind'
 --   8. Remove the project_control_manager branch in scheduled_report_content -> 'AC-SCH-015 PCM receives validated revenue across projects'
 --   9. Remove scheduled_report_may_read from the tick's WHERE                 -> 'AC-SCH-016 tick queues only eligible recipients after post-save role/ban changes'
---  10. Remove the scheduled_report_may_read early return in scheduled_report_content -> 'AC-SCH-016 content returns nothing for light role recipient'
 --  11. Drop `and sr.managed_by = 'project_control_manager'` in scheduled_report_pcm_may_change -> 'AC-SCH-017 PCM cannot edit Admin schedule'
 --  12. Drop `and sr.org_id = p_org` in scheduled_report_pcm_may_change       -> 'Org B PCM cannot tell an Org A Admin schedule from a missing one'
 --  13. Write 'admin' for every new row in save_scheduled_report's INSERT     -> 'AC-SCH-017 a Project Control Manager schedule is recorded as managed by that role'
 --  14. Write 'project_control_manager' for every new row in that INSERT      -> 'AC-SCH-017 an Admin schedule is recorded as managed by the Admin'
 --  15. Add `managed_by = 'admin'` to save_scheduled_report's UPDATE          -> 'AC-SCH-017 the schedule stays the role''s after an Admin edit'
---  16. Remove `not sr.enabled` from claim_email_outbox                       -> 'AC-SCH-016 a queued row of a switched-off schedule is not delivered'
---  17. Remove the opted-out branch from claim_email_outbox                   -> 'AC-SCH-016 claim skips a queued recipient who opted out'
+--  19. Drop `and managed_by = 'project_control_manager'` from scheduled_reports_pcm_read -> 'AC-SCH-017 PCM does not read an Admin schedule'
+--  20. Drop the `r.managed_by = 'admin' or` exemption's light check in the tick (user arm) -> 'AC-SCH-016 tick skips explicit recipient reclassified to light role'
+--  21. Make the tick skip light accounts for Admin schedules too -> 'AC-SCH-016 Admin-created schedule still reaches a named person who became a field account'
 --  18. Grant execute on either helper to authenticated                       -> 'PCM cannot call scheduled_report_may_read' / '..._pcm_may_change'
 begin;
 create extension if not exists pgtap;
@@ -100,6 +99,9 @@ select pg_temp.act_as('25800000-0000-0000-0000-0000000000ac');
 insert into ids select 'adm_builtin', save_scheduled_report(null, 'Admin BuiltIn Role', 'daily_progress', 'daily', null, '23:59:59',
   '{}', array['Finance'], false);
 
+insert into ids select 'adm_tick', save_scheduled_report(null, 'Admin Tick', 'daily_progress', 'daily', null, '00:00',
+  array['25800000-0000-0000-0000-0000000000a9','25800000-0000-0000-0000-0000000000a5']::uuid[], '{}', true);
+
 -- AC-SCH-013 / AC-SCH-014 / AC-SCH-017 as PCM.
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000a2');
 
@@ -123,8 +125,8 @@ select throws_ok($$select save_scheduled_report(null, 'Bad role', 'daily_progres
   '{}', array['foreman'], true)$$,
   '42501', null, 'AC-SCH-014 PCM cannot pick a light role key');
 
--- AC-SCH-017: Admin-created schedules are visible read-only to PCM; every write RPC refuses PCM.
-select is((select count(*)::int from scheduled_reports where archived_at is null), 2, 'AC-SCH-017 PCM still reads Admin schedules');
+-- AC-SCH-017: Admin-created schedules are not listed to PCM; every write RPC refuses PCM.
+select is((select count(*)::int from scheduled_reports), 0, 'AC-SCH-017 PCM does not read an Admin schedule');
 select throws_ok($$select save_scheduled_report((select v from ids where k = 'adm_daily'), 'Hijack', 'daily_progress', 'daily', null, '08:00',
   array['25800000-0000-0000-0000-0000000000a3']::uuid[], '{}', true)$$,
   '42501', 'admin only', 'AC-SCH-017 PCM cannot edit Admin schedule');
@@ -151,7 +153,8 @@ insert into ids select 'pcm_tick', save_scheduled_report(null, 'PCM Tick', 'dail
   '{}', true);
 insert into ids select 'pcm_stop', save_scheduled_report(null, 'PCM Stop', 'daily_progress', 'daily', null, '00:00',
   array['25800000-0000-0000-0000-0000000000a3']::uuid[], '{}', true);
-select is((select count(*)::int from scheduled_reports where archived_at is null), 8, 'AC-SCH-013 PCM reads created and Admin scheduled reports');
+select is((select count(*)::int from scheduled_reports where archived_at is null), 6, 'AC-SCH-013 PCM reads the schedules its role created and no Admin schedule');
+select is((select count(*)::int from scheduled_reports where id in (select v from ids where k like 'adm%')), 0, 'AC-SCH-017 PCM reads none of the Admin schedules by id');
 
 select lives_ok($$select save_scheduled_report((select v from ids where k = 'pcm_daily'), 'PCM Daily Renamed', 'daily_progress', 'daily', null, '23:59:59',
   array['25800000-0000-0000-0000-0000000000a3']::uuid[], array['Project Manager'], true)$$, 'AC-SCH-013 PCM edits own role report');
@@ -176,7 +179,7 @@ reset role;
 update profiles set built_in_role = 'foreman' where id = '25800000-0000-0000-0000-0000000000a9';
 update auth.users set banned_until = now() + interval '1 day' where id = '25800000-0000-0000-0000-0000000000aa';
 update scheduled_reports set created_at = now() - interval '2 days'
- where id in (select v from ids where k in ('pcm_tick', 'pcm_stop'));
+ where id in (select v from ids where k in ('pcm_tick', 'pcm_stop', 'adm_tick'));
 
 set local role authenticated;
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000a2');
@@ -188,57 +191,25 @@ select lives_ok($$select set_scheduled_report_enabled((select v from ids where k
   'AC-SCH-016 PCM may still keep/set ineligible schedule disabled');
 
 reset role;
--- Tick queues only eligible recipients (a3 PM, a4 Engineer and ab ClaimBan on the first schedule; a3 on the second),
--- skipping reclassified light (a9) and banned (aa).
-select is(scheduled_report_tick(), 4, 'AC-SCH-016 tick queues only eligible recipients after post-save role/ban changes');
+-- Tick: the role-created schedule queues only eligible recipients (a3 PM, a4 Engineer and ab ClaimBan on the first schedule; a3 on
+-- the second), skipping the person made a field account (a9) and the banned one (aa). The Admin-created schedule keeps today's
+-- behaviour exactly: it still reaches the named person who became a field account (a9) and a named field account (a5).
+select is(scheduled_report_tick(), 6, 'AC-SCH-016 tick queues only eligible recipients after post-save role/ban changes');
 select is((select count(*)::int from email_outbox where report_id = (select v from ids where k = 'pcm_tick')
             and recipient_id = '25800000-0000-0000-0000-0000000000a9'), 0,
   'AC-SCH-016 tick skips explicit recipient reclassified to light role');
 select is((select count(*)::int from email_outbox where report_id = (select v from ids where k = 'pcm_tick')
             and recipient_id = '25800000-0000-0000-0000-0000000000aa'), 0,
   'AC-SCH-016 tick skips explicit recipient banned after save');
-select is((select count(*)::int from scheduled_report_content('daily_progress', '25800000-0000-0000-0000-00000000000a',
-            '25800000-0000-0000-0000-0000000000a9', current_date, current_date, 'en', 'Daily')), 0,
-  'AC-SCH-016 content returns nothing for light role recipient');
-select is((select count(*)::int from scheduled_report_content('daily_progress', '25800000-0000-0000-0000-00000000000a',
-            '25800000-0000-0000-0000-0000000000aa', current_date, current_date, 'en', 'Daily')), 0,
-  'AC-SCH-016 content returns nothing for banned recipient');
-
--- Delivery claim re-check, between queue and claim: ClaimBan (ab) is banned, Engineer (a4) opts out, the second schedule is switched off.
-update auth.users set banned_until = now() + interval '1 day' where id = '25800000-0000-0000-0000-0000000000ab';
-insert into email_user_prefs (user_id, org_id, opted_out) values ('25800000-0000-0000-0000-0000000000a4', '25800000-0000-0000-0000-00000000000a', true);
-set local role authenticated;
-select pg_temp.act_as('25800000-0000-0000-0000-0000000000ad');
-select lives_ok($$select set_scheduled_report_enabled((select v from ids where k = 'pcm_stop'), false)$$,
-  'AC-SCH-016 another Project Control Manager switches off a schedule the role created');
-reset role;
-select is((select count(*)::int from claim_email_outbox(100) c
-            where c.id in (select id from email_outbox where report_id = (select v from ids where k = 'pcm_tick')
-                            and recipient_id = '25800000-0000-0000-0000-0000000000ab')), 0,
-  'AC-SCH-016 claim skips banned queued recipient');
-select is((select status || '/' || last_error from email_outbox
-            where report_id = (select v from ids where k = 'pcm_tick')
-              and recipient_id = '25800000-0000-0000-0000-0000000000ab'), 'failed/ineligible',
-  'AC-SCH-016 banned queued row is marked failed/ineligible');
-select is((select count(*)::int from claim_email_outbox(100) c
-            where c.id in (select id from email_outbox where report_id = (select v from ids where k = 'pcm_tick')
-                            and recipient_id = '25800000-0000-0000-0000-0000000000a4')), 0,
-  'AC-SCH-016 claim skips a queued recipient who opted out');
-select is((select status || '/' || last_error from email_outbox
-            where report_id = (select v from ids where k = 'pcm_tick')
-              and recipient_id = '25800000-0000-0000-0000-0000000000a4'), 'failed/ineligible',
-  'AC-SCH-016 opted-out queued row is marked failed/ineligible');
-select is((select count(*)::int from claim_email_outbox(100) c
-            where c.id in (select id from email_outbox where report_id = (select v from ids where k = 'pcm_stop'))), 0,
-  'AC-SCH-016 a queued row of a switched-off schedule is not delivered');
-select is((select status || '/' || last_error from email_outbox
-            where report_id = (select v from ids where k = 'pcm_stop')), 'failed/ineligible',
-  'AC-SCH-016 the switched-off schedule''s queued row is marked failed/ineligible');
-select is((select count(*)::int from email_outbox
-            where report_id = (select v from ids where k = 'pcm_tick')
-              and recipient_id = '25800000-0000-0000-0000-0000000000a3'
-              and status = 'sending'), 1,
-  'AC-SCH-016 eligible recipient row is still claimed for delivery');
+select is((select count(*)::int from email_outbox where report_id = (select v from ids where k = 'adm_tick')
+            and recipient_id = '25800000-0000-0000-0000-0000000000a9'), 1,
+  'AC-SCH-016 Admin-created schedule still reaches a named person who became a field account');
+select is((select count(*)::int from email_outbox where report_id = (select v from ids where k = 'adm_tick')
+            and recipient_id = '25800000-0000-0000-0000-0000000000a5'), 1,
+  'AC-SCH-016 Admin-created schedule still reaches a named field account');
+select is((select count(*)::int from email_outbox where report_id = (select v from ids where k = 'pcm_tick')
+            and recipient_id = '25800000-0000-0000-0000-0000000000a3'), 1,
+  'AC-SCH-016 eligible recipient of the role-created schedule is queued');
 
 -- Non-PCM roles (plain PM, Engineer, field account) are still refused; Org B PCM cannot see or touch Org A reports.
 set local role authenticated;
@@ -266,7 +237,7 @@ select throws_ok($$select archive_scheduled_report((select v from ids where k = 
 
 -- Admin still manages all reports (both Admin and PCM created) and gets unknown report kind (22023) for bogus kinds.
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000a1');
-select is((select count(*)::int from scheduled_reports where archived_at is null), 7, 'AC-SCH-014 Admin still reads reports');
+select is((select count(*)::int from scheduled_reports where archived_at is null), 8, 'AC-SCH-014 Admin still reads reports');
 select throws_ok($$select save_scheduled_report(null, 'X', 'other_kind', 'daily', null, '08:00', '{}', '{Finance}', true)$$, '22023', 'unknown report kind', 'Admin unknown kind still raises 22023');
 select lives_ok($$select set_scheduled_report_enabled((select v from ids where k = 'pcm_daily'), true)$$, 'AC-SCH-014 Admin can manage PCM-created schedule');
 select lives_ok($$select save_scheduled_report(null, 'Admin Full', 'daily_progress', 'daily', null, '08:00',
@@ -313,14 +284,15 @@ select lives_ok($$select archive_scheduled_report((select v from ids where k = '
 reset role;
 insert into scheduled_reports (org_id, name, kind, frequency, send_time, recipient_roles, enabled, created_by)
   values ('25800000-0000-0000-0000-00000000000a', 'Earlier Admin', 'overdue_tasks', 'daily', '08:00', '{Finance}', true, '25800000-0000-0000-0000-0000000000a1');
+insert into ids select 'earlier', id from scheduled_reports where name = 'Earlier Admin';
 select throws_ok($$insert into scheduled_reports (org_id, name, kind, frequency, send_time, recipient_roles, managed_by)
   values ('25800000-0000-0000-0000-00000000000a', 'X', 'overdue_tasks', 'daily', '08:00', '{Finance}', 'executive')$$, '23514', null,
   'managed_by accepts only the Admin or the Project Control Manager role');
 set local role authenticated;
 select pg_temp.act_as('25800000-0000-0000-0000-0000000000ad');
-select throws_ok($$select set_scheduled_report_enabled((select id from scheduled_reports where name = 'Earlier Admin'), true)$$, '42501', 'admin only',
+select throws_ok($$select set_scheduled_report_enabled((select v from ids where k = 'earlier'), true)$$, '42501', 'admin only',
   'AC-SCH-017 a schedule stored without a managing role is the Admin''s');
-select throws_ok($$select archive_scheduled_report((select id from scheduled_reports where name = 'Earlier Admin'))$$, '42501', 'admin only',
+select throws_ok($$select archive_scheduled_report((select v from ids where k = 'earlier'))$$, '42501', 'admin only',
   'AC-SCH-017 a schedule stored without a managing role cannot be archived by the role');
 
 reset role;

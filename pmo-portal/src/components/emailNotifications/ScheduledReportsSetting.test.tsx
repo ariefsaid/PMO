@@ -123,22 +123,6 @@ describe('AC-SCH-011 scheduled reports in the email card', () => {
     expect(await screen.findByText(/Ringkasan kemajuan harian · Setiap hari pukul 08:00/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tambah laporan terjadwal' })).toBeInTheDocument();
   });
-
-  it('never offers a field account as a recipient, to an Admin too: the send path does not email one', async () => {
-    sched.recipientOptions.mockResolvedValue([
-      { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
-      { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
-      { id: 'u3', name: 'Dian', builtInRole: 'field_user' },
-      { id: 'u4', name: 'Eka', builtInRole: null },
-    ]);
-    renderUi();
-    fireEvent.click(await screen.findByRole('button', { name: 'Add a scheduled report' }));
-    const form = await screen.findByRole('form', { name: 'Scheduled report' });
-    expect(await within(form).findByRole('checkbox', { name: 'Eka' })).toBeInTheDocument();
-    expect(within(form).getByRole('checkbox', { name: 'Sari' })).toBeInTheDocument();
-    expect(within(form).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
-    expect(within(form).queryByRole('checkbox', { name: 'Dian' })).toBeNull();
-  });
 });
 
 const renderStandalone = (role: Role, builtInRole: string | null) =>
@@ -157,11 +141,9 @@ const renderStandalone = (role: Role, builtInRole: string | null) =>
   );
 
 describe('TC-PC-19 Project Control Manager scheduled reports', () => {
-  it('an enabled Project Control Manager manages own-role schedules, sees Admin schedules read-only, and sees only non-light recipients', async () => {
-    sched.list.mockResolvedValue([
-      { ...REPORT, id: 'r-pcm', name: 'PCM summary', managedBy: 'project_control_manager' },
-      { ...REPORT, id: 'r-admin', name: 'Admin summary', managedBy: 'admin' },
-    ]);
+  it('an enabled Project Control Manager manages the role\'s own schedules and sees only non-light recipients', async () => {
+    // The server lists a Project Control Manager only the schedules that role created.
+    sched.list.mockResolvedValue([{ ...REPORT, id: 'r-pcm', name: 'PCM summary', managedBy: 'project_control_manager' }]);
     sched.recipientOptions.mockResolvedValue([
       { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
       { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
@@ -169,7 +151,6 @@ describe('TC-PC-19 Project Control Manager scheduled reports', () => {
     ]);
     renderStandalone('Project Manager', 'project_control_manager');
     expect(await screen.findByText('PCM summary')).toBeInTheDocument();
-    expect(screen.getByText('Admin summary')).toBeInTheDocument();
     expect(screen.queryByRole('switch', { name: /Project Control Managers can schedule/i })).toBeNull();
 
     const pcmItem = screen.getByText('PCM summary').closest('li')!;
@@ -177,16 +158,38 @@ describe('TC-PC-19 Project Control Manager scheduled reports', () => {
     expect(within(pcmItem).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     expect(within(pcmItem).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
 
-    const adminItem = screen.getByText('Admin summary').closest('li')!;
-    expect(within(adminItem).queryByRole('switch')).toBeNull();
-    expect(within(adminItem).queryByRole('button', { name: 'Edit' })).toBeNull();
-    expect(within(adminItem).queryByRole('button', { name: 'Archive' })).toBeNull();
-
     fireEvent.click(screen.getByRole('button', { name: 'Add a scheduled report' }));
     const form = await screen.findByRole('form', { name: 'Scheduled report' });
     expect(await within(form).findByRole('checkbox', { name: 'Sari' })).toBeInTheDocument();
     expect(within(form).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
     expect(within(form).queryByRole('checkbox', { name: 'Dian' })).toBeNull();
+  });
+
+  it('a Project Control Manager editing a schedule an Admin later gave a field account never sees that person, and the save still goes through', async () => {
+    sched.list.mockResolvedValue([{ ...REPORT, id: 'r-pcm', name: 'PCM summary', managedBy: 'project_control_manager', recipientUserIds: ['u1', 'u2'], recipientRoles: [] }]);
+    sched.recipientOptions.mockResolvedValue([
+      { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
+      { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
+    ]);
+    renderStandalone('Project Manager', 'project_control_manager');
+    const item = (await screen.findByText('PCM summary')).closest('li')!;
+    fireEvent.click(within(item).getByRole('button', { name: 'Edit' }));
+    const form = await screen.findByRole('form', { name: 'Scheduled report' });
+    expect(await within(form).findByRole('checkbox', { name: 'Sari' })).toBeChecked();
+    expect(within(form).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
+    fireEvent.click(within(form).getByRole('button', { name: 'Save report' }));
+    await waitFor(() => expect(sched.save).toHaveBeenCalledWith(expect.objectContaining({ id: 'r-pcm', recipientUserIds: ['u1'] })));
+  });
+
+  it('an Admin is offered every active person, field accounts included', async () => {
+    sched.recipientOptions.mockResolvedValue([
+      { id: 'u1', name: 'Sari', builtInRole: 'project_manager' },
+      { id: 'u2', name: 'Budi', builtInRole: 'foreman' },
+    ]);
+    renderUi();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a scheduled report' }));
+    const form = await screen.findByRole('form', { name: 'Scheduled report' });
+    expect(await within(form).findByRole('checkbox', { name: 'Budi' })).toBeInTheDocument();
   });
 
   it('a Project Control Manager has no access when the org setting is off, and a plain PM never does', async () => {

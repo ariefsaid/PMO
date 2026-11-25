@@ -42,14 +42,12 @@ describe('ScheduleThisReport', () => {
     expect(screen.queryByRole('button', { name: /Send this report every/ })).toBeNull();
   });
 
-  it('an Admin picks who and when, and saves a daily-progress schedule without choosing the report or a field account', async () => {
+  it('an Admin picks who and when, and saves a daily-progress schedule without choosing the report', async () => {
     const user = userEvent.setup();
     mount('Admin');
     await user.click(screen.getByRole('button', { name: /Send this report every/ }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByLabelText('Report')).toBeNull();
-    expect(await within(dialog).findByRole('checkbox', { name: 'Sari' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
     await user.click(within(dialog).getByRole('checkbox', { name: 'Finance' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save report' }));
     expect(sched.save).toHaveBeenCalledWith(expect.objectContaining({ kind: 'daily_progress', frequency: 'daily', recipientRoles: ['Finance'] }));
@@ -61,7 +59,5 @@ describe('ScheduleThisReport', () => {
     const trigger = await screen.findByRole('button', { name: /Send this report every/ });
     await user.click(trigger);
     const dialog = await screen.findByRole('dialog');
-    expect(await within(dialog).findByRole('checkbox', { name: 'Sari' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('checkbox', { name: 'Budi' })).toBeNull();
   });
 });
