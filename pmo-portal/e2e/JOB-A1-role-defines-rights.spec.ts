@@ -12,6 +12,7 @@ import { test, expect } from '@playwright/test';
 import { signIn, visibleToast } from './helpers';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
+import { markEveryonePresent } from './support/crewJourney';
 
 test.setTimeout(180_000);
 
@@ -81,6 +82,7 @@ async function pendingCrewWeek(svc: ReturnType<typeof serviceClient>, page: impo
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
   await expect(page.getByRole('row', { name: workerName })).toBeVisible({ timeout: 20_000 });
+  await markEveryonePresent(page);
   await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
   await page.getByRole('button', { name: 'Save attendance' }).click();
   await page.getByRole('button', { name: 'Send the week for approval' }).click();

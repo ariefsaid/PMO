@@ -9,6 +9,7 @@ import { AppError } from '@/src/lib/appError';
 const h = vi.hoisted(() => ({
   role: 'Engineer' as string,
   uid: 'fc1',
+  reports: [] as string[],
   roster: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   day: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   awaiting: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
@@ -18,6 +19,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
   useWorkOrderRoster: () => h.roster,
   useAttendanceDay: () => h.day,
   useAwaitingAttendance: () => h.awaiting,
+  useManagedPeople: () => ({ data: h.reports }),
   useCrewWorkers: () => ({ data: [
     { id: 'v1', display_name: 'Vendor One' }, { id: 'v2', display_name: 'Ended Placement' }, { id: 'v3', display_name: 'No Placement' }, { id: 'w2', display_name: 'Budi' },
   ], isPending: false }),
@@ -48,10 +50,16 @@ const people = ['Ana', 'Budi', 'Citra', 'Dewi', 'Eko', 'Fajar'];
 const renderAt = (url = '/crews?view=attendance&wo=wo1&date=2026-11-18') =>
   render(<MemoryRouter initialEntries={[url]}><ToastProvider><AttendanceTick /></ToastProvider></MemoryRouter>);
 
+/** Nobody starts present (OD-R1125-1): the recorder marks each person, as on the screen. */
+const markPresent = async (user: ReturnType<typeof userEvent.setup>, names: string[] = people) => {
+  for (const n of names) await user.selectOptions(screen.getByRole('combobox', { name: new RegExp(`Status for ${n}`) }), 'present');
+};
+
 describe('attendance tick screen (#2528)', () => {
   beforeEach(() => {
     h.role = 'Engineer';
     h.uid = 'fc1';
+    h.reports = [];
     h.roster = {
       data: [{
         crew_id: 'c1', crew_code: 'CR-1', crew_name: 'Crew one', field_controller_id: 'fc1', roles: [], shortfall: 0,
@@ -71,6 +79,7 @@ describe('attendance tick screen (#2528)', () => {
   it('AC-CRW-005 the field controller marks a 6-person crew present for 8 hours, overrides one to 6 and attaches the group photo', async () => {
     const user = userEvent.setup();
     renderAt();
+    await markPresent(user);
     const dewi = screen.getByRole('row', { name: /Dewi/ });
     await user.type(within(dewi).getByRole('textbox', { name: /Hours for Dewi/ }), '6');
     const photo = new File(['x'], 'crew.jpg', { type: 'image/jpeg' });
@@ -89,6 +98,7 @@ describe('attendance tick screen (#2528)', () => {
   it('AC-CRW-005 the crew-wide hours apply to everyone without an override', async () => {
     const user = userEvent.setup();
     renderAt();
+    await markPresent(user, people.filter((n) => n !== 'Eko'));
     const crewHours = screen.getByRole('textbox', { name: 'Hours for the crew' });
     await user.clear(crewHours);
     await user.type(crewHours, '10');
@@ -102,6 +112,7 @@ describe('attendance tick screen (#2528)', () => {
     const user = userEvent.setup();
     ((h.roster.data as Array<{ members: Array<Record<string, unknown>> }>)[0].members[1]).reported_absent = { reason: 'sick', note: 'fever' };
     renderAt();
+    await markPresent(user, ['Ana']);
     expect(screen.getByTestId('reported-absent-w2')).toHaveTextContent('Reported absent: sick — fever');
     await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalled());
@@ -117,23 +128,53 @@ describe('attendance tick screen (#2528)', () => {
     expect(screen.getByText("Only this crew's Foreman or a crew manager ticks this roster.")).toBeInTheDocument();
   });
 
-  it('F4-1 a reader who cannot tick sees only the two who clocked in as present; the other four are "Not recorded", not Present', () => {
+  it('F4-1 a reader who cannot tick sees only the two who clocked in as present; the other four read "Not yet present", not Present', () => {
     h.uid = 'someone-else';
     h.day = { data: [
       { id: 'd1', worker_id: 'w1', work_order_id: 'wo1', crew_id: 'c1', work_date: '2026-11-18', status: 'present', hours: 8, overtime_hours: null, reason: null, source: 'phone' },
       { id: 'd2', worker_id: 'w2', work_order_id: 'wo1', crew_id: 'c1', work_date: '2026-11-18', status: 'present', hours: 8, overtime_hours: null, reason: null, source: 'phone' },
     ], isPending: false, isError: false, refetch: vi.fn() };
     renderAt();
-    expect(screen.getAllByText('Not recorded')).toHaveLength(4);
-    expect(within(screen.getByRole('row', { name: /Ana/ })).queryByText('Not recorded')).toBeNull();
-    expect(within(screen.getByRole('row', { name: /Citra/ })).getByText('Not recorded')).toBeInTheDocument();
+    expect(screen.getAllByText('Not yet present', { selector: 'span' })).toHaveLength(4);
+    expect(within(screen.getByRole('row', { name: /Ana/ })).queryByText('Not yet present', { selector: 'span' })).toBeNull();
+    expect(within(screen.getByRole('row', { name: /Citra/ })).getByText('Not yet present', { selector: 'span' })).toBeInTheDocument();
     expect(within(screen.getByRole('row', { name: /Citra/ })).queryByRole('combobox')).toBeNull();
   });
 
-  it('F4-1 the field controller still starts an unrecorded person as present, to confirm or change', () => {
+  it('OD-R1125-1 the field controller sees an unrecorded person as "Not yet present" and saving sends only who was marked', async () => {
+    const user = userEvent.setup();
     renderAt();
-    expect(screen.queryByText('Not recorded')).toBeNull();
-    expect(within(screen.getByRole('row', { name: /Citra/ })).getByRole('combobox')).toHaveValue('present');
+    expect(within(screen.getByRole('row', { name: /Citra/ })).getByRole('combobox')).toHaveValue('unmarked');
+    expect(within(screen.getByRole('row', { name: /Citra/ })).getByRole('option', { name: 'Not yet present' })).toBeInTheDocument();
+    await markPresent(user, ['Ana', 'Budi']);
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    expect(h.record.mock.calls[0][0].rows.map((r: { worker_id: string; status: string }) => [r.worker_id, r.status])).toEqual([['w1', 'present'], ['w2', 'present']]);
+  });
+
+  it('OD-R1125-1 the manager recorded on one member (not the crew\'s recorder) marks that row only; the other rows stay read-only', async () => {
+    const user = userEvent.setup();
+    h.uid = 'mgr1';
+    h.reports = ['w3'];
+    renderAt();
+    expect(within(screen.getByRole('row', { name: /Citra/ })).getByRole('combobox')).toBeEnabled();
+    for (const n of ['Ana', 'Budi', 'Dewi']) {
+      const row = screen.getByRole('row', { name: new RegExp(n) });
+      expect(within(row).queryByRole('combobox')).toBeNull();
+      expect(within(row).getByText('Not yet present', { selector: 'span' })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: 'Send the week for approval' })).toBeNull();
+    await user.selectOptions(within(screen.getByRole('row', { name: /Citra/ })).getByRole('combobox'), 'absent');
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    expect(h.record.mock.calls[0][0].rows).toEqual([{ worker_id: 'w3', status: 'absent', hours: null, overtime_hours: null, reason: null }]);
+  });
+
+  it('OD-R1125-1 someone who manages nobody on the crew and does not record it gets no control and no save', () => {
+    h.uid = 'stranger';
+    renderAt();
+    expect(screen.queryByRole('combobox', { name: /Status for/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save attendance' })).toBeNull();
   });
 
   it('AC-SD-002 one refused person is named and everyone else is saved', async () => {
@@ -143,6 +184,7 @@ describe('attendance tick screen (#2528)', () => {
       return 1;
     });
     renderAt();
+    await markPresent(user);
     await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     expect(await screen.findByText(/Saved for everyone except: Budi/)).toBeInTheDocument();
     expect(h.record).toHaveBeenCalledTimes(7); // the whole batch, then one per person
@@ -151,6 +193,7 @@ describe('attendance tick screen (#2528)', () => {
   it('#2620 FR-CRW-008 overtime typed for a present person travels with the record; blank means none', async () => {
     const user = userEvent.setup();
     renderAt();
+    await markPresent(user);
     await user.type(within(screen.getByRole('row', { name: /Ana/ })).getByRole('textbox', { name: /Overtime for Ana/ }), '2');
     await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
@@ -268,6 +311,7 @@ describe('attendance tick screen (#2528)', () => {
   it('AC-FOL-008 the foreman adds someone from another crew, who is saved as following this crew', async () => {
     const user = userEvent.setup();
     renderAt();
+    await markPresent(user);
     await user.click(screen.getByRole('combobox', { name: /Add someone from another crew/ }));
     const listed = within(await screen.findByRole('listbox')).getAllByRole('option').map((o) => o.textContent ?? '');
     expect(listed.some((n) => n.includes('Vendor One'))).toBe(true);
@@ -276,6 +320,7 @@ describe('attendance tick screen (#2528)', () => {
     await user.click(await screen.findByRole('option', { name: /Vendor One/ }));
     const row = screen.getByRole('row', { name: /Vendor One/ });
     expect(within(row).getByText('Followed this crew today')).toBeInTheDocument();
+    await user.selectOptions(within(row).getByRole('combobox'), 'present');
     await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
     const { rows } = h.record.mock.calls[0][0];
@@ -291,6 +336,7 @@ describe('attendance tick screen (#2528)', () => {
       members: [{ worker_id: 'w1', display_name: 'Ana', standard_role_id: null, off_rotation: false, followed: true, from_crew_name: 'Home crew' }],
     }] };
     renderAt();
+    await markPresent(user, ['Ana']);
     expect(within(screen.getByRole('row', { name: /Ana/ })).getByText('Followed from Home crew')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));

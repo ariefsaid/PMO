@@ -11,7 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn, visibleToast } from './helpers';
 import { ENGINEER_ID, inDays, need, ORG_ID, serviceClient } from './support/jobJourney';
-import { endCrewRows, seedWorkOrder } from './support/crewJourney';
+import { endCrewRows, seedWorkOrder, markEveryonePresent } from './support/crewJourney';
 
 test.setTimeout(240_000);
 const must = need('JOB-H8');
@@ -38,6 +38,7 @@ test('JOB-H8 HR sees which work order each waiting line of hours belongs to', as
     await page.goto(`/crews?view=attendance&wo=${j.wo.workOrderId}`);
     await expect(page.getByRole('row', { name: j.worker })).toBeVisible({ timeout: 20_000 });
     await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
+    await markEveryonePresent(page);
     await page.getByRole('button', { name: 'Save attendance' }).click();
     await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Send the week for approval' }).click();

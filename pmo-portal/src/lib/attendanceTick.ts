@@ -6,8 +6,11 @@ import type { AttendanceRowInput, AttendanceStatus } from '@/src/lib/db/attendan
  * every one of them on save.
  */
 
+/** 'unmarked' = nobody has recorded this person yet: read "Not yet present", never sent on save (OD-R1125-1). */
+export type TickStatus = AttendanceStatus | 'unmarked';
+
 export interface TickPerson {
-  status: AttendanceStatus;
+  status: TickStatus;
   /** Override hours as typed; blank = the crew default. */
   hours: string;
   overtime: string;
@@ -52,7 +55,7 @@ export function initialTickState(members: TickMember[], existing: TickExisting[]
     const e = held.get(m.worker_id);
     people[m.worker_id] = e
       ? { status: e.status, hours: asText(e.hours), overtime: asText(e.overtime_hours), reason: e.reason ?? '' }
-      : { status: m.off_rotation ? 'off_rotation' : m.reported_absent ? 'absent' : 'present', hours: '', overtime: '', reason: '' };
+      : { status: m.off_rotation ? 'off_rotation' : m.reported_absent ? 'absent' : 'unmarked', hours: '', overtime: '', reason: '' };
   }
   return { defaultHours: '8', order: members.map((m) => m.worker_id), offRotation, people, followers: [] };
 }
@@ -64,7 +67,7 @@ export function addFollower(state: TickState, workerId: string): TickState {
     ...state,
     order: [...state.order, workerId],
     offRotation: { ...state.offRotation, [workerId]: false },
-    people: { ...state.people, [workerId]: { status: 'present', hours: '', overtime: '', reason: '' } },
+    people: { ...state.people, [workerId]: { status: 'unmarked', hours: '', overtime: '', reason: '' } },
     followers: [...state.followers, workerId],
   };
 }
@@ -84,7 +87,7 @@ export function buildTickRows(state: TickState, followedCrewId?: string): { rows
   const crewDefault = parseHours(state.defaultHours);
   for (const id of state.order) {
     const p = state.people[id];
-    if (!p) continue;
+    if (!p || p.status === 'unmarked') continue;   // saving records only what the recorder marked
     const reason = p.reason.trim() || null;
     if (p.status !== 'present') {
       rows.push({ worker_id: id, status: p.status, hours: null, overtime_hours: null, reason,

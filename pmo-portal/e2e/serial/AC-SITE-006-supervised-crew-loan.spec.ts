@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { serviceClient, need, ORG_ID, PM_ID, inDays } from '../support/jobJourney';
 import { siteRole } from '../support/siteRoleJourney';
+import { markEveryonePresent } from '../support/crewJourney';
 const db = serviceClient('AC-SITE-006');
 const must = need('AC-SITE-006');
 test('AC-SITE-006 a supervisor lends between work-order crews controlled by a separate foreman', async ({ page }) => {
@@ -32,7 +33,7 @@ test('AC-SITE-006 a supervisor lends between work-order crews controlled by a se
   await page.goto(`/crews?view=roster&wo=${wo}`);await expect(page.getByText(`${run} Worker`,{exact:true})).toHaveCount(0);
   await page.evaluate(()=>localStorage.clear());await page.context().clearCookies();await foreman.login(page);
   const host=page.getByRole('region', { name: 'My crew today' }).getByText(`${run} Host work`,{exact:true}).locator('..');
-  await host.getByRole('textbox',{name:'Hours for the crew'}).fill('8');await host.getByRole('button',{name:'Save attendance'}).click();
+  await host.getByRole('textbox',{name:'Hours for the crew'}).fill('8');await markEveryonePresent(host);await host.getByRole('button',{name:'Save attendance'}).click();
   await expect.poll(async()=> (await db.from('attendance_days').select('hours').eq('worker_id',worker).eq('work_order_id',hostWo).single()).data?.hours).toBe(8);
   const homeDays=must('home hours',await db.from('attendance_days').select('id').eq('worker_id',worker).eq('work_order_id',wo));expect(homeDays).toHaveLength(0);
   const loan=must('recorded actor',await db.from('crew_loans').select('created_by').eq('worker_id',worker).single()); expect(loan.created_by).toBe(user.id);

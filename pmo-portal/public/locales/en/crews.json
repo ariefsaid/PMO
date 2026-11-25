@@ -125,7 +125,7 @@
     "absent": "Absent",
     "leave": "Leave",
     "offRotation": "Off rotation",
-    "notRecorded": "Not recorded",
+    "notYetPresent": "Not yet present",
     "present": "Present"
   },
   "statusFor": "Status for {{name}}",

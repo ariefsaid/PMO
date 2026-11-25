@@ -10,6 +10,7 @@ import { visibleToast } from '../helpers';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
+import { markEveryonePresent } from '../support/crewJourney';
 
 test.setTimeout(180_000);
 
@@ -77,6 +78,7 @@ test('JOB-H9 HR manager saves daily crew attendance and checks attendance rates 
     await page.goto(`/crews?view=attendance&wo=${workOrderId}&crew=${crewAId}`);
     await expect(page.getByRole('heading', { name: `${codeA} · ${run} Alpha` })).toBeVisible({ timeout: 20_000 });
     await page.getByLabel('Hours for the crew').fill('8');
+    await markEveryonePresent(page);
     await page.getByRole('button', { name: 'Save attendance' }).click();
     await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 20_000 });
 

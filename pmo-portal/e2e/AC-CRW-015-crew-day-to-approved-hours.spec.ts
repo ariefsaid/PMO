@@ -14,6 +14,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, visibleToast } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { markEveryonePresent } from './support/crewJourney';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PM_ID = '00000000-0000-0000-0000-0000000000a2';
@@ -85,6 +86,7 @@ test('AC-CRW-015 a crew\'s day is ticked, the week sent, a supervisor approves, 
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
   await expect(page.getByRole('row', { name: ana.name })).toBeVisible({ timeout: 20_000 });
+  await markEveryonePresent(page);
   await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
   await page.getByRole('textbox', { name: `Hours for ${budi.name}` }).fill('6');
   await page.getByRole('button', { name: 'Save attendance' }).click();

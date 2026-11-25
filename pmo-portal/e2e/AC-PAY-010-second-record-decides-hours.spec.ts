@@ -13,6 +13,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, visibleToast } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { markEveryonePresent } from './support/crewJourney';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PM_ID = '00000000-0000-0000-0000-0000000000a2';
@@ -90,6 +91,7 @@ test('AC-PAY-010 a second record of 5 hours against the foreman\'s 8 is decided 
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
   await expect(page.getByRole('row', { name: ana.name })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('textbox', { name: 'Hours for the crew' }).fill('8');
+  await markEveryonePresent(page);
   await page.getByRole('button', { name: 'Save attendance' }).click();
   await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
   const day = need('attendance day', await admin.from('attendance_days').select('work_date').eq('work_order_id', workOrderId).eq('worker_id', ana.id).single());
