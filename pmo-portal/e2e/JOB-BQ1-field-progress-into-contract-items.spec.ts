@@ -2,8 +2,9 @@
 /**
  * JOB-BQ1 (billing lane): field progress becomes contract items, and daily revenue is quantity × rate.
  * A quantity surveyor starts the day's report, maps the work done onto a contract item with a quantity and sends it;
- * the report carries that line, and the day's revenue for it is quantity × rate (read here by the project's manager,
- * because the money figure is not shown to the quantity surveyor — reported as a gap in docs/private/walk-1124c/lane-hes.md).
+ * a validator (a different person) validates it, and the quantity surveyor then reads the day's revenue, quantity × rate.
+ * Ruled path: the app shows the quantity surveyor the revenue only on a VALIDATED report, so the case's precondition is a
+ * validated report and the journey validates it before the quantity surveyor reads the total.
  */
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
@@ -20,12 +21,12 @@ test('JOB-BQ1 a quantity surveyor maps field progress to a contract item and the
   const svc = serviceClient('JOB-BQ1');
   const run = runId('bq1');
   const qs = await createJobRoleUser(svc, ORG_ID, 'quantity_surveyor');
-  const pm = await createJobRoleUser(svc, ORG_ID, 'project_manager');
+  const validator = await createJobRoleUser(svc, ORG_ID, 'project_control_manager');
   let projectId = '';
   let workOrderId = '';
   try {
     projectId = need('project', await svc.from('projects').insert({
-      org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD', project_manager_id: pm.id,
+      org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD', project_manager_id: validator.id,
     }).select('id').single()).id;
     workOrderId = need('work order', await svc.from('work_orders').insert({
       org_id: ORG_ID, project_id: projectId, title: `${run} pipe run`, status: 'Issued',
@@ -54,9 +55,17 @@ test('JOB-BQ1 a quantity surveyor maps field progress to a contract item and the
     await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'submitted', { timeout: 15_000 });
     await expect(page.getByTestId('dsr-progress')).toContainText('12.5');
 
-    // 4. Daily revenue for the mapped line: 12.5 m × 5 = 62.50, shown on the same report to the project's manager.
+    // The validator (never the author) validates the submitted report.
     await page.context().clearCookies();
-    await pm.signIn(page);
+    await validator.signIn(page);
+    await page.goto(reportUrl);
+    await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'submitted');
+    await page.getByRole('button', { name: 'Validate' }).click();
+    await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'validated', { timeout: 15_000 });
+
+    // 4. The quantity surveyor reads the daily revenue for the mapped line: 12.5 m × 5 = 62.50.
+    await page.context().clearCookies();
+    await qs.signIn(page);
     await page.goto(reportUrl);
     await expect(page.getByTestId('dsr-progress')).toContainText('12.5');
     await expect(page.getByTestId('dsr-total')).toHaveText(/62[.,]50/);
@@ -70,6 +79,6 @@ test('JOB-BQ1 a quantity surveyor maps field progress to a contract item and the
       ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     }
     await qs.remove();
-    await pm.remove();
+    await validator.remove();
   }
 });
