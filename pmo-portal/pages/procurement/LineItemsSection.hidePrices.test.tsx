@@ -16,11 +16,13 @@ describe('AC-009 line items without prices', () => {
   it('shows the Line total column and the estimated total while prices are visible', () => {
     renderSection();
     expect(screen.getAllByText('Line total').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Unit price').length).toBeGreaterThan(0);
   });
   it('drops the Line total column and the estimated total when the server hides prices', () => {
     act(() => setPricesHidden(true));
     renderSection();
     expect(screen.queryByText('Line total')).toBeNull();
+    expect(screen.queryByText('Unit price')).toBeNull();
     expect(screen.queryByText('Estimated total')).toBeNull();
     expect(screen.getByText('MIG welding wire')).toBeInTheDocument();
   });

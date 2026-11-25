@@ -63,7 +63,7 @@ const ALLOWED: Record<string, { re: RegExp; why: string }[]> = {
     // breadcrumb titles; the rail's own items point at /finance/* already.
     { re: /'\/(sales-invoices|incoming-payments|revenue-by-project|financial-statements|reports)': t\(/, why: 'staticNavLabels i18n catalogue keys for legacy breadcrumb titles' },
   ],
-  'pmo-portal/src/components/shell/NotificationBell.tsx': [
+  'pmo-portal/src/components/shell/notificationEntity.ts': [
     // Record-path BASE: entityRoute appends `/${entity.id}` → /sales-invoices/:id, a real route.
     { re: /sales_invoice: '\/sales-invoices'/, why: 'record-path base for notification deep links' },
   ],
