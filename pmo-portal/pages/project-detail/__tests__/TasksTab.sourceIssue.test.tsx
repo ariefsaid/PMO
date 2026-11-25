@@ -134,25 +134,25 @@ beforeEach(() => {
 describe('JOB-F17 the Tasks tab links a task back to the issue it was made from', () => {
   it('renders the issue link inside the #task-<id> anchor of the task that has one', async () => {
     renderTab();
-    const link = await screen.findByRole('link', { name: /source issue/i });
+    const link = await screen.findByRole('link', { name: 'From issue' });
     expect(link).toHaveAttribute('href', '/incidents/issue-9');
     const anchor = document.getElementById('task-task-aaa');
     expect(anchor).not.toBeNull();
-    expect(within(anchor as HTMLElement).getByRole('link', { name: /source issue/i })).toBe(link);
+    expect(within(anchor as HTMLElement).getByRole('link', { name: 'From issue' })).toBe(link);
   });
 
   it('a task that was not made from an issue carries no issue link', async () => {
     renderTab();
-    await screen.findByRole('link', { name: /source issue/i });
+    await screen.findByRole('link', { name: 'From issue' });
     const anchor = document.getElementById('task-task-bbb');
     expect(anchor).not.toBeNull();
-    expect(within(anchor as HTMLElement).queryByRole('link', { name: /source issue/i })).toBeNull();
+    expect(within(anchor as HTMLElement).queryByRole('link', { name: 'From issue' })).toBeNull();
   });
 
   it('opening the issue navigates to it and does not open the task drawer', async () => {
     const user = userEvent.setup();
     renderTab();
-    const link = await screen.findByRole('link', { name: /source issue/i });
+    const link = await screen.findByRole('link', { name: 'From issue' });
     await user.click(link);
     const url = screen.getByTestId('url-probe').textContent ?? '';
     expect(url).toContain('/incidents/issue-9');
