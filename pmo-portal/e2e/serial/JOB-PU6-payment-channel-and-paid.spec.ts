@@ -113,6 +113,10 @@ test('JOB-PU6 the officer sets the channel, records the payment, and the stages 
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Paid', { timeout: 20_000 });
   // The pay stage counts the bill and the payment together, so the recorded payment takes it from one record to two.
   await expect(stage(page, 'Pay')).toContainText('2 invoice', { timeout: 20_000 });
+  // The checklist reads sourced, received and paid as done states, not only as counts.
+  for (const name of ['Order', 'Receive', 'Pay'] as const) {
+    await expect(stage(page, name).locator('span').first()).toHaveClass(/text-success-text/);
+  }
   await expect(page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Payment', exact: true }) }).first()).toBeVisible();
 
   // Received only after the receipt: the sibling purchase holds an order and a bill but no receipt.
@@ -120,4 +124,15 @@ test('JOB-PU6 the officer sets the channel, records the payment, and the stages 
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(stage(page, 'Order')).toContainText('1 order');
   await expect(stage(page, 'Receive')).toContainText('Not recorded');
+  await expect(stage(page, 'Receive').locator('span').first()).not.toHaveClass(/text-success-text/);
+
+  // The receipt arrives on this same purchase (the storekeeper's act, set up by the service client): Receive then reads done.
+  ok('late receipt', await serviceClient('JOB-PU6').from('procurement_receipts').insert({
+    org_id: ORG_ID, procurement_id: unrecorded.id, po_id: unrecorded.poId, gr_number: `GR-LATE-${Date.now()}`,
+    receipt_date: orgToday(), status: 'Complete',
+  }));
+  await page.reload();
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
+  await expect(stage(page, 'Receive')).toContainText('1 receipt');
+  await expect(stage(page, 'Receive').locator('span').first()).toHaveClass(/text-success-text/);
 });
