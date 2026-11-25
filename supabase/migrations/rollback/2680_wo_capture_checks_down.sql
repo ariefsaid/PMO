@@ -1,5 +1,6 @@
 -- Rollback of 2680: no standard checks copied onto new Drafts and no cancel reason. Tasks already copied stay (they are ordinary tasks).
 drop function if exists public.cancel_work_order(uuid, text);
+update public.record_history_config set captured = captured - 'cancel_reason' where table_name = 'work_orders';
 alter table public.work_orders drop column if exists cancel_reason;
 drop trigger if exists work_orders_zz_copy_checks on public.work_orders;
 drop function if exists public.copy_work_order_checks();

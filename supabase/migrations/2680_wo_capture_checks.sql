@@ -137,6 +137,9 @@ grant execute on function public.set_work_order_check_template(jsonb) to authent
 
 alter table public.work_orders add column cancel_reason text
   check (cancel_reason is null or char_length(cancel_reason) between 3 and 500);
+-- Change-history registry (record_changes_catalog_gate): the reason is captured row history.
+update public.record_history_config set captured = captured || '{"cancel_reason":"text"}'::jsonb
+ where table_name = 'work_orders' and not (captured ? 'cancel_reason');
 
 create function public.cancel_work_order(p_id uuid, p_reason text) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
