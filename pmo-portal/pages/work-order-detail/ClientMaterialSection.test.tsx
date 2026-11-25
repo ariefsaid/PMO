@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import i18n from '@/src/lib/i18n';
 import { can } from '@/src/auth/policy';
+import workOrdersId from '@/public/locales/id/workOrders.json';
 
 /**
  * #2585 the Client material section: AC-CSR-001 figures (hand calculation), AC-CSR-002 two units never added, AC-CSR-003
@@ -195,10 +196,11 @@ describe('ClientMaterialSection', () => {
   });
 
   for (const [language, sentence] of [
-    ['en', 'This item needs a quality check. Receive it through Stock > Receive goods, where the check is recorded.'],
-    ['id', 'Barang ini perlu pemeriksaan mutu. Terimalah lewat Stok > Terima barang, tempat pemeriksaan dicatat.'],
+    ['en', 'This item needs a quality check, so it cannot be recorded as a pickup.'],
+    ['id', 'Barang ini perlu pemeriksaan mutu, sehingga tidak dapat dicatat sebagai pengambilan.'],
   ] as const) {
-    it(`D4 a pickup of an item that needs a quality check says where to receive it (${language})`, async () => {
+    it(`D4 a pickup of an item that needs a quality check says it cannot be recorded as a pickup (${language})`, async () => {
+      i18n.addResourceBundle('id', 'workOrders', workOrdersId, true, true);
       await i18n.changeLanguage(language);
       h.role = 'Engineer'; h.realRole = 'Engineer'; h.userId = 'u-keeper';
       const fn = (h.mutations as { recordPickup: { mutateAsync: ReturnType<typeof vi.fn> } }).recordPickup.mutateAsync;
@@ -206,7 +208,7 @@ describe('ClientMaterialSection', () => {
       renderIt();
       await userEvent.click(screen.getByRole('button', { name: /Record pickup|Catat pengambilan/ }));
       const dialog = await screen.findByRole('dialog');
-      await userEvent.type(within(dialog).getByLabelText(/^(Quantity collected|Jumlah diambil)/), '20');
+      await userEvent.type(within(dialog).getByLabelText(/^(Quantity collected|Kuantitas diambil)/), '20');
       await userEvent.click(within(dialog).getByRole('button', { name: /Record pickup|Catat pengambilan/ }));
       expect(await within(dialog).findByText(sentence)).toBeTruthy();
     });

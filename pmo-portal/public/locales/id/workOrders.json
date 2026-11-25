@@ -263,6 +263,7 @@
       "dateHelper": "Kosongkan untuk hari ini.",
       "location": "Diterima di",
       "locationPlaceholder": "Pilih lokasi",
+      "needsQualityCheck": "Barang ini perlu pemeriksaan mutu, sehingga tidak dapat dicatat sebagai pengambilan.",
       "locationRequired": "Pilih lokasi penerimaan material.",
       "paper": "Referensi surat jalan",
       "slipFailed": "Pengambilan tercatat, tetapi foto surat jalan belum tersimpan. Tambahkan di Lampiran pada tanda terima.",

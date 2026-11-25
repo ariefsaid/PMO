@@ -17,7 +17,8 @@ insert into stock_items(id,org_id,code,name,unit_id,tag_id,needs_quality_check) 
  (pg_temp.q(40),pg_temp.q(1),'PLAIN','Unflagged goods',pg_temp.q(30),null,false),
  (pg_temp.q(41),pg_temp.q(1),'FLAG','Flagged goods',pg_temp.q(30),null,true),
  (pg_temp.q(42),pg_temp.q(1),'CLIENT','Flagged client goods',pg_temp.q(30),pg_temp.q(32),true),
- (pg_temp.q(43),pg_temp.q(2),'OTHER','Other organisation goods',pg_temp.q(31),null,true);
+ (pg_temp.q(43),pg_temp.q(2),'OTHER','Other organisation goods',pg_temp.q(31),null,true),
+ (pg_temp.q(44),pg_temp.q(1),'NOTE','Goods for the note rules',pg_temp.q(30),null,false);
 insert into stock_warehouses(id,org_id,code,name,kind) values
  (pg_temp.q(50),pg_temp.q(1),'WH','Warehouse','central'),(pg_temp.q(51),pg_temp.q(2),'WH2','Other warehouse','central');
 insert into stock_warehouse_keepers(org_id,warehouse_id,user_id) values
@@ -41,6 +42,11 @@ select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,null)$$),'P0001:STK_QUAL
 select is(pg_temp.on_hand(41),0::numeric,'D4 the refused receipt put nothing on hand');
 select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,11,'too many')$$),'P0001:STK_QUALITY_FIGURES','D4 rejecting more than was received is refused');
 select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,2,null)$$),'P0001:STK_QUALITY_FIGURES','D4 a rejection with no note is refused');
+select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,2,repeat('x',501))$$),'P0001:STK_QUALITY_FIGURES','D4 a rejection note of 501 characters is refused');
+select is(pg_temp.err(11,$$select pg_temp.receipt(44,3,1,repeat('x',500))$$),'ok','D4 a rejection note of 500 characters is accepted');
+-- shipped rule: a note given with nothing rejected is accepted and not kept (the note belongs to a rejection)
+select is(pg_temp.err(11,$$select pg_temp.receipt(44,2,0,'nothing was rejected')$$),'ok','D4 a note given with nothing rejected is accepted');
+select is((select count(*)::int from stock_document_lines where item_id=pg_temp.q(44) and qty_rejected=0 and reject_note is not null),0,'D4 a note given with nothing rejected is not stored');
 select pg_temp.actor(11);
 set local role authenticated;
 select set_config('q.doc',pg_temp.receipt(41,10,2,'cracked')::text,true);

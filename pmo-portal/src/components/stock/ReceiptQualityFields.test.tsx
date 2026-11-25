@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import React, { useState } from 'react';
 import i18next from 'i18next';
 import stockEn from '@/public/locales/en/stock.json';
+import refusalsEn from '@/public/locales/en/refusals.json';
+import refusalsId from '@/public/locales/id/refusals.json';
 import { ReceiptQualityFields } from './ReceiptQualityFields';
 import { NO_QUALITY, qualityProblem, qualityWire, type QualityValue } from '@/src/lib/receiptQuality';
 
@@ -47,5 +49,15 @@ describe('ReceiptQualityFields', () => {
   it('says the two must add up when told so', () => {
     render(<Harness problem="add" />);
     expect(screen.getByLabelText(/^Rejected/)).toHaveAccessibleDescription('Passed and rejected must add up to the quantity received.');
+  });
+});
+
+describe('the receipt gate sentence', () => {
+  it('says what to record and names no screen, in both languages', () => {
+    for (const sentence of [refusalsEn.STK_QUALITY_RECEIPT, refusalsId.STK_QUALITY_RECEIPT]) {
+      expect(sentence).not.toMatch(/>/);
+      expect(sentence).not.toMatch(/Stock|Stok/);
+    }
+    expect(refusalsEn.STK_QUALITY_RECEIPT).toMatch(/how many passed and how many were rejected/);
   });
 });
