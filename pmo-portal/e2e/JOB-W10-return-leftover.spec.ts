@@ -39,6 +39,8 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
     const issued = await admin.rpc('create_stock_document', { p_header: { kind: 'issue', warehouse_id: site.id, project_id: SEED_PROJECT_ID, work_order_id: workOrderId }, p_lines: [{ item_id: item.id, quantity: '4', boq_item_id: work.id }], p_post: true });
     if (issued.error) throw issued.error;
     docIds.push(issued.data as string);
+    // The work order is named by the cost attribution (as the issue form does right after it saves), not by the document header.
+    ok('issue attribution', await admin.rpc('set_cost_attribution', { p_source: 'stock_document', p_ids: [issued.data], p_work_order_id: workOrderId, p_discipline_id: null }));
 
     // 0. The work order's own stock balance, before the return: 4 issued to it.
     const woBalance = async () => {

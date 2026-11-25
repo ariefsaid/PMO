@@ -3,6 +3,7 @@
  *  coordinator opens the record and reads both names with their times. */
 import { test, expect } from '@playwright/test';
 import { ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
+import { visibleToast } from '../helpers';
 import { roleJobUser } from '../support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 import { chooseItem } from '../support/jobStock';
@@ -59,7 +60,7 @@ test('JOB-W8 the material coordinator reads the sender and the receiver, each wi
     await page.goto(`/stock/transfers/${transferId}`);
     await page.getByLabel('Counted').fill('3');
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
-    await expect(page.getByText('Receipt recorded')).toBeVisible({ timeout: 20_000 });
+    await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 
     // 3. Goal: the material coordinator opens the record and reads both names with their times.
     await coordinator.signIn(page);

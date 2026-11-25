@@ -37,11 +37,15 @@ test('JOB-F20 the material coordinator sends pipe to the coating vendor and back
     await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${vendor.code} - ${vendor.name}` });
     await expect(page.getByRole('row', { name: new RegExp(item.code) }).getByRole('cell', { name: /^20\s+\S+$/ })).toHaveCount(0);
     // And the zero is shown: with zero balances listed, the vendor holds 0 of the item.
-    await page.getByRole('checkbox', { name: 'Show zero balances' }).check();
+    const showZero = page.getByRole('checkbox', { name: 'Show zero balances' });
+    await showZero.click(); // the control settles its state after the click, so assert it rather than let check() judge it at once
+    await expect(showZero).toBeChecked();
     await expect(page.getByRole('row', { name: new RegExp(item.code) }).getByRole('cell', { name: /^0\s+\S+$/ })).toBeVisible({ timeout: 20_000 });
   } finally {
     // The keeper rows an Admin assigned point at the coordinator's profile; remove them before it goes.
-    sqlAsOwner(`delete from stock_warehouse_keepers where user_id = '${coordinator.id}';`);
+    // Its two transfers carry the coordinator as author, so they go first (receipt ledger legs stay: the ledger is append-only by design).
+    const own = `select id from stock_documents where created_by = '${coordinator.id}'`;
+    sqlAsOwner(`delete from stock_ledger where document_id in (${own}); delete from stock_document_lines where document_id in (${own}); delete from stock_documents where created_by = '${coordinator.id}'; delete from stock_warehouse_keepers where user_id = '${coordinator.id}';`);
     await coordinator.cleanup();
   }
 });

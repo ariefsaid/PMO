@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
-import { keeperOf, makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, SEED_PROJECT_ID, userClient } from './support/stockFixture';
+import { keeperOf, makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, SEED_PROJECT_ID, SEED_PROJECT_NAME, userClient } from './support/stockFixture';
 import { chooseItem, chooseWorkOrder, label } from './support/jobStock';
 
 test.setTimeout(240_000);
@@ -63,7 +63,7 @@ test('JOB-W5 material coordinator moves stock to one staging area and only that 
     // 3. The field reports 20 installed from the staging area onto the work order.
     await page.goto('/stock/new/issue');
     await page.getByLabel(/^Warehouse/).selectOption({ label: label(stagingA) });
-    await page.getByLabel(/^Project/).selectOption({ index: 1 });
+    await page.getByLabel(/^Project/).selectOption({ label: SEED_PROJECT_NAME });
     await page.getByLabel(/^Work item/).selectOption({ label: `${work.item_code} - ${work.description}` });
     await chooseWorkOrder(page, number);
     await chooseItem(page, item.code);

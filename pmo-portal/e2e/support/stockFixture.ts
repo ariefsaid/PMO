@@ -9,7 +9,11 @@ export const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
 export const SEED_PROJECT_ID = '40000000-0000-0000-0000-000000000013';
 export const SEED_PROJECT_NAME = 'Seabridge Terminal Delivery';
 
+// scripts/e2e-local.sh already exports these; fall back to the CLI only when run another way (concurrent `supabase status` calls fail under load).
+const FROM_RUN_ENV: Record<string, string | undefined> = { API_URL: process.env.SUPABASE_URL, ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY };
 function readSupabaseEnv(name: string): string {
+  const exported = FROM_RUN_ENV[name];
+  if (exported) return exported;
   const output = execSync('supabase status -o env', { encoding: 'utf8' });
   const match = output.match(new RegExp(`^${name}="([^"]+)"$`, 'm'));
   if (!match) throw new Error(`Missing ${name} from supabase status -o env`);
