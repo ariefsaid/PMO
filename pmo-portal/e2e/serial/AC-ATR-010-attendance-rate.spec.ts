@@ -8,13 +8,14 @@
  * records the database holds — no separate number anyone typed.
  *
  * Isolation: unique project, crew, people and work order per run; the organisation's previous target is restored in
- * afterEach, which is why this spec is serial. Attendance is recorded for today, so the default month period always
+ * afterEach, which is why this spec is serial. Attendance is recorded for the organisation's today, so the default month period always
  * contains it.
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from './../helpers';
+import { orgToday } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -26,9 +27,6 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 );
 
 test.setTimeout(180_000);
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 let admin: SupabaseClient | undefined;
 let run = '';
@@ -51,7 +49,7 @@ test.beforeEach(async () => {
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   run = `E2E-ATR-${Date.now()}`;
   crewCode = `ATR-${String(Date.now()).slice(-10)}`;
-  const from = new Date(); // placed and rostered from today: the default month period then holds exactly the one rostered day below
+  const from = orgToday(); // the organisation's day (the screen reads it, not the runner's): placed and rostered from today: the default month period then holds exactly the one rostered day below
 
   const org = need('target read', await admin.from('organizations').select('attendance_target_rate').eq('id', ORG_ID).single());
   previousTarget = org.attendance_target_rate === null ? null : Number(org.attendance_target_rate);
@@ -71,14 +69,14 @@ test.beforeEach(async () => {
   for (const name of [`${run} Ana`, `${run} Budi`, `${run} Citra`]) {
     const id = need(name, await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', name }).select('id').single()).id;
     need(`${name} placement`, await admin.from('crew_members')
-      .insert({ org_id: ORG_ID, crew_id: crewId, worker_id: id, valid_from: iso(from) }).select('id').single());
+      .insert({ org_id: ORG_ID, crew_id: crewId, worker_id: id, valid_from: from }).select('id').single());
     people.push({ id, name });
   }
   need('roster', await admin.from('work_order_crews')
-    .insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: iso(from) }).select('id').single());
+    .insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from }).select('id').single());
 
   const [ana, budi] = people;
-  const today = iso(new Date());
+  const today = from;
   need('present', await admin.from('attendance_days').insert({
     org_id: ORG_ID, worker_id: ana.id, work_order_id: workOrderId, crew_id: crewId, work_date: today,
     status: 'present', hours: 8, source: 'roster_tick',
