@@ -36,7 +36,7 @@ test('AC-SCH-013 Project Control Manager creates and toggles a scheduled report 
     await pcm.signIn(page);
     await page.goto('/administration/scheduled-reports');
 
-    await expect(page.getByRole('heading', { name: 'Scheduled reports' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Scheduled reports', level: 1 })).toBeVisible();
     await expect(page.getByRole('switch', { name: /Project Control Managers can schedule/i })).toHaveCount(0);
 
     await expect(page.getByText('No scheduled reports yet.')).toBeVisible();
