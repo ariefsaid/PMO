@@ -4,6 +4,7 @@
  *  the one confirmed with the paper does not. */
 import { test, expect } from '@playwright/test';
 import { need, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
+import { visibleToast } from '../helpers';
 import { roleJobUser } from '../support/roleJobUser';
 import { keeperOf, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 import { chooseItem } from '../support/jobStock';
@@ -78,7 +79,7 @@ test('JOB-W6 the receiver is refused without the signed paper, and later the one
     await page.reload();
     await page.getByLabel('Counted').fill('2');
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
-    await expect(page.getByText('Receipt recorded')).toBeVisible({ timeout: 20_000 });
+    await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('region', { name: 'Summary' })).toContainText('Proof outstanding');
 
     // 3. …and a second delivery, confirmed with the paper, is complete.
@@ -91,7 +92,7 @@ test('JOB-W6 the receiver is refused without the signed paper, and later the one
     await page.getByLabel('Kind of proof').selectOption({ label: 'Photo of the signed paper' });
     await page.getByLabel('Photo of the signed paper').setInputFiles(photo('signed.jpg'));
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
-    await expect(page.getByText('Receipt recorded')).toBeVisible({ timeout: 20_000 });
+    await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('region', { name: 'Summary' })).toContainText('Proof complete');
 
     // 4. Goal: the stock home lists exactly the movement awaiting paper, never the complete one.

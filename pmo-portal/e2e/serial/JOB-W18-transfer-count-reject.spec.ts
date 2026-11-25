@@ -3,6 +3,7 @@
  *  and the transfer shows the sent, counted and rejected quantities. */
 import { test, expect } from '@playwright/test';
 import { ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
+import { visibleToast } from '../helpers';
 import { roleJobUser } from '../support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 import { chooseItem } from '../support/jobStock';
@@ -58,7 +59,7 @@ test('JOB-W18 the receiver counts less and rejects part, and the transfer shows 
     await page.getByLabel('Accepted').fill('6');
     await page.getByLabel('Why is some rejected?').fill('Two were crushed in the truck');
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
-    await expect(page.getByText('Receipt recorded')).toBeVisible({ timeout: 20_000 });
+    await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 
     // 3. Goal: the transfer shows the sent, counted and rejected quantities.
     const line = page.locator('li').filter({ hasText: item.code }).last();

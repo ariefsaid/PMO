@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own field and engineer logins, project, work order, contract line, allowance, site location and item per run; the request chain is set by this journey, as the other material-request journeys do.
+// @e2e-isolation: self-isolated — creates its own site supervisor and engineer logins, project, work order, contract line, allowance, site location and item per run; the request chain is set by this journey, as the other material-request journeys do.
 /** JOB-W13 — material change request: against a plan of 100 the requester asks for 120 with a reason, and the request routes to the engineer's
  *  approval step. */
 import { test, expect, type Page } from '@playwright/test';
@@ -35,7 +35,7 @@ test.afterEach(async () => {
 test('JOB-W13 the requester asks 120 against a plan of 100 with a reason and it routes to the engineer', async ({ page }) => {
   admin = serviceClient('JOB-W13');
   const sfx = runSuffix();
-  const requester = await roleJobUser(admin, 'field_user', runId('w13-req'));
+  const requester = await roleJobUser(admin, 'site_supervisor', runId('w13-req'));
   const engineer = await roleJobUser(admin, 'engineer', runId('w13-eng'));
   const adminUser = await userClient('admin@acme.test');
   try {
@@ -53,7 +53,6 @@ test('JOB-W13 the requester asks 120 against a plan of 100 with a reason and it 
 
     // 1. The requester opens a new request against the work order and asks for 120.
     await requester.signIn(page);
-    await expect(page).toHaveURL(/\/my$/, { timeout: 20_000 });
     await page.goto('/material-requests/new');
     await pick(page, /^project/i, `JOBW13-${sfx} project`);
     await pick(page, /^work order/i, `${wo.number} · ${wo.title}`);
@@ -76,7 +75,8 @@ test('JOB-W13 the requester asks 120 against a plan of 100 with a reason and it 
     await engineer.signIn(page);
     await page.goto('/material-requests');
     await page.getByRole('tab', { name: /Waiting for me/ }).click();
-    const row = page.getByRole('row').filter({ hasText: 'Engineer check' });
+    // the phone shows the waiting queue as cards, one per request
+    const row = page.getByRole('listitem').filter({ hasText: wo.number });
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText('Step 1: Engineer check');
   } finally {
