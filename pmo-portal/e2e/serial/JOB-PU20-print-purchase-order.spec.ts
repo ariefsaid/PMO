@@ -1,14 +1,15 @@
 // @e2e-isolation: serial — turning purchase-order printing on is an organisation-wide setting (one row for the whole org); the spec restores its previous value in finally.
 /**
- * JOB-PU20 — with printing turned on by an Admin, the Buyer opens an approved purchase order, presses Print, and the
+ * JOB-PU20 — with printing turned on by an Admin, the Buyer (granted ordering by an Admin) opens an approved purchase order, presses Print, and the
  * printed page carries the order's lines. Goal oracle: the print view shows this order's number and each line's item,
  * quantity and rate, not an empty page.
  */
 import { randomUUID } from 'node:crypto';
-import { test, expect } from '@playwright/test';
-import { ORG_ID, need, ok, runId, serviceClient, PM_ID } from '../support/jobFixtures';
+import { expect } from '@playwright/test';
+import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner, PM_ID } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 import { userClient } from '../support/stockFixture';
+import { buyerTest as test } from '../support/buyerOrdering';
 
 test.setTimeout(180_000);
 
@@ -82,7 +83,8 @@ test('JOB-PU20 the Buyer prints an approved purchase order with its lines', asyn
         p_authorised_collectors: printedBefore.authorised_collectors ?? [],
       });
     }
-    ok('order line cleanup', await svc.from('purchase_order_lines').delete().eq('po_id', poId));
+    // The line guard refuses a direct delete by design, so the lines of this run's own order go as owner.
+    if (/^[0-9a-f-]{36}$/.test(poId)) sqlAsOwner(`delete from public.purchase_order_lines where po_id = '${poId}';`);
     ok('order cleanup', await svc.from('purchase_orders').delete().eq('id', poId));
     ok('purchase cleanup', await svc.from('procurements').delete().eq('id', purchaseId));
     ok('contract item cleanup', await svc.from('boq_items').delete().eq('id', itemId));

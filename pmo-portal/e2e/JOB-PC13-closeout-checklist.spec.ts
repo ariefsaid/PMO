@@ -23,9 +23,10 @@ test('JOB-PC13 a project control manager marks the close-out certificates done a
     const wo = fx.workOrders[0];
     const today = new Date().toISOString().slice(0, 10);
 
+    // As an Admin would set the checklist: both items name the project control manager as their owner role.
     ok('close-out items', await svc.from('work_order_closeout_items').insert([
-      { org_id: ORG_ID, work_order_id: woId, project_id: projectId, position: 1, name: `${run} completion certificate`, required: true, started_on: today },
-      { org_id: ORG_ID, work_order_id: woId, project_id: projectId, position: 2, name: `${run} final quantity certificate`, required: true },
+      { org_id: ORG_ID, work_order_id: woId, project_id: projectId, position: 1, name: `${run} completion certificate`, required: true, started_on: today, owner_job_role: 'project_control_manager' },
+      { org_id: ORG_ID, work_order_id: woId, project_id: projectId, position: 2, name: `${run} final quantity certificate`, required: true, owner_job_role: 'project_control_manager' },
     ]));
     const documentId = crypto.randomUUID();
     ok('approved document', await svc.from('project_documents').insert({
