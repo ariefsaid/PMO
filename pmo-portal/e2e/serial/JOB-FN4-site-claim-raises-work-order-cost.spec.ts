@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own client project, Active budget, named approver, work order, discipline and claim, and deletes them afterwards.
+// @e2e-isolation: serial — disconnects the seed organisation's accounting binding for the run (org-wide state other specs must see unchanged) and restores it in afterAll; also creates and deletes its own project, budget, approver, work order, discipline and claim.
 /**
  * JOB-FN4 — a Finance Officer files a one-million-rupiah expense claim naming a work order and a discipline; the
  * Finance Manager approves it; the work order's material/expense cost and that discipline's cost each rise by
@@ -6,10 +6,16 @@
  */
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
-import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
-import { roleJobUser } from './support/roleJobUser';
+import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
+import { roleJobUser } from '../support/roleJobUser';
+import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
 
 test.setTimeout(180_000);
+
+// An organisation with no accounting system: an approved claim counts at once (with one connected it counts once posted).
+let noErp: NoErpHandle | undefined;
+test.beforeAll(async () => { noErp = await disconnectSeedOrgErp(); });
+test.afterAll(async () => { await noErp?.restore(); });
 
 test('JOB-FN4 an approved one-million site claim raises its work order and discipline cost by one million', async ({ page }) => {
   const svc = serviceClient('JOB-FN4');

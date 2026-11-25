@@ -68,6 +68,15 @@ test('JOB-F6 a worker on loan today serves the host crew\'s work order and its h
   await page.getByRole('button', { name: 'Save attendance' }).click();
   await expect(visibleToast(page, 'Attendance saved')).toBeVisible({ timeout: 15_000 });
 
+  // On screen: reload the host crew's attendance, the 8 hours are there; the own crew's work order shows no worker and no hours.
+  await page.goto(`/crews?view=attendance&wo=${woB.workOrderId}`);
+  await expect(page.getByRole('row', { name: new RegExp(workerName) })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('textbox', { name: `Hours for ${workerName}` })).toHaveValue('8', { timeout: 20_000 });
+  await page.goto(`/crews?view=attendance&wo=${woA.workOrderId}`);
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('row', { name: new RegExp(workerName) })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: `Hours for ${workerName}` })).toHaveCount(0);
+
   // Goal: the hours are recorded against the host crew's work order, and the own crew's work order has none of them.
   const host = must('host attendance', await db.from('attendance_days').select('worker_id, hours').eq('work_order_id', woB.workOrderId).eq('worker_id', workerId));
   expect(host).toHaveLength(1);

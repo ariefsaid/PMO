@@ -94,9 +94,17 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
     await expect(stockRow.getByRole('cell').nth(1)).toHaveText('12');
     await expect(stockRow.getByRole('cell').nth(2)).toHaveText(amount('300'));
 
-    // The running work order itself opens from the same record.
+    // The running work order: its page shows the progress to date and the billed value that were loaded.
     await page.goto(`/work-orders/${wo.id}`);
     await expect(page.getByRole('main')).toContainText(`${run} running scope`, { timeout: 30_000 });
+    await expect(page.getByTestId(`scope-line-${line.id}`)).toContainText('40 of 100 m3', { timeout: 30_000 });
+    await expect(page.getByTestId('billing-invoiced')).toContainText(amount('750'), { timeout: 30_000 });
+
+    // Stock → Balances: the counted quantity of the item in the warehouse.
+    await page.goto('/stock');
+    const onHand = page.getByRole('row').filter({ hasText: item.code });
+    await expect(onHand.first()).toBeVisible({ timeout: 30_000 });
+    await expect(onHand.first()).toContainText('12');
   } finally {
     sqlAsOwner(`delete from public.opening_balance_lines where org_id = '${org.id}'; delete from public.opening_balances where org_id = '${org.id}';`);
     removeJobOrganization(org.id);

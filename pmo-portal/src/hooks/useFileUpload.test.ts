@@ -248,6 +248,16 @@ describe('useFileUpload', () => {
       expect(repo.confirmUpload).not.toHaveBeenCalled();
     });
 
+    it('a Microsoft upload also refreshes the linked folder panel (its folder tree and file list)', async () => {
+      msUpload.mockResolvedValue(REF);
+      const { Wrapper, qc } = makeWrapper();
+      const spy = vi.spyOn(qc, 'invalidateQueries');
+      const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+      await act(async () => { await result.current.upload.mutateAsync({ docId: 'doc-1', file: file(), destination: 'microsoft' }); });
+      expect(spy).toHaveBeenCalledWith({ queryKey: ['linked-folder-tree'] });
+      expect(spy).toHaveBeenCalledWith({ queryKey: ['linked-folder-files'] });
+    });
+
     it('AC-007: a replace action (via the shared mutation) removes the old private object only AFTER the attach landed', async () => {
       const order: string[] = [];
       msUpload.mockResolvedValue(REF);

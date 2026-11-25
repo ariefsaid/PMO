@@ -8,6 +8,7 @@
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
+import { expectOnHand } from '../support/stockUi';
 import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 
 test.setTimeout(240_000);
@@ -31,6 +32,9 @@ test('JOB-F21 the project administrator enters consumables on the daily report a
   let workOrderId = '';
   let warehouseId = '';
   let itemId = '';
+  let site!: Awaited<ReturnType<typeof makeWarehouse>>;
+  let item!: Awaited<ReturnType<typeof makeItem>>;
+  let doc!: { id: string; work_order_id: unknown; warehouse_id: unknown };
   try {
     const org = need('org setting read', await svc.from('organizations').select('dsr_stock_issue, dsr_stock_issue_items').eq('id', ORG_ID).single());
     issueBefore = (org.dsr_stock_issue as boolean | null) ?? null; scopeBefore = (org.dsr_stock_issue_items as string | null) ?? null;
@@ -40,7 +44,7 @@ test('JOB-F21 the project administrator enters consumables on the daily report a
     projectId = need('project', await svc.from('projects').insert({
       org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD', project_manager_id: pm.id,
     }).select('id').single()).id;
-    const site = await makeWarehouse(admin, sfx, 'F21', 'site', projectId);
+    site = await makeWarehouse(admin, sfx, 'F21', 'site', projectId);
     warehouseId = site.id;
     workOrderId = need('work order', await svc.from('work_orders').insert({
       org_id: ORG_ID, project_id: projectId, title: `${run} pipe run`, status: 'Issued',
@@ -51,7 +55,7 @@ test('JOB-F21 the project administrator enters consumables on the daily report a
       org_id: ORG_ID, project_id: projectId, item_code: `W-${sfx}`, description: 'Weld joints', unit: 'm', quantity: 100, rate: 5,
     }).select('id').single());
     ok('allocation', await svc.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: boq.id, quantity: 100 }));
-    const item = await makeItem(admin, sfx, 'CONS');
+    item = await makeItem(admin, sfx, 'CONS');
     itemId = item.id;
     ok('consumable flag', await svc.from('stock_items').update({ consumable: true }).eq('id', item.id));
     await postReceive(admin, site.id, item.id, '10');
@@ -91,7 +95,7 @@ test('JOB-F21 the project administrator enters consumables on the daily report a
     await expect(posted).toContainText('Issued to stock:');
     const issueNumber = /Issued to stock: (\S+)/.exec((await posted.textContent()) ?? '')?.[1] ?? '';
     expect(issueNumber).not.toBe('');
-    const doc = need('stock document', await svc.from('stock_documents').select('id, work_order_id, warehouse_id').eq('number', issueNumber).single());
+    doc = need('stock document', await svc.from('stock_documents').select('id, work_order_id, warehouse_id').eq('number', issueNumber).single());
     expect(doc.work_order_id).toBe(workOrderId);
     expect(doc.warehouse_id).toBe(warehouseId);
     // The site store now holds 8 of the 10 (an append-only ledger line of -2).
@@ -101,6 +105,13 @@ test('JOB-F21 the project administrator enters consumables on the daily report a
     // The report still shows the posting after a reload.
     await page.goto(reportUrl);
     await expect(page.getByTestId('dsr-stock-posted')).toContainText(issueNumber, { timeout: 20_000 });
+
+    // On screen: the issue document names the work order and the item, and the site store's on hand fell from 10 to 8.
+    await page.goto(`/stock/documents/${doc.id}`);
+    await expect(page.getByRole('heading', { name: new RegExp(issueNumber) })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('main')).toContainText(`${run} pipe run`);
+    await expect(page.getByRole('main')).toContainText(item.code);
+    await expectOnHand(page, site, item.code, '8');
   } finally {
     if (stockTouched) ok('org setting restore', await svc.from('organizations').update({ dsr_stock_issue: issueBefore, dsr_stock_issue_items: scopeBefore }).eq('id', ORG_ID));
     if (workOrderId) {
