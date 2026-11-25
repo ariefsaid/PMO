@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -7,7 +8,8 @@ import {
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { useClaimBillingTrace } from '@/src/hooks/useBillingStages';
+import { claimBillingTraceKey } from '@/src/hooks/useBillingStages';
+import { queryClient as fallbackQueryClient } from '@/src/lib/queryClient';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, formatCurrency, formatDay, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, milli, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
@@ -164,8 +166,18 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // #2893: a deep-linked claim (?open=<id>&openType=billingClaim) starts its billing-stage read HERE, in
   // parallel with the claims list — not after the list arrives and the drawer mounts its stage panel. The
   // drawer's ClaimBillingStages reads the same query key, so nothing is fetched twice and the stage list is
-  // already cached when the drawer opens.
-  useClaimBillingTrace(openRecordType === 'billingClaim' && canReadClaims ? openRecordId ?? '' : '', projectId);
+  // already cached when the drawer opens. Prefetch through the tab's own query client, falling back to the
+  // app singleton — the read adds no provider requirement beyond what the tab already has.
+  const prefetchClient = useContext(QueryClientContext) ?? fallbackQueryClient;
+  useEffect(() => {
+    const claimId = openRecordType === 'billingClaim' && canReadClaims ? openRecordId ?? '' : '';
+    const orgId = currentUser?.org_id;
+    if (!claimId || !orgId || !projectId) return;
+    void prefetchClient.prefetchQuery({
+      queryKey: claimBillingTraceKey(orgId, claimId),
+      queryFn: () => repositories.billingStages.trace(claimId, projectId),
+    });
+  }, [openRecordType, openRecordId, canReadClaims, currentUser?.org_id, projectId, prefetchClient]);
   const setOpenRecord = (id: string, type: 'billingBoq' | 'billingClaim') => {
     const next = new URLSearchParams(searchParams);
     next.set('open', id);

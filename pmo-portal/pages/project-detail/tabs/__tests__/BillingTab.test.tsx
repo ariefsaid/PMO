@@ -44,8 +44,7 @@ const h = vi.hoisted(() => ({
   tmMutation: vi.fn().mockResolvedValue(undefined),
   overdue: [] as unknown[],
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
-  traceCalls: [] as string[],
-  traceData: { stages: [], retention: null, deadline: null } as unknown,
+  trace: vi.fn().mockResolvedValue({ stages: [], retention: null, deadline: null }),
 }));
 // #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
@@ -75,11 +74,9 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 // #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
 vi.mock('@/src/hooks/useBillingStages', () => ({
+  claimBillingTraceKey: (orgId: string | undefined, claimId: string) => ['claim-billing-trace', orgId, claimId] as const,
   useBillingReconciliation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useClaimBillingTrace: (claimId: string, projectId: string) => {
-    h.traceCalls.push(`${claimId}|${projectId}`);
-    return { data: h.traceData, isPending: false, isError: false, refetch: vi.fn() };
-  },
+  useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
   useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -107,7 +104,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
   return { repositories: { ...actual.repositories,
     progressBilling: { ...actual.repositories.progressBilling, createBoq: h.createBoq, listBoq: async () => [] },
-    billingStages: { ...actual.repositories.billingStages, overdueStepsByClaim: async () => h.overdue },
+    billingStages: { ...actual.repositories.billingStages, overdueStepsByClaim: async () => h.overdue, trace: h.trace },
   } };
 });
 import { parseWorkbook } from '@/src/lib/import';
@@ -147,7 +144,8 @@ beforeEach(() => {
   h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.tmMutation.mockReset().mockResolvedValue(undefined);
   h.revenueMode = null; h.tmInvoice.mockReset().mockResolvedValue('tm-1');
-  h.overdue = []; h.traceCalls = [];
+  h.overdue = [];
+  h.trace.mockReset().mockResolvedValue({ stages: [], retention: null, deadline: null });
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice', 'raiseNativeInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
@@ -385,9 +383,15 @@ describe('BillingTab', () => {
   it('#2893 a deep-linked claim starts its billing-stage read before the claims list arrives', () => {
     h.claims = [];
     renderTab('c1', '/projects/p1/billing?open=k1&openType=billingClaim');
-    expect(h.traceCalls).toContainEqual('k1|p1');
+    expect(h.trace).toHaveBeenCalledWith('k1', 'p1');
     // no claim deep link: the stage read is not asked at all
-    expect(h.traceCalls.filter((call) => !call.startsWith('|'))).toEqual(['k1|p1']);
+    expect(h.trace).toHaveBeenCalledTimes(1);
+  });
+
+  it('#2893 without a claim deep link the billing-stage read is not asked', () => {
+    h.claims = [];
+    renderTab('c1', '/projects/p1/billing');
+    expect(h.trace).not.toHaveBeenCalled();
   });
 
   it('C4: the evidence row names the document, the revision and the status, never the stored id', async () => {
