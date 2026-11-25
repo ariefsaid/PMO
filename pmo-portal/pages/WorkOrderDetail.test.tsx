@@ -49,6 +49,8 @@ vi.mock('./work-order-detail/ConsumablePlanSection', () => ({
     <section data-testid="consumable-plan-stub">{`${p.workOrderId}|${p.workOrderStatus}|${p.project?.project_manager_id ?? 'none'}`}</section>,
 }));
 // the inspections panel is proven by its own test (InspectionsSection.test.tsx); here only that the page carries it for THIS work order
+// #2885: the stock panel has its own test (WorkOrderStockBalance.test.tsx); here only that the page carries it for THIS work order
+vi.mock('./stock/WorkOrderStockBalance', () => ({ WorkOrderStockBalance: (p: { workOrderId: string; currency: string }) => <div data-testid="wo-stock-stub">{`${p.workOrderId}|${p.currency}`}</div> }));
 vi.mock('./work-order-detail/InspectionsSection', () => ({ InspectionsSection: ({ workOrderId }: { workOrderId: string }) => <div data-testid="inspections-section">{workOrderId}</div> }));
 
 vi.mock('./work-order-detail/ClientMaterialSection', () => ({
@@ -110,6 +112,15 @@ describe('WorkOrderDetail', () => {
     h.project = q({ name: 'Plant A', client: { name: 'Acme' }, project_manager_id: 'pm-1' });
     renderPage();
     expect(screen.getByTestId('consumable-plan-stub').textContent).toBe('w1|Issued|pm-1');
+  });
+  it('#2885 the work order page shows the stock held for this work order when the stock module is on, so stock roles need no Contract area', () => {
+    h.stock = true;
+    renderPage();
+    expect(screen.getByTestId('wo-stock-stub').textContent).toMatch(/^w1\|/);
+  });
+  it('#2885 and no stock panel when the stock module is off', () => {
+    renderPage();
+    expect(screen.queryByTestId('wo-stock-stub')).toBeNull();
   });
   it('FR-CUS-014 and is absent when the stock module is off', () => {
     renderPage();

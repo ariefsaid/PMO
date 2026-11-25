@@ -74,10 +74,9 @@ test('JOB-W5 material coordinator moves stock to one staging area and only that 
     docIds.push(page.url().split('/').pop() ?? '');
 
     // 4. The work order's staging row still reads 10 (30 dispatched minus 20 installed).
-    await page.goto(`/projects/${SEED_PROJECT_ID}/contract?wo=${workOrderId}`);
-    const card = page.getByTestId(`customer-order-${workOrderId}`);
-    await card.getByRole('button', { name: 'Stock for this work order' }).click();
-    const row = card.getByRole('row').filter({ hasText: stagingA.code });
+    await page.goto(`/work-orders/${workOrderId}`);
+    const panel = page.getByRole('region', { name: 'Stock for this work order' });
+    const row = panel.getByRole('row').filter({ hasText: stagingA.code });
     await expect(row.getByRole('cell').nth(4)).toHaveText('20');
     await expect(row.getByRole('cell').nth(5)).toContainText('10');
   } finally {
