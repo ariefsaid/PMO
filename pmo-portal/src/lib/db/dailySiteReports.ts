@@ -3,6 +3,7 @@ import { AppError } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { sanitizeFilename } from '@/src/lib/storageKey';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
+import { isPostgresAuthored42501 } from '@/src/lib/classifyMutationError';
 
 /**
  * Daily site report DAL (#1522, migrations 1004/1005). Reads are RLS-scoped selects; every write is a
@@ -267,12 +268,17 @@ export function buildSiteReportPhotoPath(orgId: string, reportId: string, photoI
   return `${orgId}/${reportId}/${photoId}/${sanitizeFilename(fileName)}`;
 }
 
-/** FR-DSR-008: upload to the private bucket, then record the row; a failed row removes the orphan object. */
+/** FR-DSR-008: upload to the private bucket, then record the row; a failed row removes the orphan object.
+ *  #2897: a refusal the DATABASE authored (storage write policy — photos only before the report is
+ *  submitted) arrives without a usable code, so it is pinned to 42501 here and the screen maps it to
+ *  its plain sentence; anything else keeps the generic recoverable handling. */
 export async function uploadPhoto(report: Pick<DsrReport, 'id' | 'org_id'>, file: File, kind: DsrPhoto['kind'] = 'paper_form'): Promise<void> {
   const path = buildSiteReportPhotoPath(report.org_id, report.id, crypto.randomUUID(), file.name || 'photo.jpg');
   const bucket = supabase.storage.from(SITE_REPORT_PHOTOS_BUCKET);
   const { error: upErr } = await bucket.upload(path, file, { contentType: file.type || undefined, upsert: false });
-  if (upErr) throw new AppError(upErr.message);
+  if (upErr) throw isPostgresAuthored42501(upErr.message)
+    ? new AppError(upErr.message, '42501')
+    : new AppError(upErr.message);
   const { error } = await db.from('dsr_photos').insert({ report_id: report.id, kind, file_path: path });
   if (error) {
     await bucket.remove([path]);

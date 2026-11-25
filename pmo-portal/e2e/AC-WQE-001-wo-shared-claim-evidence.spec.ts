@@ -5,9 +5,10 @@ import { siteRole } from './support/siteRoleJourney';
 import { createBillingFixture, cleanupBilling } from './support/billingFixture';
 import { ORG_ID, inDays, need } from './support/jobJourney';
 
-test('AC-WQE-001 a quality document filed once makes later claims invoice-eligible', async ({ page }) => {
+// The journey is two tests so each stays well inside its time budget: the inspector files the document once, then the
+// billing officer's claims reuse it. The second starts from the filed document, set up as the first leaves it.
+test('AC-WQE-001 the inspector files a quality document once on the step an admin marked as claim evidence', async ({ page }) => {
   const inspector = await siteRole('quality_inspector');
-  const billingOfficer = await siteRole('billing_officer', 'Finance');
   const db = inspector.db;
   const must = need('AC-WQE-001');
   const fixture = await createBillingFixture(db, `WQE-${crypto.randomUUID()}`);
@@ -34,8 +35,36 @@ test('AC-WQE-001 a quality document filed once makes later claims invoice-eligib
     await quality.getByRole('button', { name: 'Attach additional document' }).click();
     await expect(quality.getByRole('link', { name: fixture.documentTitle })).toBeVisible();
 
+    const marked = must('marked step', await db.from('work_order_billing_steps').select('claim_evidence_enabled').eq('id', step).single());
+    expect(marked.claim_evidence_enabled).toBe(true);
+    const filed = must('work-order evidence', await db.from('work_order_billing_step_documents').select('document_id').eq('step_id', step).single());
+    expect(filed.document_id).toBe(fixture.documentId);
+  } finally {
+    await db.from('work_order_billing_step_documents').delete().eq('work_order_id', fixture.workOrderId);
+    await db.from('work_order_billing_steps').delete().eq('work_order_id', fixture.workOrderId);
+    await cleanupBilling(db, fixture);
+    await inspector.cleanup();
+  }
+});
+
+test('AC-WQE-001 a quality document filed once makes later claims invoice-eligible', async ({ page }) => {
+  const inspector = await siteRole('quality_inspector');
+  const billingOfficer = await siteRole('billing_officer', 'Finance');
+  const db = inspector.db;
+  const must = need('AC-WQE-001');
+  const fixture = await createBillingFixture(db, `WQE-${crypto.randomUUID()}`);
+  try {
+    // What the first journey leaves behind: a marked step with the inspector's document already filed on it.
+    const step = must('quality step', await db.from('work_order_billing_steps').insert({
+      org_id: ORG_ID, work_order_id: fixture.workOrderId, project_id: fixture.projectId,
+      position: 1, name: 'Quality evidence', owner_role_key: 'quality_inspector', started_on: inDays(0), claim_evidence_enabled: true,
+    }).select('id').single()).id;
+    must('filed document', await db.from('work_order_billing_step_documents').insert({
+      org_id: ORG_ID, step_id: step, work_order_id: fixture.workOrderId, position: 1, name: fixture.documentTitle, required: false,
+      document_id: fixture.documentId, attached_by: inspector.id, attached_at: new Date().toISOString(),
+    }).select('id').single());
+
     // The billing officer makes each claim without attaching the document again.
-    await page.evaluate(() => localStorage.clear());
     await billingOfficer.login(page);
     await page.goto(`/projects/${fixture.projectId}/contract`);
     for (let index = 0; index < 2; index++) {

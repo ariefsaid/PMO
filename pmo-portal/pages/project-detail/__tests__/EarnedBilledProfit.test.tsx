@@ -78,6 +78,55 @@ describe('EarnedBilledProfit', () => {
     expect(screen.getByRole('status').textContent).toBe('Restricted');
   });
 
+  // #2896: a refused read used to pin the panel closed until a reload — the refusal is cached as a successful
+  // result, so nothing ever re-asked. The panel re-asks the refused read once and recovers when it succeeds.
+  it('#2896 a refused earned/billed read is re-asked once and the panel recovers without a reload', () => {
+    vi.useFakeTimers();
+    try {
+      setData('restricted', 'restricted');
+      const view = render(<EarnedBilledProfit projectId="p1" />);
+      expect(screen.getByRole('status').textContent).toBe('Restricted');
+      expect(h.eb.refetch).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1_000);
+      // the refused read is the one re-asked; a read that succeeded is not re-read
+      expect(h.eb.refetch).toHaveBeenCalledTimes(1);
+      expect(h.pva.refetch).not.toHaveBeenCalled();
+      setData([ebRow()], [rev('validated_progress', 'civ', '100.00')]);
+      view.rerender(<EarnedBilledProfit projectId="p1" />);
+      expect(screen.getByTestId('earned-billed-row-A-earned').textContent).toMatch(/100/);
+      expect(screen.queryByRole('status')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('#2896 a refused plan-versus-actual read is re-asked too: it feeds the same restricted state', () => {
+    vi.useFakeTimers();
+    try {
+      setData([], []);
+      h.pva = {
+        isPending: false, isError: false, refetch: vi.fn(),
+        data: { workOrders: [], plans: [], split: null, rollup: rollupProject({ workOrders: [], lines: [], plans: [], split: null, restricted: true, projectRevenue: null }) },
+      };
+      render(<EarnedBilledProfit projectId="p1" />);
+      expect(screen.getByRole('status').textContent).toBe('Restricted');
+      vi.advanceTimersByTime(1_000);
+      expect(h.pva.refetch).toHaveBeenCalledTimes(1);
+      expect(h.eb.refetch).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('#2896 still restricted after the one re-ask stays restricted: the re-ask never loops', () => {
+    vi.useFakeTimers();
+    try {
+      setData('restricted', 'restricted');
+      render(<EarnedBilledProfit projectId="p1" />);
+      vi.advanceTimersByTime(1_000);
+      expect(h.eb.refetch).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(10_000);
+      expect(h.eb.refetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('status').textContent).toBe('Restricted');
+    } finally { vi.useRealTimers(); }
+  });
+
   it('AC-EBR-001/002 renders nothing, and asks for no revenue, while the setting is off or the role cannot read work-order money', () => {
     setData([ebRow()]);
     h.setting = { data: false };

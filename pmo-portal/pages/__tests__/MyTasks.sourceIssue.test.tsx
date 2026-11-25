@@ -53,14 +53,14 @@ beforeEach(() => { h.asked.length = 0; h.issues = new Map([['t1', 'issue-1']]); 
 describe('JOB-F17 My tasks rows link back to the source issue', () => {
   it('shows a link to the issue on the task that was made from one, and none on a plain task', async () => {
     renderPage();
-    const links = await screen.findAllByRole('link', { name: /source issue/i });
+    const links = await screen.findAllByRole('link', { name: 'From issue' });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute('href', '/incidents/issue-1');
   });
 
   it('asks for the source issues of the whole page in one call', async () => {
     renderPage();
-    await screen.findAllByRole('link', { name: /source issue/i });
+    await screen.findAllByRole('link', { name: 'From issue' });
     expect(h.asked).toHaveLength(1);
     expect(h.asked[0]).toEqual(['t1', 't2']);
   });
