@@ -92,9 +92,16 @@ test('JOB-BQ13 each claim sits in its step column with its age, and the step own
     await readBoard();
 
     // 4. Each step's owner role finds them waiting at home (the org-wide count is other work's, so only the pointer is asserted).
-    await page.goto('/');
-    const pointer = page.getByRole('link', { name: /billing steps? waiting on your role/i });
-    await expect(pointer).toBeVisible({ timeout: 15_000 });
+    const needsYou = async () => {
+      await page.goto('/');
+      const pointer = page.getByRole('link', { name: /\d+ billing steps waiting on your role/i });
+      await expect(pointer).toBeVisible({ timeout: 15_000 });
+      // The list counts the whole organisation's waiting steps, so it holds at least these three claims' steps.
+      const count = Number(((await pointer.textContent()) ?? '').match(/(\d+) billing steps/)?.[1]);
+      expect(count).toBeGreaterThanOrEqual(3);
+      return pointer;
+    };
+    const pointer = await needsYou();
     await pointer.click();
     await expect(page).toHaveURL(new RegExp(`/projects/${fx.projectId}/billing`));
     // The pointer lands on the project's contract area, where each of the three claims' orders is listed.
@@ -104,6 +111,9 @@ test('JOB-BQ13 each claim sits in its step column with its age, and the step own
     await page.context().clearCookies();
     await financeManager.signIn(page);
     await readBoard();
+    await (await needsYou()).click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${fx.projectId}/billing`));
+    for (const id of orderIds) await expect(page.getByTestId(`customer-order-${id}`)).toBeVisible({ timeout: 15_000 });
   } finally {
     await billing.remove();
     await financeManager.remove();

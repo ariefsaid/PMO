@@ -39,6 +39,8 @@ test('JOB-W11 storekeeper raises a purchase request from a low-stock item with t
     // 3. Goal: the request carries the item and the suggested quantity. A storekeeper sees no price, so the line waits in the add row, quantity filled in.
     await expect(page.getByLabel(/^title/i)).toHaveValue(new RegExp(item.code));
     await expect(page.locator('input[aria-label="New item quantity"]:visible')).toHaveValue('15');
+    // ...and the item itself is in that add row, not only in the title.
+    await expect(page.locator('[aria-label="New item description"]:visible')).toHaveValue(new RegExp(`^${item.name}\\b`));
   } finally {
     if (siteId) sqlAsOwner(`delete from stock_reorder_levels where warehouse_id = '${siteId}';`);
     if (receiptId) sqlAsOwner(`delete from stock_ledger where document_id = '${receiptId}'; delete from stock_document_lines where document_id = '${receiptId}'; delete from stock_documents where id = '${receiptId}';`);

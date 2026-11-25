@@ -53,6 +53,10 @@ test('JOB-W3 a named stand-in approves the engineer step and the history shows w
     await expect(page.getByTestId('mrq-chain').getByText('Engineer check')).toBeVisible();
     await expect(page.getByTestId('mrq-chain').getByText('Construction check')).toBeVisible();
     await expect(page.getByText('Waiting for approval').first()).toBeVisible();
+    const chain = page.getByTestId('mrq-chain').getByRole('listitem');
+    await expect(chain.filter({ hasText: 'Engineer check' })).toContainText('Approved');
+    await expect(chain.filter({ hasText: 'Construction check' })).toContainText('Waiting');
+    await expect(page.getByTestId('mrq-waiting-for')).toContainText('Construction check');
     await expect(page.getByText(new RegExp(`for ${engineerName}`)).first()).toBeVisible();
   } finally {
     // A revoked stand-in row still points at both profiles; remove this run's rows before their profiles go.
