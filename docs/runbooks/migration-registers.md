@@ -24,7 +24,7 @@ node scripts/check-migration-registers.mjs --self-test
 Or through npm (from `pmo-portal/`):
 
 ```bash
-npm run check:migration-registers
+npm run migration-registers
 ```
 
 Exit 1 on any miss. A miss prints the fix (the exact registry statement or fragment line shape) and
@@ -91,7 +91,7 @@ Not in `check:guards` yet: it needs `origin/dev` (or an explicit `--base`) to di
 it into a gate is a Director call. The npm script above is the builders' entry point. Proposed
 CLAUDE.md line for the local final gate (the Director edits that list):
 
-> DB branches also run `npm run check:migration-registers` (static, no database; runbook:
+> DB branches also run `npm run migration-registers` (static, no database; runbook:
 > `docs/runbooks/migration-registers.md`).
 
 Mutation recipe (inside the self-test, each planted defect must redden): drop a registry
