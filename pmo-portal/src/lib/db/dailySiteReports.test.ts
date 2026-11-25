@@ -123,6 +123,26 @@ describe('writes', () => {
   });
 });
 
+describe('#2897 photo upload refusals', () => {
+  it('a database-authored upload refusal carries 42501 so the screen can say the submitted rule', async () => {
+    h.storage.upload.mockResolvedValueOnce({ error: { message: 'new row violates row-level security policy' } });
+    const file = new File(['x'], 'form.jpg', { type: 'image/jpeg' });
+    const err = await dal.uploadPhoto({ id: 'r1', org_id: 'o1' }, file).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    // Nothing was uploaded, so there is no orphan object to remove.
+    expect(h.storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('a non-database storage failure stays unclassified, keeping the generic recoverable handling', async () => {
+    h.storage.upload.mockResolvedValueOnce({ error: { message: 'network unreachable' } });
+    const file = new File(['x'], 'form.jpg', { type: 'image/jpeg' });
+    const err = await dal.uploadPhoto({ id: 'r1', org_id: 'o1' }, file).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBeUndefined();
+  });
+});
+
 describe('#2619 report hours', () => {
   it('reads the work order\'s hours through one RPC keyed on the report, keeping people hours exact', async () => {
     h.result.value = { data: { people_hours: '12.50', equipment: [{ id: 'u1', asset_name: 'Excavator', quantity: '6.50', unit: 'hours', kind: 'work', status: 'Approved' }] }, error: null };

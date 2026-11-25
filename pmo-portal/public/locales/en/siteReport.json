@@ -216,6 +216,7 @@
     "none": "No photos yet",
     "paperForm": "Paper form",
     "retry": "Retry",
+    "submittedOnly": "Photos can be added only before the report is submitted.",
     "title": "Photos"
   },
   "progress": {
