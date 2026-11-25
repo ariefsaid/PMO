@@ -1076,6 +1076,20 @@
       "tooMany": "A file holds 1 to {{max}} rows. Split it by location."
     }
   },
+  "quality": {
+    "hint": "This item needs a quality check. Say how many passed and how many were rejected: only the passed quantity goes into stock.",
+    "passed": "Passed",
+    "rejected": "Rejected",
+    "reason": "Why is some rejected?",
+    "summary": "passed {{passed}}, rejected {{rejected}}",
+    "passedQty": "passed {{qty}}",
+    "rejectedQty": "rejected {{qty}}: {{reason}}",
+    "errors": {
+      "number": "Enter a number, zero or more (3 decimals at most).",
+      "add": "Passed and rejected must add up to the quantity received.",
+      "reason": "Say why some is rejected."
+    }
+  },
   "receiving": {
     "title": "Receive against order",
     "enable": "Receive goods against orders",

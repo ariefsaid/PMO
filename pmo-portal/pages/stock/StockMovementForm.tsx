@@ -6,6 +6,8 @@ import {
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
+import { ReceiptQualityFields } from '@/src/components/stock/ReceiptQualityFields';
+import { NO_QUALITY, qualityProblem, qualityWire, type QualityProblem, type QualityValue } from '@/src/lib/receiptQuality';
 import { MOVEMENT_LINES_RESERVE } from '@/src/components/stock/linesLoadingHeights';
 import { useStockErrorText, useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
 import { StockDispatchError } from '@/src/lib/stockDispatchError';
@@ -33,8 +35,8 @@ const KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
 type MovementKind = (typeof KINDS)[number];
 const isMovement = (k: string | undefined): k is MovementKind => (KINDS as readonly string[]).includes(k ?? '');
 
-interface LineState { key: number; itemId: string | null; quantity: string; unitCost: string; boqItemId: string; sourceLineId: string }
-const blankLine = (key: number): LineState => ({ key, itemId: null, quantity: '', unitCost: '', boqItemId: '', sourceLineId: '' });
+interface LineState { key: number; itemId: string | null; quantity: string; unitCost: string; boqItemId: string; sourceLineId: string; quality: QualityValue }
+const blankLine = (key: number): LineState => ({ key, itemId: null, quantity: '', unitCost: '', boqItemId: '', sourceLineId: '', quality: NO_QUALITY });
 
 /** Work-item picker for one issue line; its own component so the query is keyed by the chosen project. */
 const WorkItemSelect: React.FC<{ projectId: string; value: string; onChange: (v: string) => void; label: string; error?: string }> = ({ projectId, value, onChange, label, error }) => {
@@ -95,7 +97,7 @@ const StockMovementForm: React.FC = () => {
   const initialSnapshot = useRef(JSON.stringify({ warehouseId, toWarehouseId, projectId: params.get('project') ?? '', occurredOn, note, lines: [] }));
 
   const kind = isMovement(kindParam) ? kindParam : null;
-  const snapshot = JSON.stringify({ warehouseId, toWarehouseId, projectId, occurredOn, note, lines: lines.filter((l) => l.itemId || l.quantity || l.unitCost || l.boqItemId || l.sourceLineId).map(({ itemId, quantity, unitCost, boqItemId, sourceLineId }) => ({ itemId, quantity, unitCost, boqItemId, sourceLineId })) });
+  const snapshot = JSON.stringify({ warehouseId, toWarehouseId, projectId, occurredOn, note, lines: lines.filter((l) => l.itemId || l.quantity || l.unitCost || l.boqItemId || l.sourceLineId).map(({ itemId, quantity, unitCost, boqItemId, sourceLineId, quality }) => ({ itemId, quantity, unitCost, boqItemId, sourceLineId, quality })) });
   const dirty = !saved && snapshot !== initialSnapshot.current;
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave, stay) => setPendingLeave({ leave, stay }) });
   const issueLines = useProjectIssueLines(kind === 'return' ? projectId || undefined : undefined);
@@ -108,6 +110,8 @@ const StockMovementForm: React.FC = () => {
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   // Client-supplied material carries a zero-cost tag: it is marked on the line and its cost is fixed at zero, never asked.
   const clientTag = (l: LineState) => { const tagId = l.itemId ? itemById.get(l.itemId)?.tag_id : null; return tagId ? (tags.data ?? []).find((g) => g.id === tagId && g.zero_cost) : undefined; };
+  // D4: a receipt of an item flagged for a quality check carries how many passed and how many were rejected.
+  const needsCheck = (l: LineState) => kind === 'receive' && !!l.itemId && itemById.get(l.itemId)?.needs_quality_check === true;
   const wholeByUnit = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
 
   if (kind === 'transfer' && twoStep) return <Navigate to="/stock/transfers/new" replace />;
@@ -146,9 +150,12 @@ const StockMovementForm: React.FC = () => {
       if (kind === 'issue' && !l.boqItemId) e[`boq${l.key}`] = t('form.errors.workItem');
       const cost = clientTag(l) ? '0' : normalizeDecimal(l.unitCost);
       if (kind === 'receive' && !/^\d+(\.\d{1,4})?$/.test(cost)) e[`cost${l.key}`] = t('form.errors.unitCost');
+      const problem = needsCheck(l) && isPositiveDecimal(q) ? qualityProblem(q, l.quality) : null;
+      if (problem) e[`quality${l.key}`] = problem;
       return {
         itemId: l.itemId ?? '', quantity: q,
         ...(kind === 'receive' ? { unitCost: cost } : {}),
+        ...(needsCheck(l) ? qualityWire(l.quality) : {}),
         ...(kind === 'issue' ? { boqItemId: l.boqItemId } : {}),
         ...(kind === 'return' ? { sourceLineId: l.sourceLineId } : {}),
       };
@@ -185,7 +192,8 @@ const StockMovementForm: React.FC = () => {
   const placeName = (id: string) => { const w = (warehouses.data ?? []).find((x) => x.id === id); return w ? `${w.code} - ${w.name}` : ''; };
   const summary = lines.map((l) => {
     const item = l.itemId ? itemById.get(l.itemId) : undefined;
-    return `${item ? `${item.code} - ${item.name}` : ''}: ${normalizeDecimal(l.quantity)} ${unitCodeOfLine(l)}`.trim();
+    const check = needsCheck(l) ? ` (${t('quality.summary', { passed: normalizeDecimal(l.quality.passed), rejected: normalizeDecimal(l.quality.rejected) })})` : '';
+    return `${item ? `${item.code} - ${item.name}` : ''}: ${normalizeDecimal(l.quantity)} ${unitCodeOfLine(l)}${check}`.trim();
   });
 
   async function submit(post = true) {
@@ -339,6 +347,11 @@ const StockMovementForm: React.FC = () => {
                         />
                       )}
                     </FormGrid>
+                    {needsCheck(l) && (
+                      <div className="mt-3">
+                        <ReceiptQualityFields idPrefix={`line-${l.key}`} suffix={n} value={l.quality} onChange={(quality) => setLine(l.key, { quality })} problem={fieldErrors[`quality${l.key}`] as QualityProblem | undefined} />
+                      </div>
+                    )}
                     {lines.length > 1 && (
                       <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>
                         {t('form.removeLine')}

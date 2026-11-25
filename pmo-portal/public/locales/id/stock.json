@@ -1076,6 +1076,20 @@
       "tooMany": "Satu berkas berisi 1 sampai {{max}} baris. Bagi per lokasi."
     }
   },
+  "quality": {
+    "hint": "Barang ini perlu pemeriksaan mutu. Isi berapa yang lulus dan berapa yang ditolak: hanya jumlah yang lulus masuk ke stok.",
+    "passed": "Lulus",
+    "rejected": "Ditolak",
+    "reason": "Mengapa sebagian ditolak?",
+    "summary": "lulus {{passed}}, ditolak {{rejected}}",
+    "passedQty": "lulus {{qty}}",
+    "rejectedQty": "ditolak {{qty}}: {{reason}}",
+    "errors": {
+      "number": "Isi angka, nol atau lebih (paling banyak 3 desimal).",
+      "add": "Yang lulus dan yang ditolak harus berjumlah sama dengan jumlah yang diterima.",
+      "reason": "Jelaskan mengapa sebagian ditolak."
+    }
+  },
   "receiving": {
     "title": "Terima sesuai pesanan",
     "enable": "Terima barang sesuai pesanan",

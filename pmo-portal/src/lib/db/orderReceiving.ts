@@ -3,16 +3,18 @@ import { toAppError } from '@/src/lib/appError';
 
 export interface ReceivingLine {
   id: string; name: string; stock_item_id: string | null; stock_name: string | null; unit: string | null;
+  /** The stock item is flagged for a quality check: the receiver says how many passed and how many were rejected. */
+  needs_quality_check?: boolean;
   ordered?: string; received?: string; outstanding?: string;
   status?: 'not_received' | 'partly_received' | 'fully_received';
 }
 export interface ReceiptCount {
   id: string; receiver_id: string; warehouse_id: string; date: string;
-  lines: { item_id: string; quantity: number | string }[];
+  lines: { item_id: string; quantity: number | string; rejected?: number | string; reject_note?: string | null }[];
   approved: boolean; document_id: string | null; reversed: boolean;
 }
 export interface OrderReceiving { purchaser: boolean; lines: ReceivingLine[]; requests: ReceiptCount[] }
-export interface CountInput { orderId: string; warehouseId: string; date: string; lines: { item_id: string; quantity: string }[]; requestId: string }
+export interface CountInput { orderId: string; warehouseId: string; date: string; lines: { item_id: string; quantity: string; rejected?: number | string; reject_note?: string | null }[]; requestId: string }
 async function resolve<T>(request: PromiseLike<{ data: unknown; error: Parameters<typeof toAppError>[0] }>): Promise<T> {
   const result = await request;
   if (result.error) throw toAppError(result.error);

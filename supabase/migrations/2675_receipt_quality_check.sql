@@ -74,11 +74,11 @@ begin
       if p_kind <> 'receive' then raise exception 'STK_INVALID: only a receipt line carries a quality check' using errcode = 'P0001'; end if;
       v_rej := nullif(e->>'rejected', '')::numeric;
       if v_rej is null or v_rej < 0 or v_rej > v_q or v_rej <> round(v_rej, 3) then                                    -- mut:reject_bound
-        raise exception 'STK_QUALITY: the rejected quantity is 0 up to the received quantity (3 decimals at most)' using errcode = 'P0001'; end if;
+        raise exception 'STK_QUALITY_FIGURES: the rejected quantity is 0 up to the received quantity (3 decimals at most)' using errcode = 'P0001'; end if;
       if v_item.whole_only and v_rej <> trunc(v_rej) then raise exception 'STK_FRACTION: this item is counted in whole units' using errcode = 'P0001'; end if;
       if v_rej > 0 and nullif(btrim(e->>'reject_note'), '') is null then
-        raise exception 'STK_QUALITY: say why some of it is rejected' using errcode = 'P0001'; end if;
-      if length(coalesce(e->>'reject_note', '')) > 500 then raise exception 'STK_QUALITY: the rejection note is 500 characters at most' using errcode = 'P0001'; end if;
+        raise exception 'STK_QUALITY_FIGURES: say why some of it is rejected' using errcode = 'P0001'; end if;
+      if length(coalesce(e->>'reject_note', '')) > 500 then raise exception 'STK_QUALITY_FIGURES: the rejection note is 500 characters at most' using errcode = 'P0001'; end if;
     end if;
   end loop;
 end $$;

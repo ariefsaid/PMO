@@ -39,8 +39,8 @@ create function pg_temp.on_hand(item int) returns numeric language sql as $$sele
 -- A. the Receive stock form (create_stock_document) -------------------------------------------------------
 select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,null)$$),'P0001:STK_QUALITY_RECEIPT','D4 a flagged item with no check is refused');
 select is(pg_temp.on_hand(41),0::numeric,'D4 the refused receipt put nothing on hand');
-select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,11,'too many')$$),'P0001:STK_QUALITY','D4 rejecting more than was received is refused');
-select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,2,null)$$),'P0001:STK_QUALITY','D4 a rejection with no note is refused');
+select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,11,'too many')$$),'P0001:STK_QUALITY_FIGURES','D4 rejecting more than was received is refused');
+select is(pg_temp.err(11,$$select pg_temp.receipt(41,10,2,null)$$),'P0001:STK_QUALITY_FIGURES','D4 a rejection with no note is refused');
 select pg_temp.actor(11);
 set local role authenticated;
 select set_config('q.doc',pg_temp.receipt(41,10,2,'cracked')::text,true);

@@ -10,7 +10,7 @@ import en from '@/public/locales/en/stock.json';
 import type { ReceiptCount } from '@/src/lib/db/orderReceiving';
 
 const h = vi.hoisted(() => ({
-  purchaser: false, pending: false, failed: false, requests: [] as ReceiptCount[],
+  purchaser: false, pending: false, failed: false, flagged: false, requests: [] as ReceiptCount[],
   role: 'Engineer' as 'Engineer' | 'Admin',
   receive: vi.fn(), map: vi.fn(), approve: vi.fn(), reverse: vi.fn(), retry: vi.fn(), setEnabled: vi.fn(),
 }));
@@ -25,7 +25,7 @@ vi.mock('@/src/hooks/useStock', () => ({
 vi.mock('@/src/hooks/useOrderReceiving', () => ({
   useOrderReceivingEnabled: () => ({ data: true, isPending: false, isError: false }),
   useReceivingOrders: () => ({ data: [{ id: 'po', number: 'PO-1' }], isPending: h.pending, isError: h.failed, refetch: h.retry }),
-  useOrderReceiving: () => ({ data: { purchaser: h.purchaser, lines: [{ id: 'line', name: 'Goods', stock_name: 'Goods', unit: 'pc', stock_item_id: 'stock', ...(h.purchaser ? { ordered: '10', received: '4', outstanding: '6', status: 'partly_received' } : {}) }], requests: h.requests }, isPending: false, isError: false, refetch: h.retry }),
+  useOrderReceiving: () => ({ data: { purchaser: h.purchaser, lines: [{ id: 'line', name: 'Goods', stock_name: 'Goods', unit: 'pc', stock_item_id: 'stock', needs_quality_check: h.flagged, ...(h.purchaser ? { ordered: '10', received: '4', outstanding: '6', status: 'partly_received' } : {}) }], requests: h.requests }, isPending: false, isError: false, refetch: h.retry }),
 }));
 vi.mock('@/src/components/stock/ItemPicker', () => ({ ItemPicker: ({ onChange }: { onChange: (id: string) => void }) => <button onClick={() => onChange('stock-new')}>Map stock</button> }));
 vi.mock('@/src/lib/repositories/orderReceiving', () => ({ orderReceivingRepository: { receive: h.receive, map: h.map, approve: h.approve, reverse: h.reverse, setEnabled: h.setEnabled } }));
@@ -38,7 +38,7 @@ async function mount() {
   return userEvent.setup();
 }
 beforeEach(() => {
-  vi.clearAllMocks(); h.purchaser = false; h.pending = false; h.failed = false; h.requests = []; h.role = 'Engineer';
+  vi.clearAllMocks(); h.flagged = false; h.purchaser = false; h.pending = false; h.failed = false; h.requests = []; h.role = 'Engineer';
   h.receive.mockResolvedValue({ id: 'count', status: 'posted', document_id: 'doc' }); h.map.mockResolvedValue(undefined); h.approve.mockResolvedValue(undefined);
   h.setEnabled.mockResolvedValue(undefined);
 });
@@ -54,6 +54,29 @@ describe('receive against order workflow', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Record receipt' }));
     expect(h.receive).toHaveBeenCalledWith(expect.objectContaining({ orderId: 'po', warehouseId: 'wh', lines: [{ item_id: 'line', quantity: '4' }] }));
     expect(await screen.findByText('Receipt posted')).toBeInTheDocument();
+  });
+  it('D4 a line whose item needs a quality check asks how many passed and were rejected before it records, and sends the check with the count', async () => {
+    h.flagged = true;
+    const user = await mount();
+    await user.selectOptions(screen.getByLabelText('Warehouse'), 'wh');
+    expect(screen.queryByLabelText(/^Passed/)).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Counted quantity · Goods (pc)'), '6');
+    await user.click(screen.getByRole('button', { name: 'Record receipt' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('Enter a number, zero or more (3 decimals at most).')).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/^Passed/), '5');
+    await user.type(screen.getByLabelText(/^Rejected/), '1');
+    await user.click(screen.getByRole('button', { name: 'Record receipt' }));
+    expect(await screen.findByText('Say why some is rejected.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/Why is some rejected/), 'wet');
+    await user.click(screen.getByRole('button', { name: 'Record receipt' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Record receipt' }));
+    expect(h.receive).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ item_id: 'line', quantity: '6', rejected: '1', reject_note: 'wet' }] }));
+  });
+  it('D4 a receipt on record shows what was rejected and why', async () => {
+    h.requests = [{ id: 'r', receiver_id: 'me', warehouse_id: 'wh', date: '2026-11-24', lines: [{ item_id: 'line', quantity: '6', rejected: '1', reject_note: 'wet' }], approved: false, document_id: 'doc', reversed: false }];
+    await mount();
+    expect(screen.getByText(/rejected 1: wet/)).toBeInTheDocument();
   });
   it('shows a pending excess outcome instead of claiming stock posted', async () => {
     h.requests = [{ id: 'r', receiver_id: 'me', warehouse_id: 'wh', date: '2026-11-24', lines: [{ item_id: 'line', quantity: '7' }], approved: true, document_id: null, reversed: false }];

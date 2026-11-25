@@ -194,6 +194,24 @@ describe('ClientMaterialSection', () => {
     expect(await within(dialog).findByText('A release cannot take reserved below the 50 already collected.')).toBeTruthy();
   });
 
+  for (const [language, sentence] of [
+    ['en', 'This item needs a quality check. Receive it through Stock > Receive goods, where the check is recorded.'],
+    ['id', 'Barang ini perlu pemeriksaan mutu. Terimalah lewat Stok > Terima barang, tempat pemeriksaan dicatat.'],
+  ] as const) {
+    it(`D4 a pickup of an item that needs a quality check says where to receive it (${language})`, async () => {
+      await i18n.changeLanguage(language);
+      h.role = 'Engineer'; h.realRole = 'Engineer'; h.userId = 'u-keeper';
+      const fn = (h.mutations as { recordPickup: { mutateAsync: ReturnType<typeof vi.fn> } }).recordPickup.mutateAsync;
+      fn.mockRejectedValue(Object.assign(new Error('STK_QUALITY_RECEIPT: this item needs a quality check: record how many passed and how many were rejected'), { code: 'P0001' }));
+      renderIt();
+      await userEvent.click(screen.getByRole('button', { name: /Record pickup|Catat pengambilan/ }));
+      const dialog = await screen.findByRole('dialog');
+      await userEvent.type(within(dialog).getByLabelText(/^(Quantity collected|Jumlah diambil)/), '20');
+      await userEvent.click(within(dialog).getByRole('button', { name: /Record pickup|Catat pengambilan/ }));
+      expect(await within(dialog).findByText(sentence)).toBeTruthy();
+    });
+  }
+
   it('FR-CSR-004 cancel is offered to the author until a pickup is posted, then not', () => {
     h.role = 'Engineer'; h.realRole = 'Engineer'; h.userId = 'u-eng';
     h.query = ok({ ...HAND, pickups: [] });
