@@ -73,7 +73,8 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
     await expect(page.getByRole('row').filter({ hasText: 'Return' }).first(), 'the return is on the ledger').toBeVisible({ timeout: 15_000 });
     await page.goto('/stock');
     await page.getByPlaceholder('Search items').fill(item.code);
-    await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: site.name })).toContainText('10');
+    // The on-hand quantity cell itself, not any digit in the row's text.
+    await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: site.name }).locator('span.tabular-nums').first()).toHaveText(/^10(?:[.,]0+)?(?:\s|$)/);
     // ...and the work order's balance falls: the 4 issued to it are returned, so it holds 0.
     await signIn(page, 'admin@acme.test');
     await expect(await woBalance()).toHaveText('0', { timeout: 20_000 });
