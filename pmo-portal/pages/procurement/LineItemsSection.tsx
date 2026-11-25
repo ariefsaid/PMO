@@ -276,7 +276,11 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     // column that room and pads the input only as far as the currency symbol is wide. The create form's columns sum to
     // 750px (the description keeps the primary column's 240px floor), the form's width at a 1024 screen, so it never
     // scrolls sideways; wider screens scale them evenly.
-    ...(!maySeePrices ? [] : [
+    // F2: the column stays while the section is editable — a requester whose prices are hidden is
+    // still writing their own draft and needs the price input to add or edit a line (adding requires
+    // a price above zero). Only a read-only section drops the column outright; the saved-row cell
+    // below still never formats a price for someone who may not see one.
+    ...(!maySeePrices && !editable ? [] : [
     { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: createFormLayout ? 164 : 150, cell: (row) => {
       if (row.kind === 'add') return <div className="space-y-1" data-add-cell>
         <div className="relative">
@@ -286,7 +290,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
         <FieldError>{addErrors.rate}</FieldError>
       </div>;
       const it = row.item;
-      return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
+      return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : !maySeePrices ? unknownAmount : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
     } }] as Column<LineTableRow>[]),
     ...(!maySeePrices ? [] : [{ key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 146 : 150, cell: (row) => {
       if (row.kind === 'add') return <span data-add-cell aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular inline-flex h-[var(--control-height)] items-center text-muted-foreground">{addLineAmountLabel}</span>;
