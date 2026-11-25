@@ -30,6 +30,8 @@ export async function roleJobUser(service: SupabaseClient, key: string, run: str
       await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 });
     },
     async cleanup() {
+      // Approvals and other journey steps notify the user; the notification would block the profile delete.
+      ok('notification cleanup', await service.from('notifications').delete().eq('owner_id', id));
       ok('profile cleanup', await service.from('profiles').delete().eq('id', id));
       ok('login cleanup', await service.auth.admin.deleteUser(id));
     },

@@ -61,7 +61,7 @@ test('JOB-F11 validating a report with a material line of 5 falls site stock by 
     await page.getByRole('button', { name: 'Add consumable' }).click();
     await page.getByLabel('Stock item').selectOption({ label: `${item.code} · ${item.name}` });
     await page.getByLabel(/^Quantity/).last().fill('5');
-    await page.getByLabel('Used on contract item').selectOption({ label: 'W-1 · Weld joints' });
+    // One contract item on the work order: the report takes it itself, so there is no "Used on contract item" choice to make.
     await page.getByTestId('dsr-photo-input').setInputFiles({ name: 'paper-form.png', mimeType: 'image/png', buffer: PNG });
     await expect(page.getByTestId('dsr-photos')).toContainText('paper-form.png', { timeout: 20_000 });
     await page.getByRole('button', { name: 'Submit' }).click();

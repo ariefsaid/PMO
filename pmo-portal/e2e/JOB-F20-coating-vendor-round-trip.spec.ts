@@ -6,7 +6,7 @@
  * Partly built: the QC signature on pickup and the cargo document are not built, so only the two legs and balances are asserted.
  */
 import { test, expect } from '@playwright/test';
-import { runId, serviceClient } from './support/jobFixtures';
+import { runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
 import { expectOnHand, postTransfer } from './support/stockUi';
@@ -36,7 +36,12 @@ test('JOB-F20 the material coordinator sends pipe to the coating vendor and back
     await page.goto('/stock');
     await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${vendor.code} - ${vendor.name}` });
     await expect(page.getByRole('row', { name: new RegExp(item.code) }).getByRole('cell', { name: /^20\s+\S+$/ })).toHaveCount(0);
+    // And the zero is shown: with zero balances listed, the vendor holds 0 of the item.
+    await page.getByRole('checkbox', { name: 'Show zero balances' }).check();
+    await expect(page.getByRole('row', { name: new RegExp(item.code) }).getByRole('cell', { name: /^0\s+\S+$/ })).toBeVisible({ timeout: 20_000 });
   } finally {
+    // The keeper rows an Admin assigned point at the coordinator's profile; remove them before it goes.
+    sqlAsOwner(`delete from stock_warehouse_keepers where user_id = '${coordinator.id}';`);
     await coordinator.cleanup();
   }
 });

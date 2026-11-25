@@ -33,14 +33,12 @@ test('JOB-W11 storekeeper raises a purchase request from a low-stock item with t
     await page.goto('/stock/reorder');
     await expect(page.getByRole('row').filter({ hasText: item.code })).toBeVisible({ timeout: 20_000 });
 
-    // 2. From the same low-stock view it raises the purchase request.
-    await page.goto('/stock');
-    await page.getByRole('checkbox', { name: /below reorder level/i }).click();
+    // 2. From that same Reorder list it raises the purchase request.
     await page.getByRole('button', { name: `Request purchase for ${item.code}` }).click();
     await expect(page).toHaveURL(/\/procurement\/new\?/);
-    // 3. Goal: the request carries the item and the suggested quantity.
+    // 3. Goal: the request carries the item and the suggested quantity. A storekeeper sees no price, so the line waits in the add row, quantity filled in.
     await expect(page.getByLabel(/^title/i)).toHaveValue(new RegExp(item.code));
-    await expect(page.getByTestId('line-items-section').getByText('15').first()).toBeVisible();
+    await expect(page.locator('input[aria-label="New item quantity"]:visible')).toHaveValue('15');
   } finally {
     if (siteId) sqlAsOwner(`delete from stock_reorder_levels where warehouse_id = '${siteId}';`);
     if (receiptId) sqlAsOwner(`delete from stock_ledger where document_id = '${receiptId}'; delete from stock_document_lines where document_id = '${receiptId}'; delete from stock_documents where id = '${receiptId}';`);
