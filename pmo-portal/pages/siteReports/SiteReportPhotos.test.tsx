@@ -40,7 +40,7 @@ const report = (status: DsrReport['status']): DsrReport => ({
   version: 1, supersedes_id: null, superseded_at: null, correction_reason: null, author_id: 'u1',
   submitted_at: null, validated_by: null, validated_at: null, returned_reason: null, variant_id: null,
   start_time: null, end_time: null, total_minutes: null, weather_id: null, weather_note: null,
-  note: null, crew_id: null, person_id: null,
+  note: null, crew_id: null, person_id: null, area_id: null,
 });
 
 function renderPhotos(report: DsrReport) {

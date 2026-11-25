@@ -125,7 +125,7 @@ describe('writes', () => {
 
 describe('#2897 photo upload refusals', () => {
   it('a database-authored upload refusal carries 42501 so the screen can say the submitted rule', async () => {
-    h.storage.upload.mockResolvedValueOnce({ error: { message: 'new row violates row-level security policy' } });
+    h.storage.upload.mockResolvedValueOnce({ error: { message: 'new row violates row-level security policy' } } as never);
     const file = new File(['x'], 'form.jpg', { type: 'image/jpeg' });
     const err = await dal.uploadPhoto({ id: 'r1', org_id: 'o1' }, file).then(() => null, (e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
@@ -135,7 +135,7 @@ describe('#2897 photo upload refusals', () => {
   });
 
   it('a non-database storage failure stays unclassified, keeping the generic recoverable handling', async () => {
-    h.storage.upload.mockResolvedValueOnce({ error: { message: 'network unreachable' } });
+    h.storage.upload.mockResolvedValueOnce({ error: { message: 'network unreachable' } } as never);
     const file = new File(['x'], 'form.jpg', { type: 'image/jpeg' });
     const err = await dal.uploadPhoto({ id: 'r1', org_id: 'o1' }, file).then(() => null, (e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
