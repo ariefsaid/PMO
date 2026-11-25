@@ -8,7 +8,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCanEnterRelease, useMedicalReleaseMutations, useMedicalReleases, useReleasePeople } from '@/src/hooks/useMedicalRelease';
 import type { MedicalReleaseRow } from '@/src/lib/repositories/medicalRelease';
 import { formatDay } from '@/src/lib/format';
-import { toIso } from '../equipment/equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useReleaseErrorText } from '../crews/crewErrors';
 
 const PILL: Record<MedicalReleaseRow['status'], 'warn' | 'won' | 'lost'> = { Pending: 'warn', Approved: 'won', Deferred: 'lost' };
@@ -20,8 +20,9 @@ const OpenReleaseForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { toast } = useToast();
   const people = useReleasePeople(true);
   const { create } = useMedicalReleaseMutations();
+  const today = useOrgToday();
   const [personId, setPersonId] = useState('');
-  const [date, setDate] = useState(toIso(new Date()));
+  const [date, setDate] = useState(today);
   const [note, setNote] = useState('');
   const [error, setError] = useState<SubmitError | null>(null);
   const send = async (e: React.FormEvent) => {
