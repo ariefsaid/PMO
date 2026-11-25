@@ -18,6 +18,7 @@ test.afterEach(async () => {
   await cleanSiteIssue(issueType);
   await cleanupAll(admin, [
     ['tasks', 'work_order_id', woIds],
+    ['progress_claims', 'work_order_id', woIds],
     ['sales_invoices', 'work_order_id', woIds],
     ['work_order_plan_lines', 'work_order_id', woIds],
     ['work_order_lines', 'work_order_id', woIds],
@@ -42,7 +43,10 @@ test('JOB-PC2 a project control manager opens the work order page from the proje
 
   // The rest of what the work order owns: a plan, a claim, an issue and an open task.
   ok('plan', await admin.from('work_order_plan_lines').insert({ org_id: ORG_ID, project_id: projectId, work_order_id: wo.id, kind: 'direct_budget', value: 1234 }));
-  ok('claim', await admin.from('sales_invoices').insert({ org_id: ORG_ID, project_id: projectId, work_order_id: wo.id, amount: 2500, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0, status: 'Unpaid', invoice_date: inDays(0), si_number: `SI-${run}` }));
+  // A claim is an invoice that also carries a progress_claims record under the same id.
+  const claimId = crypto.randomUUID();
+  ok('claim', await admin.from('sales_invoices').insert({ id: claimId, org_id: ORG_ID, project_id: projectId, work_order_id: wo.id, amount: 2500, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0, status: 'Unpaid', invoice_date: inDays(0), si_number: `SI-${run}` }));
+  ok('claim record', await admin.from('progress_claims').insert({ id: claimId, org_id: ORG_ID, project_id: projectId, work_order_id: wo.id, kind: 'progress', currency: 'USD', gross_amount: 2500, created_by: pcm.id }));
   issueType = `${run} issue`;
   await addIssueType(issueType);
   ok('issue', await admin.from('incident_reports').insert({ org_id: ORG_ID, project_id: projectId, work_order_id: wo.id, incident_date: inDays(0), type: issueType, severity: 'Low', status: 'Open', action: `${run} fix it`, assignee_id: ENGINEER_ID }));
@@ -59,6 +63,7 @@ test('JOB-PC2 a project control manager opens the work order page from the proje
   await expect(page.getByTestId('cost-total-equipment_usage')).toContainText('$300');
   await expect(page.getByTestId('wo-page-pva-plan-direct')).toContainText('1,234', { timeout: 20_000 });
   await expect(page.getByTestId('billing-invoiced')).toContainText('2,500', { timeout: 20_000 });
+  await expect(page.getByTestId('wo-billing-contract-link')).toHaveText('Claims and invoices');
   await expect(page.getByTestId('wo-issues')).toContainText(issueType, { timeout: 20_000 });
   await expect(page.getByTestId('wo-open-tasks')).toContainText(taskName, { timeout: 20_000 });
 });

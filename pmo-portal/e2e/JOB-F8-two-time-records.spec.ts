@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { signIn, visibleToast } from './helpers';
+import { formatDay } from '../src/lib/format';
 
 test.setTimeout(180_000);
 
@@ -73,8 +74,10 @@ test('JOB-F8 the Construction Manager sees both time records on the daily report
     await expect(visibleToast(page, 'Decision saved')).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText('Second record stands');
     await expect(row).toContainText('Survey sheet is signed');
-    await expect(row).toContainText(run);                        // decider's name (the login's full name is the run id)
     const saved = need('decision', await svc.from('attendance_second_records').select('decided_by, decided_at, standing').eq('work_order_id', workOrderId).eq('worker_id', workerId).single());
+    // Who decided and when, on screen: the decider's full name (the login's full name is the run id, set apart from the worker's
+    // name by the separators the row puts around it) and the day of the decision, right after the reason.
+    await expect(row).toContainText(`(Survey sheet is signed) · ${run} · ${formatDay(saved.decided_at as string)}`);
     expect(saved.decided_by).toBe(cm.id);
     expect(saved.standing).toBe('second');
     expect(saved.decided_at).not.toBeNull();
