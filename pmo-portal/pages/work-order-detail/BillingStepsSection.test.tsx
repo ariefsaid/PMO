@@ -291,7 +291,22 @@ describe('BillingStepsSection', () => {
     h.steps = [step({ id: 's8', position: 1, name: 'Maybe', optional: true, ownerRoleKey: 'billing_officer', startedOn: '2026-03-10' })];
     const user = renderIt();
     await user.click(screen.getByRole('button', { name: 'Skip Maybe' }));
-    expect(h.skip).toHaveBeenCalledWith('s8');
+    // Skipping asks for a reason first: nothing is sent until one is typed.
+    const dialog = screen.getByRole('dialog', { name: 'Skip Maybe' });
+    expect(screen.getByRole('button', { name: 'Skip step' })).toBeDisabled();
+    expect(h.skip).not.toHaveBeenCalled();
+    // A reason the database finds too short is refused and shown; the dialog stays open.
+    h.skip.mockRejectedValueOnce(new AppError('WBS_REASON: give a reason of 3 to 500 characters', '23514'));
+    await user.type(within(dialog).getByRole('textbox'), 'ab');
+    await user.click(screen.getByRole('button', { name: 'Skip step' }));
+    expect(h.skip).toHaveBeenLastCalledWith({ stepId: 's8', reason: 'ab' });
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    // With a valid reason (trimmed) the step is skipped.
+    await user.clear(within(dialog).getByRole('textbox'));
+    await user.type(within(dialog).getByRole('textbox'), '  Client waived it  ');
+    await user.click(screen.getByRole('button', { name: 'Skip step' }));
+    expect(h.skip).toHaveBeenLastCalledWith({ stepId: 's8', reason: 'Client waived it' });
   });
 });
 
