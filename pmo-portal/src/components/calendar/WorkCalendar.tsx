@@ -196,7 +196,7 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
     <div className="flex min-h-0 flex-col" data-testid="work-calendar">
       <EventCalendar<WorkItem>
         events={events as CalendarEvent<WorkItem>[]}
-        defaultView={typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches ? 'agenda' : 'month'}
+        defaultView={typeof window !== 'undefined' && window.matchMedia?.('(max-width: 639px)').matches ? 'agenda' : 'month'}
         defaultDate={initialDate}
         views={VIEWS}
         locale={getDateFnsLocale()}

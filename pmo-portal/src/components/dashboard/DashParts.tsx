@@ -272,7 +272,7 @@ export const ProjectRows: React.FC<{
     ...(showStructuredNeeds ? ['repeat(4,minmax(2.7rem,0.35fr))'] : showReason ? ['minmax(14rem,1.8fr)'] : []),
     showDelivery ? '5rem' : null,
     showBudget ? '7.5rem' : null,
-    '14rem',
+    showStructuredNeeds ? '14rem' : 'minmax(7rem,1fr)',
   ].filter(Boolean).join(' ');
   const sorted = [...rows.filter((row) => row.offTrack || row.reason), ...rows.filter((row) => !row.offTrack && !row.reason)];
   const firstExceptionIndex = sorted.findIndex((row) => row.offTrack);
