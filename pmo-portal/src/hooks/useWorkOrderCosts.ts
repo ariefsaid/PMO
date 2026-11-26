@@ -15,14 +15,14 @@ export function useCostDisciplines(enabled = true) {
 }
 
 /** One work order's cost lines grouped by source (#2517 read seam; #2518/#2519/#2523 build on it). */
+export const workOrderCostLinesQuery = (orgId: string | undefined, workOrderId: string | null) => ({
+  queryKey: ['work-order-cost-lines', orgId, workOrderId],
+  queryFn: () => workOrderCostRepository.costLinesBySource(workOrderId as string),
+  enabled: Boolean(orgId) && Boolean(workOrderId),
+});
+
 export function useWorkOrderCostLines(workOrderId: string | null) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-cost-lines', orgId, workOrderId],
-    queryFn: () => workOrderCostRepository.costLinesBySource(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useQuery(workOrderCostLinesQuery(useAuth().currentUser?.org_id, workOrderId));
 }
 
 /** Per-source money behind a work order's cost lines (#2518); runs after the lines are read. */

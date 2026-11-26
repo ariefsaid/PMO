@@ -3,6 +3,7 @@ import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useR
 import {
   createBrowserRouter,
   Navigate,
+  matchPath,
   Outlet,
   useLocation,
   useNavigate,
@@ -10,11 +11,13 @@ import {
   useRoutes,
   type RouteObject,
   type DataRouter,
+  type RouterState,
 } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
+import { preloadWorkOrder } from '@/src/lib/routeData';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
@@ -213,9 +216,8 @@ const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Obje
  * old URL instead of one render later.
  *
  * `preloadForPath` fires each chunk's idempotent `preload()` from:
- *  - route entry (an effect on the shell's pathname): deep links, Back/Forward,
- *    ⌘K Navigate and every other navigation start the download at route START,
- *    in parallel with the route's data, instead of when the data arrives;
+ *  - a router subscription starts the route's code and data on navigation,
+ *    including deep links, Back/Forward and ⌘K Navigate.
  *  - rail nav links on hover, focus and pointerdown (the `onPreloadHref` prop).
  *
  * Late IN-PAGE chunks ride along: the meeting routes include the MinutesEditor
@@ -240,10 +242,16 @@ const PROJECT_TAB_NAMESPACES: Record<string, readonly string[]> = {
   contract: ['project', 'projectTabs', 'stock', 'timeAndMaterials'],
 };
 
+interface RouteDataContext {
+  orgId: string;
+  client: QueryClient;
+}
+
 interface PreloadRule {
   path: string;
   chunks: PreloadableRouteChunk[];
   namespaces?: readonly string[];
+  data?: (params: Readonly<Record<string, string | undefined>>, context: RouteDataContext) => void;
 }
 
 const PRELOAD_RULES: PreloadRule[] = [
@@ -295,7 +303,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
   { path: '/work-orders', chunks: [WorkOrdersPage], namespaces: ['workOrders', 'status'] },
-  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'stock', 'workOrderCost', 'workOrderPva', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety', 'billingSteps', 'refusals'] },
+  { path: '/work-orders/:id', data: ({ id }, { orgId, client }) => { if (id) preloadWorkOrder(client, orgId, id); }, chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'stock', 'workOrderCost', 'workOrderPva', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety', 'billingSteps', 'refusals'] },
   { path: '/safety-days/:dayId', chunks: [SafetyDayFormPage], namespaces: ['safety', 'status'] },
   { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
@@ -408,14 +416,36 @@ export function namespacesForPath(pathname: string): readonly string[] {
   return preloadRuleForPath(pathname)?.namespaces ?? [];
 }
 
-/** Fire every matching route's preloads — its code chunks AND its translation namespaces —
- * in parallel (idempotent per module; i18next de-dupes a namespace it already has). */
+/** Start the destination's code, translation namespaces and available data together. */
 // eslint-disable-next-line react-refresh/only-export-components -- same preload rules, consumed by the rail prop and the route-entry effect
-export function preloadForPath(pathname: string): void {
-  const namespaces = namespacesForPath(pathname);
-  if (namespaces.length) void i18next.loadNamespaces(namespaces);
-  for (const chunk of preloadsForPath(pathname)) void chunk.preload();
+export function preloadForPath(pathname: string, context?: RouteDataContext): void {
+  const rule = preloadRuleForPath(pathname);
+  if (!rule) return;
+  if (rule.namespaces?.length) void i18next.loadNamespaces(rule.namespaces);
+  for (const chunk of rule.chunks) void chunk.preload();
+  if (context && rule.data) {
+    const match = matchPath(rule.path, normalizePath(pathname));
+    if (match) rule.data(match.params, context);
+  }
 }
+
+/** Observe navigation before a React transition can wait for the destination to render. */
+// eslint-disable-next-line react-refresh/only-export-components -- the shell and navigation tests use the same subscription
+export function subscribeToRoutePreloads(router: DataRouter, preload: (href: string) => void): () => void {
+  let previousHref: string | undefined;
+  const onRoute = ({ navigation, location }: RouterState) => {
+    const { pathname, search } = navigation.location ?? location;
+    const href = pathname + search;
+    if (href === previousHref) return;
+    previousHref = href;
+    preload(href);
+  };
+  const unsubscribe = router.subscribe(onRoute);
+  onRoute(router.state);
+  return unsubscribe;
+}
+
+const AppRouterContext = React.createContext<DataRouter | null>(null);
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -672,7 +702,12 @@ export const AppRoutes: React.FC = React.memo(function AppRoutes() {
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 export const ShellChrome: React.FC = () => {
   const location = useLocation();
-  const { pathname } = location;
+  const { pathname, search } = location;
+  const router = React.useContext(AppRouterContext);
+  const orgId = useAuth().currentUser?.org_id;
+  const preload = useCallback((href: string) => {
+    preloadForPath(href, orgId ? { orgId, client: queryClient } : undefined);
+  }, [orgId]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -680,13 +715,14 @@ export const ShellChrome: React.FC = () => {
   usePriceVisibilitySync();
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
-  // #1834: route entry fires the route's — and its late in-page chunks' —
-  // preload() immediately, so deep links, Back/Forward and ⌘K Navigate start
-  // downloading code in parallel with data instead of after it. Idempotent per
-  // module (lazyWithPreload memoizes the import promise).
   useEffect(() => {
-    preloadForPath(pathname);
-  }, [pathname]);
+    if (router) return subscribeToRoutePreloads(router, preload);
+  }, [router, preload]);
+
+  // Standalone shell renders can still use a declarative router.
+  useEffect(() => {
+    if (!router) preload(pathname + search);
+  }, [router, pathname, search, preload]);
 
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
   // These are stable callbacks (never change identity), safe to use here.
@@ -952,7 +988,7 @@ export const ShellChrome: React.FC = () => {
         rail={
           <Rail
             onNavigate={closeRail}
-            onPreloadHref={preloadForPath}
+            onPreloadHref={preload}
             railActiveOverride={railActiveOverride}
             operatorAccessError={needsOperatorRecovery}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
@@ -1119,7 +1155,9 @@ const App: React.FC<AppProps> = ({ router: injectedRouter }) => {
           {/* Locale resolution + i18next. Below AuthProvider because it needs the profile; above
               the router because every string-rendering subtree sits under it (FR-L10N-003). */}
           <I18nProvider>
-            <RouterProvider router={router} />
+            <AppRouterContext.Provider value={router}>
+              <RouterProvider router={router} />
+            </AppRouterContext.Provider>
           </I18nProvider>
         </AuthProvider>
       </QueryClientProvider>

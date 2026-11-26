@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { createMemoryRouter } from 'react-router';
 
 const permissionState = vi.hoisted(() => ({ role: 'Finance' }));
 vi.mock('@/src/auth/usePermission', () => ({
@@ -14,8 +15,9 @@ vi.mock('@/src/lib/lazyWithPreload', () => {
   return { lazyWithPreload: inert };
 });
 
-import { preloadsForPath, namespacesForPath, preloadForPath } from './App';
+import { preloadsForPath, namespacesForPath, preloadForPath, subscribeToRoutePreloads } from './App';
 import { i18next } from '@/src/lib/i18n';
+import { queryClient } from '@/src/lib/queryClient';
 import { appRouteConfig } from './App';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -154,4 +156,47 @@ describe('preloadsForPath (#1834 route-entry preload rules)', () => {
       expect(preloadsForPath(path).length, path).toBeGreaterThan(0);
     }
   });
+});
+
+it('#2919 starts the work order record, steps, costs and allocations at route entry', () => {
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    preloadForPath('/work-orders/w1#wo-cost', { orgId: 'o1', client: queryClient });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([
+      ['work-order', 'o1', 'w1'],
+      ['work-order-billing-steps', 'o1', 'w1'],
+      ['work-order-cost-lines', 'o1', 'w1'],
+      ['work-order-lines', 'o1', 'wo', 'w1'],
+    ]);
+    prefetch.mockClear();
+    preloadForPath('/work-orders/w1');
+    expect(prefetch).not.toHaveBeenCalled();
+  } finally {
+    prefetch.mockRestore();
+  }
+});
+
+it('#2919 starts work order reads during navigation, before the new page can commit', async () => {
+  let finishLoader!: () => void;
+  const loader = new Promise<null>((resolve) => { finishLoader = () => resolve(null); });
+  const router = createMemoryRouter([
+    { path: '/' },
+    { path: '/work-orders/:id', loader: () => loader },
+  ]);
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  let unsubscribe: (() => void) | undefined;
+  try {
+    unsubscribe = subscribeToRoutePreloads(router, (href) => preloadForPath(href, { orgId: 'o1', client: queryClient }));
+    const navigation = router.navigate('/work-orders/w1');
+    expect(router.state.location.pathname).toBe('/');
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['work-order', 'o1', 'w1']);
+    finishLoader();
+    await navigation;
+    expect(prefetch).toHaveBeenCalledTimes(4);
+  } finally {
+    finishLoader();
+    unsubscribe?.();
+    router.dispose();
+    prefetch.mockRestore();
+  }
 });
