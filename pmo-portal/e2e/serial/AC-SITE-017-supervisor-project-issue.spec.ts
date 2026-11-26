@@ -1,15 +1,16 @@
 // @e2e-isolation: serial — restores the organisation crew-loans setting; all workforce rows belong to this journey.
+import { jobRoleUser } from '../support/jobRole';
 import { test, expect } from '@playwright/test';
 import { serviceClient, need, ORG_ID, PM_ID, ENGINEER_ID, inDays } from '../support/jobJourney';
 const db = serviceClient('AC-SITE-017');
 const must = need('AC-SITE-017');
 test('AC-SITE-017 a supervisor creates a task from a project issue on its current work-order project', async ({ page }) => {
- const run = crypto.randomUUID(); const email = `site-${run}@example.invalid`; const password = `${run}-Aa1!`;
- const created = await db.auth.admin.createUser({ email, password, email_confirm: true }); if(created.error || !created.data.user) throw new Error(created.error?.message ?? 'User not created'); const user = created.data.user;
+ const run = crypto.randomUUID();
+ const user = await jobRoleUser({ jobRole: 'site_supervisor', role: 'Engineer', org: ORG_ID, service: db, run: `site-${run}`, displayName: 'Site supervisor' });
+ const { email, password } = user;
  const setting = must('setting', await db.from('organizations').select('crew_loans_enabled').eq('id', ORG_ID).single());
  const crews: string[] = []; let project = ''; let wo = ''; let worker = '';
  try {
-  must('profile', await db.from('profiles').insert({ id:user.id, org_id:ORG_ID, email, full_name:'Site supervisor', role:'Engineer', built_in_role:'site_supervisor' }).select('id').single());
   must('enable loans', await db.from('organizations').update({crew_loans_enabled:true}).eq('id',ORG_ID).select('id').single());
   project=must('project',await db.from('projects').insert({org_id:ORG_ID,name:run,status:'Ongoing Project',project_manager_id:PM_ID}).select('id').single()).id;
   wo=must('work order',await db.from('work_orders').insert({org_id:ORG_ID,project_id:project,title:run,status:'Issued',order_value:1000,tax_treatment:'exclusive',tax_amount:0,responsible_person_id:user.id,start_date:inDays(-1),end_date:inDays(1)}).select('id').single()).id;

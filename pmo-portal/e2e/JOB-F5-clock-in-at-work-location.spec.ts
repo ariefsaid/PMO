@@ -7,7 +7,7 @@
  */
 import { test, expect, type BrowserContext } from '@playwright/test';
 import { need, ok, runId, serviceClient } from './support/jobFixtures';
-import { inDays } from './support/jobJourney';
+import { inDays, ORG_TIMEZONE } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
 
 test.setTimeout(240_000);
@@ -16,7 +16,7 @@ test('JOB-F5 an inside clock-in is recorded and an outside one waits for the sit
   const svc = serviceClient('JOB-F5');
   const run = runId('f5');
   const orgId = need('organisation', await svc.from('organizations').insert({
-    name: `${run} organisation`, default_currency: 'USD', default_timezone: 'UTC',
+    name: `${run} organisation`, default_currency: 'USD', default_timezone: ORG_TIMEZONE,
     built_in_roles_enabled: true, phone_check_in_supervisor_role: 'site_supervisor',
   }).select('id').single()).id;
   const users: Awaited<ReturnType<typeof createJobRoleUser>>[] = [];
