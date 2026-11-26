@@ -35,18 +35,25 @@ const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleN
     },
     onSuccess: () => {
       toast(t('administration:roleNames.saved', 'Role name saved'), undefined, 'success');
-      return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
+    onError: (e) => {
+      setNames({ en: current?.en ?? '', id: current?.id ?? '' });
+      toast(classifyMutationError(e).headline, undefined, 'error');
+    },
+    onSettled: refresh,
   });
   const reset = useMutation({
     mutationFn: async () => { for (const locale of ROLE_NAME_LOCALES) if (current?.[locale] !== undefined) await resetOrgRoleName(role.key, locale); },
     onSuccess: () => {
       toast(t('administration:roleNames.resetDone', 'Back to the default name'), undefined, 'success');
-      return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
+    onError: (e) => {
+      setNames({ en: current?.en ?? '', id: current?.id ?? '' });
+      toast(classifyMutationError(e).headline, undefined, 'error');
+    },
+    onSettled: refresh,
   });
+  const busy = save.isPending || reset.isPending;
   const dirty = ROLE_NAME_LOCALES.some((l) => names[l] !== (current?.[l] ?? ''));
   const invalid = ROLE_NAME_LOCALES.some((l) => names[l].trim() !== '' && validateRoleName({ roleKey: role.key, locale: l, name: names[l] }) !== null);
   const hasOverride = ROLE_NAME_LOCALES.some((l) => current?.[l] !== undefined);
@@ -60,17 +67,17 @@ const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleN
             <div className="text-sm text-text-secondary">
               {LOCALE_NAME[locale]} · {t('administration:terminology.default', 'Default')}: {fallback}
             </div>
-            <TextField label={t('administration:roleNames.name', 'Name')} disabled={!canEdit} value={names[locale]} placeholder={fallback}
+            <TextField label={t('administration:roleNames.name', 'Name')} disabled={!canEdit || busy} value={names[locale]} placeholder={fallback}
               maxLength={ROLE_NAME_MAX} onChange={(v) => setNames((n) => ({ ...n, [locale]: v }))} fullWidth />
           </div>
         );
       })}
       {canEdit && (
         <div className="flex gap-2">
-          <Button variant="primary" disabled={!dirty || invalid || save.isPending} onClick={() => save.mutate()}>
+          <Button variant="primary" disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
           </Button>
-          <Button variant="outline" disabled={!hasOverride || reset.isPending} onClick={() => reset.mutate()}>
+          <Button variant="outline" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>
