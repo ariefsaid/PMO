@@ -380,6 +380,7 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   // #2700: the monthly equipment plan is reached from Procurement (its Back bar names it).
   '/equipment-plans': '/procurement',
   '/equipment-plans/settings': '/procurement',
+  '/purchase-types/settings': '/procurement',
   // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
   '/finance/billing-board': '/finance/receivables',
   '/finance/billing-plan': '/finance/receivables',
@@ -402,6 +403,7 @@ export function railParentForPath(pathname: string): string | undefined {
 }
 
 export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
+  '/purchase-types/settings': { label: 'Purchase types', i18nKey: 'purchaseTypes:settings.title' }, // i18n-exempt: translated at render
   '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
