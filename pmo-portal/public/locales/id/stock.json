@@ -857,7 +857,7 @@
       "signatureDate": "Tanggal"
     },
     "columns": {
-      "transfer": "Transfer",
+      "transfer": "No. transfer",
       "sent": "Dikirim",
       "rejected": "Ditolak",
       "note": "Catatan"
