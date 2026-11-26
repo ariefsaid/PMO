@@ -63,8 +63,6 @@ export interface TimesheetGridProps {
   onDeleteRow?: (rowId: string) => void;
   /** Omit the phone stack's week-total footer when the page already shows the week total beside its actions. */
   hideMobileWeekTotal?: boolean;
-  /** Use the day-stacked layout at every width: for a narrow host such as a side drawer, where 7 day columns do not fit. */
-  stacked?: boolean;
 }
 
 /**
@@ -93,10 +91,9 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   onNoteChange,
   onDeleteRow,
   hideMobileWeekTotal = false,
-  stacked = false,
 }) => {
   const { t } = useTranslation();
-  const isDesktop = useIsDesktop() && !stacked;
+  const isDesktop = useIsDesktop();
 
   // Read-only totals: the shipped numeric reduce. Editable totals: derive from
   // the (string) edited state via the pure, memo-friendly computeTotals selector.
