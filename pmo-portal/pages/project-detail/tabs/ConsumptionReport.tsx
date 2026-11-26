@@ -57,7 +57,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   const signed = (v: string) => (v.startsWith('-') || /^0(\.0+)?$/.test(v) ? formatQuantity(v, loc) : `+${formatQuantity(v, loc)}`);
 
   const r = q.data;
-  const monthOptions = React.useMemo(() => {
+  const monthOptions = (() => {
     if (!range) return [];
     const start = Number(range.fromMonth.slice(0, 4)) - 5;
     const end = Number(range.toMonth.slice(0, 4)) + 5;
@@ -65,9 +65,9 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
       const year = start + Math.floor(index / 12);
       const month = String(index % 12 + 1).padStart(2, '0');
       const value = `${year}-${month}`;
-      return { value, label: new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}-01T00:00:00Z`)) };
+      return { value, label: formatUtcMonthYearFull(new Date(`${value}-01T00:00:00Z`)) };
     });
-  }, [range, loc]);
+  })();
   const showValue = (r?.months ?? []).some((m: ConsumptionMonthRow) => m.netValue !== undefined);
   const empty = !reversed && r && r.months.length === 0 && r.allowances.length === 0 && r.unplanned.length === 0;
 
