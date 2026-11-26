@@ -9,6 +9,7 @@ import { ok, projectWithWorkOrders, runId, serviceClient, sqlAsOwner } from './s
 import { confirmPost, label } from './support/jobStock';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, postReceive, runSuffix, userClient } from './support/stockFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -80,6 +81,7 @@ test('JOB-W16 storekeeper drafts a work-order count variance and material coordi
 
     // 3. Goal: Material completion report for the work order shows -3 counted difference and balance 7.
     await page.goto(`/work-orders/${workOrderId}/material-completion`);
+    await openWorkOrderArea(page, 'checks');
     const row = page.getByTestId('material-completion-page').getByRole('row').filter({ hasText: item.code });
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row.getByRole('cell').nth(6)).toContainText(/[−-]3/);

@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
 import { createJobRoleUser } from '../support/jobRoleUser';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(240_000);
 
@@ -101,6 +102,7 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     // 3. A newly issued work order carries that list; the billing officer adds one step to it.
     await db.from('work_orders').update({ status: 'Issued', issued_at: new Date().toISOString() }).eq('id', workOrderId).throwOnError();
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'billing');
     const steps = page.getByTestId('wo-billing-steps');
     await expect(steps.getByRole('listitem', { name: 'Prepare evidence' })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Add step' }).click();
@@ -121,6 +123,7 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
 
     // 5. Saved deliberately, the work order's own list becomes a template of its own.
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'billing');
     await page.getByRole('button', { name: 'Save as template' }).click();
     const save = page.getByRole('dialog', { name: 'Save as template' });
     await save.getByLabel('Template name').fill('BQ4 saved two steps');

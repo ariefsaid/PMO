@@ -6,6 +6,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -65,6 +66,7 @@ test('AC-WML-007 open steps and a missing attachment are listed, exported, and l
     await page.route('**/api/resource/**', (route) => route.abort());
 
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
     await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Close-out', exact: true }).click();
     const list = page.getByTestId('missing-list');
     await expect(list).toContainText('First ' + suffix);

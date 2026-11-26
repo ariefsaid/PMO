@@ -6,6 +6,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(90_000);
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -81,6 +82,7 @@ test('AC-WDT-014 a non-working date is left out of the month spread, and both sc
     await page.context().clearCookies();
     await signIn(page, 'finance@acme.test');
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'cost');
     const plan = page.getByTestId('wo-page-revenue-plan');
     await expect(plan).toBeVisible({ timeout: 15_000 });
     await plan.getByRole('button', { name: 'Enter plan' }).click();

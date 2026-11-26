@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { removeJobOrganization } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -96,6 +97,7 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
 
     // The running work order: its page shows the progress to date and the billed value that were loaded.
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'billing');
     await expect(page.getByRole('main')).toContainText(`${run} running scope`, { timeout: 30_000 });
     await expect(page.getByTestId(`scope-line-${line.id}`)).toContainText('40 of 100 m3', { timeout: 30_000 });
     await expect(page.getByTestId('billing-invoiced')).toContainText(amount('750'), { timeout: 30_000 });

@@ -5,6 +5,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(240_000);
 
@@ -95,6 +96,7 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
     // 4. The project manager sees all three done and issues the work order.
     await pm.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'documents');
     for (const o of owners) await expect(page.getByTestId('wo-checks').getByRole('listitem').filter({ hasText: o.check })).toContainText('Done', { timeout: 20_000 });
     await expect(page.getByTestId('wo-checks')).toContainText('All 3 done');
     await expect(page.getByTestId('wo-checks-open')).toHaveCount(0);

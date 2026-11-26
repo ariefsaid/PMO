@@ -13,6 +13,7 @@ import { iso, need, ORG_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { runId } from './support/jobFixtures';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 const must = need('JOB-E1');
@@ -116,6 +117,7 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   // Goal: the work order lists the crane, with the day it was used and its hours.
   await officer.signIn(page);
   await page.goto(`/work-orders/${wo.workOrderId}`);
+  await openWorkOrderArea(page, 'cost');
   const equipment = page.getByTestId('cost-group-equipment_usage');
   await expect(equipment).toContainText(pmCode, { timeout: 20_000 });
   await expect(equipment).toContainText(new RegExp(`(?<!\\d)${workDay.getDate()} [A-Z][a-z]{2}( \\d{4})? · 8 hours`));

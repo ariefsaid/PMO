@@ -7,6 +7,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(120_000);
 test.use({ deviceScaleFactor: 2 });
@@ -106,6 +107,7 @@ test('AC-CSP-016 the project and the work order show the same cost and schedule 
 
     await panel.getByTestId('project-performance-row-' + ids.wo).getByRole('link').click();
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + ids.wo);
+    await openWorkOrderArea(page, 'cost');
     const woPanel = page.getByTestId('wo-page-performance');
     await expect(woPanel).toBeVisible({ timeout: 20_000 });
     await expect(woPanel.getByTestId('wo-page-performance-cpi-value')).toHaveText('1.20');

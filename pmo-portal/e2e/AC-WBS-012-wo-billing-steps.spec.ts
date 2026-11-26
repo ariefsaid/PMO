@@ -6,6 +6,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -66,6 +67,7 @@ test('AC-WBS-012 a work order\'s billing steps advance in order and appear on th
 
     // The record shows the chain; the first step is current and cannot be finished without its required document.
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'billing');
     await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Billing', exact: true }).click();
     await expect(page.getByTestId('wo-billing-steps-summary')).toContainText('2 steps not finished');
     await expect(page.getByRole('button', { name: 'Mark First ' + suffix + ' done' })).toBeDisabled();
