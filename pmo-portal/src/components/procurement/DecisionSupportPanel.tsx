@@ -322,8 +322,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       // One short line each, so the reason fits its cell: open orders unknown (inputs null) or only spending unknown.
       : inputs === null ? t('decisionSupport.leftOrdersUnknown', 'Open orders not known yet')
       : t('decisionSupport.leftSpendingUnknown', 'Spending not known yet'),
-    // Only spending unknown: the tile says one short word, the sentence under the tiles carries the fallback.
-
+    // Outside a figure scope the tile states the reason; inside one the page reports it once.
   };
   // The strip aligns labels and figures across each row itself (alignRows), so a label is plain text.
   const asTile = (part: Part): StatTile => ({ label: part.label, value: part.value, ...(part.sub ? { sub: part.sub } : {}), ...(part.exactValue ? { exactValue: part.exactValue } : {}) });
