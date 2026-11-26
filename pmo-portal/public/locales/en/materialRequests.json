@@ -242,7 +242,7 @@
     "cutoffError": "Couldn't load the cut-off",
     "cutoffSaved": "Cut-off saved",
     "cutoffSub": "A request needed tomorrow must be sent before this time. Leave empty for no cut-off.",
-    "cutoffTime": "Time (24-hour, e.g. 12:00)",
+    "cutoffTime": "Time",
     "delegator": "Person who is away",
     "deliveryNote": "Printable delivery note",
     "deliveryNoteError": "Couldn't load delivery note settings",

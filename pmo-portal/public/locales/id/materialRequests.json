@@ -242,7 +242,7 @@
     "cutoffError": "Batas waktu tidak dapat dimuat",
     "cutoffSaved": "Batas waktu disimpan",
     "cutoffSub": "Permintaan yang dibutuhkan besok harus dikirim sebelum jam ini. Kosongkan bila tanpa batas.",
-    "cutoffTime": "Jam (24 jam, mis. 12:00)",
+    "cutoffTime": "Jam",
     "delegator": "Orang yang berhalangan",
     "deliveryNote": "Surat jalan siap cetak",
     "deliveryNoteError": "Pengaturan surat jalan tidak dapat dimuat",

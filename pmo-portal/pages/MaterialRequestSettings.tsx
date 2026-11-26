@@ -108,7 +108,7 @@ const CutoffEditor: React.FC = () => {
       {cutoff.isError && <ListState variant="error" title={t('settings.cutoffError', "Couldn't load the cut-off")} onRetry={() => void cutoff.refetch()} />}
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       {!cutoff.isError && <div className="flex flex-wrap items-end gap-2">
-        <TextField label={t('settings.cutoffTime', 'Time (24-hour, e.g. 12:00)')} type="time" value={shown} onChange={setValue} />
+        <TextField label={t('settings.cutoffTime', 'Time')} type="time" value={shown} onChange={setValue} />
         <Button variant="primary" disabled={value === null} loading={m.setCutoff.isPending} onClick={() => void save()}>{t('settings.saveCutoff', 'Save cut-off')}</Button>
       </div>}
     </RecordSection>

@@ -45,7 +45,7 @@ describe('material request approval settings', () => {
     h.role = 'Engineer';
     render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
     expect(screen.queryByText('Daily cut-off')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/^Time \(24-hour/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Time$/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save cut-off' })).not.toBeInTheDocument();
   });
 
@@ -53,7 +53,7 @@ describe('material request approval settings', () => {
     h.role = 'Admin';
     render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
     expect(screen.getByText('Daily cut-off')).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Time \(24-hour/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Time$/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save cut-off' })).toBeInTheDocument();
   });
 
