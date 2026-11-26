@@ -72,7 +72,8 @@
   },
   "filter": {
     "all": "All",
-    "status": "Status"
+    "status": "Status",
+    "allStatuses": "All statuses"
   },
   "include": "Include",
   "includeBackcharge": "Include a recorded backcharge",
@@ -157,5 +158,7 @@
     "setAside": "Set aside",
     "submitted": "Submitted for approval"
   },
-  "moreActions": "More certificate actions"
+  "moreActions": "More certificate actions",
+  "emptyFiltered": "No certificates in this status",
+  "clearFilter": "Show all"
 }

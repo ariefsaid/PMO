@@ -72,7 +72,8 @@
   },
   "filter": {
     "all": "Semua",
-    "status": "Status"
+    "status": "Status",
+    "allStatuses": "Semua status"
   },
   "include": "Masukkan",
   "includeBackcharge": "Masukkan potongan yang tercatat",
@@ -157,5 +158,7 @@
     "setAside": "Disisihkan",
     "submitted": "Diajukan untuk persetujuan"
   },
-  "moreActions": "Tindakan sertifikat lainnya"
+  "moreActions": "Tindakan sertifikat lainnya",
+  "emptyFiltered": "Tidak ada sertifikat dengan status ini",
+  "clearFilter": "Tampilkan semua"
 }

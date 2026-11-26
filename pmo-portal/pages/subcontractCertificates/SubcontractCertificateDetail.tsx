@@ -178,8 +178,10 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
         menuItems={menuItems}
         menuLabel={t('subcontractCertificates:moreActions', 'More certificate actions')}
       >
-        {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="spc-waiting-for">{waitingLine}</p>}
-        {sameApprover && <p role="status">{t('subcontractCertificates:errors.needsDifferentApprover', 'A certificate needs a different approver than the person who prepared and submitted it.')}</p>}
+        {waitingLine || sameApprover ? <>
+          {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="spc-waiting-for">{waitingLine}</p>}
+          {sameApprover && <p role="status">{t('subcontractCertificates:errors.needsDifferentApprover', 'A certificate needs a different approver than the person who prepared and submitted it.')}</p>}
+        </> : null}
       </RecordHeader>
       {c.status === 'returned' && c.returned_reason && <ErrBanner title={t('subcontractCertificates:returned', 'Returned for changes')} sub={c.returned_reason} />}
       {c.bill_refusal && <ErrBanner title={t('subcontractCertificates:billRefused', 'The bill was refused')} sub={c.bill_refusal} />}
