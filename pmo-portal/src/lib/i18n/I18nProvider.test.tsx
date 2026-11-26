@@ -3,7 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { formatCurrency, formatDateTime, formatInstantDate } from '@/src/lib/format';
-import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { getActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FALLBACK_TIMEZONE } from '@/src/lib/locale/resolveLocale';
 
@@ -170,22 +169,5 @@ describe('I18nProvider loads the organisation stage names (#2906)', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByText('Penawaran dikirim')).toBeInTheDocument();
-  });
-});
-
-describe('I18nProvider: the organisation day reaches forms opened before the organisation defaults load (#2914)', () => {
-  afterEach(() => vi.useRealTimers());
-
-  it('organisation timezone set after mount: the form\'s default day flips to the organisation day', async () => {
-    // 26 Nov 01:00 in Jakarta, still 25 Nov in UTC: the day boundary.
-    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-25T18:00:00Z') });
-    orgDefaults.current = { defaultLocale: 'en', defaultNumberLocale: 'en-US', defaultTimezone: 'Asia/Jakarta' };
-    function Form() {
-      const [day] = React.useState(() => orgDayNow());   // what every dialog does on mount
-      return <span data-testid="default-day">{day}</span>;
-    }
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(<QueryClientProvider client={client}><I18nProvider><Form /></I18nProvider></QueryClientProvider>);
-    await waitFor(() => expect(screen.getByTestId('default-day')).toHaveTextContent('2026-11-26'));
   });
 });

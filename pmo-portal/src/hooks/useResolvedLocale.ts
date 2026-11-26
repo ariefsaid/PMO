@@ -18,16 +18,29 @@ const NO_ORG_DEFAULTS: OrgLocaleDefaultsRow = {
  * `useResolvedLocale` and Profile & preferences, which names what "Organization default" would
  * give the user; both read the SAME cached query.
  */
-export function useOrgLocaleDefaults(): OrgLocaleDefaultsRow {
+function useOrgLocaleDefaultsQuery() {
   const { currentUser } = useAuth();
-  const { data } = useQuery<OrgLocaleDefaultsRow>({
+  return useQuery<OrgLocaleDefaultsRow>({
     queryKey: ['org-locale-defaults', currentUser?.org_id],
     queryFn: () => repositories.orgSettings.getLocaleDefaults(),
     enabled: Boolean(currentUser),
     ...SESSION_QUERY_OPTIONS,
     placeholderData: NO_ORG_DEFAULTS,
   });
-  return data ?? NO_ORG_DEFAULTS;
+}
+
+export function useOrgLocaleDefaults(): OrgLocaleDefaultsRow {
+  return useOrgLocaleDefaultsQuery().data ?? NO_ORG_DEFAULTS;
+}
+
+/**
+ * True once the signed-in person's organisation defaults have resolved (or failed, which falls back to UTC).
+ * The signed-in shell waits for it so no screen mounts a day-defaulting form before the organisation's timezone is known (#2914).
+ */
+export function useOrgDefaultsReady(): boolean {
+  const { currentUser } = useAuth();
+  const { isPlaceholderData, isError } = useOrgLocaleDefaultsQuery();
+  return !currentUser || !isPlaceholderData || isError;
 }
 
 /** The organization's own date boundary, used when a client date must match a server guard. */
