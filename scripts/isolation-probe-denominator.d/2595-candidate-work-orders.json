@@ -33,10 +33,6 @@
       "by_id": "applicable"
     }
   ],
-  "definer_functions": [
-    "create_work_order_candidate(uuid,text,text,text,date,uuid)",
-    "decide_work_order_candidate(uuid,text,text)"
-  ],
   "buckets": [
     "work-order-candidate-proofs"
   ]

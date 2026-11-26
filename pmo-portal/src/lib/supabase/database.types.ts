@@ -31225,17 +31225,6 @@ export type Database = {
         }
         Returns: string
       }
-      create_work_order_candidate: {
-        Args: {
-          p_client_reference?: string
-          p_description?: string
-          p_offered_on?: string
-          p_project_id: string
-          p_replaces_id?: string
-          p_title: string
-        }
-        Returns: string
-      }
       crew_can_manage: { Args: never; Returns: boolean }
       crew_start_punctuality: {
         Args: {
@@ -31490,10 +31479,6 @@ export type Database = {
       decide_po_variation: {
         Args: { p_approve: boolean; p_id: string; p_notes?: string }
         Returns: undefined
-      }
-      decide_work_order_candidate: {
-        Args: { p_candidate_id: string; p_decision: string; p_reason: string }
-        Returns: Json
       }
       defer_erp_full_sweep: {
         Args: { p_due_in_seconds: number; p_holder: string; p_org_id: string }
@@ -39016,11 +39001,6 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
-      wo_candidate_can_assess: {
-        Args: { p_candidate: string }
-        Returns: boolean
-      }
-      wo_candidate_item_can_edit: { Args: { p_item: string }; Returns: boolean }
       wo_daily_target_vs_actual: {
         Args: { p_as_of?: string; p_work_order: string }
         Returns: Json
