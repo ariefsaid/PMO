@@ -578,7 +578,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
       {/* One card assembly (DESIGN.md §3): the register toolbar seams to the rows below it, so the
           filters and the register read as one surface in every state, like the record's other tabs. */}
-      <div className="min-w-0" data-testid="documents-register-assembly">
+      <div className={sortedFiltered.length <= 2 ? "min-w-0 max-w-[900px]" : "min-w-0"} data-testid="documents-register-assembly">
         <DocumentsToolbar
           search={search}
           setSearch={setSearch}

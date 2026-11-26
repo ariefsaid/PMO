@@ -4,7 +4,7 @@ import { AuthContext } from '@/src/auth/AuthContext';
 import { preloadProjectOrders } from '@/src/lib/routeData';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, RecordSection, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -68,6 +68,7 @@ const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project 
 
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void; /** The Activity panel (delivery projects only). */ activity?: React.ReactNode }> = ({ project, isPipeline, onOpen, activity }) => {
+  const { t } = useTranslation('project');
   const lens = useLens();
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
@@ -139,7 +140,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <ProjectAttention items={attention.items} isPending={attention.isPending} pendingSources={attention.pendingSources} error={attention.error} band className="min-w-0" />
           {canSeeMoney && <div className="min-w-0"><MoneyBlock project={project} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
         </div>
-        <CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} />
+        <RecordSection title={t('projectDetail.tabs.budget', 'Budget')} actions={<Button variant="outline" size="sm" onClick={openBudget}>{t('projectDetail.cost.openBudgetArea', 'Open budget')}</Button>} />
         <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock><ProjectPerformance projectId={project.id} /></div>
         {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
         <WhenNearViewport>
@@ -263,7 +264,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   return (
     <>
       {header}
-      <div data-testid="mobile-project-area-select" className="mb-4 md:hidden">
+      <div data-testid="mobile-project-area-select" className="sticky top-0 z-10 mb-4 bg-background py-2 md:hidden">
         <SelectField
           label={sectionsLabel}
           hideLabel

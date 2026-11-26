@@ -338,9 +338,24 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const scrollRegionRef = useRef<HTMLDivElement>(null);
   const [hasScrollCue, setHasScrollCue] = useState(false);
   useLayoutEffect(() => {
-    const active = scrollRegionRef.current?.querySelector<HTMLElement>('a[aria-current="page"]');
-    active?.scrollIntoView?.({ block: 'nearest' });
-  }, [location.pathname, location.search]);
+    const region = scrollRegionRef.current;
+    if (!region) return;
+    region.scrollTop = 0;
+    const reveal = () => {
+      const active = region.querySelector<HTMLElement>('a[aria-current="page"]');
+      if (!active) return false;
+      const group = active.closest<HTMLElement>('[role="group"]');
+      (group ?? active).scrollIntoView?.({ block: 'nearest' });
+      active.scrollIntoView?.({ block: 'nearest' });
+      return true;
+    };
+    reveal();
+    if (typeof MutationObserver === 'undefined') return;
+    // Entitlements can insert rows after the active link first appears; keep it in view as the content settles.
+    const observer = new MutationObserver(() => { reveal(); });
+    observer.observe(region, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+    return () => observer.disconnect();
+  }, [location.pathname, location.search, role]);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
     if (!region) return;
@@ -641,7 +656,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
                     aria-controls={groupId}
                     onClick={() => toggleGroup(group)}
                     className={cn(
-                      'touch-target flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 text-left text-control font-normal text-muted-foreground hover:bg-surface-hover',
+                      'touch-target sticky top-0 z-10 flex min-h-11 w-full items-center gap-2 rounded-md bg-card px-2.5 text-left text-control font-normal text-muted-foreground hover:bg-surface-hover',
                       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:hover:bg-transparent',
                     )}
                   >

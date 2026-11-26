@@ -576,7 +576,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   /** Days in the current stage, said as a person would: "today" rather than a column of zeros. */
   const ageText = useCallback((days: number) => (days === 0
     ? t('procurement.inStageToday', 'Today')
-    : t('procurement.inStageDays', { count: days, defaultValue_one: '{{count}} day', defaultValue_other: '{{count}} days' })), [t]);
+    : t('procurement.inStageDaysLong', { count: days, defaultValue_one: '{{count}} day in stage', defaultValue_other: '{{count}} days in stage' })), [t]);
 
   /** The purchase cell: its name, then number · supplier; below 1280 the table also folds project and requester in here. */
   const titleCell = useCallback((row: ProcurementWithRefs, withContext: boolean) => (
@@ -866,7 +866,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                     <span>{stageLabel}</span>
                     {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
-                  <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
+                  <span className="mt-1 flex w-full min-w-0 flex-col items-start gap-1">
                     <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
                     <span className="flex min-w-0 flex-col text-sm text-muted-foreground">

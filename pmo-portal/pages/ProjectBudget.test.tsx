@@ -562,10 +562,11 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     // No notice row: each figure that cannot be shown reads — on its own card with one short caption.
     expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     const cards = screen.getByRole('region', { name: 'Budget figures' });
-    // The cause is said once (Spent, where it is fixed); Budget used and Left say the same short thing.
+    // The cause is said once on Spent; Left carries the remaining unavailable figure.
+    // B1 removes the duplicate Budget used tile; the header owns that percentage.
     expect(within(cards).getAllByText('Spending is not linked')).toHaveLength(1);
-    expect(within(cards).getAllByText('Shown once spending is linked')).toHaveLength(2);
-    expect(within(cards).getAllByText('—').length).toBeGreaterThanOrEqual(3);
+    expect(within(cards).getAllByText('Shown once spending is linked')).toHaveLength(1);
+    expect(within(cards).getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
   it.each([
