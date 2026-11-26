@@ -153,6 +153,16 @@ const MyTasks: React.FC = () => {
   const setQueue = (next: 'open' | 'overdue' | 'completed') => setParam('queue', next === 'open' ? '' : next);
   const search = searchParams.get('q') ?? '';
   const setSearch = (value: string) => setParam('q', value);
+  const clearFilters = () => {
+    setWorkOrderFilter('all');
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('q');
+      next.delete('queue');
+      next.delete('due');
+      return next;
+    }, { replace: true });
+  };
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   // JOB-F17: the issue each task was made from — one read for the page, keyed by the sorted ids.
@@ -383,6 +393,11 @@ const MyTasks: React.FC = () => {
                 ? tasksT('myTasks.nothingOverdue', 'Nothing is overdue')
                 : t('myTasks.noTasksInView', 'No tasks in this view')}
           </p>
+          {(search || queue !== 'open' || dueThisWeekOnly || workOrderFilter !== 'all') && (
+            <button type="button" onClick={clearFilters} className={`${buttonClasses('ghost')} mt-2`}>
+              {tasksT('myTasks.clearFilters', 'Clear filters')}
+            </button>
+          )}
         </div>
       )}
 

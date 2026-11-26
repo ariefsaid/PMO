@@ -67,6 +67,15 @@ beforeEach(() => {
 });
 
 describe('R2 — the My Tasks queue and search live in the URL', () => {
+  it('clears an empty filtered view and restores open tasks', async () => {
+    const user = userEvent.setup();
+    renderMyTasks('/my-tasks?queue=completed&q=missing&due=week&other=kept');
+    expect(screen.getByText('No tasks match your search')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByText('Prepare the agenda')).toBeVisible();
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?other=kept');
+  });
+
   it('a refresh of ?queue=completed reopens the completed queue', () => {
     renderMyTasks('/my-tasks?queue=completed');
     expect(screen.getByRole('button', { name: 'Completed' })).toHaveAttribute('aria-pressed', 'true');

@@ -2,6 +2,7 @@
   "dueThisWeek": "Due this week",
   "clearDueWeek": "Clear the due-this-week filter",
   "myTasks": {
+    "clearFilters": "Clear filters",
     "openTasksShort": "Open",
     "overdueShort": "Overdue",
     "nothingOverdue": "Nothing is overdue"
