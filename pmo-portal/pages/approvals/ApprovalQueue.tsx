@@ -21,12 +21,14 @@ export function QueueButton({
   item,
   selected,
   onSelect,
+  emphasizeWait,
   bulk,
   procurementBulk,
 }: {
   item: QueueItem;
   selected: boolean;
   onSelect: () => void;
+  emphasizeWait: boolean;
   bulk?: BulkController;
   procurementBulk?: ProcurementBulkController;
 }) {
@@ -35,7 +37,7 @@ export function QueueButton({
     const row = item.row;
     const canSelect = procurementBulk?.approvableIds.has(row.id) ?? false;
     const waitingDays = ageInDays(row.created_at);
-    const overdue = urgencyOf(row.created_at) === 'overdue';
+    const overdue = emphasizeWait && urgencyOf(row.created_at) === 'overdue';
     const rowButton = (
       <button
         type="button"
@@ -150,7 +152,7 @@ export function QueueGroup({
   if (hideWhenEmpty && !isPending && !isError && items.length === 0) return null;
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2 px-3">
         <h2 className="text-control font-semibold text-muted-foreground">
           {title}
         </h2>
@@ -172,12 +174,13 @@ export function QueueGroup({
         <p className="py-2 text-control text-muted-foreground">{emptyTitle}</p>
       ) : (
         <div className="space-y-1.5">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <QueueButton
               key={item.key}
               item={item}
               selected={selectedKey === item.key}
               onSelect={() => onSelect(item.key)}
+              emphasizeWait={index === 0}
               bulk={bulk}
               procurementBulk={procurementBulk}
             />
