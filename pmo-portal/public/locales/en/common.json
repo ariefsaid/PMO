@@ -351,7 +351,6 @@
     "loadingAccounts": "Loading chart accounts…",
     "noAssetAccounts": "No enabled Asset accounts in the ERP chart.",
     "notConfigured": "Not configured",
-    "onlyAdmin": "Only an Admin can change this.",
     "pph23Label": "PPh 23 payable account",
     "pph42Label": "PPh 4(2) payable account",
     "reloadSaved": "Reload saved values",

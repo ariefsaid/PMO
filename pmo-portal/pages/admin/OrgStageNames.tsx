@@ -19,7 +19,7 @@ const GROUPS: ProjectStatusGroup[] = ['pipeline', 'onHand', 'lost', 'internal'];
 const english = (_k: string, d: string) => d;
 // Pipeline stages in pipeline order (#1793), then the rest in the shared map's order.
 const STAGE_ORDER = [...PIPELINE_STATUSES, ...Object.keys(STATUS_MAP.project).filter((k) => !PIPELINE_STATUSES.includes(k))];
-const COLS = 'md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_minmax(0,1fr)]';
+const COLS = 'md:grid-cols-[minmax(0,1fr)_repeat(2,minmax(0,1.2fr))]';
 type Draft = { en: string; id: string };
 type Lang = 'en' | 'id';
 
@@ -98,7 +98,7 @@ const StageNamesCard: React.FC = () => {
 
   return (
     <section id="stage-names" tabIndex={-1} className="scroll-mt-4" aria-labelledby="stage-names-heading">
-      <h2 id="stage-names-heading" className="text-group font-semibold tracking-[-0.01em]">{t('admin.stageNames.title', 'Sales and project stages')}</h2>
+      <h3 id="stage-names-heading" className="text-group font-semibold tracking-[-0.01em]">{t('admin.stageNames.title', 'Sales and project stages')}</h3>
       <p className="mt-1 max-w-prose text-control text-muted-foreground">{t('admin.stageNames.helper', 'Rename a stage to match your own process. A blank name keeps the shipped name. Records, filters and reports keep working.')}</p>
       {query.isError && !query.data ? (
         <ListState variant="error" title={t('admin.stageNames.loadError', "Couldn't load the stages")} onRetry={() => void query.refetch()} />
@@ -113,7 +113,7 @@ const StageNamesCard: React.FC = () => {
           </div>
           {GROUPS.map((g) => (
             <div key={g} className="mt-4">
-              <h3 className="text-control font-semibold text-foreground">{groupTitle[g]}</h3>
+              <h4 className="text-control font-semibold text-foreground">{groupTitle[g]}</h4>
               <ul className="divide-y divide-border">
                 {rows.filter((r) => projectStatusGroup(r.status as ProjectStatus) === g).map((r) => {
                   const shipped = shippedStatusLabel('project', r.status, tStatus);
@@ -121,16 +121,16 @@ const StageNamesCard: React.FC = () => {
                   const err = errors[r.status];
                   return (
                     <li key={r.status} data-testid={`stage-name-row-${r.status}`} className={`grid gap-2 py-2 md:items-center md:gap-3 ${COLS}`}>
-                      <span className="text-control text-foreground">{shipped}</span>
+                      <span className="min-w-0 break-words text-control text-foreground">{shipped}</span>
                       <span className="flex items-center gap-2">
                         <span aria-hidden="true" className="w-6 shrink-0 text-control text-muted-foreground md:hidden">EN</span>
-                        <TextField hideLabel fullWidth wrapperClassName="flex-1" label={t('admin.stageNames.inputEn', '{{stage}}, English name', { stage: shipped })}
+                        <TextField hideLabel fullWidth wrapperClassName="min-w-0 flex-1" label={t('admin.stageNames.inputEn', '{{stage}}, English name', { stage: shipped })}
                           placeholder={shippedStatusLabel('project', r.status, english)} aria-invalid={Boolean(err) || undefined}
                           value={d.en} onChange={(v) => setField(r.status, r, 'en', v)} />
                       </span>
                       <span className="flex items-center gap-2">
                         <span aria-hidden="true" className="w-6 shrink-0 text-control text-muted-foreground md:hidden">ID</span>
-                        <TextField hideLabel fullWidth wrapperClassName="flex-1" label={t('admin.stageNames.inputId', '{{stage}}, Bahasa Indonesia name', { stage: shipped })}
+                        <TextField hideLabel fullWidth wrapperClassName="min-w-0 flex-1" label={t('admin.stageNames.inputId', '{{stage}}, Bahasa Indonesia name', { stage: shipped })}
                           placeholder={shippedStatusLabel('project', r.status, idT ?? english)} aria-invalid={Boolean(err) || undefined}
                           value={d.id} onChange={(v) => setField(r.status, r, 'id', v)} />
                       </span>
