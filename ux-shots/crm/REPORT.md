@@ -13,23 +13,25 @@ These are provisional descriptions, not a settled feature floor or an assessment
 
 ## Changes and evidence
 
-No application changes were made: the required before captures and role-based walk could not be produced. No sample records were created. The work branch is the unchanged integration base. No screenshot paths or measured edges exist; before and after measurements are unavailable.
+Company record: moved the contacts list above related records and activity, after supplier risk, so people can find who to call sooner. Contact rows now have a 44px minimum touch target. The same facts, controls, permissions and data calls remain. No sample records were created. No screenshots or measured edges exist; before and after measurements are unavailable.
 
 ## Skills
 
-- Restructure: read the repository override. Applied its instruction to “Freeze the feature floor before any edit”; without a rendered walk the floor was not frozen, so no UI edits were made.
+- Restructure: read the repository override. Applied its instruction to “Freeze the feature floor before any edit”; the source-level change preserves the existing contacts block and its controls; the rendered feature floor remains unverified.
 - Impeccable, taste and ui-ux-pro-max: not loaded. `scripts/vendor-skills.sh` stopped at `cp: cannot stat .../gstack/cso`; its later vendoring steps did not run. No lines are claimed as applied.
 
 ## Journeys and gates
 
 - `npm ci`: passed, with engine and install-script warnings. The lockfile was not changed.
-- Supabase start: failed: CLI attempted to create `/home/agent/.supabase`, a read-only location. The database reset, dev server, role walks, captures, journeys and UX proof were not run.
-- Guards, typecheck, ESLint and related tests: not run; no application files changed.
-- Integration merge and final gates: not run; this is not READY.
+- Supabase lean start: failed twice: CLI attempted to create `/home/agent/.supabase`, a read-only location. The environment policy prevents changing HOME. Database reset, dev server, role walks, captures, journeys and UX proof were not run.
+- Integration branch merged and pushed. Typecheck and ESLint on both changed files passed.
+- Guards failed on integration catalogue errors: missing `filters` and `back`, and orphaned `approvals.bulk.select` and `m365Documents.procurement.intro`.
+- Related tests with Node 22: 21 files passed, one failed; 271 passed, three command-palette tests failed because their render lacked an ImpersonationProvider. The initial Node 24 run failed the repository version guard.
+- Affected-journey discovery was interrupted after it did not finish; no journeys ran. This is not READY.
 
 ## Owner to confirm
 
-No changes to confirm. The company record's position of contacts warrants a rendered review before deciding whether to move it.
+Contacts moved above related records and activity; this choice needs rendered review. No before/after crops are available.
 
 ## Needs a data change
 
@@ -37,4 +39,4 @@ Not assessed. No data changes were made.
 
 ## Not reached
 
-Rendered baseline, complete preservation inventory, design and implementation of all six screens, mobile and Bahasa verification, captures, measured edges, three review rounds, journeys, gates and final integration merge. Resolve the local Supabase CLI home-directory constraint and the stale vendoring script, then resume from the unchanged work branch.
+Rendered baseline, complete preservation inventory, design and implementation of all six screens, mobile and Bahasa verification, captures, measured edges, three review rounds, journeys, gates and final integration merge. Resolve the local Supabase CLI home-directory constraint and resume from the pushed work branch. Taste and impeccable are absent; the user directed that vendoring not be run again.
