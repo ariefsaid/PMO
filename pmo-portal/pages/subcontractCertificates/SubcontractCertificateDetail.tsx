@@ -186,26 +186,26 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
       {c.status === 'returned' && c.returned_reason && <ErrBanner title={t('subcontractCertificates:returned', 'Returned for changes')} sub={c.returned_reason} />}
       {c.bill_refusal && <ErrBanner title={t('subcontractCertificates:billRefused', 'The bill was refused')} sub={c.bill_refusal} />}
       <RecordStack>
-        <RecordSection title={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')}>
+        <RecordSection flush={d.lines.length > 0} title={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')}>
           {d.lines.length === 0
             ? <p className="text-sm text-muted-foreground">{t('subcontractCertificates:noLines', 'Nothing measured and rated this month.')}</p>
-            : <DataTable accessibleName={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')} columns={lineColumns} rows={d.lines} rowKey={(l) => l.boq_item_id} tableId="subcontract-certificate-lines" />}
+            : <DataTable embedded accessibleName={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')} columns={lineColumns} rows={d.lines} rowKey={(l) => l.boq_item_id} tableId="subcontract-certificate-lines" />}
         </RecordSection>
         {editable && (d.tuples?.length ?? 0) > 0 && (
-          <RecordSection title={t('subcontractCertificates:section.days', 'Measured days')}>
-            <DataTable accessibleName={t('subcontractCertificates:section.days', 'Measured days')} columns={dayColumns} rows={d.tuples ?? []} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.crew_id}`} tableId="subcontract-certificate-days" />
+          <RecordSection flush title={t('subcontractCertificates:section.days', 'Measured days')}>
+            <DataTable embedded accessibleName={t('subcontractCertificates:section.days', 'Measured days')} columns={dayColumns} rows={d.tuples ?? []} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.crew_id}`} tableId="subcontract-certificate-days" />
           </RecordSection>
         )}
-        <RecordSection title={t('subcontractCertificates:section.excluded', 'Left out')}>
+        <RecordSection flush={d.excluded.length > 0} title={t('subcontractCertificates:section.excluded', 'Left out')}>
           {d.excluded.length === 0
             ? <p className="text-sm text-muted-foreground">{t('subcontractCertificates:noExcluded', 'Nothing is left out.')}</p>
-            : <DataTable accessibleName={t('subcontractCertificates:section.excluded', 'Left out')} columns={excludedColumns} rows={d.excluded} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.reason}:${x.crew_id ?? ''}`} tableId="subcontract-certificate-excluded" />}
+            : <DataTable embedded accessibleName={t('subcontractCertificates:section.excluded', 'Left out')} columns={excludedColumns} rows={d.excluded} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.reason}:${x.crew_id ?? ''}`} tableId="subcontract-certificate-excluded" />}
         </RecordSection>
         <RecordSection title={t('subcontractCertificates:section.backcharges', 'Backcharges')}
           actions={editable ? <Button size="sm" variant="outline" onClick={() => { setDialogError(null); setDialog('backcharge'); }}>{t('subcontractCertificates:recordBackcharge', 'Record a backcharge')}</Button> : undefined}>
           {d.backcharges.length === 0
             ? <p className="text-sm text-muted-foreground">{t('subcontractCertificates:noBackcharges', 'No backcharges in this certificate.')}</p>
-            : <DataTable accessibleName={t('subcontractCertificates:section.backcharges', 'Backcharges')} columns={backchargeColumns} rows={d.backcharges} rowKey={(b) => b.id} tableId="subcontract-certificate-backcharges" />}
+            : <DataTable embedded accessibleName={t('subcontractCertificates:section.backcharges', 'Backcharges')} columns={backchargeColumns} rows={d.backcharges} rowKey={(b) => b.id} tableId="subcontract-certificate-backcharges" />}
           {editable && freeBackcharges.length > 0 && (
             <div className="mt-3 flex items-end gap-2 print:hidden">
               <SelectField label={t('subcontractCertificates:includeBackcharge', 'Include a recorded backcharge')} value={include} onChange={setInclude}
