@@ -1,5 +1,27 @@
 -- The notices from a billing-step opening share one batch. The outbox queues each recipient once.
 -- drops: select owners and fallback recipients together so their notices share a batch; insert each email only once across both unique keys.
+-- drops: enqueue_notification_email(uuid) | "insert into public.email_outbox (org_id, notification_id, recipient_id, event_key)" | add the batch id column for per-opening recipient deduplication
+-- drops: enqueue_notification_email(uuid) | "select n.org_id, n.id, p.id, s.event_key" | supply the batch id for billing-step recipients
+-- drops: enqueue_notification_email(uuid) | "on conflict (notification_id, recipient_id) do nothing;" | the untargeted conflict clause covers the original and batch-recipient unique keys
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "declare v_who uuid; v_label text; v_found boolean := false; v_body text;" | replace cursor state with recipient CTEs and one shared batch id
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "for v_who in" | resolve step owners in the step_owners CTE
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "select distinct x from (" | combine owner paths in the step_owners CTE
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "select p_step.assignee_id as x where p_step.assignee_id is not null" | retain the explicit assignee path in step_owners
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | ") r" | the step_owners CTE replaces the nested distinct subquery
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "loop" | insert all resolved owner notices in one statement
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "v_found := true;" | NOT EXISTS on step_owners selects the fallback path
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "perform public.notify_workflow_user(p_step.org_id, v_who, 'A billing step is waiting for you', v_body, 'info', 'work_order'," | the set-based insert writes the equivalent owner notification and batch metadata
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "p_step.work_order_id, v_label, 'billing_step');" | the set-based insert preserves entity and billing-step event metadata
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "end loop;" | insert the full owner recipient set at once
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "if not v_found then" | NOT EXISTS on step_owners preserves the Admin fallback condition
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "for v_who in" | select fallback admins through the recipients CTE
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "select a.id from public.profiles a" | retain the org, active Admin, and hidden-role filters in recipients
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "where a.org_id = p_step.org_id and a.role = 'Admin' and a.status = 'active'" | retain the org, active Admin, and hidden-role filters in recipients
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "loop" | the one recipient insert handles fallback admins with owners
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "perform public.notify_workflow_user(p_step.org_id, v_who, 'A billing step is waiting for you', v_body, 'info', 'work_order'," | the set-based insert writes the equivalent fallback notification with batch metadata
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "p_step.work_order_id, v_label, 'billing_step');" | the set-based insert preserves the fallback entity and event metadata
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "end loop;" | the one recipient insert replaces the fallback loop
+-- drops: notify_wo_step_opened(public.work_order_billing_steps) | "end if;" | the recipients CTE adds Admin fallback rows only when no step owner exists
 -- Rollback: rollback/2767_billing_step_email_per_recipient_down.sql
 
 alter table public.email_outbox add column billing_step_notice_batch_id uuid;
