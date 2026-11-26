@@ -92,7 +92,7 @@ test('AC-PLC-007: a phone user saves language, number format and timezone and se
   await expect(page.getByText(`Zona waktu aktif: ${TIMEZONE}`)).toBeVisible();
 });
 
-test.afterEach(async ({ page }) => {
+async function restorePreferences(page: Page) {
   // Restore the seed user's three overrides to inherit (NULL), even after an assertion failure.
   // A direct route, not the menu: the restore must not depend on the shell a failure may have
   // left in any state. Signing in again covers a failure before the first sign-in completed.
@@ -101,11 +101,11 @@ test.afterEach(async ({ page }) => {
   await expect(languageSelect(page)).toBeVisible();
   const alreadyInherited = await languageSelect(page).inputValue() === 'inherit'
     && await numberSelect(page).inputValue() === 'inherit'
-    && /organization default|default organisasi/i.test(await timezoneCombobox(page).innerText());
+    && /organization default|default organisasi|bawaan organisasi/i.test(await timezoneCombobox(page).innerText());
   await languageSelect(page).selectOption('inherit');
   await numberSelect(page).selectOption('inherit');
   await timezoneCombobox(page).click();
-  await page.getByRole('listbox').getByRole('option', { name: /organization default|default organisasi/i }).click();
+  await page.getByRole('listbox').getByRole('option', { name: /organization default|default organisasi|bawaan organisasi/i }).click();
   // A failure before editing leaves the original values unchanged; Save correctly stays disabled.
   if (!alreadyInherited) {
     await expect(saveButton(page)).toBeEnabled();
@@ -119,4 +119,7 @@ test.afterEach(async ({ page }) => {
   await expect(numberSelect(page)).toHaveValue('inherit');
   await openSavedPreferences(page);
   await expect(page.getByText('Effective timezone: Asia/Jakarta')).toBeVisible();
-});
+}
+
+test.beforeEach(async ({ page }) => { await restorePreferences(page); });
+test.afterEach(async ({ page }) => { await restorePreferences(page); });

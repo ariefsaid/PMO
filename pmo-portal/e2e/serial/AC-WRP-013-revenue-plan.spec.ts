@@ -78,7 +78,8 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await page.getByRole('button', { name: 'Save plan', exact: true }).click();
     const expectedPlan = formatTableMoney('1000.00', 'EUR') ?? 'unformattable';
     await expect(section.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);
-    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(expectedPlan + ' behind plan');
+    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(formatTableMoney('-1000.00', 'EUR') ?? 'unformattable');
+    await expect(section.getByText(expectedPlan + ' behind plan', { exact: true })).toBeVisible();
     await shots(page, section, 'work-order-revenue-plan');
 
     await page.goto('/projects/' + projectId + '/orders');

@@ -79,13 +79,7 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     await page.goto('/administration/accounting');
     const toggle = page.getByRole('switch', { name: /Edit issued work-order checklists/ });
     await toggle.scrollIntoViewIfNeeded();
-    if ((await toggle.getAttribute('aria-checked')) !== 'true') {
-      await toggle.click();
-      const saveSettings = page.getByRole('button', { name: 'Save', exact: true });
-      await expect(saveSettings).toBeEnabled();
-      await saveSettings.click();
-      await expect(saveSettings).toBeDisabled();
-    }
+    if ((await toggle.getAttribute('aria-checked')) !== 'true') await toggle.click();
     await expect(toggle).toHaveAttribute('aria-checked', 'true');
 
     // 2. The billing officer makes the template the one new work orders take, with its step.

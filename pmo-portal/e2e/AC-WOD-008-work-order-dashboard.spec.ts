@@ -59,7 +59,7 @@ test('AC-WOD-008 the work-order level is one click from the project header and f
     await page.goto('/projects/' + projectId);
     await page.getByTestId('project-section-tabs').getByRole('tab', { name: 'Work order' }).click();
     await expect(page).toHaveURL((url) => url.pathname === '/projects/' + projectId + '/orders');
-    const projectRow = page.getByRole('row', { name: new RegExp(number) });
+    const projectRow = page.getByRole('table', { name: 'Work order', exact: true }).getByRole('row', { name: new RegExp(number) });
     await expect(projectRow.getByRole('cell', { name: '€500,000', exact: true })).toBeVisible();
     await expect(projectRow.getByTestId('wo-billed-' + workOrderId)).toHaveText('€0');
     await expect(projectRow.getByTestId('wo-missing-' + workOrderId)).toContainText('1 late');

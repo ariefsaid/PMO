@@ -123,7 +123,8 @@ test('JOB-PC4 project control manager reads plan to date, actual to date, and re
     await expect(pcmSection).toBeVisible({ timeout: 30_000 });
     await expect(pcmSection.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);
     await expect(pcmSection.getByTestId('wo-revenue-plan-actual')).toHaveText(expectedActual);
-    await expect(pcmSection.getByTestId('wo-revenue-plan-gap')).toHaveText(`${expectedGap} behind plan`);
+    await expect(pcmSection.getByTestId('wo-revenue-plan-gap')).toHaveText(formatTableMoney('-600.00', 'USD') ?? 'unformattable');
+    await expect(pcmSection.getByText(`${expectedGap} behind plan`, { exact: true })).toBeVisible();
 
     await page.goto(`/projects/${projectId}/orders`);
     const row = page.getByTestId(`revenue-plan-row-${woId}`);

@@ -4,7 +4,7 @@ import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
-import { ToastProvider } from '@/src/components/ui';
+import { ToastProvider, Tooltip } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -995,6 +995,21 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
 describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
   const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
+
+  it('AC-TH-007: keyboard opening project details does not open a nested tooltip, and Escape restores the trigger', async () => {
+    desktopBox.value = false;
+    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact
+      facts={<Tooltip content="Phase weights explain progress"><span tabIndex={0}>Progress</span></Tooltip>}
+      /></ToastProvider></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name: 'Project details' });
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'));
+    expect(trigger).toHaveFocus();
+  });
 
   it('AC-1402-M2: the compact project details menu does not repeat the contract-value edit rule', async () => {
     render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact /></ToastProvider></MemoryRouter>);

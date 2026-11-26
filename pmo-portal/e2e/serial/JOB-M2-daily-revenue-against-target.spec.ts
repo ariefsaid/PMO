@@ -80,8 +80,10 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
     const summary = page.getByTestId('wo-page-revenue-plan');
     await expect(summary.getByTestId('wo-revenue-plan-plan')).toHaveText(money(mtdTarget.toFixed(2)));
     await expect(summary.getByTestId('wo-revenue-plan-actual')).toHaveText(money('50.00'));
-    await expect(summary.getByTestId('wo-revenue-plan-gap')).toContainText(/behind plan|ahead of plan|On plan/);
-    await expect(summary.getByTestId('wo-revenue-plan-gap')).toContainText(`${money((mtdTarget - 50).toFixed(2))} behind plan`);
+    await expect(summary.getByTestId('wo-revenue-plan-gap')).toHaveText(money((50 - mtdTarget).toFixed(2)));
+    const gapExplanation = summary.getByText(`${money((mtdTarget - 50).toFixed(2))} behind plan`, { exact: true });
+    await expect(gapExplanation).toContainText(/behind plan|ahead of plan|On plan/);
+    await expect(gapExplanation).toHaveText(`${money((mtdTarget - 50).toFixed(2))} behind plan`);
     await expect(daily.getByTestId('wo-daily-projection')).not.toHaveText('Not enough working days yet');
   } finally {
     if (reportId) sqlAsOwner(`delete from public.dsr_progress_lines where report_id = '${reportId}'; delete from public.daily_site_reports where id = '${reportId}';`);

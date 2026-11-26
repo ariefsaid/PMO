@@ -322,6 +322,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
   const isDesktopHeader = useIsDesktop();
+  const detailsPopupRef = useRef<HTMLDivElement>(null);
   // Below this width the actions leave the name too little room beside its status, so the status drops under the name.
   const isWideHeader = useIsDesktop(1280);
 
@@ -608,13 +609,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const pastEndDays = projectLateDays(project, orgToday);
   const phoneLockNote = compact && !isDesktopHeader && showCompactContractLock;
   const hasDetails = compact && Boolean(menuContent || taxLabel || phoneLockNote);
+  // Focus the details surface on opening, so its first fact does not automatically open a nested tooltip.
+  // Tab still reaches each fact and control; Escape dismisses the details and restores its trigger.
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
     <Popover>
       <PopoverTrigger className={`${buttonClasses('ghost', 'sm', 'touch-target')} shrink-0 whitespace-nowrap`}>
         {t('projectDetail.header.projectDetails', 'Project details')}
       </PopoverTrigger>
-      <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
+      <PopoverContent ref={detailsPopupRef} initialFocus={detailsPopupRef} align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
         {!isDesktopHeader && facts && <div className="border-b border-border px-3 py-3">{facts}</div>}
         {menuContent && (
           <>
