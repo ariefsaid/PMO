@@ -61,6 +61,9 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import { AuthProvider } from './AuthProvider';
 import { RequireAuth } from './RequireAuth';
+// The shell's organisation-defaults wait is proved in RequireAuth.orgDay.test.tsx; here the organisation is taken as known.
+vi.mock('@/src/hooks/useResolvedLocale', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useResolvedLocale')>()), useOrgDefaultsReady: () => true }));
+
 
 beforeEach(() => {
   state.session = null;

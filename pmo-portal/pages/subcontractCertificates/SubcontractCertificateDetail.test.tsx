@@ -8,7 +8,7 @@ import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { ToastProvider } from '@/src/components/ui';
 import type { CertificateView } from '@/src/lib/db/subcontractCertificates';
 
@@ -144,6 +144,7 @@ describe('subcontract certificate screen', () => {
     // 2026-11-30T18:00:00Z: the organisation's day (Asia/Jakarta) is already 1 Dec; the browser's (UTC) is still 30 Nov.
     vi.setSystemTime(new Date('2026-11-30T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       h.view = make('approved', { submitted_by: 'u-prep', approved_by: 'u-other' });
       h.userId = 'u-other';

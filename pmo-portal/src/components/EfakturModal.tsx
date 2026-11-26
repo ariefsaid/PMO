@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { efakturRefusal, localToday, normalizeEfakturValues, validateEfakturValues } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
+import { efakturRefusal, normalizeEfakturValues, validateEfakturValues } from '@/src/lib/efaktur';
 import { EntityFormModal, TextField, type SubmitError } from '@/src/components/ui';
 import { DateField } from '@/src/components/ui/DateField';
 
@@ -32,7 +33,7 @@ export const EfakturModal: React.FC<EfakturModalProps> = ({
   const [numberDraft, setNumberDraft] = useState(number ?? '');
   const [dateDraft, setDateDraft] = useState(date ?? '');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
-  const today = useMemo(() => localToday(), []);
+  const today = useMemo(() => orgDayNow(), []);
 
   const normalized = useMemo(
     () => normalizeEfakturValues({ number: numberDraft, date: dateDraft }),

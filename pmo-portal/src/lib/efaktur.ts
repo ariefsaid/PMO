@@ -1,3 +1,4 @@
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 export interface EfakturInput {
   number: string | null;
   date: string | null;
@@ -40,7 +41,7 @@ export function normalizeEfakturValues(values: { number: string | null; date: st
 /** Pure client-side UX validation; the SECURITY DEFINER setters remain authoritative. */
 export function validateEfakturValues(
   values: EfakturInput,
-  today = localToday(),
+  today = orgDayNow(),
 ): EfakturErrors {
   const errors: EfakturErrors = {};
   const number = values.number?.trim() ?? '';
@@ -56,13 +57,4 @@ export function validateEfakturValues(
   if (number && !values.date) errors.date = 'missing';
   if (values.date && !number && !errors.number) errors.number = 'missing';
   return errors;
-}
-
-/** The browser's local calendar date as YYYY-MM-DD (the server re-checks on the org's calendar). */
-export function localToday(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

@@ -9,7 +9,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 type Entry = {
   id: string; asset_id: string; project_id: string; work_date: string; quantity: number; unit: 'hours' | 'days'; kind: 'work' | 'standby';
@@ -117,6 +117,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     // 2026-12-06T17:00Z: the organisation's day (Asia/Jakarta) is already Mon 7 Dec, the browser's (UTC) is still Sun 6 Dec — different weeks.
     vi.setSystemTime(new Date('2026-12-06T17:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       renderPage();
       expect(screen.getByText(`${day('2026-12-07')} – ${day('2026-12-13')}`)).toBeInTheDocument();
