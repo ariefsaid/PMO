@@ -959,7 +959,14 @@
     "margin": "Margin",
     "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan."
   },
+  "integrationStatus": {
+    "connectedDateMissing": "Tanggal belum dicatat",
+    "noListLink": "Belum ada daftar yang ditautkan"
+  },
   "agentCost": {
+    "noPromptTokens": "Tingkat cache hit memerlukan catatan token prompt.",
+    "noCompletionTokens": "Porsi penalaran memerlukan catatan token penyelesaian.",
+    "noRunStats": "Biaya per proses dan latensi memerlukan statistik proses.",
     "errorTitle": "Metrik biaya agen tidak dapat dimuat",
     "emptyTitle": "Belum ada data biaya agen",
     "emptySub": "Telemetri biaya agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",

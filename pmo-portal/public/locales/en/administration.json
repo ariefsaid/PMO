@@ -959,7 +959,14 @@
     "margin": "Margin",
     "pricingNote": "Pricing not yet configured — margin will appear here once a per-credit USD rate is set."
   },
+  "integrationStatus": {
+    "connectedDateMissing": "Date not recorded",
+    "noListLink": "No list linked"
+  },
   "agentCost": {
+    "noPromptTokens": "Cache hit-rate needs recorded prompt tokens.",
+    "noCompletionTokens": "Reasoning share needs recorded completion tokens.",
+    "noRunStats": "Cost per run and latency need recorded run statistics.",
     "errorTitle": "Couldn't load agent cost metrics",
     "emptyTitle": "No agent cost data yet",
     "emptySub": "Agent cost telemetry appears here once your workspace starts using the assistant.",
