@@ -63,6 +63,8 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     return (
       <ListState
         variant="empty"
+        quiet
+        className="rounded-lg border border-border bg-card px-4 py-4"
         icon="admin"
         title={t('usage.emptyTitle', 'No usage yet')}
         sub={t('usage.emptySub', 'Agent usage appears here once your workspace starts using the assistant.')}
