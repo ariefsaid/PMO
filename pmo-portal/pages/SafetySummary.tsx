@@ -71,7 +71,7 @@ const SafetySummary: React.FC = () => {
         : summary.isError ? <ListState variant="error" title={t('summary.error', "Couldn't load the summary")} onRetry={() => void summary.refetch()} />
         : (
           <>
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="safety-figures">
+            <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="safety-figures">
               {(client ? deriveSafetySummaryView({ ...summary.data, ...toClientExport(summary.data), timezone: '', projectId: null, hidden: summary.data.hidden }) : figures).map((f) => {
                 const kind = DETAIL_KIND[f.key];
                 const drill = !client && kind && f.value !== null && f.value > 0;
@@ -81,7 +81,7 @@ const SafetySummary: React.FC = () => {
                       <div className="p-4">
                         <div className="text-control text-muted-foreground">{label(f)}</div>
                         <div className="mt-1 flex min-h-11 items-center justify-between gap-2">
-                          <div className="text-metric font-semibold tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</div>
+                          <div className="min-w-0 break-words text-metric font-semibold tabular-nums [overflow-wrap:anywhere]" data-testid={`safety-figure-${f.key}`}>{value(f)}</div>
                           {drill && (
                             <button type="button" className="min-h-11 text-right text-control text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
                               onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
