@@ -1067,7 +1067,10 @@
     "singular": "Tunggal",
     "nav": "Istilah",
     "term": "Istilah",
-    "language": "Bahasa"
+    "language": "Bahasa",
+    "viewTerms": "Istilah",
+    "viewRoles": "Nama peran",
+    "viewLabel": "Nama yang diubah"
   },
   "documentCategories": {
     "nav": "Kategori dokumen",

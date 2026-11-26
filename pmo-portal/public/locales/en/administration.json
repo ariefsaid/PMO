@@ -1067,7 +1067,10 @@
     "singular": "Singular",
     "nav": "Terminology",
     "term": "Term",
-    "language": "Language"
+    "language": "Language",
+    "viewTerms": "Terms",
+    "viewRoles": "Role names",
+    "viewLabel": "What to rename"
   },
   "documentCategories": {
     "nav": "Document categories",

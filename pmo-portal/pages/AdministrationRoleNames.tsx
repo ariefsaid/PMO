@@ -73,7 +73,7 @@ const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleN
         );
       })}
       {canEdit ? (
-        <div className="flex gap-2 xl:w-[10.5rem] xl:justify-end">
+        <div className="flex gap-2 xl:w-[12.5rem] xl:justify-end">
           <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || save.isPending} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
           </Button>
@@ -81,7 +81,7 @@ const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleN
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>
-      ) : <span className="hidden xl:block xl:w-[10.5rem]" />}
+      ) : <span className="hidden xl:block xl:w-[12.5rem]" />}
     </div>
   );
 };
