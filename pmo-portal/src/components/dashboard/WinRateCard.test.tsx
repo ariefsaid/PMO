@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { WinRateCard } from './WinRateCard';
 import i18next from 'i18next';
 import idDashboard from '../../../public/locales/id/dashboard.json';
@@ -53,6 +53,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
 
   it('#1126 the window re-keys on the organisation\'s midnight, not the browser\'s', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     vi.useFakeTimers();
     // 2026-11-25T16:59:30Z: the organisation's midnight (Asia/Jakarta) is 30 s away; the browser's (UTC) is ~7 h.
     vi.setSystemTime(new Date('2026-11-25T16:59:30Z'));
@@ -258,6 +259,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
 
   it('moves the trailing window forward when the organisation\'s day rolls over while open (#1126)', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     vi.useFakeTimers();
     try {
       // 2026-06-10T16:59:00Z: the organisation's midnight (Asia/Jakarta) is one minute away.

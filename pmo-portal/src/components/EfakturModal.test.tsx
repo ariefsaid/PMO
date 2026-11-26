@@ -44,16 +44,14 @@ describe('EfakturModal', () => {
       'Record the number and its date together, or leave both empty for a non-VAT document.',
     );
     const date = screen.getByLabelText('e-Faktur date');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const future = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const future = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);  // the organisation's (UTC) tomorrow
     fireEvent.change(screen.getByLabelText('e-Faktur number'), { target: { value: '010-01' } });
     fireEvent.change(date, { target: { value: future } });
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('AC-EFK-004 bounds the controls: number at 32 characters, date picker at the local today', async () => {
+  it('AC-EFK-004 bounds the controls: number at 32 characters, date picker at the organisation day', async () => {
     render(
       <EfakturModal
         recordContext={<span>SI-2610070001</span>}
@@ -64,8 +62,7 @@ describe('EfakturModal', () => {
         onSave={vi.fn().mockResolvedValue(undefined)}
       />,
     );
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const today = new Date().toISOString().slice(0, 10);  // the organisation's day (UTC when unset)
     expect(screen.getByLabelText('e-Faktur number')).toHaveAttribute('maxLength', '32');
     expect(screen.getByLabelText('e-Faktur number')).toHaveAttribute('placeholder', '010.000-26.12345678');
     expect(screen.getByLabelText('e-Faktur number')).toHaveValue('010-01');

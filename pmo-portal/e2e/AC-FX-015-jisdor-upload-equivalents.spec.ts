@@ -111,8 +111,9 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
   await confirmSave(dialog);
 
   await page.reload();
-  await expect(page.getByRole('table')).toContainText('16,234.56');
-  await expect(page.getByRole('table')).toContainText('16,300');
+  const rateHistory = page.getByTestId('administration-panel-exchange-rates');
+  await expect(rateHistory.getByText('16,234.56', { exact: true })).toBeVisible();
+  await expect(rateHistory.getByText('16,300', { exact: true })).toBeVisible();
   const persisted = await admin
     .from('fx_rates')
     .select('id', { count: 'exact', head: true })

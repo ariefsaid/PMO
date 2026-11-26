@@ -678,6 +678,7 @@
       "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
+      "managerUnavailable": "Nama manajer tidak tersedia",
       "builtIn": {
         "tier": {
           "manager": "Manajer",
@@ -864,8 +865,7 @@
       "save": "Simpan tahun fiskal",
       "saved": "Tahun fiskal disimpan",
       "loadError": "Tidak dapat memuat tahun fiskal",
-      "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal.",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+      "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal."
     },
     "attendanceTarget": {
       "helper": "Tingkat kehadiran yang menjadi ukuran setiap kru, dalam persen. Kosongkan agar tampilan tingkat kehadiran tidak ditawarkan.",
@@ -882,7 +882,7 @@
     },
     "dsrValidateRoles": {
       "title": "Validasi laporan harian lokasi",
-      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Centang jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
+      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Pilih jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
       "legend": "Jabatan yang memvalidasi laporan harian lokasi",
       "loadError": "Peran validator laporan lokasi tidak dapat dimuat",
       "adminOnly": "Hanya Admin yang dapat mengubah ini.",
@@ -952,11 +952,21 @@
     "runs": "Eksekusi",
     "tokens": "Token",
     "providerCost": "Biaya penyedia",
+    "monthUnavailable": "Bulan tidak tersedia",
+    "providerPricingUnavailable": "Harga penyedia tidak tersedia",
+    "marginUnavailable": "Harga tidak tersedia",
     "cost": "Biaya (USD)",
     "margin": "Margin",
     "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan."
   },
+  "integrationStatus": {
+    "connectedDateMissing": "Tanggal belum dicatat",
+    "noListLink": "Belum ada daftar yang ditautkan"
+  },
   "agentCost": {
+    "noPromptTokens": "Tingkat cache hit memerlukan catatan token prompt.",
+    "noCompletionTokens": "Porsi penalaran memerlukan catatan token penyelesaian.",
+    "noRunStats": "Biaya per proses dan latensi memerlukan statistik proses.",
     "errorTitle": "Metrik biaya agen tidak dapat dimuat",
     "emptyTitle": "Belum ada data biaya agen",
     "emptySub": "Telemetri biaya agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",
@@ -1041,7 +1051,8 @@
     "intro": "Ganti nama peran bawaan sesuai organisasi Anda. Hanya nama yang tampil yang berubah; hak akses setiap peran tetap sama.",
     "name": "Nama",
     "saved": "Nama peran disimpan",
-    "resetDone": "Kembali ke nama bawaan"
+    "resetDone": "Kembali ke nama bawaan",
+    "role": "Peran"
   },
   "terminology": {
     "default": "Bawaan",
@@ -1052,7 +1063,9 @@
     "save": "Simpan",
     "saved": "Istilah tersimpan",
     "singular": "Tunggal",
-    "nav": "Istilah"
+    "nav": "Istilah",
+    "term": "Istilah",
+    "language": "Bahasa"
   },
   "documentCategories": {
     "nav": "Kategori dokumen",
@@ -1089,7 +1102,13 @@
     "archivedDone": "Kategori diarsipkan",
     "archiveTitle": "Arsipkan kategori ini?",
     "archiveBody": "Dokumen baru tidak dapat disimpan di dalamnya. Dokumen yang sudah ada tetap terlihat oleh peran yang sama.",
-    "denied": "Kategori dokumen dikelola oleh Admin."
+    "denied": "Kategori dokumen dikelola oleh Admin.",
+    "categoryColumn": "Kategori",
+    "hiddenNoneShort": "Tidak ada",
+    "saveShort": "Simpan",
+    "moreActions": "Tindakan lain untuk {{name}}",
+    "listLabel": "Kategori dokumen",
+    "hiddenFromShort": "Disembunyikan dari"
   },
   "documentTypes": {
     "title": "Jenis dokumen",
@@ -1368,5 +1387,29 @@
     "migration": "Migrasikan biaya stok yang ada sebelum mengaktifkan pengaturan ini.",
     "erp": "Pengaturan ini tersedia untuk organisasi yang menggunakan biaya pembayaran PMO."
   },
-  "documentTypesNav": "Jenis dokumen"
+  "documentTypesNav": "Jenis dokumen",
+  "adminShell": {
+    "navGroups": {
+      "access": "Orang dan akses",
+      "setup": "Penyiapan",
+      "connections": "Koneksi",
+      "plan": "Paket"
+    },
+    "settingsGroups": {
+      "accountingTax": "Pajak dan tahun buku",
+      "accountingApprovals": "Persetujuan dan pemeriksaan",
+      "accountingOrders": "Pesanan pembelian",
+      "accountingPosting": "Biaya dan pemetaan akun",
+      "projectsNumbering": "Penomoran dan daftar proyek",
+      "projectsSite": "Laporan harian lapangan",
+      "projectsWorkOrders": "Perintah kerja",
+      "projectsIssues": "Masalah",
+      "peopleSettings": "Pengaturan"
+    }
+  },
+  "roleChecklist": {
+    "none": "Belum ada peran dipilih",
+    "done": "Selesai",
+    "choose": "Pilih peran"
+  }
 }

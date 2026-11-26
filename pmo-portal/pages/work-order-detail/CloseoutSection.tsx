@@ -15,7 +15,7 @@ import { useDocuments } from '@/src/hooks/useDocuments';
 import { closeoutItemActionable, closeoutItemAgeDays, closeoutRemaining } from '@/src/lib/closeoutChecklist';
 import { isChecklistItemOverdue, orgToday } from '@/src/lib/checklistDue';
 import { formatIsoDay, formatNumberExact } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 /**
  * The work order's close-out checklist (#2593, FR-WCO-010..013, 020): the organisation's ordered list as it stood when this
@@ -43,7 +43,7 @@ const REFUSALS: Record<string, [string, string]> = {
   'work-order-not-issued': ['refusal.notIssued', 'Items can be recorded only while the work order is issued.'],
 };
 
-const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = orgToday(new Date(), getActiveLocale().timezone) }) => {
+const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = orgToday(new Date(), getActiveOrgTimezone()) }) => {
   const { t } = useTranslation('closeout');
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();

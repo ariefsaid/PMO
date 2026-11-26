@@ -57,7 +57,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
   onSelectCompany,
   onRetryStatus,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'administration']);
   const may = usePermission();
   const canManageIntegrations = may('manage', 'integration');
 
@@ -146,7 +146,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
             <span className="font-medium text-foreground">
               {binding.connected_at
                 ? formatDay(binding.connected_at)
-                : '—'}
+                : t('administration:integrationStatus.connectedDateMissing', 'Date not recorded')}
             </span>
           </span>
           {isDisconnected && binding.disconnected_at && (

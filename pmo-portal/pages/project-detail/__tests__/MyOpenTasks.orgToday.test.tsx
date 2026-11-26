@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -43,6 +43,7 @@ describe('#2088 MyOpenTasks — overdue is decided by the organization day', () 
     // 2026-06-01 20:00 UTC == 2026-06-02 03:00 in Asia/Jakarta: org day is Jun 2, UTC day Jun 1.
     vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     tasksState.data = [
       {
         id: 't1', project_id: 'p1', name: 'Pour the slab', status: 'To Do', assignee_id: 'u-self',
@@ -63,6 +64,7 @@ describe('#2088 MyOpenTasks — overdue is decided by the organization day', () 
   it('#2088: a task due on the org today is not yet overdue', () => {
     vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     tasksState.data = [
       {
         id: 't2', project_id: 'p1', name: 'Mob the crew', status: 'To Do', assignee_id: 'u-self',

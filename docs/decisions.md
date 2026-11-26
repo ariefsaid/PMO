@@ -4233,3 +4233,6 @@ the owner may revisit it after the client's tests.
 - **DD-R1125-14 A Project Manager reads money for their own projects only** (owner ruling, 26 November 2026). One shared rule decides
   "own project" for every project-bound money read; roles that read organisation-wide money are unchanged. Money that is not
   bound to a project is outside this rule.
+- **DD-R1125-15 A Deputy Project Manager reads money for their own projects only** (owner ruling, 26 November 2026). A deputy ranks
+  below the Project Manager, so the deputy's money reads are never wider than the manager's. "Own project" for a deputy is a
+  project that names them as its deputy; a project carries that link for this rule.
