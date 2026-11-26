@@ -16,6 +16,19 @@ import type { CostAmountLine, CostReason, FinanceCostSource, PlanKind, PlanLine,
  * org_id is never sent: RLS, the column default and the RPCs scope everything to the caller's org.
  */
 
+export interface DashboardWorkOrderCost {
+  workOrderId: string;
+  currency: string;
+  direct: string | null;
+  plan: string | null;
+}
+
+export async function getDashboardWorkOrderCosts(projectIds: readonly string[]): Promise<DashboardWorkOrderCost[]> {
+  const { data, error } = await supabase.rpc('work_order_dashboard_costs', { p_project_ids: [...projectIds] });
+  if (error) throw new AppError(error.message, error.code);
+  return data as unknown as DashboardWorkOrderCost[];
+}
+
 const MALFORMED = 'malformed-response';
 const SOURCES: readonly FinanceCostSource[] = ['purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill', 'timesheet_entry', 'stock_document', 'equipment_usage', 'expense_claim', 'attendance_day', 'headcount_day', 'project_actuals', 'purchase_balance', 'other_revenue'];
 const REASONS: readonly CostReason[] = ['counted', 'commitment', 'stocked', 'transfer', 'no-rate', 'not-posted', 'unassigned', 'split-when-custom', 'outside-basis', 'unresolved-direct', 'other-revenue'];
