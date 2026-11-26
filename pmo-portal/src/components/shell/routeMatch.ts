@@ -1,3 +1,4 @@
+import { shippedTerm } from '@/src/lib/i18n/orgTerms';
 import { matchPath } from 'react-router';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
@@ -172,6 +173,7 @@ export const MODULES: ModuleDef[] = [
   // Safety summary: every role reads; the rail shows it only where the organisation switched the module on.
   { module: 'safety', icon: 'circle-check', label: 'Safety summary', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'safety:summary.title', path: '/safety' },
+  { module: "quantity-changes", icon: "doc", label: "Quantity change requests", labelKey: "quantityChanges:title", path: "/quantity-changes" },
   // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
   { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
@@ -710,7 +712,7 @@ export function breadcrumbForPath(
   // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
   if (/^\/work-orders\/[^/]+$/.test(pathname)) {
     return [
-      { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
+      { label: MODULES.find((module) => module.path === '/work-orders')?.label ?? pathname, i18nKey: 'terms.clientWorkOrder', href: '/work-orders', onClick: () => navigate?.('/work-orders') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
       ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
       recordLabel
         ? { label: recordLabel }
@@ -736,7 +738,7 @@ export function breadcrumbForPath(
         const recordCrumb = recordLabel
           ? { label: recordLabel }
           : pathname === '/projects/new'
-            ? { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
+            ? { label: `New ${shippedTerm('en', 'project').singular.toLowerCase()}`, i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
             // Create routes render their working forms, never a record — the crumb names the
             // form instead of a stuck "Loading…" (tidy audit TA-015/018/019).
             : pathname === '/procurement/new'

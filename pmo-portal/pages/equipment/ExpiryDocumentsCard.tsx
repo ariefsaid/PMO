@@ -186,7 +186,7 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
         {!q.isPending && q.isError && <ListState variant="error" title={t('equipment:expiryEdit.error', "Couldn't load documents")}
           sub={t('equipment:expiry.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />}
         {!q.isPending && !q.isError && (rows.length === 0
-          ? <p className="text-muted-foreground">{t('equipment:expiryEdit.empty', 'No documents on this record')}</p>
+          ? <p className="text-muted-foreground">{may('create', 'expiryDocument', ctx) ? t('equipment:expiryEdit.empty', 'No documents on this record') : t('equipment:expiryEdit.emptyAskAdmin', 'No documents on this record; ask an administrator to add one.')}</p>
           : <DataTable<ExpiryDocumentRow> embedded rows={rows} columns={columns} rowKey={(d) => d.id} tableId={`expiry-documents-${kind}`}
               accessibleName={t('equipment:expiryEdit.title', 'Documents')} />)}
       {editing && <ExpiryDocumentForm kind={kind} subjectId={subjectId} doc={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}

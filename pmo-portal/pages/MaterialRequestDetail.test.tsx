@@ -79,6 +79,15 @@ describe('material request detail', () => {
     h.decide.mutateAsync = vi.fn().mockResolvedValue(undefined);
   });
 
+  it('AC-MRQ recovery offers retry and a list destination when a request is absent', async () => {
+    h.req = { data: null, isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('Request not found')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(h.req.refetch).toHaveBeenCalledOnce();
+    expect(screen.getByRole('link', { name: 'Back to material requests' })).toBeInTheDocument();
+  });
+
   it.each([
     ['standard', 'From usage standards'], ['adjusted', 'Adjusted by the planner'], ['allowance', 'From material allowance'], ['none', 'No plan'],
   ])('AC-CUS-008 the approver sees the source of the snapshotted plan figure: %s', (source, label) => {

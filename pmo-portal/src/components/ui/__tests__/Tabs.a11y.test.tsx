@@ -19,7 +19,8 @@ describe('Tabs a11y wiring (G4)', () => {
     vi.spyOn(budget, 'getBoundingClientRect').mockReturnValue({ left: 180, right: 250 } as DOMRect);
     const scrollIntoView = vi.spyOn(budget, 'scrollIntoView');
     rerender(<Tabs items={[...items]} value="budget" onChange={() => {}} ariaLabel="Sections" idBase="proj" />);
-    expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: 78 }));
+    // Controls now sit outside the track: reveal the 50px overflow without a 28px overlay allowance.
+    expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: 50 }));
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 

@@ -62,5 +62,8 @@
     "menuAria": "Receipt actions: {{name}}",
     "previewShort": "Preview",
     "removeShort": "Remove"
+  },
+  "approvals": {
+    "reviewDecision": "Review and decide"
   }
 }

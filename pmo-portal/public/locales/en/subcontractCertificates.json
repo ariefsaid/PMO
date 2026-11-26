@@ -160,5 +160,7 @@
   },
   "moreActions": "More certificate actions",
   "emptyFiltered": "No certificates in this status",
-  "clearFilter": "Show all"
+  "clearFilter": "Show all",
+  "openProcurement": "Open subcontract purchase orders",
+  "prepareRemedy": "Certificates are prepared from subcontract purchase orders by Finance or the project manager."
 }

@@ -239,7 +239,7 @@ const ProjectDetail: React.FC = () => {
   // with the tabs directly under it. Sales history sits in the Project details panel.
   const header = (
     <>
-      <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
+      <ProjectDetailHeader project={project} onEditProject={openEditProject} editIsPrimary={area === 'overview'} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
         facts={<><ProjectHeaderFacts project={project} showBudgetFigures />{!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}</>}
         menuContent={(

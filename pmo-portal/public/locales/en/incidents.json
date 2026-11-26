@@ -248,5 +248,10 @@
     "roleExecutive": "Executive",
     "roleAdmin": "Admin",
     "and": "and"
+  },
+  "type": {
+    "Incident": "Incident",
+    "Near Miss": "Near miss",
+    "Unsafe Condition": "Unsafe condition"
   }
 }
