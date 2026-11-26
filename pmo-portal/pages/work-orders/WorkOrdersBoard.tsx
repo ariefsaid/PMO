@@ -98,9 +98,9 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
     { key: 'number', header: t('all.col.workOrder', 'Work order'), kind: 'primary', rowHeader: true,
       // A work order with no number leads with its title, so unnumbered rows do not all read the same.
       cell: (r) => r.wo_number ?? <span className="line-clamp-2" title={r.title}>{r.title}</span>,
-      secondaryCell: (r) => (r.wo_number ? <span className="line-clamp-2" title={r.title}>{r.title}</span> : null), size: 240,
+      secondaryCell: (r) => (r.wo_number ? <span className="line-clamp-2" title={r.title}>{r.title}</span> : null), size: 200,
       primaryTitle: (r) => `${r.wo_number ?? ''} ${r.title}`.trim(), exportValue: (r) => r.wo_number ?? '' },
-    ...(projectId ? [] : [{ key: 'project', header: t('project', 'Project'), size: 96, cell: (r: DashboardRow) => r.project_name ?? '—', exportValue: (r: DashboardRow) => r.project_name ?? '' }]),
+    ...(projectId ? [] : [{ key: 'project', header: t('project', 'Project'), size: 200, cell: (r: DashboardRow) => (r.project_name ? <span className="line-clamp-2" title={r.project_name}>{r.project_name}</span> : '—'), exportValue: (r: DashboardRow) => r.project_name ?? '' }]),
     { key: 'status', header: t('common:projects.columns.status', 'Status'), kind: 'status', size: 122, cell: (r) => <StatusPill record="workOrder" state={r.status} />,
       exportValue: (r) => statusLabel('workOrder', r.status, ts) },
     { key: 'progress', header: t('all.col.progress', 'Progress'), kind: 'percent', size: 96, keepWhenBlank: true,
