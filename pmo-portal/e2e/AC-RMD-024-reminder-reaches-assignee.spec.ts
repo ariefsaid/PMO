@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { SEED_PASSWORD, requireServiceRoleKey, signIn } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 // House pattern: AC-IMP-090-site-imprest-journey.spec.ts.
@@ -29,7 +30,7 @@ test.beforeAll(async () => {
   const admin = adminClient();
   const { data: eng } = await admin.from('profiles').select('id, org_id').eq('email', 'engineer@acme.test').single();
   const { data: proj } = await admin.from('projects').select('id').eq('org_id', eng!.org_id).is('archived_at', null).limit(1).single();
-  const due = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+  const due = inDays(-5); // overdue by the organisation's calendar, which is what the reminder screen reads
   const { data: task } = await admin.from('tasks').insert({
     org_id: eng!.org_id, project_id: proj!.id, name: TASK_NAME, status: 'In Progress', end_date: due, assignee_id: eng!.id,
   }).select('id').single();

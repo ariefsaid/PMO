@@ -14,6 +14,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { requireServiceRoleKey } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -125,9 +126,9 @@ test.beforeEach(async () => {
     crewId = need('crew', await admin.from('crews').insert({
       org_id: ORG_ID, code: `LA-${suffix.slice(0, 8)}`, name: `${run} crew`, kind: 'own', field_controller_id: foremanId,
     }).select('id').single()).id;
-    const from = new Date(); from.setDate(from.getDate() - 2);
+    const from = inDays(-2); // rostered two days back by the organisation's clock
     need('roster', await admin.from('work_order_crews').insert({
-      org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from.toISOString().slice(0, 10),
+      org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from,
     }).select('id').single());
   } catch (error) {
     try {

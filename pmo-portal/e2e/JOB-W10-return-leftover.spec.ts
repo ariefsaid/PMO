@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — creates its own disposable storekeeper login, item, site location and work item per run, and deletes all owned rows in finally.
-/** JOB-W10 — a closing job's leftover material is returned by the storekeeper to the warehouse; the warehouse balance rises back to 10, the
+/** JOB-W10 — a closing job's leftover material is returned by the site supervisor to the warehouse; the warehouse balance rises back to 10, the
  *  ledger carries the return, and the work order's own stock balance falls (4 issued to it, 0 after the return). */
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
@@ -11,11 +11,11 @@ import { label } from './support/jobStock';
 
 test.setTimeout(180_000);
 
-test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 again', async ({ page }) => {
+test('JOB-W10 site supervisor returns 4 leftover units and the warehouse reads 10 again', async ({ page }) => {
   const svc = serviceClient('JOB-W10');
   const admin = await userClient('admin@acme.test');
   const sfx = runSuffix();
-  const storekeeper = await roleJobUser(svc, 'storekeeper', runId('w10-sk'));
+  const storekeeper = await roleJobUser(svc, 'site_supervisor', runId('w10-sv')) // step 110 is the site supervisor's; an Admin names them keeper of the site store;
   let itemId = '';
   let unitId = '';
   let siteId = '';

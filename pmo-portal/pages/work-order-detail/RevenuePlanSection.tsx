@@ -6,10 +6,11 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { axisTickStyle, tooltipContentStyle, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePermission } from '@/src/auth/usePermission';
 import { useWorkOrderRevenuePlan } from '@/src/hooks/useWorkOrderRevenuePlan';
-import { formatExactMoney, formatNumberMax2, formatShortAmount } from '@/src/lib/format';
+import { formatExactMoney, formatIsoDay, formatNumberMax2, formatShortAmount } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { RevenuePlanModal } from './RevenuePlanModal';
+import { useAreaHelp } from './useAreaHelp';
 
 interface Props { workOrderId: string; woLabel: string; frozen: boolean }
 
@@ -26,6 +27,7 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
   const q = useWorkOrderRevenuePlan(workOrderId);
   const [open, setOpen] = useState(false);
   const title = t('title', 'Revenue plan');
+  useAreaHelp('revenue-plan', title, t('actualBasis', 'Actual is validated daily revenue.'));
   const data = q.data;
   const series = useMemo(() => (data?.series ?? []).map((p) => ({ date: p.date, plan: Number(p.cumPlan), actual: Number(p.cumActual) })), [data]);
 
@@ -48,7 +50,7 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
   const figure = (testId: string, label: string, value: React.ReactNode) => (
     <div key={testId}><dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums" data-testid={testId}>{value}</dd></div>
   );
-  const summary = t('chartSummary', 'Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.', { plan: money(data.planToDate), actual: money(data.actualToDate), date: data.asOf });
+  const summary = t('chartSummary', 'Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.', { plan: money(data.planToDate), actual: money(data.actualToDate), date: formatIsoDay(data.asOf) });
 
   return (
     <RecordSection title={title} data-testid="wo-page-revenue-plan"
@@ -64,7 +66,7 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
           {t('pending', '{{count}} daily report(s) not yet validated are not counted as actual.', { count: data.pendingReports })}
         </p>
       )}
-      <p className="mt-1 text-control text-muted-foreground">{t('asOf', 'As of {{date}}. Actual is validated daily revenue.', { date: data.asOf })}</p>
+      <p className="mt-2 text-control text-muted-foreground" data-testid="wo-revenue-plan-asof">{t('asOfDate', 'As of {{date}}', { date: formatIsoDay(data.asOf) })}</p>
       {data.hasPlan && series.length > 1 && (
         <figure role="img" aria-label={summary} className="m-0 mt-4" data-testid="wo-revenue-plan-chart">
           <ResponsiveContainer width="100%" height={220}>

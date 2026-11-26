@@ -7,7 +7,7 @@ import { signIn } from './helpers';
 import { siteRole } from './support/siteRoleJourney';
 import { createBillingFixture, cleanupBilling } from './support/billingFixture';
 import { ORG_ID, inDays, need } from './support/jobJourney';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -29,7 +29,7 @@ test('JOB-BQ10 the quality document filed once is already attached on the work o
     await openWorkOrderArea(page, 'billing');
     const stepRow = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
     await expect(stepRow).toBeVisible({ timeout: 30_000 }); // first load of the work order route on the dev server
-    const evidenceMark = stepRow.getByRole('checkbox', { name: 'Documents here count as claim evidence' });
+    const evidenceMark = (await openRowUpdate(page, 'Quality evidence')).getByRole('checkbox', { name: 'Documents here count as claim evidence' });
     await evidenceMark.click();
     await expect(evidenceMark).toBeChecked();
 
@@ -40,9 +40,10 @@ test('JOB-BQ10 the quality document filed once is already attached on the work o
     await openWorkOrderArea(page, 'billing');
     const quality = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
     await expect(quality).toBeVisible({ timeout: 30_000 });
-    await quality.getByRole('combobox', { name: 'Additional document' }).selectOption(fixture.documentId);
-    await quality.getByRole('button', { name: 'Attach additional document' }).click();
-    await expect(quality.getByRole('link', { name: fixture.documentTitle })).toBeVisible();
+    const qualityUpdate = await openRowUpdate(page, 'Quality evidence');
+    await qualityUpdate.getByRole('combobox', { name: 'Additional document' }).selectOption(fixture.documentId);
+    await qualityUpdate.getByRole('button', { name: 'Attach additional document' }).click();
+    await expect(qualityUpdate.getByRole('link', { name: fixture.documentTitle })).toBeVisible();
 
     // The billing officer makes each claim without attaching the document again.
     await page.evaluate(() => localStorage.clear());

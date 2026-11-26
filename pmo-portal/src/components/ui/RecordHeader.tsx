@@ -9,6 +9,8 @@ export type { RecordMenuItem };
 export interface PageStat {
   label: string;
   value: React.ReactNode;
+  /** The value in full, shown on hover where a long value is cut to one line (a plain-text value is its own title). */
+  title?: string;
 }
 
 export interface RecordHeaderProps {
@@ -170,9 +172,10 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
           style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(8rem, 1fr))' }}
         >
           {stats.map((s, i) => (
-            <div key={i}>
+            <div key={i} className="min-w-0">
               <div className="mb-1 text-control font-medium text-foreground">{s.label}</div>
-              <div className="text-group font-semibold tabular">{s.value}</div>
+              {/* One line per fact (two on a phone), so the facts of a row end level however long a name is; the full value stays in its title. */}
+              <div className="text-group font-semibold tabular max-sm:line-clamp-2 max-sm:break-words sm:truncate" title={s.title ?? (typeof s.value === 'string' ? s.value : undefined)}>{s.value}</div>
             </div>
           ))}
         </div>

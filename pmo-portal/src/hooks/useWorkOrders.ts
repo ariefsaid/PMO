@@ -40,6 +40,8 @@ export function useProjectDrawdown(projectId: string) {
 
 interface CreateArgs {
   input: WorkOrderInput;
+  /** The Work orders page chooses the project at submit; a project's own tab uses the hook's. */
+  projectId?: string;
 }
 interface UpdateArgs {
   id: string;
@@ -84,8 +86,13 @@ export function useWorkOrderMutations(projectId: string) {
   };
 
   const create = useMutation({
-    mutationFn: ({ input }: CreateArgs) => repositories.workOrder.create(projectId, input),
-    onSuccess: invalidate,
+    mutationFn: ({ input, projectId: chosen }: CreateArgs) => repositories.workOrder.create(chosen ?? projectId, input),
+    onSuccess: (_created, { projectId: chosen }) => {
+      invalidateWorkOrderQueries(qc, orgId, chosen ?? projectId);
+      // The org-wide list and its figures (the Work orders page) read other keys than one project's.
+      void qc.invalidateQueries({ queryKey: ['work-orders', orgId, 'all'] });
+      void qc.invalidateQueries({ queryKey: ['work-order-dashboard', orgId] });
+    },
   });
 
   const update = useMutation({

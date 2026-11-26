@@ -15194,19 +15194,25 @@ export type Database = {
       }
       pipeline_stage_config: {
         Row: {
+          label_en: string | null
+          label_id: string | null
           org_id: string
           status: Database["public"]["Enums"]["project_status"]
-          win_probability: number
+          win_probability: number | null
         }
         Insert: {
+          label_en?: string | null
+          label_id?: string | null
           org_id?: string
           status: Database["public"]["Enums"]["project_status"]
-          win_probability: number
+          win_probability?: number | null
         }
         Update: {
+          label_en?: string | null
+          label_id?: string | null
           org_id?: string
           status?: Database["public"]["Enums"]["project_status"]
-          win_probability?: number
+          win_probability?: number | null
         }
         Relationships: [
           {

@@ -902,6 +902,26 @@
       "saved": "Time record roles saved",
       "loadError": "Couldn't load the time record roles",
       "adminOnly": "Only an Admin can change this."
+    },
+    "stageNames": {
+      "title": "Sales and project stages",
+      "helper": "Rename a stage to match your own process. A blank name keeps the shipped name. Records, filters and reports keep working.",
+      "group": {
+        "pipeline": "Pipeline",
+        "onHand": "On hand",
+        "lost": "Lost",
+        "internal": "Internal"
+      },
+      "english": "English",
+      "bahasa": "Bahasa Indonesia",
+      "save": "Save",
+      "saved": "Stage names saved",
+      "tooLong": "Use 40 characters or fewer",
+      "duplicate": "Another stage already has this name",
+      "loadError": "Couldn't load the stages",
+      "stage": "Stage",
+      "inputEn": "{{stage}}, English name",
+      "inputId": "{{stage}}, Bahasa Indonesia name"
     }
   },
   "exchangeRates": {

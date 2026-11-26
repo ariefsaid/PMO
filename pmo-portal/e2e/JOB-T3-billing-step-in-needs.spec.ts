@@ -3,8 +3,9 @@
  *  the current billing step in the "needs you" list at home and it clears once the step is done. */
 import { test, expect } from '@playwright/test';
 import { serviceClient, need, ownProject, dropProject, uniq, ORG_ID, runId } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -33,7 +34,7 @@ test('JOB-T3 the current billing step is in the billing officer\'s needs-you lis
   // Admin setup gives the issued work order a current step owned by the billing job role.
   await admin.from('work_order_billing_steps').insert({
     org_id: ORG_ID, project_id: projectId, work_order_id: wo.id, position: 1, name: 'Prepare billing evidence',
-    owner_role_key: 'billing_officer', started_on: new Date().toISOString().slice(0, 10),
+    owner_role_key: 'billing_officer', started_on: orgToday(),
   });
 
   await worker.signIn(page);
@@ -43,6 +44,7 @@ test('JOB-T3 the current billing step is in the billing officer\'s needs-you lis
   await pointer.click();
   await expect(page).toHaveURL(new RegExp(`/work-orders/${wo.id}$`));
   await openWorkOrderArea(page, 'billing');
+  await openRowUpdate(page, 'Prepare billing evidence');
   await page.getByRole('button', { name: 'Mark Prepare billing evidence done' }).click();
   await expect(page.getByTestId('wo-billing-steps-summary')).toContainText('Every billing step is finished');
   await page.goto('/');

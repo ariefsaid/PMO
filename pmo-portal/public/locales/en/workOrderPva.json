@@ -21,7 +21,8 @@
     "workOrder": "Work order",
     "planShort": "Plan",
     "actualShort": "Actual",
-    "cost": "Cost"
+    "cost": "Cost",
+    "difference": "Left or over"
   },
   "costUnknown": "Cost unknown",
   "crewHours": "Crew hours",
@@ -245,5 +246,11 @@
     "people": "People",
     "equipment": "Equipment",
     "noteFull": "Shown apart: the people hours are already in labour cost and the standby money is already in equipment cost, so they are not added again. People are the crew present each day at the work order's average hourly cost."
-  }
+  },
+  "openDetails": "{{number}} {{title}}, details",
+  "nothingYet": "Nothing planned or spent yet. Plan a work order to compare its cost with the plan.",
+  "totalCost": "Total cost, direct and shared",
+  "billedTitle": "Billed and margin",
+  "byDisciplineTitle": "Cost by discipline",
+  "openPage": "Open full page"
 }

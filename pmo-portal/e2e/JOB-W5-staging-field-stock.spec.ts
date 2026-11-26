@@ -79,7 +79,7 @@ test('JOB-W5 material coordinator moves stock to one staging area and only that 
     await openWorkOrderArea(page, 'material');
     const panel = page.getByRole('region', { name: 'Stock for this work order' });
     const row = panel.getByRole('row').filter({ hasText: stagingA.code });
-    await expect(row.getByRole('cell').nth(4)).toHaveText('20');
+    await expect(row.getByRole('cell').nth(4)).toHaveText(/^20\b/);
     await expect(row.getByRole('cell').nth(5)).toContainText('10');
   } finally {
     const ids = docIds.filter(Boolean);

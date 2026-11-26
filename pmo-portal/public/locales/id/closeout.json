@@ -62,5 +62,7 @@
     "generic": "Daftar periksa tidak dapat disimpan. Coba lagi.",
     "noOwnerHelp": "Tanpa peran penanggung jawab, hanya Admin, Finance, atau manajer proyek yang dapat menyelesaikan item ini."
   },
-  "projectDocuments": "Dokumen proyek"
+  "projectDocuments": "Dokumen proyek",
+  "update": "Perbarui",
+  "updateNamed": "Perbarui {{item}}"
 }
