@@ -762,12 +762,12 @@
     "scope": "Stock value per location compared with recorded cover. For stock below its reorder level, open Reorder."
   },
   "transfers": {
-    "title": "Stock transfers",
+    "title": "Two-step transfers",
     "send": "Send stock transfer",
     "sendTitle": "Send a stock transfer",
     "off": {
       "title": "Two-step stock transfers are off",
-      "sub": "An administrator can turn them on in Stock setup."
+      "sub": "Direct transfers are recorded in Documents. An Admin can enable two-step transfers in Stock setup."
     },
     "empty": {
       "title": "No stock transfers yet",
