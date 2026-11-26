@@ -1158,6 +1158,7 @@
     "print": "Print",
     "back": "Back to the work order",
     "preparedBy": "Prepared by",
-    "checkedBy": "Checked by"
+    "checkedBy": "Checked by",
+    "valueTotal": "Total value"
   }
 }

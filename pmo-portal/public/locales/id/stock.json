@@ -1158,6 +1158,7 @@
     "print": "Cetak",
     "back": "Kembali ke perintah kerja",
     "preparedBy": "Disiapkan oleh",
-    "checkedBy": "Diperiksa oleh"
+    "checkedBy": "Diperiksa oleh",
+    "valueTotal": "Total nilai"
   }
 }
