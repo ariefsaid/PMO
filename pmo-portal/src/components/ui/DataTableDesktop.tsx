@@ -125,7 +125,7 @@ function useStickyRowMenuSeam(
     const scrollport = scrollportRef.current;
     const table = tableRef.current;
     const report = (overflowing: boolean) => {
-      store.set(overflowing);
+      store.set(Boolean(scrollport && scrollport.scrollWidth > scrollport.clientWidth + 1));
       scrollport?.toggleAttribute('data-dt-overflowing', overflowing);
       onOverflowChange?.(overflowing);
     };
@@ -632,9 +632,10 @@ export function DataTableDesktop<Row>({
   const seamStore = useStickyRowMenuSeam(
     tableBranchRef,
     tableRef,
-    Boolean(rowMenu) || Boolean(onOverflowChange),
+    true,
     onOverflowChange,
   );
+  const tableOverflows = React.useSyncExternalStore(seamStore.subscribe, seamStore.get, () => false);
 
   React.useLayoutEffect(() => {
     updateResizeHandlePositions();
@@ -662,8 +663,15 @@ export function DataTableDesktop<Row>({
     // `relative` makes this scroller the containing block for the absolutely-positioned
     // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
     // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
+    <>
+    {tableOverflows && <div className="flex justify-end gap-1 border-b border-border bg-card px-2 py-1 print:hidden">
+      <button type="button" aria-label={t('ui:table.scrollLeft', 'Scroll table left')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => tableBranchRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}><Icon name="chev" className="size-4 rotate-180" /></button>
+      <button type="button" aria-label={t('ui:table.scrollRight', 'Scroll table right')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => tableBranchRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}><Icon name="chev" className="size-4" /></button>
+    </div>}
     <div
       ref={tableBranchRef}
+      tabIndex={0}
+      aria-label={accessibleName}
       data-testid="dt-table-branch"
       className="relative min-w-0 max-w-full overflow-x-auto"
     >
@@ -855,5 +863,6 @@ export function DataTableDesktop<Row>({
         </tfoot>}
       </table>
     </div>
+    </>
   );
 }

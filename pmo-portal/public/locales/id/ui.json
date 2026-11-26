@@ -6,5 +6,9 @@
     "showDetails": "Tampilkan detail",
     "scrollLeft": "Gulir tab ke kiri",
     "scrollRight": "Gulir tab ke kanan"
+  },
+  "table": {
+    "scrollLeft": "Gulir tabel ke kiri",
+    "scrollRight": "Gulir tabel ke kanan"
   }
 }
