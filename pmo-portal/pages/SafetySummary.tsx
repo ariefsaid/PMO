@@ -81,10 +81,10 @@ const SafetySummary: React.FC = () => {
                     const kind = DETAIL_KIND[f.key];
                     const drill = !client && kind && f.value !== null && f.value > 0;
                     return (
-                      <tr key={f.key}>
+                      <tr key={f.key} className="grid grid-cols-[minmax(0,1fr)_auto] sm:table-row">
                         <th scope="row" className="px-4 py-4 text-left font-normal">{label(f)}</th>
-                        <td className="w-px whitespace-nowrap px-4 py-4 text-right tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</td>
-                        {hasDrill && <td className="w-px whitespace-nowrap px-4 py-1 text-right">
+                        <td className="whitespace-nowrap px-4 py-4 text-right tabular-nums sm:w-px" data-testid={`safety-figure-${f.key}`}>{value(f)}</td>
+                        {hasDrill && <td className={drill ? "col-span-2 px-4 pb-1 text-left sm:w-px sm:whitespace-nowrap sm:py-1 sm:text-right" : "hidden sm:table-cell"}>
                           {drill && (
                             <button type="button" className="min-h-11 whitespace-nowrap text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
                               onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
