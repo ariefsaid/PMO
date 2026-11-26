@@ -121,8 +121,8 @@ const TasksToolbar: React.FC<{
       <div className="mb-3.5 flex flex-col gap-3 p-[var(--panel-inset)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-page font-bold tracking-[-0.02em]">{heading}</h2>
-          <div className="flex items-center gap-2">
-{state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>
             options={[
               { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
               { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },

@@ -129,7 +129,7 @@ export function Tabs<V extends string = string>({
 
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
-    <div className="relative flex min-w-0 items-center">
+    <div className="relative flex min-w-0 items-center gap-1">
     {(overflow.left || overflow.right) && (
       <button
         type="button"
@@ -150,10 +150,8 @@ export function Tabs<V extends string = string>({
         'mb-4 flex min-w-0 flex-1 flex-nowrap whitespace-nowrap gap-0.5 border-b border-border',
         // Horizontal scroll-snap strip when tabs exceed container width
         'overflow-x-auto snap-x snap-mandatory',
-        'mx-1',
         // Scrollbar-free (aesthetic — chromeless thin scrollbar on macOS; no layout impact)
         '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-
         className,
       )}
     >
