@@ -122,7 +122,7 @@
     }
   },
   "health": {
-    "atRisk": "{{count}} of {{total}} at risk",
+    "atRisk": "{{count}} of {{total}} with budget at risk",
     "overBudget": "{{count}} over budget",
     "late": "{{count}} late",
     "overBudgetFilter": "Over budget",
