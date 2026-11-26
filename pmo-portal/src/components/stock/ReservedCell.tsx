@@ -6,34 +6,30 @@ import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { FreeReservedRow } from '@/src/lib/repositories/stockReservations';
 
-interface Props {
-  figures: FreeReservedRow | undefined;
-  unitCode: string;
-  /** Set when the person may reserve here: shows the Reserve button. */
-  onReserve?: () => void;
-}
+const Figure: React.FC<{ qty: string; unitCode: string }> = ({ qty, unitCode }) => (
+  <span className="whitespace-nowrap tabular-nums">{formatQuantity(qty, getNumberLocale())}{unitCode && <span className="text-muted-foreground"> {unitCode}</span>}</span>
+);
 
-/** "x free + y reserved" for one item at one location, with the reserving work orders one tap away (#2693). Rendered only while reservations are on. */
-export const ReservedCell: React.FC<Props> = ({ figures, unitCode, onReserve }) => {
+/** The free quantity of one item at one location (#2693): its own right-aligned figure. Rendered only while reservations are on. */
+export const FreeFigure: React.FC<{ figures: FreeReservedRow | undefined; unitCode: string }> = ({ figures, unitCode }) =>
+  figures ? <Figure qty={figures.freeQty} unitCode={unitCode} /> : <span className="text-muted-foreground">—</span>;
+
+/** The reserved quantity, how far the holders are short, and the reserving work orders one tap away (#2693). */
+export const ReservedFigure: React.FC<{ figures: FreeReservedRow | undefined; unitCode: string }> = ({ figures, unitCode }) => {
   const { t } = useTranslation('stock');
   const [open, setOpen] = useState(false);
   const loc = getNumberLocale();
-  if (!figures) return onReserve ? <Button variant="outline" size="sm" onClick={onReserve}>{t('reservations.reserve')}</Button> : <span className="text-muted-foreground">—</span>;
+  if (!figures) return <span className="text-muted-foreground">—</span>;
   const holders = figures.reservations;
   return (
-    <div className="min-w-0 text-sm">
-      <p className="tabular-nums">
-        {t('reservations.freePlusReserved', { free: formatQuantity(figures.freeQty, loc), reserved: formatQuantity(figures.reservedQty, loc), unit: unitCode })}
-      </p>
-      {Number(figures.shortBy) > 0 && <p className="text-muted-foreground">{t('reservations.shortBy', { n: formatQuantity(figures.shortBy, loc) })}</p>}
-      <div className="flex flex-wrap gap-2">
-        {holders.length > 0 && (
-          <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? t('reservations.hideHolders') : t('reservations.showHolders', { count: holders.length })}</Button>
-        )}
-        {onReserve && <Button variant="outline" size="sm" onClick={onReserve}>{t('reservations.reserve')}</Button>}
-      </div>
+    <div className="flex min-w-0 flex-col items-end gap-1 text-right">
+      <Figure qty={figures.reservedQty} unitCode={unitCode} />
+      {Number(figures.shortBy) > 0 && <span className="text-control text-muted-foreground">{t('reservations.shortBy', { n: formatQuantity(figures.shortBy, loc) })}</span>}
+      {holders.length > 0 && (
+        <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? t('reservations.hideHolders') : t('reservations.showHolders', { count: holders.length })}</Button>
+      )}
       {open && (
-        <ul className="mt-1 space-y-1" aria-label={t('reservations.holders')}>
+        <ul className="space-y-1 text-left" aria-label={t('reservations.holders')}>
           {holders.map((h) => (
             <li key={h.reservationId}>
               <Link to={`/work-orders/${h.workOrderId}`} className="font-medium hover:underline">{[h.workOrderNumber, h.workOrderTitle].filter(Boolean).join(' - ')}</Link>
@@ -44,4 +40,10 @@ export const ReservedCell: React.FC<Props> = ({ figures, unitCode, onReserve }) 
       )}
     </div>
   );
+};
+
+/** Reserve stock here: shown only to a person who may reserve at this location. */
+export const ReserveAction: React.FC<{ onReserve?: () => void }> = ({ onReserve }) => {
+  const { t } = useTranslation('stock');
+  return onReserve ? <Button variant="outline" size="sm" onClick={onReserve}>{t('reservations.reserve')}</Button> : null;
 };
