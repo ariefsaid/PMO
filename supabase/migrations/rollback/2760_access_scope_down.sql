@@ -1,9 +1,9 @@
 -- Reverses 2760.
+grant execute on function public.actor_may_order_purchases() to anon;
+grant execute on function public.qcr_file_object_access(text) to anon;
 alter policy storage_objects_qcr_file_read on storage.objects to public;
 alter policy storage_objects_qcr_file_write on storage.objects to public;
 alter policy storage_objects_proc_file_read on storage.objects to public;
-grant execute on function public.actor_may_order_purchases() to anon;
-grant execute on function public.qcr_file_object_access(text) to anon;
 create or replace function public.stock_handover_scope_of(p_org uuid) returns text
   language sql stable security definer set search_path = public, pg_temp as $$
   select q.* from (select coalesce((select o.stock_handover_scope from public.organizations o where o.id = p_org), 'transfers')

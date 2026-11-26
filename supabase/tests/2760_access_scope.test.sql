@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(10);
 insert into organizations (id,name,default_currency,default_timezone,stock_handover_scope,po_needed_by_required_from) values
  ('27600000-0000-0000-0000-000000000001','Scope A','IDR','Asia/Jakarta','transfers_and_issues','2026-01-01'),
  ('27600000-0000-0000-0000-000000000002','Scope B','IDR','Asia/Jakarta','transfers_and_issues','2026-02-01');
@@ -23,5 +23,11 @@ select is(public.po_needed_by_required_from_of('27600000-0000-0000-0000-00000000
 select set_config('request.jwt.claims','{"sub":"27600000-0000-0000-0000-000000000013","role":"authenticated"}',true);
 select throws_ok($$select public.stock_handover_scope_of('27600000-0000-0000-0000-000000000001')$$,'42501','LIGHT_ACCOUNT: this account has one phone home screen and cannot read this','field account cannot read handover setting');
 select throws_ok($$select public.po_needed_by_required_from_of('27600000-0000-0000-0000-000000000001')$$,'42501','LIGHT_ACCOUNT: this account has one phone home screen and cannot read this','field account cannot read order setting');
+reset role;
+update profiles set status='disabled' where id='27600000-0000-0000-0000-000000000011';
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"27600000-0000-0000-0000-000000000011","role":"authenticated"}',true);
+select is(public.stock_handover_scope_of('27600000-0000-0000-0000-000000000001'),'transfers','inactive member receives default handover setting');
+select is(public.po_needed_by_required_from_of('27600000-0000-0000-0000-000000000001'),null::timestamptz,'inactive member receives no order setting');
 select * from finish();
 rollback;

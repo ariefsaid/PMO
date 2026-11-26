@@ -7,12 +7,12 @@ revoke execute on function public.actor_may_order_purchases() from public, anon;
 revoke execute on function public.qcr_file_object_access(text) from public, anon;
 create or replace function public.stock_handover_scope_of(p_org uuid) returns text
   language sql stable security definer set search_path = public, pg_temp as $$
-  select q.* from (select coalesce((select o.stock_handover_scope from public.organizations o where o.id = p_org and o.id = public.auth_org_id()), 'transfers')
+  select q.* from (select coalesce((select o.stock_handover_scope from public.organizations o where o.id = p_org and o.id = public.auth_org_id() and public.is_active_member()), 'transfers')
 ) q where public.assert_not_light()
 $$;
 create or replace function public.po_needed_by_required_from_of(p_org uuid) returns timestamptz
   language sql stable security definer set search_path = public, pg_temp as $$
-  select q.* from (select (select o.po_needed_by_required_from from public.organizations o where o.id = p_org and o.id = public.auth_org_id())
+  select q.* from (select (select o.po_needed_by_required_from from public.organizations o where o.id = p_org and o.id = public.auth_org_id() and public.is_active_member())
 ) q where public.assert_not_light()
 $$;
 create or replace function public.extend_rental_procurement(p_id uuid, p_original uuid, p_from date, p_to date, p_items jsonb default null)
@@ -20,9 +20,6 @@ create or replace function public.extend_rental_procurement(p_id uuid, p_origina
 declare v_org uuid := public.auth_org_id(); v_o public.procurements%rowtype; v_items jsonb; v_header jsonb;
 begin
   perform public.assert_not_light(); -- retained from 1480's apply-time field-account guard
-  if p_items is null and public.order_receiving_line_blind(p_original) then
-    raise exception 'RGO_BLIND_COPY: Enter your own request quantities; a blind receiver cannot copy ordered quantities.' using errcode='42501';
-  end if;
   if auth.uid() is null or v_org is null or not coalesce(public.is_active_member(), false) then
     raise exception 'Procurement creation is not permitted' using errcode = '42501';
   end if;
@@ -31,6 +28,9 @@ begin
   end if;
   select * into v_o from public.procurements where id = p_original and org_id = v_org and exists (select 1 from public.procurements_masked m where m.id = p_original);
   if not found then raise exception 'PTYPE_EXT_NOT_FOUND: the rental to extend is not available' using errcode = '23503'; end if;
+  if p_items is null and public.order_receiving_line_blind(p_original) then
+    raise exception 'RGO_BLIND_COPY: Enter your own request quantities; a blind receiver cannot copy ordered quantities.' using errcode='42501';
+  end if;
   -- 2702: a line without a rate takes it from the original line it names; the naming key is not passed on
   if jsonb_typeof(p_items) = 'array' then
     if exists (select 1 from jsonb_array_elements(p_items) x
@@ -107,7 +107,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended(p_id::text, 0));
   select * into v_intent from public.procurement_create_intents where procurement_id=p_id;
   if found and (v_intent.org_id is distinct from v_org or v_intent.actor_id is distinct from v_uid
-      or v_intent.header is distinct from p_header or (case when v_shown then v_intent.items else (select coalesce(jsonb_agg(x - 'rate' order by n), '[]'::jsonb) from jsonb_array_elements(v_intent.items) with ordinality t(x,n)) end) is distinct from (case when v_shown then p_items else (select coalesce(jsonb_agg(x - 'rate' order by n), '[]'::jsonb) from jsonb_array_elements(p_items) with ordinality t(x,n)) end)) then
+      or (case when v_shown then v_intent.header else v_intent.header - 'vendor_id' end) is distinct from (case when v_shown then p_header else p_header - 'vendor_id' end) or (case when v_shown then v_intent.items else (select coalesce(jsonb_agg(x - 'rate' order by n), '[]'::jsonb) from jsonb_array_elements(v_intent.items) with ordinality t(x,n)) end) is distinct from (case when v_shown then p_items else (select coalesce(jsonb_agg(x - 'rate' order by n), '[]'::jsonb) from jsonb_array_elements(p_items) with ordinality t(x,n)) end)) then
     raise exception 'Saved procurement differs from request' using errcode = '23505';
   end if;
   insert into public.procurements (id,org_id,requested_by_id,title,project_id,vendor_id,budget_category,is_subcontract,purchase_type_id,rental_from,rental_to,extends_procurement_id,work_order_id,discipline_id)   -- 0449, 1351, 1580
@@ -119,7 +119,7 @@ begin
     raise exception 'Procurement creation is not permitted' using errcode = '42501';
   end if;
   if v_parent.title is distinct from p_header->>'title' or v_parent.project_id is distinct from v_project
-     or v_parent.vendor_id is distinct from v_vendor or v_parent.budget_category is distinct from v_category
+     or (v_shown and v_parent.vendor_id is distinct from v_vendor) or v_parent.budget_category is distinct from v_category
      or v_parent.is_subcontract is distinct from v_subcontract                                                          -- 0449
      or v_parent.purchase_type_id is distinct from v_ptype or v_parent.rental_from is distinct from v_rfrom
      or v_parent.rental_to is distinct from v_rto or v_parent.extends_procurement_id is distinct from v_ext

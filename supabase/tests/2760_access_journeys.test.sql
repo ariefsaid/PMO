@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(25);
 insert into organizations (id,name,default_currency,default_timezone,hide_prices_from_requesters) values
  ('27610000-0000-0000-0000-000000000001','Scope A','IDR','Asia/Jakarta',true),
  ('27610000-0000-0000-0000-000000000002','Scope B','IDR','Asia/Jakarta',true);
@@ -14,6 +14,11 @@ insert into profiles (id,org_id,full_name,email,role,status) values
  ('27610000-0000-0000-0000-000000000011','27610000-0000-0000-0000-000000000001','Engineer A','scope11@example.com','Engineer','active'),
  ('27610000-0000-0000-0000-000000000012','27610000-0000-0000-0000-000000000001','Engineer B','scope12@example.com','Engineer','active'),
  ('27610000-0000-0000-0000-000000000013','27610000-0000-0000-0000-000000000002','Admin B','scope13@example.com','Admin','active');
+insert into companies (id,org_id,name,type) values
+ ('27610000-0000-0000-0000-000000000081','27610000-0000-0000-0000-000000000001','Supplier A','Vendor'),
+ ('27610000-0000-0000-0000-000000000082','27610000-0000-0000-0000-000000000001','Supplier B','Vendor'),
+ ('27610000-0000-0000-0000-000000000083','27610000-0000-0000-0000-000000000002','Supplier C','Vendor'),
+ ('27610000-0000-0000-0000-000000000084','27610000-0000-0000-0000-000000000002','Supplier D','Vendor');
 insert into org_purchase_type_settings (org_id,enabled) values ('27610000-0000-0000-0000-000000000001',true),('27610000-0000-0000-0000-000000000002',true) on conflict (org_id) do update set enabled=true;
 insert into purchase_types (id,org_id,name,is_rental,position) values
  ('27610000-0000-0000-0000-000000000021','27610000-0000-0000-0000-000000000001','Scope Hire A',true,90),
@@ -35,6 +40,15 @@ select throws_ok($$select public.extend_rental_procurement('27610000-0000-0000-0
 select throws_ok($$select public.extend_rental_procurement('27610000-0000-0000-0000-000000000051','27610000-0000-0000-0000-000000000033','2026-02-01','2026-02-28')$$,'23503','PTYPE_EXT_NOT_FOUND: the rental to extend is not available','another organisation rental is unavailable');
 select lives_ok($$select public.extend_rental_procurement('27610000-0000-0000-0000-000000000052','27610000-0000-0000-0000-000000000031','2026-02-01','2026-02-28')$$,'requester extends their own rental');
 select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000061','{"title":"Scope draft"}'::jsonb,'[{"id":"27610000-0000-0000-0000-000000000071","name":"Hire","quantity":1,"rate":75}]'::jsonb)$$,'requester creates a draft');
+select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000081','{"title":"Supplier draft","vendor_id":"27610000-0000-0000-0000-000000000081"}'::jsonb,'[]'::jsonb)$$,'requester creates a draft with a supplier');
+select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000081','{"title":"Supplier draft","vendor_id":"27610000-0000-0000-0000-000000000082"}'::jsonb,'[]'::jsonb)$$,'hidden supplier does not affect intent retry');
+reset role;
+update public.procurement_create_intents set header=jsonb_set(header,'{vendor_id}','"27610000-0000-0000-0000-000000000082"'::jsonb) where procurement_id='27610000-0000-0000-0000-000000000081';
+set local role authenticated;
+select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000081','{"title":"Supplier draft","vendor_id":"27610000-0000-0000-0000-000000000082"}'::jsonb,'[]'::jsonb)$$,'hidden supplier does not affect saved parent retry');
+reset role;
+select is((select vendor_id from procurements where id='27610000-0000-0000-0000-000000000081'),'27610000-0000-0000-0000-000000000081'::uuid,'retry retains the saved supplier');
+set local role authenticated;
 select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000061','{"title":"Scope draft"}'::jsonb,'[{"id":"27610000-0000-0000-0000-000000000071","name":"Hire","quantity":1,"rate":3}]'::jsonb)$$,'retry with a different hidden price succeeds');
 reset role;
 update public.procurement_create_intents set items = jsonb_set(items,'{0,rate}','3'::jsonb) where procurement_id='27610000-0000-0000-0000-000000000061';
@@ -47,8 +61,25 @@ set local role authenticated;
 select pg_temp.as_user('27610000-0000-0000-0000-000000000013');
 select lives_ok($$select public.extend_rental_procurement('27610000-0000-0000-0000-000000000053','27610000-0000-0000-0000-000000000033','2026-02-01','2026-02-28')$$,'other organisation can extend its rental');
 select is(public.actor_shown_prices(),true,'admin sees prices');
+select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000086','{"title":"Visible supplier","vendor_id":"27610000-0000-0000-0000-000000000083"}'::jsonb,'[]'::jsonb)$$,'admin creates a draft with a supplier');
+select throws_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000086','{"title":"Visible supplier","vendor_id":"27610000-0000-0000-0000-000000000084"}'::jsonb,'[]'::jsonb)$$,'23505','Saved procurement differs from request','visible supplier remains part of retry comparison');
 select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000062','{"title":"Scope B draft"}'::jsonb,'[{"id":"27610000-0000-0000-0000-000000000072","name":"Hire","quantity":1,"rate":75}]'::jsonb)$$,'admin creates a draft');
 select throws_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000062','{"title":"Scope B draft"}'::jsonb,'[{"id":"27610000-0000-0000-0000-000000000072","name":"Hire","quantity":1,"rate":3}]'::jsonb)$$,'23505','Saved procurement differs from request','visible prices remain part of retry comparison');
 select lives_ok($$select public.create_procurement_with_items('27610000-0000-0000-0000-000000000062','{"title":"Scope B draft"}'::jsonb,'[{"id":"27610000-0000-0000-0000-000000000072","name":"Hire","quantity":1,"rate":75}]'::jsonb)$$,'identical visible price retry succeeds');
+reset role;
+select set_config('request.jwt.claims','{}',true);
+update organizations set built_in_roles_enabled=true where id='27610000-0000-0000-0000-000000000001';
+update profiles set built_in_role='storekeeper' where id='27610000-0000-0000-0000-000000000011';
+insert into order_receiving_settings (org_id,enabled) values ('27610000-0000-0000-0000-000000000001',true) on conflict (org_id) do update set enabled=true;
+insert into purchase_orders (id,org_id,procurement_id,po_number,status,currency) values
+ ('27610000-0000-0000-0000-000000000091','27610000-0000-0000-0000-000000000001','27610000-0000-0000-0000-000000000031','PO-SCOPE-A','Issued','IDR'),
+ ('27610000-0000-0000-0000-000000000092','27610000-0000-0000-0000-000000000001','27610000-0000-0000-0000-000000000032','PO-SCOPE-B','Issued','IDR');
+set local role authenticated;
+select pg_temp.as_user('27610000-0000-0000-0000-000000000011');
+select is(public.order_receiving_line_blind('27610000-0000-0000-0000-000000000032'),true,'fixture: receiver has blind receiving');
+select throws_ok($$select public.extend_rental_procurement('27610000-0000-0000-0000-000000000093','27610000-0000-0000-0000-000000000032','2026-04-01','2026-04-30')$$,'23503','PTYPE_EXT_NOT_FOUND: the rental to extend is not available','unreadable ordered rental returns not found');
+select throws_ok($$select public.extend_rental_procurement('27610000-0000-0000-0000-000000000093','27610000-0000-0000-0000-000000000099','2026-04-01','2026-04-30')$$,'23503','PTYPE_EXT_NOT_FOUND: the rental to extend is not available','unknown rental returns not found');
+select throws_ok($$select public.extend_rental_procurement('27610000-0000-0000-0000-000000000093','27610000-0000-0000-0000-000000000031','2026-04-01','2026-04-30')$$,'42501','RGO_BLIND_COPY: Enter your own request quantities; a blind receiver cannot copy ordered quantities.','own readable order keeps blind receiving rule');
+select is((select count(*)::int from procurements_masked where id='27610000-0000-0000-0000-000000000032'),0,'other request remains unreadable');
 select * from finish();
 rollback;

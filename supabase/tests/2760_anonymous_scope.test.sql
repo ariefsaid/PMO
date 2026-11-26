@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(15);
+select plan(17);
 insert into organizations (id,name,default_currency,default_timezone) values
  ('27620000-0000-0000-0000-000000000001','Files A','IDR','Asia/Jakarta'),
  ('27620000-0000-0000-0000-000000000002','Files B','IDR','Asia/Jakarta');
@@ -37,11 +37,13 @@ select throws_ok($$select public.actor_may_order_purchases()$$,'42501','permissi
 select throws_ok($$select public.qcr_file_object_access('a/b/c/d')$$,'42501','permission denied for function qcr_file_object_access','anonymous file helper call is denied');
 select lives_ok($$select count(*) from storage.objects$$,'anonymous storage listing remains usable');
 select lives_ok($$select count(*) from public.purchase_orders$$,'anonymous purchase order read remains usable');
+select throws_ok($$insert into storage.objects (id,bucket_id,name) values ('27620000-0000-0000-0000-000000000065','quantity-change-files','27620000-0000-0000-0000-000000000001/27620000-0000-0000-0000-000000000041/27620000-0000-0000-0000-000000000075/file.pdf')$$,'42501',null,'anonymous cannot write a quantity-change file');
 select is((select count(*)::int from storage.objects where id in ('27620000-0000-0000-0000-000000000061','27620000-0000-0000-0000-000000000062')),0,'anonymous cannot read either organisation quantity-change file');
 select is((select count(*)::int from storage.objects where id in ('27620000-0000-0000-0000-000000000063','27620000-0000-0000-0000-000000000064')),0,'anonymous cannot read either organisation procurement file');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"27620000-0000-0000-0000-000000000011","role":"authenticated"}',true);
+select lives_ok($$insert into storage.objects (id,bucket_id,name) values ('27620000-0000-0000-0000-000000000066','quantity-change-files','27620000-0000-0000-0000-000000000001/27620000-0000-0000-0000-000000000041/27620000-0000-0000-0000-000000000076/file.pdf')$$,'organisation A can write a quantity-change file');
 select results_eq($$select id from storage.objects where id in ('27620000-0000-0000-0000-000000000061','27620000-0000-0000-0000-000000000062')$$,$$values ('27620000-0000-0000-0000-000000000061'::uuid)$$,'organisation A reads its quantity-change file');
 select results_eq($$select id from storage.objects where id in ('27620000-0000-0000-0000-000000000063','27620000-0000-0000-0000-000000000064')$$,$$values ('27620000-0000-0000-0000-000000000063'::uuid)$$,'organisation A reads its procurement file');
 select set_config('request.jwt.claims','{"sub":"27620000-0000-0000-0000-000000000012","role":"authenticated"}',true);
