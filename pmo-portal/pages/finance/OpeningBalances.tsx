@@ -20,6 +20,11 @@ const TH = 'px-3 py-2 text-left text-control font-medium text-muted-foreground';
 const TD = 'px-3 py-2 text-control text-foreground';
 const NUM = 'tabular-nums text-right';
 
+const ScrollTable: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation('financeHub');
+  return <div role="region" aria-label={t('openingBalances.tableLabel', 'Scroll table')} tabIndex={0} className="min-w-0 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{children}</div>;
+};
+
 /** Totals per currency, so two currencies are never added together. */
 function sumBy<T>(rows: T[], currency: (r: T) => string, pick: (r: T) => number): [string, number][] {
   const out = new Map<string, number>();
@@ -44,7 +49,7 @@ const StockCard: React.FC<{ row: OpeningStock }> = ({ row }) => {
       <CardHead id={`ob-${row.id}`}>{row.label}{row.subLabel ? ` · ${row.subLabel}` : ''}</CardHead>
       <CardPad>
         <Who row={row} />
-        <table className="mt-2 w-full">
+        <ScrollTable><table className="mt-2 w-full min-w-[480px]">
           <thead><tr><th className={TH}>{t('openingBalances.item', 'Item')}</th><th className={`${TH} ${NUM}`}>{t('openingBalances.quantity', 'Quantity')}</th><th className={`${TH} ${NUM}`}>{t('openingBalances.value', 'Value')}</th></tr></thead>
           <tbody>
             {row.lines.map((l) => (
@@ -60,7 +65,7 @@ const StockCard: React.FC<{ row: OpeningStock }> = ({ row }) => {
               <td className={`${TD} ${NUM}`}>{money(row.value, row.currency)}</td>
             </tr>
           </tbody>
-        </table>
+        </table></ScrollTable>
       </CardPad>
     </Card>
   );
@@ -73,7 +78,7 @@ const WorkOrderCard: React.FC<{ row: OpeningWorkOrder }> = ({ row }) => {
       <CardHead id={`ob-${row.id}`}>{row.label}{row.subLabel ? ` · ${row.subLabel}` : ''}</CardHead>
       <CardPad>
         <Who row={row} />
-        <table className="mt-2 w-full">
+        <ScrollTable><table className="mt-2 w-full min-w-[640px]">
           <thead><tr>
             <th className={TH}>{t('openingBalances.line', 'Contract line')}</th>
             <th className={`${TH} ${NUM}`}>{t('openingBalances.certified', 'Certified quantity')}</th>
@@ -91,11 +96,12 @@ const WorkOrderCard: React.FC<{ row: OpeningWorkOrder }> = ({ row }) => {
             ))}
             <tr className="border-t border-border font-medium">
               <td className={TD}>{t('openingBalances.total', 'Total')}</td>
-              <td className={`${TD} ${NUM}`} colSpan={2}>{t('openingBalances.certifiedValue', 'Certified value')} {money(row.certifiedValue, row.currency)}</td>
+              <td className={TD} colSpan={2} />
               <td className={`${TD} ${NUM}`}>{money(row.claimedValue, row.currency)}</td>
             </tr>
           </tbody>
-        </table>
+        </table></ScrollTable>
+        <p className="mt-2 text-control text-muted-foreground">{t('openingBalances.certifiedValue', 'Certified value')}: <span className="tabular-nums text-foreground">{money(row.certifiedValue, row.currency)}</span></p>
       </CardPad>
     </Card>
   );
@@ -151,7 +157,7 @@ const OpeningBalances: React.FC = () => {
         <Card role="region" aria-labelledby="ob-totals">
           <CardHead id="ob-totals">{t('openingBalances.totalsTitle', 'Totals to check against your source file')}</CardHead>
           <CardPad>
-            <table className="w-full">
+            <ScrollTable><table className="w-full min-w-[480px]">
               <thead><tr><th className={TH}>{t('openingBalances.kind', 'What')}</th><th className={`${TH} ${NUM}`}>{t('openingBalances.count', 'Loaded')}</th><th className={`${TH} ${NUM}`}>{t('openingBalances.totalValue', 'Value')}</th></tr></thead>
               <tbody>
                 {stock.length > 0 && sumBy(stock, (r) => r.currency, (r) => r.value).map(([cur, v]) => (
@@ -176,7 +182,7 @@ const OpeningBalances: React.FC = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></ScrollTable>
             <p className="mt-3 text-control text-muted-foreground" data-testid="ob-source-note">
               {t('openingBalances.sourceNote', 'The totals of the source file are not kept with the load. Compare these with your file. Receivables, payables and site cash floats are not loaded by the command line tool, so none are shown.')}
             </p>

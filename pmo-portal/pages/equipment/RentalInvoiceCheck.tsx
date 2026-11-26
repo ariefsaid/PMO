@@ -6,8 +6,7 @@ import { Button, Checkbox, DataTable, ListState, NumberField, RecordSection, Sel
 import { useRentalCheck } from '@/src/hooks/useEquipmentAvailability';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatExactMoney, formatIsoDay, normalizeLocalizedDecimal } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatTableMoney, formatIsoDay, normalizeLocalizedDecimal } from '@/src/lib/format';
 import type { EquipmentStatus } from '@/src/lib/equipmentMetrics';
 import type { RentalCheckDay } from '@/src/lib/db/equipmentAvailability';
 
@@ -25,7 +24,7 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
   const [reason, setReason] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [proofLinks, setProofLinks] = useState<Record<string, string>>({});
-  const money = (value: string, currency: string | null) => currency ? (formatExactMoney(String(value), currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—') : '—';
+  const money = (value: string, currency: string | null) => currency ? (formatTableMoney(value, currency) ?? '—') : '—';
   const from = start ?? monthFrom; const to = end ?? today;
   const resetCheck = check.reset;
   useEffect(() => {

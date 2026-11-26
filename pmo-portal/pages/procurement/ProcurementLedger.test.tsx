@@ -254,7 +254,7 @@ describe('PR-1 Bahasa rendered-copy contract', () => {
     expect(screen.getByRole('button', { name: 'Keuangan' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Tanggal' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Jenis' })).toBeInTheDocument();
-    expect(screen.getByText('Pembayaran')).toBeInTheDocument();
+    expect(screen.getAllByText('Pembayaran').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Catat Permintaan Pembelian/i })).toBeInTheDocument();
   });
 });

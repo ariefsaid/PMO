@@ -256,7 +256,7 @@ function EventCalendarMonthView({
                   <span className="hidden @max-[36rem]:inline">
                     {format(
                       toZoned(day, settings.timeZone),
-                      settings.i18n.formats.monthDayHeaderNarrow,
+                      'EEE',
                       { locale: settings.locale }
                     )}
                   </span>

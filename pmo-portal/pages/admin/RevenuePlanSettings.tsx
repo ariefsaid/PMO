@@ -52,8 +52,10 @@ const RevenuePlanSettings: React.FC = () => {
               <p className="text-control text-muted-foreground">{t('settings.weekdaysHelp', 'A month amount is spread evenly over these weekdays.')}</p>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {WEEKDAYS.map((d) => (
-                  <Checkbox key={d} checked={current.weekdays.includes(d)} label={dayName(d)}
-                    onChange={(v) => setDraft({ ...current, weekdays: v ? [...current.weekdays, d] : current.weekdays.filter((x) => x !== d) })} />
+                  <Checkbox key={d} checked={current.weekdays.includes(d)} label={dayName(d)} className="min-h-11"
+                    onChange={(v) => setDraft({ ...current, weekdays: v ? [...current.weekdays, d] : current.weekdays.filter((x) => x !== d) })}>
+                    {dayName(d)}
+                  </Checkbox>
                 ))}
               </div>
             </fieldset>

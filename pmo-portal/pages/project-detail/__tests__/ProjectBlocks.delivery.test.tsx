@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const { milestoneState, tasksState } = vi.hoisted(() => ({
   milestoneState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
@@ -46,6 +46,7 @@ describe('#2088 DeliveryBlock — phase lateness follows the organization day', 
     // 2026-06-01 20:00 UTC == 2026-06-02 03:00 in Asia/Jakarta: the target (Jun 1) is past.
     vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     render(
       <MemoryRouter>
         <ImpersonationProvider realRole="Project Manager">

@@ -24,7 +24,7 @@
   "costs": {
     "title": "Biaya",
     "error": "Biaya tidak dapat dimuat",
-    "empty": "Belum ada biaya yang dikaitkan dengan $t(common:terms.clientWorkOrder) ini.",
+    "empty": "Tidak ada biaya yang terlihat untuk Anda pada work order ini.",
     "noDiscipline": "Tanpa disiplin",
     "unknownDiscipline": "Disiplin",
     "restricted": "Jumlah dibatasi untuk peran Anda",

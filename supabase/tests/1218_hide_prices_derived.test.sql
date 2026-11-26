@@ -1,14 +1,14 @@
 -- 1218_hide_prices_derived.test.sql — #2699 derived-amount reads and the order/bill masked views, per-surface value assertions.
 -- Migration under test: 1218_hide_prices_derived_amounts (and 1216 views).
 -- Mutation notes (break, see the named assertion go red, restore):
---   make the ORIGINAL project_committed_spend mask                -> 'the original committed spend is real for a hidden actor'
+--   make the ORIGINAL project_committed_spend mask                -> 'internal callers read the real committed spend and open commitment'
 --   drop the helper test in project_committed_spend_masked       -> 'hidden committed spend amount is NULL'
 --   drop the helper test in procurement_open_commitments_masked -> 'hidden open commitment is NULL'
 --   drop the helper test in purchase_orders_masked               -> 'hidden purchase order amount is NULL'
 --   drop the helper test in procurement_invoices_masked          -> 'hidden bill amount is NULL'
 --   the approval-panel assertion fails if spend_approval_project_figures stops withholding below approval rank.
 begin;
-select plan(15);
+select plan(16);
 
 insert into organizations (id, name) values ('26991800-0000-0000-0000-000000000001','HPD Org');
 insert into auth.users (id, email) values
@@ -38,9 +38,14 @@ select is((select procurement_id::text from procurement_open_commitments_masked(
 select is((select amount from procurement_open_commitments_masked(array['26991800-0000-0000-0000-000000000010']::uuid[])), null, 'AC-004 hidden open commitment is NULL');
 select is((select count(*)::int from spend_approval_project_figures(array['26991800-0000-0000-0000-0000000000d1']::uuid[]) where figures is not null and figures <> '{}'::jsonb), 0, 'AC-004 the approval-panel project figures are withheld below approval rank');
 
--- Internal callers: the ORIGINAL functions return the real value to a hidden actor (money and approval logic never sees a mask).
-select is((select max(amount) from project_committed_spend('26991800-0000-0000-0000-0000000000d1')), 1000.00::numeric, 'AC-004 the original committed spend is real for a hidden actor');
-select is((select amount from procurement_open_commitments(array['26991800-0000-0000-0000-000000000010']::uuid[])), 1000.00::numeric, 'AC-004 the original open commitment is real for a hidden actor');
+-- 2700 (#2788): a hidden actor reads no row from the priced tables, so calling the ORIGINAL functions directly returns no amount.
+-- Internal callers (the definer money and approval logic) still read the real value: proven as the owner below.
+select is((select coalesce(sum(amount), 0) from project_committed_spend('26991800-0000-0000-0000-0000000000d1')), 0::numeric, 'AC-004 the original committed spend returns no amount to a hidden actor');
+select is((select count(*)::int from procurement_open_commitments(array['26991800-0000-0000-0000-000000000010']::uuid[])), 0, 'AC-004 the original open commitment returns no amount to a hidden actor');
+reset role;
+select is((select max(amount) from project_committed_spend('26991800-0000-0000-0000-0000000000d1')) + (select amount from procurement_open_commitments(array['26991800-0000-0000-0000-000000000010']::uuid[])),
+  2000.00::numeric, 'AC-004 internal callers read the real committed spend and open commitment');
+set local role authenticated;
 
 -- Finance sees the values.
 set local request.jwt.claims = '{"sub":"26991800-0000-0000-0000-0000000000c1","role":"authenticated"}';

@@ -92,7 +92,7 @@ describe('CloseoutSection', () => {
     const user = renderIt();
     expect(screen.queryByRole('button', { name: /Mark Item one done/ })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Update Item one' }));
-    const select = screen.getByRole('combobox', { name: 'Document for Item one' });
+    const select = screen.getByRole('combobox', { name: 'Project documents' });
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Choose a project document', 'Certificate A', 'Letter B']);
     await user.selectOptions(select, 'd2');
     await user.click(screen.getByRole('button', { name: 'Attach to Item one' }));

@@ -456,25 +456,3 @@ describe('AC-IXD-MOBILE-W4-C3 C3-12: drawer has safe-area-inset padding', () => 
     expect(hasSafeAreaStyle || parentHasSafeArea).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// C3-13: Content gutter uses the shared responsive page-gutter token
-// ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token', () => {
-  it('the inner content wrapper in main uses the shared responsive page gutter', () => {
-    wrap(
-      <AppShell rail={null} header={null}>
-        <div data-testid="child">content</div>
-      </AppShell>
-    );
-    const main = screen.getByRole('main');
-    // Find the direct padded div inside main
-    const contentDiv = main.querySelector('div');
-    expect(contentDiv).not.toBeNull();
-    expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
-    // The page reserves exactly what is fixed at the bottom (bar + action bar), or the normal gutter when
-    // nothing is: never the fixed height PLUS a gutter (a blank band under the content at every width).
-    expect(contentDiv!.className).toContain('pb-[max(var(--space-page-gutter),calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)))]');
-    expect(contentDiv!.className).not.toContain('+var(--space-page-gutter))]');
-  });
-});

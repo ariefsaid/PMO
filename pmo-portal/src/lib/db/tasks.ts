@@ -15,6 +15,7 @@ export type TaskDependencyRow = Tables<'task_dependencies'>;
 /** A task row joined with its assignee profile (name only) and its `depends_on` edges. */
 export type TaskWithRefs = TaskRow & {
   assignee: { id: string; full_name: string } | null;
+  task_group?: Pick<Tables<'task_groups'>, 'milestone_id' | 'archived_at'> | null;
   /** The task_dependencies rows where this task depends on another (task_id = this row). */
   dependencies: { depends_on_id: string }[];
 };
@@ -109,8 +110,7 @@ function throwWrite(error: PostgrestErrorLike): never {
 const SELECT =
   '*, assignee:profiles!tasks_assignee_id_fkey(id, full_name), dependencies:task_dependencies!task_dependencies_task_id_fkey(depends_on_id)';
 
-type RawTask = TaskRow & {
-  assignee: { id: string; full_name: string } | null;
+type RawTask = Omit<TaskWithRefs, 'dependencies'> & {
   dependencies: { depends_on_id: string }[] | null;
 };
 
@@ -130,7 +130,7 @@ export async function listTasks(
   const rows = await fetchAllPages((from, to) => {
     let q = supabase
       .from('tasks')
-      .select(SELECT)
+      .select(SELECT + ', task_group:task_groups!tasks_task_group_id_fkey(milestone_id, archived_at)')
       .eq('project_id', projectId)
       .is('tombstoned_at', null);
     // #2531 FR-TWOP-003: filter by work order; 'none' lists the tasks linked to no work order.

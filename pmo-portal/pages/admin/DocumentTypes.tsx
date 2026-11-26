@@ -195,7 +195,7 @@ const DocumentTypes: React.FC = () => {
       {!q.isPending && !q.isError && (rows.length === 0
         ? <ListState variant="empty" title={t('documentTypes.empty', 'No document types yet. Add one so documents can be recorded for people and equipment.')}
             action={canManage ? { label: t('documentTypes.add', 'Add document type'), onClick: () => setEditing('new') } : undefined} />
-        : <DataTable<AdminDocumentTypeRow> rows={rows} columns={columns} rowKey={(r) => r.id} tableId="document-types" />)}
+        : <DataTable<AdminDocumentTypeRow> rows={rows} columns={columns} rowKey={(r) => r.id} tableId="document-types" cardBelow={760} />)}
       <h3 className="mt-6 mb-2 text-control font-semibold">{t('documentTypes.daysTitle', 'Expiry warning days')}</h3>
       <WarningDays canManage={canManage} />
       {editing && <TypeForm type={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}

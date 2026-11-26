@@ -10,7 +10,7 @@
 -- Every denial asserts the errcode AND the message.
 begin;
 create extension if not exists pgtap;
-select plan(86);
+select plan(87);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency) values
@@ -327,6 +327,28 @@ select is((select count(*)::int from information_schema.routine_privileges
 select is((select count(*)::int from information_schema.role_table_grants
             where table_name in ('work_order_sections', 'work_order_section_readiness_events', 'work_order_section_readiness') and grantee = 'anon'), 0,
   'anon holds no grant on the section tables or view');
+
+-- AC-WOS-020: section progress counts each live leaf once.
+select pg_temp.act_as('25760000-0000-0000-0000-0000000000a1');
+insert into public.work_order_sections (work_order_id, code, name)
+values ('25760000-0000-0000-0000-000000000402', 'P', 'Progress section');
+insert into public.tasks (id, name, status, project_id, work_order_id, section_id)
+values ('25760000-0000-0000-0000-000000001001', 'Progress parent', 'Done',
+  '25760000-0000-0000-0000-0000000000d1', '25760000-0000-0000-0000-000000000402',
+  (select id from public.work_order_sections where work_order_id = '25760000-0000-0000-0000-000000000402' and code = 'P'));
+insert into public.tasks (name, status, project_id, work_order_id, section_id, parent_task_id, archived_at)
+select fixture.name, fixture.status::task_status, parent.project_id, parent.work_order_id, parent.section_id,
+       parent.id, fixture.archived_at
+from public.tasks parent
+cross join (values ('Finished subtask', 'Done', null::timestamptz),
+                   ('Open subtask', 'To Do', null),
+                   ('Archived subtask', 'Done', now())) fixture(name, status, archived_at)
+where parent.id = '25760000-0000-0000-0000-000000001001';
+select pg_temp.act_as('25760000-0000-0000-0000-0000000000a4');
+select results_eq(
+  $$ select tasks_total, tasks_done from public.work_order_section_rollup('25760000-0000-0000-0000-000000000402') where code = 'P' $$,
+  $$ values (2, 1) $$,
+  'AC-WOS-020: the site engineer sees one done task out of two live leaves');
 
 select * from finish();
 rollback;

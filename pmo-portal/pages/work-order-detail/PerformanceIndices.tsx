@@ -60,33 +60,39 @@ export const PerformanceFigures: React.FC<{
     } as const;
     return t(`performance.reading.${kind}.${r}`, defaults[kind][r]);
   };
-  const card = (kind: 'cpi' | 'spi', index: Index) => (
-    <div key={kind} data-testid={`${idPrefix}-${kind}`}>
-      <dt className="text-muted-foreground">{kind === 'cpi' ? t('performance.cpi', 'Cost performance index') : t('performance.spi', 'Schedule performance index')}</dt>
-      <dd>
-        {index.state === 'value' ? (
-          <>
-            <div className="text-metric font-semibold tabular-nums" data-testid={`${idPrefix}-${kind}-value`}>{index.value}</div>
-            <div data-testid={`${idPrefix}-${kind}-reading`}>{readingText(kind, index.reading)}</div>
-          </>
-        ) : (
-          <div className="text-muted-foreground" data-testid={`${idPrefix}-${kind}-hidden`}>{hidden(index)}</div>
-        )}
-      </dd>
-    </div>
-  );
+  const card = (kind: 'cpi' | 'spi', index: Index) => {
+    const hiddenText = index.state === 'value' ? null : hidden(index);
+    return (
+      <div key={kind} data-testid={`${idPrefix}-${kind}`}>
+        <dt className="text-muted-foreground">{kind === 'cpi' ? t('performance.cpi', 'Cost performance index') : t('performance.spi', 'Schedule performance index')}</dt>
+        <dd>
+          {index.state === 'value' ? (
+            <>
+              <div className="text-metric font-semibold tabular-nums" data-testid={`${idPrefix}-${kind}-value`}>{index.value}</div>
+              <div data-testid={`${idPrefix}-${kind}-reading`}>{readingText(kind, index.reading)}</div>
+            </>
+          ) : (
+            <div className={hiddenText === '—' ? 'text-metric font-semibold tabular-nums text-muted-foreground' : 'text-muted-foreground'} data-testid={`${idPrefix}-${kind}-hidden`}>{hiddenText}</div>
+          )}
+        </dd>
+      </div>
+    );
+  };
   const cv = sign(performance.costVariance);
   const sv = sign(performance.scheduleVariance);
+  const acText = performance.ac === null && otherCurrencyNoted && performance.cpi.state === 'not-comparable'
+    ? '—'
+    : money(performance.ac);
   return (
     <div className="space-y-3">
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-control sm:grid-cols-2">
         {card('cpi', performance.cpi)}
         {card('spi', performance.spi)}
       </dl>
-      <dl className="grid grid-cols-3 gap-x-6 gap-y-3 text-control">
-        <div><dt className="text-muted-foreground">{t('performance.ev', 'Earned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-ev`}>{money(performance.ev)}</dd></div>
-        <div><dt className="text-muted-foreground">{t('performance.pv', 'Planned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-pv`}>{money(performance.pv)}</dd></div>
-        <div><dt className="text-muted-foreground">{t('performance.ac', 'Actual cost')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-ac`}>{money(performance.ac)}</dd></div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-control sm:grid-cols-3 sm:gap-x-6">
+        <div className="min-w-0"><dt className="text-muted-foreground">{t('performance.ev', 'Earned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-ev`}>{money(performance.ev)}</dd></div>
+        <div className="min-w-0"><dt className="text-muted-foreground">{t('performance.pv', 'Planned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-pv`}>{money(performance.pv)}</dd></div>
+        <div className="min-w-0"><dt className="text-muted-foreground">{t('performance.ac', 'Actual cost')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-ac`}>{acText}</dd></div>
       </dl>
       {(cv || sv) && (
         <ul className="space-y-1 text-control text-muted-foreground">

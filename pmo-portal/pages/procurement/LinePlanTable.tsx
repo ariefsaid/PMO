@@ -39,10 +39,11 @@ export const LinePlanTable: React.FC<LinePlanTableProps> = ({ lines, busy, categ
   const columns: Column<Line>[] = [
     { key: 'line', header: t('linePlan.line', 'Line'), kind: 'primary', size: 280, minSize: 180, cell: (line) => <span className="font-medium">{line.name}</span> },
   ];
-  if (category) {
+  const hasCategory = Boolean(category && (category.editable || lines.some((l) => Boolean(category.values[l.id]))));
+  if (category && hasCategory) {
     const options = [{ value: '', label: t('linePlanning.none', 'None') }, ...category.categories.filter((c) => !c.archived_at).map((c) => ({ value: c.id, label: c.name }))];
     columns.push({
-      key: 'category', header: t('linePlan.category', 'Category'), size: 200, keepWhenBlank: true,
+      key: 'category', header: t('linePlan.category', 'Category'), size: 200, keepWhenBlank: category.editable,
       cell: (line) => {
         const value = category.values[line.id] ?? '';
         const current = category.categories.find((c) => c.id === value);
@@ -53,9 +54,10 @@ export const LinePlanTable: React.FC<LinePlanTableProps> = ({ lines, busy, categ
       },
     });
   }
-  if (neededBy) {
+  const hasNeededBy = Boolean(neededBy && (neededBy.editable || Boolean(neededBy.orderDate) || lines.some((l) => Boolean(neededBy.values[l.id]))));
+  if (neededBy && hasNeededBy) {
     columns.push({
-      key: 'neededBy', header: t('linePlanning.neededBy', 'Needed by'), size: 176, keepWhenBlank: true,
+      key: 'neededBy', header: t('linePlanning.neededBy', 'Needed by'), size: 176, keepWhenBlank: neededBy.editable,
       cell: (line) => {
         const value = neededBy.values[line.id] ?? '';
         if (!neededBy.editable) {

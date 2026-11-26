@@ -97,7 +97,7 @@ const NeedDrawer: React.FC<DrawerProps> = ({ need, figures, readFailed, title, l
         {problem && <p role="alert" className="text-sm text-destructive-text">{problem}</p>}
         {readFailed && <ReadFailed onRetry={onRetry} />}
         <section aria-label={t('crews:manpower.progressTitle', 'Progress')}>
-          {typeof filled === 'number' && (
+          {typeof filled === 'number' && filled > 0 && (
             <ProgressBar widthless className="w-full" value={asked > 0 ? (filled / asked) * 100 : 0} tone="success"
               aria-label={t('crews:manpower.progressLabel', '{{filled}} of {{asked}} filled', { filled, asked })} />
           )}

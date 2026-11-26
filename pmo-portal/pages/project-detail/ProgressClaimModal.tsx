@@ -226,8 +226,8 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
       {sources.filter((source) => source.pending || source.error).map((source) => source.error
         ? <ListState key={source.name} variant="error" title={t('projectDetail.billing.sources.error', "Couldn't load {{source}}", { source: source.name })} onRetry={source.retry} />
         : <p key={source.name} role="status" className="text-sm text-muted-foreground">{t('projectDetail.billing.sources.loading', 'Loading {{source}}…', { source: source.name })}</p>)}
-      <FormSection legend={t('projectDetail.billing.claimForm.kind', 'Claim type')}>
-        <FormGrid>
+      <div>
+        <FormGrid className="sm:[grid-template-columns:1fr]">
           <SelectField id="claim-kind" label={t('projectDetail.billing.claimForm.kind', 'Claim type')} value={kind}
             onChange={(value) => { setKind(value as Kind); setErrors({}); }} options={kindOptions} />
           {kind === 'progress' && (
@@ -235,7 +235,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
               onChange={(value) => { setScope(value); setQuantities({}); setErrors({}); }} options={scopeOptions} />
           )}
         </FormGrid>
-      </FormSection>
+      </div>
 
       {kind === 'down_payment' ? (
         <FormSection legend={t('projectDetail.billing.claimForm.kindDownPayment', 'Down payment')}>
