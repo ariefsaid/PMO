@@ -29,7 +29,7 @@ export function isBlankCell(node: React.ReactNode): boolean {
   if (typeof node === 'string') return node.trim() === '' || EMPTY_MARKERS.has(node.trim());
   if (typeof node === 'number' || typeof node === 'bigint') return false;
   if (Array.isArray(node)) return node.every(isBlankCell);
-  if (React.isValidElement(node) && node.type === React.Fragment) return isBlankCell((node.props as { children?: React.ReactNode }).children);
+  if (React.isValidElement(node) && (node.type === React.Fragment || (node.type === "span" && typeof (node.props as { children?: React.ReactNode }).children === "string"))) return isBlankCell((node.props as { children?: React.ReactNode }).children);
   return false;
 }
 

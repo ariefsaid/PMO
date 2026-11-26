@@ -149,7 +149,9 @@
     "showRows": "Tampilkan barisnya",
     "subtitle": "Jam kerja, insiden, dan catatan keselamatan untuk satu bulan.",
     "title": "Ringkasan keselamatan",
-    "workOrder": "$t(common:terms.clientWorkOrder)"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "noAttendanceHours": "belum ada kehadiran terkunci atau disetujui pada bulan ini",
+    "noAttendanceSafe": "belum ada kehadiran terkunci atau disetujui untuk dihitung"
   },
   "toast": {
     "corrected": "Koreksi dimulai",
