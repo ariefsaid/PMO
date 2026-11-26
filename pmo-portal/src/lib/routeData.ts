@@ -8,7 +8,7 @@ import { disciplineRevenueQuery } from '@/src/hooks/useDisciplineProfit';
 import type { QueryClient } from '@tanstack/react-query';
 import { workOrderAllocationsQuery, workOrderQuery } from '@/src/hooks/useWorkOrderRecord';
 import { workOrderStepsQuery } from '@/src/hooks/useBillingSteps';
-import { claimBillingTraceQuery } from '@/src/hooks/useBillingStages';
+import { billingReconciliationQuery, claimBillingTraceQuery } from '@/src/hooks/useBillingStages';
 import { costDisciplinesQuery, workOrderCostLinesQuery } from '@/src/hooks/useWorkOrderCosts';
 
 export function preloadWorkOrder(client: QueryClient, orgId: string, id: string): void {
@@ -42,4 +42,10 @@ export function preloadClaimDrawer(client: QueryClient, orgId: string, projectId
   void client.prefetchQuery(projectQuery(orgId, projectId));
   void client.prefetchQuery(projectClaimsQuery(orgId, projectId));
   void client.prefetchQuery(claimBillingTraceQuery(orgId, claimId, projectId));
+}
+
+export function preloadOrderReconciliation(client: QueryClient, orgId: string, projectId: string, workOrderId: string, viewer?: ProjectOrdersViewer): void {
+  void client.prefetchQuery(projectQuery(orgId, projectId));
+  if (viewer) void client.prefetchQuery(projectWorkOrdersQuery(viewer, projectId));
+  void client.prefetchQuery(billingReconciliationQuery(orgId, projectId, workOrderId));
 }

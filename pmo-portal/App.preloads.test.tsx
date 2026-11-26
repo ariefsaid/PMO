@@ -250,3 +250,18 @@ it.each(['/contract?openType=billingClaim', '/billing?openType=billingClaim', '/
     }
   },
 );
+
+it('#2819 starts one order’s reconciliation before the project or contract tab resolves', () => {
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    const href = '/projects/p1/contract?open=w1&openType=workOrder';
+    preloadForPath(href, { orgId: 'o1', client: queryClient, canViewBilling: true });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['billing-reconciliation', 'o1', 'p1', 'w1']);
+
+    prefetch.mockClear();
+    preloadForPath(href, { orgId: 'o1', client: queryClient });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).not.toContainEqual(['billing-reconciliation', 'o1', 'p1', 'w1']);
+  } finally {
+    prefetch.mockRestore();
+  }
+});

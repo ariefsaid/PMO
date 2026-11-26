@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
+import { MONEY_STALE_TIME } from '@/src/lib/queryPolicies';
 import { useAuth } from '@/src/auth/useAuth';
 import type { CompleteStageInput, RetentionReleaseInput, StageTemplateInput } from '@/src/lib/db/billingStages';
 
@@ -15,14 +16,15 @@ export function useClaimBillingTrace(claimId: string, projectId: string) {
 }
 
 /** Per-item reconciliation of progress, measured and billed quantities (the server's one derivation). */
+export const billingReconciliationQuery = (orgId: string | undefined, projectId: string, workOrderId: string | null) => ({
+  queryKey: ['billing-reconciliation', orgId, projectId, workOrderId],
+  queryFn: () => repositories.billingStages.reconciliation(projectId, workOrderId),
+  staleTime: workOrderId ? MONEY_STALE_TIME : 0,
+  enabled: Boolean(orgId) && Boolean(projectId),
+});
+
 export function useBillingReconciliation(projectId: string, workOrderId: string | null) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['billing-reconciliation', orgId, projectId, workOrderId],
-    queryFn: () => repositories.billingStages.reconciliation(projectId, workOrderId),
-    staleTime: 0,
-    enabled: Boolean(orgId) && Boolean(projectId),
-  });
+  return useQuery(billingReconciliationQuery(useAuth().currentUser?.org_id, projectId, workOrderId));
 }
 
 /**

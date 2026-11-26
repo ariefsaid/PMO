@@ -18,7 +18,7 @@ import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
 import type { ProjectOrdersViewer } from '@/src/hooks/useWorkOrders';
-import { preloadClaimDrawer, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
+import { preloadClaimDrawer, preloadOrderReconciliation, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
@@ -249,6 +249,7 @@ interface RouteDataContext {
   client: QueryClient;
   canViewWorkOrderPlan?: boolean;
   canReadClaims?: boolean;
+  canViewBilling?: boolean;
   viewer?: ProjectOrdersViewer;
 }
 
@@ -275,11 +276,15 @@ const PRELOAD_RULES: PreloadRule[] = [
     path: `/projects/:projectId/${tab}`,
     chunks: PROJECT_TAB_CHUNKS_BY_PATH['/projects/:projectId/contract'],
     namespaces: PROJECT_TAB_NAMESPACES.contract,
-    data: ({ projectId }, { client, orgId, canReadClaims }, search) => {
+    data: ({ projectId }, { client, orgId, canReadClaims, canViewBilling, viewer }, search) => {
       const id = search.get('open');
       const type = search.get('openType');
-      if (projectId && id && canReadClaims && (type === 'billingClaim' || type === 'workOrderClaim')) {
+      if (!projectId || !id) return;
+      if (canReadClaims && (type === 'billingClaim' || type === 'workOrderClaim')) {
         preloadClaimDrawer(client, orgId, projectId, id);
+      }
+      if (canViewBilling && type === 'workOrder') {
+        preloadOrderReconciliation(client, orgId, projectId, id, viewer);
       }
     },
   })),
@@ -737,9 +742,10 @@ export const ShellChrome: React.FC = () => {
   const may = usePermission();
   const canViewWorkOrderPlan = may('view', 'workOrderPlan');
   const canReadClaims = may('view', 'progressClaim');
+  const canViewBilling = may('view', 'salesInvoice');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, viewer: currentUser } : undefined);
-  }, [orgId, canViewWorkOrderPlan, canReadClaims, currentUser]);
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser } : undefined);
+  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
