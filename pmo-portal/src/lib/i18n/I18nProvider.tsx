@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { DEFAULT_NS, initI18n, i18next } from './index';
-import { setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
+import { setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
+import { useResolvedLocale, useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { useApplyOrgTerminology } from '@/src/hooks/useOrgTerminology';
 import { useApplyOrgRoleNames } from '@/src/hooks/useOrgRoleNames';
 import { useApplyOrgStageNames } from '@/src/hooks/useOrgStageNames';
@@ -49,6 +49,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Synchronous, not an effect: a formatter called during THIS render must already see the new
   // locale. An effect would let one paint escape with the previous locale's separators.
   setActiveLocale(stable);
+  setActiveOrgTimezone(useOrgBusinessTimezone());
 
   // Apply language switches in order: a slower catalogue requested by an older profile must
   // finish before the current profile is applied. Superseded queued work is discarded.

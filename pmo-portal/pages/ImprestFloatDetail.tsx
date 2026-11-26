@@ -1,5 +1,5 @@
 import { orgToday } from '@/src/lib/checklistDue';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { ReturnedBanner } from '@/src/components/ui/ReturnedBanner';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -253,7 +253,7 @@ const ImprestFloatDetail: React.FC = () => {
 
       <OpenRequestsSection floatId={flt.id} currency={cur} onStartPlan={setPlanSeed} />
 
-      <PlansSection floatId={flt.id} seed={planSeed} onSeedDone={() => setPlanSeed(null)} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? orgToday(new Date(), getActiveLocale().timezone).slice(0, 7) + '-01'}
+      <PlansSection floatId={flt.id} seed={planSeed} onSeedDone={() => setPlanSeed(null)} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? orgToday(new Date(), getActiveOrgTimezone()).slice(0, 7) + '-01'}
         usageEmpty={planLines.length === 0}
         usage={pos ? (
           <div data-testid="month-plan-usage">

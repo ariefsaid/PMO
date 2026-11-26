@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { monthEnd, monthStart, planTotal } from './equipmentPlans';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 describe('equipment plan helpers (#2700)', () => {
   it('AC-EQP-005 a month starts on its first day and ends on its last, leap years included', () => {
@@ -40,6 +41,31 @@ beforeEach(() => {
   h.from.mockClear(); h.rpc.mockClear();
   for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) h.calls[k].length = 0;
   h.results.length = 0;
+});
+
+describe('#2788 hidden prices: the month list reads plan lines through the masked view', () => {
+  afterEach(() => setHidePricesActive(false));
+  it('embeds equipment_plan_lines_masked under the same name while the setting is on', async () => {
+    setHidePricesActive(true);
+    h.push({ data: [], error: null });
+    await listPlansForMonth('2026-03-01');
+    expect(String(h.calls.select[0])).toContain('equipment_plan_lines:equipment_plan_lines_masked(');
+  });
+});
+
+describe('#2788 hidden prices: a hidden rate and vendor stay unknown and are not sent back', () => {
+  it('keeps a masked rate and vendor as null (never 0 or empty)', async () => {
+    h.push({ data: [{ id: 'p1', project_id: 'pr', plan_month: '2026-03-01', status: 'Draft', created_by: 'u', reject_reason: null,
+      equipment_plan_lines: [{ id: 'l1', work_order_id: null, category_id: null, description: 'Crane', quantity: 2, rate: null, vendor_id: null, date_from: '2026-03-02', date_to: '2026-03-05', procurement_id: null }] }], error: null });
+    const [plan] = await listPlansForMonth('2026-03-01');
+    expect(plan!.lines[0]).toMatchObject({ rate: null, vendorId: null });
+  });
+  it('omits the rate and vendor keys of a line that does not carry them', async () => {
+    h.push({ data: { id: 'p1' }, error: null });
+    await savePlan({ id: 'p1', projectId: 'pr', month: '2026-03-01', lines: [{ id: 'l1', workOrderId: null, categoryId: null, description: 'Crane', quantity: 2, dateFrom: '2026-03-03', dateTo: '2026-03-05' }] });
+    const line = ((h.calls.rpc[0] as [string, { p_lines: Record<string, unknown>[] }])[1]).p_lines[0]!;
+    expect('rate' in line || 'vendor_id' in line).toBe(false);
+  });
 });
 
 describe('equipment plan IO (#2700)', () => {
