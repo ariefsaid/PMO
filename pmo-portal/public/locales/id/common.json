@@ -5026,5 +5026,9 @@
     "title": "Halaman tidak ditemukan",
     "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
     "back": "Kembali ke Dasbor"
+  },
+  "pageSave": {
+    "save": "Simpan",
+    "failed": "Sebagian perubahan belum disimpan. Coba lagi."
   }
 }
