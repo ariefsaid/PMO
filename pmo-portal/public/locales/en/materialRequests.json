@@ -43,7 +43,8 @@
     "withdraw": "Withdraw request",
     "withdrawBody": "The request is cancelled and its approvers are no longer asked.",
     "withdrawTitle": "Withdraw this request",
-    "withdrawn": "Request withdrawn"
+    "withdrawn": "Request withdrawn",
+    "requested": "Requested"
   },
   "deliveryNote": {
     "back": "Back to request",
