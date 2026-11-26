@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Card, CardHead, CardPad, DataTable, DateField, FieldError, ListState, SelectField } from '@/src/components/ui';
-import type { Column } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, DateField, FieldError, ListState } from '@/src/components/ui';
+import { LinePlanTable } from './LinePlanTable';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { useRefusalLine } from '@/src/lib/refusals';
@@ -14,8 +14,7 @@ import { setProcurementLinePlanning } from '@/src/lib/db/procurementLinePlanning
 import { repositories } from '@/src/lib/repositories';
 import { workOrderCostRepository } from '@/src/lib/repositories/workOrderCosts';
 import {
-  groupLinesByAttribution, lineDiffersFromRequest, lineValuesOf, lineWorkOrderChoices, NO_LINE_ATTRIBUTION, SAME_AS_REQUEST,
-  type LineAttributionValue, type LineWorkOrderOption,
+  groupLinesByAttribution, lineValuesOf, NO_LINE_ATTRIBUTION, type LineAttributionValue, type LineWorkOrderOption,
 } from './lineWorkOrderValue';
 
 export type PlanLine = {
@@ -41,8 +40,6 @@ export interface LinePlanPanelProps {
   workOrdersEditable: boolean;
 }
 
-type Row = PlanLine;
-const dateOf = (iso: string | null | undefined) => (iso ? formatDay(iso) : '—');
 
 /**
  * The case's line planning, one row per line: its category, the date it is needed and the work order (and discipline) it is
@@ -104,12 +101,6 @@ export const LinePlanPanel: React.FC<LinePlanPanelProps> = ({ procurementId, ite
   const attributionEditable = workOrdersEditable && workOrderOptions.length > 0;
 
   const categoryOptions = [{ value: '', label: t('linePlanning.none', 'None') }, ...(categories.data ?? []).filter((c) => !c.archived_at).map((c) => ({ value: c.id, label: c.name }))];
-  const categoryName = (id: string) => (categories.data ?? []).find((c) => c.id === id)?.name;
-  const sameLabel = requestWorkOrder
-    ? t('lineWorkOrders.sameAsRequestNamed', 'Same as the request ({{workOrder}})', { workOrder: requestWorkOrder.label })
-    : t('lineWorkOrders.sameAsRequest', 'Same as the request');
-  const workOrderLabel = (id: string) => workOrderOptions.find((w) => w.id === id)?.label ?? t('lineWorkOrders.unknownWorkOrder', 'A work order you cannot open');
-  const disciplineLabel = (id: string) => (disciplines.data ?? []).find((d) => d.id === id)?.name ?? t('lineWorkOrders.unknownDiscipline', 'A retired discipline');
   const attributionOf = (id: string) => attribution[id] ?? NO_LINE_ATTRIBUTION;
 
   const planningChanged = items.filter((i) => (category[i.id] ?? '') !== (i.category_id ?? '') || (!orderRule && (neededBy[i.id] ?? '') !== (i.needed_by ?? '')));
@@ -165,55 +156,6 @@ export const LinePlanPanel: React.FC<LinePlanPanelProps> = ({ procurementId, ite
   };
   const touch = () => { setSaved(false); setFailure(null); };
 
-  const columns: Column<Row>[] = [
-    { key: 'line', header: t('linePlan.line', 'Line'), kind: 'primary', size: 280, minSize: 180, cell: (line) => <span className="font-medium">{line.name}</span> },
-  ];
-  if (showCategory) columns.push({
-    key: 'category', header: t('linePlan.category', 'Category'), size: 200, keepWhenBlank: true,
-    cell: (line) => {
-      const value = category[line.id] ?? '';
-      if (!categoryEditable) return <span data-testid="line-planning-category">{categoryName(value) ?? '—'}</span>;
-      const current = (categories.data ?? []).find((c) => c.id === value);
-      const options = current?.archived_at ? [...categoryOptions, { value: current.id, label: `${current.name} (${t('linePlanning.retired', 'Retired')})` }] : categoryOptions;
-      return <SelectField label={t('linePlanning.category', 'Line category')} hideLabel compact value={value} options={options} disabled={saving} fullWidth
-        onChange={(next) => { touch(); setCategory((c) => ({ ...c, [line.id]: next })); }} />;
-    },
-  });
-  if (showNeededBy) columns.push({
-    key: 'neededBy', header: t('linePlanning.neededBy', 'Needed by'), size: 176, keepWhenBlank: true,
-    cell: (line) => {
-      const value = neededBy[line.id] ?? '';
-      if (!dateEditable) return <span data-testid="line-planning-needed-by">{value ? dateOf(value) : orderRule && header.data ? <span className="text-muted-foreground">{dateOf(header.data)}</span> : '—'}</span>;
-      return <DateField label={t('linePlanning.neededBy', 'Needed by')} hideLabel compact fullWidth value={value} disabled={saving}
-        placeholder={orderRule && orderDate ? dateOf(orderDate) : undefined}
-        onChange={(next) => { touch(); setNeededBy((d) => ({ ...d, [line.id]: next })); }} />;
-    },
-  });
-  if (showWorkOrders) {
-    columns.push({
-      key: 'workOrder', header: t('linePlan.workOrder', 'Work order'), size: 240, keepWhenBlank: true,
-      cell: (line) => {
-        const value = attributionOf(line.id);
-        const differs = requestWorkOrder && lineDiffersFromRequest(value.workOrderId || null, requestWorkOrder.id);
-        const note = differs ? <p role="note" className="mt-1 text-control text-muted-foreground" data-testid="line-work-order-differs">{t('linePlan.differs', 'Not the request’s {{workOrder}}', { workOrder: requestWorkOrder!.label })}</p> : null;
-        if (!attributionEditable) return <div><span data-testid="line-work-order-value">{value.workOrderId ? workOrderLabel(value.workOrderId) : sameLabel}</span>{note}</div>;
-        return <div><SelectField label={t('lineWorkOrders.field', 'Work order for {{line}}', { line: line.name })} hideLabel compact fullWidth value={value.workOrderId} disabled={saving}
-          options={lineWorkOrderChoices(workOrderOptions, value.workOrderId, sameLabel, t('lineWorkOrders.cancelled', 'cancelled'))}
-          onChange={(next) => { touch(); setAttribution((a) => ({ ...a, [line.id]: { ...attributionOf(line.id), workOrderId: next } })); }} />{note}</div>;
-      },
-    });
-    columns.push({
-      key: 'discipline', header: t('linePlan.discipline', 'Discipline'), size: 180, keepWhenBlank: true,
-      cell: (line) => {
-        const value = attributionOf(line.id);
-        if (!attributionEditable) return <span data-testid="line-discipline-value">{value.disciplineId ? disciplineLabel(value.disciplineId) : t('lineWorkOrders.noDiscipline', 'No discipline')}</span>;
-        return <SelectField label={t('lineWorkOrders.disciplineField', 'Discipline for {{line}}', { line: line.name })} hideLabel compact fullWidth value={value.disciplineId} disabled={saving}
-          options={[{ value: SAME_AS_REQUEST, label: t('lineWorkOrders.noDiscipline', 'No discipline') }, ...(disciplines.data ?? []).map((d) => ({ value: d.id, label: d.name }))]}
-          onChange={(next) => { touch(); setAttribution((a) => ({ ...a, [line.id]: { ...attributionOf(line.id), disciplineId: next } })); }} />;
-      },
-    });
-  }
-
   // The order date sits in the heading row: one date that fills every line, a line's own date overriding it.
   const orderDateControl = orderRule && header.data !== undefined ? (
     neededByEditable
@@ -236,13 +178,23 @@ export const LinePlanPanel: React.FC<LinePlanPanelProps> = ({ procurementId, ite
         ? <ListState variant="error" quiet title={t('orderNeededBy.valueLoadError', "Couldn't load this order's needed-by date")} onRetry={() => void header.refetch()} />
         : null;
 
-  const hasColumns = columns.length > 1;
+  const hasColumns = showCategory || showNeededBy || showWorkOrders;
   if (!settingState && !hasColumns && footLines.length === 0) return null;
   return (
     <Card data-testid="line-plan-panel">
       <CardHead actions={orderDateControl}>{t('linePlanning.heading', 'Line planning')}</CardHead>
       {settingState && <CardPad>{settingState}</CardPad>}
-      {hasColumns && <DataTable embedded rows={[...items]} columns={columns} rowKey={(row) => row.id} tableId="procurement-line-plan" accessibleName={t('linePlanning.heading', 'Line planning')} />}
+      <LinePlanTable
+        lines={items}
+        busy={saving}
+        category={showCategory ? { values: category, categories: categories.data ?? [], editable: categoryEditable, onChange: (id, next) => { touch(); setCategory((c) => ({ ...c, [id]: next })); } } : undefined}
+        neededBy={showNeededBy ? { values: neededBy, editable: dateEditable, orderDate: orderRule ? (dateEditable ? orderDate : header.data) : null, onChange: (id, next) => { touch(); setNeededBy((d) => ({ ...d, [id]: next })); } } : undefined}
+        workOrders={showWorkOrders ? {
+          values: attribution, options: workOrderOptions, requestWorkOrder, editable: attributionEditable,
+          disciplines: (disciplines.data ?? []).map((d) => ({ id: d.id, label: d.name })),
+          onChange: (id, next) => { touch(); setAttribution((a) => ({ ...a, [id]: next })); },
+        } : undefined}
+      />
       {(footLines.length > 0 || (anyEditable && hasColumns) || failure) && (
         <CardPad className="flex flex-col gap-3">
           {footLines}
