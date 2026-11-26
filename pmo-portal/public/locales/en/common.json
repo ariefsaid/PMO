@@ -2089,7 +2089,7 @@
     }
   },
   "procurementLedger": {
-    "title": "Case ledger",
+    "title": "Case documents",
     "filter": {
       "label": "Filter records",
       "all": "All",
@@ -2107,7 +2107,8 @@
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
       "payment": "Payment",
-      "rfq": "RFQ"
+      "rfq": "RFQ",
+      "quote": "Quote"
     },
     "capture": {
       "action": "Capture {{record}}",
@@ -2332,7 +2333,7 @@
         "item": "ERP item",
         "legend": "Line",
         "quantity": "Quantity",
-        "rate": "Rate (excl. PPN)",
+        "rate": "Rate (excl. tax)",
         "save": "Save line",
         "subtitle": "Rates exclude tax. Work orders take quantities from a line when you allocate it.",
         "titleEdit": "Edit bill of quantities line",
@@ -2340,7 +2341,7 @@
         "unit": "Unit"
       },
       "claimForm": {
-        "dpAmount": "Down payment amount (excl. PPN)",
+        "dpAmount": "Down payment amount (excl. tax)",
         "errors": {
           "dpAmount": "Enter a down payment above 0 with at most 2 decimal places",
           "noQuantity": "Enter a quantity for at least one line",
@@ -2423,7 +2424,7 @@
         "contract": "Contract value",
         "dpHeld": "Down payment held",
         "error": "Couldn't load billing",
-        "exclTax": "excl. PPN",
+        "exclTax": "excl. tax",
         "gap": "Work done, not yet billed",
         "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
@@ -2946,7 +2947,7 @@
         "draftHandoffErp": "Draft created. A different Finance or Admin user must submit it.",
         "invoiceAction": "Raise invoice",
         "modal": {
-          "amount": "Amount (excl. PPN)",
+          "amount": "Amount (excl. tax)",
           "amountHelp": "Up to {{remaining}} is still to invoice on this work order.",
           "description": "Description",
           "errorHeadline": "That would invoice past the work order",
@@ -3041,8 +3042,8 @@
         "issued": "Issued"
       },
       "tax": {
-        "exclusive": "excl. PPN",
-        "inclusive": "incl. PPN"
+        "exclusive": "excl. tax",
+        "inclusive": "incl. tax"
       },
       "toast": {
         "created": "Draft work order created",
@@ -3504,8 +3505,8 @@
   },
   "tax": {
     "basis": {
-      "exclusive": "excl. PPN",
-      "inclusive": "incl. PPN"
+      "exclusive": "excl. tax",
+      "inclusive": "incl. tax"
     },
     "treatment": {
       "choose": "— choose —",

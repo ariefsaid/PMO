@@ -283,6 +283,7 @@
       "workOrder": "Work order",
       "status": "Status",
       "amount": "Amount"
-    }
+    },
+    "source": "Project requests for planning, not float expenditure."
   }
 }

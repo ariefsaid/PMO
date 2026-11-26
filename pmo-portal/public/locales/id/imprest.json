@@ -283,6 +283,7 @@
       "workOrder": "Perintah kerja",
       "status": "Status",
       "amount": "Jumlah"
-    }
+    },
+    "source": "Permintaan proyek untuk direncanakan, bukan pengeluaran kas lapangan."
   }
 }

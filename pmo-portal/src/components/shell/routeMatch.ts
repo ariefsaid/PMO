@@ -173,6 +173,7 @@ export const MODULES: ModuleDef[] = [
   // Safety summary: every role reads; the rail shows it only where the organisation switched the module on.
   { module: 'safety', icon: 'circle-check', label: 'Safety summary', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'safety:summary.title', path: '/safety' },
+  { module: "quantity-changes", icon: "doc", label: "Quantity change requests", labelKey: "quantityChanges:title", path: "/quantity-changes" },
   // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
   { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
@@ -709,7 +710,7 @@ export function breadcrumbForPath(
   // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
   if (/^\/work-orders\/[^/]+$/.test(pathname)) {
     return [
-      { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
+      { label: MODULES.find((module) => module.path === '/work-orders')?.label ?? pathname, i18nKey: 'terms.clientWorkOrder', href: '/work-orders', onClick: () => navigate?.('/work-orders') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
       ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
       recordLabel
         ? { label: recordLabel }

@@ -105,7 +105,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
                       <td className={td}><Item code={a.itemCode} name={a.itemName} /></td>
                       <td className={tdNum}>{qty(a.plannedQuantity, a.unitCode)}</td>
                       <td className={tdNum}>{qty(a.netToDate, a.unitCode)}</td>
-                      <td className={`${tdNum} ${a.overAllowance ? 'font-semibold text-destructive-text' : ''}`}>{signed(a.variance)}</td>
+                      <td className={`${tdNum} `}>{signed(a.variance)}</td>
                       <td className={td}>{a.overAllowance && <StatusPill variant="overdue">{t('consumption.overAllowance')}</StatusPill>}</td>
                     </tr>
                   ))}

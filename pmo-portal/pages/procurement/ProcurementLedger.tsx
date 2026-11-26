@@ -108,6 +108,7 @@ const LedgerTypeLabel: React.FC<{ type: LedgerRow['type'] }> = ({ type }) => {
   const { t } = useTranslation();
   const label = type === 'PR' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
     : type === 'PO' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
+      : type === 'Quote' ? t('procurementLedger.types.quote', 'Quote')
       : type === 'Payment' ? t('procurementLedger.types.payment', 'Payment') : type;
   return <>{label}</>;
 };

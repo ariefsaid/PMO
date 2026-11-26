@@ -36,7 +36,7 @@ const renderPage = () => render(<MemoryRouter><StockTransfers /></MemoryRouter>)
 describe('stock transfers list', () => {
   it('lists a shortfall waiting for a decision first, then what is in transit, then what is closed', () => {
     renderPage();
-    const table = screen.getByRole('table', { name: 'Stock transfers' });
+    const table = screen.getByRole('table', { name: 'Two-step transfers' });
     const text = table.textContent ?? '';
     expect(text.indexOf('Short, waiting for a decision (1)')).toBeLessThan(text.indexOf('In transit (1)'));
     expect(text.indexOf('In transit (1)')).toBeLessThan(text.indexOf('Closed (1)'));
