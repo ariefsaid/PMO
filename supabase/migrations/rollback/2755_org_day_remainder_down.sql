@@ -439,12 +439,13 @@ create or replace function public.set_procurement_invoice_efaktur(
 returns public.procurement_invoices
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_row public.procurement_invoices;
   v_number text := nullif(btrim(p_efaktur_number), '');
 begin
+  perform public.assert_not_light();
   select * into v_row from public.procurement_invoices where id = p_invoice_id for update;
   if not found then
     raise exception 'vendor bill not found' using errcode = 'P0002';
@@ -490,13 +491,14 @@ create or replace function public.set_sales_invoice_efaktur(
 returns public.sales_invoices
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_row public.sales_invoices;
   v_number text := nullif(btrim(p_efaktur_number), '');
   v_vat boolean;
 begin
+  perform public.assert_not_light();
   select * into v_row from public.sales_invoices where id = p_si_id for update;
   if not found then
     raise exception 'sales invoice not found' using errcode = 'P0002';
@@ -844,6 +846,12 @@ begin
    group by w.currency;
 end $$;
 
+create or replace function public.native_org_date(p_org uuid, p_at timestamptz) returns date
+  language sql stable set search_path = public as $$
+  select (p_at at time zone coalesce(
+    (select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date
+$$;
+
 create or replace function public.native_org_today(p_org uuid) returns date
   language sql stable set search_path = public as $$
   select public.native_org_date(p_org, now())
@@ -860,7 +868,7 @@ create or replace function public.qcr_org_today(p_org uuid) returns date
 $$;
 
 create or replace function public.rsv_today(p_org uuid) returns date
-  language sql stable security definer set search_path = public as $$
+  language sql stable security definer set search_path = public, pg_temp as $$
   select (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date $$;
 
 create or replace function public.site_checkpoint_today() returns date
@@ -869,7 +877,7 @@ create or replace function public.site_checkpoint_today() returns date
             (select o.default_timezone from public.organizations o where o.id = public.auth_org_id()), 'UTC'))::date
 $$;
 
-create or replace function public.stock_org_today(p_org uuid) returns date language sql stable security definer set search_path = public as $$
+create or replace function public.stock_org_today(p_org uuid) returns date language sql stable security definer set search_path = public, pg_temp as $$
   select (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date $$;
 
 create or replace function public.wrp_org_today(p_org uuid) returns date
@@ -931,4 +939,5 @@ create or replace view public.work_order_cost_lines with (security_invoker = tru
     from public.expense_claims c
    where c.kind = 'claim';
 
-revoke execute on function public.native_org_today(uuid), public.native_org_date(uuid, timestamptz) from authenticated;
+drop function public.org_today(uuid);
+drop function public.org_date(uuid, timestamptz);

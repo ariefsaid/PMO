@@ -1,6 +1,14 @@
 -- Organisation calendar and dated expense costs. Reverse: rollback/2755_org_day_remainder_down.sql
 -- drops: duplicate calendar expressions, the inspection UTC-plus-one allowance, and UTC claim date casts;
 -- dated performance expands each counted claim to its expense lines, while aggregate claim reads keep one row.
+create function public.org_date(p_org uuid, p_at timestamptz) returns date
+language sql stable set search_path = public, pg_temp as $$
+  select (p_at at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date
+$$;
+create function public.org_today(p_org uuid) returns date
+language sql stable set search_path = public, pg_temp as $$ select public.org_date(p_org, now()) $$;
+revoke all on function public.org_date(uuid, timestamptz), public.org_today(uuid) from public, anon;
+grant execute on function public.org_date(uuid, timestamptz), public.org_today(uuid) to authenticated;
 create or replace function public.get_executive_dashboard()
   returns json
   language plpgsql
@@ -159,7 +167,7 @@ begin
   -- 0732 (#1418): the attention ranking. "Today" is the org-local day (0441's inline rule), so an item is overdue
   -- on the same calendar day every screen calls it overdue.
   org_day as materialized (
-    select public.native_org_today(public.auth_org_id()) as today
+    select public.org_today(public.auth_org_id()) as today
   ),
   -- Overdue tasks: the whats_overdue rule (agent-chat/overdue.ts) — open status, end_date before today, live row,
   -- and a leaf (#2807): a parent's own status and due date feed no figure.
@@ -446,6 +454,7 @@ declare
   v_row public.procurement_invoices;
   v_number text := nullif(btrim(p_efaktur_number), '');
 begin
+  perform public.assert_not_light();
   select * into v_row from public.procurement_invoices where id = p_invoice_id for update;
   if not found then
     raise exception 'vendor bill not found' using errcode = 'P0002';
@@ -497,6 +506,7 @@ declare
   v_number text := nullif(btrim(p_efaktur_number), '');
   v_vat boolean;
 begin
+  perform public.assert_not_light();
   select * into v_row from public.sales_invoices where id = p_si_id for update;
   if not found then
     raise exception 'sales invoice not found' using errcode = 'P0002';
@@ -853,10 +863,11 @@ begin
    group by w.currency;
 end $$;
 
+create or replace function public.native_org_date(p_org uuid, p_at timestamptz) returns date
+  language sql stable set search_path = public as $$ select public.org_date(p_org, p_at) $$;
+
 create or replace function public.native_org_today(p_org uuid) returns date
-  language sql stable set search_path = public as $$
-  select public.native_org_date(p_org, now())
-$$;
+  language sql stable set search_path = public as $$ select public.org_today(p_org) $$;
 
 create or replace function public.equipment_org_today(p_org uuid) returns date
   language sql stable set search_path = public, pg_temp as $$ select public.native_org_today(p_org) $$;
@@ -925,8 +936,6 @@ create or replace view public.work_order_cost_lines with (security_invoker = tru
   -- 1262 (#2732, FR-SCWO-007): an expense claim (kind claim) names its work order and discipline; a cash advance is
   -- not a cost (DD-SCWO-2). Money is not here, as for every source; the claim's own RLS decides who sees the row.
   select 'expense_claim', c.id, c.org_id, c.project_id, c.work_order_id, c.discipline_id,
-         coalesce((select min(l.expense_date) from public.expense_claim_lines l where l.claim_id = c.id and l.org_id = c.org_id), public.native_org_date(c.org_id, c.created_at)), c.claim_number, null, null
+         coalesce((select min(l.expense_date) from public.expense_claim_lines l where l.claim_id = c.id and l.org_id = c.org_id), public.org_date(c.org_id, c.created_at)), c.claim_number, null, null
     from public.expense_claims c
    where c.kind = 'claim';
-
-grant execute on function public.native_org_today(uuid), public.native_org_date(uuid, timestamptz) to authenticated;

@@ -14,7 +14,7 @@ select md5(string_agg(x, E'\\n' order by x)) from (
      'get_executive_dashboard','guard_crew_loan_archive','guard_tpi_transition',
      'set_procurement_invoice_efaktur','set_sales_invoice_efaktur',
      'get_work_order_performance','work_order_cost_amounts_unrounded',
-     'native_org_today','native_org_date','equipment_org_today','qcr_org_today',
+     'native_org_today','native_org_date','org_today','org_date','equipment_org_today','qcr_org_today',
      'rsv_today','site_checkpoint_today','stock_org_today','wrp_org_today'])
   union all
   select pg_get_viewdef('public.work_order_cost_lines'::regclass) || coalesce(c.relacl::text,'') || coalesce(c.reloptions::text,'')
