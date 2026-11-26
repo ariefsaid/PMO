@@ -313,7 +313,7 @@ const WorkOrderDetail: React.FC = () => {
             {/* #2885: quantities for the stock roles, who have no Contract area; value shows only where the server sends it. */}
             {/* What is on site for it, framed like its siblings: the table flush to the panel, a message or link on the inset. */}
             {stockOn && (
-              <RecordSection title={t('stock:siteWork.balance.open', 'Stock for this work order')} flush data-testid="wo-stock"
+              <RecordSection title={t('stock:siteWork.balance.open', 'Stock for this work order')} actions={<Link to="/stock" className="text-control text-primary-text hover:underline">{t('stockOpen', 'Open stock')}</Link>} flush data-testid="wo-stock"
                 bodyClassName="pb-[var(--panel-inset)] [&>section>p]:px-[var(--panel-inset)]">
                 <WorkOrderStockBalance workOrderId={row.id} currency={row.currency} />
               </RecordSection>
