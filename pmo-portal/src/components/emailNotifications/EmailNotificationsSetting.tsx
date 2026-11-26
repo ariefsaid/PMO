@@ -1,3 +1,4 @@
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -45,6 +46,22 @@ export const EmailNotificationsSetting: React.FC = () => {
     onError,
   });
 
+  const [draftEvents, setDraftEvents] = React.useState<Partial<Record<EmailEvent, { event: EmailEvent; enabled: boolean; extraRoles: string[] }>>>({});
+  const [draftLocale, setDraftLocale] = React.useState<EmailLocale | null>(null);
+  const pageSave = useSettingsSaveEntry(canManage ? {
+    dirty: Object.keys(draftEvents).length > 0 || draftLocale !== null,
+    busy: eventMutation.isPending || localeMutation.isPending,
+    save: async () => {
+      for (const [event, draft] of Object.entries(draftEvents)) {
+        await eventMutation.mutateAsync(draft);
+        setDraftEvents((all) => { const next = { ...all }; delete next[event as EmailEvent]; return next; });
+      }
+      if (draftLocale !== null) { await localeMutation.mutateAsync(draftLocale); setDraftLocale(null); }
+    },
+  } : null);
+  const changeEvent = (v: { event: EmailEvent; enabled: boolean; extraRoles: string[] }) => {
+    if (pageSave) setDraftEvents((all) => ({ ...all, [v.event]: v })); else eventMutation.mutate(v);
+  };
   return (
     <section className="mt-4 rounded-lg border border-border bg-card px-4 py-3" aria-labelledby="email-notifications-title">
       <h3 id="email-notifications-title" className="text-control font-medium">{t('title', 'Email notifications')}</h3>
@@ -62,7 +79,7 @@ export const EmailNotificationsSetting: React.FC = () => {
         <>
           <ul className="mt-3 divide-y divide-border">
             {EMAIL_EVENTS.map((event) => {
-              const s = query.data.events.find((e: EmailEventSetting) => e.event === event)!;
+              const s = draftEvents[event] ?? query.data.events.find((e: EmailEventSetting) => e.event === event)!;
               const titleId = `email-event-${event}`;
               const title = copy[event].title;
               return (
@@ -77,7 +94,7 @@ export const EmailNotificationsSetting: React.FC = () => {
                         checked={s.enabled}
                         labelledBy={titleId}
                         disabled={eventMutation.isPending}
-                        onChange={(next) => eventMutation.mutate({ event, enabled: next, extraRoles: s.extraRoles })}
+                        onChange={(next) => changeEvent({ event, enabled: next, extraRoles: s.extraRoles })}
                       />
                     ) : (
                       <StatusPill variant={s.enabled ? 'won' : 'neutral'}>{s.enabled ? t('on', 'On') : t('off', 'Off')}</StatusPill>
@@ -98,7 +115,7 @@ export const EmailNotificationsSetting: React.FC = () => {
                                 label={role}
                                 disabled={eventMutation.isPending}
                                 onChange={(next) =>
-                                  eventMutation.mutate({
+                                  changeEvent({
                                     event, enabled: true,
                                     extraRoles: next ? [...s.extraRoles, role] : s.extraRoles.filter((r: string) => r !== role),
                                   })}
@@ -118,9 +135,9 @@ export const EmailNotificationsSetting: React.FC = () => {
             <div className="mt-2 max-w-xs">
               <SelectField
                 label={t('language', 'Email language')}
-                value={query.data.locale}
+                value={draftLocale ?? query.data.locale}
                 disabled={localeMutation.isPending}
-                onChange={(value) => localeMutation.mutate(value as EmailLocale)}
+                onChange={(value) => pageSave ? setDraftLocale(value as EmailLocale) : localeMutation.mutate(value as EmailLocale)}
                 options={[
                   { value: 'en', label: t('languageEn', 'English') },
                   { value: 'id', label: t('languageId', 'Indonesian') },

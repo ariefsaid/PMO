@@ -204,8 +204,8 @@
     "evidenceLoadError": "Couldn't load the invoice lines from the accounting system.",
     "amount": "Amount",
     "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice.",
-    "mobileInvoiceAmount": "Invoice total excl. PPN",
-    "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
+    "mobileInvoiceAmount": "Invoice total excl. tax",
+    "mobileInvoiceAmountInclusive": "Invoice total incl. tax",
     "mobileInvoiceAmountUnspecified": "Invoice amount",
     "pairedCountedOnce": "Counted once with the ERP invoice {{number}}.",
     "allocatedInErp": "Allocated in your accounting system; read-only here.",
@@ -221,7 +221,8 @@
     "moreActions": "More actions",
     "exportList": "Export",
     "receiptUnknown_one": "{{count}} receipt amount unknown",
-    "receiptUnknown_other": "{{count}} receipt amounts unknown"
+    "receiptUnknown_other": "{{count}} receipt amounts unknown",
+    "vsLastMonthWithAmount": "{{delta}} vs last month ({{previous}})"
   },
   "invoices": {
     "clearProject": "Clear project filter"
@@ -1158,6 +1159,7 @@
     "empty": "No snapshot available yet"
   },
   "billingBoard": {
+    "claimSteps": "Claim steps",
     "title": "Billing board",
     "filterProject": "Project",
     "allProjects": "All projects",

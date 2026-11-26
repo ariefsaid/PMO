@@ -284,7 +284,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
       writeFileSync(path.join(discoverOutputDir, 'geometry.json'), JSON.stringify(discoverGeometry, null, 2), { mode: 0o600 });
       chmodSync(path.join(discoverOutputDir, 'geometry.json'), 0o600);
     }
-    await form.getByLabel(/amount \(excl\. PPN\)|jumlah \(belum termasuk PPN\)/i).fill(String(amount));
+    await form.getByLabel(/amount \(excl\. tax\)|jumlah \(belum termasuk PPN\)/i).fill(String(amount));
     await form.getByRole('button', { name: /create draft invoice|buat draf invoice/i }).click();
     await expect(form).toBeHidden();
 

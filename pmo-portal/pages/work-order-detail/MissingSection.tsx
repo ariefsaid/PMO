@@ -13,6 +13,7 @@ import { formatNumberExact } from '@/src/lib/format';
  * The step source is not wired yet: until a caller passes `steps`, the list shows the quantity rows only.
  */
 export interface MissingSectionProps {
+  actions?: React.ReactNode;
   projectId: string;
   workOrderId: string;
   status: string;
@@ -28,7 +29,7 @@ export interface MissingSectionProps {
   canBilling: boolean;
 }
 
-export const MissingSection: React.FC<MissingSectionProps> = ({ projectId, workOrderId, status, scopeLines, scopeError = false, steps = [], stepsLoading = false, stepsError = false, onRetrySteps, canBilling }) => {
+export const MissingSection: React.FC<MissingSectionProps> = ({ actions, projectId, workOrderId, status, scopeLines, scopeError = false, steps = [], stepsLoading = false, stepsError = false, onRetrySteps, canBilling }) => {
   const { t } = useTranslation('workOrders');
   const { exportTable, busy } = useExport();
   const live = status !== 'Closed' && status !== 'Cancelled';
@@ -69,18 +70,18 @@ export const MissingSection: React.FC<MissingSectionProps> = ({ projectId, workO
   };
 
   if (!live) {
-    return <RecordSection title={title}>
+    return <RecordSection title={title} actions={actions}>
       <p className="text-control text-muted-foreground" data-testid="missing-closed">{t('missing.closed', 'This work order is closed or cancelled, so nothing is waiting on it.')}</p>
     </RecordSection>;
   }
   return (
     <RecordSection title={title}
-      actions={rows.length > 0 && !isPending && !isError
-        ? <Button variant="outline" size="sm" disabled={busy} onClick={doExport}>{t('missing.export', 'Export CSV')}</Button> : undefined}>
+      actions={<>{actions}{rows.length > 0 && !isPending && !isError
+        ? <Button variant="outline" size="sm" disabled={busy} onClick={doExport}>{t('missing.export', 'Export CSV')}</Button> : null}</>}>
       {isPending && <ListState variant="loading" rows={2} />}
       {!isPending && isError && <ListState variant="error" title={t('missing.error', "Couldn't load what this work order still lacks")} onRetry={retry} />}
       {!isPending && !isError && rows.length === 0 && (
-        <p className="text-control text-muted-foreground" data-testid="missing-empty">{t('missing.empty', 'Nothing is missing: no open steps, and every reported quantity is accepted and claimed.')}</p>
+        <p className="text-control text-muted-foreground" data-testid="missing-empty">{canBilling && recon.data && recon.data.every((line) => line.progressQty !== null && line.progressQty === 0) && !(scopeLines ?? []).some((line) => line.accepted > 0) ? t('missing.noProgress', 'No work quantities have been reported yet.') : t('missing.empty', 'Nothing is missing: no open steps, and every reported quantity is accepted and claimed.')}</p>
       )}
       {!isPending && !isError && rows.length > 0 && (
         <ul className="divide-y divide-border" data-testid="missing-list" aria-label={title}>

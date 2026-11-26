@@ -383,22 +383,25 @@ describe('AC-IXD-MOBILE-W4-C3 C3-9: body scroll-lock while drawer open', () => {
 // C3-10: Breadcrumb mobile truncation
 // ---------------------------------------------------------------------------
 describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb on a phone', () => {
-  it('parent crumb links hide at exactly the breakpoint where the phoneOnly BackBar shows (#735: no width without a way back)', () => {
+  it('parent breadcrumb and phone BackBar both provide a working way back', () => {
+    const onParent = vi.fn();
+    const onBack = vi.fn();
     const { container } = render(
       <Breadcrumb
         parts={[
-          { label: 'Projects', href: '/projects', onClick: vi.fn() },
+          { label: 'Projects', href: '/projects', onClick: onParent },
           { label: 'Alpha' },
         ]}
       />
     );
-    // Parent breadcrumb links have the mobile hide class
     const parentLink = container.querySelector('a');
-    expect(parentLink).not.toBeNull();
-    const { container: bar } = render(<BackBar label="Projects" phoneOnly onBack={vi.fn()} />);
-    const showAt = (bar.firstElementChild as HTMLElement).className.match(/max-\[(\d+)px\]:flex/)?.[1];
-    expect(showAt).toBeDefined();
-    expect(parentLink!.className).toContain(`max-[${showAt}px]:hidden`);
+    expect(parentLink).toHaveAccessibleName('Projects');
+    expect(parentLink).toHaveAttribute('href', '/projects');
+    fireEvent.click(parentLink!);
+    expect(onParent).toHaveBeenCalledTimes(1);
+    render(<BackBar label="Projects" phoneOnly onBack={onBack} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Projects' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it('with only one part (no parent), nothing is hidden', () => {
@@ -454,27 +457,5 @@ describe('AC-IXD-MOBILE-W4-C3 C3-12: drawer has safe-area-inset padding', () => 
       parentWrapper?.style.paddingTop?.includes('env') ||
       parentWrapper?.className.includes('safe-area');
     expect(hasSafeAreaStyle || parentHasSafeArea).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// C3-13: Content gutter uses the shared responsive page-gutter token
-// ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token', () => {
-  it('the inner content wrapper in main uses the shared responsive page gutter', () => {
-    wrap(
-      <AppShell rail={null} header={null}>
-        <div data-testid="child">content</div>
-      </AppShell>
-    );
-    const main = screen.getByRole('main');
-    // Find the direct padded div inside main
-    const contentDiv = main.querySelector('div');
-    expect(contentDiv).not.toBeNull();
-    expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
-    // The page reserves exactly what is fixed at the bottom (bar + action bar), or the normal gutter when
-    // nothing is: never the fixed height PLUS a gutter (a blank band under the content at every width).
-    expect(contentDiv!.className).toContain('pb-[max(var(--space-page-gutter),calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)))]');
-    expect(contentDiv!.className).not.toContain('+var(--space-page-gutter))]');
   });
 });

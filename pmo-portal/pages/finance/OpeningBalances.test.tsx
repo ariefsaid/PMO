@@ -30,6 +30,14 @@ beforeEach(() => { state.allowed = true; state.setupEnabled = true; state.loadin
 afterEach(cleanup);
 
 describe('Opening balances screen (AC-OBS-004..006)', () => {
+  it('lets a keyboard user scroll the opening tables to reach all figures', () => {
+    state.data = [stock(), order()];
+    renderPage();
+    const tables = screen.getAllByRole('region', { name: 'Scroll table' });
+    expect(tables).toHaveLength(3);
+    for (const table of tables) expect(table).toHaveAttribute('tabindex', '0');
+    expect(screen.getByText('Scroll sideways to see every column.')).toBeInTheDocument();
+  });
   it('AC-OBS-004 shows each location with its items, the load date and who loaded it', () => {
     state.data = [stock(), order()];
     renderPage();
@@ -37,7 +45,7 @@ describe('Opening balances screen (AC-OBS-004..006)', () => {
     expect(within(card).getByText(/loaded .* by Dewi Admin/)).toBeTruthy();
     expect(within(card).getByText('BOLT · Bolt')).toBeTruthy();
     expect(within(card).getByText('NUT · Nut')).toBeTruthy();
-    expect(within(screen.getByRole('region', { name: /WO-2026-0001/ })).getByText('L1 · Line one')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'WO-2026-0001 · Pipeline' })).getByText('L1 · Line one')).toBeTruthy();
   });
 
   it('AC-OBS-005 the reconciliation totals add the loaded figures, per currency, and say source totals are not kept', () => {

@@ -65,7 +65,7 @@ test('AC-DSF-016 a count on the monthly safety summary opens exactly the rows be
   await pinEnglishLocale(page);
   await signIn(page, 'finance@acme.test');
   await page.goto('/safety');
-  await page.getByLabel('Month').fill(month);
+  await page.getByLabel('Month').fill(`${month}-01`);
 
   await page.getByLabel('Project').selectOption({ label: `${tag} worked` });
   const without = page.getByTestId('safety-figure-daysWithoutRecord');

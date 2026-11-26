@@ -6,16 +6,16 @@
  */
 import { test, expect, type BrowserContext } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
-import { inDays } from './support/jobJourney';
-import { roleJobUser } from './support/roleJobUser';
+import { jobRoleUser } from './support/jobRole';
+import { orgDay } from './support/orgDay';
 
 test.setTimeout(240_000);
 
 test('JOB-F4 the supervisor sees the two who clocked in as present and everyone else as not yet present', async ({ page }) => {
   const svc = serviceClient('JOB-F4');
   const run = runId('f4');
-  const supervisor = await roleJobUser(svc, 'site_supervisor', runId('f4-ss'));
-  const workers = [await roleJobUser(svc, 'field_user', runId('f4-a')), await roleJobUser(svc, 'field_user', runId('f4-b'))];
+  const supervisor = await jobRoleUser({ service: svc, jobRole: 'site_supervisor', run: runId('f4-ss') });
+  const workers = [await jobRoleUser({ service: svc, jobRole: 'field_user', run: runId('f4-a') }), await jobRoleUser({ service: svc, jobRole: 'field_user', run: runId('f4-b') })];
   let projectId = ''; let workOrderId = ''; let crewId = '';
   const people: string[] = [];
   const contexts: BrowserContext[] = [];
@@ -37,9 +37,9 @@ test('JOB-F4 the supervisor sees the two who clocked in as present and everyone 
       }).select('id').single()).id);
     }
     for (const person of people) {
-      ok('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: inDays(0) }));
+      ok('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: await orgDay() }));
     }
-    ok('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: inDays(0) }));
+    ok('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: await orgDay() }));
 
     // 1. Two members clock in on their phones, inside the work area.
     for (const worker of workers) {
@@ -85,8 +85,8 @@ test('JOB-F4 the supervisor sees the two who clocked in as present and everyone 
 test('JOB-F4 the manager recorded on a crew member, who does not run the crew, marks that member absent and the others stay not yet present', async ({ page }) => {
   const svc = serviceClient('JOB-F4-manager');
   const run = runId('f4m');
-  const controller = await roleJobUser(svc, 'site_supervisor', runId('f4m-ss'));
-  const manager = await roleJobUser(svc, 'site_supervisor', runId('f4m-mg'));
+  const controller = await jobRoleUser({ service: svc, jobRole: 'site_supervisor', run: runId('f4m-ss') });
+  const manager = await jobRoleUser({ service: svc, jobRole: 'site_supervisor', run: runId('f4m-mg') });
   let projectId = ''; let workOrderId = ''; let crewId = '';
   const people: string[] = [];
   try {
@@ -105,9 +105,9 @@ test('JOB-F4 the manager recorded on a crew member, who does not run the crew, m
       }).select('id').single()).id);
     }
     for (const person of people) {
-      ok('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: inDays(0) }));
+      ok('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: await orgDay() }));
     }
-    ok('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: inDays(0) }));
+    ok('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: await orgDay() }));
 
     // The manager opens Crews → Attendance: only their report's row has a control.
     await manager.signIn(page);

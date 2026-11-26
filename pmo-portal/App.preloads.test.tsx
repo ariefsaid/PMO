@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { createMemoryRouter } from 'react-router';
 
 const permissionState = vi.hoisted(() => ({ role: 'Finance' }));
 vi.mock('@/src/auth/usePermission', () => ({
@@ -14,8 +15,9 @@ vi.mock('@/src/lib/lazyWithPreload', () => {
   return { lazyWithPreload: inert };
 });
 
-import { preloadsForPath, namespacesForPath, preloadForPath } from './App';
+import { preloadsForPath, namespacesForPath, preloadForPath, subscribeToRoutePreloads } from './App';
 import { i18next } from '@/src/lib/i18n';
+import { queryClient } from '@/src/lib/queryClient';
 import { appRouteConfig } from './App';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -154,4 +156,148 @@ describe('preloadsForPath (#1834 route-entry preload rules)', () => {
       expect(preloadsForPath(path).length, path).toBeGreaterThan(0);
     }
   });
+});
+
+it('#2919 starts the work order record, steps, costs and allocations at route entry', () => {
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    preloadForPath('/work-orders/w1#wo-cost', { orgId: 'o1', client: queryClient });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([
+      ['work-order', 'o1', 'w1'],
+      ['work-order-billing-steps', 'o1', 'w1'],
+      ['work-order-cost-lines', 'o1', 'w1'],
+      ['work-order-lines', 'o1', 'wo', 'w1'],
+    ]);
+    prefetch.mockClear();
+    preloadForPath('/work-orders/w1');
+    expect(prefetch).not.toHaveBeenCalled();
+  } finally {
+    prefetch.mockRestore();
+  }
+});
+
+it('#2919 starts work order reads during navigation, before the new page can commit', async () => {
+  let finishLoader!: () => void;
+  const loader = new Promise<null>((resolve) => { finishLoader = () => resolve(null); });
+  const router = createMemoryRouter([
+    { path: '/' },
+    { path: '/work-orders/:id', loader: () => loader },
+  ]);
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  let unsubscribe: (() => void) | undefined;
+  try {
+    unsubscribe = subscribeToRoutePreloads(router, (href) => preloadForPath(href, { orgId: 'o1', client: queryClient }));
+    const navigation = router.navigate('/work-orders/w1');
+    expect(router.state.location.pathname).toBe('/');
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['work-order', 'o1', 'w1']);
+    finishLoader();
+    await navigation;
+    expect(prefetch).toHaveBeenCalledTimes(4);
+  } finally {
+    finishLoader();
+    unsubscribe?.();
+    router.dispose();
+    prefetch.mockRestore();
+  }
+});
+
+it('#2895 starts the project orders panel reads at entry and respects the billing extra switches', async () => {
+  const orgId = 'o1';
+  const fetch = vi.spyOn(queryClient, 'fetchQuery').mockResolvedValue(true);
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    const context = {
+      orgId, client: queryClient, canViewWorkOrderPlan: true,
+      viewer: { org_id: orgId, id: 'u1', role: 'Finance' as const, manager_id: null },
+    };
+    preloadForPath('/projects/p1/orders', context);
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual(expect.arrayContaining([
+      ['work-orders', orgId, 'p1', 'u1', 'Finance', null],
+      ['work-order-plan-vs-actual', orgId, 'p1'],
+    ]));
+    expect(fetch.mock.calls.map(([options]) => options.queryKey)).toEqual([
+      ['org-setting', orgId, 'moduleBillingExtras'],
+      ['org-setting', orgId, 'disciplineProfit'],
+    ]);
+    await vi.waitFor(() => expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['earned-billed', orgId, 'p1']));
+
+    fetch.mockResolvedValue(false);
+    prefetch.mockClear();
+    preloadForPath('/projects/p2/orders', context);
+    await Promise.resolve();
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).not.toContainEqual(['earned-billed', orgId, 'p2']);
+  } finally {
+    fetch.mockRestore();
+    prefetch.mockRestore();
+  }
+});
+
+it.each(['/contract?openType=billingClaim', '/billing?openType=billingClaim', '/work-orders?openType=workOrderClaim'])(
+  '#2893 starts claim stage and claim list reads together at %s',
+  (suffix) => {
+    const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+    try {
+      const href = `/projects/p1${suffix}&open=c1#claims`;
+      preloadForPath(href, { orgId: 'o1', client: queryClient, canReadClaims: true });
+      expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['claim-billing-trace', 'o1', 'c1', 'p1']);
+      expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['progress-claims', 'o1', 'p1']);
+
+      prefetch.mockClear();
+      preloadForPath(href, { orgId: 'o1', client: queryClient });
+      expect(prefetch.mock.calls.map(([options]) => options.queryKey)).not.toContainEqual(['claim-billing-trace', 'o1', 'c1', 'p1']);
+    } finally {
+      prefetch.mockRestore();
+    }
+  },
+);
+
+it('#2819 starts one order’s reconciliation before the project or contract tab resolves', () => {
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    const href = '/projects/p1/contract?open=w1&openType=workOrder';
+    preloadForPath(href, { orgId: 'o1', client: queryClient, canViewBilling: true });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['billing-reconciliation', 'o1', 'p1', 'w1']);
+
+    prefetch.mockClear();
+    preloadForPath(href, { orgId: 'o1', client: queryClient });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).not.toContainEqual(['billing-reconciliation', 'o1', 'p1', 'w1']);
+  } finally {
+    prefetch.mockRestore();
+  }
+});
+
+it.each(['/projects/p1/contract?wo=w1', '/projects/p1/contract'])(
+  'preloads the contract project, work orders and project reconciliation at %s',
+  (href) => {
+    const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+    try {
+      preloadForPath(href, {
+        orgId: 'o1',
+        client: queryClient,
+        canViewBilling: true,
+        viewer: { org_id: 'o1', id: 'u1', role: 'Finance', manager_id: null },
+      });
+      const queryKeys = prefetch.mock.calls.map(([options]) => options.queryKey);
+      expect(queryKeys).toContainEqual(['project', 'o1', 'p1']);
+      expect(queryKeys).toContainEqual(['work-orders', 'o1', 'p1', 'u1', 'Finance', null]);
+      expect(queryKeys).toContainEqual(['billing-reconciliation', 'o1', 'p1', null]);
+    } finally {
+      prefetch.mockRestore();
+    }
+  },
+);
+
+it('does not preload project reconciliation when billing is not visible', () => {
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    preloadForPath('/projects/p1/contract?wo=w1', {
+      orgId: 'o1',
+      client: queryClient,
+      viewer: { org_id: 'o1', id: 'u1', role: 'Project Manager', manager_id: null },
+    });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey))
+      .not.toContainEqual(['billing-reconciliation', 'o1', 'p1', null]);
+  } finally {
+    prefetch.mockRestore();
+  }
 });

@@ -63,15 +63,15 @@ const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
   };
 
   return (
-    <fieldset className="mt-3 space-y-2" data-testid="boq-area-rates">
+    <fieldset className="mt-4 min-w-0 space-y-4" data-testid="boq-area-rates">
       <legend className="text-control font-medium text-foreground">{t('projectDetail.billing.areaRates.title', 'Rates by area')}</legend>
       <p className="text-control text-muted-foreground">{t('projectDetail.billing.areaRates.hint', "A daily report on a work order in an area is priced at that area's rate. An area with no rate uses the line's rate.")}</p>
       {rates.isError && <p role="alert" className="text-sm text-destructive-text">{t('projectDetail.billing.areaRates.loadError', "Couldn't load the area rates.")}</p>}
-      <ul className="space-y-2">
+      <ul className="divide-y divide-border">
         {live.map((a) => (
-          <li key={a.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <span className="text-foreground">{a.name}{a.description ? <span className="block text-muted-foreground">{a.description}</span> : null}</span>
-            <TextField label={t('projectDetail.billing.areaRates.rate', 'Rate for {{name}}', { name: a.name })} inputMode="decimal" value={draft[a.id] ?? ''}
+          <li key={a.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <span className="col-span-2 min-w-0 break-words text-foreground sm:col-span-1 sm:pt-2">{a.name}{a.description ? <span className="block text-muted-foreground">{a.description}</span> : null}</span>
+            <TextField hideLabel label={t('projectDetail.billing.areaRates.rate', 'Rate for {{name}}', { name: a.name })} inputMode="decimal" value={draft[a.id] ?? ''}
               onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v }))} error={errors[a.id]} disabled={save.isPending} />
             <Button variant="outline" size="sm" onClick={() => void run(a.id, a.name)} disabled={save.isPending}>{t('projectDetail.billing.areaRates.save', 'Save')}</Button>
           </li>

@@ -13,7 +13,7 @@
       "degradedNext": "Belum tersedia: {{missing}}. Pasang di Odoo, lalu Cek ulang.",
       "expiringNext": "Buat kunci baru di Odoo dan sambungkan ulang sebelum kedaluwarsa.",
       "notActivatedNext": "Sinkronisasi dimulai setelah perusahaan dipilih.",
-      "disconnectedNext": "Administrator dapat menyambungkannya di Administrasi, Integrasi."
+      "disconnectedNext": "Administrator dapat menghubungkannya di Administrasi → Integrasi organisasi."
     },
     "state": {
       "unverified": "Belum dicek baru-baru ini",
@@ -678,6 +678,7 @@
       "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
+      "managerUnavailable": "Nama manajer tidak tersedia",
       "builtIn": {
         "tier": {
           "manager": "Manajer",
@@ -752,6 +753,7 @@
         "inviteResentDetail": "Tautan sebelumnya untuk {{email}} sudah kedaluwarsa. Tautan baru sedang dikirim."
       },
       "setup": {
+        "readError": "Tidak dapat memeriksa pengaturan pengguna lapangan",
         "unlinked": "Login belum ditautkan ke seorang personel, jadi belum bisa dimasukkan ke kru.",
         "linkAction": "Tautkan ke personel",
         "noCrew": "Belum masuk kru mana pun, jadi belum ada pekerjaan untuk absen.",
@@ -849,7 +851,7 @@
       "title": "Klaim melebihi kuantitas yang dapat ditagih",
       "loadError": "Pengaturan kuantitas klaim tidak dapat dimuat",
       "saved": "Pengaturan kuantitas klaim disimpan",
-      "helper": "Setiap baris klaim diukur terhadap kuantitas yang masih dapat ditagih pada baris work order-nya: kuantitas hasil survei bila ada, jika tidak kuantitas yang diterima (BAST), jika tidak kuantitas yang dipesan, dikurangi yang sudah diambil klaim aktif. Hanya peringatan meloloskan klaim dengan peringatan di formulir. Tolak menghentikan klaim sampai kuantitas diturunkan atau penerimaan berikutnya dikonfirmasi.",
+      "helper": "Setiap baris klaim diukur terhadap kuantitas yang masih dapat ditagih pada baris perintah kerja-nya: kuantitas hasil survei bila ada, jika tidak kuantitas yang diterima (BAST), jika tidak kuantitas yang dipesan, dikurangi yang sudah diambil klaim aktif. Hanya peringatan meloloskan klaim dengan peringatan di formulir. Tolak menghentikan klaim sampai kuantitas diturunkan atau penerimaan berikutnya dikonfirmasi.",
       "warn": "Hanya peringatan",
       "block": "Tolak",
       "adminOnly": "Hanya Admin yang dapat mengubah ini.",
@@ -864,8 +866,7 @@
       "save": "Simpan tahun fiskal",
       "saved": "Tahun fiskal disimpan",
       "loadError": "Tidak dapat memuat tahun fiskal",
-      "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal.",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+      "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal."
     },
     "attendanceTarget": {
       "helper": "Tingkat kehadiran yang menjadi ukuran setiap kru, dalam persen. Kosongkan agar tampilan tingkat kehadiran tidak ditawarkan.",
@@ -882,7 +883,7 @@
     },
     "dsrValidateRoles": {
       "title": "Validasi laporan harian lokasi",
-      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Centang jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
+      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Pilih jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
       "legend": "Jabatan yang memvalidasi laporan harian lokasi",
       "loadError": "Peran validator laporan lokasi tidak dapat dimuat",
       "adminOnly": "Hanya Admin yang dapat mengubah ini.",
@@ -945,18 +946,31 @@
   "usage": {
     "errorTitle": "Penggunaan tidak dapat dimuat",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
-    "emptyTitle": "Belum ada penggunaan",
-    "emptySub": "Penggunaan agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",
+    "emptyTitle": "Belum ada pemakaian",
+    "emptySub": "Pemakaian agen tampil di sini setelah ruang kerja mulai menggunakan asisten.",
     "month": "Bulan",
     "action": "Aksi",
     "runs": "Eksekusi",
     "tokens": "Token",
+    "promptTokens": "Token masukan",
+    "completionTokens": "Token keluaran",
     "providerCost": "Biaya penyedia",
+    "monthUnavailable": "Bulan tidak tersedia",
+    "providerPricingUnavailable": "Harga penyedia tidak tersedia",
+    "marginUnavailable": "Harga tidak tersedia",
     "cost": "Biaya (USD)",
     "margin": "Margin",
-    "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan."
+    "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan.",
+    "openAssistant": "Buka asisten"
+  },
+  "integrationStatus": {
+    "connectedDateMissing": "Tanggal belum dicatat",
+    "noListLink": "Belum ada daftar yang ditautkan"
   },
   "agentCost": {
+    "noPromptTokens": "Tingkat cache hit memerlukan catatan token prompt.",
+    "noCompletionTokens": "Porsi penalaran memerlukan catatan token penyelesaian.",
+    "noRunStats": "Biaya per proses dan latensi memerlukan statistik proses.",
     "errorTitle": "Metrik biaya agen tidak dapat dimuat",
     "emptyTitle": "Belum ada data biaya agen",
     "emptySub": "Telemetri biaya agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",
@@ -1032,7 +1046,7 @@
     "leftTitle": "Tandai {{name}} sudah keluar",
     "leftBody": "Personel ini pindah ke Mantan personel dan keluar dari semua susunan kru mulai hari ini. Dokumen, jam kerja, dan riwayatnya tetap tercatat.",
     "leftOn": "Hari pertama keluar dari susunan kru",
-    "leftOnHelp": "Hari pertama keluar dari susunan kru",
+    "leftOnHelp": "Mulai tanggal ini, orang ini tidak lagi tercantum dalam susunan kru.",
     "markedLeft": "{{name}} sekarang menjadi mantan personel",
     "expiring": "Dokumen akan kedaluwarsa"
   },
@@ -1041,7 +1055,8 @@
     "intro": "Ganti nama peran bawaan sesuai organisasi Anda. Hanya nama yang tampil yang berubah; hak akses setiap peran tetap sama.",
     "name": "Nama",
     "saved": "Nama peran disimpan",
-    "resetDone": "Kembali ke nama bawaan"
+    "resetDone": "Kembali ke nama bawaan",
+    "role": "Peran"
   },
   "terminology": {
     "default": "Bawaan",
@@ -1052,11 +1067,16 @@
     "save": "Simpan",
     "saved": "Istilah tersimpan",
     "singular": "Tunggal",
-    "nav": "Istilah"
+    "nav": "Istilah",
+    "term": "Istilah",
+    "language": "Bahasa",
+    "viewTerms": "Istilah",
+    "viewRoles": "Nama peran",
+    "viewLabel": "Nama yang diubah"
   },
   "documentCategories": {
     "nav": "Kategori dokumen",
-    "intro": "Setiap dokumen disimpan dalam satu kategori. Pilih peran mana yang dapat melihat dokumen di setiap kategori; orang dengan peran lain tidak akan melihat dokumen maupun berkasnya. Admin selalu melihat semua kategori.",
+    "intro": "Dokumen memiliki satu kategori. Pilih peran mana yang dapat melihat dokumen di setiap kategori; orang dengan peran lain tidak akan melihat dokumen maupun berkasnya. Admin selalu melihat semua kategori.",
     "m365Note": "Berkas yang ditautkan dari Microsoft 365 tetap memakai izin Microsoft sendiri. Pengaturan ini hanya mengatur entri daftar, pratinjau, dan tautan buka di PMO.",
     "name": "Nama kategori",
     "namePlaceholder": "mis. Persetujuan komersial",
@@ -1081,7 +1101,7 @@
     "hiddenFrom": "Disembunyikan dari jabatan berikut",
     "hiddenNone": "Tidak ada jabatan yang disembunyikan.",
     "hideFrom": "Sembunyikan dari jabatan",
-    "hideChoose": "Sembunyikan dari jabatan…",
+    "hideChoose": "Pilih jabatan",
     "unhide": "Tampilkan lagi untuk {{role}}",
     "unhideShort": "Hapus",
     "reordered": "Urutan tersimpan",
@@ -1089,7 +1109,13 @@
     "archivedDone": "Kategori diarsipkan",
     "archiveTitle": "Arsipkan kategori ini?",
     "archiveBody": "Dokumen baru tidak dapat disimpan di dalamnya. Dokumen yang sudah ada tetap terlihat oleh peran yang sama.",
-    "denied": "Kategori dokumen dikelola oleh Admin."
+    "denied": "Kategori dokumen dikelola oleh Admin.",
+    "categoryColumn": "Kategori",
+    "hiddenNoneShort": "Tidak ada",
+    "saveShort": "Simpan",
+    "moreActions": "Tindakan lain untuk {{name}}",
+    "listLabel": "Kategori dokumen",
+    "hiddenFromShort": "Disembunyikan dari"
   },
   "documentTypes": {
     "title": "Jenis dokumen",
@@ -1368,5 +1394,36 @@
     "migration": "Migrasikan biaya stok yang ada sebelum mengaktifkan pengaturan ini.",
     "erp": "Pengaturan ini tersedia untuk organisasi yang menggunakan biaya pembayaran PMO."
   },
-  "documentTypesNav": "Jenis dokumen"
+  "documentTypesNav": "Jenis dokumen",
+  "adminShell": {
+    "navGroups": {
+      "access": "Orang dan akses",
+      "setup": "Penyiapan",
+      "connections": "Koneksi",
+      "plan": "Paket"
+    },
+    "settingsGroups": {
+      "accountingTax": "Pajak dan tahun buku",
+      "accountingApprovals": "Persetujuan dan pemeriksaan",
+      "accountingOrders": "Pesanan pembelian",
+      "accountingPosting": "Biaya dan pemetaan akun",
+      "projectsNumbering": "Penomoran dan daftar proyek",
+      "projectsSite": "Laporan harian lapangan",
+      "projectsWorkOrders": "Perintah kerja",
+      "projectsIssues": "Masalah",
+      "peopleSettings": "Pengaturan"
+    }
+  },
+  "roleChecklist": {
+    "none": "Belum ada peran dipilih",
+    "done": "Selesai",
+    "choose": "Pilih peran"
+  },
+  "connections": {
+    "viewLabel": "Tampilan pengaturan organisasi",
+    "settings": "Pengaturan organisasi"
+  },
+  "credits": {
+    "balanceHelp": "Saldo setelah pemberian dan pemakaian kredit."
+  }
 }

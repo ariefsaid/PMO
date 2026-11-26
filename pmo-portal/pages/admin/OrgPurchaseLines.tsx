@@ -75,8 +75,8 @@ export default function OrgPurchaseLines() {
                                 <span className="min-w-0 flex-1 break-words text-control">{c.name}</span>
                                 {canManage && (
                                   <>
-                                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRenaming({ id: c.id, name: c.name })}>{t('linePlanning.rename', 'Rename')}</Button>
-                                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRetiring(c)}>{t('linePlanning.retire', 'Retire')}</Button>
+                                    <Button size="sm" variant="outline" disabled={busy} onClick={() => setRenaming({ id: c.id, name: c.name })}>{t('linePlanning.rename', 'Rename')}</Button>
+                                    <Button size="sm" variant="outline" disabled={busy} onClick={() => setRetiring(c)}>{t('linePlanning.retire', 'Retire')}</Button>
                                   </>
                                 )}
                               </>

@@ -229,6 +229,7 @@ const UpdatePasswordPage: React.FC = () => {
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
               <AuthInput
                 id="new-password"
+                errorId="new-password-requirements"
                 label={t('update.newPassword', 'New password')}
                 type="password"
                 autoComplete="new-password"
@@ -237,6 +238,7 @@ const UpdatePasswordPage: React.FC = () => {
                 onChange={setPassword}
                 disabled={busy}
               />
+              <p id="new-password-requirements" className="text-control text-muted-foreground">{t('update.requirements', 'Use at least 10 characters with uppercase and lowercase letters and a number.')}</p>
               <div>
                 <AuthInput
                   id="confirm-password"

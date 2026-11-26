@@ -69,7 +69,11 @@ test('AC-MVP-014 material issued ahead of progress tells the project manager, wh
     const card = page.getByTestId(`customer-order-${workOrderId}`);
     await expect(card.getByRole('button', { name: /1 item ahead of progress/ })).toBeVisible();
     await card.getByRole('button', { name: /1 item ahead of progress/ }).click();
-    await expect(card.getByText(new RegExp(`${item.name}: issued 60% of planned, progress 10%, 50 points ahead`))).toBeVisible();
+    const alert = card.getByRole('status');
+    await expect(alert.getByText(/work order.s progress \(10%\)/)).toBeVisible();
+    const aheadRow = alert.getByRole('row').filter({ has: page.getByRole('rowheader', { name: item.name, exact: true }) });
+    await expect(aheadRow.getByRole('cell', { name: '60%', exact: true })).toBeVisible();
+    await expect(aheadRow.getByRole('cell', { name: '50 points', exact: true })).toBeVisible();
 
     // The alert blocked nothing: another issue still posts.
     const another = await admin.rpc('create_stock_document', { p_header: { kind: 'issue', warehouse_id: central.id, project_id: SEED_PROJECT_ID },

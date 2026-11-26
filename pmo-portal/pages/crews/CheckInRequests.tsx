@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, FieldError, ReasonDialog, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, DataTable, FieldError, ReasonDialog, useToast, type Column } from '@/src/components/ui';
 import { useCheckInRequests, useDecideCheckIn } from '@/src/hooks/usePhoneCheckIn';
 import type { CheckInRequest } from '@/src/lib/repositories/phoneCheckIn';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -34,41 +34,41 @@ export const CheckInRequests: React.FC = () => {
     }
   };
 
+  const area = (r: CheckInRequest) => (r.area_lat != null && r.area_lng != null && r.area_radius_m != null
+    ? t('crews:checkIn.requestArea', 'Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m',
+      { latitude: r.area_lat, longitude: r.area_lng, radius: formatNumberMax2(r.area_radius_m) })
+    : null);
+  const columns: Column<CheckInRequest>[] = [
+    { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (r) => r.worker_name,
+      secondaryCell: (r) => [r.work_order_title, r.crew_name].filter(Boolean).join(' · ') },
+    { key: 'date', header: t('crews:date', 'Date'), kind: 'date', cell: (r) => formatDay(r.work_date) },
+    { key: 'why', header: t('crews:checkIn.why', 'Why it waits'), cell: (r) => (
+      <span className="flex flex-col">
+        <span className="text-foreground">{outcome(r.outcome)}</span>
+        {area(r) && <span className="text-muted-foreground">{area(r)}</span>}
+      </span>
+    ) },
+    { key: 'distance', header: t('crews:checkIn.distanceHeader', 'From the area (m)'), kind: 'number',
+      cell: (r) => (r.distance_m != null ? formatNumberMax2(Number(r.distance_m)) : null) },
+    { key: 'hours', header: t('crews:hours', 'Hours'), kind: 'number', cell: (r) => formatNumberMax2(Number(r.hours)) },
+    { key: 'decide', header: <span className="sr-only">{t('crews:decision', 'Decision')}</span>, kind: 'actions', cell: (r) => (
+      <span className="inline-flex gap-2">
+        <Button variant="outline" className="min-h-11 sm:min-h-0" size="sm" disabled={decide.isPending} onClick={() => setRejecting(r)}>
+          {t('crews:checkIn.reject', 'Reject')}
+        </Button>
+        <Button variant="primary" className="min-h-11 sm:min-h-0" size="sm" disabled={decide.isPending} onClick={() => void run(r, true, null)}>
+          {t('crews:checkIn.approve', 'Approve')}
+        </Button>
+      </span>
+    ) },
+  ];
+
   return (
-    <Card className="mb-4" aria-label={t('crews:checkIn.requestsTitle', 'Check-ins waiting for you')}>
-      <CardHead>{t('crews:checkIn.requestsTitle', 'Check-ins waiting for you')}</CardHead>
-      <CardPad className="space-y-3">
-        <p className="text-control text-muted-foreground">
-          {t('crews:checkIn.requestsHelper', 'These people clocked in from their phone outside the work area, off the roster, or without a position. Approving records their attendance.')}
-        </p>
-        <ul className="space-y-2">
-          {rows.map((r) => (
-            <li key={r.id} className="rounded-md border border-border p-3">
-              <p className="text-control font-semibold">{r.worker_name} · {r.work_order_title}</p>
-              <p className="text-control text-muted-foreground">
-                {formatDay(r.work_date)} · {outcome(r.outcome)}
-                {r.distance_m != null && ` · ${t('crews:checkIn.distance', '{{metres}} m from the area', { metres: formatNumberMax2(Number(r.distance_m)) })}`}
-                {r.crew_name && ` · ${r.crew_name}`} · {t('crews:checkIn.hours', '{{hours}} h', { hours: formatNumberMax2(Number(r.hours)) })}
-              </p>
-              {r.area_lat != null && r.area_lng != null && r.area_radius_m != null && (
-                <p className="text-control text-muted-foreground">
-                  {t('crews:checkIn.requestArea', 'Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m',
-                    { latitude: r.area_lat, longitude: r.area_lng, radius: formatNumberMax2(r.area_radius_m) })}
-                </p>
-              )}
-              <div className="mt-2 flex gap-2">
-                <Button variant="primary" className="min-h-11" disabled={decide.isPending} onClick={() => void run(r, true, null)}>
-                  {t('crews:checkIn.approve', 'Approve')}
-                </Button>
-                <Button variant="outline" className="min-h-11" disabled={decide.isPending} onClick={() => setRejecting(r)}>
-                  {t('crews:checkIn.reject', 'Reject')}
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {error && <FieldError>{error}</FieldError>}
-      </CardPad>
+    <Card seam className="mb-6 bg-waiting-surface" role="region" aria-labelledby="checkin-requests-title">
+      <CardHead id="checkin-requests-title">{t('crews:checkIn.requestsTitle', 'Check-ins waiting for you')}</CardHead>
+      <p className="px-4 pb-3 text-sm text-muted-foreground">{t('crews:checkIn.requestsCaption', 'Approving records their attendance')}</p>
+      {error && <div className="px-4 pb-3"><FieldError>{error}</FieldError></div>}
+      <DataTable<CheckInRequest> embedded rows={rows} columns={columns} rowKey={(r) => r.id} tableId="checkin-requests-table" />
       <ReasonDialog open={rejecting !== null} kind="reject" subject={t('crews:checkIn.rejectSubject', 'check-in')}
         onCancel={() => setRejecting(null)}
         onConfirm={(reason: string) => { const r = rejecting; setRejecting(null); if (r) void run(r, false, reason); }} />

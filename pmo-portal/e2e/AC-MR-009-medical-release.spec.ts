@@ -45,7 +45,7 @@ test('AC-MR-009 the people team opens a release, the direct manager approves it,
   await signIn(page, 'admin@acme.test');
   await page.goto('/approvals');
   await page.getByRole('button', { name: 'Open a release' }).click();
-  await page.getByLabel(/^Person/).selectOption({ label: `${run} Worker` });
+  await page.getByRole('dialog').getByLabel(/^Person/).selectOption({ label: `${run} Worker` });
   await page.getByLabel(/^Return date/).fill(today);
   await page.getByRole('button', { name: 'Open release' }).click();
   await expect(visibleToast(page, 'Release opened')).toBeVisible({ timeout: 15_000 });

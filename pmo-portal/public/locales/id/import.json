@@ -20,8 +20,8 @@
     "clientTakeoffLine": "baris take-off",
     "personDocuments": "dokumen personel",
     "personDocument": "dokumen personel",
-    "workOrders": "perintah kerja",
-    "workOrder": "perintah kerja"
+    "workOrders": "Perintah kerja",
+    "workOrder": "Perintah kerja"
   },
   "wizard": {
     "title": "Impor {{entity}}",

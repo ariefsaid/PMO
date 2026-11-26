@@ -1,3 +1,4 @@
+import { AdministrationActions } from '@/src/components/admin/AdministrationActions';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -196,8 +197,8 @@ const AdministrationExchangeRates: React.FC = () => {
 
   return (
     <section aria-labelledby="fx-rates-heading" className="min-w-0">
-      <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-2">
-        <h2 id="fx-rates-heading" className="sr-only">{t('admin.nav.exchangeRates', 'Exchange rates')}</h2>
+      <h2 id="fx-rates-heading" className="sr-only">{t('admin.nav.exchangeRates', 'Exchange rates')}</h2>
+      <AdministrationActions><div className="flex flex-wrap items-center justify-end gap-2">
         {canUpload && !listEmpty && (
           <Button disabled={busy} aria-describedby={busy ? 'fx-actions-unavailable' : undefined} onClick={openUpload}>
             {t('fx.upload', 'Upload rates')}
@@ -217,7 +218,7 @@ const AdministrationExchangeRates: React.FC = () => {
             {t('fx.newRate', 'New rate')}
           </Button>
         )}
-      </div>
+      </div></AdministrationActions>
       {busy && <p id="fx-actions-unavailable" role="status" className="mb-3 text-control text-muted-foreground">
         {orgDay.isError
           ? t('fx.actionsUnavailableError', 'Actions are unavailable because organization currency could not be read.')
@@ -247,6 +248,7 @@ const AdministrationExchangeRates: React.FC = () => {
       ) : !rates.data?.rows.length ? (
         <ListState
           variant="empty"
+          className="rounded-lg border border-border bg-card p-6"
           icon="upload"
           title={t('fx.empty', 'No JISDOR rates yet')}
           sub={
@@ -327,6 +329,7 @@ const AdministrationExchangeRates: React.FC = () => {
                 : undefined
             }
             tableId="administrationexchangerates-table"
+            cardBelow={810}
             accessibleName={t('admin.nav.exchangeRates', 'Exchange rates')} />
           {users.isError && (
             <div className="mt-2">

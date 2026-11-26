@@ -60,9 +60,9 @@ describe('equipment target settings (#2701)', () => {
   it('AC-ETS-007 marks only the figure below a set target and shows the target', async () => {
     h.targets = { availability_target_pct: 90, utilisation_target_pct: 60, escalation_down_days: 2 };
     renderPage();
-    expect(await screen.findByText('(target 90%)')).toBeInTheDocument();
+    expect(await screen.findByText('target 90%')).toBeInTheDocument();
     expect(screen.getAllByText('Below target')).toHaveLength(1);
-    expect(screen.getByText('(target 60%)')).toBeInTheDocument();
+    expect(screen.getByText('target 60%')).toBeInTheDocument();
   });
 
   it('E3 availability reads as days available out of days in service, beside the percentage', () => {
@@ -73,7 +73,7 @@ describe('equipment target settings (#2701)', () => {
   it('AC-ETS-007 shows no marker and no target while none is set', () => {
     renderPage();
     expect(screen.queryByText('Below target')).not.toBeInTheDocument();
-    expect(screen.queryByText(/\(target/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/target \d/)).not.toBeInTheDocument();
   });
 
   it('AC-ETS-008 the flag label names the organisation limit', async () => {
@@ -84,6 +84,7 @@ describe('equipment target settings (#2701)', () => {
 
   it('AC-ETS-009 an Admin saves the typed settings; empty targets are sent as null', async () => {
     renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Targets and hours' }));
     await userEvent.type(await screen.findByLabelText('Availability target (%)'), '92.5');
     await userEvent.clear(screen.getByLabelText('Escalate after more than (days down)'));
     await userEvent.type(screen.getByLabelText('Escalate after more than (days down)'), '4');
@@ -94,12 +95,14 @@ describe('equipment target settings (#2701)', () => {
   it('AC-ETS-009 other roles do not see the settings form', () => {
     h.role = 'Finance';
     renderPage();
+    expect(screen.queryByRole('button', { name: 'Targets and hours' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Availability target (%)')).not.toBeInTheDocument();
   });
 
   it('AC-EQM-003 the equipment manager (Project Manager) sees and saves the settings form', async () => {
     h.role = 'Project Manager';
     renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Targets and hours' }));
     await userEvent.type(await screen.findByLabelText('Availability target (%)'), '90');
     await userEvent.click(screen.getByRole('button', { name: 'Save targets' }));
     expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ availability: '90' }));

@@ -40,7 +40,7 @@ function taskRecord(name: string): Row {
  *    (an empty selection = the predicate matched nothing = the write applied 0 rows);
  *  - reads consult the optional `sourceModReadOverride` hook, so a test can replay the exact
  *    read-then-write race a concurrent webhook/sweep apply hits. */
-function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[] } = {}) {
+function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[]; refusedParent?: string } = {}) {
   const refs: Row[] = seed.refs ?? [];
   const tasks: Row[] = seed.tasks ?? [];
   const watermarks: Row[] = [];
@@ -96,7 +96,7 @@ function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[] } = {}) {
           let row = tasks.find((r) => matchesEq(r)) ?? null;
           if (table === 'external_refs') row = refs.find((r) => matchesEq(r)) ?? null;
           if (table === 'external_sync_watermarks') row = watermarks.find((r) => matchesEq(r)) ?? null;
-          let data = row;
+          const data = row;
           if (table === 'tasks' && selecting && op === 'select' && sourceModReadOverride && row) {
             return Promise.resolve(sourceModReadOverride((row as Row).source_updated_at as string | null)).then(
               (overridden) => ({ data: { ...row, source_updated_at: overridden }, error: null }),
@@ -137,6 +137,9 @@ function fakeMirrorDb(seed: { refs?: Row[]; tasks?: Row[] } = {}) {
           const rows = table === 'tasks' ? tasks : table === 'external_refs' ? refs : watermarks;
           const matches = rows.filter((r) => matchesEq(r) && matchesOr(r));
           return { data: matches, error: null };
+        }
+        if (seed.refusedParent && (op === 'update' ? patch : writeRow).parent_task_id === seed.refusedParent) {
+          return { data: null, error: { code: '23514', message: 'TASK_TREE_DEPTH: A task can sit at most 32 levels down' } };
         }
         if (op === 'update') {
           const matches = tasks.filter((r) => matchesEq(r) && matchesOr(r));
@@ -490,4 +493,18 @@ Deno.test('T-07 B3: a failed mirror-timestamp read during apply surfaces and wri
   const err = await rejects(applyInboundChange(CTX, 'cu-1', taskRecord('Stale') as never, 1000, callbacks));
   assert(err instanceof AppError, 'the apply must fail, not run on "no timestamp"');
   assert(db.__state.ops.length === 0, `nothing may be written, ops=${db.__state.ops.join(',')}`);
+});
+
+Deno.test('AC-TREE-114: a depth refusal flattens both new and existing mirrored tasks', async () => {
+  const existing = 'existing-task';
+  const parent = 'too-deep-parent';
+  const db = fakeMirrorDb({ tasks: [mirrorTaskRow(existing, 1000)], refusedParent: parent });
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
+  const canonical = { id: existing, name: 'Synced work', status: 'To Do', parent_task_id: parent };
+  assert(await callbacks.updateMirror(existing, canonical, 2000), 'the update must land');
+  const minted = await callbacks.mintMirror(canonical, 2000);
+  for (const id of [existing, minted]) {
+    const task = db.__state.tasks.find((row) => row.id === id);
+    assert(task?.parent_task_id === null && task.name === 'Synced work', 'the task must land with no parent');
+  }
 });

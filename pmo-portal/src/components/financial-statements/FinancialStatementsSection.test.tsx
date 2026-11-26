@@ -91,7 +91,7 @@ function setProfileLocale(locale: Locale) {
 }
 
 function formattedCapturedDate(locale: Locale) {
-  return locale === 'en' ? 'Jul 31, 2024' : '31 Jul 2024';
+  return locale === 'en' ? '31 Jul 2024' : '31 Jul 2024';
 }
 
 function propsFor(
@@ -353,7 +353,7 @@ describe('AC-008 FinancialStatementsSection provenance and refresh status', () =
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Pacific/Kiritimati' });
     renderInLocale(<FinancialStatementsSection {...propsFor('en', completeState)} />);
 
-    expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent('Updated Aug 1, 2024');
+    expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent('Updated 1 Aug 2024');
   });
 });
 
@@ -421,7 +421,7 @@ describe('AC-008 FinancialStatementsSection controlled transitions and retry', (
     expect(within(section).queryByText('Previous period · IDR')).not.toBeInTheDocument();
     expect(within(section).queryByTestId('old-child')).not.toBeInTheDocument();
     expect(within(section).getByTestId('new-child')).toBeInTheDocument();
-    const updatedDate = locale === 'en' ? 'Aug 2, 2024' : '2 Agu 2024';
+    const updatedDate = locale === 'en' ? '2 Aug 2024' : '2 Agu 2024';
     const previousDate = formattedCapturedDate(locale);
     expect(within(section).getByTestId('snapshot-provenance')).toHaveTextContent(updatedDate);
     expect(within(section).queryByText(previousDate)).not.toBeInTheDocument();
@@ -492,6 +492,16 @@ describe('AC-008 FinancialStatementsSection axe checks', () => {
 describe('AC-CD-006 FinancialStatementsSection Refresh now', () => {
   beforeEach(() => {
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+  });
+
+  it('AC-CD-006 an empty statement offers the existing refresh action and reports its result', async () => {
+    const onClick = vi.fn();
+    renderInLocale(<FinancialStatementsSection {...propsFor('en', { kind: 'unavailable' }, {
+      refreshNow: { label: 'Refresh now', pending: false, note: 'Refresh requested', onClick },
+    })} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Refresh requested')).toBeInTheDocument();
   });
 
   it('AC-CD-006 a complete read offers Refresh now once per click and shows the page-supplied result', async () => {

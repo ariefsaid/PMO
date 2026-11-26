@@ -137,7 +137,7 @@ function periodColumns(side: NativeReportColumn): ReportField[] {
 }
 
 const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-control font-semibold text-muted-foreground';
-const ACCOUNT_CELL = 'sticky left-0 bg-card px-3 text-left';
+const ACCOUNT_CELL = 'bg-card px-3 text-left max-sm:block';
 
 function AmountCell({ row, column, presentation, notProvided, className }: {
   row: NativeRow | null;
@@ -164,7 +164,7 @@ function AmountCell({ row, column, presentation, notProvided, className }: {
       )
       : amount.text;
   }
-  return <td className={cn('whitespace-nowrap px-3 text-right tabular tabular-nums', className)}>{content}</td>;
+  return <td data-label={plainNativeStatementLabel(column.label)} className={cn('whitespace-nowrap px-3 text-right tabular tabular-nums max-sm:flex max-sm:justify-between max-sm:gap-4 max-sm:before:content-[attr(data-label)] max-sm:before:font-normal max-sm:before:text-muted-foreground', className)}>{content}</td>;
 }
 
 interface ValueColumn {
@@ -237,9 +237,9 @@ const StatementRow = memo(function StatementRow({ line, valueColumns, presentati
   return (
     <tr
       data-row-kind={computed ? 'total' : emphasized ? 'group' : 'account'}
-      className={cn('text-control text-foreground [&>*]:py-1.5', computed || emphasized ? 'font-semibold' : 'font-normal')}
+      className={cn('text-control text-foreground [&>*]:py-1.5 max-sm:block max-sm:border-b max-sm:border-border max-sm:py-2', computed || emphasized ? 'font-semibold' : 'font-normal')}
     >
-      <th scope="row" className={cn(ACCOUNT_CELL, 'min-w-40 max-w-72 whitespace-normal break-words md:min-w-48', computed || emphasized ? 'font-semibold' : 'font-normal', rule)}>
+      <th scope="row" className={cn(ACCOUNT_CELL, 'min-w-40 sm:max-w-72 whitespace-normal break-words md:min-w-48', computed || emphasized ? 'font-semibold' : 'font-normal', rule)}>
         <div style={indent > 0 ? { paddingInlineStart: `calc(var(--spacing) * ${indent * 4})` } : undefined} className="flex items-center">
           {collapsible && (
             <button type="button" aria-label={(collapsed ? labels.expandGroup : labels.collapseGroup)(label)} aria-expanded={!collapsed} onClick={() => onToggle(line.key)} className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon name="chev" className={cn('transition-transform', !collapsed && 'rotate-90')} /></button>
@@ -330,21 +330,21 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
       tabIndex={0}
       className="relative max-h-[75dvh] min-w-0 overflow-auto rounded-lg border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <table aria-labelledby={headingId} className="w-full border-separate border-spacing-0">
-        <thead>
+      <table aria-labelledby={headingId} className="w-full border-separate max-sm:block border-spacing-0">
+        <thead className="max-sm:hidden">
           <tr>
-            <th scope="col" className={cn(HEADER_CELL, 'left-0 z-[3] text-left')}>{account}</th>
+            <th scope="col" className={cn(HEADER_CELL, 'z-[3] text-left')}>{account}</th>
             {valueColumns.map(({ key, header }) => (
               <th key={key} scope="col" className={cn(HEADER_CELL, 'whitespace-nowrap text-right tabular tabular-nums')}>{header}</th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="max-sm:block">
           {bodyLines.map((line, index) => hiddenLines.has(index) ? null : line.kind === 'spacer'
             ? <tr key={line.key} aria-hidden="true"><td colSpan={valueColumns.length + 1} className="h-3" /></tr>
             : row(line, false))}
         </tbody>
-        {footer !== null && <tfoot>{row(footer, true)}</tfoot>}
+        {footer !== null && <tfoot className="max-sm:block">{row(footer, true)}</tfoot>}
       </table>
     </div>
   );

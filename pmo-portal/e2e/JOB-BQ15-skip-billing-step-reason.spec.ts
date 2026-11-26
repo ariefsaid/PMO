@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
 import { orgToday } from './support/jobJourney';
 import { createJobRoleUser } from './support/jobRoleUser';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -59,9 +60,11 @@ test('JOB-BQ15 the billing officer skips an optional step with a reason and read
   users = [billing];
   await billing.signIn(page);
   await page.goto(`/work-orders/${workOrderId}`);
+  await openWorkOrderArea(page, 'billing');
   const step = page.getByTestId('wo-billing-steps').getByRole('listitem', { name: 'Joint check' });
   await expect(step).toBeVisible({ timeout: 15_000 });
-  await step.getByRole('button', { name: 'Skip Joint check' }).click();
+  const update = await openRowUpdate(page, 'Joint check');
+  await update.getByRole('button', { name: 'Skip Joint check' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'Skip Joint check' });
   await expect(dialog.getByRole('button', { name: 'Skip step' })).toBeDisabled();

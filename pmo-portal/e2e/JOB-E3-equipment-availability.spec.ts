@@ -36,9 +36,10 @@ test('JOB-E3 a crane worked 20 days and broken 5 reads 80% physical availability
   await page.getByLabel('Metric interval').selectOption('month');
   await page.getByLabel('Metric period from').fill('2026-09-01');
   await page.getByLabel('Metric period to').fill('2026-09-30');
-  const row = page.getByRole('row').filter({ has: page.getByRole('rowheader', { name: code }) });
+  const row = page.getByRole('table', { name: 'This month' }).getByRole('row').filter({ has: page.getByRole('rowheader', { name: code }) });
   await expect(row).toBeVisible({ timeout: 20_000 });
   // The percentage reads with its days, so the figure can be checked against the month (E3).
-  await expect(row.getByRole('cell', { name: /^80(\.0)?%\s*20 of 25 days$/ })).toBeVisible();
+  await expect(row.getByRole('cell', { name: /^80(\.0)?%$/ })).toBeVisible();
+  await expect(row.getByRole('cell', { name: '20 of 25 days', exact: true })).toBeVisible();
   await expect(row.getByRole('cell', { name: '5', exact: true })).toBeVisible();
 });

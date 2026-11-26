@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(60_000);
 
@@ -53,6 +54,7 @@ test('AC-BPM-008 the work-order page lists what was billed per month', async ({ 
     await signIn(page, 'finance@acme.test');
     await page.route('**/api/resource/**', (route) => route.abort());
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'billing');
 
     const list = page.getByTestId('billed-per-month');
     await expect(list).toBeVisible();

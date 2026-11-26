@@ -1,3 +1,4 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -32,7 +33,7 @@ const cats: DocumentCategory[] = [
 const wrap = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider><AdministrationDocumentCategories /></ToastProvider>
+      <ToastProvider><SettingsSaveProvider><SettingsSaveAction /><AdministrationDocumentCategories /></SettingsSaveProvider></ToastProvider>
     </QueryClientProvider>,
   );
 
@@ -57,10 +58,10 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     expect(byName(/Finance/)).toBeChecked();
     expect(byName(/Engineer/)).not.toBeChecked();
     // Save is idle until something changes
-    expect(within(card).getByRole('button', { name: /Save who can see it/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.click(byName(/Finance/));
     await user.click(byName(/Executive/));
-    await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Executive', 'Admin'], []));
   });
 
@@ -69,25 +70,31 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     wrap();
     const card = await screen.findByTestId('document-category-c-inv');
     await user.click(within(card).getByRole('checkbox', { name: /Finance/ }));
-    await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Admin'], []));
   });
 
   it('creates a category with the chosen roles (Admin always included, never an org id)', async () => {
     const user = userEvent.setup();
     wrap();
+    await screen.findByTestId('document-category-c-inv');
+    await user.click(screen.getByRole('button', { name: 'New category' }));
     const form = await screen.findByTestId('document-category-new');
+    expect(within(form).getByLabelText(/Category name/i)).toHaveFocus();
     await user.type(within(form).getByLabelText(/Category name/i), 'Commercial approval');
     await user.click(within(form).getByRole('checkbox', { name: /Finance/ }));
-    await user.click(within(form).getByRole('button', { name: /Create category/i }));
+    await user.click(screen.getByRole('button', { name: /Create category/i }));
     await waitFor(() => expect(state.create).toHaveBeenCalledWith('Commercial approval', ['Finance', 'Admin']));
   });
 
   it('a system category cannot be renamed or archived from the screen', async () => {
     wrap();
+    const user = userEvent.setup();
     const card = await screen.findByTestId('document-category-c-draw');
-    expect(within(card).queryByRole('button', { name: /^Rename$/ })).not.toBeInTheDocument();
-    expect(within(card).queryByRole('button', { name: /^Archive$/ })).not.toBeInTheDocument();
+    // #1126: row actions live in the row's menu.
+    await user.click(within(card).getByRole('button', { name: /More actions/ }));
+    expect(screen.queryByRole('menuitem', { name: /^Rename$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^Archive$/ })).not.toBeInTheDocument();
     expect(within(card).getByText('System')).toBeInTheDocument();
   });
 
@@ -96,7 +103,8 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     state.archive.mockResolvedValue(undefined);
     wrap();
     const card = await screen.findByTestId('document-category-c-inv');
-    await user.click(within(card).getByRole('button', { name: /^Archive$/ }));
+    await user.click(within(card).getByRole('button', { name: /More actions/ }));
+    await user.click(await screen.findByRole('menuitem', { name: /^Archive$/ }));
     expect(state.archive).not.toHaveBeenCalled();
     await user.click(within(await screen.findByRole('alertdialog').catch(() => screen.getByRole('dialog'))).getByRole('button', { name: /^Archive$/ }));
     await waitFor(() => expect(state.archive).toHaveBeenCalledWith('c-inv'));

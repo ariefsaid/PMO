@@ -48,7 +48,7 @@ describe('purchase type settings (#2697)', () => {
     renderPage();
     const fresh = screen.getByTestId('purchase-type-new');
     await userEvent.type(fresh.querySelector('input[type="text"], input:not([type])') as HTMLElement, 'Plant hire');
-    await userEvent.click(fresh.querySelector('input[type="checkbox"]') as HTMLElement);
+    await userEvent.click(within(fresh).getByText('This type has a rental period'));
     await userEvent.click(screen.getByRole('button', { name: 'Add type' }));
     expect(h.upsert).toHaveBeenCalledWith({ id: null, name: 'Plant hire', nameId: null, isRental: true, position: 3 });
   });
@@ -58,7 +58,7 @@ describe('purchase type settings (#2697)', () => {
     renderPage();
     const row = screen.getAllByTestId('purchase-type-row')[0];
     await userEvent.click(row.querySelector('input[type="checkbox"]') as HTMLElement);
-    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Purchases use this type. Retire it and add a new one instead.')).toBeInTheDocument();
   });
 

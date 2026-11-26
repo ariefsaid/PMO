@@ -200,7 +200,7 @@ describe('CompanyDetail', () => {
     renderPage();
     const bar = screen.getByRole('button', { name: /back to companies/i }).parentElement!;
     expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(bar.className).toContain('max-[1100px]:flex');
   });
 
   it('CW-4b: Back returns to the Companies list', async () => {

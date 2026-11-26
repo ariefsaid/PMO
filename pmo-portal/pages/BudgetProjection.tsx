@@ -249,6 +249,8 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
   };
   const { editing, draft: etcDraft, errors: etcErrors, sectionRef, triggerRef, beginEdit, cancelEdit, changeDraft, saveEdits, save: saveEtc } = useForecastEditor(projectId, fiscalYear ?? '', rows, orgId, budgetVersionId);
 
+  const worstForecastCategory = rows.reduce<BudgetForecastCellRow | null>((worst, row) => (row.projectedVariance ?? 0) < (worst?.projectedVariance ?? 0) ? row : worst, null)?.category;
+
   const columns: Column<BudgetForecastCellRow>[] = useMemo(() => [
     {
       key: 'category',
@@ -262,11 +264,11 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       header: t('financeCopy.budget', 'Budget'),
       kind: 'money',
       align: 'num',
-      cell: (row) => <Tooltip content={t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')}><span tabIndex={0}>{moneyText(row.pmoBudgetAmount, budgetCurrency)}</span></Tooltip>,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')}><span tabIndex={0} className="whitespace-nowrap">{moneyText(row.pmoBudgetAmount, budgetCurrency)}</span></Tooltip>,
     },
     {
       key: 'spent',
-      header: t('projectDetail.budget.spentAndCommitted', 'Spent + committed'),
+      header: t('uxs01.recordedSpending', 'Recorded spending'),
       kind: 'money',
       align: 'num',
       cell: (row) => <Tooltip content={row.actualsAsOf && pmoBasis
@@ -276,8 +278,9 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
         : pmoBasis
           ? pmoYearText
           : t('projectDetail.budget.forecastActualsUnknown', 'ERP ledger spending is not available for this project and fiscal year. Commitments, when available, are project-wide and not fiscal-year-attributed.')}
-      ><span tabIndex={0} className="inline-flex flex-col items-end"><span>{moneyText(row.actualsToDate, currency)}</span><span className="text-sm font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {canReadCommitments ? moneyText(committedByCategory[row.category] ?? 0, currency) : '—'}</span></span></Tooltip>,
+      ><span data-testid={`forecast-recorded-${row.category}`} tabIndex={0} className="whitespace-nowrap">{moneyText(row.actualsToDate, currency)}</span></Tooltip>,
     },
+    { key: 'committed', header: t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide'), kind: 'money', align: 'num', cell: (row) => canReadCommitments ? moneyText(committedByCategory[row.category] ?? 0, currency) : '—' },
     {
       key: 'etc',
       header: t('projectDetail.budget.costToFinish', 'Cost to finish'),
@@ -303,11 +306,11 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       align: 'num',
       cell: (row) => <Tooltip content={pmoBasis
         ? t('projectDetail.budget.forecastFinalFormulaPmo', 'Calculated as paid spending to date plus cost to finish.')
-        : t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')}><span tabIndex={0}>{moneyText(row.projectedFinalCost, currency)}</span></Tooltip>,
+        : t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')}><span tabIndex={0} className="whitespace-nowrap">{moneyText(row.projectedFinalCost, currency)}</span></Tooltip>,
     },
     {
       key: 'remaining',
-      header: <span
+      header: <span className="whitespace-nowrap"
         title={t('projectTabs:budgetForecast.remainingFull', 'Forecast remaining / (overrun)')}
         aria-label={t('projectTabs:budgetForecast.remainingFull', 'Forecast remaining / (overrun)')}
       >{t('projectTabs:budgetForecast.remainingShort', 'Remaining')}</span>,
@@ -317,7 +320,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     },
     {
       key: 'status',
-      header: <span
+      header: <span className="whitespace-nowrap"
         title={t('projectTabs:budgetForecast.budgetUsedFull', 'Forecast budget used')}
         aria-label={t('projectTabs:budgetForecast.budgetUsedFull', 'Forecast budget used')}
       >{t('projectTabs:budgetForecast.budgetUsedShort', '% used')}</span>,
@@ -325,11 +328,11 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       cell: (row) => row.projectedUtilization === null
         ? <StatusPill variant="neutral">{t('projectDetail.budget.unavailable', 'Unavailable')}</StatusPill>
         : <span className="flex min-w-28 flex-col gap-1">
-          <StatusPill variant={projectionTone(row)}>{row.projectedVariance !== null && row.projectedVariance < 0 ? t('projectDetail.budget.overBudget', 'Over budget') : utilizationPct(row)! >= 90 ? t('projectDetail.budget.atRisk', 'At risk') : utilizationPct(row)! >= 70 ? t('projectDetail.budget.watch', 'Watch') : t('projectDetail.budget.onTrack', 'On track')}</StatusPill>
-          <Tooltip content={t('projectDetail.budget.forecastUtilizationFormula', 'Forecast final divided by fiscal-year budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(utilizationPct(row)!)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.forecastUtilization', 'forecast utilization')}`} /></span></Tooltip>
+          {row.category === worstForecastCategory ? <StatusPill variant={projectionTone(row)}>{row.projectedVariance !== null && row.projectedVariance < 0 ? t('projectDetail.budget.overBudget', 'Over budget') : utilizationPct(row)! >= 90 ? t('projectDetail.budget.atRisk', 'At risk') : utilizationPct(row)! >= 70 ? t('projectDetail.budget.watch', 'Watch') : t('projectDetail.budget.onTrack', 'On track')}</StatusPill> : <span className="text-control text-muted-foreground">{row.projectedVariance !== null && row.projectedVariance < 0 ? t('projectDetail.budget.overBudget', 'Over budget') : utilizationPct(row)! >= 90 ? t('projectDetail.budget.atRisk', 'At risk') : utilizationPct(row)! >= 70 ? t('projectDetail.budget.watch', 'Watch') : t('projectDetail.budget.onTrack', 'On track')}</span>}
+          <Tooltip content={t('projectDetail.budget.forecastUtilizationFormula', 'Forecast final divided by fiscal-year budget.')}><span tabIndex={0} className={row.category !== worstForecastCategory ? '[&_[data-testid=progress-fill]]:!bg-mark-neutral/55' : undefined}><ProgressBar compact value={Math.round(utilizationPct(row)!)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.forecastUtilization', 'forecast utilization')}`} /></span></Tooltip>
         </span>,
     },
-  ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, changeDraft, pmoBasis, pmoYearText, t]);
+  ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, changeDraft, pmoBasis, pmoYearText, t, worstForecastCategory]);
 
   const comparisonColumns: Column<BudgetComparisonRow>[] = useMemo(() => [
     {
@@ -344,7 +347,7 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
       header: t('projectDetail.budget.approvedTotal', 'Approved total'),
       kind: 'money',
       align: 'num',
-      cell: (row) => <Tooltip content={t('projectDetail.budget.wholeBudgetSource', 'Source: the Active budget version, counted once across the project.')}><span tabIndex={0}>{moneyText(row.budgetTotal, budgetCurrency)}</span></Tooltip>,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.wholeBudgetSource', 'Source: the Active budget version, counted once across the project.')}><span tabIndex={0} className="whitespace-nowrap">{moneyText(row.budgetTotal, budgetCurrency)}</span></Tooltip>,
     },
     {
       key: 'recorded',
@@ -386,7 +389,8 @@ export default function BudgetProjection({ projectId, orgId, budgetVersionId, pr
     label: t('financeCopy.total', 'Total'),
     values: {
       budget: moneyText(totalBudget, budgetCurrency),
-      spent: <span className="inline-flex flex-col items-end"><span>{moneyText(yearSummary.actuals, currency)}</span><span className="text-sm font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
+      spent: moneyText(yearSummary.actuals, currency),
+      committed: moneyText(totalCommitted, currency),
       etc: formatCurrency(yearSummary.etc, currency),
       final: moneyText(yearSummary.final, currency),
       remaining: moneyText(totalForecastRemaining, currency),

@@ -53,7 +53,7 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
 
     await page.getByRole('link', { name: 'Reports', exact: true }).click();
     await expect(page).toHaveURL(/\/reports/);
-    await page.getByLabel('As at').fill(ym);
+    await page.getByLabel('As at').fill(`${ym}-01`);
     await expect(
       page.getByRole('heading', {
         // ux/1110 copy: the pack's month reads "Nov 2026", never "Nov 26" (which reads as a day).

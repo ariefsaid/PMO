@@ -73,7 +73,7 @@ describe('ProjectCard', () => {
   it('states the tax basis beside the contract amount, in the same cell', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     const contract = screen.getByTestId('project-card-contract');
-    expect(within(contract).getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(within(contract).getByTestId('tax-basis')).toHaveTextContent('excl. tax');
     expect(contract).toHaveTextContent('$5,000,000');
   });
 
@@ -323,7 +323,7 @@ describe('OD-TAX-1 §2: the contract figure states its basis', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} />);
 
     const card = screen.getByTestId('project-card');
-    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
+    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. tax$/);
     expect(within(card).queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
     expect(within(card).getByText('$5,000,000')).toBeInTheDocument();
     expect(card).not.toHaveTextContent(/DPP|12%/);

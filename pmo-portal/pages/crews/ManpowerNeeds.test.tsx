@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 /** AC-MPN-008: loading, empty, error and filled states; progress comes from the database read; controls follow the database's write answer. */
@@ -28,7 +29,8 @@ import { ManpowerNeeds } from './ManpowerNeeds';
 const need = (over: Record<string, unknown> = {}) => ({
   id: 'n1', project_id: 'pr1', discipline_id: 'd1', headcount: 3, needed_by: '2999-01-31', work_order_id: null, crew_id: null, note: null, status: 'open', ...over,
 });
-const view = () => render(<ToastProvider><ManpowerNeeds /></ToastProvider>);
+/** The need opens in the side drawer from its row; `opened` starts with it open, as a shared link or Back does. */
+const view = (opened = true) => render(<MemoryRouter initialEntries={[opened ? '/crews?view=manpower&need=n1' : '/crews?view=manpower']}><ToastProvider><ManpowerNeeds /></ToastProvider></MemoryRouter>);
 
 describe('AC-MPN-008 manpower needs', () => {
   beforeEach(() => {
@@ -60,12 +62,21 @@ describe('AC-MPN-008 manpower needs', () => {
     expect(screen.queryByRole('button', { name: /Record a need/ })).not.toBeInTheDocument();
   });
 
+  it('a row scans the counts and opens the need in the side drawer', async () => {
+    view(false);
+    const row = screen.getByRole('row', { name: /Welder/ });
+    expect(row).toHaveTextContent('Site One');
+    expect(screen.queryByTestId('manpower-need-n1')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open the need for Welder' }));
+    expect(await screen.findByTestId('manpower-need-n1')).toBeInTheDocument();
+  });
+
   it('shows asked, filled, in progress and open exactly as the database reports them', () => {
     view();
     const card = screen.getByTestId('manpower-need-n1');
-    expect(card).toHaveTextContent('Welder · Site One');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Welder · Site One');
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
-    expect([read('Asked'), read('Filled'), read('In progress'), read('Open')]).toEqual(['3', '1', '1', '1']);
+    expect([read('Asked'), read('Filled'), read('In progress'), read('To fill')]).toEqual(['3', '1', '1', '1']);
     expect(screen.getByText('Worker One')).toBeInTheDocument();
   });
 
@@ -74,7 +85,7 @@ describe('AC-MPN-008 manpower needs', () => {
     view();
     const card = screen.getByTestId('manpower-need-n1');
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
-    expect([read('Asked'), read('Filled'), read('In progress'), read('Open')]).toEqual(['3', '—', '—', '0']);
+    expect([read('Asked'), read('Filled'), read('In progress'), read('To fill')]).toEqual(['3', '—', '—', '0']);
     expect(screen.getByText(/shown to the people team and to the roles that read the clearance checklist/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mark as met' })).toBeDisabled();
   });
@@ -84,7 +95,7 @@ describe('AC-MPN-008 manpower needs', () => {
     view();
     const card = screen.getByTestId('manpower-need-n1');
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
-    expect([read('Filled'), read('In progress'), read('Open')]).toEqual(['—', '—', '—']);
+    expect([read('Filled'), read('In progress'), read('To fill')]).toEqual(['—', '—', '—']);
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(h.refetchProgress).toHaveBeenCalled();

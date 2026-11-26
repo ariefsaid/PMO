@@ -1,3 +1,4 @@
+import { formatDecimal, parseDecimal } from '@/src/lib/exactDecimal';
 import type { ExportTable } from '@/src/lib/export';
 
 /**
@@ -48,6 +49,15 @@ export interface MissingInput {
 
 const label = (code: string | null, description: string | null) => [code, description].filter(Boolean).join(' · ') || '—';
 
+const QUANTITY_SCALE = 3;
+
+function outstandingQuantity(total: number, accountedFor: number): number {
+  const totalUnits = parseDecimal(String(total), QUANTITY_SCALE);
+  const accountedUnits = parseDecimal(String(accountedFor), QUANTITY_SCALE);
+  if (totalUnits === null || accountedUnits === null) return 0;
+  return Number(formatDecimal(totalUnits - accountedUnits, QUANTITY_SCALE));
+}
+
 export function deriveWorkOrderMissing(input: MissingInput): MissingRow[] {
   if (input.status === 'Closed' || input.status === 'Cancelled') return [];
   const rows: MissingRow[] = [];
@@ -64,15 +74,19 @@ export function deriveWorkOrderMissing(input: MissingInput): MissingRow[] {
   const accepted = new Map(input.scopeLines.map((l) => [l.boqItemId, l]));
   for (const l of input.scopeLines) {
     const reported = progress.get(l.boqItemId)?.progressQty;
-    if (reported === null || reported === undefined || !(reported - l.accepted > 0)) continue;
+    if (reported === null || reported === undefined) continue;
+    const quantity = outstandingQuantity(reported, l.accepted);
+    if (quantity <= 0) continue;
     rows.push({ id: `accept:${l.id}`, kind: 'quantity-accept', name: label(l.itemCode, l.description), reasonKey: 'quantityAccept',
-      reasonParams: { quantity: reported - l.accepted, unit: l.unit ?? '' }, who: { key: 'team' }, ref: null });
+      reasonParams: { quantity, unit: l.unit ?? '' }, who: { key: 'team' }, ref: null });
   }
   for (const r of input.reconciliation) {
     const acc = accepted.get(r.boqItemId);
-    if (!acc || !(acc.accepted - r.billedQty > 0)) continue;
+    if (!acc) continue;
+    const quantity = outstandingQuantity(acc.accepted, r.billedQty);
+    if (quantity <= 0) continue;
     rows.push({ id: `claim:${r.boqItemId}`, kind: 'quantity-claim', name: label(r.itemCode, r.description), reasonKey: 'quantityClaim',
-      reasonParams: { quantity: acc.accepted - r.billedQty, unit: r.unit }, who: { key: 'finance' }, ref: null });
+      reasonParams: { quantity, unit: r.unit }, who: { key: 'finance' }, ref: null });
   }
   return rows;
 }

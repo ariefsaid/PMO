@@ -265,11 +265,11 @@
     "empty": "Belum ada permintaan pembelian terbuka di proyek lokasi ini. Anggota proyek membuatnya di Pengadaan, lalu muncul di sini sampai dipesan.",
     "startPlan": "Mulai rencana dari daftar ini",
     "noPrices": "Anda tidak dapat melihat harga pada permintaan, jadi jumlah tidak bisa diisi otomatis. Tambahkan barisnya sendiri di rencana.",
-    "nothingToStart": "Tidak ada permintaan dengan keperluan dan harga dalam {{currency}}, jadi tidak ada yang bisa diisi. Tambahkan barisnya sendiri di rencana.",
+    "nothingToStart": "Untuk memulai rencana, permintaan memerlukan keperluan dan total yang terlihat di atas nol dalam {{currency}}.",
     "skipped": "{{count}} permintaan tanpa keperluan, tanpa harga yang terlihat, atau dalam mata uang lain tidak dihitung dalam rencana.",
     "error": "Permintaan pembelian terbuka tidak bisa dimuat",
     "noPurpose": "Keperluan belum diisi",
-    "noWorkOrder": "Tanpa work order",
+    "noWorkOrder": "Tanpa perintah kerja",
     "truncated": "Hanya {{count}} baris pertama yang ditampilkan.",
     "created": "Draf rencana dibuat dari permintaan terbuka",
     "partial": "Draf rencana dibuat, tetapi {{count}} baris tidak tersimpan. Tambahkan di rencana.",
@@ -277,6 +277,13 @@
     "editorHelp": "Ubah atau hapus jumlah apa pun. Tidak ada yang tersimpan sampai Anda membuat draf; pengajuan persetujuan seperti biasa.",
     "createDraft": "Buat draf rencana",
     "discard": "Buang",
-    "invalid": "Setiap jumlah harus lebih dari nol."
+    "invalid": "Setiap jumlah harus lebih dari nol.",
+    "col": {
+      "request": "Permintaan",
+      "workOrder": "Perintah kerja",
+      "status": "Status",
+      "amount": "Jumlah"
+    },
+    "source": "Permintaan proyek untuk direncanakan, bukan pengeluaran kas lapangan."
   }
 }

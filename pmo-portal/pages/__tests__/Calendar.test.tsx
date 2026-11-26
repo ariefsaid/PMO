@@ -81,10 +81,6 @@ const renderTree = (url = '/calendar?date=2026-11-10') => (
 
 const renderPage = (url = '/calendar?date=2026-11-10') => render(renderTree(url));
 
-/**
- * B7 (Director, Part 8): the ONE explanatory line above the grid. It replaced the round-1 scope
- * line and the C5 undated-work notice, and its words are ruled ("no dash").
- */
 const EXPLAINER = 'Shows tasks and phases that have a date. Meetings are not shown.';
 
 /** Per-test reset of the read state + the request log (a stale refetch would hide a new request). */
@@ -188,13 +184,6 @@ describe('Calendar — C5 unknown never shown as nothing', () => {
     calendarState.projectsError = true;
     renderPage();
     expect(screen.getByText(/Phases could not be loaded/i)).toBeInTheDocument();
-  });
-
-  it('says which work it cannot show, so the month does not read as the whole plan', () => {
-    renderPage();
-    // B7 (Director, Part 8): the undated-work notice is replaced by the one ruled line above the
-    // grid; the C5 fact it carried stays in that line ("that have a date").
-    expect(screen.getByText(EXPLAINER)).toBeInTheDocument();
   });
 
   it('C13: the chip names whose task it is and marks one that is past its due date', () => {
@@ -349,10 +338,7 @@ describe('Calendar — move 1: an empty month says so, a failed read retries', (
   });
 });
 
-// B7 (Director, Part 8): ONE explanatory line above the grid — what the grid holds and what it
-// leaves out — replacing the round-1 scope line and the C5 undated-work notice. The empty month
-// keeps its line, and its My Tasks link keeps a 44px tap area without growing that line.
-describe('Calendar — B7: one line above the grid', () => {
+describe('Calendar scope and empty month', () => {
   beforeEach(() => {
     calendarState.tasks = [{
       id: 't1', name: 'Pour slab', status: 'To Do', project_id: 'p1', project_name: 'Tower A',
@@ -368,19 +354,11 @@ describe('Calendar — B7: one line above the grid', () => {
     moveTask.mockReset().mockResolvedValue(undefined);
   });
 
-  it('states what the grid shows in one line, and the old notice sentence is gone', () => {
+  it('lets a reader check which kinds of work appear in the calendar', () => {
     renderPage();
+    const help = screen.getByRole('button', { name: 'About Calendar' });
+    fireEvent.click(help);
     expect(screen.getByText(EXPLAINER)).toBeInTheDocument();
-    expect(screen.queryByText(/Only work with a date appears here/)).not.toBeInTheDocument();
-  });
-
-  it('sits above the grid', () => {
-    renderPage();
-    const line = screen.getByText(EXPLAINER);
-    const grid = document.querySelector('[role="grid"]')!;
-    expect(grid).not.toBeNull();
-    expect(line.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING)
-      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('keeps the empty month line, its My Tasks link, and a 44px tap area that does not grow the line', () => {

@@ -99,7 +99,8 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
     },
     secondaryCell: (inv) => {
       if (embedded) return null;
-      const project = projectLabelOf(inv);
+      const fullProject = projectLabelOf(inv);
+    const project = inv.customer_name && fullProject?.startsWith(`${inv.customer_name} `) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
       const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
       if (!customer && !project) return null;
       return (
@@ -135,7 +136,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
       // Embedded (the receivables list): the desktop table's coloured pill needs its own 8px vertical
       // inset, or the label sits flush against the tint (impeccable cramped-padding). The shared pill
       // keeps DESIGN.md's 20px spec elsewhere; the desktop row has room for the taller chip.
-      const pill = <StatusPill wrap={embedded} className={embedded ? 'max-w-full py-2' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
+      const pill = <StatusPill className={embedded ? 'max-w-full py-2' : undefined} variant={embedded || receiptAwaitingOdoo ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded || receiptAwaitingOdoo ? status.label : legacyLabel}</StatusPill>;
       // The invoice keeps its own status; Odoo's word is added only while something is unsettled (a settled invoice is the normal case).
       if (!status.odooOutcome || status.odooOutcome.cls === 'confirmed') return pill;
       return <span className="flex min-w-0 flex-col items-start gap-1">{pill}<OdooOutcome outcome={status.odooOutcome} unreachable={status.odooOffline} compact /></span>;
@@ -243,15 +244,16 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
     kind: 'text',
     size: 192,
     cell: (inv) => {
-      const project = projectLabelOf(inv);
+      const fullProject = projectLabelOf(inv);
+    const project = inv.customer_name && fullProject?.startsWith(`${inv.customer_name} `) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
       const managerLabel = projectManagerNameOf(inv);
       return <span className="flex min-w-0 flex-col gap-0.5">
         <span className="min-w-0 break-words font-medium">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-        <span className="flex min-w-0 flex-wrap items-center gap-1 text-control text-muted-foreground">
-          <span className="min-w-0 break-words">{project ?? '—'}</span>
-          <Avatar name={manager} size="xs" decorative />
-          <span className="min-w-0 break-words">{managerLabel}</span>
+        <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-control text-muted-foreground" title={project ?? undefined}>{project ?? '—'}</span>
+        <span className="flex min-w-0 items-center gap-1 text-control text-muted-foreground">
+          <span className="shrink-0"><Avatar name={manager} size="xs" decorative /></span>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={managerLabel}>{managerLabel}</span>
         </span>
       </span>;
     },
@@ -290,7 +292,8 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
     const unknown = (inv.status === 'Unpaid' || inv.status === 'Submitted') && inv.erp_outstanding_amount == null;
     const total = invoiceGross(inv);
     const partial = isPartlyPaid(inv);
-    const project = projectLabelOf(inv);
+    const fullProject = projectLabelOf(inv);
+    const project = inv.customer_name && fullProject?.startsWith(`${inv.customer_name} `) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
     return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <div className="flex w-full min-w-0 flex-col gap-0.5 text-control text-muted-foreground">
         <span className="min-w-0 break-words">{project ? `${project} · ${projectManagerNameOf(inv)}` : projectManagerNameOf(inv)}</span>

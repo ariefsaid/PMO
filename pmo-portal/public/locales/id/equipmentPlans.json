@@ -38,7 +38,15 @@
     "to": "Sampai",
     "remove": "Hapus baris",
     "order": "Pesanan: {{title}}",
-    "orderOpen": "Buka pesanan"
+    "orderOpen": "Buka pesanan",
+    "dates": "Tanggal",
+    "amount": "Jumlah",
+    "actions": "Tindakan baris",
+    "done": "Selesai",
+    "edit": "Ubah",
+    "editLabel": "Ubah baris {{n}}",
+    "removeLabel": "Hapus baris {{n}}",
+    "removeShort": "Hapus"
   },
   "addLine": "Tambah baris",
   "total": "Total bulan ini",
@@ -94,6 +102,11 @@
     "retire": "Nonaktifkan",
     "restore": "Aktifkan lagi",
     "retired": "Nonaktif",
-    "empty": "Belum ada kategori."
-  }
+    "empty": "Belum ada kategori.",
+    "stepShort": {
+      "spend_approvers": "Penyetuju proyek",
+      "senior_role": "Penyetuju senior"
+    }
+  },
+  "pickProject": "Pilih proyek untuk melihat rencananya bulan ini."
 }

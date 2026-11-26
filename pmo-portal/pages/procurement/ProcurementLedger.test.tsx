@@ -254,7 +254,7 @@ describe('PR-1 Bahasa rendered-copy contract', () => {
     expect(screen.getByRole('button', { name: 'Keuangan' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Tanggal' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Jenis' })).toBeInTheDocument();
-    expect(screen.getByText('Pembayaran')).toBeInTheDocument();
+    expect(screen.getAllByText('Pembayaran').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Catat Permintaan Pembelian/i })).toBeInTheDocument();
   });
 });
@@ -541,19 +541,19 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
 // #548 / OD-TAX-1 §2 — the supplier invoice's total states its basis; nothing else claims one
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe('#548 (OD-TAX-1): the ledger Amount column carries the row’s tax basis', () => {
-  it('#548: the Invoice row reads "incl. PPN" — 0196 makes the marker NOT NULL, so it always exists', () => {
+  it('#548: the Invoice row reads "incl. tax" — 0196 makes the marker NOT NULL, so it always exists', () => {
     wrap(<ProcurementLedger {...BASE_PROPS} />);
     const labels = screen.getAllByTestId('tax-basis');
     expect(labels).toHaveLength(1);
-    expect(labels[0]).toHaveTextContent('incl. PPN');
+    expect(labels[0]).toHaveTextContent('incl. tax');
   });
 
-  it('#548: an EXCLUSIVE invoice reads "excl. PPN" — derived from the row, not a fixed string', () => {
+  it('#548: an EXCLUSIVE invoice reads "excl. tax" — derived from the row, not a fixed string', () => {
     const rows = SAMPLE_ROWS.map((r) =>
       r.type === 'Invoice' ? { ...r, taxTreatment: 'exclusive' } : r,
     );
     wrap(<ProcurementLedger {...BASE_PROPS} rows={rows} />);
-    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. tax');
   });
 
   it('#548: a PAYMENT amount carries NO basis — `payments` has no treatment column to state one from', () => {

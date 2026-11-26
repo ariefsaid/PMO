@@ -287,7 +287,7 @@ describe('Projects index — IA-3 (real data)', () => {
       // One basis across the visible rows is said once, in the column header, not under every figure.
       expect(screen.getByRole('columnheader', { name: 'Contract (excl. PPN)' })).toBeInTheDocument();
       expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
-      const detail = screen.getByText('excl. PPN 11% · DPP 1/1');
+      const detail = screen.getByText('excl. tax 11% · DPP 1/1');
       expect(detail).toHaveAttribute('data-testid', 'contract-tax-label-p1');
       expect(detail).toHaveClass('max-w-full', 'whitespace-normal', 'break-words');
       expect(detail.parentElement).toHaveClass('sr-only');
@@ -1113,8 +1113,8 @@ describe('#548 (OD-TAX-1): the Contract column carries each project’s tax basi
     const labels = screen.getAllByTestId('tax-basis');
     // Two projects state a basis; the third states none, so it gets no label at all.
     expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
-    expect(labels[0]).toHaveTextContent('incl. PPN');
-    expect(labels[1]).toHaveTextContent('excl. PPN');
+    expect(labels[0]).toHaveTextContent('incl. tax');
+    expect(labels[1]).toHaveTextContent('excl. tax');
   });
 });
 

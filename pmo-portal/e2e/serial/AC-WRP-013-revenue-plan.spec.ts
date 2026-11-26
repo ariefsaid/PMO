@@ -4,8 +4,9 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
-import { formatExactMoney } from '../../src/lib/format';
+import { formatTableMoney } from '../../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(90_000);
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -63,9 +64,11 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'cost');
     const section = page.getByTestId('wo-page-revenue-plan');
     await expect(section).toBeVisible({ timeout: 15_000 });
-    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText('No plan entered');
+    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText('—');
+    await expect(section.getByText('No plan entered', { exact: true })).toBeVisible();
     await section.getByRole('button', { name: 'Enter plan', exact: true }).click();
     await shots(page, page.getByRole('dialog'), 'revenue-plan-entry-modal');
     await page.setViewportSize({ width: 390, height: 844 });
@@ -73,9 +76,10 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await page.locator('#wrp-month').selectOption({ index: 5 });
     await page.locator('#wrp-amount').fill('1000.00');
     await page.getByRole('button', { name: 'Save plan', exact: true }).click();
-    const expectedPlan = formatExactMoney('1000.00', 'EUR', 'en-US') ?? 'unformattable';
+    const expectedPlan = formatTableMoney('1000.00', 'EUR') ?? 'unformattable';
     await expect(section.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);
-    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(expectedPlan + ' behind plan');
+    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(formatTableMoney('-1000.00', 'EUR') ?? 'unformattable');
+    await expect(section.getByText(expectedPlan + ' behind plan', { exact: true })).toBeVisible();
     await shots(page, section, 'work-order-revenue-plan');
 
     await page.goto('/projects/' + projectId + '/orders');

@@ -115,6 +115,7 @@ const RateModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 };
 
 const CertificateList: React.FC<{ onNew: () => void; canPrepare: boolean }> = ({ onNew, canPrepare }) => {
+  const navigate = useNavigate();
   const { t } = useTranslation('subcontractCertificates');
   const { values, setFilter } = useUrlFilters(['status']);
   const status = (STATUSES as string[]).includes(values.status ?? '') ? (values.status as CertificateStatus) : '';
@@ -137,13 +138,17 @@ const CertificateList: React.FC<{ onNew: () => void; canPrepare: boolean }> = ({
   const { rows, hasMore } = query.data;
   return (
     <div>
-      <div className="mb-3 max-w-xs">
-        <SelectField label={t('subcontractCertificates:filter.status', 'Status')} value={status} onChange={(v) => { setOffset(0); setFilter('status', v); }}
-          options={[{ value: '', label: t('subcontractCertificates:filter.all', 'All') }, ...STATUSES.map((s) => ({ value: s, label: t(`subcontractCertificates:status.${s}`, STATUS_DEFAULT[s]) }))]} />
+      {/* The one filter is a toolbar control above the table, not a form field. */}
+      <div className="mb-3 flex items-center">
+        <SelectField compact inline hideLabel label={t('subcontractCertificates:filter.status', 'Status')} value={status} onChange={(v) => { setOffset(0); setFilter('status', v); }}
+          options={[{ value: '', label: t('subcontractCertificates:filter.allStatuses', 'All statuses') }, ...STATUSES.map((s) => ({ value: s, label: t(`subcontractCertificates:status.${s}`, STATUS_DEFAULT[s]) }))]} />
       </div>
-      {rows.length === 0 ? (
+      {rows.length === 0 && status ? (
+        <ListState variant="empty" icon="reports" title={t('subcontractCertificates:emptyFiltered', 'No certificates in this status')}
+          action={{ label: t('subcontractCertificates:clearFilter', 'Show all'), onClick: () => { setOffset(0); setFilter('status', ''); } }} />
+      ) : rows.length === 0 ? (
         <ListState variant="empty" icon="reports" title={t('subcontractCertificates:empty', 'No certificates yet')}
-          action={canPrepare ? { label: t('subcontractCertificates:new', 'New certificate'), onClick: onNew } : undefined} />
+          action={canPrepare ? { label: t('subcontractCertificates:new', 'New certificate'), onClick: onNew } : { label: t('subcontractCertificates:openProcurement', 'Open subcontract purchase orders'), onClick: () => navigate('/procurement') }} sub={!canPrepare ? t('subcontractCertificates:prepareRemedy', 'Certificates are prepared from subcontract purchase orders by Finance or the project manager.') : undefined} />
       ) : (
         <DataTable accessibleName={t('subcontractCertificates:title', 'Progress certificates')} columns={columns} rows={rows} rowKey={(r) => r.id} tableId="subcontract-certificates-table" />
       )}

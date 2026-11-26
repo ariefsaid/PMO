@@ -33,12 +33,14 @@
       "finance": "Keuangan",
       "platform": "Platform"
     },
-    "navLabel": "Paket Anda"
+    "navLabel": "Paket Anda",
+    "crmDirectory": "CRM (Perusahaan, Kontak)",
+    "revenueDetails": "Pendapatan (Penerimaan pembayaran, Pendapatan per proyek)"
   },
   "console": {
     "organisationHeading": "Organisasi dan paket",
     "organisation": "Organisasi",
-    "organisationHelper": "Setiap sakelar di bawah adalah status organisasi ini setelah resolusi.",
+    "organisationHelper": "Status efektif menunjukkan pengaturan tersimpan. Perubahan diterapkan setelah Anda memilih Simpan.",
     "plan": "Paket",
     "planHelper": "Batas paket: {{seats}} kursi, {{projects}} proyek aktif, {{messages}} pesan AI per bulan.",
     "planLoading": "Memuat paket…",
@@ -53,6 +55,7 @@
     "colEffective": "Efektif",
     "colSource": "Sumber",
     "colPlanDefault": "Bawaan paket",
+    "noPlanDefault": "Tidak ada bawaan paket",
     "colOverride": "Organisasi ini",
     "colGlobal": "Semua organisasi",
     "sourceGlobal": "Semua organisasi",
@@ -102,7 +105,10 @@
     "loadFailedBody": "Tidak ada yang diubah. Coba lagi; jika terus gagal, pembacaan registri tidak tersedia.",
     "globalConfirmTitle": "Nonaktifkan untuk semua organisasi?",
     "globalConfirmBody": "{{feature}} akan nonaktif untuk semua organisasi, apa pun paket atau penimpaannya. Data tetap disimpan; mengaktifkannya kembali akan memulihkannya.",
-    "globalConfirmAction": "Nonaktifkan untuk semua"
+    "globalConfirmAction": "Nonaktifkan untuk semua",
+    "viewLabel": "Tampilan pengaturan fitur",
+    "orgView": "Organisasi ini",
+    "discard": "Buang perubahan"
   },
   "features": {
     "incidents": "Insiden",
@@ -134,7 +140,7 @@
     "approvals": "Persetujuan",
     "administration": "Administrasi",
     "expense_claims": "Klaim biaya",
-    "roles": "Role",
+    "roles": "Peran",
     "budgets": "Anggaran",
     "tasks": "Tugas",
     "revenue": "Pendapatan (Invoice penjualan, Pembayaran masuk, Pendapatan per proyek)"

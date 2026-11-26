@@ -18,7 +18,6 @@ import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { StackedBar } from '@/src/components/projects/StackedBar';
 import { formatDay, formatTableMoney } from '@/src/lib/format';
 import { formatBudgetAmount, formatBudgetTile } from './project-detail/budget/budgetMoney';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -38,6 +37,7 @@ import {
   type Column,
   type RowMenuItem,
   TaxBasisLabel,
+  SelectField,
   StatusPill,
   Tooltip,
   KPIRow,
@@ -665,7 +665,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     return exact && exact !== tile ? { value: tile, exactValue: exact } : { value: tile };
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
-  const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
+  const budgetUnit = <span className="inline-block whitespace-nowrap text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
   // #2330: paid spending with no budget category sits in the Uncategorized row; the strip says so once, in full.
   const uncategorizedNote = position.uncategorized && canSeeActuals && totalSpent !== null
     ? position.uncategorized.amount === null
@@ -707,7 +707,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const equivalentNote = (amount: number | null, currency: string): string | undefined =>
     amount !== null && currency === 'USD' && fxMatch ? sourceNote : undefined;
   // A card that carries `≈ IDR … (using IDR … rate)` needs the whole line on one row, so the strip gives its cells that width.
-  const showsEquivalent = [equivalentCaption(totalBudget, activeBudgetCurrency), equivalentCaption(totalSpent, totalSpentCurrency), equivalentCaption(totalCommitted, project.currency)].some((c) => c?.startsWith('≈ IDR'));
   const spentUnknownCaption = t('projectDetail.budget.captionSpendingUnlinked', 'Spending is not linked');
   // The cause is said once, on the Spent card where it is fixed; the figures that depend on it say the same short thing.
   const dependsOnSpending = t('projectDetail.budget.captionNeedsSpending', 'Shown once spending is linked');
@@ -720,7 +719,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const usedPercentShown = totalSpent === null ? null : budgetUsed.percent;
   const usedApproximate = usedPercentShown !== null && budgetUsed.approximate;
   const usedValue = usedPercentShown === null ? null : budgetUsed.value;
-  const usedCaption = usedPercentShown === null ? unknownCaption : usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
+  const usedCaption = usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
   const leftApproximate = !sameCurrencies && hasForeign && idr.left !== null;
   const leftTile = sameCurrencies || !hasForeign
     ? tileAmount(totalLeft)
@@ -808,12 +807,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 160, minSize: 150,
       cell: (row) => {
         // The remainder row is not a planning category, so it claims no "Not budgeted" status.
         if (isNotSplitRow(row)) return null;
         const status = getStatus(row);
-        return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null;
+        return status ? <StatusPill variant={status.variant} className="whitespace-nowrap shrink-0" wrap={false}>{status.label}</StatusPill> : null;
       },
     },
   ];
@@ -1037,7 +1036,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className={showsEquivalent ? 'grid-cols-1 min-[1024px]:grid-cols-2 min-[1024px]:[&>*:last-child]:col-span-full min-[1360px]:grid-cols-6 min-[1360px]:[&>*]:col-span-2 min-[1360px]:[&>*:nth-child(n+4)]:col-span-3' : 'grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]'}>
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? (activeVersion || versions.length === 0 ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : noActiveBudgetCaption) : equivalentCaption(totalBudget, activeBudgetCurrency)} captionWrap captionNote={equivalentNote(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} nowrapLabel keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} captionWrap captionNote={equivalentNote(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
@@ -1046,27 +1045,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       </KPIRow>
       {uncategorizedNote && <p className="text-sm text-muted-foreground">{uncategorizedNote}</p>}
 
-      {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
-      {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (
-        <Card className="min-w-0">
-          <CardHead className="pb-1">{t('projectDetail.budget.byCategory', 'Budget by category')}</CardHead>
-          <CardPad className="pt-2">
-            <StackedBar
-              ariaLabel={t('projectDetail.budget.byCategory', 'Budget by category')}
-              otherLabel={t('projectDetail.budget.otherCategories', 'Other')}
-              segments={enrichedRows.filter((row) => row.budget > 0).map((row) => ({
-                key: row.category,
-                label: budgetCategoryLabel(row.category, t),
-                value: row.budget,
-                display: formatBudgetTile(row.budget, activeBudgetCurrency ?? project.currency),
-              }))}
-            />
-          </CardPad>
-        </Card>
-      )}
-
       <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
-        <CardHead className="pb-1">{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
+        <CardHead className="pb-1">{view === 'forecast' ? t('projectDetail.budget.forecast', 'Forecast') : t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
         <CardPad className="space-y-3 pt-2">
         {selectedRows.size > 0 && view === 'actual' ? (
           <div className="flex min-w-0 flex-wrap items-center gap-2" role="toolbar" aria-label={t('projectDetail.budget.selectedCategories', 'Selected categories')}>
@@ -1087,15 +1067,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
                 ...(canOpenForecast && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
               ]}
             />
-            <span className="text-sm font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <span>{t('projectDetail.budget.version', 'Version')}</span>
-              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="touch-target h-[var(--control-height-sm)] max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
-                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {statusLabel('budgetVersion', version.status, tCommon)}</option>)}
-              </select>
-            </label>
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span aria-hidden="true">{t('projectDetail.budget.version', 'Version')}</span>
+              <SelectField hideLabel label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(value) => { setSelectedVersionId(value); setDraftEditorOpen(false); }} options={versions.map((version) => ({ value: version.id, label: `v${version.version} · ${statusLabel('budgetVersion', version.status, tCommon)}` }))} />
+            </div>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
             {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
             {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(displayRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}

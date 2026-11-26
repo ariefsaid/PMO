@@ -3,6 +3,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import { renderWithQueryClient } from '@/test/renderWithQueryClient';
@@ -23,6 +24,12 @@ vi.mock('@/src/hooks/useOrgFeatures', async (importOriginal) => ({
   useOrgFeatures: () => ({ data: { revenue: h.revenue } }),
 }));
 
+vi.mock('@/src/hooks/useWorkOrderProjectChoices', () => ({
+  useWorkOrderProjectChoices: () => ({ isSuccess: true, data: [{ value: 'p1', label: 'Depot', currency: 'USD' }] }),
+}));
+vi.mock('@/src/hooks/useWorkOrderLists', () => ({
+  useWorkOrderLists: () => ({ areas: [], groups: [], liveAreas: [], liveGroups: [], hasLists: false }),
+}));
 vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx: h.exportXlsx, busy: false }) }));
 
 import WorkOrders from './WorkOrders';
@@ -33,13 +40,31 @@ const row = (over: Partial<DashboardRow>): DashboardRow => ({
   cost: { currency: 'USD', direct: '900.00', plan: '800.00' }, openSteps: 0, late: 0, ...over,
 });
 const renderPage = (path = '/work-orders', role: Role = 'Engineer') => renderWithQueryClient(
-  <ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[path]}><WorkOrders /></MemoryRouter></ImpersonationProvider>,
+  <ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[path]}><ToastProvider><WorkOrders /></ToastProvider></MemoryRouter></ImpersonationProvider>,
 );
 const rowFor = (label: string) => screen.getByRole('row', { name: new RegExp(label) });
 
 beforeEach(() => {
   h.revenue = false;
   h.state = { ...h.state, rows: [], isPending: false, isError: false, canBilling: true, costState: 'shown', disciplines: [], figuresError: false };
+});
+
+describe('#1126 New work order from the page', () => {
+  it('is offered by the create right only, and opens the form led by the Project field', async () => {
+    h.state = { ...h.state, rows: [row({})] };
+    const page = renderPage('/work-orders', 'Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: 'New work order' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('combobox', { name: /Project/ })).toBeEnabled();
+    page.unmount();
+    renderPage('/work-orders', 'Engineer');
+    expect(screen.queryByRole('button', { name: 'New work order' })).toBeNull();
+  });
+
+  it('the empty list offers the same action', () => {
+    renderPage('/work-orders', 'Project Manager');
+    expect(screen.getAllByRole('button', { name: 'New work order' })).toHaveLength(2);
+  });
 });
 
 describe('Work orders dashboard', () => {
@@ -74,7 +99,7 @@ describe('Work orders dashboard', () => {
     expect(within(first).getByText('40%')).toBeInTheDocument();
     expect(within(first).getByText(/Over budget by \$100/)).toBeInTheDocument();
     expect(within(first).getByTestId('wo-billed-w1')).toHaveTextContent('$1,000');
-    expect(within(first).getByTestId('wo-billed-w1')).toHaveTextContent('of $5,000');
+    expect(within(first).getByText('$5,000')).toBeInTheDocument();
     expect(within(first).getByTestId('wo-missing-w1')).toHaveTextContent('2 late');
     expect(within(first).getByRole('link', { name: /Open WO-1/ })).toHaveAttribute('href', '/work-orders/w1');
     expect(within(rowFor('WO-2')).getByText('Draft')).toBeInTheDocument();
@@ -86,7 +111,7 @@ describe('Work orders dashboard', () => {
     expect(screen.queryByRole('columnheader', { name: 'Billed' })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: 'Direct cost' })).toBeNull();
     expect(screen.queryByText(/\$/)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Show late work orders (0)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Late' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /over budget/ })).toBeNull();
   });
 

@@ -145,10 +145,13 @@
     "off": "Safety records are turned off for this organisation. An Admin can turn them on under Modules.",
     "print": "Print",
     "project": "Project",
+    "record": "Record",
     "showRows": "Show the rows",
     "subtitle": "Hours, incidents and safety records for a month.",
     "title": "Safety summary",
-    "workOrder": "Work order"
+    "workOrder": "Work order",
+    "noAttendanceHours": "no locked or approved attendance in this month",
+    "noAttendanceSafe": "no locked or approved attendance to count from"
   },
   "toast": {
     "corrected": "Correction started",

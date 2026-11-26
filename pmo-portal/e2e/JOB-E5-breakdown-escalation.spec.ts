@@ -18,7 +18,7 @@ let assetId = '';
 let manager: Awaited<ReturnType<typeof roleJobUser>>;
 
 test.beforeEach(async () => {
-  manager = await roleJobUser(db, 'equipment_manager', runId('e5-em'));
+  manager = await roleJobUser(db, 'equipment_officer', runId('e5-eo'));
   // The unit is rented from a vendor, so its breakdown has a vendor to answer within the limit.
   const vendorId = must('vendor', await db.from('companies').insert({ org_id: ORG_ID, name: `${code} hire`, type: 'Vendor' }).select('id').single()).id;
   assetId = must('asset', await db.from('equipment_assets').insert({ org_id: ORG_ID, code, name: 'Loader', default_unit: 'hours', ownership: 'rented' }).select('id').single()).id;
@@ -40,7 +40,7 @@ test.afterEach(async () => {
 test('JOB-E5 a unit broken for three days is flagged on screen and escalated to the Project Manager', async ({ page }) => {
   await manager.signIn(page);
   await page.goto('/equipment/availability');
-  const unit = page.getByRole('listitem').filter({ hasText: code });
+  const unit = page.getByRole('table', { name: 'Equipment status' }).getByRole('row').filter({ hasText: code });
   await expect(unit).toBeVisible({ timeout: 20_000 });
   await expect(unit.getByText('Down more than 2 days')).toBeVisible();
 

@@ -1,24 +1,6 @@
-// @e2e-isolation: self-isolated — the geometry checks stub the Sales Invoices GET (no write); the
-// real-columns check inserts its own uniquely-tagged sales-invoice rows via service role and
-// deletes them in afterAll; touches no shared seed row.
-/**
- * /sales-invoices layout sweep — AC-TBL-STICKY-001: the Sales Invoices row-actions column during
- * horizontal scroll, consolidated from the former single-purpose spec (one page load per width,
- * both themes measured in that load — the theme is a post-mount class flip, not a reload).
- *
- * Defects this pins (2026-10-08 fix round, Director zoom of the 1440 render):
- * 1. SEAM: a sticky cell painted flush with the scrollport (`right-0`) misses its last ~1px of
- *    background in Chromium — scrolled text showed through as a glyph sliver PAST the ⋯ column.
- *    Oracle: the 1px column inside the scroller's right edge carries no ink (uniform surface) and
- *    the sticky cell's right edge is flush (within 1.5px) with the scroller's visible edge.
- * 2. SEPARATION: in a border-collapse table the collapsed `border-l` does not travel with a sticky
- *    cell and an outset box-shadow is not painted at all — the divider is an inset hairline plus a
- *    positioned gradient strip (`[data-dt-seam]`). Oracle: hairline pixel present in header+body;
- *    seam spans rendered.
- * 3. REAL COLUMNS: re-checked against real Sales Invoices columns (tax-basis note, e-Faktur pair,
- *    received/due dates) on real DB rows at 1280/1440, light+dark: ⋯ fully visible, nothing past
- *    it, menu portals to body (never clipped by the scroller/card) above the sticky cell.
- */
+// @e2e-isolation: self-isolated — inserts uniquely tagged invoice rows and deletes only those rows in afterAll.
+/** Row actions travel with their row. Scroll to them, then prove the menu remains reachable,
+ * portaled outside the table clip and contained in the viewport at both widths and themes. */
 import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
@@ -30,7 +12,6 @@ import {
   measureSticky,
   setDarkTheme,
 } from '../support/layout-oracles';
-import { expectHairlineVisible } from '../support/layout-composition';
 
 const ORG = '00000000-0000-0000-0000-000000000001';
 const CUSTOMER_ID = 'c0000000-0000-0000-0000-000000000001'; // seed company (Solaris Grid EPC)
@@ -39,44 +20,6 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
   process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
   process.env.VITE_SUPABASE_URL ?? VITE_ENV.VITE_SUPABASE_URL,
 );
-
-const WIDE_INVOICE = {
-  id: 'aaaaaaaa-0000-0000-0000-000000000925',
-  org_id: ORG,
-  project_id: '40000000-0000-0000-0000-000000000013',
-  customer_id: CUSTOMER_ID,
-  si_number: 'SI-2026-00925',
-  // The worst case for the seam: unbroken text under EVERY pixel column of the scroller,
-  // including the 1px column at the sticky cell's edge (the Director's 1440 zoom).
-  reference_number: `PO-${'WIDE-REFERENCE-'.repeat(20)}`,
-  invoice_date: '2026-10-01',
-  amount: 180_000_000,
-  currency: 'IDR',
-  tax_treatment: 'exclusive',
-  tax_amount: 0,
-  tax_rate: 11,
-  tax_base_numerator: 1,
-  tax_base_denominator: 1,
-  erp_outstanding_amount: 180_000_000,
-  status: 'Unpaid',
-  erp_docstatus: 1,
-  erp_modified: '2026-10-01T00:00:00Z',
-  erp_amended_from: null,
-  erp_cancelled_at: null,
-  created_at: '2026-10-01T00:00:00Z',
-  author_user_id: null,
-  sales_invoice_authors: [],
-  erp_due_date: null,
-  received_date: null,
-  efaktur_number: null,
-  efaktur_date: null,
-  companies: { name: 'Solaris Grid EPC', erp_payment_terms_days: 30 },
-};
-
-const CLEAN_FIT_INVOICE = {
-  ...WIDE_INVOICE,
-  reference_number: 'PO-2026-10-00042',
-};
 
 /** Shared pre-measurement waits: the desktop table branch with data rows and a row-actions
  *  trigger must be up before any geometry is measured. */
@@ -108,79 +51,6 @@ async function openInvoicesTable(page: Page) {
   await waitForFonts(page);
   return scrollerLoc;
 }
-
-/** The per-width, per-mode geometry oracles shared by the stubbed and real-column cases. */
-async function assertStickyGeometry(
-  page: Page,
-  width: number,
-  mode: 'light' | 'dark',
-  expectOverflow: boolean,
-) {
-  const geo = await measureSticky(page);
-  if (expectOverflow) {
-    expect(
-      geo.scroller.scrollWidth,
-      `Sales Invoices table should overflow: ${JSON.stringify(geo.scroller)}`,
-    ).toBeGreaterThan(geo.scroller.clientWidth);
-  } else {
-    expect(geo.scroller.scrollWidth, `Sales Invoices table should fit cleanly: ${JSON.stringify(geo.scroller)}`).toBeLessThanOrEqual(geo.scroller.clientWidth);
-  }
-  expect(geo.triggers.length, 'expected a visible row-actions trigger').toBeGreaterThan(0);
-
-  // Defect 1a: the ⋯ trigger lies inside the scroller box.
-  const outside = geo.triggers.filter(
-    ({ left, right }) => left < geo.scroller.left - STICKY_EPSILON || right > geo.scroller.right + STICKY_EPSILON,
-  );
-  expect(outside, `triggers must stay within the scroller box ${JSON.stringify({ scroller: geo.scroller, triggers: geo.triggers })}`).toEqual([]);
-
-  if (!expectOverflow) return;
-  // Defect 1b: the sticky cell is FLUSH with the scroller's visible right edge.
-  expect(
-    Math.abs((geo.stickyTd?.right ?? NaN) - geo.scroller.right),
-    `sticky body cell right edge must sit at the scrollport edge (td ${JSON.stringify(geo.stickyTd)} vs scroller ${geo.scroller.right})`,
-  ).toBeLessThanOrEqual(STICKY_EPSILON);
-  expect(
-    Math.abs((geo.stickyTh?.right ?? NaN) - geo.scroller.right),
-    'sticky header cell right edge must sit at the scrollport edge',
-  ).toBeLessThanOrEqual(STICKY_EPSILON);
-
-  // Defect 1c (the rendered defect itself): no ink in the seam column past the sticky cell.
-  await expectSeamClean(page, geo.scroller, mode);
-
-  // Defect 2: the separation hairline renders in BOTH the header and body sticky cells.
-  await expectHairlineVisible(page, geo.stickyTd!.left, geo.scroller, mode);
-
-  // Defect 2 (structural): the gradient strip exists in header and body — the outset box-shadow it
-  // replaces is never painted by Chromium on sticky table cells.
-  const seamCount = await page.locator('[data-dt-seam]').count();
-  expect(seamCount, 'seam gradient strips expected in header + body rows').toBeGreaterThanOrEqual(2);
-  const seamImage = await page.locator('[data-dt-seam]').first().evaluate((el) => getComputedStyle(el).backgroundImage);
-  expect(seamImage, 'seam strip must paint the foreground-token gradient').toContain('gradient');
-}
-
-test.describe('AC-TBL-STICKY-001 Sales Invoices row-actions geometry (stubbed reads)', () => {
-  for (const width of [1024, 1440] as const) {
-    // One load per width; both themes measured in that load via the post-mount class flip.
-    test(`@layout AC-TBL-STICKY-001: sticky actions cell flush with scroller, seam clean, divider rendered at ${width}px light and dark`, async ({ page }) => {
-      // Two themes measured per load; the seam sampling oracle is screenshot-based.
-      test.setTimeout(180_000);
-      await page.setViewportSize({ width, height: 900 });
-      await page.route('**/rest/v1/sales_invoices?**', async (route) => {
-        if (route.request().method() !== 'GET') return route.fallback();
-        await route.fulfill({ json: [width === 1024 ? WIDE_INVOICE : CLEAN_FIT_INVOICE] });
-      });
-      const scrollerLoc = await openInvoicesTable(page);
-      if (width === 1024) await expect(scrollerLoc.locator('[data-dt-seam]').first()).toBeAttached();
-      await waitForFonts(page);
-
-      for (const mode of ['light', 'dark'] as const) {
-        await setDarkTheme(page, mode === 'dark');
-        await waitForFonts(page);
-        await assertStickyGeometry(page, width, mode, width === 1024);
-      }
-    });
-  }
-});
 
 test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
   const insertedIds: string[] = [];
@@ -229,7 +99,7 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
 
   for (const width of [1024, 1440] as const) {
     // One load per width; both themes (and the row-menu stacking oracle) run in that load.
-    test(`@layout AC-TBL-STICKY-001: real columns at ${width}px — ⋯ visible, nothing past it, menu opens unclipped above the sticky cell in light and dark`, async ({ page }) => {
+    test(`@layout AC-TBL-STICKY-001: real columns at ${width}px — row actions reachable by scrolling, menu opens unclipped in light and dark`, async ({ page }) => {
       test.setTimeout(240_000);
       await page.setViewportSize({ width, height: 900 });
       const scrollerLoc = await openInvoicesTable(page);
@@ -238,12 +108,9 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
         await setDarkTheme(page, mode === 'dark');
         await waitForFonts(page);
 
+        // Row actions intentionally travel with their row; scroll to them before operating the menu.
+        await scrollerLoc.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
         const geo = await measureSticky(page);
-        if (width === 1024) {
-          expect(geo.scroller.scrollWidth, 'real column set must overflow the container to exercise sticky').toBeGreaterThan(geo.scroller.clientWidth);
-        } else {
-          expect(geo.scroller.scrollWidth, 'real column set must fit cleanly at 1440px').toBeLessThanOrEqual(geo.scroller.clientWidth);
-        }
 
         // ⋯ fully visible and inside the scroller; nothing renders right of it.
         const outside = geo.triggers.filter(

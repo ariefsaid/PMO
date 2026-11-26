@@ -1,12 +1,13 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, RecordSection } from '@/src/components/ui';
+import { Card, CardHead, CardPad, ListState, RecordSection } from '@/src/components/ui';
 import { PerformanceGate } from '@/src/components/performance/PerformanceGate';
 import { formatIsoDay } from '@/src/lib/format';
 import { useProjectPerformance } from '@/src/hooks/useWorkOrderPerformance';
 import { deriveProjectPerformance, deriveWorkOrderPerformance } from '@/src/lib/workOrderPerformance';
 import { Link } from 'react-router';
 import { PerformanceFigures } from '../work-order-detail/PerformanceIndices';
+import { PvaTable } from './PvaTable';
 
 /**
  * The project's cost and schedule indices beside the S-curve (#2597, FR-CSP-010). The project figure is the ratio of
@@ -33,31 +34,44 @@ const ProjectPerformancePanel: React.FC<{ projectId: string }> = ({ projectId })
   if (rows.length === 0) return null;
   const project = deriveProjectPerformance(rows, bands);
   const currency = rows.find((r) => r.status === 'Issued' || r.status === 'Closed')?.currency ?? rows[0].currency;
+  const workOrders = rows.filter((row) => row.status === 'Issued' || row.status === 'Closed');
   return (
-    <RecordSection
-      title={title}
-      subline={<>{asOf ? <span data-testid="project-performance-asof">{t('performance.asOf', 'As of {{date}}', { date: formatIsoDay(asOf) })}</span> : null}{' '}{t('performance.projectBasis', 'Work orders issued or closed, summed together. Earned value is validated progress at contract rate; the plan is calendar-linear.')}</>}
-      data-testid="project-performance"
-      className="mt-[var(--space-section)]"
-    >
-      <PerformanceFigures performance={project} currency={currency} bands={bands} idPrefix="project-performance" />
-      <p className="mt-2 text-control text-muted-foreground" data-testid="project-performance-counted">
-        {t('performance.counted', '{{included}} work orders counted, {{excluded}} left out because their figures are incomplete or they are not issued or closed', { included: project.includedCount, excluded: project.excludedCount })}
-      </p>
-      {truncated && <p className="text-control text-muted-foreground" data-testid="project-performance-truncated">{t('performance.truncated', 'The first 500 work orders are shown; {{count}} more are left out.', { count: omitted })}</p>}
-      <ul className="mt-3 divide-y divide-border text-control" aria-label={t('performance.workOrders', 'By work order')}>
-        {rows.filter((r) => r.status === 'Issued' || r.status === 'Closed').map((r) => {
-          const d = deriveWorkOrderPerformance(r, bands);
-          return (
-            <li key={r.workOrderId} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5" data-testid={`project-performance-row-${r.workOrderId}`}>
-              <Link to={`/work-orders/${r.workOrderId}`} className="font-medium hover:underline">{r.woNumber ?? r.title}</Link>
-              <span className="tabular-nums text-muted-foreground">
-                {t('performance.cpi', 'Cost performance index')} {d.cpi.state === 'value' ? d.cpi.value : '–'} · {t('performance.spi', 'Schedule performance index')} {d.spi.state === 'value' ? d.spi.value : '–'}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </RecordSection>
+    <Card className="mt-[var(--space-section)] min-w-0" data-testid="project-performance">
+      <CardHead level={2}>{title}</CardHead>
+      <CardPad className="space-y-4 pt-0">
+        <PerformanceFigures performance={project} currency={currency} bands={bands} idPrefix="project-performance" />
+        <div className="text-control text-muted-foreground">
+          {asOf && <p data-testid="project-performance-asof">{t('performance.asOf', 'As of {{date}}', { date: formatIsoDay(asOf) })}</p>}
+          <p>{t('performance.projectBasis', 'Work orders issued or closed, summed together. Earned value is validated progress at contract rate; the plan is calendar-linear.')}</p>
+          <p data-testid="project-performance-counted">
+            {t('performance.counted', '{{included}} work orders counted, {{excluded}} left out because their figures are incomplete or they are not issued or closed', { included: project.includedCount, excluded: project.excludedCount })}
+          </p>
+          {truncated && <p data-testid="project-performance-truncated">{t('performance.truncated', 'The first 500 work orders are shown; {{count}} more are left out.', { count: omitted })}</p>}
+        </div>
+        {workOrders.length > 0 && (
+          <PvaTable
+            dense
+            caption={t('performance.workOrders', 'By work order')}
+            firstColumn={t('col.workOrder', 'Work order')}
+            columns={[
+              { key: 'cpi', label: t('performance.cpi', 'Cost performance index') },
+              { key: 'spi', label: t('performance.spi', 'Schedule performance index') },
+            ]}
+            rows={workOrders.map((row) => {
+              const { cpi, spi } = deriveWorkOrderPerformance(row, bands);
+              return {
+                key: row.workOrderId,
+                testId: `project-performance-row-${row.workOrderId}`,
+                head: <Link to={`/work-orders/${row.workOrderId}`} className="break-words font-medium hover:underline">{row.woNumber ?? row.title}</Link>,
+                cells: [
+                  { text: cpi.state === 'value' ? cpi.value : '–' },
+                  { text: spi.state === 'value' ? spi.value : '–' },
+                ],
+              };
+            })}
+          />
+        )}
+      </CardPad>
+    </Card>
   );
 };

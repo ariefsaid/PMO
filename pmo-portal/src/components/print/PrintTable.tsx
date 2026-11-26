@@ -15,6 +15,9 @@ export interface PrintTableProps<T> {
   keyExtractor: (row: T, index: number) => string;
   className?: string;
   emptyText?: string;
+  mobileStack?: boolean;
+  /** Footer rows (totals) drawn under the same columns, so each total sits under the figures it sums. */
+  footer?: React.ReactNode;
 }
 
 /**
@@ -27,11 +30,14 @@ export function PrintTable<T>({
   keyExtractor,
   className,
   emptyText = 'No items',
+  footer,
+  mobileStack = false,
 }: PrintTableProps<T>): React.ReactElement {
   return (
-    <div className={cn('overflow-x-auto my-6', className)} data-testid="print-table">
+    <div className={cn('overflow-x-auto my-6', className)} data-testid="print-table"
+      role="group" aria-label={columns.map((column) => column.header).join(', ')} tabIndex={0}>
       <table className="w-full text-left text-sm border-collapse">
-        <thead>
+        <thead className={mobileStack ? 'max-sm:hidden print:table-header-group' : undefined}>
           <tr className="border-b-2 border-foreground bg-muted/40 print:bg-transparent">
             {columns.map((col) => {
               const alignClass =
@@ -46,7 +52,7 @@ export function PrintTable<T>({
                   scope="col"
                   style={col.width ? { width: col.width } : undefined}
                   className={cn(
-                    'py-2 px-3 text-xs font-semibold text-foreground',
+                    'py-2 px-2 sm:px-3 text-sm font-semibold text-foreground',
                     alignClass,
                   )}
                 >
@@ -70,7 +76,7 @@ export function PrintTable<T>({
             data.map((row, index) => (
               <tr
                 key={keyExtractor(row, index)}
-                className="border-b border-border break-inside-avoid print:break-inside-avoid"
+                className={cn('border-b border-border break-inside-avoid print:break-inside-avoid', mobileStack && 'max-sm:block max-sm:py-3 print:table-row print:py-0')}
                 data-testid={`print-table-row-${index}`}
               >
                 {columns.map((col) => {
@@ -83,7 +89,8 @@ export function PrintTable<T>({
                   return (
                     <td
                       key={col.key}
-                      className={cn('py-2.5 px-3 text-sm text-foreground align-top', alignClass)}
+                      data-label={col.header}
+                      className={cn('py-2.5 px-2 sm:px-3 text-sm text-foreground align-top', alignClass, mobileStack && 'max-sm:flex max-sm:justify-between max-sm:gap-4 max-sm:before:content-[attr(data-label)] max-sm:before:text-muted-foreground max-sm:before:text-left print:table-cell print:before:content-none', col.align === 'right' && 'whitespace-nowrap tabular-nums')}
                     >
                       {col.render(row, index)}
                     </td>
@@ -93,6 +100,7 @@ export function PrintTable<T>({
             ))
           )}
         </tbody>
+        {footer && <tfoot className="border-t-2 border-foreground">{footer}</tfoot>}
       </table>
     </div>
   );

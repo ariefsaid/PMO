@@ -238,7 +238,6 @@ export default function OrgVendorTaxAccounts() {
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph23Label', 'PPh 23 payable account')}: </dt><dd className="inline">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph42Label', 'PPh 4(2) payable account')}: </dt><dd className="inline">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
             </dl>
-            <p className="mt-2 text-control text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
           </>
         )}
       </div>

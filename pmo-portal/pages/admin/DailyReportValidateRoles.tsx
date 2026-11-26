@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
-import { Button, Checkbox, FieldError, ListState, useToast } from '@/src/components/ui';
+import { Button, FieldError, ListState, useToast } from '@/src/components/ui';
+import { RoleChecklist } from '@/src/components/admin/RoleChecklist';
 import { useDailyReportValidateRoles, useSaveDailyReportValidateRoles } from '@/src/hooks/useDailyReportValidateRoles';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
@@ -43,12 +44,6 @@ const DailyReportValidateRoles: React.FC = () => {
   const dirty = draft !== null && [...selected].sort().join(',') !== saved.join(',');
   const disabled = !isAdmin || !builtInOn || save.isPending;
 
-  const toggle = (key: string, on: boolean) => {
-    setError(null);
-    const next = on ? [...selected, key] : selected.filter((k) => k !== key);
-    setDraft([...new Set(next)].sort());
-  };
-
   const onSave = async () => {
     setError(null);
     try {
@@ -74,7 +69,7 @@ const DailyReportValidateRoles: React.FC = () => {
       <p id={helperId} className="mt-1 max-w-prose text-control text-muted-foreground">
         {t(
           'admin.dsrValidateRoles.intro',
-          "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Tick job roles whose active holders may also validate reports across your organisation.",
+          "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Choose job roles whose active holders may also validate reports across your organisation.",
         )}
       </p>
       <div className="mt-3 space-y-3">
@@ -88,25 +83,15 @@ const DailyReportValidateRoles: React.FC = () => {
           <ListState variant="loading" rows={2} />
         ) : (
           <>
-            <fieldset className="min-w-0" aria-describedby={helperId}>
-              <legend className="sr-only">
-                {t('admin.dsrValidateRoles.legend', 'Job roles that validate daily site reports')}
-              </legend>
-              <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
-                {ASSIGNABLE_ROLES.map((r) => (
-                  <Checkbox
-                    key={r.key}
-                    label={roleName(r.key)}
-                    checked={selected.includes(r.key)}
-                    disabled={disabled}
-                    onChange={(on) => toggle(r.key, on)}
-                    className="min-h-11"
-                  >
-                    {roleName(r.key)}
-                  </Checkbox>
-                ))}
-              </div>
-            </fieldset>
+            <RoleChecklist
+              legend={t('admin.dsrValidateRoles.legend', 'Job roles that validate daily site reports')}
+              hideLegend
+              describedBy={helperId}
+              options={ASSIGNABLE_ROLES.map((r) => ({ key: r.key, name: roleName(r.key) }))}
+              value={selected}
+              onChange={(next) => { setError(null); setDraft([...new Set(next)].sort()); }}
+              disabled={disabled}
+            />
             {!isAdminRole ? (
               <p className="text-control text-muted-foreground">
                 {t('admin.dsrValidateRoles.adminOnly', 'Only an Admin can change this.')}

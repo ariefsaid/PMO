@@ -11,6 +11,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 });
 
 import userEvent from '@testing-library/user-event';
+import { tableCell } from '@/src/test/tableCell';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -35,6 +36,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
 }));
 vi.mock('@/src/hooks/useStock', () => ({
   useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement' }] }),
+  useStockUnits: () => ({ data: [] }),
   useStockWarehouses: () => ({ data: [{ id: 'w1', code: 'MAIN', name: 'Main store', kind: 'central', archived_at: null }] }),
   useStockKeepers: () => ({ data: h.keepers }),
 }));
@@ -77,6 +79,15 @@ describe('material request detail', () => {
     h.decide.mutateAsync = vi.fn().mockResolvedValue(undefined);
   });
 
+  it('AC-MRQ recovery offers retry and a list destination when a request is absent', async () => {
+    h.req = { data: null, isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('Request not found')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(h.req.refetch).toHaveBeenCalledOnce();
+    expect(screen.getByRole('link', { name: 'Back to material requests' })).toBeInTheDocument();
+  });
+
   it.each([
     ['standard', 'From usage standards'], ['adjusted', 'Adjusted by the planner'], ['allowance', 'From material allowance'], ['none', 'No plan'],
   ])('AC-CUS-008 the approver sees the source of the snapshotted plan figure: %s', (source, label) => {
@@ -93,7 +104,9 @@ describe('material request detail', () => {
     renderPage();
     expect(screen.getByTestId('mrq-chain')).toHaveTextContent('Finn Away');
     expect(screen.getByText(/Over plan: Extra slab/)).toBeInTheDocument();
-    expect(screen.getByText(/Plan 10 · already requested 0 · new total 12/)).toBeInTheDocument();
+    expect(tableCell('Items', 'Cement', 'Plan')).toHaveTextContent(/^10\b/);
+    expect(tableCell('Items', 'Cement', 'Requested before')).toHaveTextContent(/^0\b/);
+    expect(tableCell('Items', 'Cement', 'New total')).toHaveTextContent(/^12\b/);
   });
 
   it('JOB-WAIT-3 the request says which step it waits at and for whom (never a bare "waiting")', () => {

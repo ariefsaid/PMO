@@ -52,9 +52,9 @@ describe('StockTransferSend (AC-TST-023)', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /From warehouse/ }), 'w1');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /To warehouse/ }), 'w2');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /Receiver/ }), 'p2');
-    await userEvent.click(screen.getByRole('combobox', { name: /Item1/ }));
+    await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
     await userEvent.click(await screen.findByRole('option', { name: 'PIPE - Pipe' }));
-    await userEvent.type(screen.getByRole('textbox', { name: /Quantity1/ }), '4');
+    await userEvent.type(screen.getByRole('textbox', { name: /^Quantity/ }), '4');
   };
 
   it('AC-TST-023 sending refuses a blank form without asking, then confirms once and sends the lines with a named receiver and one request id', async () => {
@@ -89,7 +89,7 @@ describe('StockTransferSend (AC-TST-023)', () => {
     expect(screen.getByRole('combobox', { name: /From warehouse/ })).toHaveDisplayValue('CEN - Central');
     expect(screen.getByRole('combobox', { name: /To warehouse/ })).toHaveValue('w2');
     expect(screen.getByRole('combobox', { name: /To warehouse/ })).toHaveDisplayValue('SITE1 - Site one');
-    expect(screen.getByRole('textbox', { name: /Quantity1/ })).toHaveValue('4');
+    expect(screen.getByRole('textbox', { name: /^Quantity/ })).toHaveValue('4');
   });
 
   it('JOB-1122-1 the receiver picker offers only people who can receive at the destination, never the sender', async () => {

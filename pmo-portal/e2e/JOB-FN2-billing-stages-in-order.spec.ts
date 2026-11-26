@@ -37,7 +37,7 @@ test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('JOB-FN2 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
-  financeManager = await roleJobUser(serviceClient('JOB-FN2'), 'finance_manager', runId('fn2-fm'));
+  financeManager = await roleJobUser(serviceClient('JOB-FN2'), 'finance_officer', runId('fn2-fm'));
   tag = `JOB-FN2 ${Date.now()}`;
   const company = await admin.from('companies').insert({ org_id: ORG_ID, name: `${tag} Client`, type: 'Client' }).select('id').single();
   if (company.error) throw new Error(`JOB-FN2 fixture company: ${company.error.message}`);

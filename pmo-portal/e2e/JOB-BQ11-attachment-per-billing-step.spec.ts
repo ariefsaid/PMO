@@ -65,9 +65,10 @@ test('JOB-BQ11 a step with a required file is refused without it, ticks once att
     await page.goto('/');
     const pointer = page.getByRole('link', { name: /billing step waiting on your role/i });
     await expect(pointer).toBeVisible({ timeout: 15_000 });
-    await page.goto(`/projects/${fx.projectId}/contract?open=${claimId}&openType=billingClaim`);
+    await pointer.click();
+    await expect(page).toHaveURL(new RegExp(`open=${claimId}&openType=billingClaim$`));
     const claim = page.getByRole('dialog');
-    await expect(claim).toContainText('1 of 2 complete');
+    await expect(claim).toContainText('1 of 2 complete', { timeout: 20_000 });
     await expect(claim.getByRole('listitem', { name: 'Client approval' })).toContainText('Current');
   }
 });

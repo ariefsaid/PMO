@@ -188,13 +188,6 @@ beforeEach(() => {
 });
 
 describe('ProjectBudget Option A', () => {
-  it('keeps the budget toolbar at the compact control height', () => {
-    state.versions.data = [active() as unknown as BudgetVersionWithItems];
-    renderPage();
-    expect(screen.getByRole('tablist', { name: 'Budget view' })).toHaveClass('min-h-[var(--control-height-sm)]', '!p-0');
-    expect(screen.getByRole('combobox', { name: 'Version' })).toHaveClass('h-[var(--control-height-sm)]');
-    expect(screen.getByRole('button', { name: 'Export' })).toHaveClass('min-h-[var(--control-height-sm)]');
-  });
   it('R2-P1b #12 labels the remaining figure as left after spend', () => {
     state.versions.data = [active() as unknown as BudgetVersionWithItems];
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];

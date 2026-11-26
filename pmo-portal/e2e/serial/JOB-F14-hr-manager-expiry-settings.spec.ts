@@ -82,9 +82,11 @@ test('JOB-F14 HR manager configures expiry recipients and warning days and the d
     await expect(page.getByRole('heading', { name: 'My work' })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('list', { name: 'Notifications' }).getByText(warning)).toBeVisible({ timeout: 20_000 });
     await bystander.signIn(page);
+    const noticesLoaded = page.waitForResponse(r => r.url().includes('/rest/v1/notifications?') && r.url().includes('limit=21') && r.ok());
     await page.goto('/');
+    await noticesLoaded;
     await expect(page.getByRole('heading', { name: 'My work' })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('No notifications yet.')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#my-notices-h')).toBeHidden({ timeout: 20_000 });
     await expect(page.getByText(warning)).toHaveCount(0);
     const notices = await svc.from('document_expiry_notices').select('recipient_id').eq('document_id', docId);
     const recipients = new Set(((notices.data ?? []) as { recipient_id: string }[]).map((n) => n.recipient_id));

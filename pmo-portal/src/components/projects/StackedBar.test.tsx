@@ -16,9 +16,9 @@ describe('project stacked bar', () => {
       ]}
     />);
 
-    const legend = screen.getByRole('img', { name: 'Tasks by status legend: Blocked' });
+    const legend = screen.getByRole('list', { name: 'Tasks by status legend' });
     expect(legend).toBeVisible();
-    expect(legend).toHaveTextContent('Blocked');
+    expect(legend).toHaveTextContent('Blocked 1');
   });
 });
 

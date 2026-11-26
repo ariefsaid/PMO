@@ -72,7 +72,8 @@
   },
   "filter": {
     "all": "Semua",
-    "status": "Status"
+    "status": "Status",
+    "allStatuses": "Semua status"
   },
   "include": "Masukkan",
   "includeBackcharge": "Masukkan potongan yang tercatat",
@@ -156,5 +157,10 @@
     "returned": "Dikembalikan",
     "setAside": "Disisihkan",
     "submitted": "Diajukan untuk persetujuan"
-  }
+  },
+  "moreActions": "Tindakan sertifikat lainnya",
+  "emptyFiltered": "Tidak ada sertifikat dengan status ini",
+  "clearFilter": "Tampilkan semua",
+  "openProcurement": "Buka pesanan subkontrak",
+  "prepareRemedy": "Sertifikat disiapkan dari pesanan subkontrak oleh Keuangan atau manajer proyek."
 }

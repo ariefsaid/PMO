@@ -38,7 +38,15 @@
     "to": "To",
     "remove": "Remove line",
     "order": "Order: {{title}}",
-    "orderOpen": "Open order"
+    "orderOpen": "Open order",
+    "dates": "Dates",
+    "amount": "Amount",
+    "actions": "Line actions",
+    "done": "Done",
+    "edit": "Edit",
+    "editLabel": "Edit line {{n}}",
+    "removeLabel": "Remove line {{n}}",
+    "removeShort": "Remove"
   },
   "addLine": "Add line",
   "total": "Month total",
@@ -94,6 +102,11 @@
     "retire": "Retire",
     "restore": "Restore",
     "retired": "Retired",
-    "empty": "No categories yet."
-  }
+    "empty": "No categories yet.",
+    "stepShort": {
+      "spend_approvers": "Project approvers",
+      "senior_role": "Senior approvers"
+    }
+  },
+  "pickProject": "Choose a project to see its plan for the month."
 }

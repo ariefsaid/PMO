@@ -2,7 +2,7 @@ import React from 'react';
 import ProjectClassificationFilters from '../../components/ProjectClassificationFilters';
 import { ExportButton } from '@/src/components/export';
 import {
-  Button, Drawer, FigureHiddenLine, FigureScope, Icon, LifecycleStepper, SearchMini, StatTiles, StatusPill, TaxBasisLabel, ViewToggle,
+  Button, SelectField, Combobox, Drawer, FigureHiddenLine, FigureScope, Icon, LifecycleStepper, SearchMini, StatTiles, StatusPill, TaxBasisLabel, ViewToggle,
 } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
@@ -37,8 +37,9 @@ export const SalesClassification: React.FC<{ m: SalesModel; inline?: boolean }> 
   ) : null;
 
 export const SalesScope: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => (
-  <div className="max-w-full overflow-x-auto scroll-fade-x">
+  <div className="max-w-full overflow-x-auto [&_button]:shrink-0 [&_button]:whitespace-nowrap">
     <ViewToggle
+      className="w-max"
       options={m.DEAL_SCOPES.map((s) => ({ value: s, label: m.scopeLabels[s] }))}
       value={m.scope}
       onChange={m.setScope}
@@ -77,33 +78,22 @@ export const NewProjectButton: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) =
 
 /** Phone: one stage selector over the stage list (same control the default page offers). */
 export const PhoneStageSelect: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => (
-  <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-    <span className="shrink-0">{t('uxs24.stageLabel', 'Pipeline stage')}</span>
-    <select
-      data-testid="sales-phone-stage-selector"
-      aria-label={t('uxs24.stageLabel', 'Pipeline stage')}
-      value={m.selectedStatus ?? ''}
-      onChange={(e) => {
-        const status = e.currentTarget.value as '' | NonNullable<SalesModel['selectedStatus']>;
-        m.setWorkingSet((ws) => ({ ...ws, scope: 'Open', status }));
-      }}
-      className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-    >
-      <option value="">{t('uxs24.allStages', 'All stages')}</option>
-      {m.funnel.openColumns.map((c) => (
-        <option key={c.statuses[0]} value={c.statuses[0]}>{m.stageLabel(c)}</option>
-      ))}
-    </select>
-  </label>
+  <Combobox
+    label={t('uxs24.stageLabel', 'Pipeline stage')}
+    value={m.selectedStatus ?? ''}
+    selectedOption={{ value: m.selectedStatus ?? '', label: m.selectedStatus ? m.stageLabel(m.funnel.openColumns.find((c) => c.statuses.includes(m.selectedStatus!))!) : t('uxs24.allStages', 'All stages') }}
+    loadOptions={async () => [{ value: '', label: t('uxs24.allStages', 'All stages') }, ...m.funnel.openColumns.map((c) => ({ value: c.statuses[0], label: m.stageLabel(c) }))]}
+    onChange={(value) => m.setWorkingSet((ws) => ({ ...ws, scope: 'Open', status: value as '' | NonNullable<SalesModel['selectedStatus']> }))}
+  />
 );
 
 /** Phone controls: stage selector, scope, search, classification. */
 export const PhoneControls: React.FC<{ m: SalesModel; stage?: boolean; scope?: boolean; search?: boolean }> = ({ m, stage = true, scope = true, search = true }) => (
-  <div className="w-full min-w-0 space-y-2">
+  <div className="grid w-full min-w-0 grid-cols-2 gap-2">
     {stage && m.scope !== 'Lost' && m.scope !== 'Won' && <PhoneStageSelect m={m} />}
-    {scope && <SalesScope m={m} />}
-    {search && <SalesSearch m={m} className="min-w-0! flex-1" />}
-    <SalesClassification m={m} inline />
+    {scope && <SelectField label={m.t("sales.scopeToggleLabel", "Project scope")} value={m.scope} options={m.DEAL_SCOPES.map(value => ({ value, label: m.scopeLabels[value] }))} onChange={value => m.setScope(value as typeof m.scope)} />}
+    {search && <SalesSearch m={m} className="col-span-2 min-w-0!" />}
+    <div className="col-span-2"><SalesClassification m={m} inline /></div>
   </div>
 );
 
@@ -139,7 +129,7 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
   const deals = attentionDeals(m);
   const shown = deals.slice(0, 5);
   return (
-    <section aria-label={t('sales:options.needsYou', 'Needs attention')} className="panel-card p-[var(--panel-inset)]">
+    <section aria-label={t('sales:options.needsYou', 'Needs attention')} className={compact ? "panel-card flex flex-wrap items-center gap-x-6 gap-y-2 px-[var(--panel-inset)] py-3" : "panel-card p-[var(--panel-inset)]"}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-group font-semibold">{t('sales:options.needsYouHeading', 'Needs you · {{n}}', { n: deals.length })}</h2>
         {deals.length > shown.length && (
@@ -156,7 +146,7 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
             <li key={p.id}>
               <button type="button" onClick={() => onOpen(p)} className="flex min-h-11 w-full min-w-0 flex-col items-start justify-center rounded-md py-1.5 text-left hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 <span className="w-full truncate text-control font-semibold text-foreground">{p.name}</span>
-                <span className="w-full truncate text-control text-warning-foreground">{compact
+                <span className="w-full truncate text-control text-warning-foreground">{compact && !m.isDesktop
                   ? (isStaleBid(p)
                     ? t('sales:options.staleReasonShort', 'Stage {{days}}d', { days: daysSince(p.stage_started_at) ?? dash })
                     : t('sales:options.idleReasonShort', 'Idle {{days}}d', { days: daysSinceLatestTouch(p) ?? dash }))
@@ -168,10 +158,10 @@ export const NeedsAttentionCard: React.FC<{ m: SalesModel; onOpen: (p: PipelineP
       )}
       <div className={`${compact ? 'mt-2 flex gap-4 border-t border-border pt-2' : 'mt-2 grid grid-cols-1 divide-y divide-border/70 border-t border-border pt-2'} text-control`}>
         <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Won')}>
-          {compact ? t('sales:options.wonCountShort', 'Won {{n}}', { n: m.wonState === 'ready' ? m.won.length : dash }) : t('sales:options.wonCount', 'Won {{n}} all time', { n: m.wonState === 'ready' ? m.won.length : dash })}
+          {compact && !m.isDesktop ? t('sales:options.wonCountShort', 'Won {{n}}', { n: m.wonState === 'ready' ? m.won.length : dash }) : t('sales:options.wonCount', 'Won {{n}} all time', { n: m.wonState === 'ready' ? m.won.length : dash })}
         </button>
         <button type="button" className={`font-medium text-primary-text hover:underline ${compact ? '' : 'flex min-h-8 items-center text-left'}`} onClick={() => m.setScope('Lost')}>
-          {compact ? t('sales:options.lostCountShort', 'Lost {{n}}', { n: m.lostState === 'ready' ? m.lost.length : dash }) : t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lostState === 'ready' ? m.lost.length : dash })}
+          {compact && !m.isDesktop ? t('sales:options.lostCountShort', 'Lost {{n}}', { n: m.lostState === 'ready' ? m.lost.length : dash }) : t('sales:options.lostCount', 'Lost {{n}} all time', { n: m.lostState === 'ready' ? m.lost.length : dash })}
         </button>
       </div>
     </section>

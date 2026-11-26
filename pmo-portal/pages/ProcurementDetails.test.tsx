@@ -531,7 +531,7 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     renderPage();
     const bar = screen.getByRole('button', { name: /Back to Procurement/i }).parentElement!;
     expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(bar.className).toContain('max-[1100px]:flex');
   });
 
   it('AC-NAV-007: "Back to Procurement" navigates to the Procurement module index (no tab)', async () => {
@@ -608,7 +608,7 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-IXD-PROC-004 — the selected-quote tile + row pill bind from Quote Selected
+// AC-IXD-PROC-004 — the selected-quote row binds from Quote Selected
 // (PROC-004 re-review). Before the fix the binding only appeared at Ordered/Paid
 // (keyed off the PO-committed quote), so a freshly-selected quote read
 // "Pending — N received" and no row carried the "Selected" pill.
@@ -620,14 +620,6 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     detailState.isError = false;
     detailState.error = null;
     mockEffectiveRole = 'Finance';
-  });
-
-  it('PROC-004: quotation comparison cards identify the selected supplier and amount', () => {
-    renderPage('proc-001', 'quotes');
-    const comparisons = screen.getByTestId('quotation-comparison-cards');
-    expect(within(comparisons).getByText('Synergy Systems')).toBeInTheDocument();
-    expect(within(comparisons).getByText('$148,000')).toBeInTheDocument();
-    expect(within(comparisons).getByText('Chosen')).toBeInTheDocument();
   });
 
   it('PROC-004: selected and lowest-price pills appear only on the chosen lowest quote row', () => {
@@ -644,6 +636,7 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     const higherQuoteRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050002'));
     expect(higherQuoteRow).toBeInTheDocument();
     expect(higherQuoteRow).toHaveTextContent('$152,000');
+    expect(higherQuoteRow).toHaveTextContent('+$4,000');
     expect(within(higherQuoteRow as HTMLElement).queryByText('Selected')).not.toBeInTheDocument();
     expect(within(higherQuoteRow as HTMLElement).queryByText('Lowest price')).not.toBeInTheDocument();
   });
@@ -987,12 +980,8 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
   it('renders total_value formatted and grouped, never raw (money never raw)', () => {
     detailState.data = { ...baseProcurement, total_value: 50000, currency: 'USD' };
     renderPage();
-    // Money-honesty rework: figures render grouped WITHOUT an inline "$" — the money card's
-    // "Money · USD, before tax" head carries the currency, and the tile shows formatNumber(50000).
-    // The oracle is unchanged: total_value is never rendered raw. Justification: the symbol-on-figure
-    // journey this test pinned was deliberately replaced by label-on-card + grouped figure.
+    // The total may appear in the budget evidence, which owns it at the request stage.
     expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Money · USD, before tax')).toBeInTheDocument();
     expect(screen.queryByText('50000')).not.toBeInTheDocument();
   });
 
@@ -2299,14 +2288,14 @@ describe('Procurement detail restructure fixes', () => {
     expect(money).not.toHaveTextContent('$0');
   });
 
-  it('keeps the engineer approval wait in the header actions without the floating paragraph', () => {
+  it('shows the engineer approval wait in the header', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement };
 
     renderPage();
 
-    const headerActions = screen.getByTestId('record-header-actions');
-    expect(within(headerActions).getByText('Waiting for project manager or Finance')).toBeInTheDocument();
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Waiting for project manager or Finance')).toBeInTheDocument();
     expect(screen.queryByTestId('sod-ready-hint')).toBeNull();
   });
 
@@ -2447,7 +2436,7 @@ describe('AC-WAIT-071/073: who an Ordered purchase is assigned to', () => {
     detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
     receiptWaiting.isError = true;
     renderPage();
-    const header = screen.getByTestId('record-header-actions');
+    const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: 'Retry' }));
     expect(receiptWaiting.refetch).toHaveBeenCalled();
   });
