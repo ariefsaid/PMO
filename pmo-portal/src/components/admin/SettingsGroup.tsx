@@ -6,7 +6,7 @@ import React, { type ReactNode } from 'react';
  *
  * The settings keep their own components and data calls; this panel only decides how they read together: a setting's own
  * heading is set one step below the group title (14px semibold), its own top margin is dropped (the panel draws the
- * divider), and the stack is capped at 768px so a control never flies to the far edge of a wide screen.
+ * divider), and the stack is capped at 896px (the widest setting table, the budget account map, needs 760px inside the panel) so a control never flies to the far edge of a wide screen.
  */
 export function SettingsGroup({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
@@ -37,5 +37,5 @@ export function SettingsGroup({ id, title, children }: { id: string; title: stri
 
 /** The stack of groups on one settings page: panels 24px apart (16px on a phone). */
 export function SettingsGroups({ children }: { children: ReactNode }) {
-  return <div className="min-w-0 max-w-3xl space-y-4 sm:space-y-6">{children}</div>;
+  return <div className="min-w-0 max-w-4xl space-y-4 sm:space-y-6">{children}</div>;
 }

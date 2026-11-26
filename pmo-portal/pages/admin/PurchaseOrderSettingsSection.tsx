@@ -116,12 +116,12 @@ export default function PurchaseOrderSettingsSection() {
         ) : (
           <>
             {/* Authorised Collectors List */}
-            <div className="space-y-3 rounded-md border border-border p-4">
+            <div className="space-y-3">
               <div>
                 <h3 className="text-sm font-semibold">
                   {t('procurement:poSettings.collectorsHeading', 'Authorised collectors')}
                 </h3>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-control text-muted-foreground">
                   {t(
                     'procurement:poSettings.collectorsHelp',
                     'Named individuals authorised to collect purchased items. If empty, the document prints an open line for any collector.',
@@ -130,15 +130,15 @@ export default function PurchaseOrderSettingsSection() {
               </div>
 
               {authorisedCollectors.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">
+                <p className="text-control text-muted-foreground">
                   {t('procurement:poSettings.noCollectors', 'No named collectors configured (open collection line).')}
                 </p>
               ) : (
-                <ul className="divide-y divide-border rounded-md border border-border/60">
+                <ul className="divide-y divide-border">
                   {authorisedCollectors.map((collector) => (
                     <li
                       key={collector}
-                      className="flex items-center justify-between px-3 py-2 text-sm"
+                      className="flex min-h-11 items-center justify-between py-1.5 text-control"
                     >
                       <span className="font-medium">{collector}</span>
                       {canManage && (
@@ -148,7 +148,7 @@ export default function PurchaseOrderSettingsSection() {
                           aria-label={`${t('procurement:poSettings.removeCollector', 'Remove collector')}: ${collector}`}
                           onClick={() => handleRemoveCollector(collector)}
                           disabled={mutations.setSettings.isPending}
-                          className="h-7 text-xs text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                         >
                           {t('common.remove', 'Remove')}
                         </Button>
@@ -159,7 +159,7 @@ export default function PurchaseOrderSettingsSection() {
               )}
 
               {canManage && authorisedCollectors.length >= MAX_COLLECTORS ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-control text-muted-foreground">
                   {t('procurement:poSettings.maxCollectors', 'Up to 50 names, 100 characters each.')}
                 </p>
               ) : null}
@@ -186,12 +186,12 @@ export default function PurchaseOrderSettingsSection() {
             </div>
 
             {/* Signature Blocks List */}
-            <div className="space-y-3 rounded-md border border-border p-4">
+            <div className="space-y-3">
               <div>
                 <h3 className="text-sm font-semibold">
                   {t('procurement:poSettings.signatureBlocksHeading', 'Signature blocks')}
                 </h3>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-control text-muted-foreground">
                   {t(
                     'procurement:poSettings.signatureBlocksHelp',
                     'Signature lines printed at the bottom of the purchase order (e.g. Prepared by, Approved by).',
@@ -200,15 +200,15 @@ export default function PurchaseOrderSettingsSection() {
               </div>
 
               {signatureBlocks.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">
+                <p className="text-control text-muted-foreground">
                   {t('procurement:poSettings.noSignatureBlocks', 'No signature blocks configured.')}
                 </p>
               ) : (
-                <ul className="divide-y divide-border rounded-md border border-border/60">
+                <ul className="divide-y divide-border">
                   {signatureBlocks.map((block) => (
                     <li
                       key={block}
-                      className="flex items-center justify-between px-3 py-2 text-sm"
+                      className="flex min-h-11 items-center justify-between py-1.5 text-control"
                     >
                       <span className="font-medium">{block}</span>
                       {canManage && (
@@ -218,7 +218,7 @@ export default function PurchaseOrderSettingsSection() {
                           aria-label={`${t('procurement:poSettings.removeBlock', 'Remove signature block')}: ${block}`}
                           onClick={() => handleRemoveBlock(block)}
                           disabled={mutations.setSettings.isPending}
-                          className="h-7 text-xs text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                         >
                           {t('common.remove', 'Remove')}
                         </Button>
@@ -229,7 +229,7 @@ export default function PurchaseOrderSettingsSection() {
               )}
 
               {canManage && signatureBlocks.length >= MAX_SIGNATURE_BLOCKS ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-control text-muted-foreground">
                   {t('procurement:poSettings.maxSignatureBlocks', 'Up to 10 blocks, 80 characters each.')}
                 </p>
               ) : null}

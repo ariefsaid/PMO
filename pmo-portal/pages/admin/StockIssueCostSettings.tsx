@@ -32,7 +32,7 @@ export default function StockIssueCostSettings() {
     <h2 id="stock-issue-cost-heading" className="text-group font-semibold tracking-[-0.01em]">{t('stockIssueCost.title', 'Stock issue costing')}</h2>
     {q.isError ? <ListState variant="error" title={t('stockIssueCost.loadError', "Couldn't load stock costing")} onRetry={() => void q.refetch()} />
       : q.isLoading ? <ListState variant="loading" rows={2} />
-        : <div className="mt-4 max-w-md space-y-4">
+        : <div className="mt-4 flex max-w-md flex-col items-start gap-4">
           <Checkbox label={t('stockIssueCost.enabled', 'Count stock issues as cost')} checked={current.enabled} disabled={m.isPending}
             onChange={(enabled) => setDraft({ ...current, enabled })} className="min-h-11">
             {t('stockIssueCost.enabled', 'Count stock issues as cost')}
