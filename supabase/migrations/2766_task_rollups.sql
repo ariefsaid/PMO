@@ -1,5 +1,5 @@
 -- Task roll-ups and task tree depth. Reverse with rollback/2766_task_rollups_down.sql.
--- drops: the scheduled overdue filter now also requires an active task.
+-- drops: the scheduled overdue filter now requires an active task, and section task counts use the leaf rule.
 
 create or replace function public.scheduled_report_content(
   p_kind text, p_org uuid, p_recipient uuid, p_from date, p_to date, p_locale text, p_name text
@@ -62,4 +62,52 @@ begin
     return query select p_name, v_head || E'\n\n' || array_to_string(v_lines, E'\n');
   end if;
 end $$;
+
+create or replace function public.work_order_section_rollup(p_work_order_id uuid)
+  returns table (
+    section_id uuid, code text, name text, location_note text, foreman_id uuid, readiness text, readiness_note text,
+    sort_order integer, archived_at timestamptz,
+    direct_budget numeric, indirect_budget numeric, equipment_hours numeric, crew_hours numeric,
+    tasks_total integer, tasks_done integer, crews_today integer)
+  language sql stable security invoker set search_path = public, pg_temp as $$
+  with s as (
+    select x.id, x.code, x.name, x.location_note, x.foreman_id, x.readiness, x.readiness_note, x.sort_order, x.archived_at
+      from public.work_order_sections x where x.work_order_id = p_work_order_id
+  ),
+  keys as (
+    select s.id as sid, s.code, s.name, s.location_note, s.foreman_id, s.readiness, s.readiness_note, s.sort_order, s.archived_at from s
+    union all
+    select null::uuid, null, null, null, null::uuid, null, null, null::integer, null::timestamptz where exists (select 1 from s)
+  ),
+  plan as (
+    select l.section_id as sid, l.kind, sum(l.value) as v
+      from public.work_order_plan_lines l where l.work_order_id = p_work_order_id group by l.section_id, l.kind
+  ),
+  tk as (
+    select t.section_id as sid, count(*)::integer as total, (count(*) filter (where t.status = 'Done'))::integer as done
+      from public.tasks t
+     where t.work_order_id = p_work_order_id and t.archived_at is null
+       and not exists (
+         select 1 from public.tasks c
+          where c.parent_task_id = t.id and c.archived_at is null and c.tombstoned_at is null
+       )
+     group by t.section_id
+  ),
+  cr as (
+    select c.section_id as sid, count(*)::integer as n
+      from public.work_order_crews c
+     where c.work_order_id = p_work_order_id and (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = public.auth_org_id()), 'UTC'))::date between c.valid_from and coalesce(c.valid_to, 'infinity'::date)
+     group by c.section_id
+  )
+  select k.sid, k.code, k.name, k.location_note, k.foreman_id, k.readiness, k.readiness_note, k.sort_order, k.archived_at,
+         (select p.v from plan p where p.sid is not distinct from k.sid and p.kind = 'direct_budget'),
+         (select p.v from plan p where p.sid is not distinct from k.sid and p.kind = 'indirect_budget'),
+         (select p.v from plan p where p.sid is not distinct from k.sid and p.kind = 'equipment_hours'),
+         (select p.v from plan p where p.sid is not distinct from k.sid and p.kind = 'crew_hours'),
+         coalesce((select t.total from tk t where t.sid is not distinct from k.sid), 0),
+         coalesce((select t.done from tk t where t.sid is not distinct from k.sid), 0),
+         coalesce((select c.n from cr c where c.sid is not distinct from k.sid), 0)
+    from keys k
+   order by (k.sid is null), k.sort_order, k.code
+$$;
 
