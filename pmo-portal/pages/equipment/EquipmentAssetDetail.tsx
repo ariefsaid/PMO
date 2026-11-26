@@ -146,7 +146,7 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
     <RecordSection title={t('equipment:costing.title', 'Costing')} actions={<CanWrite entity="equipmentCosting" action="manage" ctx={{ record: { viewOnly: realRole !== effectiveRole } }}>
         <span className="flex gap-2">
           {current && current.basis !== 'none' && <Button variant="outline" size="sm" onClick={() => setEnding(true)}>{t('equipment:costing.end', 'End costing')}</Button>}
-          <Button variant="primary" size="sm" onClick={() => setChanging(true)}>{t('equipment:costing.change', 'Change costing')}</Button>
+          <Button variant="outline" size="sm" onClick={() => setChanging(true)}>{t('equipment:costing.change', 'Change costing')}</Button>
         </span>
       </CanWrite>}>
         {q.isPending && <ListState variant="loading" rows={2} />}
@@ -162,10 +162,10 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
                 <p className="text-sm text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: formatDay(current.effective_from), version: current.version })}</p>
               </div>
               : <p className="text-sm text-muted-foreground">{t('equipment:costing.none', 'No costing set. Usage is recorded and totalled per project, with no amount.')}</p>}
-            <div className="mt-3 flex items-center gap-2 text-sm">
+            {mine.length > 0 && <div className="mt-3 flex items-center gap-2 text-sm">
               <Switch checked={history} onChange={setHistory} label={t('equipment:costing.showHistory', 'Show history')} />
               <span aria-hidden="true">{t('equipment:costing.showHistory', 'Show history')}</span>
-            </div>
+            </div>}
             {history && <div className="mt-2"><DataTable<EquipmentCostingRow> embedded rows={mine} columns={columns} rowKey={(s) => s.id} tableId="equipment-costing-history"
               accessibleName={t('equipment:costing.historyLabel', 'Costing history')} state={mine.length === 0 ? 'empty' : undefined}
               emptyTitle={t('equipment:costing.historyEmpty', 'No costing history')} /></div>}

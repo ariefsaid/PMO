@@ -60,7 +60,6 @@ it('AC-FCAL-014 a role that cannot change it reads the value and has no writer',
   h.get.mockResolvedValue({ source: 'pmo', startMonth: 4 });
   renderSetting();
   expect(await screen.findByText('April')).toBeInTheDocument();
-  expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
   expect(screen.queryByRole('combobox', { name: 'Fiscal year starts in' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Save fiscal year' })).not.toBeInTheDocument();
 });

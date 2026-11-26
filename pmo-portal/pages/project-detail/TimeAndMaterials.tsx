@@ -22,7 +22,7 @@ import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectD
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatDayRange, formatNumberExact } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 import { DateField } from '@/src/components/ui/DateField';
 
@@ -42,7 +42,7 @@ interface TimeAndMaterialsProps {
 
 type RateValues = { label: string; unit: 'hour' | 'day'; rate: string; effectiveFrom: string };
 
-const today = localToday;
+const today = orgDayNow;
 const firstOfMonth = (): string => `${today().slice(0, 7)}-01`;
 const canBeEvidence = (document: ProjectDocumentRow): boolean =>
   (document.status === 'Issued' || document.status === 'Approved') && Boolean(document.file_path);

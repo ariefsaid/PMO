@@ -5,7 +5,7 @@ import {
   ConfirmDialog,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import type { WorkOrderPatch, SetWorkOrderValueInput, WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 import type { BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
@@ -211,7 +211,7 @@ const WorkOrdersModals: React.FC<{
           allocations={allocationsById.get(bastFor.row.id) ?? []}
           acceptances={acceptancesByWo.get(bastFor.row.id) ?? []}
           documents={documentRows}
-          today={localToday()}
+          today={orgDayNow()}
           draft={bastFor.draft}
           onClose={onCloseBast}
           onSave={onSaveBast}

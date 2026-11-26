@@ -128,7 +128,7 @@ export function EngineerTasksCard({
     ? <>{overdueFinding}{overdueFinding && dueTodayFinding && <span aria-hidden className="mx-1.5 text-muted-foreground">·</span>}{dueTodayFinding}</>
     : undefined;
   return (
-    <Card data-testid="engineer-tasks">
+    <Card data-testid="engineer-tasks" className="bg-waiting-surface">
       <CardHead level={2} subline={finding} actions={<CardLink to="/my-tasks">{t('home.eng.allTasks', 'All tasks')}</CardLink>}>{t('home.eng.myTasks', 'My tasks')}</CardHead>
       <div className="px-[var(--panel-inset)] pb-2">
         {!loading && !error && dayError && (
@@ -147,7 +147,7 @@ export function EngineerTasksCard({
                 {upcoming.length > 0 && <h3 className="pt-2 text-control font-medium">{t('home.eng.nextUp', 'Next up')}</h3>}
                 {rows.length > 0 && (
                 <ul className="min-w-0 divide-y divide-border">
-                  {rows.map((task) => {
+                  {rows.map((task, taskIndex) => {
                     const late = today && task.end_date && task.end_date < today ? overdueAgeDays(task.end_date, today) : null;
                     return (
                       <li key={task.id} className="min-w-0">
@@ -157,7 +157,7 @@ export function EngineerTasksCard({
                             <span className="block break-words text-control text-muted-foreground">{task.project_name ?? t('hub.engineer.noProject', 'No project')}</span>
                           </span>
                           {late !== null
-                            ? <LateText tone="destructive" className="shrink-0 whitespace-nowrap">{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
+                            ? <LateText emphasis={taskIndex === 0} className="shrink-0 whitespace-nowrap">{t('hub.engineer.daysLate', { count: late, defaultValue_one: '{{count}} day overdue', defaultValue_other: '{{count}} days overdue' })}</LateText>
                             : today ? <span className="shrink-0 whitespace-nowrap text-control text-muted-foreground">{t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDay(task.end_date) })}</span> : null}
                         </Link>
                       </li>

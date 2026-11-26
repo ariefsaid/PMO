@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { AppError } from '@/src/lib/appError';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import type { SurveyRecord } from '@/src/lib/db/surveyRecords';
 
 const h = vi.hoisted(() => ({
@@ -55,6 +55,7 @@ describe('AC-SCR-013 SurveySection', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       const user = renderIt({ today: undefined });
       await user.click(screen.getByRole('button', { name: 'Record a survey' }));

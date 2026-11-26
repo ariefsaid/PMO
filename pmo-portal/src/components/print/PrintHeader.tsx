@@ -10,6 +10,7 @@ export interface PrintHeaderProps {
   orgName?: string;
   documentTitle: string;
   documentNumber: string;
+  numberLabel?: string;
   metaItems: PrintHeaderMetaItem[];
   className?: string;
 }
@@ -22,6 +23,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
   orgName,
   documentTitle,
   documentNumber,
+  numberLabel = 'Number / No.',
   metaItems,
   className,
 }) => {
@@ -40,7 +42,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
         </div>
         <div className="sm:text-right">
           <div className="text-xs font-semibold text-muted-foreground">
-            Number / No.
+            {numberLabel}
           </div>
           <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-foreground" data-testid="print-document-number">
             {documentNumber}
@@ -55,7 +57,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
               <dt className="text-xs font-medium text-muted-foreground">
                 {item.label}
               </dt>
-              <dd className="font-medium text-foreground truncate mt-0.5">
+              <dd className="font-medium text-foreground break-words mt-0.5">
                 {item.value ?? '—'}
               </dd>
             </div>

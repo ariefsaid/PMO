@@ -58,7 +58,7 @@ export default function CostDisciplines() {
     }
   };
 
-  return <section aria-label={title} className="max-w-2xl space-y-4">
+  return <section aria-label={title} className="space-y-4">
     <div className="flex items-center justify-between gap-3">
       <h3 className="text-base font-semibold">{title}</h3>
       {canCreate && rows.length > 0 && <Button variant="outline" size="sm" onClick={() => setForm({ mode: 'create' })}>{t('workOrderCost:disciplines.add', 'Add discipline')}</Button>}

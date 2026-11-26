@@ -6,14 +6,15 @@ import { ToastProvider } from '@/src/components/ui';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { ProcurementQuotesTab } from './ProcurementDetailTabs';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 
-vi.mock('./VendorQuotesTab', () => ({ VendorQuotesTab: () => null }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [] }) }));
 
-const quote = (id: string, total: number) => ({ id, vendor_id: `v-${id}`, total_amount: total, currency: 'USD', valid_until: null, vq_number: `VQ-${id}` });
+const quote = (id: string, total: number) => ({ id, vendor_id: `v-${id}`, total_amount: total, currency: 'USD', valid_until: null, vq_number: `VQ-${id}`, files: [] });
 const p = { id: 'p1', currency: 'USD', vendor_id: null, vendor: null, approved_total_value: null, quotations: [quote('a', 1200), quote('b', 1500)] } as unknown as ProcurementDetail;
-const renderTab = () => render(<ToastProvider><ProcurementQuotesTab p={p} selectedQuote={p.quotations[0] as never} vendorMap={{ 'v-a': 'Quote supplier' }}
+const renderTab = () => render(<QueryClientTestProvider><ToastProvider><ProcurementQuotesTab p={p} selectedQuote={p.quotations[0] as never} vendorMap={{ 'v-a': 'Quote supplier' }}
   mutations={{ createQuotation: { isPending: false } } as never} crud={{ selectQuote: { isPending: false } } as never}
-  canAddQuote={false} canSelectQuote={false} canManageFiles={false} currentUserId={null} onMutationError={vi.fn()} /></ToastProvider>);
+  canAddQuote={false} canSelectQuote={false} canManageFiles={false} currentUserId={null} onMutationError={vi.fn()} /></ToastProvider></QueryClientTestProvider>);
 afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 quotes tab without prices', () => {
@@ -29,6 +30,6 @@ describe('AC-009 quotes tab without prices', () => {
     expect(screen.queryByText(/1,500/)).toBeNull();
     expect(screen.queryByText(/vs chosen/)).toBeNull();
     expect(screen.queryByText('Quote supplier')).toBeNull();
-    expect(screen.getByTestId('quotation-comparison-cards')).toBeInTheDocument();
+    expect(screen.getAllByText('VQ-a').length).toBeGreaterThan(0);
   });
 });

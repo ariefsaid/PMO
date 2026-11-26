@@ -6,7 +6,7 @@ import { Badge, ListState, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { AGING_BUCKETS, projectAging, type AgingBucket } from '@/src/lib/erpPurchaseAging';
 import { ErpOrphansSection } from '../procurement/ErpOrphansSection';
 
@@ -30,7 +30,7 @@ export const ErpPurchasesSection: React.FC<{
   const orphanQuery = useErpOrphans(projectId, { enabled: canView });
   const isError = agingError || orphanQuery.isError;
   const refetch = () => Promise.all([refetchAging(), orphanQuery.refetch()]);
-  const today = localToday();
+  const today = orgDayNow();
   const rows = useMemo(() => data ?? [], [data]);
   const orphans = orphanQuery.data ?? [];
   const { aging, sharedOpen } = useMemo(() => projectAging(rows, today), [rows, today]);

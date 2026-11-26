@@ -41,6 +41,10 @@ describe('UXS-038 expense breadcrumb labels', () => {
   });
 });
 
+it('names the material request creation screen without a loading crumb', () => {
+  expect(breadcrumbForPath('/material-requests/new').at(-1)).toMatchObject({ i18nKey: 'materialRequests:form.title' });
+});
+
 describe('UXS-007 shell label consistency', () => {
   it('uses the canonical My Tasks locale key for its breadcrumb', () => {
     expect(breadcrumbForPath('/my-tasks')).toEqual([

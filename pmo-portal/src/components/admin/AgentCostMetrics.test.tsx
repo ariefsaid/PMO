@@ -3,7 +3,7 @@
  *
  * Covers: KPI derivation from summaryRows/runStatsRows (cache hit-rate, reasoning
  * share, cost/run p50 weighted-by-runs, cost/run p95 max, p95 latency max), the
- * division-guard "—" fallback on empty denominators, the loading/error(+retry)/empty
+ * division guards that explain unavailable figures, the loading/error(+retry)/empty
  * ListState variants, and an axe-core zero-blocking-violations check per state.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -221,30 +221,29 @@ describe('AgentCostMetrics', () => {
 
   // ── Division guards ────────────────────────────────────────────────────────
 
-  it('shows "—" for cache hit-rate when Σprompt_tokens is 0', () => {
+  it('explains why cache hit-rate is unavailable when Σprompt_tokens is 0', () => {
     render(
       <AgentCostMetrics
         {...defaultProps}
         summaryRows={[{ ...summaryRows[0], prompt_tokens: 0, cached_tokens: 0 }]}
       />,
     );
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Cache hit-rate needs recorded prompt tokens.');
   });
 
-  it('shows "—" for reasoning share when Σcompletion_tokens is 0', () => {
+  it('explains why reasoning share is unavailable when Σcompletion_tokens is 0', () => {
     render(
       <AgentCostMetrics
         {...defaultProps}
         summaryRows={[{ ...summaryRows[0], completion_tokens: 0, reasoning_tokens: 0 }]}
       />,
     );
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Reasoning share needs recorded completion tokens.');
   });
 
-  it('shows "—" for cost/run and latency tiles when runStatsRows is empty', () => {
+  it('explains why cost per run and latency are unavailable when runStatsRows is empty', () => {
     render(<AgentCostMetrics {...defaultProps} runStatsRows={[]} />);
-    // 3 run-stats-derived tiles (p50 cost, p95 cost, p95 latency) all fall back.
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Cost per run and latency need recorded run statistics.');
   });
 
   // ── Chart graceful single-month fallback ─────────────────────────────────

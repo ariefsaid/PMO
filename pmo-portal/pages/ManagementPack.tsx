@@ -581,6 +581,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       primaryAction={!embedded ? <BoardPackAction /> : undefined}
     >
       <div className="mb-3"><FigureHiddenLine compact /></div>
+      <div className="flex min-w-0 flex-col">
+      <div className="order-2 mt-6 md:order-1 md:mt-0">
       {isPending && !pack ? (
         <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-6">
           {figureSpecs.map((spec) => <KPITile key={spec.key} loading tone="blue" icon="grid" label={spec.label} value="" />)}
@@ -607,8 +609,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           })}
         </KPIRow>
       )}
+      </div>
 
-      <div data-testid="management-pack-table-card" className="min-w-0">
+      <div data-testid="management-pack-table-card" className="order-1 min-w-0 md:order-2">
       <Toolbar data-testid="management-pack-table-toolbar" className="items-end gap-3">
         <TextField id="pack-from" type="month" label={t('managementPack.from', 'From')} value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''} onChange={(v) => setMonth('from', v)} />
         <TextField id="pack-as-at" type="month" label={t('managementPack.asAt', 'As at')} value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''} onChange={(v) => setMonth('to', v)} />
@@ -648,9 +651,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
 
       {pack && state === undefined && (
         <div className="flex flex-col">
-          {/* Comparison across projects and the earned/invoiced trend. On a phone the table comes first. */}
+          {/* Keep the comparison and trend after the project rows at every width. */}
           {(earnedBars.length > 1 || trendCurrencies.length > 0) && (
-            <div className="order-last mt-6 grid min-w-0 gap-6 lg:order-none lg:grid-cols-2">
+            <div className="order-last mt-6 grid min-w-0 gap-6 lg:grid-cols-2">
               <EarnedAgainstContract rows={earnedBars} />
               {trendCurrencies.map((tot) => <EarnedInvoicedTrend key={tot.currency} currency={tot.currency} months={tot.months.map((m) => ({ month: m.month, earnedToDate: m.recognisedToDate, invoicedToDate: m.invoicedToDate }))} />)}
             </div>
@@ -693,6 +696,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           />
         </div>
       )}
+      </div>
       </div>
 
       {pack && state === undefined && (

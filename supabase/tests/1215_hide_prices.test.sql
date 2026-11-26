@@ -98,9 +98,9 @@ select is((select count(*)::int from procurement_items_masked where id = '269900
 select is((select rate from procurement_items_masked where id = '26990000-0000-0000-0000-000000000013'), 12.50, 'AC-003 a Buyer reads the rate');
 reset role;
 
--- structural: every masked view calls the helper (11 views)
+-- structural: every masked view calls the helper (12 views; 2701 added the planned equipment rate view, #2788)
 select is((select count(*)::int from pg_views where schemaname = 'public' and viewname like '%\_masked' and definition like '%actor_may_see_prices_now%'),
-  11, 'AC-003 all eleven masked views mask through the one helper');
+  12, 'AC-003 all twelve masked views mask through the one helper');
 
 select * from finish();
 rollback;

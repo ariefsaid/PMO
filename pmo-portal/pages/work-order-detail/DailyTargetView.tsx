@@ -19,6 +19,8 @@ interface Props {
   costGroups?: SourceGroup[] | null;
   /** Where the reader may enter a target: the work order's label for the entry form (the empty month offers it). */
   plan?: { woLabel: string } | null;
+  /** True when rendered beneath `RevenuePlanSection` on the same tab: omit cumulative to-date duplicates and keep month-specific projection + daily bars. */
+  monthOnly?: boolean;
 }
 
 /**
@@ -30,7 +32,7 @@ interface Props {
  * target says so (FR-WDT-015). A day with nothing on it gets no row: the quiet days are counted under the table.
  * The parent mounts this only while the organisation's switch is on.
  */
-export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = null, plan = null }) => {
+export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = null, plan = null, monthOnly = false }) => {
   const { t } = useTranslation('workOrderRevenuePlan');
   const today = useOrgToday();
   const currentMonth = `${today.slice(0, 7)}-01`;
@@ -60,9 +62,9 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   const monthLabel = formatUtcMonthYearFull(new Date(`${month}T00:00:00Z`));
 
   const nav = (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <Button variant="outline" size="sm" aria-label={t('daily.prevMonth', 'Previous month')} onClick={() => setMonth(shiftMonth(month, -1))}>‹</Button>
-      <span className="min-w-[8rem] text-center text-control" data-testid="daily-target-month">{monthLabel}</span>
+      <span className="min-w-[6.5rem] text-center text-control whitespace-nowrap" data-testid="daily-target-month">{monthLabel}</span>
       <Button variant="outline" size="sm" aria-label={t('daily.nextMonth', 'Next month')} onClick={() => setMonth(shiftMonth(month, 1))}>›</Button>
     </div>
   );
@@ -84,8 +86,17 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
       : g.state === 'ahead' ? t('daily.ahead', '{{amount}} ahead of target', { amount: money(g.by) })
       : t('daily.onTarget', 'On target');
   };
+  const signedGap = (gap: string) => {
+    const g = revenueGap(gap);
+    if (g.state === 'behind') return `-${money(g.by)}`;
+    if (g.state === 'ahead') return `+${money(g.by)}`;
+    return money('0');
+  };
   const figure = (testId: string, label: string, value: React.ReactNode) => (
-    <div key={testId}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-medium tabular-nums" data-testid={testId}>{value}</dd></div>
+    <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
+      <dt className="self-end text-muted-foreground">{label}</dt>
+      <dd className="self-start font-medium tabular-nums" data-testid={testId}>{value}</dd>
+    </div>
   );
   const costFigure = (v: number | null | undefined) => (typeof v === 'number' ? money(toMoney(v)) : '—');
   const none = t('daily.noTarget', 'No target entered');
@@ -114,13 +125,21 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   return (
     <div className="flex flex-col gap-[var(--space-section)]" data-testid="wo-page-daily-target">
       <RecordSection title={title} actions={nav}>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-control sm:grid-cols-4">
-          {figure('wo-daily-mtd-target', t('daily.mtdTarget', 'Target to date'), data.hasTarget ? money(data.mtdTarget) : none)}
-          {figure('wo-daily-mtd-actual', t('daily.mtdActual', 'Actual to date'), money(data.mtdActual))}
-          {figure('wo-daily-mtd-gap', t('daily.mtdGap', 'Gap to date'), data.hasTarget ? gapWords(data.mtdGap) : none)}
-          {figure('wo-daily-projection', t('daily.projection', 'Projection to month end'),
-            data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection))}
-        </dl>
+        {monthOnly ? (
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-control sm:grid-cols-2">
+            {figure('wo-daily-month-target', t('daily.monthTarget', 'Month target'), data.hasTarget ? money(data.monthTarget) : none)}
+            {figure('wo-daily-projection', t('daily.projection', 'Projection to month end'),
+              data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection))}
+          </dl>
+        ) : (
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-control sm:grid-cols-4">
+            {figure('wo-daily-mtd-target', t('daily.mtdTarget', 'Target to date'), data.hasTarget ? money(data.mtdTarget) : none)}
+            {figure('wo-daily-mtd-actual', t('daily.mtdActual', 'Actual to date'), money(data.mtdActual))}
+            {figure('wo-daily-mtd-gap', t('daily.mtdGap', 'Gap to date'), data.hasTarget ? gapWords(data.mtdGap) : none)}
+            {figure('wo-daily-projection', t('daily.projection', 'Projection to month end'),
+              data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection))}
+          </dl>
+        )}
         {data.hasTarget && data.projection !== null && data.projectedGap !== null && (
           <p className="mt-3 text-control" data-testid="wo-daily-projected-gap">
             {t('daily.projectedGap', 'Month target {{target}}: the projection is {{words}}.', { target: money(data.monthTarget), words: gapWords(data.projectedGap) })}
@@ -132,17 +151,31 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
           </p>
         )}
         {shown.length > 0 && (
-          <figure role="img" aria-label={summary} className="m-0 mt-4 hidden sm:block" data-testid="wo-daily-chart">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                <XAxis dataKey="date" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} />
-                <YAxis tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} width={56} tickFormatter={(v: number) => formatShortAmount(v)} />
-                <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(v) => formatNumberMax2(Number(v))} />
-                <Bar dataKey="target" name={t('daily.seriesTarget', 'Target')} fill={chartTheme.series.primary} isAnimationActive={false} />
-                <Bar dataKey="actual" name={t('daily.seriesActual', 'Actual')} fill={chartTheme.series.success} isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveContainer>
+          <figure role="img" aria-label={summary} className="m-0 mt-4" data-testid="wo-daily-chart">
+            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-support text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="inline-block size-2.5 rounded-xs border" style={{ borderColor: chartTheme.series.neutral, backgroundColor: 'transparent' }} />
+                {t('daily.seriesTarget', 'Target')}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="inline-block size-2.5 rounded-xs" style={{ backgroundColor: chartTheme.series.success }} />
+                {t('daily.seriesActual', 'Actual')}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[440px] sm:min-w-0">
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                    <XAxis dataKey="date" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} />
+                    <YAxis tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} width={56} tickFormatter={(v: number) => formatShortAmount(v)} />
+                    <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(v) => formatNumberMax2(Number(v))} />
+                    <Bar dataKey="target" name={t('daily.seriesTarget', 'Target')} fill={chartTheme.series.neutral} fillOpacity={0.22} stroke={chartTheme.series.neutral} strokeWidth={1} isAnimationActive={false} />
+                    <Bar dataKey="actual" name={t('daily.seriesActual', 'Actual')} fill={chartTheme.series.success} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </figure>
         )}
       </RecordSection>
@@ -165,19 +198,19 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
                 const dayCost = daily?.days[d.date];
                 return (
                   <tr key={d.date} className="border-t border-border max-sm:block max-sm:py-3" data-testid={`wo-daily-row-${d.date}`}>
-                    <th scope="row" className="py-2.5 pr-4 text-left align-baseline font-normal max-sm:block max-sm:pb-1 max-sm:font-medium">
+                    <th scope="row" className="py-2.5 pr-4 text-left align-baseline font-normal whitespace-nowrap max-sm:block max-sm:pb-1 max-sm:font-medium">
                       {formatDay(d.date)}
                       {d.listed && (
-                        <div className="font-normal text-muted-foreground" data-testid={`wo-daily-nonworking-${d.date}`}>
+                        <div className="font-normal whitespace-normal text-muted-foreground" data-testid={`wo-daily-nonworking-${d.date}`}>
                           {d.nonWorkingLabel ? t('daily.nonWorkingLabelled', 'Non-working day: {{label}}', { label: d.nonWorkingLabel }) : t('daily.nonWorking', 'Non-working day')}
                         </div>
                       )}
                     </th>
-                    <td className={`${cell} pr-4 max-sm:pr-0`} data-label={L.target}>{d.hasTarget ? money(d.target) : '—'}</td>
-                    <td className={`${cell} pr-4 max-sm:pr-0`} data-label={L.actual}>
-                      <span>{money(d.actual)}{d.pendingReports > 0 && <span className="block text-muted-foreground">{t('daily.dayPending', '{{count}} not yet validated', { count: d.pendingReports })}</span>}</span>
+                    <td className={`${cell} pr-4 whitespace-nowrap max-sm:pr-0`} data-label={L.target}>{d.hasTarget ? money(d.target) : '—'}</td>
+                    <td className={`${cell} pr-4 whitespace-nowrap max-sm:pr-0`} data-label={L.actual}>
+                      <span>{money(d.actual)}{d.pendingReports > 0 && <span className="block whitespace-normal text-muted-foreground">{t('daily.dayPending', '{{count}} not yet validated', { count: d.pendingReports })}</span>}</span>
                     </td>
-                    <td className={`${cell} ${costCols.length || hasCostTotal ? 'pr-4 max-sm:pr-0' : ''}`} data-label={L.gap}>{d.hasTarget ? gapWords(d.gap) : '—'}</td>
+                    <td className={`${cell} whitespace-nowrap ${costCols.length || hasCostTotal ? 'pr-4 max-sm:pr-0' : ''}`} data-label={L.gap}>{d.hasTarget ? signedGap(d.gap) : '—'}</td>
                     {costCols.map((k) => <td key={k} className={`${cell} pr-4 max-sm:pr-0`} data-label={t(`daily.cost.${k}`, k)} data-testid={`wo-daily-cost-${k}-${d.date}`}>{costFigure(dayCost?.[k])}</td>)}
                     {hasCostTotal && <td className={`${cell} pr-4 max-sm:pr-0`} data-label={L.total} data-testid={`wo-daily-cost-total-${d.date}`}>{costFigure(dayCost?.total)}</td>}
                     {hasCostTotal && <td className={`${cell} font-medium`} data-label={L.net} data-testid={`wo-daily-cost-net-${d.date}`}>

@@ -42,6 +42,7 @@ import { TimesheetWeekToolbar } from './timesheets/TimesheetWeekToolbar';
 import { TimesheetWeekActions } from './timesheets/TimesheetWeekActions';
 import { TimesheetRowAttribution } from './timesheets/TimesheetRowAttribution';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { orgDayDate } from '@/src/hooks/useOrgToday';
 
 // RF-061: recognizable code + short title in the picker; the added row shows the full name.
 const PICKER_NAME_MAX = 36;
@@ -79,7 +80,7 @@ const TimesheetsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentDate = useMemo(() => {
     const match = searchParams.get('week')?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date();
+    return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : orgDayDate();
   }, [searchParams]);
   const setCurrentDate = (date: Date) => setSearchParams((current) => {
     const next = new URLSearchParams(current);

@@ -121,9 +121,9 @@ const ExpenseClaimDetail: React.FC = () => {
     }] : []),
   ];
   const money = (v: number) => formatCurrency(v, claim.currency, { precision: 'minor' });
-  // Facts that no other part of the screen states. A claim's amount is its Lines total, so only an advance (no lines) shows it here.
+  // Keep the total visible beside the decision before the reader reaches the lines.
   const stats: PageStat[] = [
-    ...(claim.kind === 'advance' ? [{ label: t('expenses.detail.amount', 'Amount'), value: <span data-testid="expense-amount">{money(amount)}</span> }] : []),
+    { label: t('expenses.detail.amount', 'Amount'), value: <span data-testid="expense-amount" className="text-metric">{money(amount)}</span> },
     ...(claim.kind === 'claim' && claim.status === 'Paid' ? [
       { label: t('expenses.detail.advanceApplied', 'Advance applied'), value: money(paidSplit.applied) },
       { label: t('expenses.detail.cashPaid', 'Cash paid'), value: money(paidSplit.cash) },

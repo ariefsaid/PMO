@@ -9,7 +9,7 @@ const listeners = new Set<() => void>();
 
 export type MaskableTable =
   | 'procurements' | 'procurement_items' | 'procurement_invoices' | 'purchase_orders' | 'purchase_requests' | 'payments'
-  | 'purchase_order_lines' | 'po_variation_lines' | 'stock_document_lines' | 'stock_ledger' | 'stock_balances';
+  | 'purchase_order_lines' | 'po_variation_lines' | 'stock_document_lines' | 'stock_ledger' | 'stock_balances' | 'equipment_plan_lines';
 
 export function setHidePricesActive(active: boolean): void {
   if (hidePricesActive === active) return;
@@ -38,7 +38,7 @@ export function priceEmbed(table: MaskableTable, cols: string, alias: string = t
 
 const MASKABLE: readonly MaskableTable[] = [
   'procurements', 'procurement_items', 'procurement_invoices', 'purchase_orders', 'purchase_requests', 'payments',
-  'purchase_order_lines', 'po_variation_lines', 'stock_document_lines', 'stock_ledger', 'stock_balances',
+  'purchase_order_lines', 'po_variation_lines', 'stock_document_lines', 'stock_ledger', 'stock_balances', 'equipment_plan_lines',
 ];
 const EMBED = new RegExp(`(^|[\\s,:])(${MASKABLE.join('|')})\\(`, 'g');
 

@@ -7,6 +7,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { LineItemsSection } from './LineItemsSection';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import enProcurement from '@/public/locales/en/procurement.json';
 import idProcurement from '@/public/locales/id/procurement.json';
 
@@ -107,6 +108,19 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     await user.type(screen.getByLabelText('New item unit price'), '10');
     await user.click(screen.getByRole('button', { name: /add line item/i }));
     expect(onAdd).toHaveBeenCalledWith({ name: 'ITEM-TEST', description: 'Inspection of test unit', quantity: 2, rate: 10 });
+  });
+  it('#2788 with prices hidden, editing a quantity keeps the stored price (no price is sent back)', async () => {
+    setPricesHidden(true);
+    try {
+      const { onUpdate } = renderSection({ items: [{ ...items[0], rate: null as unknown as number, amount: null as unknown as number }] });
+      await userEvent.click(screen.getByRole('button', { name: /edit MIG welding wire/i }));
+      expect(screen.getByLabelText(/edit unit price for MIG welding wire/i)).toHaveValue('');
+      const qty = screen.getByLabelText(/edit quantity for MIG welding wire/i);
+      await userEvent.clear(qty);
+      await userEvent.type(qty, '5');
+      await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+      expect(onUpdate).toHaveBeenCalledWith('it1', { name: 'MIG welding wire', quantity: 5 });
+    } finally { setPricesHidden(false); }
   });
   it('saves a label without resending protected values', async () => {
     const { onUpdate } = renderSection({ valuesEditable: false });

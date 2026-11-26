@@ -58,6 +58,7 @@ const Meetings: React.FC = () => {
     search: deferredSearch.trim() || undefined,
     includeArchived: showArchived,
   });
+  const unfiltered = useMeetingsPages({ includeArchived: showArchived });
   const rows = useMemo(() => data?.pages.flatMap((page) => page.rows) ?? [], [data]);
   // A search whose full-text leg failed loaded only the substring matches: an exact count would
   // promise rows this list cannot reach, so the pager uses "x loaded, more available" instead.
@@ -268,7 +269,7 @@ const Meetings: React.FC = () => {
         )
       }
       count={data && !isPending && !isError && !isPlaceholderData ? rows.length : undefined}
-      total={total ?? '…'}
+      total={(search || (projectFilter && projectFilter !== 'All') ? unfiltered.total : total) ?? '…'}
       filters={
         state !== 'loading' && (
           <>
@@ -294,7 +295,7 @@ const Meetings: React.FC = () => {
                 labelledBy="meetings-show-archived-label"
               />
             </div>
-            {hasActiveFilters && (
+            {hasActiveFilters && rows.length > 0 && (
               <button
                 type="button"
                 onClick={clear}
@@ -363,7 +364,8 @@ const Meetings: React.FC = () => {
           hasMore={false}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
-          emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
+          emptyActionVariant="outline"
+            emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
           tableId="meetings-table"
         />
       )}

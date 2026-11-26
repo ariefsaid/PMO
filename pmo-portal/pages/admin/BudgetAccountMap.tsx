@@ -392,6 +392,8 @@ const BudgetAccountMap: React.FC = () => {
           rowKey={(category) => category}
           tableId="budget-account-map"
           accessibleName={t('admin.budgetMap.title', 'Budget account map')}
+          embedded
+          cardBelow={760}
         />
       </div>
 

@@ -14,9 +14,9 @@ export function ProjectStatusCell({ state, exception, lateDays }: {
   return (
     <div className="flex min-w-0 flex-col items-start gap-0.5">
       {exception === null
-        ? <StatusPill record="project" state={state} className="whitespace-nowrap" />
+        ? <StatusPill record="project" state={state} wrap className="whitespace-normal" />
         : (
-          <StatusPill variant={exception === 'overBudget' ? 'overdue' : 'warn'} className="whitespace-nowrap">
+          <StatusPill variant={exception === 'overBudget' ? 'overdue' : 'warn'} wrap className="whitespace-normal">
             {exception === 'overBudget'
               ? tp('health.statusOverBudget', '{{status}} · over budget', { status: name })
               : tp('health.statusAtRisk', '{{status}} · at risk', { status: name })}

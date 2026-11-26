@@ -7,6 +7,7 @@ export interface PrintActionBarProps {
   onPrint?: () => void;
   printLabel?: string;
   backLabel?: string;
+  shortBackLabel?: string;
 }
 
 /**
@@ -19,6 +20,7 @@ export const PrintActionBar: React.FC<PrintActionBarProps> = ({
   onPrint,
   printLabel = 'Print',
   backLabel = 'Back',
+  shortBackLabel,
 }) => {
   const handlePrint = () => {
     if (onPrint) {
@@ -33,16 +35,18 @@ export const PrintActionBar: React.FC<PrintActionBarProps> = ({
       data-testid="print-action-bar"
       className="print-hide print:hidden sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-card/90 px-4 py-3 backdrop-blur-sm sm:px-8"
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <Button
           variant="outline"
           size="sm"
           onClick={onBack}
           aria-label={backLabel}
+          className="shrink-0 whitespace-nowrap"
           data-testid="print-back-button"
         >
           <Icon name="back" className="h-4 w-4 mr-1.5" />
-          <span>{backLabel}</span>
+          <span className={shortBackLabel ? 'hidden sm:inline' : undefined}>{backLabel}</span>
+          {shortBackLabel && <span className="sm:hidden">{shortBackLabel}</span>}
         </Button>
         <span className="truncate text-sm font-semibold text-foreground sm:text-base">
           {title}

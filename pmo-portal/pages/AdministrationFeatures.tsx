@@ -332,13 +332,13 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
       ) : (
         <>
 
-      <section aria-labelledby="console-switches" className="min-w-0">
+      <section aria-labelledby="console-switches" className="@container min-w-0">
         <SectionHeader
           title={t('console.switchesHeading', 'Switches for {{org}}', {
             org: selectedOrg?.name ?? t('console.thisOrganisation', 'this organisation'),
           })}
         />
-        <div className="hidden overflow-x-auto rounded-lg border border-border bg-card sm:block">
+        <div className="hidden overflow-x-auto rounded-lg border border-border bg-card @min-[722px]:block">
           <table className="w-full min-w-[720px] border-collapse text-control">
             <caption className="sr-only">
               {t('console.switchesCaption', 'Effective switch state, its source, the plan default, the per-organisation override and the all-organisations switch.')}
@@ -391,7 +391,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                           </span>
                         </td>
                         <td className="px-4 py-2 text-muted-foreground" data-testid={`plan-default-cell-${key}`}>
-                          {planDefault === undefined ? '—' : <OnOff on={planDefault} />}
+                          {planDefault === undefined ? t('console.noPlanDefault', 'No plan default') : <OnOff on={planDefault} />}
                         </td>
                         <td className="px-4 py-2">
                           {isAdminOwned ? (
@@ -457,7 +457,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
             </tbody>
           </table>
         </div>
-        <div className="space-y-4 sm:hidden" data-testid="feature-phone-rows">
+        <div className="space-y-4 @min-[722px]:hidden" data-testid="feature-phone-rows">
           {FEATURE_GROUPS.map((group) => (
             <section key={group.id} aria-label={groupLabel(t, group.id)} className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
               <h3 className="bg-secondary/40 px-3 py-2 text-control font-semibold text-muted-foreground">{groupLabel(t, group.id)}</h3>
@@ -482,7 +482,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                         </div>
                       </div>
                       <p className="text-control text-muted-foreground">
-                        {t('console.colPlanDefault', 'Plan default')}: {planDefault === undefined ? '—' : <OnOff on={planDefault} />}
+                        {t('console.colPlanDefault', 'Plan default')}: {planDefault === undefined ? t('console.noPlanDefault', 'No plan default') : <OnOff on={planDefault} />}
                       </p>
                       {isAdminOwned ? (
                         <p className="text-control text-muted-foreground">{t('console.adminOwnedRow', 'Admin-owned')}</p>

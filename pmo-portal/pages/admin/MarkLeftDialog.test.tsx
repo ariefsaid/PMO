@@ -58,7 +58,7 @@ describe('MarkLeftDialog', () => {
     h.isPending = false;
   });
 
-  it('renders truthful label and helper stating first day off crew roster, not Last day of work', () => {
+  it('#2814 explains the roster effect of the first day off', () => {
     renderDialog();
     const dialog = screen.getByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe('MarkLeftDialog', () => {
     const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
     expect(input).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/^First day off crew roster/i)).toBe(input);
-    expect(input).toHaveAccessibleDescription('First day off crew roster');
+    expect(input).toHaveAccessibleDescription('From this date onward, this person will no longer appear on crew rosters.');
     expect(within(dialog).queryByText(/Last day of work/i)).toBeNull();
     expect(screen.queryByText(/Last day of work/i)).toBeNull();
   });
@@ -173,7 +173,7 @@ describe('MarkLeftDialog', () => {
     const input = within(dialog).getByRole('textbox', { name: /^Hari pertama keluar dari susunan kru/i });
     expect(input).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/^Hari pertama keluar dari susunan kru/i)).toBe(input);
-    expect(input).toHaveAccessibleDescription('Hari pertama keluar dari susunan kru');
+    expect(input).toHaveAccessibleDescription('Mulai tanggal ini, orang ini tidak lagi tercantum dalam susunan kru.');
     expect(within(dialog).queryByText(/Hari kerja terakhir/i)).toBeNull();
     expect(screen.queryByText(/Hari kerja terakhir/i)).toBeNull();
   });
