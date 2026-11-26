@@ -3,7 +3,7 @@ import { DateField } from '@/src/components/ui/DateField';
 import { useTranslation } from 'react-i18next';
 import { Button, NumberField, SelectField, TextField, useToast } from '@/src/components/ui';
 import { useCompanies } from '@/src/hooks/useCompanies';
-import { useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate } from '@/src/hooks/useEquipmentAvailability';
+import { useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate, useEndRentalTerm } from '@/src/hooks/useEquipmentAvailability';
 import { formatExactMoney, formatIsoDay, normalizeLocalizedDecimal } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -15,6 +15,9 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
   const vendors = useCompanies('Vendor', { enabled: true });
   const saveTerm = useRentalTerms(); const saveOwnership = useEquipmentOwnership(); const changeRate = useChangeRentalRate();
   const terms = useRentalTermHistory(termAsset, true);
+  const endTerm = useEndRentalTerm();
+  const [endingTermId, setEndingTermId] = useState<string | null>(null);
+  const [lastRentalDay, setLastRentalDay] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [inService, setInService] = useState(asset.in_service_on ?? '');
   const [vendor, setVendor] = useState(''); const [rate, setRate] = useState('');
@@ -32,12 +35,40 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
     try { await saveTerm.mutateAsync({ asset_id: termAsset, vendor_id: vendor, rate: canonical, basis, currency, rented_from: rentedFrom, rented_to: rentedTo || null }); toast(t('equipment:availability.saved', 'Status saved'), undefined, 'success'); }
     catch (err) { setProblem(classifyMutationError(err).headline); }
   };
+  const submitEnd = async (termId: string) => {
+    setProblem(null);
+    try {
+      await endTerm.mutateAsync({ termId, date: lastRentalDay });
+      setEndingTermId(null);
+      toast(t('equipment:availability.periodEnded', 'Rental period ended'), undefined, 'success');
+    } catch (err) {
+      setProblem(classifyMutationError(err).headline);
+    }
+  };
   return <>{problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
         <section aria-labelledby="eav-terms-h" className="mb-6">
           <h2 id="eav-terms-h" className="text-base font-semibold mb-2">{t('equipment:availability.terms', 'Rental terms')}</h2>
           {terms.isError && <p role="alert">{t('equipment:availability.termsError', 'Could not load rental terms')}</p>}
           {(terms.data?.length ?? 0) > 0 && <ul className="mb-3">
-            {terms.data?.map((term) => <li key={term.id}>{formatIsoDay(term.rented_from)} – {term.rented_to ? formatIsoDay(term.rented_to) : '…'} · {vendors.data?.find((v) => v.id === term.vendor_id)?.name ?? term.vendor_id} · {formatExactMoney(String(term.rate), term.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—'} / {term.basis === 'hour' ? t('equipment:availability.hour', 'Hour') : term.basis === 'day' ? t('equipment:availability.day', 'Day') : t('equipment:availability.month', 'Month')}</li>)}
+            {terms.data?.map((term) => <li key={term.id}>{formatIsoDay(term.rented_from)} – {term.rented_to ? formatIsoDay(term.rented_to) : '…'} · {vendors.data?.find((v) => v.id === term.vendor_id)?.name ?? term.vendor_id} · {formatExactMoney(String(term.rate), term.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—'} / {term.basis === 'hour' ? t('equipment:availability.hour', 'Hour') : term.basis === 'day' ? t('equipment:availability.day', 'Day') : t('equipment:availability.month', 'Month')}
+              {term.rented_to === null && (
+                endingTermId === term.id ? (
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <DateField label={t('equipment:availability.lastRentalDay', 'Last rental day')} value={lastRentalDay} onChange={setLastRentalDay} min={term.rented_from} disabled={endTerm.isPending} />
+                    <Button variant="primary" disabled={!lastRentalDay || lastRentalDay < term.rented_from || endTerm.isPending} onClick={() => void submitEnd(term.id)}>
+                      {t('equipment:availability.confirmEnd', 'Confirm end date')}
+                    </Button>
+                    <Button variant="outline" disabled={endTerm.isPending} onClick={() => { setEndingTermId(null); setProblem(null); }}>
+                      {t('cancel', 'Cancel')}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant="outline" className="ml-2" disabled={endTerm.isPending} onClick={() => { setEndingTermId(term.id); setLastRentalDay(''); setProblem(null); }}>
+                    {t('equipment:availability.endPeriod', 'End rental period')}
+                  </Button>
+                )
+              )}
+            </li>)}
           </ul>}
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField label={t('equipment:availability.vendor', 'Vendor')} value={vendor} onChange={setVendor} options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...(vendors.data ?? []).map((v) => ({ value: v.id, label: v.name }))]} />

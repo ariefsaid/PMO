@@ -41,6 +41,7 @@ vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useEquipmentMetrics: (ids: string[]) => { h.metricIds = ids; return { data: [] }; },
   useSetStatusBulk: () => ({ mutateAsync: h.bulk, isPending: false }),
   useAttachProof: () => ({ mutateAsync: h.proof, isPending: false }),
+  useEndRentalTerm: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRentalTerms: () => ({ mutateAsync: h.saveTerm, isPending: false }),
   useRentalTermHistory: (assetId: string) => ({ data: assetId === 'a3' ? [{ id: 'term1', rate: 100, currency: 'IDR', basis: 'day', rented_from: '2026-01-01', rented_to: null, vendor_id: 'v1' }] : [] }),
   useEquipmentOwnership: () => ({ mutateAsync: h.ownership, isPending: false }),
