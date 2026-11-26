@@ -388,8 +388,8 @@ const MyTasks: React.FC = () => {
       {!isPending && !isError && grouped.length > 0 && (
         <div className="space-y-6">
           {grouped.map((group) => (
-            <section key={group.projectId} aria-label={group.projectName}>
-              <h2 className="mb-4 break-words text-group font-semibold text-foreground">
+            <section key={group.projectId} aria-label={group.projectName} className="min-w-0 rounded-lg border border-border bg-card">
+              <h2 className="break-words px-4 pb-3 pt-4 text-group font-semibold text-foreground">
                 {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
                     explicitly (/projects/:id/tasks) — the project URL default is role-invariant
                     Overview, so this link carries the intent rather than mutating the default. */}
@@ -407,7 +407,7 @@ const MyTasks: React.FC = () => {
                   <span data-testid="my-tasks-no-project-heading">{group.projectName}</span>
                 )}
               </h2>
-              <div className="rounded-lg border border-border bg-card divide-y divide-border">
+              <div className="divide-y divide-border border-t border-border">
                 {group.items.map((task) => (
                   <div
                     key={task.id}
