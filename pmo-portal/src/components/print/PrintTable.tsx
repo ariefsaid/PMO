@@ -49,7 +49,7 @@ export function PrintTable<T>({
                   scope="col"
                   style={col.width ? { width: col.width } : undefined}
                   className={cn(
-                    'py-2 px-3 text-xs font-semibold text-foreground',
+                    'py-2 px-2 sm:px-3 text-xs font-semibold text-foreground',
                     alignClass,
                   )}
                 >
@@ -86,7 +86,7 @@ export function PrintTable<T>({
                   return (
                     <td
                       key={col.key}
-                      className={cn('py-2.5 px-3 text-sm text-foreground align-top', alignClass)}
+                      className={cn('py-2.5 px-2 sm:px-3 text-sm text-foreground align-top', alignClass)}
                     >
                       {col.render(row, index)}
                     </td>

@@ -250,9 +250,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       key: 'status',
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
-      size: 214,
-      minSize: 136,
-      maxSize: 240,
+      size: 280,
+      minSize: 240,
+      maxSize: 320,
       exportValue: (p) => String(p.status),
       // ONE status mark per row (#design-1115): the lifecycle pill, coloured by the row's exception —
       // red over budget, amber at risk — and named in the pill; lateness is a plain line beneath it.

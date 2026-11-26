@@ -37,7 +37,7 @@ export default function OrgImprestLimit() {
   const valid = parsed !== null && parsed > 0;
   const saveError = mutation.isError ? classifyMutationError(mutation.error) : null;
   return (
-    <div className="mt-6 max-w-md" data-testid="org-imprest-limit">
+    <div className="mt-4 max-w-md" data-testid="org-imprest-limit">
       <h3 className="text-control font-semibold">{t('procurement:gates.imprestLimit.heading', 'Site cash limit')}</h3>
       <p className="mt-1 text-control text-muted-foreground">
         {t('procurement:gates.imprestLimit.help', 'The largest single spend site cash covers. Set it before setting up site cash. Only an Admin can set it.')}

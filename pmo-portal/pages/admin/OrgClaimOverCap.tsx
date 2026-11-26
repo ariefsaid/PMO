@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Button, FieldError, ListState, useToast } from '@/src/components/ui';
+import { FieldError, ListState, useToast } from '@/src/components/ui';
+import { SettingSwitch } from '@/src/components/admin/SettingSwitch';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -37,34 +38,26 @@ const OrgClaimOverCap: React.FC = () => {
   });
 
   return (
-    <section id="org-claim-over-cap" tabIndex={-1} className="scroll-mt-4 mt-8 border-t border-border pt-6" aria-labelledby="org-claim-over-cap-heading">
+    <section id="org-claim-over-cap" tabIndex={-1} className="scroll-mt-4" aria-labelledby="org-claim-over-cap-heading">
       <h2 id="org-claim-over-cap-heading" className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.claimOverCap.title', 'Claims over the claimable quantity')}
       </h2>
-      <div className="mt-3 max-w-md space-y-3">
+      <div className="mt-3 max-w-xl space-y-3">
         {query.isError && !query.data ? (
           <ListState variant="error" title={t('admin.claimOverCap.loadError', "Couldn't load the claim quantity setting")} onRetry={() => void query.refetch()} />
         ) : query.data === undefined ? (
           <ListState variant="loading" rows={1} />
         ) : (
           <>
-            <p className="text-control text-muted-foreground">
-              {t('admin.claimOverCap.helper', 'A claim line is measured against the quantity still claimable on its work order line: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity, otherwise the ordered quantity, less what live claims already took. Warn only lets the claim through with a warning on the form. Refuse stops the claim until the quantity is lowered or the next acceptance is confirmed.')}
-            </p>
-            <p className="text-control">
-              <span className="font-semibold">{blocking ? t('admin.claimOverCap.block', 'Refuse') : t('admin.claimOverCap.warn', 'Warn only')}</span>
-              {!canManage && <span className="ml-2 text-muted-foreground">{t('admin.claimOverCap.adminOnly', 'Only an Admin can change this.')}</span>}
-            </p>
+            <SettingSwitch
+              label={t('admin.claimOverCap.turnOn', 'Refuse claims over the claimable quantity')}
+              consequence={t('admin.claimOverCap.helper', 'A claim line is measured against the quantity still claimable on its work order line: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity, otherwise the ordered quantity, less what live claims already took. Warn only lets the claim through with a warning on the form. Refuse stops the claim until the quantity is lowered or the next acceptance is confirmed.')}
+              checked={blocking}
+              disabled={!canManage || mutation.isPending}
+              onChange={(next) => { setError(undefined); mutation.mutate(next ? 'block' : 'warn'); }}
+            />
+            {!canManage && <p className="text-control text-muted-foreground">{t('admin.claimOverCap.adminOnly', 'Only an Admin can change this.')}</p>}
             {error && <FieldError>{error}</FieldError>}
-            {canManage && (
-              <Button
-                variant={blocking ? 'outline' : 'primary'}
-                disabled={mutation.isPending}
-                onClick={() => { setError(undefined); mutation.mutate(blocking ? 'warn' : 'block'); }}
-              >
-                {blocking ? t('admin.claimOverCap.turnOff', 'Only warn on claims over the claimable quantity') : t('admin.claimOverCap.turnOn', 'Refuse claims over the claimable quantity')}
-              </Button>
-            )}
           </>
         )}
       </div>

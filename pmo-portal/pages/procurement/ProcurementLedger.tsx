@@ -156,19 +156,20 @@ const OdooRowStatus: React.FC<{ row: LedgerRow }> = ({ row }) => {
 const STATIC_COLUMNS: Column<LedgerRow>[] = [
   {
     key: 'date',
-    size: 96,
+    size: 76,
     // First column: its text starts on the panel inset (the other columns keep 16px between them).
     colClassName: 'md:pl-[var(--panel-inset)]',
     header: <LedgerHeader translationKey="procurementLedger.date" fallback="Date" />,
     cell: (row) => (
-      <span className="text-sm text-muted-foreground">
+      <span className="whitespace-nowrap text-sm text-muted-foreground">
         {formatBusinessDate(row.date)}
       </span>
     ),
   },
   {
     key: 'type',
-    size: 100,
+    size: 96,
+    colClassName: 'hidden xl:table-cell',
     header: <LedgerHeader translationKey="procurementLedger.typeHeader" fallback="Type" />,
     cell: (row) => (
       <StatusPill variant="neutral">
@@ -178,18 +179,24 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'systemNumber',
-    size: 136,
+    size: 112,
     header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
-    cell: (row) =>
-      row.systemNumber ? (
-        <span className="record-id font-semibold text-foreground">{row.systemNumber}</span>
-      ) : (
-        <span className="text-sm text-muted-foreground">—</span>
-      ),
+    cell: (row) => (
+      <div className="flex flex-col items-start gap-0.5">
+        {row.systemNumber ? (
+          <span className="record-id font-semibold text-foreground">{row.systemNumber}</span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+        <span className="text-sm font-normal text-muted-foreground xl:hidden">
+          <LedgerTypeLabel type={row.type} />
+        </span>
+      </div>
+    ),
   },
   {
     key: 'externalRef',
-    size: 132,
+    size: 120,
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       // The bare marker lets the table drop the column when no record carries one (screen rules: no all-blank column).
@@ -197,7 +204,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'groupRef',
-    size: 100,
+    size: 96,
     header: <GroupRefHeader />,
     cell: (row) =>
       // The bare marker lets the table drop the column when no record carries one (screen rules: no all-blank column).
@@ -205,8 +212,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     // One cell for the pair (number over a muted date): two columns pushed the row ⋯ off the 1440 view.
-    // Only a vendor invoice carries an e-Faktur — every other record type renders nothing here (no dash,
-    // and no empty label on its mobile card).
+    // Omit when empty so DataTable drops the all-blank column.
     key: 'efaktur',
     size: 92,
     header: <EfakturHeader />,
@@ -216,7 +222,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
   },
   {
     key: 'status',
-    size: 196,
+    size: 108,
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
     cell: (row) => (row.voided ? <VoidedBillStatus voided={row.voided} />
       : row.odoo ? <OdooRowStatus row={row} /> : <RecordStatusPill row={row} />),
@@ -453,7 +459,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const fileColumn = useMemo<Column<LedgerRow>>(
     () => ({
       key: 'file',
-      size: 96,
+      size: 84,
       header: <LedgerHeader translationKey="procurementLedger.file" fallback="File" />,
       cell: (row) => (
         <LedgerFileCell
@@ -474,7 +480,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   );
 
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
-    key: 'amount', size: 168, header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
+    key: 'amount', size: 136, header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
       if (!maySeePrices) return <span className="text-muted-foreground">—</span>;
       if (row.amount == null && row.valueFromLines !== undefined) {
@@ -490,19 +496,19 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   // A bill's withholding answers its own question (what is withheld, what the supplier nets, is the slip on file) in its
   // own column, so the amount cell carries one figure. Only bills fill it; with no bill the column is not drawn.
   const withholdingColumn = useMemo<Column<LedgerRow>>(() => ({
-    key: 'withholding', size: 196, header: t('procurement:ledger.withholding', 'Withholding'), align: 'num',
+    key: 'withholding', size: 128, header: t('procurement:ledger.withholding', 'Withholding'),
     cell: (row) => {
       if (row.type !== 'Invoice' || row.amount == null) return null;
       const figures = withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment);
       const invoice = invoices.find((item) => item.id === row.recordId);
       const slipCell = <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} />;
-      return <div className="flex w-full flex-col items-end gap-1 text-right max-sm:items-start max-sm:text-left">{figures && <WithholdingBreakdown figures={figures} currency={row.currency} />}{slipCell}</div>;
+      return <div className="flex w-full flex-col items-start gap-1 text-left">{figures && <WithholdingBreakdown figures={figures} currency={row.currency} />}{slipCell}</div>;
     },
   }), [t, maySeePrices, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
 
   const columns = useMemo<Column<LedgerRow>[]>(
-    () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, withholdingColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
-    [amountColumn, withholdingColumn, fileColumn],
+    () => [...STATIC_COLUMNS.slice(0, 6).map((column) => column.key === 'efaktur' && !rows.some((row) => row.efakturNumber || row.efakturDate) ? { ...column, colClassName: 'hidden' } : column), amountColumn, withholdingColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
+    [amountColumn, withholdingColumn, fileColumn, rows],
   );
 
   // The set of record types already present in the ledger — drives the capture
@@ -595,6 +601,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       actions={
         /* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */
         <div
+          data-actions-wide
           role="group"
           aria-label={t('procurementLedger.filter.label', 'Filter records')}
           className="flex flex-wrap gap-1.5"

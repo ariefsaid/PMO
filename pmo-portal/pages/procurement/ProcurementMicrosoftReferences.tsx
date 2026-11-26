@@ -205,10 +205,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           )}
         </div>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
-      </p>
-      <div ref={stateRef} className="mt-2 scroll-mb-28">
+      <div ref={stateRef} className="mt-3 scroll-mb-28">
         {query.isPending ? (
           <ListState variant="loading" rows={2} />
         ) : query.isError ? (
@@ -223,7 +220,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
             variant="empty"
             title={t('m365Documents.procurement.emptyTitle', 'No links yet')}
             sub={canCreate ? t('m365Documents.procurement.emptySub', 'Link a SharePoint or OneDrive file or folder to this case.') : t('m365Documents.procurement.emptySubReadOnly', 'Nothing has been linked to this case.')}
-            className="!items-start !justify-start !px-0 !py-4 !text-left"
+            className="!items-start !justify-start !px-0 !py-4 !text-left [&_*]:max-w-none"
           />
         ) : (
           <>

@@ -327,6 +327,13 @@ describe('a returned request opens with what was typed and why it came back (fix
     expect(await screen.findByDisplayValue('Extra slab pour')).toBeInTheDocument();
     expect(screen.getByTestId('mrq-returned-reason')).toHaveTextContent('Split the pour over two days');
   });
+  it('keeps a saved reason without marking it required when the request is within plan', async () => {
+    h.existing = { ...returned(), lines: [{ id: 'l1', itemId: 'i1', quantity: 2, overPlanReason: 'Kept for later' }] };
+    render(<MemoryRouter initialEntries={['/material-requests/r1/edit']}><ToastProvider><Routes>
+      <Route path="/material-requests/:requestId/edit" element={<MaterialRequestNewPage />} />
+    </Routes></ToastProvider></MemoryRouter>);
+    expect(await screen.findByDisplayValue('Kept for later')).not.toBeRequired();
+  });
   it('JOB-WAIT-5 keeps the typed reason visible while the plan figures are still unknown', async () => {
     h.existing = { ...returned(), lines: [{ id: 'l1', itemId: 'i9', quantity: 8, overPlanReason: 'Kept for later' }] };
     render(<MemoryRouter initialEntries={['/material-requests/r1/edit']}><ToastProvider><Routes>

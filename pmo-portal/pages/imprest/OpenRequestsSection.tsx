@@ -27,15 +27,15 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
   // One row per request, grouped by purpose: the request and its lines, its work order, its state, and its money on one
   // right edge (the request total, then each line's amount on the line it belongs to).
   const columns: Column<OpenRequest>[] = [
-    { key: 'request', header: t('imprest:open.col.request', 'Request'), kind: 'primary', size: 340, ownActivation: true, cell: (r) => (
+    { key: 'request', header: t('imprest:open.col.request', 'Request'), kind: 'primary', size: 300, ownActivation: true, cell: (r) => (
       <div className="min-w-0">
         <Link to={`/procurement/${r.id}`} className="font-medium text-primary-text hover:underline">{r.prNumber ?? r.title}</Link>
         {r.prNumber && <span className="ml-2 text-foreground">{r.title}</span>}
+        <span className="block text-control text-muted-foreground">{r.workOrderLabel ?? t('imprest:open.noWorkOrder', 'No work order')}</span>
         {r.lines.map((l) => <span key={l.id} className="block text-control font-normal text-muted-foreground">{l.name} × {l.quantity}</span>)}
       </div>
     ) },
-    { key: 'workOrder', header: t('imprest:open.col.workOrder', 'Work order'), size: 200, cell: (r) => r.workOrderLabel ?? <span className="text-muted-foreground">{t('imprest:open.noWorkOrder', 'No work order')}</span> },
-    { key: 'status', header: t('imprest:open.col.status', 'Status'), size: 150, cell: (r) => <StatusPill record="procurement" state={r.status} /> },
+    { key: 'status', header: t('imprest:open.col.status', 'Status'), size: 130, cell: (r) => <StatusPill record="procurement" state={r.status} /> },
     { key: 'amount', header: t('imprest:open.col.amount', 'Amount'), kind: 'money', align: 'num', size: 150, cell: (r) => (
       <div className="flex flex-col items-end">
         <span className="tabular-nums">{money(r.total, r.currency)}</span>
@@ -46,12 +46,13 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
   const reason = pricesHidden
     ? t('imprest:open.noPrices', 'Add the lines yourself in the plan.')
     : seed.lines.length === 0
-      ? t('imprest:open.nothingToStart', 'None of these requests has a purpose and a price in {{currency}}, so there is nothing to fill in. Add the lines yourself in the plan.', { currency })
+      ? t('imprest:open.nothingToStart', 'To start a plan, a request needs a purpose and a visible total above zero in {{currency}}.', { currency })
       : null;
 
   return (
     <RecordSection
       title={t('imprest:open.title', 'Open purchase requests')}
+      flush
       actions={requests.length > 0 && (
         <CanWrite entity="imprestPlan" action="create">
           <Button variant="outline" size="sm" disabled={reason !== null} onClick={() => onStartPlan(seed.lines)}>
@@ -61,21 +62,18 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
       )}
     >
       <div data-testid="open-requests">
-        {q.isPending && <ListState variant="loading" rows={2} />}
-        {q.isError && <ListState variant="error" title={t('imprest:open.error', "Couldn't load the open purchase requests")} onRetry={() => void q.refetch()} />}
+        {q.isPending && <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="loading" rows={2} /></div>}
+        {q.isError && <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="error" title={t('imprest:open.error', "Couldn't load the open purchase requests")} onRetry={() => void q.refetch()} /></div>}
         {!q.isPending && !q.isError && requests.length === 0 && (
-          <p className="text-sm text-muted-foreground" data-testid="open-requests-empty">
+          <p className="px-[var(--panel-inset)] pb-[var(--panel-inset)] text-sm text-muted-foreground" data-testid="open-requests-empty">
             {t('imprest:open.empty', "No open purchase requests on this site's project. Project members raise one under Procurement, and it shows here until it is ordered.")}
           </p>
         )}
         {!q.isPending && !q.isError && requests.length > 0 && (
           <div className="space-y-3">
-            <p className="text-control text-muted-foreground">
-              {t('imprest:open.help', 'Requests not yet ordered or paid. This list only suggests; the plan is yours to edit and save.')}
-            </p>
-            {reason && <div className="text-control text-muted-foreground" data-testid="open-requests-reason">{pricesHidden && <WithheldPrice />}{reason}</div>}
+            {reason && <div className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-reason">{pricesHidden && <WithheldPrice />}{reason}</div>}
             {!reason && seed.skipped > 0 && (
-              <p className="text-control text-muted-foreground" data-testid="open-requests-skipped">
+              <p className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-skipped">
                 {t('imprest:open.skipped', '{{count}} request(s) with no purpose, no visible price or another currency are not counted in the plan.', { count: seed.skipped })}
               </p>
             )}
@@ -89,7 +87,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
               groupBy={(r) => r.category ?? ''}
               groupLabel={(key) => (key ? budgetCategoryLabel(key as OpenRequest['category'] & string, t) : t('imprest:open.noPurpose', 'No purpose set'))}
             />
-            {q.data?.truncated && <p role="status" className="text-control text-muted-foreground">
+            {q.data?.truncated && <p role="status" className="px-[var(--panel-inset)] pb-[var(--panel-inset)] text-control text-muted-foreground">
               {t('imprest:open.truncated', 'Showing the first {{count}} lines only.', { count: OPEN_REQUEST_LIMIT })}
             </p>}
           </div>

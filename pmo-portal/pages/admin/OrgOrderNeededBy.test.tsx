@@ -19,7 +19,7 @@ const renderIt = () => render(<QueryClientProvider client={new QueryClient()}><O
 describe('OrgOrderNeededBy (1124d)', () => {
   it('AC-NBY-010 reads off by default and an Admin turns it on', async () => {
     renderIt();
-    const box = await screen.findByRole('checkbox', { name: /Require a needed-by date/ });
+    const box = await screen.findByRole('switch', { name: /Require a needed-by date/ });
     expect(box).not.toBeChecked();
     await userEvent.click(box);
     await waitFor(() => expect(h.set).toHaveBeenCalledWith(true));
@@ -27,6 +27,6 @@ describe('OrgOrderNeededBy (1124d)', () => {
   it('AC-NBY-010 a role that may not manage sees it read-only', async () => {
     h.can = false;
     renderIt();
-    expect(await screen.findByRole('checkbox', { name: /Require a needed-by date/ })).toBeDisabled();
+    expect(await screen.findByRole('switch', { name: /Require a needed-by date/ })).toBeDisabled();
   });
 });

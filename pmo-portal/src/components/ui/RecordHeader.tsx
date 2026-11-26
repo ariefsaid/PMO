@@ -11,6 +11,8 @@ export interface PageStat {
   value: React.ReactNode;
   /** The value in full, shown on hover where a long value is cut to one line (a plain-text value is its own title). */
   title?: string;
+  /** When `compactStatsOnMobile` is set, facts marked secondary sit behind a tap on phone (<640px) so the active content starts above the fold. */
+  secondaryOnMobile?: boolean;
 }
 
 export interface RecordHeaderProps {
@@ -56,6 +58,8 @@ export interface RecordHeaderProps {
   variant?: 'page' | 'drawer';
   /** Page variant: keep the action zone on the title row at every width (a phone's lone ⋯ never gets its own row). */
   actionsOnTitleRow?: boolean;
+  /** Page variant: collapse `secondaryOnMobile` stats behind a Details toggle on phone (<640px) so page content starts above the fold. */
+  compactStatsOnMobile?: boolean;
   /** Page variant: pad the panel on the panel inset (24px desktop / 16px phone) so it shares its left edge with `RecordSection` panels. */
   panelInset?: boolean;
   /** A block under the identity row (and the facts), after a rule: a record's stage track or status steps. */
@@ -95,6 +99,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   actionsAfterPrimary = false,
   variant = 'page',
   actionsOnTitleRow = false,
+  compactStatsOnMobile = false,
   panelInset = false,
   band,
   children,
@@ -107,6 +112,8 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   const isDrawer = variant === 'drawer';
   const Heading = headingLevel === 2 ? 'h2' : 'h1';
   const [nameOpen, setNameOpen] = React.useState(false);
+  const [mobileStatsOpen, setMobileStatsOpen] = React.useState(false);
+  const hasSecondaryStats = Boolean(compactStatsOnMobile && stats?.some((s) => s.secondaryOnMobile));
   const zone = actions || primaryAction || hasMenu ? (
     <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
       {actionsAfterPrimary ? <>{primaryAction}{actions}</> : <>{actions}{primaryAction}</>}
@@ -133,7 +140,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
             {icon}
           </span>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[min(100%,18rem)] flex-1">
           <div className={cn(
             'min-w-0 gap-2',
             statusBelowMetaOnMobile
@@ -176,12 +183,25 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
           {stats.map((s, i) => (
             // Each fact spans two rows of the header's grid: every label sits on the first (bottom-aligned, so labels
             // share one baseline even when one wraps), every value starts at the top of the second.
-            <div key={i} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
+            <div key={i} className={cn('row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1', hasSecondaryStats && s.secondaryOnMobile && !mobileStatsOpen && 'max-sm:hidden')}>
               <div className="self-end text-control font-medium text-foreground">{s.label}</div>
               {/* A name reads whole and wraps. */}
               <div className="self-start text-group font-semibold tabular [overflow-wrap:anywhere]" title={s.title ?? (typeof s.value === 'string' ? s.value : undefined)}>{s.value}</div>
             </div>
           ))}
+        </div>
+      )}
+      {hasSecondaryStats && (
+        <div className="mt-2 sm:hidden">
+          <button
+            type="button"
+            aria-expanded={mobileStatsOpen}
+            onClick={() => setMobileStatsOpen((v) => !v)}
+            className="text-control font-medium text-primary-text hover:underline"
+            data-testid="record-header-details-toggle"
+          >
+            {mobileStatsOpen ? t('tabs.hideDetails', 'Hide details') : t('tabs.showDetails', 'Show details')}
+          </button>
         </div>
       )}
       {band != null && band !== false && <div data-testid="record-header-band" className="mt-4 border-t border-border pt-4">{band}</div>}

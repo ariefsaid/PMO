@@ -281,6 +281,15 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   // No figure, no hidden figure and no budget line: no empty block.
   if (!maySeePrices) return <section data-testid="procurement-money-summary" className="border-t border-border pt-3"><WithheldPrice /></section>;
   if (visible.length === 0 && !anyHidden && !budgetSignal && !isEngineer) return null;
+  // When another panel (e.g. Budget impact) already owns the figures and only a hidden-figures line remains,
+  // show that line directly without an empty "Money" heading above it.
+  if (visible.length === 0 && !budgetSignal && !isEngineer && omitRequestedEqualTo != null) {
+    return (
+      <section data-testid="procurement-money-summary" className="border-t border-border pt-3">
+        <FigureHiddenLine compact className="text-control text-muted-foreground" />
+      </section>
+    );
+  }
 
   // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.
   return (
@@ -288,7 +297,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
       <h2 id="procurement-money-heading" className="text-control font-semibold text-foreground">{t('money.title', { defaultValue: 'Money · {{currency}}, before tax', currency: procurement.currency })}</h2>
       {budgetSignal != null && budgetSignal !== false && <p className="mt-3 text-control font-normal text-muted-foreground">{budgetSignal}</p>}
       {visible.length > 0 && (
-          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
+          <div className="mt-3 flex flex-col gap-y-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
             {visible.map(({ kind }) => {
               const figure = money[kind];
               const lead = kind === leadKind;
@@ -428,12 +437,27 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
       title={t('timeline.title', 'Timeline')}
       actions={<button type="button" onClick={onFullHistory} className="shrink-0 text-sm font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>}
     >
-        <div role="group" aria-label={t('timeline.filterLabel', 'Timeline filter')} className="mb-3 flex flex-wrap gap-2">
-          {(['all', 'financial', 'has-file'] as const).map((value) => (
-            <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-md px-2.5 py-1 text-sm ${filter === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-              {value === 'all' ? t('timeline.all', 'All') : value === 'financial' ? t('timeline.financial', 'Financial') : t('timeline.hasFile', 'Has file')}
-            </button>
-          ))}
+        <div role="group" aria-label={t('timeline.filterLabel', 'Timeline filter')} className="mb-3 flex flex-wrap gap-1.5">
+          {(['all', 'financial', 'has-file'] as const).map((value) => {
+            const active = filter === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setFilter(value)}
+                className={[
+                  'inline-flex h-7 items-center rounded-full border px-[10px] text-sm font-medium transition-colors',
+                  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                  active
+                    ? 'border-primary/30 bg-primary/10 text-[hsl(var(--nav-active-text))]'
+                    : 'border-input bg-background text-muted-foreground hover:text-foreground',
+                ].join(' ')}
+              >
+                {value === 'all' ? t('timeline.all', 'All') : value === 'financial' ? t('timeline.financial', 'Financial') : t('timeline.hasFile', 'Has file')}
+              </button>
+            );
+          })}
         </div>
         {visible.length === 0 ? <p className="py-4 text-sm text-muted-foreground">{t('timeline.empty', 'No activity recorded yet.')}</p> : (
           <ol className="divide-y divide-border/70">

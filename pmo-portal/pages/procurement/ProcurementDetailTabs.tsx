@@ -1,14 +1,13 @@
 import type { StockItemOption } from '@/src/lib/stockItemMatch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, StatusPill, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, useToast } from '@/src/components/ui';
 import type { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import type { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
 import type { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import type { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useMaySeePrices } from '@/src/hooks/useHidePrices';
-import { formatCurrency, formatDay, formatPercent } from '@/src/lib/format';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { selectedQuotation } from '../../components/procurement';
 import type { DetailRow } from './ProcurementOverviewTab';
@@ -101,25 +100,6 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
   // also omits quote rows for this role, so this panel has no amount-bearing data to render.
   if (!maySeePrices) return null;
   return (
-    <>
-    {p.quotations.length > 0 && <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="quotation-comparison-cards">
-      {p.quotations.map((quote) => {
-        const chosen = selectedQuote?.id === quote.id;
-        const baseline = selectedQuote ? Number(selectedQuote.total_amount) : null;
-        const difference = baseline != null && !chosen ? Number(quote.total_amount) - baseline : null;
-        const percent = difference != null && baseline != null && baseline !== 0 ? (difference / baseline) * 100 : null;
-        const supplierName = (vendorMap[quote.vendor_id] ?? (quote.vendor_id === p.vendor_id ? p.vendor?.name : null)) ?? quote.vq_number ?? t('procurementRecord:details.supplier', 'Supplier');
-        return <article key={quote.id} className="rounded-md border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="min-w-0 break-words text-[14px] font-semibold">{supplierName}</h2>
-            {chosen && <StatusPill variant="won">{t('procurementRecord:quotes.chosen', 'Chosen')}</StatusPill>}
-          </div>
-          <p className="mt-3 text-[18px] font-semibold tabular-nums">{quote.total_amount == null ? '—' : formatCurrency(Number(quote.total_amount), quote.currency)}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t('procurementRecord:quotes.validUntil', 'Valid until')}: {quote.valid_until ? formatDay(quote.valid_until) : '—'}</p>
-          {difference != null && <p className="mt-2 text-sm text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, quote.currency)}{percent == null ? '' : ` · ${percent > 0 ? '+' : ''}${formatPercent(percent / 100, 1)}`}</p>}
-        </article>;
-      })}
-    </div>}
     <VendorQuotesTab
       quotations={p.quotations}
       selectedId={selectedQuote?.id ?? null}
@@ -131,7 +111,7 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
       currency={p.currency}
       canManageFiles={canManageFiles}
       currentUserId={currentUserId}
-      vendorMap={vendorMap}
+      vendorMap={maySeePrices ? { ...vendorMap, ...(p.vendor_id && p.vendor?.name && !vendorMap[p.vendor_id] ? { [p.vendor_id]: p.vendor.name } : {}) } : {}}
       onError={onMutationError}
       onAdd={async (input) => {
         await mutations.createQuotation.mutateAsync(input);
@@ -159,7 +139,6 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
         );
       }}
     />
-    </>
   );
 };
 

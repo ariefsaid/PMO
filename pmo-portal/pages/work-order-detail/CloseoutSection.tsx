@@ -32,6 +32,7 @@ export interface CloseoutSectionProps {
   status: string;
   /** The organisation's calendar day; the server re-checks dates on its own calendar. */
   today?: string;
+  footer?: React.ReactNode;
 }
 
 const REFUSALS: Record<string, [string, string]> = {
@@ -43,7 +44,7 @@ const REFUSALS: Record<string, [string, string]> = {
   'work-order-not-issued': ['refusal.notIssued', 'Items can be recorded only while the work order is issued.'],
 };
 
-const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = orgToday(new Date(), getActiveOrgTimezone()) }) => {
+const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, footer, today = orgToday(new Date(), getActiveOrgTimezone()) }) => {
   const { t } = useTranslation('closeout');
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -65,7 +66,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
     </RecordSection>;
   }
   const items = query.data;
-  if (!items || items.length === 0) return null;
+  if (!items || items.length === 0) return footer ? <RecordSection title={title}>{footer}</RecordSection> : null;
 
   // An item's owner job role (2040) also records it; the rest follows the role rule.
   const canRecord = (item: { ownerJobRole?: string | null }) => !viewOnly && status === 'Issued' && may('transition', 'closeoutItem', { record: { owner_job_role: item.ownerJobRole } });
@@ -147,14 +148,15 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
           </div>
           {isOpen && <Drawer open title={item.name} onClose={() => setOpenId(null)}>
             <div className="flex flex-col gap-5">
+              <p className="text-control text-muted-foreground">{item.doneOn ? t('done', 'Done {{date}}', { date: formatIsoDay(item.doneOn) }) : isCurrent ? t('current', 'Current') : t('waiting', 'Waiting')} · {item.required ? t('required', 'required') : t('optional', 'optional')}</p>
               {canOwner && <SelectField label={t('admin.owner', 'Owner job role')} value={item.ownerJobRole ?? ''} options={ownerOptions}
                 onChange={(ownerRole) => { setRefusal(null); void assignOwner.mutateAsync({ itemId: item.id, ownerRole }).catch(explain); }} />}
               {item.documentId
                 ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(item.documentId)}`}
                     className="text-control font-medium text-primary-text hover:underline">{titleOf(item.documentId)}</Link>
-                : canAttach && <span className="flex items-center gap-2">
-                    <SelectField compact inline hideLabel
-                      label={t('pickFor', 'Document for {{item}}', { item: item.name })}
+                : canAttach && <span className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
+                    <SelectField
+                      label={t('projectDocuments', 'Project documents')}
                       placeholder={t('pick', 'Choose a project document')}
                       value={picked[item.id] ?? ''}
                       onChange={(v) => setPicked((p) => ({ ...p, [item.id]: v }))}
@@ -163,9 +165,10 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
                       aria-label={t('attachTo', 'Attach to {{item}}', { item: item.name })}
                       onClick={() => void attach(item.id)}>{t('attach', 'Attach')}</Button>
                   </span>}
-              {canDone && <div className="flex flex-col gap-3 border-t border-border pt-4">
+              {isCurrent && canRecord(item) && <div className="flex flex-col gap-3 border-t border-border pt-4">
+                {!item.documentId && <p className="text-control text-muted-foreground">{t('refusal.documentMissing', 'Attach a document before marking this item done.')}</p>}
                 <DateField label={t('doneOn', 'Done on')} value={doneOn} max={today} onChange={setDoneOn} />
-                <div><Button variant="primary" size="sm" disabled={completeItem.isPending}
+                <div><Button variant="primary" size="sm" disabled={completeItem.isPending || !item.documentId}
                   aria-label={t('markDoneNamed', 'Mark {{item}} done', { item: item.name })}
                   onClick={() => void complete(item.id)}>{t('markDone', 'Mark done')}</Button></div>
               </div>}
@@ -175,6 +178,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
         </li>;
       })}
     </ol>
+    {footer}
   </RecordSection>;
 };
 
