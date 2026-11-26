@@ -752,7 +752,7 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
         id: 't1',
         name: 'Order the flange samples',
         status: 'To Do',
-        assignee: { id: 'peer-1', full_name: 'Putri Peer' },
+        assignee: { id: 'peer-1', full_name: 'Project manager' },
         end_date: null,
         dependencies: [],
       },
@@ -760,7 +760,8 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
     renderPage('Engineer');
     const list = screen.getByTestId('action-items-list');
     expect(within(list).getByText('Order the flange samples')).toBeInTheDocument();
-    expect(within(list).getByText('Owner: Putri Peer')).toBeInTheDocument();
+    expect(within(list).getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+    expect(within(list).getByText('Project manager')).toBeInTheDocument();
   });
 
   it('does not link a project-less action item to this meeting, but links project tasks', () => {
