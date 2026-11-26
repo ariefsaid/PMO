@@ -83,7 +83,7 @@ const setTwoYearCurrentCalendar = (names: [string, string] = ['FY-A', 'FY-B']) =
   });
 };
 
-type ForecastRenderOptions = { ledgerBasis?: 'erp' | 'pmo' | null; canEdit?: boolean; budgetCurrency?: string; onExport?: (payload: BudgetProjectionExport) => void; orgId?: string; projectId?: string; budgetVersionId?: string; budgetMode?: string; approvedBudgetYears?: string[]; projectStartDate?: string; projectEndDate?: string | null };
+type ForecastRenderOptions = { committedByCategory?: Record<string, number | null>; ledgerBasis?: 'erp' | 'pmo' | null; canEdit?: boolean; budgetCurrency?: string; onExport?: (payload: BudgetProjectionExport) => void; orgId?: string; projectId?: string; budgetVersionId?: string; budgetMode?: string; approvedBudgetYears?: string[]; projectStartDate?: string; projectEndDate?: string | null };
 const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: QueryClient) => (
   <FinanceI18nTestProvider>
     <MemoryRouter>
@@ -100,7 +100,7 @@ const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: Que
             currency="USD"
             budgetCurrency={options.budgetCurrency}
             canEdit={options.canEdit}
-            committedByCategory={{}}
+            committedByCategory={options.committedByCategory}
             canReadCommitments
             ledgerBasis={options.ledgerBasis}
             onAdjustInDraft={vi.fn()}
@@ -113,6 +113,7 @@ const forecastTree = (options: Required<ForecastRenderOptions>, queryClient: Que
 );
 const renderForecast = (input: ForecastRenderOptions = {}) => {
   const options: Required<ForecastRenderOptions> = {
+    committedByCategory: input.committedByCategory ?? {},
     ledgerBasis: input.ledgerBasis ?? null,
     canEdit: input.canEdit ?? true,
     budgetCurrency: input.budgetCurrency ?? 'USD',
@@ -869,7 +870,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(row.getByText('—')).toBeInTheDocument();
     expect(row.getByText('-$75,000')).toBeInTheDocument();
     expect(row.getByText('Unavailable')).toBeInTheDocument();
-    expect(row.queryByText('$0')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('forecast-recorded-Labor')).queryByText('$0')).not.toBeInTheDocument();
     expect(row.queryByText('0%')).not.toBeInTheDocument();
   });
 
@@ -908,7 +909,7 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     fetchMock.mockResolvedValue([{ ...unread, category: 'Equipment', pmoBudgetAmount: 20000 }]);
     renderForecast();
     const row = within(await rowFor('Equipment'));
-    expect(row.queryByText('$0')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('forecast-recorded-Equipment')).queryByText('$0')).not.toBeInTheDocument();
     expect(row.queryByText('0%')).not.toBeInTheDocument();
   });
 
@@ -916,7 +917,7 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     fetchMock.mockResolvedValue([{ ...unread, actualsAsOf: null }]);
     renderForecast();
     const row = within(await rowFor('Labor'));
-    expect(row.queryByText('$0')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('forecast-recorded-Labor')).queryByText('$0')).not.toBeInTheDocument();
     expect(row.getByText('$100,000')).toBeInTheDocument();
     expect(screen.queryByText(/Recorded spending as of/)).not.toBeInTheDocument();
   });
@@ -970,12 +971,12 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     expect(row.getByText('$180,000')).toBeInTheDocument();
   });
 
-  it('UX-034/035 the totals row answers budget, recorded spending, cost to finish, forecast final and forecast remaining', async () => {
+  it('UX-034/035 the totals row preserves budget, recorded spending, cost to finish, forecast final, remaining and separate project commitments', async () => {
     fetchMock.mockResolvedValue([ROW, { ...ROW, category: 'Materials', pmoBudgetAmount: 50000, actualsToDate: 10000, pmoEtc: 5000, projectedFinalCost: 15000, projectedVariance: 35000, projectedUtilization: 0.3 }]);
-    renderForecast();
+    renderForecast({ committedByCategory: { Labor: 7000, Materials: 3000 } });
     await rowFor('Materials');
     const totalRow = screen.getAllByRole('row').find((row) => /Total/.test(row.textContent ?? ''))!;
-    for (const amount of ['$150,000', '$50,000', '$40,000', '$90,000', '$60,000']) expect(totalRow).toHaveTextContent(amount);
+    for (const amount of ['$150,000', '$50,000', '$40,000', '$90,000', '$60,000', '$10,000']) expect(totalRow).toHaveTextContent(amount);
   });
 
   it('UX-035 an overrun is named an overrun', async () => {

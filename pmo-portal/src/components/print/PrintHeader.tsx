@@ -32,7 +32,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           {orgName ? (
-            <div className="text-xs font-semibold text-muted-foreground mb-1">
+            <div className="text-sm font-semibold text-muted-foreground mb-1">
               {orgName}
             </div>
           ) : null}
@@ -41,7 +41,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
           </h1>
         </div>
         <div className="sm:text-right">
-          <div className="text-xs font-semibold text-muted-foreground">
+          <div className="text-sm font-semibold text-muted-foreground">
             {numberLabel}
           </div>
           <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-foreground" data-testid="print-document-number">
@@ -54,7 +54,7 @@ export const PrintHeader: React.FC<PrintHeaderProps> = ({
         <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 pt-2 border-t border-border text-sm">
           {metaItems.map((item, idx) => (
             <div key={idx} className="min-w-0">
-              <dt className="text-xs font-medium text-muted-foreground">
+              <dt className="text-sm font-medium text-muted-foreground">
                 {item.label}
               </dt>
               <dd className="font-medium text-foreground break-words mt-0.5">

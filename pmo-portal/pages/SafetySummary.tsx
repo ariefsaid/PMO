@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, ListState, PageHeader, SelectField, TextField } from '@/src/components/ui';
+import { Button, Card, DateField, ListState, PageHeader, SelectField } from '@/src/components/ui';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useSafetySummary, useSafetySummaryDetail } from '@/src/hooks/useSafetyDays';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
@@ -60,7 +60,7 @@ const SafetySummary: React.FC = () => {
           : <Button variant="outline" onClick={() => setParams({ view: 'client' })} data-testid="safety-client-view">{t('summary.clientView', 'Client view')}</Button>} />
       <p className="-mt-3 text-control text-muted-foreground">{client ? t('summary.clientSubtitle', 'Figures for the month') : t('summary.subtitle', 'Hours, incidents and safety records for a month.')}</p>
       <div className="flex flex-wrap items-end gap-3 print:hidden">
-        <TextField label={t('summary.month', 'Month')} type="month" value={month} onChange={(v) => { setMonth(v); setOpen(null); }} />
+        <DateField label={t('summary.month', 'Month')} value={month ? `${month}-01` : ''} onChange={(v) => { setMonth(v.slice(0, 7)); setOpen(null); }} />
         {!client && (
           <SelectField label={t('summary.project', 'Project')} value={project} onChange={(v) => { setProject(v); setOpen(null); }}
             options={[{ value: '', label: t('summary.allProjects', 'All projects') }, ...(projects.data ?? []).map((p) => ({ value: p.id, label: p.name }))]} />

@@ -19,7 +19,7 @@ export function columnAlignmentClass(column: ColumnPresentation): string {
 
 /** Keep the shared table marker and standard utility so figures stay fixed-width in every table branch. */
 export function numericColumnClass(column: ColumnPresentation): string | undefined {
-  return isNumericColumn(column) ? 'tabular tabular-nums' : undefined;
+  return isNumericColumn(column) ? 'tabular tabular-nums whitespace-nowrap' : undefined;
 }
 
 /** True when a cell renders nothing a person can read: null/false/''/whitespace, the "—" marker, or a list/fragment of those.

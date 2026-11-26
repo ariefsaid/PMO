@@ -36,16 +36,8 @@ interface BreadcrumbProps {
   className?: string;
 }
 
-/**
- * Wayfinding breadcrumb: muted links → foreground hover, bold current label.
- *
- * C3 mobile navigation (AC-IXD-MOBILE-W4-C3 C3-10):
- *   At ≤921px (the shell's rail-collapse breakpoint), show ONLY the current crumb
- *   shown in full. Parent crumb links are hidden (the in-page BackBar
- *   already carries the parent escape on detail pages; the drawer carries top-level
- *   nav). This keeps the top bar tidy at 375px without sacrificing wayfinding.
- *   Desktop (>921px) is unchanged: all parts show.
- */
+/** Wayfinding links remain visible and truncate within the header at every width.
+ * Below the rail breakpoint, a page with its own title bounds the current crumb. */
 /** True while the page body carries its own visible h1 (the phone top bar then stays empty). */
 const usePageHasTitle = (): boolean => {
   const [has, setHas] = useState(false);
@@ -101,7 +93,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
       className={cn('flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-control', typeof window !== 'undefined' && window.location.pathname === '/my-tasks' && pageHasTitle && 'invisible', className)}
     >
       {visibleParts.length === 1 && (
-        <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-primary text-control font-bold text-primary-foreground min-[921px]:hidden">P</span>
+        <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-primary text-control font-bold text-primary-foreground min-[1101px]:hidden">P</span>
       )}
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
@@ -128,15 +120,15 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 title={part.title ?? (typeof label === 'string' ? label : undefined)}
                 className={cn(
                   'min-w-0 truncate font-semibold text-foreground',
-                  visibleParts.length > 2 && 'min-[921px]:min-w-[4rem] min-[921px]:flex-1 min-[921px]:max-w-[18rem]',
-                  pageHasTitle && 'max-[920px]:max-w-[12rem]',
+                  visibleParts.length > 2 && 'min-[1101px]:min-w-[4rem] min-[1101px]:flex-1 min-[1101px]:max-w-[18rem]',
+                  pageHasTitle && 'max-[1100px]:max-w-[12rem]',
                 )}
               >
                 {label}
               </span>
             ) : (
               // C3: parent crumb links hide at exactly the breakpoint where the phoneOnly
-              // BackBar shows (max-[920px]), so no width has neither way back (#735).
+              // BackBar shows (max-[1100px]), so no width has neither way back (#735).
               part.href ? (
                 <a
                   href={part.href}

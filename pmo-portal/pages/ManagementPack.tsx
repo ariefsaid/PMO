@@ -4,7 +4,7 @@ import { EarnedAgainstContract, EarnedInvoicedTrend } from '@/src/components/rep
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Toolbar, type Column,
+  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, DateField, Toolbar, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
@@ -333,16 +333,17 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       align: 'num',
       // N2: wide enough for a full IDR figure so neighbouring totals never touch.
       size: 135,
+      minSize: 135,
       cell: (row) => (
         <span data-testid="pack-cell-contract" className="tabular text-right text-control">
-          {money(row.contractNet, row.currency)}
+          {row.contractValueMissing ? "—" : money(row.contractNet, row.currency)}
         </span>
       ),
     },
     ...(['recognisedToDate', 'invoicedToDate', 'unbilled', 'leftToBill'] as Measure[]).map((k): Column<PackRow> => ({
       key: k,
       header: k === 'recognisedToDate' ? t('financeHub:managementPack.col.earned', 'Earned') : k === 'invoicedToDate' ? t('managementPack.col.invoiced', 'Invoiced') : label[k],
-      kind: 'money', align: 'num', size: 135, cell: measureCell(k),
+      kind: 'money', align: 'num', size: 135, minSize: 135, cell: measureCell(k),
     })),
     {
       key: 'invoiceCount',
@@ -581,12 +582,14 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       primaryAction={!embedded ? <BoardPackAction /> : undefined}
     >
       <div className="mb-3"><FigureHiddenLine compact /></div>
+      <div className="flex min-w-0 flex-col">
+      <div className="order-2 mt-6 md:order-1 md:mt-0">
       {isPending && !pack ? (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-6">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
           {figureSpecs.map((spec) => <KPITile key={spec.key} loading tone="blue" icon="grid" label={spec.label} value="" />)}
         </KPIRow>
       ) : showFigures && homeMonth && (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-6">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
           {figureSpecs.map((spec) => {
             const tile = tileFor(spec);
             return (
@@ -600,6 +603,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
                 value={tile?.value ?? null}
                 exactValue={tile?.exactValue}
                 caption={spec.caption && tile ? spec.caption(homeMonth, homeCurrency) : undefined}
+                captionWrap
                 unavailableReason={tile ? undefined : spec.key === 'leftToBill' ? leftToBillReason : unpricedSpec(spec) ? unpricedReason : t('financeHub:managementPack.figures.unknownReason', 'a foreign-currency invoice needs reconciliation')}
                 hiddenLink={spec.key === 'leftToBill' || unpricedSpec(spec) ? reviewInvoices : { to: '/finance/receivables', label: t('financeHub:managementPack.figures.reconcile', 'Open invoices') }}
               />
@@ -607,11 +611,14 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           })}
         </KPIRow>
       )}
+      </div>
 
-      <div data-testid="management-pack-table-card" className="min-w-0">
+      <div data-testid="management-pack-table-card" className="order-1 min-w-0 md:order-2">
       <Toolbar data-testid="management-pack-table-toolbar" className="items-end gap-3">
-        <TextField id="pack-from" type="month" label={t('managementPack.from', 'From')} value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''} onChange={(v) => setMonth('from', v)} />
-        <TextField id="pack-as-at" type="month" label={t('managementPack.asAt', 'As at')} value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''} onChange={(v) => setMonth('to', v)} />
+        <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+          <DateField compact id="pack-from" label={t("managementPack.from", "From")} value={(params.get("from") ?? pack?.from.slice(0, 7) ?? "") + "-01"} onChange={(v) => setMonth("from", v.slice(0, 7))} />
+          <DateField compact id="pack-as-at" label={t("managementPack.asAt", "As at")} value={(params.get("to") ?? pack?.to.slice(0, 7) ?? "") + "-01"} onChange={(v) => setMonth("to", v.slice(0, 7))} />
+        </div>
         <TextField id="pack-search" type="search" label={t('financeHub:managementPack.search', 'Search projects')} value={search} onChange={setSearch} />
         <Button variant="outline" disabled={!pack || busy} onClick={onExport} className="ml-auto"><Icon name="export" className="size-4 mr-2" />{t('finance:area.export', 'Export')}</Button>
       </Toolbar>
@@ -648,15 +655,15 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
 
       {pack && state === undefined && (
         <div className="flex flex-col">
-          {/* Comparison across projects and the earned/invoiced trend. On a phone the table comes first. */}
+          {/* Keep the comparison and trend after the project rows at every width. */}
           {(earnedBars.length > 1 || trendCurrencies.length > 0) && (
-            <div className="order-last mt-6 grid min-w-0 gap-6 lg:order-none lg:grid-cols-2">
+            <div className="order-last mt-6 grid min-w-0 gap-6 lg:grid-cols-2">
               <EarnedAgainstContract rows={earnedBars} />
               {trendCurrencies.map((tot) => <EarnedInvoicedTrend key={tot.currency} currency={tot.currency} months={tot.months.map((m) => ({ month: m.month, earnedToDate: m.recognisedToDate, invoicedToDate: m.invoicedToDate }))} />)}
             </div>
           )}
           {/* N6: group spacing between the filter panel and the table it introduces. */}
-          <h2 className="mb-2 mt-6 text-[16px] font-semibold">
+          <h2 className="mb-2 mt-4 text-[16px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
             <span className="ml-2 text-control font-normal text-muted-foreground">{t('finance:managementPack.exclTax', 'excl. tax')}</span>
           </h2>
@@ -682,6 +689,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             rows={filteredRows}
             columns={columns}
             rowKey={(row) => row.key}
+            cardValuesEnd
             tableId="managementpack-1-table"
             accessibleName={t('managementPack.col.project', 'Project')}
             totals={projectTotals}
@@ -693,6 +701,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           />
         </div>
       )}
+      </div>
       </div>
 
       {pack && state === undefined && (

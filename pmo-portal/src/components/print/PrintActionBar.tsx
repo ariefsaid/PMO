@@ -48,7 +48,7 @@ export const PrintActionBar: React.FC<PrintActionBarProps> = ({
           <span className={shortBackLabel ? 'hidden sm:inline' : undefined}>{backLabel}</span>
           {shortBackLabel && <span className="sm:hidden">{shortBackLabel}</span>}
         </Button>
-        <span className="truncate text-sm font-semibold text-foreground sm:text-base">
+        <span className="hidden sm:inline truncate text-sm font-semibold text-foreground sm:text-base">
           {title}
         </span>
       </div>

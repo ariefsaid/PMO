@@ -361,6 +361,7 @@
     "noProgress": "Belum ada kuantitas pekerjaan yang dilaporkan."
   },
   "all": {
+    "summary": "Ringkasan",
     "empty": "Anda belum punya $t(common:terms.clientWorkOrder)",
     "error": "Gagal memuat daftar $t(common:terms.clientWorkOrder) Anda",
     "noMatch": "Tidak ada $t(common:terms.clientWorkOrder) yang cocok dengan pencarian Anda",
@@ -381,7 +382,8 @@
       "progress": "Progres",
       "cost": "Biaya langsung",
       "billed": "Ditagih",
-      "end": "Selesai"
+      "end": "Selesai",
+      "costBasis": "Anggaran / kelebihan"
     },
     "costOver": "Melebihi anggaran {{amount}}",
     "costBudget": "Anggaran {{amount}}",

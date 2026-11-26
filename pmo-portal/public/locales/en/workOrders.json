@@ -361,6 +361,7 @@
     "noProgress": "No work quantities have been reported yet."
   },
   "all": {
+    "summary": "Summary",
     "empty": "You have no work orders yet",
     "error": "Couldn't load your work orders",
     "noMatch": "No work order matches your search",
@@ -381,7 +382,8 @@
       "progress": "Progress",
       "cost": "Direct cost",
       "billed": "Billed",
-      "end": "End"
+      "end": "End",
+      "costBasis": "Budget / overrun"
     },
     "costOver": "Over budget by {{amount}}",
     "costBudget": "Budget {{amount}}",

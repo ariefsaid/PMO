@@ -197,7 +197,7 @@ export function KPITile({
 
   const head = (
     // In a panel-inset row a one-line label starts level with a wrapped neighbour's first line.
-    <div className={cn('flex items-center gap-2', row === 'panel' && 'min-[900px]:self-start')}>
+    <div className={cn('flex items-center gap-2', inRow && 'min-h-10 items-start', row === 'panel' && 'min-[900px]:self-start')}>
       {!inRow && <span
         className={cn(
           'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',

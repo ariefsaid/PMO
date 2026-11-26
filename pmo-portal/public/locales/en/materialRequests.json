@@ -49,6 +49,10 @@
     "backToList": "Back to material requests"
   },
   "deliveryNote": {
+    "number": "Number",
+    "dispatchedBy": "Dispatched by",
+    "deliveredBy": "Delivered by",
+    "receivedBy": "Received by",
     "back": "Back to request",
     "date": "Date",
     "deliveredTo": "Deliver to",
@@ -60,6 +64,7 @@
     "project": "Project",
     "quantity": "Quantity",
     "remarks": "Remarks",
+    "signature": "Signature",
     "signatureDate": "Date",
     "signedBy": "Name",
     "title": "Delivery note",

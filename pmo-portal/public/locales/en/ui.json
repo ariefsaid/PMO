@@ -6,5 +6,9 @@
     "showDetails": "Show details",
     "scrollLeft": "Scroll tabs left",
     "scrollRight": "Scroll tabs right"
+  },
+  "table": {
+    "scrollLeft": "Scroll table left",
+    "scrollRight": "Scroll table right"
   }
 }
