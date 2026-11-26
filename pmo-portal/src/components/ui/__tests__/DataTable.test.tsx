@@ -541,11 +541,12 @@ describe('DataTable', () => {
     const { container } = render(<DataTable rows={rows} columns={[{ ...columns[0], stickyLeft: true }, columns[1]]}
       rowKey={(row) => row.id} groupBy={() => 'Group'} totals={[{ key: 'total', label: 'Total' }]}
       rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]} />);
-    const stickyCells = [...container.querySelectorAll('th.sticky, td.sticky')];
+    // A cell pinned always (`sticky`) or only while the table scrolls sideways (`[[data-dt-overflowing]_&]:sticky`).
+    const stickyCells = [...container.querySelectorAll('th, td')].filter((cell) => /(?:^|\s)(?:\[\[data-dt-overflowing\]_&\]:)?sticky(?:\s|$)/.test(cell.className));
     expect(stickyCells.length).toBeGreaterThan(5);
     for (const cell of stickyCells) {
-      // These semantic roles are opaque in both themes; alpha backgrounds allow scrolled text through.
-      expect(cell.className).toMatch(/(?:^|\s)bg-(?:surface-table-head|card|surface-selected|secondary)(?:\s|$)/);
+      // These semantic roles are opaque in both themes whenever the cell is pinned; alpha backgrounds allow scrolled text through.
+      expect(cell.className).toMatch(/(?:^|\s)(?:\[\[data-dt-overflowing\]_&\]:)?bg-(?:surface-table-head|card|surface-selected|secondary)(?:\s|$)/);
     }
   });
 

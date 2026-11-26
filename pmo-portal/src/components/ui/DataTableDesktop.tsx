@@ -32,8 +32,11 @@ import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
  *  3. An OUTSET box-shadow on a sticky table cell is not painted at all (clipped to the cell's
  *     box), so the left-cast separation shadow is a positioned gradient strip (ROW_MENU_SEAM_CLASS)
  *     rendered inside the cell — see DESIGN.md §6 Row actions. */
+/** The actions column pins to the right edge, with its own surface and rule, only while the table scrolls
+ *  sideways (the scrollport carries `data-dt-overflowing`). When every column fits, it is an ordinary cell on
+ *  the row's own surface, so an embedded table on the page ground shows no white strip and no extra rule. */
 const ROW_MENU_STICKY_CLASS =
-  'sticky -right-px shadow-[inset_1px_0_0_hsl(var(--border))]';
+  '-right-px [[data-dt-overflowing]_&]:sticky [[data-dt-overflowing]_&]:shadow-[inset_1px_0_0_hsl(var(--border))]';
 /** Left-cast separation gradient for the sticky actions column: from the `foreground` token
  *  (near-black in light, near-light in dark — the token flips the cast with the mode) fading out
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
@@ -246,6 +249,12 @@ function DataTableRowInner<Row>({
     : onActivate
       ? 'bg-card group-hover:bg-surface-hover'
       : 'bg-card';
+  // The row-menu cell paints a surface only while it is pinned over scrolled content; otherwise the row's own shows through.
+  const menuRowSurface = selected
+    ? '[[data-dt-overflowing]_&]:bg-surface-selected'
+    : onActivate
+      ? '[[data-dt-overflowing]_&]:bg-card [[data-dt-overflowing]_&]:group-hover:bg-surface-hover'
+      : '[[data-dt-overflowing]_&]:bg-card';
   return (
     // The <tr> keeps its IMPLICIT role="row" (never role="link",
     // which breaks table-row semantics and hides body rows from
@@ -327,7 +336,7 @@ function DataTableRowInner<Row>({
         );
       })}
       {rowMenu && (
-        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
+        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', menuRowSurface)}>
           <RowMenuSeam store={seamStore} />
           {(() => {
             const items = rowMenu(row) ?? [];
