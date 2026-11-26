@@ -15,7 +15,6 @@
 -- drops: notify_wo_step_opened(public.work_order_billing_steps) | "end loop;" | insert the full owner recipient set at once
 -- drops: notify_wo_step_opened(public.work_order_billing_steps) | "if not v_found then" | NOT EXISTS on step_owners preserves the Admin fallback condition
 -- drops: notify_wo_step_opened(public.work_order_billing_steps) | "for v_who in" | select fallback admins through the recipients CTE
--- drops: notify_wo_step_opened(public.work_order_billing_steps) | "select a.id from public.profiles a" | retain the org, active Admin, and hidden-role filters in recipients
 -- drops: notify_wo_step_opened(public.work_order_billing_steps) | "where a.org_id = p_step.org_id and a.role = 'Admin' and a.status = 'active'" | retain the org, active Admin, and hidden-role filters in recipients
 -- drops: notify_wo_step_opened(public.work_order_billing_steps) | "loop" | the one recipient insert handles fallback admins with owners
 -- drops: notify_wo_step_opened(public.work_order_billing_steps) | "perform public.notify_workflow_user(p_step.org_id, v_who, 'A billing step is waiting for you', v_body, 'info', 'work_order'," | the set-based insert writes the equivalent fallback notification with batch metadata
