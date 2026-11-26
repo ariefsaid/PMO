@@ -73,7 +73,7 @@ export const StockTabs: React.FC = () => {
   React.useLayoutEffect(() => {
     syncScroll();
   }, [pathname, syncScroll]);
-  if (pathname === '/stock/opening' || pathname === '/stock/opening-history' || pathname.startsWith('/stock/transfers')) return null;
+  if (pathname === '/stock/opening' || pathname === '/stock/opening-history') return null;
   return (
     <nav
       ref={scrollerRef}
