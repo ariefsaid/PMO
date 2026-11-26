@@ -343,8 +343,8 @@ const WorkOrderDetail: React.FC = () => {
           </>}
           {area === 'issues' && <>
             {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
+            <OpenTasksSection projectId={row.project_id} tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
             <ResponsiblePersonSection workOrderId={row.id} />
-            <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
           </>}
         </RecordStack>
       </div>
