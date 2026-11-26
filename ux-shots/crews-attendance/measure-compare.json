@@ -1,0 +1,486 @@
+{
+ "before": {
+  "admin/crews": {
+   "who": "admin",
+   "step": "crews",
+   "distinctLefts": [
+    248,
+    249,
+    273,
+    274
+   ],
+   "figureRights": {}
+  },
+  "admin/crews-selected": {
+   "who": "admin",
+   "step": "crews-selected",
+   "distinctLefts": [
+    248,
+    249,
+    273,
+    274
+   ],
+   "figureRights": {}
+  },
+  "admin/roster": {
+   "who": "admin",
+   "step": "roster",
+   "distinctLefts": [
+    248,
+    273,
+    274,
+    844,
+    869,
+    1032
+   ],
+   "figureRights": {
+    "t0#1": [
+     600
+    ],
+    "t1#1": [
+     1127
+    ]
+   }
+  },
+  "admin/attendance": {
+   "who": "admin",
+   "step": "attendance",
+   "distinctLefts": [
+    248,
+    273,
+    449,
+    664,
+    908,
+    918,
+    1032,
+    1100
+   ],
+   "figureRights": {}
+  },
+  "admin/tools": {
+   "who": "admin",
+   "step": "tools",
+   "distinctLefts": [
+    248,
+    273,
+    274,
+    1154
+   ],
+   "figureRights": {}
+  },
+  "admin/manpower": {
+   "who": "admin",
+   "step": "manpower",
+   "distinctLefts": [
+    248,
+    273,
+    840,
+    865
+   ],
+   "figureRights": {}
+  },
+  "admin/manpower-open": {
+   "who": "admin",
+   "step": "manpower-open",
+   "distinctLefts": [
+    248,
+    273,
+    840,
+    865
+   ],
+   "figureRights": {}
+  },
+  "admin/leave": {
+   "who": "admin",
+   "step": "leave",
+   "distinctLefts": [
+    248,
+    273
+   ],
+   "figureRights": {}
+  },
+  "admin/leave-settings": {
+   "who": "admin",
+   "step": "leave-settings",
+   "distinctLefts": [
+    248,
+    273
+   ],
+   "figureRights": {}
+  },
+  "admin/approvals": {
+   "who": "admin",
+   "step": "approvals",
+   "distinctLefts": [
+    248,
+    265,
+    273,
+    640,
+    665
+   ],
+   "figureRights": {}
+  },
+  "admin/timesheets": {
+   "who": "admin",
+   "step": "timesheets",
+   "distinctLefts": [
+    248,
+    362
+   ],
+   "figureRights": {}
+  },
+  "admin/timesheets-review": {
+   "who": "admin",
+   "step": "timesheets-review",
+   "distinctLefts": [
+    248,
+    265,
+    433,
+    601,
+    801
+   ],
+   "figureRights": {}
+  },
+  "foreman/attendance": {
+   "who": "foreman",
+   "step": "attendance",
+   "distinctLefts": [
+    248,
+    273,
+    449,
+    664,
+    908,
+    918,
+    1032,
+    1100
+   ],
+   "figureRights": {}
+  },
+  "foreman/roster": {
+   "who": "foreman",
+   "step": "roster",
+   "distinctLefts": [
+    248,
+    273,
+    274,
+    844,
+    869,
+    1032
+   ],
+   "figureRights": {
+    "t0#1": [
+     600
+    ],
+    "t1#1": [
+     1127
+    ]
+   }
+  },
+  "foreman/tools": {
+   "who": "foreman",
+   "step": "tools",
+   "distinctLefts": [
+    248,
+    273,
+    274
+   ],
+   "figureRights": {
+    "t0#1": [
+     729
+    ],
+    "t0#2": [
+     880
+    ],
+    "t0#3": [
+     1032
+    ],
+    "t0#4": [
+     1183
+    ]
+   }
+  },
+  "foreman/leave": {
+   "who": "foreman",
+   "step": "leave",
+   "distinctLefts": [
+    248,
+    273
+   ],
+   "figureRights": {}
+  }
+ },
+ "after": {
+  "admin/crews": {
+   "who": "admin",
+   "step": "crews",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {}
+  },
+  "admin/crews-selected": {
+   "who": "admin",
+   "step": "crews-selected",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {}
+  },
+  "admin/roster": {
+   "who": "admin",
+   "step": "roster",
+   "distinctLefts": [
+    248,
+    249,
+    273,
+    844,
+    869,
+    1032
+   ],
+   "figureRights": {
+    "t0#1": [
+     699
+    ],
+    "t2#1": [
+     1295
+    ]
+   }
+  },
+  "admin/attendance": {
+   "who": "admin",
+   "step": "attendance",
+   "distinctLefts": [
+    248,
+    249,
+    273,
+    449,
+    664,
+    718,
+    908,
+    918,
+    962,
+    1100
+   ],
+   "figureRights": {
+    "t0#3": [
+     1188
+    ]
+   }
+  },
+  "admin/tools": {
+   "who": "admin",
+   "step": "tools",
+   "distinctLefts": [
+    248,
+    249,
+    273,
+    1154
+   ],
+   "figureRights": {}
+  },
+  "admin/manpower": {
+   "who": "admin",
+   "step": "manpower",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {
+    "t0#2": [
+     889
+    ],
+    "t0#3": [
+     1019
+    ],
+    "t0#4": [
+     1148
+    ],
+    "t0#5": [
+     1278
+    ]
+   }
+  },
+  "admin/manpower-open": {
+   "who": "admin",
+   "step": "manpower-open",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {
+    "t0#2": [
+     889
+    ],
+    "t0#3": [
+     1019
+    ],
+    "t0#4": [
+     1148
+    ],
+    "t0#5": [
+     1278
+    ]
+   }
+  },
+  "admin/leave": {
+   "who": "admin",
+   "step": "leave",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {
+    "t0#3": [
+     1061
+    ],
+    "t1#3": [
+     1083
+    ]
+   }
+  },
+  "admin/leave-open": {
+   "who": "admin",
+   "step": "leave-open",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {
+    "t0#3": [
+     1061
+    ],
+    "t1#3": [
+     1083
+    ]
+   }
+  },
+  "admin/leave-settings": {
+   "who": "admin",
+   "step": "leave-settings",
+   "distinctLefts": [
+    248,
+    273
+   ],
+   "figureRights": {}
+  },
+  "admin/approvals": {
+   "who": "admin",
+   "step": "approvals",
+   "distinctLefts": [
+    248,
+    249,
+    265,
+    273,
+    640,
+    665
+   ],
+   "figureRights": {
+    "t0#3": [
+     1061
+    ]
+   }
+  },
+  "admin/timesheets": {
+   "who": "admin",
+   "step": "timesheets",
+   "distinctLefts": [
+    248,
+    362
+   ],
+   "figureRights": {}
+  },
+  "admin/timesheets-review": {
+   "who": "admin",
+   "step": "timesheets-review",
+   "distinctLefts": [
+    248,
+    265,
+    433,
+    601,
+    801
+   ],
+   "figureRights": {}
+  },
+  "foreman/attendance": {
+   "who": "foreman",
+   "step": "attendance",
+   "distinctLefts": [
+    248,
+    273,
+    449,
+    664,
+    718,
+    908,
+    918,
+    962,
+    1100
+   ],
+   "figureRights": {}
+  },
+  "foreman/roster": {
+   "who": "foreman",
+   "step": "roster",
+   "distinctLefts": [
+    248,
+    249,
+    273,
+    844,
+    869,
+    1032
+   ],
+   "figureRights": {
+    "t0#1": [
+     699
+    ],
+    "t2#1": [
+     1295
+    ]
+   }
+  },
+  "foreman/tools": {
+   "who": "foreman",
+   "step": "tools",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {
+    "t0#1": [
+     714
+    ],
+    "t0#2": [
+     875
+    ],
+    "t0#3": [
+     1037
+    ],
+    "t0#4": [
+     1198
+    ]
+   }
+  },
+  "foreman/leave": {
+   "who": "foreman",
+   "step": "leave",
+   "distinctLefts": [
+    248,
+    249,
+    273
+   ],
+   "figureRights": {
+    "t0#3": [
+     1053
+    ]
+   }
+  }
+ }
+}
