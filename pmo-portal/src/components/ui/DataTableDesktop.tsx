@@ -31,9 +31,15 @@ import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
  *     closes the seam.
  *  3. An OUTSET box-shadow on a sticky table cell is not painted at all (clipped to the cell's
  *     box), so the left-cast separation shadow is a positioned gradient strip (ROW_MENU_SEAM_CLASS)
- *     rendered inside the cell — see DESIGN.md §6 Row actions. */
+ *     rendered inside the cell — see DESIGN.md §6 Row actions.
+ *  4. While every column fits (the scroller carries no `data-dt-overflowing`), nothing runs under the
+ *     cell, so it paints NO surface and NO divider of its own: it takes the row's surface (an embedded
+ *     table on the grey page stays grey) and the column reads as part of the row. The opaque surface and
+ *     the hairline turn on only while content is hidden under it. */
 const ROW_MENU_STICKY_CLASS =
-  'sticky -right-px shadow-[inset_1px_0_0_hsl(var(--border))]';
+  'sticky -right-px [[data-dt-overflowing]_&]:shadow-[inset_1px_0_0_hsl(var(--border))]';
+/** The sticky actions cell's opaque surface, only while content scrolls under it (see 4 above). */
+const ROW_MENU_COVER = '[[data-dt-overflowing]_&]:bg-card';
 /** Left-cast separation gradient for the sticky actions column: from the `foreground` token
  *  (near-black in light, near-light in dark — the token flips the cast with the mode) fading out
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
@@ -246,6 +252,13 @@ function DataTableRowInner<Row>({
     : onActivate
       ? 'bg-card group-hover:bg-surface-hover'
       : 'bg-card';
+  // The actions cell covers scrolled content only while there is any (ROW_MENU_STICKY_CLASS note 4); otherwise it is
+  // transparent and the row's own surface (hover, selected, an embedded table's page) shows through.
+  const stickyMenuSurface = selected
+    ? '[[data-dt-overflowing]_&]:bg-surface-selected'
+    : onActivate
+      ? cn(ROW_MENU_COVER, '[[data-dt-overflowing]_&]:group-hover:bg-surface-hover')
+      : ROW_MENU_COVER;
   return (
     // The <tr> keeps its IMPLICIT role="row" (never role="link",
     // which breaks table-row semantics and hides body rows from
@@ -327,7 +340,7 @@ function DataTableRowInner<Row>({
         );
       })}
       {rowMenu && (
-        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
+        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyMenuSurface)}>
           <RowMenuSeam store={seamStore} />
           {(() => {
             const items = rowMenu(row) ?? [];

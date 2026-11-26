@@ -7,6 +7,8 @@ import { useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/us
 import { useStockTransfer } from '@/src/hooks/useStockTransfers';
 import { useOrgName } from '@/src/hooks/useOrgName';
 import { formatDay } from '@/src/lib/format';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { PrintDocument, PrintActionBar, PrintHeader, PrintTable, PrintSignatureBlocks, type PrintTableColumn } from '@/src/components/print';
 import type { StockTransferLine } from '@/src/lib/repositories/stockTransfers';
 
@@ -42,7 +44,7 @@ const StockTransferPrint: React.FC = () => {
     { key: 'no', header: '#', width: '40px', render: (_, i) => <span className="text-muted-foreground">{i + 1}</span> },
     { key: 'code', header: t('transfers.print.code'), width: '120px', render: (l) => <span className="font-mono font-medium">{item(l)?.code ?? '—'}</span> },
     { key: 'name', header: t('transfers.print.description'), render: (l) => <span>{item(l)?.name ?? '—'}</span> },
-    { key: 'qty', header: t('transfers.print.quantity'), align: 'right', width: '100px', render: (l) => <span className="font-semibold tabular-nums">{String(l.qtySent)}</span> },
+    { key: 'qty', header: t('transfers.print.quantity'), align: 'right', width: '100px', render: (l) => <span className="font-semibold tabular-nums">{formatQuantity(String(l.qtySent), getNumberLocale())}</span> },
     { key: 'unit', header: t('transfers.print.unit'), width: '80px', render: (l) => <span className="text-muted-foreground">{(units.data ?? []).find((u) => u.id === item(l)?.unit_id)?.code ?? '—'}</span> },
   ];
   return (

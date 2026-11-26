@@ -855,6 +855,12 @@
       "to": "Ke",
       "name": "Nama",
       "signatureDate": "Tanggal"
+    },
+    "columns": {
+      "transfer": "No. transfer",
+      "sent": "Dikirim",
+      "rejected": "Ditolak",
+      "note": "Catatan"
     }
   },
   "handover": {
@@ -1005,7 +1011,9 @@
       "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
       "label": "Nama langkah persetujuan",
       "labelDefault": "Persetujuan peminjaman"
-    }
+    },
+    "free": "Bebas",
+    "reserved": "Dicadangkan"
   },
   "dsrIssue": {
     "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",
