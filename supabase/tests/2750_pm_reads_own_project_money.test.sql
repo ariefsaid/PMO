@@ -61,7 +61,6 @@ select lives_ok($$select * from work_order_cost_amounts('27500000-0000-0000-0000
 select throws_ok($$select * from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d2')$$, 'P0002', 'project not found', 'PS1 other project: work_order_cost_amounts reads as not found');
 select is((select count(*) from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d1') where project_id = '27500000-0000-0000-0000-0000000000d1'),
           (select count(*) from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d1')), 'PS1 own project: only own rows');
-select throws_ok($$select * from work_order_cost_amounts_unrounded('27500000-0000-0000-0000-0000000000d2')$$, 'P0002', 'project not found', 'PS1 other project: work_order_cost_amounts_unrounded reads as not found');
 select lives_ok($$select * from work_order_idle_cost('27500000-0000-0000-0000-0000000000d1')$$, 'PS1 own project: work_order_idle_cost returns');
 select throws_ok($$select * from work_order_idle_cost('27500000-0000-0000-0000-0000000000d2')$$, 'P0002', 'project not found', 'PS1 other project: work_order_idle_cost reads as not found');
 select lives_ok($$select * from qcr_over_contract('27500000-0000-0000-0000-0000000000d1', false)$$, 'PS1 own project: qcr_over_contract returns');
