@@ -59,7 +59,8 @@ export const WeekHoursTable: React.FC<{ days: TimesheetDay[]; rows: TimesheetGri
   }
 
   return (
-    <table className="w-full table-fixed text-control" data-testid="week-hours-table">
+    <div role="region" aria-label={t('timesheets.title', 'Timesheets')} tabIndex={0} className="min-w-0 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <table className="w-full min-w-[640px] table-fixed text-control" data-testid="week-hours-table">
       <colgroup>
         <col />
         {days.map((_, i) => <col key={i} className="w-10" />)}
@@ -99,5 +100,6 @@ export const WeekHoursTable: React.FC<{ days: TimesheetDay[]; rows: TimesheetGri
         </tr>
       </tfoot>
     </table>
+    </div>
   );
 };
