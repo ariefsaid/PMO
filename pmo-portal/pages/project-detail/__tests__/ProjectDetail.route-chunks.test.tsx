@@ -1,7 +1,10 @@
+// The signed-in Project Manager manages the project under test: a Project Manager reads money for their own projects.
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-pm' } }) }));
 vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({ useProjectBudgetPositions: () => ({ data: {} }) }));
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -100,7 +103,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
       customer_contract_ref: null,
       client: null,
       client_id: null,
-      project_manager_id: null,
+      project_manager_id: 'u-pm',
       pm: null,
       currency: 'EUR',
     } : null,

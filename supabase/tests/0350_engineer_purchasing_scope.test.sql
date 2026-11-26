@@ -31,6 +31,8 @@ insert into companies (id, org_id, name, type) values
   ('03500000-0000-0000-0000-0000000000d2', '03500000-0000-0000-0000-0000000000b0', 'EPS Vendor B', 'Vendor');
 insert into projects (id, org_id, name, status) values
   ('03500000-0000-0000-0000-0000000000f1', '03500000-0000-0000-0000-0000000000a0', 'EPS Project', 'Ongoing Project');
+-- The Project Manager manages it: a Project Manager reads money for their own projects (DD-R1125-14).
+update projects set project_manager_id = '03500000-0000-0000-0000-0000000000c1' where id = '03500000-0000-0000-0000-0000000000f1';
 
 -- Purchasing and money fixtures are written by the table owner with triggers off: this file proves READ
 -- visibility only, so the rows need to exist, not to have travelled the write paths (each has its own proof).

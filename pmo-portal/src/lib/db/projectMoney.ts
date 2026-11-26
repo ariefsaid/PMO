@@ -129,3 +129,10 @@ export async function getProjectBudgetPositions(ids: string[]): Promise<Record<s
   }
   return result;
 }
+
+/** The caller's own projects for money (actor_money_projects, 2751): managed, deputy of, or standing in for the manager. */
+export async function getMoneyProjectIds(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('actor_money_projects');
+  if (error) throw new AppError(error.message, error.code);
+  return data ?? [];
+}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useMayViewProjectMoney } from '@/src/hooks/useProjectMoneyScope';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { CircleAlert, CircleCheck, CircleMinus } from 'lucide-react';
@@ -49,7 +50,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const orders = useProjectWorkOrders(project.id);
-  const canViewMoney = may('view', 'salesInvoice');
+  const canViewMoney = useMayViewProjectMoney();
   const projectFinances = useProjectFinances(project.id, { enabled: canViewMoney });
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
   const orderBilling = useWorkOrderBilling(project.id, canViewMoney);

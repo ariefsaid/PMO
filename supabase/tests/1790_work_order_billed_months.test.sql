@@ -19,6 +19,8 @@ insert into companies (id, org_id, name, type) values
   ('17900000-0000-0000-0000-0000000000f1', '17900000-0000-0000-0000-000000000001', 'BPM Client', 'Client');
 insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, currency, client_id) values
   ('17900000-0000-0000-0000-0000000000c1', '17900000-0000-0000-0000-000000000001', 'BPM Project', 'Ongoing Project', 2000000, 'exclusive', 0, 'IDR', '17900000-0000-0000-0000-0000000000f1');
+-- The Project Manager manages it: a Project Manager reads money for their own projects (DD-R1125-14).
+update projects set project_manager_id = '17900000-0000-0000-0000-0000000000a2' where id = '17900000-0000-0000-0000-0000000000c1';
 -- d1 Issued with billing in three months; d2 Closed (any status) with one invoice; d3 Issued with nothing; d4 Issued with a foreign-currency invoice.
 insert into work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount) values
   ('17900000-0000-0000-0000-0000000000d1', '17900000-0000-0000-0000-000000000001', '17900000-0000-0000-0000-0000000000c1', 'Survey', 'Issued', 'BPM-1', 800000, 'exclusive', 0),

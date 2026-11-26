@@ -1,0 +1,12 @@
+{
+  "definer_functions": [
+    "actor_money_scoped()",
+    "actor_money_projects()",
+    "stock_issue_cost_lines_scoped(uuid)",
+    "equipment_charge_project_actuals_scoped(uuid,text)",
+    "equipment_charge_project_actuals_between_scoped(uuid,date,date)",
+    "cost_attribution_project_actuals_scoped(uuid,text)",
+    "budget_attributed_year_sums_scoped(uuid,text[])",
+    "spend_route_project_figures_routed(uuid[])"
+  ]
+}

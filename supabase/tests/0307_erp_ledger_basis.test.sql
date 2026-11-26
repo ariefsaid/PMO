@@ -34,6 +34,8 @@ values ('03070000-0000-0000-0000-000000000001','Labor','0307-LABOR',true);
 insert into public.erp_actuals_snapshot (org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at)
 values ('03070000-0000-0000-0000-000000000001','03070000-0000-0000-0000-0000000000d1','0307-LABOR','FY-2026',120,now(),'03070000-0000-0000-0000-0000000000b1',now());
 
+-- The PM manages the project: a Project Manager reads money for their own projects (DD-R1125-14).
+update public.projects set project_manager_id = '03070000-0000-0000-0000-0000000000a2' where id = '03070000-0000-0000-0000-0000000000d1';
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"03070000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select ok(public.org_reads_erp_ledger(), 'active ERPNext binding selects ERP ledger');

@@ -18042,6 +18042,7 @@ export type Database = {
           currency: string
           customer_contract_ref: string | null
           decided_at: string | null
+          deputy_manager_id: string | null
           end_client_id: string | null
           end_date: string | null
           get_probability: number
@@ -18091,6 +18092,7 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          deputy_manager_id?: string | null
           end_client_id?: string | null
           end_date?: string | null
           get_probability?: number
@@ -18140,6 +18142,7 @@ export type Database = {
           currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
+          deputy_manager_id?: string | null
           end_client_id?: string | null
           end_date?: string | null
           get_probability?: number
@@ -29393,6 +29396,121 @@ export type Database = {
         Returns: boolean
       }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_money_projects: { Args: never; Returns: string[] }
+      actor_money_scoped: { Args: never; Returns: boolean }
+      money_read_is_internal: { Args: never; Returns: boolean }
+      spend_route_project_figures_core: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          figures: Json
+          project_id: string
+        }[]
+      }
+      spend_route_project_figures_routed: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          figures: Json
+          project_id: string
+        }[]
+      }
+      stock_issue_cost_lines_core: {
+        Args: { p_project: string }
+        Returns: {
+          amount: number
+          currency: string
+          discipline_id: string
+          occurred_on: string
+          record_id: string
+          reference: string
+          work_order_id: string
+        }[]
+      }
+      stock_issue_cost_lines_scoped: {
+        Args: { p_project: string }
+        Returns: {
+          amount: number
+          currency: string
+          discipline_id: string
+          occurred_on: string
+          record_id: string
+          reference: string
+          work_order_id: string
+        }[]
+      }
+      equipment_charge_project_actuals_core: {
+        Args: { p_fiscal_year?: string; p_project_id: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+        }[]
+      }
+      equipment_charge_project_actuals_scoped: {
+        Args: { p_fiscal_year: string; p_project_id: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+        }[]
+      }
+      equipment_charge_project_actuals_between_core: {
+        Args: { p_from: string; p_project_id: string; p_to: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+        }[]
+      }
+      equipment_charge_project_actuals_between_scoped: {
+        Args: { p_from: string; p_project_id: string; p_to: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+        }[]
+      }
+      cost_attribution_project_actuals_core: {
+        Args: { p_fiscal_year?: string; p_project_id: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+          source_sum: number
+        }[]
+      }
+      cost_attribution_project_actuals_scoped: {
+        Args: { p_fiscal_year: string; p_project_id: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+          source_sum: number
+        }[]
+      }
+      budget_attributed_year_sums_core: {
+        Args: { p_fiscal_years: string[]; p_project_id: string }
+        Returns: {
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          fiscal_year: string
+          source_sum: number
+        }[]
+      }
+      budget_attributed_year_sums_scoped: {
+        Args: { p_fiscal_years: string[]; p_project_id: string }
+        Returns: {
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          fiscal_year: string
+          source_sum: number
+        }[]
+      }
       actor_may_read_purchase_cases: {
         Args: never
         Returns: boolean

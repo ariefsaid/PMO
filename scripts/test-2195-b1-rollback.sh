@@ -46,8 +46,10 @@ text = Path('scripts/2195-b1-rollback.test.sql').read_text()
 down = Path('supabase/migrations/rollback/0882_capture_invoice_assignment_down.sql').read_text()
 if '$down$' in down: raise SystemExit('down file contains the proof delimiter')
 text = text.replace('@DOWN@', down).replace('@HASHES@', Path(sys.argv[2]).read_text().strip())
-# Peel the newer migration that replaces 0882's functions (0903) inside the proof's transaction first.
-text = text.replace('begin;\n', 'begin;\n' + Path('supabase/migrations/rollback/0903_capture_order_family_down.sql').read_text() + '\n', 1)
+# Peel the newer migrations that replace 0882's functions inside the proof's transaction first, newest first:
+# 2751 (cost_attribution_project_actuals became a dispatcher over _core), then 0903.
+peel_2751 = '\n'.join(l for l in Path('supabase/migrations/rollback/2751_pm_money_scope_rule_down.sql').read_text().split('\n') if l.strip() not in ('begin;', 'commit;'))
+text = text.replace('begin;\n', 'begin;\n' + peel_2751 + '\n' + Path('supabase/migrations/rollback/0903_capture_order_family_down.sql').read_text() + '\n', 1)
 Path(sys.argv[1]).write_text(text)
 PY
 supabase test db "$test_file"

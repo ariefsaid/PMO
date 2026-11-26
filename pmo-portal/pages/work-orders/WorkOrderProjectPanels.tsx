@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
+import { ProjectMoneyScopeContext } from '@/src/hooks/useProjectMoneyScope';
 
 import WorkOrderPlanVsActual from '../project-detail/WorkOrderPlanVsActual';
 import DisciplineProfit from '../project-detail/DisciplineProfit';
@@ -17,12 +18,16 @@ import { CandidateRecords } from './CandidateRecords';
  * dashboard once it is narrowed to one project.
  */
 const WorkOrderProjectPanelsBody: React.FC<{ projectId: string }> = ({ projectId }) => {
+  // The money panels follow the project's money scope (DD-R1125-14); the delivery panels stay.
+  const moneyInScope = useContext(ProjectMoneyScopeContext);
   return (
     <div className="mt-[var(--space-section)] flex min-w-0 flex-col gap-[var(--space-panel-gap)] empty:hidden" data-testid="work-order-project-panels">
-      <WorkOrderPlanVsActual projectId={projectId} />
-      <DisciplineProfit projectId={projectId} />
-      <RevenuePlanRollup projectId={projectId} />
-      <EarnedBilledProfit projectId={projectId} />
+      {moneyInScope && <>
+        <WorkOrderPlanVsActual projectId={projectId} />
+        <DisciplineProfit projectId={projectId} />
+        <RevenuePlanRollup projectId={projectId} />
+        <EarnedBilledProfit projectId={projectId} />
+      </>}
       <DailyTargetRollup projectId={projectId} />
       <CandidateRecords projectId={projectId} />
     </div>
