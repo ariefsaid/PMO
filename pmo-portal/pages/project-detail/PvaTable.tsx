@@ -18,7 +18,7 @@ const MID_AND_NARROW = {
   hide: '@max-[56rem]:sr-only',
   empty: '@max-[56rem]:invisible @max-[30rem]:hidden',
   dash: '@max-[30rem]:hidden',
-  row: '@max-[56rem]:grid @max-[56rem]:grid-cols-3 @max-[56rem]:gap-x-6 @max-[56rem]:gap-y-3 @max-[56rem]:py-4 @max-[30rem]:grid-cols-[1fr_auto] @max-[30rem]:gap-y-1',
+  row: '@max-[56rem]:grid @max-[56rem]:grid-cols-3 @max-[56rem]:gap-x-6 @max-[56rem]:gap-y-3 @max-[56rem]:py-4 @max-[56rem]:first:pt-0 @max-[30rem]:grid-cols-[1fr_auto] @max-[30rem]:gap-y-1',
   rowHead: '@max-[56rem]:static @max-[56rem]:col-span-2 @max-[56rem]:block @max-[56rem]:p-0 @max-[56rem]:max-w-none @max-[30rem]:col-span-1',
   cell: '@max-[56rem]:block @max-[56rem]:p-0 @max-[30rem]:col-span-full @max-[56rem]:text-left @max-[56rem]:before:block @max-[56rem]:before:font-normal @max-[56rem]:before:text-muted-foreground @max-[56rem]:before:content-[attr(data-label)] @max-[30rem]:flex @max-[30rem]:justify-between @max-[30rem]:gap-4 @max-[30rem]:text-right',
   action: '@max-[56rem]:col-start-3 @max-[56rem]:row-start-1 @max-[56rem]:block @max-[56rem]:p-0 @max-[56rem]:text-right @max-[30rem]:col-start-2',
@@ -28,7 +28,7 @@ const NARROW_ONLY = {
   hide: '@max-[30rem]:sr-only',
   empty: '@max-[30rem]:hidden',
   dash: '@max-[30rem]:hidden',
-  row: '@max-[30rem]:grid @max-[30rem]:grid-cols-1 @max-[30rem]:gap-y-1 @max-[30rem]:py-3',
+  row: '@max-[30rem]:grid @max-[30rem]:grid-cols-1 @max-[30rem]:gap-y-1 @max-[30rem]:py-3 @max-[30rem]:first:pt-0',
   rowHead: '@max-[30rem]:static @max-[30rem]:block @max-[30rem]:p-0',
   cell: '@max-[30rem]:flex @max-[30rem]:justify-between @max-[30rem]:gap-4 @max-[30rem]:p-0 @max-[30rem]:before:font-normal @max-[30rem]:before:text-muted-foreground @max-[30rem]:before:content-[attr(data-label)]',
   action: '@max-[30rem]:block @max-[30rem]:p-0 @max-[30rem]:pt-2 @max-[30rem]:text-left',
@@ -61,10 +61,10 @@ export const PvaTable: React.FC<{
   const cell = cn('py-2.5 align-baseline first:pl-0 last:pr-0', 'pl-4');
   const head = 'sticky left-0 z-[1] bg-card py-2.5 pr-4 text-left align-baseline';
   return (
-    <div className={cn('@container overflow-x-auto', !dense && '-mx-[var(--panel-inset)] px-[var(--panel-inset)]')} data-testid={testId} data-layout-ignore>
+    <div className={cn('@container overflow-x-auto', !dense && '-mt-1', !dense && '-mx-[var(--panel-inset)] px-[var(--panel-inset)]')} data-testid={testId}>
       <table className={cn('w-full border-collapse text-control', k.block)}>
         <caption className="sr-only">{caption}</caption>
-        <thead className={cn('text-muted-foreground', k.hide)}>
+        <thead className={cn('text-muted-foreground [&>tr:first-child>*]:pt-0', k.hide)}>
           {groups && (
             <tr>
               <td className="sticky left-0 z-[1] bg-card" />
