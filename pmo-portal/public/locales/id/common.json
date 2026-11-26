@@ -778,6 +778,7 @@
         "disabled": "Nonaktif"
       },
       "noManager": "Tanpa manajer",
+      "managerUnavailable": "Nama manajer tidak tersedia",
       "menu": {
         "editRole": "Ubah tingkat akses",
         "changeManager": "Ubah manajer",

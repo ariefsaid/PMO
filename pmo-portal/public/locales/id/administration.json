@@ -952,6 +952,9 @@
     "runs": "Eksekusi",
     "tokens": "Token",
     "providerCost": "Biaya penyedia",
+    "monthUnavailable": "Bulan tidak tersedia",
+    "providerPricingUnavailable": "Harga penyedia tidak tersedia",
+    "marginUnavailable": "Harga tidak tersedia",
     "cost": "Biaya (USD)",
     "margin": "Margin",
     "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan."

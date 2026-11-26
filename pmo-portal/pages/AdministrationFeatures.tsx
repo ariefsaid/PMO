@@ -391,7 +391,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                           </span>
                         </td>
                         <td className="px-4 py-2 text-muted-foreground" data-testid={`plan-default-cell-${key}`}>
-                          {planDefault === undefined ? '—' : <OnOff on={planDefault} />}
+                          {planDefault === undefined ? t('console.noPlanDefault', 'No plan default') : <OnOff on={planDefault} />}
                         </td>
                         <td className="px-4 py-2">
                           {isAdminOwned ? (
@@ -482,7 +482,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                         </div>
                       </div>
                       <p className="text-control text-muted-foreground">
-                        {t('console.colPlanDefault', 'Plan default')}: {planDefault === undefined ? '—' : <OnOff on={planDefault} />}
+                        {t('console.colPlanDefault', 'Plan default')}: {planDefault === undefined ? t('console.noPlanDefault', 'No plan default') : <OnOff on={planDefault} />}
                       </p>
                       {isAdminOwned ? (
                         <p className="text-control text-muted-foreground">{t('console.adminOwnedRow', 'Admin-owned')}</p>

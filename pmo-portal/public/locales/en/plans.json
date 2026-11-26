@@ -53,6 +53,7 @@
     "colEffective": "Effective",
     "colSource": "Source",
     "colPlanDefault": "Plan default",
+    "noPlanDefault": "No plan default",
     "colOverride": "This organisation",
     "colGlobal": "All organisations",
     "sourceGlobal": "All organisations",

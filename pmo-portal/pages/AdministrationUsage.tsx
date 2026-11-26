@@ -19,11 +19,11 @@ import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber, formatUtcMonthYear
 
 type UsageRow = UsageSummaryRow | OperatorUsageSummaryRow;
 
-/** "Jul 2026" from the RPC's month-start date; missing or unparseable → em-dash, never a raw value. */
-function monthBucket(month: string | null): string {
-  if (!month) return '—';
+/** "Jul 2026" from the RPC's month-start date; missing or unparseable values have no display month. */
+function monthBucket(month: string | null): string | null {
+  if (!month) return null;
   const parsed = new Date(month);
-  return Number.isNaN(parsed.getTime()) ? '—' : formatUtcMonthYearFull(parsed);
+  return Number.isNaN(parsed.getTime()) ? null : formatUtcMonthYearFull(parsed);
 }
 
 export interface AdministrationUsageProps {
@@ -82,7 +82,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     // The RPC's month bucket is a UTC month-start DATE; a raw `2026-07-01` is an ISO string on
     // screen (ux/1110 rule 1), so it goes through the shared UTC-pinned month formatter — the same
     // UTC pin the sibling agent-cost dashboard uses for its month buckets.
-    { key: 'month', header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) },
+    { key: 'month', header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) ?? t('usage.monthUnavailable', 'Month unavailable') },
     { key: 'action', header: t('usage.action', 'Action'), cell: (r) => r.action },
     { key: 'runs', header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
     {
@@ -102,13 +102,13 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
             cell: (r: UsageRow) =>
               'provider_cost_usd' in r && r.provider_cost_usd !== null
                 ? formatCurrencyFine(r.provider_cost_usd, PLATFORM_CURRENCY)
-                : '—',
+                : t('usage.providerPricingUnavailable', 'Provider pricing unavailable'),
           } as Column<UsageRow>,
         ]
       : []),
     { key: 'cost', header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? t('usage.marginUnavailable', 'Pricing unavailable') : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 

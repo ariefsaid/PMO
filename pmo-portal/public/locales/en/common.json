@@ -778,6 +778,7 @@
         "disabled": "Disabled"
       },
       "noManager": "No manager",
+      "managerUnavailable": "Manager name unavailable",
       "menu": {
         "editRole": "Edit access level",
         "changeManager": "Change manager",

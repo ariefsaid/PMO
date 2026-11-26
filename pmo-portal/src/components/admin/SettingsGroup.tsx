@@ -8,7 +8,7 @@ import React, { type ReactNode } from 'react';
  * heading is set one step below the group title (14px semibold), its own top margin is dropped (the panel draws the
  * divider), and the stack is capped at 896px (the widest setting table, the budget account map, needs 760px inside the panel) so a control never flies to the far edge of a wide screen.
  */
-export function SettingsGroup({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+export function SettingsGroup({ id, title, note, children }: { id: string; title: string; note?: string; children: ReactNode }) {
   return (
     <section
       id={id}
@@ -20,6 +20,7 @@ export function SettingsGroup({ id, title, children }: { id: string; title: stri
       <h2 id={`${id}-title`} className="px-4 pt-4 text-group font-semibold tracking-[-0.01em] sm:px-6 sm:pt-5">
         {title}
       </h2>
+      {note && <p className="mx-4 mt-3 text-control text-muted-foreground sm:mx-6">{note}</p>}
       <div
         className={[
           'min-w-0 divide-y divide-border px-4 sm:px-6',

@@ -363,6 +363,7 @@ const SelectedAdministrationPanel: React.FC<{
   label: (id: AdministrationSection) => string;
 }> = ({ section, orgId, isOperator, label }) => {
   const { t } = useTranslation(['common', 'billingSteps', 'siteReport']);
+  const may = usePermission();
   switch (section) {
     case 'users':
       return (
@@ -416,7 +417,11 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <SectionName name={label('accounting')} />
           <SettingsGroups>
-            <SettingsGroup id="accounting-tax" title={settingsGroupLabel(t, 'accounting-tax')}>
+            <SettingsGroup
+              id="accounting-tax"
+              title={settingsGroupLabel(t, 'accounting-tax')}
+              note={may('manage', 'orgAccounting') ? undefined : t('administration:admin.taxDefault.adminOnly', 'Only an Admin can change this.')}
+            >
               <OrgTaxDefault />
               <OrgFiscalYearStart />
               <OrgWithholdingAccount />
