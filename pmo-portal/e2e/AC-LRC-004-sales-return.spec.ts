@@ -5,8 +5,8 @@ import { login } from './helpers';
 /**
  * AC-LRC-004 (list-working-set-return, #682): a narrowed Sales Pipeline, opened project record,
  * and a return via the project's quiet "Back to Sales Pipeline" wayfinding link restores the same
- * stage/search working set — while the record path and the Projects breadcrumb/BackBar stay
- * canonical, structural, and UNAFFECTED by the Sales context (design decision 3 / FR-LRC-006).
+ * stage/search working set — while the record path stays canonical. Pre-win breadcrumb/BackBar
+ * now point to Sales Pipeline (screen-owner repair); Projects remains reachable from navigation.
  *
  * Seed: "Riverside Plastics 2.1 MW Carport PV" and "Northwind ERP Rollout" are both Tender
  * Submitted; "Cascade Foods Phase 2 — 4.0 MW Extension" is PQ Submitted (excluded by the Tender
@@ -25,7 +25,7 @@ async function waitReady(page: Page) {
 }
 
 test(
-  'AC-LRC-004: narrowing the Sales Pipeline, opening a project, and returning via the PipelineLens Sales link restores the funnel-stage/search/scroll — the record path and Projects breadcrumb/BackBar stay canonical',
+  'AC-LRC-004: narrowing the Sales Pipeline, opening a project, and returning via the PipelineLens Sales link restores the funnel-stage/search/scroll — the record path stays canonical and the pre-win breadcrumb returns to Sales',
   async ({ page }) => {
     // A small viewport height, not width, forces the table to overflow `.main-scroll` even with
     // a handful of seeded rows, so the scroll-restore assertion is real, not trivially 0.
@@ -59,12 +59,13 @@ test(
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await expect(page.getByTestId('record-header')).toContainText('Riverside Plastics 2.1 MW Carport PV');
 
-    // ── The structural Projects breadcrumb/BackBar are UNAFFECTED by the Sales context: they
-    //    return to the bare Projects index, never the narrowed Sales URL (design decision 3). ──
+    // ── Pre-win wayfinding returns to Sales. Projects remains reachable from the rail. ───────
     await page
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('link', { name: /^projects$/i })
+      .getByRole('link', { name: /^sales pipeline$/i })
       .click();
+    await expect(page).toHaveURL(/\/sales$/, { timeout: 10_000 });
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Projects', exact: true }).click();
     await expect(page).toHaveURL(/\/projects$/, { timeout: 10_000 });
 
     // ── Re-open the project from the SAME narrowed Sales URL to test the quiet Sales link ─────
@@ -94,7 +95,7 @@ test(
     // AC-LRC-003/005's push-based BackBar/breadcrumb returns) makes no scroll-restore claim.
 
     // ── A direct project link carries no Sales context — the Sales link falls back to bare
-    //    /sales (design decision 3 / AC-LRC-011), and the Projects breadcrumb stays canonical. ─
+    //    /sales (AC-LRC-011); its pre-win breadcrumb now has the same owning index. ───────────
     const freshPage = await page.context().newPage();
     await freshPage.goto(recordUrl);
     await expect(freshPage.getByTestId('record-header')).toContainText(
@@ -107,8 +108,10 @@ test(
     );
     await freshPage
       .getByRole('navigation', { name: /breadcrumb/i })
-      .getByRole('link', { name: /^projects$/i })
+      .getByRole('link', { name: /^sales pipeline$/i })
       .click();
+    await expect(freshPage).toHaveURL(/\/sales$/, { timeout: 10_000 });
+    await freshPage.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Projects', exact: true }).click();
     await expect(freshPage).toHaveURL(/\/projects$/, { timeout: 10_000 });
     await freshPage.close();
   },
