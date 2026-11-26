@@ -43,7 +43,7 @@
 .minutes-editor .bn-block-content { min-width: 0; max-width: 100%; }
 
 .minutes-editor .bn-container { background: transparent; }
-.minutes-editor .bn-editor { padding: 0; background: transparent; }
+.minutes-editor .bn-editor { padding: 0 16px; background: transparent; }
 .minutes-editor .bn-block-outer { line-height: 1.45; }
 .minutes-editor .bn-block-content { font-size: 14px; transition: none; } /* no font-size tween: the measured size is the settled size */
 /* Long unbroken strings (URLs, codes) wrap instead of widening the page — AC-MOBILE-OVERFLOW-001. */

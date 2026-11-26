@@ -686,7 +686,7 @@ describe('contract billing block', () => {
     expect(screen.getByRole('heading', { name: 'Contract invoice position · IDR' })).toBeInTheDocument();
     expect(screen.getByText('Invoiced against contract').parentElement).toHaveTextContent('2,900');
     expect(screen.getByText('Remaining to invoice').parentElement).toHaveTextContent('7,100');
-    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('excl. tax');
   });
 
   it('shows the contract-to-paid cascade from BoQ, work-order allocation, and invoice facts', () => {

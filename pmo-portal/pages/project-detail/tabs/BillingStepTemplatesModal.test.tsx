@@ -88,6 +88,8 @@ describe('BillingStepTemplatesModal', () => {
   it('no templates yet says so', () => {
     view();
     expect(screen.getByText('No templates yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(screen.getByText('Close', { exact: true })).toBeInTheDocument();
   });
 
   it('a failed template load says so in place', () => {
@@ -165,7 +167,7 @@ describe('BillingStepTemplatesModal', () => {
       steps: [{ name: 'Mobilise', ownerRole: 'Project Manager', ownerRoleKey: null, hiddenFromRoleKeys: [], targetDays: 5, clientSide: false, optional: false, documents: [{ name: 'Signed DPR', required: true }, { name: 'Photos', required: true }, { name: 'Site diary', required: false }] }],
     }));
     // The template form returns to the template list; the page-level modal stays open.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Close', { exact: true })).toBeInTheDocument());
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -232,11 +234,11 @@ describe('BillingStepTemplatesModal', () => {
     })));
   });
 
-  it('Done closes the list modal', async () => {
+  it('Close dismisses the list modal', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<ToastProvider><BillingStepTemplatesModal onClose={onClose} /></ToastProvider>);
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByText('Close', { exact: true }));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -279,7 +281,7 @@ describe('BillingStepTemplatesModal', () => {
     })));
   });
 
-  it('a save or Done inside the modal does not submit the form it is opened from (the Billing terms modal stays open)', async () => {
+  it('a save or Close inside the modal does not submit the form it is opened from (the Billing terms modal stays open)', async () => {
     const user = userEvent.setup();
     const outerSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
     const onClose = vi.fn();
@@ -290,8 +292,8 @@ describe('BillingStepTemplatesModal', () => {
     await user.type(screen.getAllByLabelText('Step name')[0], 'One');
     await user.click(screen.getByRole('button', { name: 'Save template' }));
     await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.getByText('Close', { exact: true })).toBeInTheDocument());
+    await user.click(screen.getByText('Close', { exact: true }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(outerSubmit).not.toHaveBeenCalled();
   });

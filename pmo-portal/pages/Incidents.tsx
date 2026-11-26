@@ -122,7 +122,7 @@ const Incidents: React.FC = () => {
       header: t('col.incident', 'Incident'),
       cell: (i) => (
         <span className="truncate font-semibold" title={i.description ?? i.type}>
-          {i.type}
+          {t(`type.${i.type}`, i.type)}
         </span>
       ),
       exportValue: (i) => i.type,

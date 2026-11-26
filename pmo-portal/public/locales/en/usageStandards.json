@@ -145,6 +145,13 @@
       "reasonRequired": "Give a reason (up to 500 characters).",
       "reasonTooLong": "Keep the reason under 500 characters.",
       "failed": "Could not save the plan"
+    },
+    "col": {
+      "item": "Item",
+      "planned": "Plan",
+      "requested": "Requested",
+      "remaining": "Remaining",
+      "source": "Source"
     }
   }
 }

@@ -1,3 +1,4 @@
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, RecordSection, TextField, useToast } from '@/src/components/ui';
@@ -32,13 +33,14 @@ export const UsageThresholdsEditor: React.FC = () => {
   };
   const rangeError = dirty && !parsed.ok && parsed.error === 'range' ? t('usage.invalidRange', 'Enter a percentage from 1 to 1000.') : undefined;
   const orderError = dirty && !parsed.ok && parsed.error === 'order' ? t('usage.invalidOrder', 'The second warning must be higher than the first.') : undefined;
+  const pageSave = useSettingsSaveEntry({ dirty, invalid: !parsed.ok, busy: saving, save });
   return (
     <RecordSection title={t('usage.title', 'Usage warnings')} subline={t('usage.sub', "Warn when a work order's material use reaches these percentages of plan. Leave a field empty to switch that warning off. Warnings never block a request. The first warning also tells the work order's site engineer when installed material reaches it.")}>
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       <div className="flex flex-wrap items-end gap-2">
         <TextField label={t('usage.first', 'First warning (% of plan)')} inputMode="decimal" value={a} onChange={setFirst} error={rangeError} />
         <TextField label={t('usage.second', 'Second warning (% of plan)')} inputMode="decimal" value={b} onChange={setSecond} error={rangeError ?? orderError} />
-        <Button variant="primary" disabled={!dirty || !parsed.ok} loading={saving} onClick={() => void save()}>{t('usage.save', 'Save warnings')}</Button>
+        {!pageSave && <Button variant="primary" disabled={!dirty || !parsed.ok} loading={saving} onClick={() => void save()}>{t('usage.save', 'Save warnings')}</Button>}
       </div>
     </RecordSection>
   );

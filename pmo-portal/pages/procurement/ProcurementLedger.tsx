@@ -108,6 +108,7 @@ const LedgerTypeLabel: React.FC<{ type: LedgerRow['type'] }> = ({ type }) => {
   const { t } = useTranslation();
   const label = type === 'PR' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
     : type === 'PO' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
+      : type === 'Quote' ? t('procurement:progression.quote', 'Quote')
       : type === 'Payment' ? t('procurementLedger.types.payment', 'Payment') : type;
   return <>{label}</>;
 };
@@ -486,7 +487,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       if (row.amount == null && row.valueUnknown) return <span className="text-sm text-muted-foreground" data-testid="receipt-value-unknown">{t('procurement:ledger.valueNotRecorded', 'Value not recorded for this receipt')}</span>;
       if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
       // The amount answers "how much": the figure, with its tax basis under it on the same right edge.
-      return <span className="inline-flex flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
+      return <span className="inline-flex min-w-0 max-w-full flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
     },
   }), [t]);
 
@@ -593,7 +594,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     // all on the panel inset (the record's one left edge).
     <RecordSection
       data-testid="procurement-ledger"
-      title={t('procurementLedger.title', 'Case ledger')}
+      title={t('procurementLedger.title', 'Case documents')}
       flush
       actions={
         /* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */

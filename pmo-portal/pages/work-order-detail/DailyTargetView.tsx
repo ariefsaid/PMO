@@ -24,7 +24,7 @@ interface Props {
 }
 
 /**
- * Daily target on the work-order page (#2672, FR-WDT-020; per-day cost #1126). Two questions, two blocks:
+ * Daily target on the work-order page (#2672, FR-WDT-020; per-day cost #1126). One month, with its daily evidence:
  *   1. Are we on target this month? Target, actual and gap to date, the projection to month end, the chart.
  *   2. Did each day pay for itself? Per day: target, revenue, gap, cost by kind, revenue less cost.
  * The target is the #2671 plan row (entered with "Enter plan"); nothing here calculates one (OD-SCOPE-7). Shows ONLY
@@ -45,7 +45,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   const daily = useMemo(() => (costGroups && data ? buildDailyCost(costGroups, data.currency) : null), [costGroups, data]);
   // A day that carries cost stays on the table even when it is a non-working day, so the days always add up to the cost list.
   const shown = useMemo(() => (data?.days ?? []).filter((d) => visibleDays([d]).length > 0 || daily?.days[d.date] !== undefined), [data, daily]);
-  const chart = useMemo(() => shown.map((d) => ({ date: d.date.slice(8), target: Number(d.target), actual: Number(d.actual) })), [shown]);
+  const chart = useMemo(() => (data?.days ?? []).map((d) => ({ date: d.date.slice(8), target: Number(d.target), actual: Number(d.actual) })), [data]);
   // A day earns a row when something is on it: a target, revenue, a report waiting, cost, or a listed closure.
   const costCells = useMemo(() => (daily ? [...Object.values(daily.days), ...(daily.undated ? [daily.undated] : [])] : []), [daily]);
   const costCols = DAY_CATEGORIES.filter((k) => costCells.some((c) => typeof c[k] === 'number'));
@@ -86,10 +86,11 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
       : g.state === 'ahead' ? t('daily.ahead', '{{amount}} ahead of target', { amount: money(g.by) })
       : t('daily.onTarget', 'On target');
   };
-  const figure = (testId: string, label: string, value: React.ReactNode) => (
-    <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
+  const figure = (testId: string, label: string, value: React.ReactNode, caption?: React.ReactNode) => (
+    <div key={testId} className="row-span-3 grid min-w-0 grid-rows-subgrid gap-y-1">
       <dt className="self-end text-muted-foreground">{label}</dt>
-      <dd className="self-start font-medium tabular-nums" data-testid={testId}>{value}</dd>
+      <dd className="self-start text-metric font-semibold tabular-nums" data-testid={testId}>{value}</dd>
+      {caption}
     </div>
   );
   const costFigure = (v: number | null | undefined) => (typeof v === 'number' ? money(toMoney(v)) : '—');
@@ -100,10 +101,9 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   // Nothing to compare yet: no target, nothing earned, nothing waiting and no cost in the month. Say so once and offer the one fix.
   if (!data.hasTarget && rows.length === 0 && undated === null) {
     return (
-      <RecordSection title={title} data-testid="wo-page-daily-target" actions={nav}>
+      <RecordSection title={title} data-testid="wo-page-daily-target" actions={<>{nav}{plan && <Button variant="outline" size="sm" onClick={() => setEntering(true)}>{t('enter', 'Enter plan')}</Button>}</>}>
         <div className="flex flex-wrap items-center justify-between gap-3" data-testid="wo-daily-empty">
           <p className="text-control text-muted-foreground">{t('daily.nothing', 'No target and no actual in {{month}}.', { month: monthLabel })}</p>
-          {plan && <Button variant="outline" size="sm" onClick={() => setEntering(true)}>{t('enter', 'Enter plan')}</Button>}
         </div>
         {entering && plan && <RevenuePlanModal workOrderId={workOrderId} woLabel={plan.woLabel} currency={data.currency} onClose={() => setEntering(false)} />}
       </RecordSection>
@@ -124,7 +124,8 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
             {figure('wo-daily-mtd-target', t('daily.mtdTarget', 'Target to date'), data.hasTarget ? money(data.mtdTarget) : none)}
             {figure('wo-daily-month-target', t('daily.monthTarget', 'Month target'), data.hasTarget ? money(data.monthTarget) : none)}
             {figure('wo-daily-projection', t('daily.projection', 'Projection to month end'),
-              data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection))}
+              data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection),
+              data.hasTarget && data.projection !== null && data.projectedGap !== null ? <p className="text-control font-normal text-muted-foreground" data-testid="wo-daily-projected-gap">{gapWords(data.projectedGap)}</p> : undefined)}
           </dl>
         ) : (
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-control sm:grid-cols-4">
@@ -132,50 +133,32 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
             {figure('wo-daily-mtd-actual', t('daily.mtdActual', 'Actual to date'), money(data.mtdActual))}
             {figure('wo-daily-mtd-gap', t('daily.mtdGap', 'Gap to date'), data.hasTarget ? gapWords(data.mtdGap) : none)}
             {figure('wo-daily-projection', t('daily.projection', 'Projection to month end'),
-              data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection))}
+              data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection),
+              data.hasTarget && data.projection !== null && data.projectedGap !== null ? <p className="text-control font-normal text-muted-foreground" data-testid="wo-daily-projected-gap">{gapWords(data.projectedGap)}</p> : undefined)}
           </dl>
-        )}
-        {data.hasTarget && data.projection !== null && data.projectedGap !== null && (
-          <p className="mt-3 text-control" data-testid="wo-daily-projected-gap">
-            {t('daily.projectedGap', 'Month target {{target}}: the projection is {{words}}.', { target: money(data.monthTarget), words: gapWords(data.projectedGap) })}
-          </p>
         )}
         {data.days.some((d) => d.pendingReports > 0) && (
           <p className="mt-1 text-control text-muted-foreground" data-testid="wo-daily-pending">
             {t('daily.pending', 'Daily reports not yet validated are not counted as actual.')}
           </p>
         )}
-        {shown.length > 0 && (
+        {rows.length >= 3 && (
           <figure role="img" aria-label={summary} className="m-0 mt-4" data-testid="wo-daily-chart">
-            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-support text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true" className="inline-block size-2.5 rounded-xs border" style={{ borderColor: chartTheme.series.neutral, backgroundColor: 'transparent' }} />
-                {t('daily.seriesTarget', 'Target')}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true" className="inline-block size-2.5 rounded-xs" style={{ backgroundColor: chartTheme.series.success }} />
-                {t('daily.seriesActual', 'Actual')}
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[440px] sm:min-w-0">
+            <div className="min-w-0">
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                    <XAxis dataKey="date" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} />
+                    <XAxis dataKey="date" ticks={chart.filter((d, i) => i === 0 || i === chart.length - 1 || Number(d.date) % 5 === 0).map((d) => d.date)} tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} />
                     <YAxis tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} width={56} tickFormatter={(v: number) => formatShortAmount(v)} />
                     <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(v) => formatNumberMax2(Number(v))} />
                     <Bar dataKey="target" name={t('daily.seriesTarget', 'Target')} fill={chartTheme.series.neutral} fillOpacity={0.22} stroke={chartTheme.series.neutral} strokeWidth={1} isAnimationActive={false} />
                     <Bar dataKey="actual" name={t('daily.seriesActual', 'Actual')} fill={chartTheme.series.success} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
             </div>
           </figure>
         )}
-      </RecordSection>
-
-      <RecordSection title={t('daily.byDay', 'Each day')} data-testid="wo-daily-days">
+        <div className="mt-4" data-testid="wo-daily-days">
         {rows.length === 0 ? <p className="text-control text-muted-foreground">{shown.length === 0 ? t('daily.empty', 'No working days in this month.') : t('daily.allQuiet', 'No day in {{month}} has a target, revenue or cost yet.', { month: monthLabel })}</p> : (
           <table className="w-full text-control max-sm:block" data-testid="wo-daily-table">
             <caption className="sr-only">{t('daily.caption', 'Daily target and actual for {{month}}', { month: monthLabel })}</caption>
@@ -224,6 +207,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
             {undated !== null && <span data-testid="wo-daily-cost-undated">{t('daily.cost.undated', 'Not dated to a day: {{amount}}', { amount: money(toMoney(undated)) })}</span>}
           </p>
         )}
+        </div>
       </RecordSection>
       {entering && plan && <RevenuePlanModal workOrderId={workOrderId} woLabel={plan.woLabel} currency={data.currency} onClose={() => setEntering(false)} />}
     </div>

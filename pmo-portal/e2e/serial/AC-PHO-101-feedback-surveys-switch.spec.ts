@@ -16,13 +16,18 @@ const featuresSwitch = (page: Page) => page.getByRole('switch', { name: SWITCH_N
 async function openFeatures(page: Page) {
   await page.goto('/administration/integrations');
   await expect(page.getByTestId('administration-panel-integrations')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Organization settings', exact: true }).click();
 }
 
 test.describe('AC-PHO-101 feedback and surveys switch', () => {
   test.afterEach(async ({ page }) => {
     // Leave the seed org as found: on. Asserted, because a silent failure here poisons the lane.
     await openFeatures(page);
-    if ((await featuresSwitch(page).getAttribute('aria-checked')) === 'false') await featuresSwitch(page).click();
+    if ((await featuresSwitch(page).getAttribute('aria-checked')) === 'false') {
+      await featuresSwitch(page).click();
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Save', exact: true })).not.toHaveAttribute('aria-busy', 'true');
+    }
     await expect(featuresSwitch(page)).toHaveAttribute('aria-checked', 'true', { timeout: 15_000 });
   });
 
@@ -32,13 +37,18 @@ test.describe('AC-PHO-101 feedback and surveys switch', () => {
     await expect(featuresSwitch(page)).toHaveAttribute('aria-checked', 'true');
 
     await featuresSwitch(page).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).not.toHaveAttribute('aria-busy', 'true');
     await expect(featuresSwitch(page)).toHaveAttribute('aria-checked', 'false', { timeout: 15_000 });
 
     await page.reload();
     await expect(page.getByTestId('administration-panel-integrations')).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Organization settings', exact: true }).click();
     await expect(featuresSwitch(page)).toHaveAttribute('aria-checked', 'false');
 
     await featuresSwitch(page).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).not.toHaveAttribute('aria-busy', 'true');
     await expect(featuresSwitch(page)).toHaveAttribute('aria-checked', 'true', { timeout: 15_000 });
   });
 });

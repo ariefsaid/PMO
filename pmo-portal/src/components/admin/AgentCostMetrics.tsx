@@ -172,6 +172,8 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     return (
       <ListState
         variant="empty"
+        quiet
+        className="rounded-lg border border-border bg-card px-4 py-4"
         icon="admin"
         title={t('agentCost.emptyTitle', 'No agent cost data yet')}
         sub={t('agentCost.emptySub', 'Agent cost telemetry appears here once your workspace starts using the assistant.')}

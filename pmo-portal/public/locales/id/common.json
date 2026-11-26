@@ -213,20 +213,20 @@
     "many": "{{count}} berkas"
   },
   "terms": {
-    "clientWorkOrder": "Work order",
+    "clientWorkOrder": "Perintah kerja",
     "dashboard": "Dasbor",
     "section": "Bagian",
     "sections": "Bagian",
     "supplier": "Supplier",
-    "timesheet": "Timesheet"
+    "timesheet": "Lembar waktu"
   },
   "ui": {
     "errorBoundary": {
       "title": "Terjadi kesalahan",
-      "body": "Halaman mengalami kesalahan yang tidak terduga. Coba lagi, atau kembali ke beranda.",
+      "body": "Terjadi kesalahan pada halaman ini. Coba lagi, atau kembali ke Dasbor.",
       "retry": "Coba lagi",
       "reload": "Muat ulang",
-      "home": "$t(common:terms.dashboard)"
+      "home": "Dasbor"
     },
     "accessDenied": {
       "title": "Anda tidak memiliki akses ke halaman ini",
@@ -460,8 +460,8 @@
   "fx": {
     "saveRate": "Simpan kurs",
     "saveRates": "Simpan kurs",
-    "upload": "Unggah kurs",
-    "newRate": "Kurs baru",
+    "upload": "Unggah berkas",
+    "newRate": "Tambah satu kurs",
     "editRate": "Ubah kurs",
     "date": "Tanggal publikasi",
     "rate": "IDR per USD",
@@ -1335,7 +1335,6 @@
       "empty": "Belum ada proyek terkait",
       "heading": "Proyek terkait"
     },
-    "sectionTitle": "Detail perusahaan",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
       "activityLogged": "Aktivitas dicatat",
@@ -1871,7 +1870,7 @@
       "contactTag": "Kontak",
       "empty": "Belum ada peserta tercatat. Peserta dapat membaca notulen rapat ini.",
       "guestLabel": "Tamu eksternal",
-      "guestPlaceholder": "mis. Ir. Sari (Acme)",
+      "guestPlaceholder": "mis. Tamu dari organisasi mitra",
       "guestTag": "Tamu",
       "memberNoun": "anggota",
       "remove": "Hapus peserta",
@@ -2089,7 +2088,7 @@
     }
   },
   "procurementLedger": {
-    "title": "Buku besar kasus",
+    "title": "Dokumen kasus",
     "filter": {
       "label": "Filter catatan",
       "all": "Semua",
@@ -3772,8 +3771,8 @@
     "language": {
       "label": "Bahasa antarmuka",
       "options": {
-        "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi: {{value}}",
+        "inherit": "Bawaan organisasi",
+        "inheritWithEffective": "Bawaan organisasi: {{value}}",
         "id": "Bahasa Indonesia",
         "en": "Inggris"
       },
@@ -3784,15 +3783,14 @@
       "label": "Format angka",
       "help": "Pratinjau: {{value}}",
       "options": {
-        "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi: {{value}}",
+        "inherit": "Bawaan organisasi",
+        "inheritWithEffective": "Bawaan organisasi: {{value}}",
         "id": "Indonesia (1.234.567,89)",
         "en": "Inggris (1,234,567.89)"
       },
       "effective": "Format angka aktif: {{value}}"
     },
     "refreshRetry": "Coba segarkan lagi",
-    "save": "Simpan",
     "saved": "Preferensi disimpan",
     "saving": "Menyimpan preferensi Anda…",
     "staleRefresh": "Menyegarkan sesi ini gagal — pilihan Anda sudah tersimpan dan akan berlaku saat masuk berikutnya.",
@@ -3802,8 +3800,8 @@
       "search": "Cari zona waktu…",
       "noun": "zona waktu",
       "options": {
-        "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi: {{timezone}}"
+        "inherit": "Bawaan organisasi",
+        "inheritWithEffective": "Bawaan organisasi: {{timezone}}"
       },
       "effective": "Zona waktu aktif: {{value}}"
     },
@@ -3818,7 +3816,6 @@
     "loadError": "Permintaan masuk ini tidak dapat dimuat.",
     "loading": "Memuat permintaan masuk…",
     "loopback": "Setelah Anda menjawab, Anda akan kembali ke program di komputer ini.",
-    "missingRequest": "Permintaan masuk ini tidak lengkap.",
     "restart": "Mulai proses masuk lagi dari aplikasi yang mengarahkan Anda ke sini.",
     "returning": "Mengembalikan Anda ke aplikasi…",
     "signedInAs": "Masuk sebagai {{email}}",
@@ -3972,7 +3969,7 @@
     "reference": "Referensi",
     "incomingPayments": "Pembayaran Masuk",
     "receivePayment": "Terima pembayaran",
-    "searchPayments": "Cari pembayaran…",
+    "searchPayments": "Cari…",
     "searchIncomingPayments": "Cari pembayaran masuk",
     "noIncomingPaymentsYet": "Belum ada pembayaran diterima",
     "noPaymentsMatchYourFilters": "Tidak ada pembayaran yang cocok dengan filter",
@@ -4866,27 +4863,27 @@
     },
     "defaultLibrary": {
       "browseFailed": "Lokasi Microsoft tidak dapat dimuat. Tutup dialog ini lalu coba lagi.",
-      "choose": "Pilih pustaka default",
-      "clear": "Hapus default",
+      "choose": "Pilih pustaka bawaan",
+      "clear": "Hapus bawaan",
       "clearDescription": "Pemilih dokumen akan mulai dari pemilih lokasi. Tautan yang ada tidak diubah.",
-      "clearFailed": "Pustaka default tidak dapat dihapus.",
-      "clearTitle": "Hapus pustaka default?",
+      "clearFailed": "Pustaka bawaan tidak dapat dihapus.",
+      "clearTitle": "Hapus pustaka bawaan?",
       "connectHint": "Memerlukan koneksi Microsoft 365 Anda.",
       "connectLink": "Buka Integrasi saya",
-      "current": "Default saat ini:",
+      "current": "Bawaan saat ini:",
       "description": "Terbuka pertama di pemilih dokumen. Izin Microsoft tetap berlaku.",
       "disabledReason": "Pilih situs dan pustaka untuk menyimpan.",
-      "heading": "Pustaka dokumen default",
+      "heading": "Pustaka dokumen bawaan",
       "library": "Pustaka",
       "loading": "Memuat…",
-      "modalTitle": "Pilih pustaka default",
-      "none": "Belum ada pustaka default.",
+      "modalTitle": "Pilih pustaka bawaan",
+      "none": "Belum ada pustaka bawaan.",
       "pickLibrary": "Pilih pustaka",
       "pickSite": "Pilih situs",
-      "save": "Simpan default",
-      "saveFailed": "Pustaka default tidak dapat disimpan.",
+      "save": "Simpan bawaan",
+      "saveFailed": "Pustaka bawaan tidak dapat disimpan.",
       "site": "Situs",
-      "unavailable": "Pustaka default tidak dapat dibaca",
+      "unavailable": "Pustaka bawaan tidak dapat dibaca",
       "unavailableSub": "Pengaturan saat ini tidak berubah. Coba lagi."
     },
     "cell": {

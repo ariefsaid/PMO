@@ -295,7 +295,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     ];
     renderPage();
 
-    const taxBasis = screen.getByText(/excl\. PPN/);
+    const taxBasis = screen.getByText(/excl\. tax/);
     expect(taxBasis.parentElement).toHaveClass('w-full', 'flex-col', 'items-end');
   });
 

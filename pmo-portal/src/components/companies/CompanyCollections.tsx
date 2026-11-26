@@ -20,9 +20,9 @@ export const CompanyCollections: React.FC<CompanyCollectionsProps> = ({ companyI
   const overdueUrl = `${invoiceUrl}&overdue=true`;
 
   return (
-    <section id="collections" aria-labelledby="company-collections-heading" className="min-w-0 space-y-3">
+    <section id="collections" aria-labelledby="company-collections-heading" className="panel-card mb-4 min-w-0 space-y-3 p-[var(--panel-inset)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="company-collections-heading" tabIndex={-1} className="text-[18px] font-semibold tracking-[-0.01em]">
+        <h2 id="company-collections-heading" tabIndex={-1} className="text-group font-semibold">
           {t('dashboard.uxs36CollectionsHeading', 'Customer collections')}
         </h2>
         <div className="flex flex-wrap gap-2">

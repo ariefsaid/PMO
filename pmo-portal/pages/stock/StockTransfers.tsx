@@ -50,7 +50,7 @@ const StockTransfers: React.FC = () => {
   return (
     <div>
       <PageHeader title={t('transfers.title')} action={twoStep && realRole === effectiveRole ? <Link to="/stock/transfers/new"><Button variant="primary">{t('transfers.send')}</Button></Link> : undefined} />
-      <StockTabs />
+      {twoStep && <StockTabs />}
       {!twoStep ? <ListState variant="empty" icon="folder" title={t('transfers.off.title')} sub={t('transfers.off.sub')} />
         : transfers.isPending ? <ListState variant="loading" rows={4} />
         : transfers.isError ? <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void transfers.refetch()} />

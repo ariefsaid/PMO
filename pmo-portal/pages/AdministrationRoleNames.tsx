@@ -1,3 +1,4 @@
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +21,7 @@ const LOCALE_NAME: Record<RoleNameLocale, string> = { en: 'English', id: 'Bahasa
 /** One role, both languages, ONE save: it saves whichever languages were changed (a blanked language goes back to its default
  *  name) and Reset returns both. */
 const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleNameLocale, string>> }> = ({ role, current }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const canEdit = usePermission()('edit', 'user');
   const qc = useQueryClient();
@@ -59,10 +60,11 @@ const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleN
   const dirty = ROLE_NAME_LOCALES.some((l) => names[l] !== (current?.[l] ?? ''));
   const invalid = ROLE_NAME_LOCALES.some((l) => names[l].trim() !== '' && validateRoleName({ roleKey: role.key, locale: l, name: names[l] }) !== null);
   const hasOverride = ROLE_NAME_LOCALES.some((l) => current?.[l] !== undefined);
+  const pageSave = useSettingsSaveEntry(canEdit ? { dirty, invalid, busy, save: () => save.mutateAsync() } : null);
   return (
     <div role="listitem" className={renameRow('two-fields')} data-testid={`role-name-card-${role.key}`}>
       <div className="min-w-0 xl:pt-2">
-        <h3 className="text-control font-semibold">{role.nameEn}</h3>
+        <h3 className="text-control font-semibold">{i18n.resolvedLanguage?.startsWith('id') ? role.nameId : role.nameEn}</h3>
         {hasOverride && (
           <p className="text-control text-muted-foreground">
             {t('administration:terminology.default', 'Default')}: {role.nameEn} · {role.nameId}
@@ -74,21 +76,21 @@ const RoleNameCard: React.FC<{ role: BuiltInRole; current?: Partial<Record<RoleN
         return (
           <div key={locale} className="min-w-0" data-testid={`role-name-row-${role.key}-${locale}`}>
             <p className="mb-1 text-control font-medium xl:sr-only">{LOCALE_NAME[locale]}</p>
-            <TextField label={t('administration:roleNames.name', 'Name')} hideLabel disabled={!canEdit || busy} value={names[locale]} placeholder={fallback}
+            <TextField label={t('administration:roleNames.name', 'Name')} hideLabel disabled={!canEdit || busy} value={names[locale]} placeholder={fallback} helper={!names[locale] ? `${t('administration:terminology.default', 'Default')}: ${fallback}` : undefined}
               maxLength={ROLE_NAME_MAX} onChange={(v) => setNames((n) => ({ ...n, [locale]: v }))} fullWidth />
           </div>
         );
       })}
       {canEdit ? (
-        <div className="flex gap-2 xl:w-[10.5rem] xl:justify-end">
-          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
+        <div className="flex gap-2 xl:w-20 xl:justify-end">
+          {!pageSave && <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
-          </Button>
-          <Button variant="outline" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
+          </Button>}
+          <Button variant="ghost" size="sm" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>
-      ) : <span className="hidden xl:block xl:w-[10.5rem]" />}
+      ) : <span className="hidden xl:block xl:w-20" />}
     </div>
   );
 };

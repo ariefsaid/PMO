@@ -172,7 +172,7 @@ describe('IncidentDetail', () => {
     renderPage();
     const bar = screen.getByRole('button', { name: /back to incidents/i }).parentElement!;
     expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(bar.className).toContain('max-[1100px]:flex');
   });
 
   it('AC-INC-002: Back returns to the Incidents list', async () => {

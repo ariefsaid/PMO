@@ -33,11 +33,12 @@ export const StackedBar: React.FC<{
   /** Retained for existing call sites; narrow slices now keep their own colour and name. */
   otherLabel: string;
   className?: string;
-}> = ({ ariaLabel, segments, className }) => {
+  minLabelledShare?: number;
+}> = ({ ariaLabel, segments, className, minLabelledShare = MIN_LABELLED_SHARE }) => {
   const total = segments.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
   if (total <= 0) return null;
   const ordered = segments.filter((segment) => segment.value > 0).sort((a, b) => b.value - a.value);
-  const big = ordered.filter((segment) => (segment.value / total) * 100 >= MIN_LABELLED_SHARE);
+  const big = ordered.filter((segment) => (segment.value / total) * 100 >= minLabelledShare);
   const small = ordered.filter((segment) => !big.includes(segment));
   // Keep every slice separate so the legend swatch always matches its own bar colour.
   const shown = ordered;
@@ -53,7 +54,7 @@ export const StackedBar: React.FC<{
           return (
             <div key={segment.key} style={{ flexGrow: segment.value, flexBasis: 0 }} title={`${segment.label}${segment.display ? ` ${segment.display}` : ''} · ${Math.round(share)}%`}
               className={cn('flex min-w-0 items-center px-2 text-sm font-medium', tone)}>
-              {(share >= MIN_LABELLED_SHARE || segment.key === '__other') && <span className="truncate">{segment.label}{segment.display ? ` ${segment.display}` : ''}</span>}
+              {(share >= minLabelledShare || segment.key === '__other') && <span className="truncate">{segment.label}{segment.display ? ` ${segment.display}` : ''}</span>}
             </div>
           );
         })}

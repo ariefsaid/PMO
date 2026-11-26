@@ -33,6 +33,7 @@ export const Card: React.FC<CardProps> = ({
   ...rest
 }) => (
   <div
+    data-card-surface={variant}
     className={cn(
       variant === 'framed' && 'panel-card',
       variant === 'bare' && 'space-y-[var(--space-group)] [&>:is(h2,h3,h4,h5,h6)+*]:mt-0',

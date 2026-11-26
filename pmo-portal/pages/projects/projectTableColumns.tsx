@@ -299,6 +299,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     {
       key: 'progress',
       header: t('projects.columns.progress', 'Progress'),
+      keepWhenBlank: deliveryError,
       kind: 'percent',
       size: 110,
       minSize: 88,

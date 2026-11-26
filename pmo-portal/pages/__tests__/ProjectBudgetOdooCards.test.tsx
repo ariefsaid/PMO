@@ -168,10 +168,10 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Spent and Left read — with a short caption; no amount of the cached position leaks through.
-    // The cause is said once, on the Spent card where it is fixed; Budget used and Left both say the same
-    // short thing in words, so an unknown percentage and an unknown amount never read differently.
+    // The cause is said once on Spent; Left carries the remedy, while Budget used stays unknown.
     expect(within(figures).getAllByText('Spending is not linked')).toHaveLength(1);
-    expect(within(figures).getAllByText('Shown once spending is linked')).toHaveLength(2);
+    expect(within(figures).getAllByText('Shown once spending is linked')).toHaveLength(1);
+    expect(within(figures).getByText('Budget used').closest('div')?.parentElement).toHaveTextContent('—');
     expect(figures.textContent).not.toMatch(/1,500|4,500|≈\s*0%/);
   });
 

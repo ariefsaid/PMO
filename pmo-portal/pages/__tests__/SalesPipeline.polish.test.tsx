@@ -79,7 +79,7 @@ it.each(['kanban', 'table'])('UIP-004 phone %s keeps a single search/core scope,
   // honoured and no Board/Table switcher or Export is offered; the core scope control stays.
   expect(screen.queryByRole('tablist', { name: 'Pipeline view' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
-  expect(screen.getAllByRole('tablist', { name: 'Project scope' })).toHaveLength(1);
+  expect(screen.getAllByRole('combobox', { name: 'Project scope' })).toHaveLength(1);
   const stageList = screen.getByTestId('sales-phone-stage-list');
   expect(stageList).toBeInTheDocument();
   expect(stageList.firstElementChild).toBeInTheDocument();

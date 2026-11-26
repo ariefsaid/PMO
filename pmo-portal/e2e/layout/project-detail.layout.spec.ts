@@ -296,10 +296,12 @@ async function tasksArrivalJourney(page: Page, viewport: { width: number; height
   // #1402 copy: Delivery phases -> Phase timeline
   await expect(page.getByRole('heading', { name: 'Phase timeline', exact: true })).toHaveCount(0);
   // #1402 recomposition: the old compact phase summary is now weighted Project progress in the persistent Project facts region.
+  if (viewport.width === 390) await page.getByRole('button', { name: 'Project details', exact: true }).click();
   const projectFacts = page.getByRole('region', { name: 'Project facts', exact: true });
   await expect(projectFacts.getByText('Progress', { exact: true })).toBeVisible();
   await expect(projectFacts.getByRole('progressbar')).toBeVisible();
   await expect(projectFacts.getByRole('link', { name: 'Overview', exact: true })).toHaveCount(0);
+  if (viewport.width === 390) await page.keyboard.press('Escape');
   if (viewport.width === 390) {
     // #1402 recomposition: keyboard users reach current financial context through Overview's Money
     // position. At phone width the area control is the one native <select> (ux/1110): it is reached

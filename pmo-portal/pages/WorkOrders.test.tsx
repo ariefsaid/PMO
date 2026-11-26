@@ -99,7 +99,7 @@ describe('Work orders dashboard', () => {
     expect(within(first).getByText('40%')).toBeInTheDocument();
     expect(within(first).getByText(/Over budget by \$100/)).toBeInTheDocument();
     expect(within(first).getByTestId('wo-billed-w1')).toHaveTextContent('$1,000');
-    expect(within(first).getByTestId('wo-billed-w1')).toHaveTextContent('of $5,000');
+    expect(within(first).getByText('$5,000')).toBeInTheDocument();
     expect(within(first).getByTestId('wo-missing-w1')).toHaveTextContent('2 late');
     expect(within(first).getByRole('link', { name: /Open WO-1/ })).toHaveAttribute('href', '/work-orders/w1');
     expect(within(rowFor('WO-2')).getByText('Draft')).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe('Work orders dashboard', () => {
     expect(screen.queryByRole('columnheader', { name: 'Billed' })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: 'Direct cost' })).toBeNull();
     expect(screen.queryByText(/\$/)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Show late work orders (0)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Late' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /over budget/ })).toBeNull();
   });
 

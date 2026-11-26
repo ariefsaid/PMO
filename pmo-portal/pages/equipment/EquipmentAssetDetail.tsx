@@ -187,7 +187,7 @@ const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: st
     { key: 'month', header: t('equipment:allocations.month', 'Month'), kind: 'primary', rowHeader: true, cell: (r) => formatMonthYear(fromIso(r.month)) },
     { key: 'project', header: t('equipment:allocations.project', 'Project'), cell: (r) => projectName(r.project_id) },
     { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.work_units == null ? '—' : formatNumberMax2(Number(r.work_units))} {unitLabel(t, r.unit)}</span> },
-    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.standby_units == null ? '—' : formatNumberMax2(Number(r.standby_units))} {unitLabel(t, r.unit)}</span> },
+    { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.standby_units == null ? '—' : `${formatNumberMax2(Number(r.standby_units))} ${unitLabel(t, r.unit)}`}</span> },
     { key: 'fuel', header: t('equipment:usage.fuel', 'Fuel (litres)'), align: 'num', cell: (r) => r.fuel_litres == null ? '—' : formatNumberMax2(Number(r.fuel_litres)) },
     { key: 'trips', header: t('equipment:usage.trips', 'Trips'), align: 'num', cell: (r) => r.trips == null ? '—' : Number(r.trips) },
     { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (r) => r.submitted_count == null ? '—' : Number(r.submitted_count) },
@@ -244,6 +244,8 @@ const EquipmentAssetDetail: React.FC = () => {
   // A project row carries its own currency; an unallocated pool has none, so it reads in the organisation's currency —
   // a money figure never prints as a bare number.
   const orgCurrency = useOrgCurrency();
+  const headerUsage = useEquipmentUsageTotals({ assetId, ...rangeFor(today) });
+  const latestUsageMonth = headerUsage.data?.rows.reduce((latest, row) => row.month > latest ? row.month : latest, '');
   const money = (amount: number, projectId: string | null) => {
     const currency = (projectId ? byId.get(projectId)?.currency : null) ?? orgCurrency;
     return formatCurrency(amount, currency);
@@ -268,14 +270,14 @@ const EquipmentAssetDetail: React.FC = () => {
   const rented = asset.ownership === 'rented';
   return (
     <div>
-      <RecordHeader panelInset clampNameOnMobile icon={<Icon name="equipment" />} name={asset.name}
+      <RecordHeader primaryAction={<Button variant="primary" onClick={() => navigate('/equipment/availability')}>{t('equipment:nav.availability', 'Availability')}</Button>} panelInset clampNameOnMobile icon={<Icon name="equipment" />} name={asset.name}
         status={<StatusPill variant="neutral">{rented ? t('equipment:assets.rented', 'Rented') : t('equipment:assets.owned', 'Owned')}</StatusPill>}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="record-id">{asset.code}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}
         </span>}
         stats={[
-          { label: t('equipment:assets.loggedIn', 'Logged in'), value: unitLabel(t, asset.default_unit) },
+          { label: t('equipment:assets.lastUsageMonth', 'Last recorded month'), value: latestUsageMonth ? formatMonthYear(fromIso(latestUsageMonth)) : '—' },
           ...(asset.in_service_on ? [{ label: t('equipment:assets.inServiceSince', 'In service since'), value: formatDay(asset.in_service_on) }] : []),
         ]} />
       <RecordStack>

@@ -380,7 +380,7 @@
     "projectBudget": "Project budget",
     "reservedSub": "Approved, not yet ordered",
     "reserved": "Reserved",
-    "thisProcurement": "Procurement total",
+    "thisProcurement": "Procurement estimate",
     "notCompared": "In a different currency: not compared with the budget",
     "budgetUsed": "Budget used",
     "budgetUsedBasis": "Recorded spending, before tax",
@@ -956,6 +956,10 @@
     "spendingNotVisible": "whether it fits the project's {{category}} budget is checked when it is decided."
   },
   "purchaseOrderPrint": {
+    "number": "Number",
+    "preparedBy": "Prepared by",
+    "approvedBy": "Approved by",
+    "vendorAcceptance": "Vendor acceptance",
     "printAction": "Print purchase order",
     "title": "Purchase Order",
     "print": "Print",

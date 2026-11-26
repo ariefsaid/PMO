@@ -152,7 +152,7 @@ const WorkOrderDetail: React.FC = () => {
     issues: t('pageIndex.issues', 'Issues and tasks'),
   };
   const backLabel = t('back', 'Work orders');
-  const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/projects');
+  const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/work-orders');
 
   const acceptances = useMemo(() => (bastList.data ?? []).filter((a) => a.work_order_id === id), [bastList.data, id]);
   const progress = useMemo(
@@ -178,7 +178,7 @@ const WorkOrderDetail: React.FC = () => {
   }
   const row = wo.data;
   if (!row) {
-    return <><BackBar label={backLabel} phoneOnly onBack={goBack} />
+    return <><BackBar label={backLabel} onBack={() => navigate('/work-orders')} />
       <ListState variant="empty" icon="doc" title={t('notFound', 'Work order not found')}
         sub={t('notFoundSub', "It doesn't exist, or you don't have access to it.")} /></>;
   }
@@ -196,7 +196,7 @@ const WorkOrderDetail: React.FC = () => {
   return (
     <>
       <BackBar label={backLabel} phoneOnly onBack={goBack} />
-      <RecordHeader panelInset actionsOnTitleRow compactStatsOnMobile name={row.wo_number ?? t('notNumbered', 'Not yet numbered')}
+      <RecordHeader panelInset actionsOnTitleRow statusBelowMetaOnMobile compactStatsOnMobile name={row.wo_number ?? t('notNumbered', 'Not yet numbered')}
         status={<StatusPill record="workOrder" state={row.status} />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{row.title}</span>
@@ -231,7 +231,7 @@ const WorkOrderDetail: React.FC = () => {
         <p data-testid="wo-cancel-reason" className="text-control text-foreground">{t('decision.cancelledBecause', 'Cancelled because: {{reason}}', { reason: row.cancel_reason })}</p>
       )}
       {decision.dialogs}
-      <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
+      {area !== 'documents' && <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />}
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
       <AreaHelpProvider>{(help, notes) => (<>
@@ -268,7 +268,7 @@ const WorkOrderDetail: React.FC = () => {
               onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
             {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}
             <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
-            <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
+            <PerformanceIndices projectId={row.project_id} workOrderId={row.id} recordedProgress={progress?.overallPercent} />
             {/* #2672: the daily target view; same switch and role gate as the plan above. */}
             <DailyTargetGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} costGroups={groups} />
           </>}
@@ -313,7 +313,7 @@ const WorkOrderDetail: React.FC = () => {
             {/* #2885: quantities for the stock roles, who have no Contract area; value shows only where the server sends it. */}
             {/* What is on site for it, framed like its siblings: the table flush to the panel, a message or link on the inset. */}
             {stockOn && (
-              <RecordSection title={t('stock:siteWork.balance.open', 'Stock for this work order')} flush data-testid="wo-stock"
+              <RecordSection title={t('stock:siteWork.balance.open', 'Stock for this work order')} actions={<Link to="/stock" className="text-control text-primary-text hover:underline">{t('stockOpen', 'Open stock')}</Link>} flush data-testid="wo-stock"
                 bodyClassName="pb-[var(--panel-inset)] [&>section>p]:px-[var(--panel-inset)]">
                 <WorkOrderStockBalance workOrderId={row.id} currency={row.currency} />
               </RecordSection>
@@ -323,8 +323,8 @@ const WorkOrderDetail: React.FC = () => {
           </>}
           {area === 'checks' && <>
             <InspectionsSection workOrderId={row.id} />
-            <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} footer={<MaterialCompletionLink workOrderId={row.id} />} />
-            <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
+            <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+            <MissingSection actions={<MaterialCompletionLink workOrderId={row.id} />} workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
               steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
               scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}
               scopeError={allocations.isError || boq.isError || bastList.isError} />
@@ -343,8 +343,8 @@ const WorkOrderDetail: React.FC = () => {
           </>}
           {area === 'issues' && <>
             {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
+            <OpenTasksSection projectId={row.project_id} tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
             <ResponsiblePersonSection workOrderId={row.id} />
-            <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
           </>}
         </RecordStack>
       </div>

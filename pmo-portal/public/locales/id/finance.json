@@ -221,7 +221,8 @@
     "moreActions": "Tindakan lainnya",
     "exportList": "Ekspor",
     "receiptUnknown_one": "{{count}} jumlah penerimaan tidak diketahui",
-    "receiptUnknown_other": "{{count}} jumlah penerimaan tidak diketahui"
+    "receiptUnknown_other": "{{count}} jumlah penerimaan tidak diketahui",
+    "vsLastMonthWithAmount": "{{delta}} dibanding bulan lalu ({{previous}})"
   },
   "invoices": {
     "clearProject": "Hapus filter proyek"

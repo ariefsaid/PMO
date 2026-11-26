@@ -4,7 +4,7 @@ import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
-import { ToastProvider } from '@/src/components/ui';
+import { ToastProvider, Tooltip } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -198,7 +198,7 @@ describe('ProjectDetailHeader — content', () => {
   it.each(['Project Manager', 'Finance'])('UIP-006: %s sees one idle contract amount and one tax-basis presentation', (role) => {
     renderHeader(role);
     expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
-    expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
+    expect(screen.getAllByText(/excl\. tax/)).toHaveLength(1);
     const contractTile = screen.getAllByTestId('stat-tile')[0];
     if (role === 'Finance') {
       expect(within(contractTile).getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
@@ -655,14 +655,14 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     await userEvent.type(screen.getByLabelText(/tax amount/i), '509000');
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
     const confirm = await screen.findByRole('dialog');
-    // ⚑ The basis now renders as the SAME label every other money figure uses ("incl. PPN"),
+    // ⚑ The basis now renders as the SAME label every other money figure uses ("incl. tax"),
     // not the raw `inclusive` enum — #575, because interpolating the English column value drops
     // an untranslated word into an Indonesian sentence. The GOAL of this test is unchanged: the
     // confirm must name the basis the new value is stated on. Asserting the OPPOSITE basis is
     // absent is what keeps it an oracle rather than a substring sighting — a confirm that always
-    // said "excl. PPN" would otherwise pass.
-    expect(confirm).toHaveTextContent(/incl\. PPN/i);
-    expect(confirm).not.toHaveTextContent(/excl\. PPN/i);
+    // said "excl. tax" would otherwise pass.
+    expect(confirm).toHaveTextContent(/incl\. tax/i);
+    expect(confirm).not.toHaveTextContent(/excl\. tax/i);
     expect(confirm).toHaveTextContent(/509,000/);
   });
 
@@ -856,15 +856,15 @@ describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
   it('#548: an INCLUSIVE contract has one visible basis presentation', () => {
     renderHeader('Finance', inclusive);
     expect(screen.getAllByTestId('contract-tile-tax-basis')).toHaveLength(1);
-    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('incl. PPN');
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('incl. tax');
   });
 
-  it('#548: an EXCLUSIVE contract reads "excl. PPN" — the label is derived from the row, not fixed', () => {
+  it('#548: an EXCLUSIVE contract reads "excl. tax" — the label is derived from the row, not fixed', () => {
     // ⚑ The pair is the oracle. One-treatment fixtures cannot distinguish a derived label from a
     // hardcoded one (the DD-CUR-6 / #529 blind spot named in this issue's own test note).
     renderHeader('Finance', exclusive);
     expect(screen.getAllByTestId('contract-tile-tax-basis')).toHaveLength(1);
-    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('excl. tax');
   });
 
   it('#548: a project with NO stated treatment renders NO basis — never a guessed one', () => {
@@ -895,7 +895,7 @@ describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
     renderHeader('Finance', rateUnknown);
 
     const basis = screen.getByTestId('contract-tile-tax-basis');
-    expect(basis).toHaveTextContent('excl. PPN');
+    expect(basis).toHaveTextContent('excl. tax');
     expect(screen.queryByTestId('contract-tax-required-hint')).not.toBeInTheDocument();
     const trigger = within(basis).getByRole('button', { name: 'Show tax details' });
     const details = document.getElementById(trigger.getAttribute('aria-controls')!)!;
@@ -996,6 +996,21 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
   const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
 
+  it('AC-TH-007: keyboard opening project details does not open a nested tooltip, and Escape restores the trigger', async () => {
+    desktopBox.value = false;
+    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact
+      facts={<Tooltip content="Phase weights explain progress"><span tabIndex={0}>Progress</span></Tooltip>}
+      /></ToastProvider></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name: 'Project details' });
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'));
+    expect(trigger).toHaveFocus();
+  });
+
   it('AC-1402-M2: the compact project details menu does not repeat the contract-value edit rule', async () => {
     render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact /></ToastProvider></MemoryRouter>);
     await userEvent.click(screen.getByRole('button', { name: 'Project details' }));
@@ -1054,9 +1069,9 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
     expect(tileLabels()).toEqual(['Contract', 'PMO purchase orders', 'Actual', 'Contract remaining after cost', 'Budget used']);
   });
 
-  it('AC-RD-HDR-001: "excl. PPN" lives in the Contract tile; rate/DPP toggle only when DPP is not 1/1 or the rate is missing', () => {
+  it('AC-RD-HDR-001: "excl. tax" lives in the Contract tile; rate/DPP toggle only when DPP is not 1/1 or the rate is missing', () => {
     const { unmount } = renderHeader('Finance', { ...onHand, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 } as unknown as ProjectWithRefs);
-    expect(within(tileFor('Contract')).getByTestId('contract-tile-tax-basis')).toHaveTextContent(/^excl\. PPN$/);
+    expect(within(tileFor('Contract')).getByTestId('contract-tile-tax-basis')).toHaveTextContent(/^excl\. tax$/);
     expect(screen.queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
     unmount();
     renderHeader('Finance', { ...onHand, tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 } as unknown as ProjectWithRefs);

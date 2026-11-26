@@ -54,7 +54,7 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 vi.mock('@/src/hooks/useProjectPosition', () => ({
   useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectAttention: () => ({ items: [], isPending: false, error: null, myVisibleTaskKeys: new Set() }),
-  useBudgetPosition: () => ({ isPending: false, isError: false, hasBudget: true, canSeeActual: true, rows: [], unknown: 0, refetch: vi.fn() }),
+  useBudgetPosition: () => ({ isPending: false, isError: false, hasBudget: false, canSeeActual: true, rows: [], unknown: 0, refetch: vi.fn() }),
 }));
 vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => <section aria-label="Project attention" /> }));
 vi.mock('../ProjectActivity', () => ({
@@ -73,7 +73,6 @@ vi.mock('../ProjectBlocks', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../ProjectBlocks')>();
   return {
     ...actual,
-    CostBlock: () => <section aria-label="Project costs" />,
     DeliveryBlock: () => <section aria-label="Project delivery" />,
   };
 });
@@ -88,6 +87,14 @@ beforeEach(() => {
 });
 
 describe('Project contract drawdown (#566 / OD-CR-13)', () => {
+  it('P3: the financial overview opens the Budget area from its budget comparison', async () => {
+    state.role = 'Finance';
+    const setArea = vi.fn();
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><FinanceI18nTestProvider><MemoryRouter><ProjectSections project={project} area="overview" setArea={setArea} isPipeline={false} header={<h1>Alpha</h1>} /></MemoryRouter></FinanceI18nTestProvider></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open budget' }));
+    expect(setArea).toHaveBeenCalledWith('budget');
+  });
+
   it('shows the real drawdown figures when the Contract area opens', async () => {
     render(
       <FinanceI18nTestProvider>

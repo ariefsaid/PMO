@@ -418,7 +418,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
           handler to any ancestor wrapper would never fire on a swipe gesture. */}
       {withDnd(
-      <Kanban narrowEmpty aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
+      <Kanban narrowEmpty aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2 xl:grid! xl:grid-flow-row! xl:grid-cols-5" onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
           const colTitle = stageLabel(col);

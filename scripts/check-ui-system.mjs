@@ -18,8 +18,10 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join, relative } from 'node:path';
+import { createRequire } from 'node:module';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const ts = createRequire(resolve(REPO, 'pmo-portal/package.json'))('typescript');
 const ROOTS = ['pmo-portal/pages', 'pmo-portal/src', 'pmo-portal/components'];
 const SKIP = /(\.test\.|\/__tests__\/|\/reui\/|\/shadcn\/|\.d\.ts$)/;
 
@@ -93,7 +95,6 @@ const STRUCTURAL_ALLOW = [
 ];
 
 const RULES = {
-  uppercase: (line) => /\buppercase\b/.test(line),
   button: (line) =>
     /<Button\b[^>]*className="[^"]*(?<![-\w])(h-\d|h-\[|text-xs|text-sm|text-\[)/.test(line) ||
     /<(Link|a|button)\b[^>]*className="[^"]*\brounded-(md|lg)\b[^"]*(border-input|bg-primary\b)/.test(line),
@@ -150,6 +151,33 @@ function findOpeningTags(source, tagName) {
 
 export function scan(path, text) {
   const hits = [];
+  // Password guidance may say "uppercase"; only a class declaration is a style violation.
+  if (/\buppercase\b/.test(text)) {
+    const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const variables = new Map();
+    const collect = (node) => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) variables.set(node.name.text, node.initializer);
+      ts.forEachChild(node, collect);
+    };
+    collect(source);
+    const containsUppercase = (node, seen = new Set()) => {
+      if (!node) return false;
+      if (ts.isIdentifier(node) && variables.has(node.text) && !seen.has(node.text)) {
+        seen.add(node.text);
+        return containsUppercase(variables.get(node.text), seen);
+      }
+      if (ts.isStringLiteralLike(node) || [ts.SyntaxKind.TemplateHead, ts.SyntaxKind.TemplateMiddle, ts.SyntaxKind.TemplateTail].includes(node.kind)) return /\buppercase\b/.test(node.text);
+      if (ts.isPropertyAssignment(node) && /\buppercase\b/.test(node.name.getText(source))) return true;
+      return Boolean(ts.forEachChild(node, (child) => containsUppercase(child, seen)));
+    };
+    const visit = (node) => {
+      if ((ts.isJsxAttribute(node) || ts.isPropertyAssignment(node)) && node.name.getText(source).replace(/['"]/g, '') === 'className' && containsUppercase(node.initializer)) {
+        hits.push({ path, line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, rule: 'uppercase' });
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
   text.split('\n').forEach((line, i) => {
     for (const [rule, test] of Object.entries(RULES)) if (test(line)) hits.push({ path, line: i + 1, rule });
   });
@@ -220,6 +248,9 @@ export function evaluate(hits) {
 function selfTest() {
   const bad = {
     uppercase: '<p className="text-[11px] uppercase tracking-wide">Status</p>',
+    uppercaseDynamic: '<p className={cn("text-control", active && "uppercase")}>Status</p>',
+    uppercaseVariable: 'const labelClass = "uppercase"; <p className={labelClass}>Status</p>',
+    uppercaseMultiline: '<p className={cn(\n"uppercase"\n)}>Status</p>',
     button: '<Button variant="outline" className="h-9 px-2">Go</Button>',
     buttonDefault: '<Button onClick={save}>Save</Button>',
     nativeInput: '<input type="text" aria-label="Name" />',
@@ -229,7 +260,7 @@ function selfTest() {
     avatar: '<span className="grid size-6 place-items-center rounded-full bg-secondary text-[11px] font-bold">RK</span>',
     avatar2: "style={{ background: 'hsl(var(--avatar-2))' }}",
   };
-  const good = ['<Button variant="outline" size="sm" className="w-full">Go</Button>', '<span className="rounded-full bg-primary size-2" />'];
+  const good = ['<Button variant="outline" size="sm" className="w-full">Go</Button>', '<span className="rounded-full bg-primary size-2" />', '<p className="text-control">Use uppercase and lowercase letters.</p>'];
   const structuralRules = {
     buttonDefault: 'button-default',
     nativeInput: 'raw-control',

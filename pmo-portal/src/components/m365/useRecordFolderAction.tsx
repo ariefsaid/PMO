@@ -11,6 +11,7 @@ import { recordFolderText } from '@/src/lib/m365/recordFolderCopy';
 import type { RecordFolderTarget } from '@/src/lib/m365/recordFolders';
 
 export interface RecordFolderActionProps {
+  compact?: boolean;
   target: RecordFolderTarget;
   /** True when the register already holds any SharePoint/OneDrive folder reference for the record. */
   hasFolder: boolean;

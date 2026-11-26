@@ -74,7 +74,7 @@ function renderFormInBahasa() {
 describe('FX manual rate form', () => {
   it('renders date/rate labels and save action from the Indonesian catalogue', () => {
     renderFormInBahasa();
-    expect(screen.getByRole('dialog', { name: 'Kurs baru' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Tambah satu kurs' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Tanggal publikasi/)).toBeInTheDocument();
     expect(screen.getByLabelText(/IDR per USD/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan kurs' })).toBeInTheDocument();
