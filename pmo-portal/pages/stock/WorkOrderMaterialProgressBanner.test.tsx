@@ -42,14 +42,19 @@ describe('WorkOrderMaterialProgressBanner', () => {
   it('AC-MIP-013 one warning item names the item, issued share, progress share and gap (English)', async () => {
     await mount('en', { thresholdPct: 30, progressPct: 25, items: [warnItem, calm] });
     expect(await screen.findByText('Items issued ahead of progress: 1')).toBeTruthy();
-    expect(screen.getByText(/Welding rod: issued 60% of planned, progress 25%, 35 points ahead/)).toBeTruthy();
+    const row = screen.getByRole('row', { name: /Welding rod/ });
+    expect(row).toHaveTextContent('60%');
+    expect(row).toHaveTextContent('35 points');
+    expect(screen.getByText(/progress \(25%\)/)).toBeTruthy();
     expect(screen.queryByText(/Calm item/)).toBeNull();
   });
 
   it('AC-MIP-013 the same in Bahasa Indonesia', async () => {
     await mount('id', { thresholdPct: 30, progressPct: 25, items: [warnItem] });
     expect(await screen.findByText('Barang dikeluarkan melebihi progres: 1')).toBeTruthy();
-    expect(screen.getByText(/Welding rod: dikeluarkan 60% dari rencana, progres 25%, lebih 35 poin/)).toBeTruthy();
+    const row = screen.getByRole('row', { name: /Welding rod/ });
+    expect(row).toHaveTextContent('60%');
+    expect(row).toHaveTextContent('35 poin');
   });
 
   it('AC-MIP-014 outside the app providers it renders nothing and reads nothing', () => {

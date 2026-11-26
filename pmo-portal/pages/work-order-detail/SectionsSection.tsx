@@ -129,12 +129,13 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   };
 
   return (
-    <RecordSection title={title} data-testid="wo-page-sections" subline={summaryText}
+    <RecordSection title={title} data-testid="wo-page-sections"
       actions={<>
         {hasArchived && <Button variant="ghost" size="sm" onClick={() => setShowArchived((v) => !v)}>{showArchived ? t('hideArchived', 'Hide archived') : t('showArchived', 'Show archived')}</Button>}
         {canAdd && <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('add', 'Add {{section}}', vars)}</Button>}
       </>}>
       {problem && <p role="alert" className="mb-3 text-control text-destructive" data-testid="wo-sections-problem">{problem}</p>}
+      {summaryText && <p className="mb-2 text-control text-muted-foreground">{summaryText}</p>}
       {visible.length === 0 ? (
         <p className="text-control text-muted-foreground" data-testid="wo-sections-empty">{t('empty', 'No {{sections}} yet.', vars)}</p>
       ) : (

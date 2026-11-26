@@ -8,6 +8,7 @@ import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/j
 import { inDays, orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -50,6 +51,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
     await pcm.signIn(page);
     // Before approval nothing is costed.
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('table', { name: 'Labour cost by class' })).toHaveCount(0);
 
@@ -69,6 +71,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
 
     // Work orders → [Work order] → Costs: labour cost is the day rate.
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByRole('table', { name: 'Labour cost by class' })).toContainText(dayRateText, { timeout: 30_000 });
 
     // Approvals: the approved week moves to the approved history; the timesheet screen never carried a cost figure (checked above, before approving).

@@ -4,6 +4,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -58,6 +59,7 @@ test('AC-TPI-016 an Engineer attaches the report photo and sets the result on a 
 
     await signIn(page, 'engineer@acme.test');
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
     const card = page.getByTestId('inspection-' + inspectionId);
     await expect(card.getByTestId('inspection-status')).toHaveText('Executed');
     await card.getByTestId('inspection-file-input').setInputFiles({ name: 'weld.png', mimeType: 'image/png', buffer: PNG });

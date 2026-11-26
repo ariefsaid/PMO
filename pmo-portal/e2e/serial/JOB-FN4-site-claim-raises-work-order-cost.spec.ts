@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -69,6 +70,7 @@ test('JOB-FN4 an approved one-million site claim raises its work order and disci
 
     // 3. Goal: the work order's cost carries the claim, once, at one million, under the named discipline.
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'cost');
     const group = page.getByTestId('cost-group-expense_claim');
     await expect(group).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('cost-total-expense_claim')).toContainText(/1[.,]000[.,]000/);

@@ -6,6 +6,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -48,6 +49,7 @@ test('AC-TPI-015 request, purchase, invitation, execution and report show the in
 
     await signIn(page, 'pm@acme.test');
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
 
     // request the test, required before billing
     await page.getByRole('button', { name: 'Request inspection' }).click();

@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { createJobRoleUser } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -79,6 +80,7 @@ test('JOB-BQ8 a quality inspector opens a work order and does not see the catego
   try {
     await quality.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'documents');
     const documents = page.getByTestId('wo-documents');
     await expect(documents.getByText(`${run} quality report`)).toBeVisible({ timeout: 15_000 });
     await expect(documents.getByText(`${run} commercial report`)).toHaveCount(0);

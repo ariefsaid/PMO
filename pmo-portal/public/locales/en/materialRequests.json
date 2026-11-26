@@ -304,6 +304,9 @@
     "installedSave": "Save source",
     "installedSaved": "Source saved",
     "cardTitle": "Installed material past the usage warning",
-    "cardLine": "{{item}}: {{installed}} of {{plan}} {{unit}} planned installed, past the {{threshold}}% warning."
+    "cardItem": "Item",
+    "cardInstalled": "Installed",
+    "cardPlan": "Planned",
+    "cardThreshold": "Warning at"
   }
 }

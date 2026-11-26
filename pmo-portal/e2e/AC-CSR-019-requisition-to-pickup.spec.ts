@@ -7,6 +7,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 import { SEED_PROJECT_ID, keeperOf, runSuffix, userClient } from './support/stockFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 test.setTimeout(240_000);
@@ -36,6 +37,7 @@ async function fixture() {
 
 async function openSection(page: Page, woId: string) {
   await page.goto(`/work-orders/${woId}`);
+  await openWorkOrderArea(page, 'material');
   await expect(page.getByTestId('client-material-section')).toBeVisible({ timeout: 20_000 });
 }
 
