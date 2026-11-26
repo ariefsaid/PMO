@@ -518,10 +518,7 @@ begin
     join public.dsr_idle_reasons r on r.id = i.reason_id and r.org_id = v_org
     left join wo_cost w on w.wo = i.wo
    order by i.wo, r.label, i.reason_id;
-end $function$
-
-
-Output format is unaligned.;
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.qcr_over_contract(p_project_id uuid, p_only_over boolean DEFAULT false)
  RETURNS TABLE(boq_item_id uuid, item_code text, description text, unit text, rate numeric, earning_basis text, contract_quantity numeric, progress_quantity numeric, progress_source text, forecast_quantity numeric, over_progress boolean, over_forecast boolean, open_request_id uuid)
