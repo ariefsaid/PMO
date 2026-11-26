@@ -231,3 +231,22 @@ it('#2895 starts the project orders panel reads at entry and respects the billin
     prefetch.mockRestore();
   }
 });
+
+it.each(['/contract?openType=billingClaim', '/billing?openType=billingClaim', '/work-orders?openType=workOrderClaim'])(
+  '#2893 starts claim stage and claim list reads together at %s',
+  (suffix) => {
+    const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+    try {
+      const href = `/projects/p1${suffix}&open=c1#claims`;
+      preloadForPath(href, { orgId: 'o1', client: queryClient, canReadClaims: true });
+      expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['claim-billing-trace', 'o1', 'c1', 'p1']);
+      expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['progress-claims', 'o1', 'p1']);
+
+      prefetch.mockClear();
+      preloadForPath(href, { orgId: 'o1', client: queryClient });
+      expect(prefetch.mock.calls.map(([options]) => options.queryKey)).not.toContainEqual(['claim-billing-trace', 'o1', 'c1', 'p1']);
+    } finally {
+      prefetch.mockRestore();
+    }
+  },
+);

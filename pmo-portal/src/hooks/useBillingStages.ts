@@ -3,18 +3,15 @@ import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { CompleteStageInput, RetentionReleaseInput, StageTemplateInput } from '@/src/lib/db/billingStages';
 
-/** One claim's billing-stage trace, org-scoped (#2522). BillingTab's deep-link prefetch shares this key (#2893). */
-export const claimBillingTraceKey = (orgId: string | undefined, claimId: string) =>
-  ['claim-billing-trace', orgId, claimId] as const;
-
 /** One claim's billing stages, retention and the project's invoice deadline (#2522). Keys carry org_id. */
+export const claimBillingTraceQuery = (orgId: string | undefined, claimId: string, projectId: string) => ({
+  queryKey: ['claim-billing-trace', orgId, claimId, projectId],
+  queryFn: () => repositories.billingStages.trace(claimId, projectId),
+  enabled: Boolean(orgId) && Boolean(claimId) && Boolean(projectId),
+});
+
 export function useClaimBillingTrace(claimId: string, projectId: string) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: claimBillingTraceKey(orgId, claimId),
-    queryFn: () => repositories.billingStages.trace(claimId, projectId),
-    enabled: Boolean(orgId) && Boolean(claimId) && Boolean(projectId),
-  });
+  return useQuery(claimBillingTraceQuery(useAuth().currentUser?.org_id, claimId, projectId));
 }
 
 /** Per-item reconciliation of progress, measured and billed quantities (the server's one derivation). */

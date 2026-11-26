@@ -10,9 +10,14 @@ export function useBoqItems(projectId: string) {
   return useQuery({ queryKey: ['boq-items', orgId, projectId], queryFn: () => repositories.progressBilling.listBoq(projectId), enabled: Boolean(orgId) && Boolean(projectId) });
 }
 
+export const projectClaimsQuery = (orgId: string | undefined, projectId: string) => ({
+  queryKey: ['progress-claims', orgId, projectId],
+  queryFn: () => repositories.progressBilling.listClaims(projectId),
+  enabled: Boolean(orgId) && Boolean(projectId),
+});
+
 export function useProjectClaims(projectId: string) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['progress-claims', orgId, projectId], queryFn: () => repositories.progressBilling.listClaims(projectId), enabled: Boolean(orgId) && Boolean(projectId) });
+  return useQuery(projectClaimsQuery(useAuth().currentUser?.org_id, projectId));
 }
 
 /** Resolves to null for an invisible project — the card renders that as an error, never as zeros. */

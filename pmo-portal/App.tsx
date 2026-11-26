@@ -18,7 +18,7 @@ import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
 import type { ProjectOrdersViewer } from '@/src/hooks/useWorkOrders';
-import { preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
+import { preloadClaimDrawer, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
@@ -248,6 +248,7 @@ interface RouteDataContext {
   orgId: string;
   client: QueryClient;
   canViewWorkOrderPlan?: boolean;
+  canReadClaims?: boolean;
   viewer?: ProjectOrdersViewer;
 }
 
@@ -255,7 +256,7 @@ interface PreloadRule {
   path: string;
   chunks: PreloadableRouteChunk[];
   namespaces?: readonly string[];
-  data?: (params: Readonly<Record<string, string | undefined>>, context: RouteDataContext) => void;
+  data?: (params: Readonly<Record<string, string | undefined>>, context: RouteDataContext, search: URLSearchParams) => void;
 }
 
 const PRELOAD_RULES: PreloadRule[] = [
@@ -270,8 +271,20 @@ const PRELOAD_RULES: PreloadRule[] = [
       if (projectId) preloadProjectOrders(client, orgId, projectId, canViewWorkOrderPlan === true, viewer);
     },
   },
+  ...['contract', 'billing', 'work-orders'].map((tab): PreloadRule => ({
+    path: `/projects/:projectId/${tab}`,
+    chunks: PROJECT_TAB_CHUNKS_BY_PATH['/projects/:projectId/contract'],
+    namespaces: PROJECT_TAB_NAMESPACES.contract,
+    data: ({ projectId }, { client, orgId, canReadClaims }, search) => {
+      const id = search.get('open');
+      const type = search.get('openType');
+      if (projectId && id && canReadClaims && (type === 'billingClaim' || type === 'workOrderClaim')) {
+        preloadClaimDrawer(client, orgId, projectId, id);
+      }
+    },
+  })),
   ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH)
-    .filter(([path]) => path !== '/projects/:projectId/orders')
+    .filter(([path]) => path !== '/projects/:projectId/orders' && path !== '/projects/:projectId/contract')
     .map(([path, chunks]) => ({
       path,
       chunks,
@@ -439,7 +452,8 @@ export function preloadForPath(pathname: string, context?: RouteDataContext): vo
   for (const chunk of rule.chunks) void chunk.preload();
   if (context && rule.data) {
     const match = matchPath(rule.path, normalizePath(pathname));
-    if (match) rule.data(match.params, context);
+    const [, search] = pathname.split('#', 1)[0].split('?', 2);
+    if (match) rule.data(match.params, context, new URLSearchParams(search));
   }
 }
 
@@ -720,10 +734,12 @@ export const ShellChrome: React.FC = () => {
   const router = React.useContext(AppRouterContext);
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const canViewWorkOrderPlan = usePermission()('view', 'workOrderPlan');
+  const may = usePermission();
+  const canViewWorkOrderPlan = may('view', 'workOrderPlan');
+  const canReadClaims = may('view', 'progressClaim');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, viewer: currentUser } : undefined);
-  }, [orgId, canViewWorkOrderPlan, currentUser]);
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, viewer: currentUser } : undefined);
+  }, [orgId, canViewWorkOrderPlan, canReadClaims, currentUser]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
