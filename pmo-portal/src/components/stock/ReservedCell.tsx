@@ -7,7 +7,8 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { FreeReservedRow } from '@/src/lib/repositories/stockReservations';
 
 const Figure: React.FC<{ qty: string; unitCode: string }> = ({ qty, unitCode }) => (
-  <span className="whitespace-nowrap tabular-nums">{formatQuantity(qty, getNumberLocale())}{unitCode && <span className="text-muted-foreground"> {unitCode}</span>}</span>
+  // The number never breaks; a long unit code wraps under it rather than running past the column's right edge.
+  <span className="tabular-nums"><span className="whitespace-nowrap">{formatQuantity(qty, getNumberLocale())}</span>{unitCode && <span className="break-words text-muted-foreground"> {unitCode}</span>}</span>
 );
 
 /** The free quantity of one item at one location (#2693): its own right-aligned figure. Rendered only while reservations are on. */
