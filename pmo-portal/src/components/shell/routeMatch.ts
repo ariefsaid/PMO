@@ -743,9 +743,13 @@ export function breadcrumbForPath(
                 ? { label: 'New meeting', i18nKey: 'meetings.form.newTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
                 : pathname === '/expenses/new'
                   ? { label: 'New expense claim', i18nKey: 'expenses.form.claimTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
-                  : recordResolved
-                    ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
-                    : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
+                  : pathname === '/material-requests/new'
+                    ? { label: 'New material request', i18nKey: 'materialRequests:form.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                    : pathname === '/material-requests/settings'
+                      ? { label: 'Approval settings', i18nKey: 'materialRequests:list.settings' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                      : recordResolved
+                        ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                        : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
         // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
         // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
         // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,
@@ -805,6 +809,8 @@ export interface RecordLists {
   userViews?: { id: string; name: string }[];
   /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
   stockDocuments?: { id: string; number: string }[];
+  /** #2524: material requests resolve from the detail query cache; the label is the request number. */
+  materialRequests?: { id: string; number: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -944,6 +950,9 @@ export function recordLabelForPath(
 
   const stockDocumentId = idFrom('/stock/documents');
   if (stockDocumentId) return lists.stockDocuments?.find((d) => d.id === stockDocumentId)?.number;
+
+  const materialRequestId = idFrom('/material-requests');
+  if (materialRequestId) return lists.materialRequests?.find((r) => r.id === materialRequestId)?.number;
 
   return undefined;
 }

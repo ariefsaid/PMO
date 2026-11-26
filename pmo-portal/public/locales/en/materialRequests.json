@@ -134,7 +134,8 @@
       "prior": "Requested before",
       "total": "New total",
       "sectionPlan": "{{section}} plan"
-    }
+    },
+    "savedReason": "Saved reason"
   },
   "inbox": {
     "scope": "Material requests",
