@@ -33,12 +33,12 @@ const TypeRow: React.FC<{ type: PurchaseType | null; canManage: boolean; nextPos
     try { await m.setActive.mutateAsync({ id: type.id, active: !type.active }); } catch (err) { setError(refusal(err)); }
   };
   return (
-    <li className="grid items-end gap-3 border-b border-border py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(10rem,auto)_auto]" data-testid={type ? 'purchase-type-row' : 'purchase-type-new'}>
-      {error && <div className="md:col-span-4"><FormErrorStrip>{error}</FormErrorStrip></div>}
-      {type && !type.active && <p className="text-sm text-muted-foreground md:col-span-4">{t('settings.retired', 'Retired')}</p>}
-      <TextField label={t('settings.name', 'Name')} value={name} onChange={setName} disabled={!canManage} fullWidth />
-      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} value={nameId} onChange={setNameId} disabled={!canManage} fullWidth />
-      <div className="flex min-h-10 items-center"><Checkbox checked={isRental} onChange={setIsRental} disabled={!canManage} label={t('settings.isRental', 'This type has a rental period')} /></div>
+    <li className="grid items-end gap-3 border-b border-border py-3 last:border-b-0 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(10rem,1fr)_11rem]" data-testid={type ? 'purchase-type-row' : 'purchase-type-new'}>
+      {error && <div className="md:col-span-2 xl:col-span-4"><FormErrorStrip>{error}</FormErrorStrip></div>}
+      {type && !type.active && <p className="text-sm text-muted-foreground md:col-span-2 xl:col-span-4">{t('settings.retired', 'Retired')}</p>}
+      <TextField label={t('settings.name', 'Name')} value={name} onChange={setName} disabled={!canManage} wrapperClassName="min-w-0" />
+      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} value={nameId} onChange={setNameId} disabled={!canManage} wrapperClassName="min-w-0" />
+      <div className="flex min-h-10 items-center"><Checkbox checked={isRental} onChange={setIsRental} disabled={!canManage} label={t('settings.isRental', 'This type has a rental period')}>{t('settings.isRental', 'This type has a rental period')}</Checkbox></div>
       {canManage && (
         <span className="flex min-h-10 flex-wrap items-center gap-2">
           <Button variant={type ? 'outline' : 'primary'} size="sm" disabled={!dirty || !name.trim()} loading={m.upsert.isPending} onClick={() => void save()}>
