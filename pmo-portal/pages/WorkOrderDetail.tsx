@@ -323,8 +323,8 @@ const WorkOrderDetail: React.FC = () => {
           </>}
           {area === 'checks' && <>
             <InspectionsSection workOrderId={row.id} />
-            <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} footer={<MaterialCompletionLink workOrderId={row.id} />} />
-            <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
+            <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+            <MissingSection actions={<MaterialCompletionLink workOrderId={row.id} />} workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
               steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
               scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}
               scopeError={allocations.isError || boq.isError || bastList.isError} />
