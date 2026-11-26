@@ -809,12 +809,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 160, minSize: 150,
       cell: (row) => {
         // The remainder row is not a planning category, so it claims no "Not budgeted" status.
         if (isNotSplitRow(row)) return null;
         const status = getStatus(row);
-        return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null;
+        return status ? <StatusPill variant={status.variant} className="whitespace-nowrap shrink-0" wrap={false}>{status.label}</StatusPill> : null;
       },
     },
   ];
