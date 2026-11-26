@@ -168,7 +168,7 @@ const StockOpeningHistory: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('stock:opening.done.title')} sub={t('stock:opening.done.sub', { count: loaded })}
           action={{ label: t('stock:opening.done.openLedger'), onClick: () => navigate('/stock/ledger') }} />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 pb-24 md:pb-0">
           <section aria-labelledby="osh-template" className="flex flex-col gap-3">
             <h2 id="osh-template" className="m-0 text-group font-semibold text-foreground">{t('stock:opening.template.title')}</h2>
             <DataTable
