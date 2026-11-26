@@ -44,7 +44,9 @@
     "withdrawBody": "Permintaan dibatalkan dan penyetujunya tidak lagi diminta.",
     "withdrawTitle": "Tarik permintaan ini",
     "withdrawn": "Permintaan ditarik",
-    "requested": "Diminta"
+    "requested": "Diminta",
+    "retryLoad": "Coba lagi",
+    "backToList": "Kembali ke permintaan material"
   },
   "deliveryNote": {
     "back": "Kembali ke permintaan",

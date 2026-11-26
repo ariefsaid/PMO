@@ -53,9 +53,14 @@ const MaterialRequestDetailPage: React.FC = () => {
   const [dialogError, setDialogError] = useState<string | null>(null);
 
   if (q.isPending) return <ListState variant="loading" rows={4} />;
-  if (q.isError) return <ListState variant="error" title={t('detail.error', "Couldn't load this request")} onRetry={() => void q.refetch()} />;
   const req = q.data;
-  if (!req) return <ListState variant="empty" title={t('detail.notFound', 'Request not found')} />;
+  if (q.isError || !req) return (
+    <div>
+      <ListState variant="error" title={q.isError ? t('detail.error', "Couldn't load this request") : t('detail.notFound', 'Request not found')}
+        retryLabel={t('detail.retryLoad', 'Try again')} onRetry={() => void q.refetch()}
+        action={{ label: t('detail.backToList', 'Back to material requests'), onClick: () => navigate('/material-requests') }} />
+    </div>
+  );
 
   const round = req.steps.filter((s) => s.round === req.round && s.status !== 'superseded');
   const last = round.reduce((n, s) => Math.max(n, s.position), 0);
