@@ -771,7 +771,8 @@
     "headingAll": "Pembelian dan $t(common:terms.timesheet)",
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari",
-    "waitingOnYou": "menunggu keputusan Anda"
+    "waitingOnYou": "menunggu keputusan Anda",
+    "selectTimesheets": "Pilih timesheet"
   },
   "threeWayMatch": {
     "title": "Pencocokan tiga arah · {{bill}}",

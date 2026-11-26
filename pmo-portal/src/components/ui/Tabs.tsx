@@ -141,7 +141,7 @@ export function Tabs<V extends string = string>({
     {overflow.left && (
       <button
         type="button"
-        aria-label={t('tabs.scrollLeft', 'Scroll tabs left')}
+        aria-label={t('ui:tabs.scrollLeft', 'Scroll tabs left')}
         onClick={() => nudge(-1)}
         className="absolute left-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >
@@ -215,7 +215,7 @@ export function Tabs<V extends string = string>({
     {overflow.right && (
       <button
         type="button"
-        aria-label={t('tabs.scrollRight', 'Scroll tabs right')}
+        aria-label={t('ui:tabs.scrollRight', 'Scroll tabs right')}
         onClick={() => nudge(1)}
         className="absolute right-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >

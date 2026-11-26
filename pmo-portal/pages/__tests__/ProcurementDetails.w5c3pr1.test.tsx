@@ -338,7 +338,7 @@ describe('AC-IXD-PROC-W5-C3-D9: tracker stages show full-word names', () => {
     renderPage();
     expect(stageLabels()).not.toContain('Approved');
     expect(stageItem('Request')).toHaveAttribute('aria-current', 'step');
-    expect(headerActions().queryByRole('button', { name: /^approve$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^approve$/i })).toBeNull();
   });
 
   it('D9-9: the PR ref is counted under the Request stage only when a PR record exists, and shows in the timeline (I1)', () => {
@@ -495,7 +495,7 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing action-area behaviors uncha
   it('non-regression: Approve is still a primary blue at Requested stage', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const approveBtn = headerActions().getByRole('button', { name: /^approve$/i });
+    const approveBtn = screen.getByRole('button', { name: /^approve$/i });
     expect(approveBtn.className).toContain('bg-primary');
   });
 

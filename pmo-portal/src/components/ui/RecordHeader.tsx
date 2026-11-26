@@ -200,7 +200,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
             className="text-control font-medium text-primary-text hover:underline"
             data-testid="record-header-details-toggle"
           >
-            {mobileStatsOpen ? t('tabs.hideDetails', 'Hide details') : t('tabs.showDetails', 'Show details')}
+            {mobileStatsOpen ? t('ui:tabs.hideDetails', 'Hide details') : t('ui:tabs.showDetails', 'Show details')}
           </button>
         </div>
       )}

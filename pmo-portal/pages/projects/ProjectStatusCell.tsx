@@ -22,6 +22,7 @@ export function ProjectStatusCell({ state, exception, lateDays }: {
               : tp('health.statusAtRisk', '{{status}} · at risk', { status: name })}
           </StatusPill>
         )}
+      {state === 'Won, Pending KoM' && <span className="text-control text-muted-foreground">{t('project.kickoffDetail', 'Waiting for kickoff')}</span>}
       {lateDays !== null && (
         // One form in every row: a second pill would read as a second status.
         <span className="whitespace-nowrap text-control text-warning-foreground">{tp('health.pastEnd', { count: lateDays, defaultValue_one: '{{count}} day past end date', defaultValue_other: '{{count}} days past end date' })}</span>

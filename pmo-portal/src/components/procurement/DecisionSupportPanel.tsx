@@ -108,7 +108,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   // Bail out — no project linked (takes precedence over the status gate, FR-RB-020),
   // or a viewer whose purchasing read is limited to their own requests.
-  if (!scopedProjectId) return null;
+  if (!scopedProjectId) return <>{aside}</>;
 
   // Bail out — post-Ordered / terminal: the panel is a pre-decision tool only, and
   // hiding it here makes the legacy double-count path structurally impossible.

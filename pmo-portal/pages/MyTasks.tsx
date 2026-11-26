@@ -315,7 +315,7 @@ const MyTasks: React.FC = () => {
           <div className="w-full min-w-0 sm:w-auto sm:max-w-xs"><SelectField id="my-task-work-order-filter" hideLabel
             label={tasksT('workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={setWorkOrderFilter}
             options={[{ value: 'all', label: tasksT('workOrderFilter.all', 'All work orders') }, { value: 'none', label: tasksT('workOrderFilter.none', 'No work order') }, ...Array.from(new Map((tasks ?? []).filter((task) => task.work_order_id && task.work_order_name).map((task) => [task.work_order_id!, task.work_order_name!])).entries()).map(([value, label]) => ({ value, label }))]} /></div>
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-1">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:basis-full xl:basis-auto xl:flex-1">
             {/* #1461: a due=week drill names the active window and can clear it. */}
             {dueBy && (
               <StatusPill variant="warn" className="shrink-0">
@@ -336,7 +336,7 @@ const MyTasks: React.FC = () => {
               searchSurface="my-tasks-list"
               module="tasks"
               resultCount={visibleTasks.length}
-              containerClassName="flex-1 max-sm:w-full max-sm:min-w-0"
+              containerClassName="min-w-0 flex-1 max-sm:w-full"
             />
             {search && (
               <button

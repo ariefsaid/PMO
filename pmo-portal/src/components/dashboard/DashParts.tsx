@@ -335,7 +335,7 @@ export const ProjectRows: React.FC<{
                             style={{ '--cols': cols } as React.CSSProperties}
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
-                            <span className="min-w-0 text-control font-medium">{row.name}</span>
+                            <span className="min-w-0 text-control font-medium">{row.name}{row.status === 'Won, Pending KoM' && <span className="block text-control font-normal text-muted-foreground">{ts('project.kickoffDetail', 'Waiting for kickoff')}</span>}</span>
                             {/* The status column is wide enough for the longest translated status on one line. */}
                             <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-w-0 max-w-full justify-self-end text-right')}><StatusPill wrap={false} variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, ConfirmDialog, DataTable, DateField, EntityFormModal, ErrBanner, FormGrid, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack,
+  Button, buttonClasses, ConfirmDialog, DataTable, DateField, EntityFormModal, ErrBanner, FormGrid, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack,
   SelectField, StatusPill, TextField, useToast, type Column, type RecordMenuItem, type SubmitError,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -140,7 +140,7 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
           ? <Button variant="primary" size="sm" onClick={() => { setDialogError(null); setDialog('bill'); }}>{t('subcontractCertificates:actions.bill', 'Create bill')}</Button>
           : c.status === 'billed' && c.invoice_id
             // The bill lives in the purchase's ledger (its Files tab).
-            ? <Link className="inline-flex h-[var(--control-height-sm)] items-center rounded-md bg-primary px-3 text-control font-medium text-primary-foreground" to={`/procurement/${c.procurement_id}/files`}>{t('subcontractCertificates:actions.openBill', 'Open bill')}</Link>
+            ? <Link className={buttonClasses('primary', 'sm')} to={`/procurement/${c.procurement_id}/files`}>{t('subcontractCertificates:actions.openBill', 'Open bill')}</Link>
             : undefined;
   const live = mayPrepare && c.status !== 'cancelled' && c.status !== 'billed';
   const menuItems: RecordMenuItem[] = [

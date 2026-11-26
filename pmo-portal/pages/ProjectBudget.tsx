@@ -1091,10 +1091,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <span className="text-sm font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <span>{t('projectDetail.budget.version', 'Version')}</span>
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span aria-hidden="true">{t('projectDetail.budget.version', 'Version')}</span>
               <SelectField hideLabel label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(value) => { setSelectedVersionId(value); setDraftEditorOpen(false); }} options={versions.map((version) => ({ value: version.id, label: `v${version.version} · ${statusLabel('budgetVersion', version.status, tCommon)}` }))} />
-            </label>
+            </div>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
             {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
             {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(displayRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}

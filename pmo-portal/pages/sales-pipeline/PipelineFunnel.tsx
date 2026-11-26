@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Funnel, type FunnelStage } from '@/src/components/ui';
-import { formatMoneyLines, formatTileMoney } from '@/src/lib/format';
+import { formatMoneyLines, formatTileMoney, formatTableMoney } from '@/src/lib/format';
 import { type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
 import type { FunnelProjection } from './pipelineFunnelModel';
 
@@ -49,22 +49,23 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
     const perCurrency = formatMoneyLines(
       p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'tile',
     ).lines;
+    const exactCurrency = formatMoneyLines(p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'table').lines;
     const value = p.unavailable
       ? unavailableTotal
       : empty
         ? money(0, p.stageCurrency)
         : p.mixedStage
-          ? <>{perCurrency.map((line) => <div key={line}>{line}</div>)}</>
-          : money(p.totalValue, p.stageCurrency);
+          ? <>{perCurrency.map((line) => <div key={line} title={exactCurrency[perCurrency.indexOf(line)]}>{line}</div>)}</>
+          : <span title={formatTableMoney(p.totalValue, p.stageCurrency) ?? undefined}>{money(p.totalValue, p.stageCurrency)}</span>;
     return {
       name: stageLabel(p.col),
       dotColor: p.col.dotColor,
       value,
       weighted: p.unavailable || empty || p.mixedStage
         ? undefined
-        : t('sales.funnel.weighted', '{{value}} weighted', {
+        : <span title={t('sales.funnel.weighted', '{{value}} weighted', { value: formatTableMoney(p.weightedValue, p.stageCurrency) })}>{t('sales.funnel.weighted', '{{value}} weighted', {
             value: money(p.weightedValue, p.stageCurrency),
-          }),
+          })}</span>,
       barPct: p.barPct,
     };
   });

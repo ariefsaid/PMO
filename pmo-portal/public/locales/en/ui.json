@@ -1,0 +1,10 @@
+{
+  "back": "Back",
+  "filters": "Filters",
+  "tabs": {
+    "hideDetails": "Hide details",
+    "showDetails": "Show details",
+    "scrollLeft": "Scroll tabs left",
+    "scrollRight": "Scroll tabs right"
+  }
+}

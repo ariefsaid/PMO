@@ -46,7 +46,7 @@ test('JOB-F2 the office keys in a paper report with its photo and the project ma
     await page.goto('/site-reports');
     await page.getByRole('button', { name: 'New report' }).first().click();
     await page.getByLabel('Project').selectOption({ label: `${run} project` });
-    await page.getByLabel('Work order').selectOption({ label: `${run} pipe run` });
+    await page.getByRole('combobox', { name: 'Work order' }).selectOption({ label: `${run} pipe run` });
     await page.getByRole('button', { name: 'Start report' }).click();
     await expect(page).toHaveURL(/\/site-reports\/[0-9a-f-]{36}$/, { timeout: 15_000 });
     await page.getByRole('button', { name: 'Add progress' }).click();

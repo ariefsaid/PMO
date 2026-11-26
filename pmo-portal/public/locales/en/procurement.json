@@ -771,7 +771,8 @@
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting",
-    "waitingOnYou": "waiting on your decision"
+    "waitingOnYou": "waiting on your decision",
+    "selectTimesheets": "Select timesheets"
   },
   "threeWayMatch": {
     "title": "Three-way match · {{bill}}",
