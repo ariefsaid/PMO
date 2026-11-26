@@ -118,7 +118,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
   const revenue = useDailySiteReportRevenue(report.id, seeRevenue);
   const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeWorkOrderRevenue);
-  const m = useDailySiteReportMutations();
+  const m = useDailySiteReportMutations(report.project_id);
   const stockOn = useDsrStockSettings().data?.enabled === true;
 
   const [form, setForm] = useState<SiteReportForm>(() => siteReportFormFromDetail(detail));

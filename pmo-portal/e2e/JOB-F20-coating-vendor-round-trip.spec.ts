@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 import { runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
-import { expectOnHand, postTransfer } from './support/stockUi';
+import { expectOnHand, onHandCell, postTransfer } from './support/stockUi';
 
 test.setTimeout(180_000);
 
@@ -49,7 +49,7 @@ test('JOB-F20 the storekeeper sends pipe to the coating vendor and back, leaving
     const showZero = page.getByRole('checkbox', { name: 'Show zero balances' });
     await showZero.click(); // the control settles its state after the click, so assert it rather than let check() judge it at once
     await expect(showZero).toBeChecked();
-    await expect(page.getByRole('row', { name: new RegExp(item.code) }).getByRole('cell', { name: /^0\s+\S+$/ })).toBeVisible({ timeout: 20_000 });
+    await expect(await onHandCell(page, item.code)).toHaveText(/^0\s+\S+$/, { timeout: 20_000 });
   } finally {
     // The keeper rows an Admin assigned point at the coordinator's profile; remove them before it goes.
     // Its two transfers carry the coordinator as author, so they go first (receipt ledger legs stay: the ledger is append-only by design).

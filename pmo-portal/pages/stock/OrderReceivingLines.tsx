@@ -33,7 +33,7 @@ export function OrderReceivingLines({ lines, quantities, onChange, checks, onChe
   const figure = (value: string | undefined, line: ReceivingLine) => <span className="tabular-nums whitespace-nowrap">{qty(value)}{unit(line)}</span>;
   const columns: Column<ReceivingLine>[] = [
     {
-      key: 'line', header: t('receiving.line'), rowHeader: true, size: purchaser ? 248 : 320,
+      key: 'line', header: t('receiving.line'), rowHeader: true, size: purchaser ? 224 : 320,
       cell: (line) => <div className="min-w-0 space-y-2">
         <span className="block break-words font-semibold text-foreground">{purchaser ? line.name : (line.stock_name ?? line.name)}</span>
         {!line.stock_item_id && <span className="block break-words text-control font-normal text-muted-foreground">{t('receiving.unmapped')}</span>}
@@ -41,21 +41,21 @@ export function OrderReceivingLines({ lines, quantities, onChange, checks, onChe
       </div>,
     },
     ...(purchaser ? [
-      { key: 'ordered', header: t('receiving.ordered'), align: 'num' as const, size: 96, cell: (line: ReceivingLine) => figure(line.ordered, line) },
-      { key: 'received', header: t('receiving.received'), align: 'num' as const, size: 96, cell: (line: ReceivingLine) => figure(line.received, line) },
-      { key: 'outstanding', header: t('receiving.outstanding'), align: 'num' as const, size: 96, cell: (line: ReceivingLine) => figure(line.outstanding, line) },
+      { key: 'ordered', header: t('receiving.ordered'), align: 'num' as const, size: 92, cell: (line: ReceivingLine) => figure(line.ordered, line) },
+      { key: 'received', header: t('receiving.received'), align: 'num' as const, size: 100, cell: (line: ReceivingLine) => figure(line.received, line) },
+      { key: 'outstanding', header: t('receiving.outstanding'), align: 'num' as const, size: 120, cell: (line: ReceivingLine) => figure(line.outstanding, line) },
       { key: 'status', header: t('receiving.status'), kind: 'status' as const, size: 176, colClassName: 'hidden xl:table-cell', cell: (line: ReceivingLine) => line.status ? <StatusPill variant={RECEIVING_VARIANT[line.status]}>{t(`receiving.${line.status}`)}</StatusPill> : null },
     ] : []),
     {
       key: 'counted', header: t('receiving.countedColumn'), align: 'num', keepWhenBlank: true, size: 168,
       cell: (line) => line.stock_item_id
-        ? <div className="flex items-center justify-end gap-2">
+        ? <span className="inline-flex flex-nowrap items-center justify-end gap-2 align-middle">
           <TextField id={`count-${line.id}`} hideLabel label={`${t('receiving.counted')} · ${line.stock_name ?? line.name} (${line.unit ?? ''})`}
             value={quantities[line.id] ?? ''} onChange={(value) => onChange(line.id, value)} inputMode="decimal" disabled={disabled}
             wrapperClassName="w-24" className="text-right tabular-nums" />
-          <span className="w-8 text-left text-control text-muted-foreground">{line.unit}</span>
-        </div>
-        : <div className="flex items-center justify-end gap-2"><span className="w-24 text-right text-muted-foreground">—</span><span className="w-8" aria-hidden="true" /></div>,
+          <span className="w-8 shrink-0 text-left text-control text-muted-foreground">{line.unit}</span>
+        </span>
+        : <span className="inline-flex items-center justify-end gap-2"><span className="w-24 text-right text-muted-foreground">—</span><span className="w-8" aria-hidden="true" /></span>,
     },
   ];
   const checked = lines.filter((line) => line.stock_item_id && line.needs_quality_check && isPositiveDecimal(normalizeDecimal(quantities[line.id] ?? '')));

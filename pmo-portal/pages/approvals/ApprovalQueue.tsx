@@ -21,12 +21,14 @@ export function QueueButton({
   item,
   selected,
   onSelect,
+  emphasizeWait,
   bulk,
   procurementBulk,
 }: {
   item: QueueItem;
   selected: boolean;
   onSelect: () => void;
+  emphasizeWait: boolean;
   bulk?: BulkController;
   procurementBulk?: ProcurementBulkController;
 }) {
@@ -35,14 +37,14 @@ export function QueueButton({
     const row = item.row;
     const canSelect = procurementBulk?.approvableIds.has(row.id) ?? false;
     const waitingDays = ageInDays(row.created_at);
-    const overdue = urgencyOf(row.created_at) === 'overdue';
+    const overdue = emphasizeWait && urgencyOf(row.created_at) === 'overdue';
     const rowButton = (
       <button
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
         className={[
-          'w-full rounded-lg border px-3 py-3 text-left transition-colors',
+          'w-full min-w-0 flex-1 rounded-lg border px-3 py-3 text-left transition-colors',
           selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
         ].join(' ')}
       >
@@ -56,9 +58,9 @@ export function QueueButton({
             {(row.code ?? row.pr_number) && <><span>·</span><span className="record-id">{row.code ?? row.pr_number}</span></>}
           </div>
         </div>
-        <div className="mt-2 text-control text-muted-foreground">
-          <span className="block break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
-          <span className="mt-1 block tabular font-medium text-foreground">{formatTableMoney(row.total_value, row.currency) ?? '—'}</span>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-control text-muted-foreground">
+          <span className="min-w-0 break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
+          <span className="ml-auto break-words text-right tabular text-foreground">{formatTableMoney(row.total_value, row.currency) ?? '—'}</span>
         </div>
       </button>
     );
@@ -99,14 +101,14 @@ export function QueueButton({
           </div>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-control text-muted-foreground">
         <span>
           {row.entries.length}{' '}
           {row.entries.length === 1
             ? t('approvals.entryOne', 'entry')
             : t('approvals.entryOther', 'entries')}
         </span>
-        <span className="tabular font-medium text-foreground">{formatNumberExact(sumHours(row))} h</span>
+        <span className="ml-auto text-right tabular text-foreground">{formatNumberExact(sumHours(row))} h</span>
       </div>
     </button>
   );
@@ -150,7 +152,7 @@ export function QueueGroup({
   if (hideWhenEmpty && !isPending && !isError && items.length === 0) return null;
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2 pr-3">
         <h2 className="text-control font-semibold text-muted-foreground">
           {title}
         </h2>
@@ -172,12 +174,13 @@ export function QueueGroup({
         <p className="py-2 text-control text-muted-foreground">{emptyTitle}</p>
       ) : (
         <div className="space-y-1.5">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <QueueButton
               key={item.key}
               item={item}
               selected={selectedKey === item.key}
               onSelect={() => onSelect(item.key)}
+              emphasizeWait={index === 0}
               bulk={bulk}
               procurementBulk={procurementBulk}
             />

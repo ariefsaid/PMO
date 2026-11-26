@@ -26,15 +26,15 @@ const MyHome: React.FC = () => {
         : home.isError ? <ListState variant="error" title={t('myHome:error', "Couldn't load your work")} onRetry={() => void home.refetch()} />
         : (
           <>
+            <ClockInSection today={home.data.today} workOrders={home.data.work_orders} deciderRole={home.data.decider_role} />
+            <MyNotices />
             <MyTasks tasks={home.data.tasks} busyId={status.isPending ? (status.variables?.id ?? null) : null}
               onSetStatus={(id, s) => status.mutate({ id, status: s })} />
             <MyWorkOrders workOrders={home.data.work_orders} />
-            <ClockInSection today={home.data.today} workOrders={home.data.work_orders} deciderRole={home.data.decider_role} />
             <AbsentTodaySection today={home.data.today} workOrders={home.data.work_orders} />
             {isForeman && <CrewRoster today={home.data.today} workOrders={home.data.work_orders} />}
             <DeliveriesSection deliveries={deliveries.data ?? []} />
             <MyIssues issues={home.data.issues} />
-            <MyNotices />
           </>
         )}
     </main>

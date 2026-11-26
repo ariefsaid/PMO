@@ -40,7 +40,7 @@ test.afterEach(async () => {
 test('JOB-E5 a unit broken for three days is flagged on screen and escalated to the Project Manager', async ({ page }) => {
   await manager.signIn(page);
   await page.goto('/equipment/availability');
-  const unit = page.getByRole('listitem').filter({ hasText: code });
+  const unit = page.getByRole('table', { name: 'Equipment status' }).getByRole('row').filter({ hasText: code });
   await expect(unit).toBeVisible({ timeout: 20_000 });
   await expect(unit.getByText('Down more than 2 days')).toBeVisible();
 

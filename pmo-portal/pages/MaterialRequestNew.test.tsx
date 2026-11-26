@@ -80,8 +80,12 @@ describe('raise a material request on a section (#2576)', () => {
     await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
     await userEvent.type(screen.getByLabelText(/^quantity/i), '3');
     // work order: plan 10, prior 4, new total 7 (within); section: plan 6, prior 4, new total 7 (over)
-    expect(screen.getByTestId('mrq-plan')).toHaveTextContent('Plan 10 · already requested 4 · new total 7');
-    expect(screen.getByTestId('mrq-section-plan')).toHaveTextContent('Section plan 6 · already requested 4');
+    expect(screen.getByTestId('mrq-plan-qty')).toHaveTextContent(/^10\b/);
+    expect(screen.getByTestId('mrq-prior-qty')).toHaveTextContent(/^4\b/);
+    expect(screen.getByTestId('mrq-new-total')).toHaveTextContent(/^7\b/);
+    expect(screen.getByTestId('mrq-section-plan')).toHaveTextContent('Section plan');
+    expect(screen.getByTestId('mrq-section-plan-qty')).toHaveTextContent(/^6\b/);
+    expect(screen.getByTestId('mrq-section-prior-qty')).toHaveTextContent(/^4\b/);
     await userEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
     expect(await screen.findByText(/Give a reason/)).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/Why do you need more/), 'Extra run');
@@ -125,7 +129,10 @@ describe('raise a material request', () => {
     await pick(/^work order/i, 'WO-1 · Slab');
     await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
     await userEvent.type(screen.getByLabelText(/^quantity/i), '8');
-    expect(screen.getByTestId('mrq-plan')).toHaveTextContent('Plan 10 · already requested 4 · new total 12');
+    expect(screen.getByTestId('mrq-plan-qty')).toHaveTextContent(/^10\b/);
+    expect(screen.getByTestId('mrq-prior-qty')).toHaveTextContent(/^4\b/);
+    expect(screen.getByTestId('mrq-new-total')).toHaveTextContent(/^12\b/);
+    expect(screen.getByTestId('mrq-plan')).toHaveTextContent('Over plan');
     await userEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
     expect(await screen.findByText(/Give a reason/)).toBeInTheDocument();
     expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();

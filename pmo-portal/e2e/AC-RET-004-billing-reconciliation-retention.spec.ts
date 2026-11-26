@@ -188,7 +188,7 @@ test('AC-RET-004 reconciliation follows a claim and Finance manages retention re
   expect(await billedWork(page)).toBe('200000');
 
   await page.goto(`/projects/${projectId}/contract`);
-  await expect(reconciliation).toBeVisible({ timeout: 15_000 });
+  await expect(reconciliation).toBeVisible();
   const recItem = reconciliation.getByRole('row').filter({ hasText: 'Route survey' });
   const cells = recItem.getByRole('cell');
   await expect(cells.nth(1)).toHaveText('6');
@@ -223,7 +223,7 @@ test('AC-RET-004 reconciliation follows a claim and Finance manages retention re
   const orderDrawer = page.getByRole('dialog');
   const orderReconciliation = orderDrawer.getByRole('region', { name: /Billing reconciliation|Rekonsiliasi penagihan/i });
   const orderRow = orderReconciliation.getByRole('row').filter({ hasText: 'Route survey' });
-  await expect(orderRow).toBeVisible({ timeout: 15_000 });
+  await expect(orderRow).toBeVisible();
   const orderCells = orderRow.getByRole('cell');
   await expect(orderCells.nth(1)).toHaveText('6');
   await expect(orderCells.nth(2)).toHaveText('4');

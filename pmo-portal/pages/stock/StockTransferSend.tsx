@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, FormActions, FormGrid, ListState, PageHeader, SelectField, TextField, MobileActionBar, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, FormActions, FormGrid, FormSection, ListState, PageHeader, SelectField, TextField, MobileActionBar, useToast } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
@@ -104,20 +104,31 @@ const StockTransferSend: React.FC = () => {
       <PageHeader title={t('transfers.sendTitle')} />
       <form className="max-w-3xl space-y-4 pb-24 md:pb-0" onSubmit={(e) => { e.preventDefault(); askToSend(); }} noValidate>
         <FormErrorStrip>{error || undefined}</FormErrorStrip>
-        <FormGrid>
-          <SelectField label={t('form.fromWarehouse')} required value={from} onChange={setFrom} options={sources.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.from} />
-          <SelectField label={t('form.toWarehouse')} required value={to} onChange={(v) => { setTo(v); setReceiver(''); }} options={destinations.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.to} />
-          <SelectField label={t('transfers.receiver')} value={receiver} onChange={setReceiver} options={candidates.map((p) => ({ value: p.id, label: p.full_name ?? '' }))} placeholder={t('transfers.receiverNone')} helper={t('transfers.receiverHelp')} />
-        </FormGrid>
-        <ul className="space-y-3">{lines.map((l, i) => (
-          <li key={l.key} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
-            <ItemPicker label={`${t('form.item')}${i + 1}`} required value={l.itemId} onChange={(v) => setLine(l.key, { itemId: v })} error={errors[`item${l.key}`]} />
-            <TextField label={`${t('form.quantity')}${i + 1}`} required inputMode="decimal" value={l.quantity} onChange={(v) => setLine(l.key, { quantity: v })} error={errors[`qty${l.key}`]} />
-            {lines.length > 1 && <Button variant="ghost" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>{t('form.removeLine')}</Button>}
-          </li>
-        ))}</ul>
-        <Button variant="outline" onClick={() => setLines((ls) => [...ls, { key: nextKey.current++, itemId: null, quantity: '' }])}>{t('form.addLine')}</Button>
-        <TextField label={t('form.note')} value={note} onChange={setNote} />
+        <FormSection legend={t('form.sections.where')}>
+          <div className="space-y-4">
+            <FormGrid>
+              <SelectField label={t('form.fromWarehouse')} required value={from} onChange={setFrom} options={sources.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.from} />
+              <SelectField label={t('form.toWarehouse')} required value={to} onChange={(v) => { setTo(v); setReceiver(''); }} options={destinations.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.to} />
+            </FormGrid>
+            <SelectField label={t('transfers.receiver')} value={receiver} onChange={setReceiver} options={candidates.map((p) => ({ value: p.id, label: p.full_name ?? '' }))} placeholder={t('transfers.receiverNone')} helper={t('transfers.receiverHelp')} />
+          </div>
+        </FormSection>
+        <FormSection legend={t('form.sections.lines')}>
+          <ul className="panel-card divide-y divide-border">{lines.map((l, i) => { const n = lines.length > 1 ? ` ${i + 1}` : ''; const unit = unitCodeOf(l.itemId); return (
+            <li key={l.key} className="grid gap-3 p-[var(--panel-inset)] sm:grid-cols-[minmax(0,1fr)_11rem_auto] sm:items-start">
+              <ItemPicker label={`${t('form.item')}${n}`} required value={l.itemId} onChange={(v) => setLine(l.key, { itemId: v })} error={errors[`item${l.key}`]} />
+              <div className="flex items-start gap-2">
+                <TextField label={`${t('form.quantity')}${n}`} required inputMode="decimal" value={l.quantity} onChange={(v) => setLine(l.key, { quantity: v })} error={errors[`qty${l.key}`]} wrapperClassName="min-w-0 flex-1" className="text-right tabular-nums" />
+                <span className="mt-[calc(var(--control-label-height,1.25rem)+0.5rem+0.5rem)] w-10 shrink-0 text-control text-muted-foreground">{unit}</span>
+              </div>
+              {lines.length > 1 && <div className="sm:pt-7"><Button variant="ghost" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>{t('form.removeLine')}</Button></div>}
+            </li>
+          ); })}</ul>
+          <Button variant="outline" className="mt-3" onClick={() => setLines((ls) => [...ls, { key: nextKey.current++, itemId: null, quantity: '' }])}>{t('form.addLine')}</Button>
+        </FormSection>
+        <FormSection legend={t('form.sections.details')}>
+          <TextField label={t('form.note')} value={note} onChange={setNote} />
+        </FormSection>
         <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
           <FormActions submitLabel={t('transfers.send')} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/transfers')} loading={busy} />
         </MobileActionBar>

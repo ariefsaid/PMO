@@ -377,6 +377,9 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/equipment/assets': '/equipment',
   '/equipment/expiring': '/equipment',
   '/equipment/availability': '/equipment',
+  // #2700: the monthly equipment plan is reached from Procurement (its Back bar names it).
+  '/equipment-plans': '/procurement',
+  '/equipment-plans/settings': '/procurement',
   // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
   '/finance/billing-board': '/finance/receivables',
   '/finance/billing-plan': '/finance/receivables',
@@ -384,6 +387,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/timesheets/review': '/timesheets',
   // M8: Work in hand under Projects highlights Projects in the rail.
   '/projects/work-in-hand': '/projects',
+  // #2584: progress certificates are reached from Procurement and belong to it.
+  '/subcontract-certificates': '/procurement',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -391,6 +396,8 @@ export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
   // A work order's page, and a safety day (which belongs to its work order), light Work orders only (#2518, #2596).
   if (/^\/(work-orders|safety-days)\/[^/]+$/.test(pathname)) return '/work-orders';
+  if (/^\/subcontract-certificates\/[^/]+$/.test(pathname)) return '/procurement';
+  if (/^\/stock\/transfers\/[^/]+(\/print)?$/.test(pathname)) return '/stock';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -415,10 +422,13 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/equipment/availability': { label: 'Availability', i18nKey: 'equipment:availability.title' }, // i18n-exempt: translated at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/equipment-plans': { label: 'Monthly equipment plan', i18nKey: 'equipmentPlans:title' }, // i18n-exempt: translated at render
+  '/equipment-plans/settings': { label: 'Monthly plan settings', i18nKey: 'equipmentPlans:settings.title' }, // i18n-exempt: translated at render
   '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
   '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
   '/timesheets/review': { label: 'Timesheet review', i18nKey: 'timesheets:review.title' }, // i18n-exempt: translated at render
   '/projects/work-in-hand': { label: 'Work in hand', i18nKey: 'workInHand:title' }, // i18n-exempt: translated at render
+  '/subcontract-certificates': { label: 'Progress certificates', i18nKey: 'subcontractCertificates:title' }, // i18n-exempt: translated at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -586,6 +596,15 @@ export function breadcrumbForPath(
     ];
   }
 
+  // A certificate reads as Procurement > Progress certificates; the record header names the certificate itself.
+  if (/^\/subcontract-certificates\/[^/]+$/.test(pathname)) {
+    const list = '/subcontract-certificates';
+    const parent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[list]);
+    if (parent) return [
+      { label: parent.label, ...(parent.labelKey ? { i18nKey: parent.labelKey } : {}), href: parent.path, onClick: () => navigate?.(parent.path) },
+      { ...CHILD_PAGE_CRUMB[list], href: list, onClick: () => navigate?.(list) },
+    ];
+  }
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
   if (childCrumb && childParent) {
@@ -598,6 +617,18 @@ export function breadcrumbForPath(
       },
       childCrumb,
     ];
+  }
+
+  // A stock transfer's page reads Stock > Transfers (the page title carries its number), never a stuck "Loading…".
+  if (/^\/stock\/transfers\/[^/]+(\/print)?$/.test(pathname)) {
+    const stock = MODULES.find((m) => m.path === '/stock');
+    const transfers = CHILD_PAGE_CRUMB['/stock/transfers'];
+    if (stock) {
+      return [
+        { label: stock.label, ...(stock.labelKey ? { i18nKey: stock.labelKey } : {}), href: stock.path, onClick: () => navigate?.(stock.path) },
+        { ...transfers, href: '/stock/transfers', onClick: () => navigate?.('/stock/transfers') },
+      ];
+    }
   }
 
   // Placeholder routes win first — they are not tracked modules, so they would
@@ -758,6 +789,8 @@ export interface RecordLists {
   imprestFloats?: { id: string; name: string }[];
   /** #1519: equipment assets resolve from the cached asset list; the label is the asset name. */
   equipmentAssets?: { id: string; name: string }[];
+  /** A person's record (`/equipment/people/:id`) resolves from the page's own by-id read; the label is the name. */
+  people?: { id: string; name: string }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
   /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
@@ -888,6 +921,9 @@ export function recordLabelForPath(
 
   const equipmentAssetId = idFrom('/equipment/assets');
   if (equipmentAssetId) return lists.equipmentAssets?.find((a) => a.id === equipmentAssetId)?.name;
+
+  const personId = idFrom('/equipment/people');
+  if (personId) return lists.people?.find((p) => p.id === personId)?.name;
 
   const imprestFloatId = idFrom('/imprest');
   if (imprestFloatId) return lists.imprestFloats?.find((f) => f.id === imprestFloatId)?.name;

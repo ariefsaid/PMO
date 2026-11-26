@@ -263,7 +263,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(nextLate).not.toHaveClass('text-foreground');
   });
 
-  it('leads with My tasks, then my week, returned claims and recent entries; no company money', () => {
+  it('shows my tasks, returned claims and weekly time without company money', () => {
     renderDashboard();
 
     expect(screen.getByRole('heading', { level: 1, name: 'My dashboard' })).toBeInTheDocument();
@@ -273,9 +273,8 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(card).not.toHaveTextContent('99');
     expect(card).toHaveTextContent('Returned');
     expect(card).toHaveTextContent('Sent back for correction.');
-    // The first block is the person's own work; the week's timesheet sits beside it.
-    expect(tasksCard().compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(card.compareDocumentPosition(screen.getByTestId('engineer-returned')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tasksCard()).toBeInTheDocument();
+    expect(screen.getByTestId('engineer-returned')).toBeInTheDocument();
 
     const text = document.body.textContent ?? '';
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);

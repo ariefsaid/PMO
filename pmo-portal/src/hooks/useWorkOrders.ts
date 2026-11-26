@@ -6,6 +6,7 @@ import {
   type WorkOrderStatus,
   type SetWorkOrderValueInput,
 } from '@/src/lib/repositories';
+import type { Profile } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -14,14 +15,16 @@ import { useAuth } from '@/src/auth/useAuth';
  */
 
 /** Every work order on a project, newest first. */
+export const projectWorkOrdersQuery = (user: ProjectOrdersViewer | null | undefined, projectId: string) => ({
+  queryKey: ['work-orders', user?.org_id, projectId, user?.id, user?.role, user?.manager_id],
+  queryFn: () => repositories.workOrder.list(projectId),
+  enabled: Boolean(user?.org_id) && Boolean(projectId),
+});
+
+export type ProjectOrdersViewer = Pick<Profile, 'org_id' | 'id' | 'role' | 'manager_id'>;
+
 export function useProjectWorkOrders(projectId: string) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-orders', orgId, projectId, currentUser?.id, currentUser?.role, currentUser?.manager_id],
-    queryFn: () => repositories.workOrder.list(projectId),
-    enabled: Boolean(orgId) && Boolean(projectId),
-  });
+  return useQuery(projectWorkOrdersQuery(useAuth().currentUser, projectId));
 }
 
 /**

@@ -29,18 +29,18 @@ const PipelineFigures: React.FC<{ figures: ReturnType<typeof pipelineFigures>; o
     : [];
   useFigureReport(hidden);
   return (
-    <dl className="grid min-w-0 grid-cols-2 gap-x-3">
+    <dl className="grid min-w-0 grid-cols-2 gap-4">
       {figures.weighted !== null && (
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <div className="flex min-w-0 flex-col gap-1">
           <dt className="text-control font-medium text-muted-foreground">{t('sales:options.weightedForecast', 'Weighted forecast')}</dt>
           {/* T5: short on the tile, exact on hover and for screen readers (the home "Contract on hand"
               contract, AC-701) — one figure mechanism, not a second money formatter. */}
-          <dd className="text-group font-semibold tabular"><FigureLinesView figures={figures.weighted} testId="pipeline-weighted-total" /></dd>
+          <dd className="text-metric font-semibold tabular"><FigureLinesView figures={figures.weighted} testId="pipeline-weighted-total" /></dd>
         </div>
       )}
-      <div data-testid="pipeline-open-value" className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+      <div data-testid="pipeline-open-value" className="flex min-w-0 flex-col gap-1">
         <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
-        <dd data-testid="pipeline-open-value-figure" className="text-group font-semibold tabular"><FigureLinesView figures={figures.open} /></dd>
+        <dd data-testid="pipeline-open-value-figure" className="text-metric font-semibold tabular"><FigureLinesView figures={figures.open} /></dd>
         {/* Keep the population caption beside its open-value figure when the tile has room. */}
         <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
           {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
@@ -84,11 +84,11 @@ const SalesPipeline: React.FC = () => {
       ) : ready && m.isDesktop ? (
         <>
           <FigureHiddenLine className="mb-3 text-control text-muted-foreground" />
-          <div className="mb-2 grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+          <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)]">
+            <NeedsAttentionCard m={m} onOpen={setPreview} />
             <div className="min-w-0">
               <PipelineFunnel header={figures} projection={m.funnel} selectedIndex={m.stageIndex} stageLabel={m.stageLabel} onSelectStage={(s) => m.selectStage(s)} />
             </div>
-            <NeedsAttentionCard m={m} onOpen={setPreview} />
           </div>
         </>
       ) : null}
@@ -106,7 +106,7 @@ const SalesPipeline: React.FC = () => {
       </SalesKanbanBoardTaxBasisContext.Provider>
       {!m.isDesktop && ready && (
         <details data-testid="sales-phone-summary-details" className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
-          <summary className="cursor-pointer text-control font-semibold">
+          <summary className="min-h-11 cursor-pointer py-2 text-control font-semibold">
             {t('sales:options.figuresLabel', 'Pipeline figures')}
           </summary>
           <div className="mt-3 space-y-3">

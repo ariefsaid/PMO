@@ -855,6 +855,12 @@
       "to": "To",
       "name": "Name",
       "signatureDate": "Date"
+    },
+    "columns": {
+      "transfer": "Transfer",
+      "sent": "Sent",
+      "rejected": "Rejected",
+      "note": "Note"
     }
   },
   "handover": {
@@ -1005,7 +1011,9 @@
       "roleHelp": "This role decides the last step of a borrowing request.",
       "label": "Name of the approval step",
       "labelDefault": "Borrowing approval"
-    }
+    },
+    "free": "Free",
+    "reserved": "Reserved"
   },
   "dsrIssue": {
     "setting": "Validated daily reports issue their material from stock",
