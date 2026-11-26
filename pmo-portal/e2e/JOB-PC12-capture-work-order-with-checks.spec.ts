@@ -53,6 +53,7 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
     await expect(page.getByText(`Client PO ${run}/WO/001`)).toBeVisible({ timeout: 20_000 });
 
     // ...and attaches the client's document to it.
+    await openWorkOrderArea(page, 'documents');
     await page.getByRole('button', { name: 'Add document' }).click();
     await page.getByRole('dialog').getByLabel(/Title/).fill(`${run} client work order`);
     await page.getByRole('dialog').getByRole('button', { name: 'Add document' }).click();
@@ -96,7 +97,6 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
     // 4. The project manager sees all three done and issues the work order.
     await pm.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
-    await openWorkOrderArea(page, 'documents');
     for (const o of owners) await expect(page.getByTestId('wo-checks').getByRole('listitem').filter({ hasText: o.check })).toContainText('Done', { timeout: 20_000 });
     await expect(page.getByTestId('wo-checks')).toContainText('All 3 done');
     await expect(page.getByTestId('wo-checks-open')).toHaveCount(0);

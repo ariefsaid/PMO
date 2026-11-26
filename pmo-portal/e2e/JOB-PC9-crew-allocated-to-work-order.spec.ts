@@ -86,8 +86,8 @@ test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and
   // Goal: the work order's own page lists the rostered crew and the crane hours.
   await planner.signIn(page);
   await page.goto(`/work-orders/${wo.id}`);
-  await openWorkOrderArea(page, 'cost');
   await expect(page.getByTestId('wo-crews-today')).toContainText(`${run} crew`, { timeout: 20_000 });
+  await openWorkOrderArea(page, 'cost');
   const equipment = page.getByTestId('cost-group-equipment_usage');
   await expect(equipment).toContainText(run, { timeout: 20_000 });
   await expect(equipment).toContainText(/8 hours/);

@@ -97,9 +97,9 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
 
     // The running work order: its page shows the progress to date and the billed value that were loaded.
     await page.goto(`/work-orders/${wo.id}`);
-    await openWorkOrderArea(page, 'billing');
     await expect(page.getByRole('main')).toContainText(`${run} running scope`, { timeout: 30_000 });
     await expect(page.getByTestId(`scope-line-${line.id}`)).toContainText('40 of 100 m3', { timeout: 30_000 });
+    await openWorkOrderArea(page, 'billing');
     await expect(page.getByTestId('billing-invoiced')).toContainText(amount('750'), { timeout: 30_000 });
 
     // Stock → Balances: the counted quantity of the item in the warehouse.
