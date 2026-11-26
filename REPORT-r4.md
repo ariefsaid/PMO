@@ -1,0 +1,2 @@
+Round 4: RecordHeader's key-facts grid carries data-layout-ignore (a wrapped name is the owner's deliberate exception to columns-end-level); ux-proof on /work-orders/:id now reports 0 layout faults at 1440 and 390, with 0 impeccable and 0 axe serious/critical findings.
+Merged origin/batch/1126-ui into ui/1126-work-order-page and pushed; RecordHeader tests (18), typecheck and ESLint pass; the word budget (43/41 vs 31/35) is unchanged and remains the proof's only failure.
