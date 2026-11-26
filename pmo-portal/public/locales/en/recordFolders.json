@@ -48,6 +48,7 @@
     "open": "Open"
   },
   "notice": {
+    "folderAccessDenied": "You do not have access to this folder in Microsoft 365. Ask the folder's owner.",
     "expiredFolder": "The Microsoft 365 connection expired. Reconnect to see this folder’s files."
   },
   "folderTree": {
