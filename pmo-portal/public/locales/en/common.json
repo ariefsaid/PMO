@@ -2108,7 +2108,8 @@
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
       "payment": "Payment",
-      "rfq": "RFQ"
+      "rfq": "RFQ",
+      "quote": "Quote"
     },
     "capture": {
       "action": "Capture {{record}}",
