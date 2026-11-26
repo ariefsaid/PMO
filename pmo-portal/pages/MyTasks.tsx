@@ -11,13 +11,13 @@ import { recordLinkOf } from '@/src/lib/db/tasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
 import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskPriority, TaskStatus } from '@/src/lib/db/tasks';
 import { statusLabel } from '@/src/lib/status/statusMap';
 
 /** AC-IFW-TASKS-01 / PGA03-008: Today's calendar date string (YYYY-MM-DD) in user's timezone. */
-function todayIso(timezone = getActiveLocale().timezone): string {
+function todayIso(timezone = getActiveOrgTimezone()): string {
   return formatCalendarDayInTimeZone(new Date(), timezone);
 }
 
@@ -120,7 +120,7 @@ const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Bloc
  * one 38px control height per row beside the 38px status select, the 44px coarse-pointer target
  * from `.touch-target`, and a one-line label (`whitespace-nowrap`).
  */
-const ROW_ACTION_CLASS = `${buttonClasses('ghost')} whitespace-nowrap`;
+const ROW_ACTION_CLASS = `${buttonClasses('ghost')} whitespace-nowrap max-sm:min-h-11`;
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
@@ -260,12 +260,12 @@ const MyTasks: React.FC = () => {
       <PageHeader title={t('shell.nav.myTasks', 'My Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
-        <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
+        <div className={`mb-4 flex min-w-0 flex-wrap items-center gap-4 ${queue === 'open' ? 'border-b border-border pb-4' : 'border-b border-border pb-4'}`}>
           {queue === 'open' && openTaskCount !== null && (
             // Judging my-tasks #1 (Emphasis): one bare "17" and one bare red "15" made the reader
             // guess what was counted. Each figure now carries its word — "17 Open · 15 Overdue" —
             // and the exception colour sits once, on the overdue count, not on both.
-            <div className="flex shrink-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <div data-testid="my-tasks-waiting-summary" className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg bg-waiting-surface p-4">
               <span
                 data-testid="my-tasks-open-count"
                 aria-label={`${openTaskCount} ${t('myTasks.openTasks', 'Open tasks')}`}
@@ -301,6 +301,7 @@ const MyTasks: React.FC = () => {
           {/* DESIGN.md `seg`: the shared inline segmented control, `toggle` semantics — a queue
               filter with no tabpanels, so aria-pressed beats role="tab" (ViewToggle doc). */}
           <ViewToggle
+            className="max-sm:flex max-sm:w-full max-sm:[&>button]:flex-1"
             semantics="toggle"
             ariaLabel={t('myTasks.queueLabel', 'Task status')}
             value={queue}
@@ -311,10 +312,10 @@ const MyTasks: React.FC = () => {
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
-          <div className="max-w-xs"><SelectField id="my-task-work-order-filter" hideLabel
+          <div className="w-full min-w-0 sm:w-auto sm:max-w-xs"><SelectField id="my-task-work-order-filter" hideLabel
             label={tasksT('workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={setWorkOrderFilter}
             options={[{ value: 'all', label: tasksT('workOrderFilter.all', 'All work orders') }, { value: 'none', label: tasksT('workOrderFilter.none', 'No work order') }, ...Array.from(new Map((tasks ?? []).filter((task) => task.work_order_id && task.work_order_name).map((task) => [task.work_order_id!, task.work_order_name!])).entries()).map(([value, label]) => ({ value, label }))]} /></div>
-          <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:basis-full xl:basis-auto xl:flex-1">
             {/* #1461: a due=week drill names the active window and can clear it. */}
             {dueBy && (
               <StatusPill variant="warn" className="shrink-0">
@@ -335,7 +336,7 @@ const MyTasks: React.FC = () => {
               searchSurface="my-tasks-list"
               module="tasks"
               resultCount={visibleTasks.length}
-              containerClassName="flex-1 max-sm:w-full max-sm:min-w-0"
+              containerClassName="min-w-0 flex-1 max-sm:w-full"
             />
             {search && (
               <button
@@ -388,8 +389,8 @@ const MyTasks: React.FC = () => {
       {!isPending && !isError && grouped.length > 0 && (
         <div className="space-y-6">
           {grouped.map((group) => (
-            <section key={group.projectId} aria-label={group.projectName}>
-              <h2 className="mb-2 text-control font-semibold text-muted-foreground">
+            <section key={group.projectId} aria-label={group.projectName} className="min-w-0 rounded-lg border border-border bg-card">
+              <h2 className="break-words px-4 pb-3 pt-4 text-group font-semibold text-foreground">
                 {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
                     explicitly (/projects/:id/tasks) — the project URL default is role-invariant
                     Overview, so this link carries the intent rather than mutating the default. */}
@@ -407,14 +408,14 @@ const MyTasks: React.FC = () => {
                   <span data-testid="my-tasks-no-project-heading">{group.projectName}</span>
                 )}
               </h2>
-              <div className="rounded-lg border border-border bg-card divide-y divide-border">
+              <div className="divide-y divide-border border-t border-border">
                 {group.items.map((task) => (
                   <div
                     key={task.id}
-                    className="flex flex-col gap-2 px-4 py-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between"
+                    className="grid min-w-0 gap-2 px-4 py-3 xl:grid-cols-[minmax(0,1fr)_9rem_minmax(0,23rem)] xl:items-baseline xl:gap-4"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-col items-start gap-1 min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                         {/* Fix #6 (AC-FIX6-NAV-01): task name opens the project's Tasks tab.
                             No /tasks/:id route exists; navigating to /projects/:id/tasks is the
                             lower-risk option — the tab is already deep-linkable (App.tsx). */}
@@ -423,14 +424,14 @@ const MyTasks: React.FC = () => {
                         {task.project_id || task.meeting_id ? (
                           <Link
                             to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                            className="block min-w-0 flex-1 break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
+                            className="block min-w-0 basis-full break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                             title={task.name}
                           >
                             {task.name}
                           </Link>
                         ) : (
                           <span
-                            className="block min-w-0 flex-1 break-words text-control font-medium sm:truncate"
+                            className="block min-w-0 basis-full break-words text-control font-medium"
                             title={task.name}
                           >
                             {task.name}
@@ -446,17 +447,6 @@ const MyTasks: React.FC = () => {
                           <StatusPill variant={task.priority === 'Urgent' ? 'overdue' : task.priority === 'High' ? 'warn' : 'neutral'}>
                             {priorityLabels[task.priority]}
                           </StatusPill>
-                        )}
-                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
-                            Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
-                            everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
-                        {isOverdueTask(task, today) && (
-                          <LateText
-                            data-testid={`my-task-late-status-${task.id}`}
-                            emphasis={isMostUrgentLateRow(lateTasks, task)}
-                          >
-                            {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
-                          </LateText>
                         )}
                       </div>
                       {sourceIssues?.get(task.id) && (
@@ -481,28 +471,28 @@ const MyTasks: React.FC = () => {
                           {task.work_order_name}
                         </Link>
                       )}
-                      {(task.start_date || task.end_date) && (
-                        <span className="mt-0.5 block text-control text-muted-foreground">
-                          {task.start_date && (
-                            <span>
-                              {t('myTasks.start', 'Start {{date}}', {
-                                date: formatDay(task.start_date),
-                              })}
-                            </span>
-                          )}
-                          {task.start_date && task.end_date && <span className="mx-1">·</span>}
-                          {task.end_date && (
-                            <span>
-                              {t('myTasks.due', 'Due {{date}}', {
-                                date: formatDay(task.end_date),
-                              })}
-                            </span>
-                          )}
-                        </span>
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-control text-muted-foreground xl:flex-col">
+                      {task.end_date && (
+                        <span>{t('myTasks.due', 'Due {{date}}', { date: formatDay(task.end_date) })}</span>
                       )}
+                      {task.start_date && (
+                        <span>{t('myTasks.start', 'Start {{date}}', { date: formatDay(task.start_date) })}</span>
+                      )}
+                    {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
+                        Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
+                        everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
+                    {isOverdueTask(task, today) && (
+                      <LateText
+                        data-testid={`my-task-late-status-${task.id}`}
+                        emphasis={isMostUrgentLateRow(lateTasks, task)}
+                      >
+                        {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
+                      </LateText>
+                    )}
                     </div>
                     {/* Action cluster: Log time + status control. */}
-                    <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                       {/* #790: comments for ANY task of mine — also the only surface for a project-less task.
                           Director B6: the word "Comments" is painted beside the icon at both widths;
                           its accessible name still names the row it opens. */}
@@ -511,7 +501,7 @@ const MyTasks: React.FC = () => {
                         aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
                         title={t('comments.open', 'Comments')}
                         onClick={() => setCommentsTask({ id: task.id, name: task.name, status: task.status })}
-                        className={ROW_ACTION_CLASS}
+                        className={`${ROW_ACTION_CLASS} max-lg:px-0`}
                       >
                         <Icon name="message" className="size-4" />
                         {t('comments.open', 'Comments')}
@@ -552,7 +542,7 @@ const MyTasks: React.FC = () => {
                           )
                         }
                         options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabels[s] }))}
-                        className="w-auto min-w-[120px]"
+                        className="w-full min-w-[120px] sm:w-auto max-sm:[&_button]:min-h-11"
                       />
                     </div>
                   </div>

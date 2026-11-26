@@ -83,6 +83,13 @@ describe('AC-SCH-011 scheduled reports in the email card', () => {
     await waitFor(() => expect(sched.setEnabled).toHaveBeenCalledWith('r1', false));
   });
 
+  it('#2814 shows one recipient hint when no recipient is selected', async () => {
+    renderUi();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a scheduled report' }));
+    const form = await screen.findByRole('form', { name: 'Scheduled report' });
+    expect(within(form).getAllByText('Pick at least one role or person.')).toHaveLength(1);
+  });
+
   it('an Admin creates a weekly report for a role and a person', async () => {
     renderUi();
     fireEvent.click(await screen.findByRole('button', { name: 'Add a scheduled report' }));

@@ -1,3 +1,4 @@
+import { getNumberLocale } from "@/src/lib/locale/activeLocale";
 import React, { memo, useMemo, useRef } from 'react';
 import { rowContentKey, useLiveRowProps } from './useLiveRowProps';
 import { RowOpenControl } from './RowOpenControl';
@@ -20,20 +21,10 @@ import { LeadSlot, PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
 import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
 
-/** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
- *  (2026-10-08 fix round, AC-TBL-STICKY-001):
- *  1. In a `border-collapse` table the cell's collapsed `border-l` does NOT travel with a sticky
- *     cell — at the stuck position no border paints at all. The divider is an INSET box-shadow
- *     hairline, which paints with the cell's own layer in light and dark.
- *  2. A cell stuck flush (`right-0`) paints its background ~1px short of its layout edge, leaving
- *     a seam through which scrolled text shows as a glyph sliver PAST the ⋯ column. Sticking 1px
- *     PAST the scrollport edge (`-right-px`) lets the scroller's own clip cut the excess and
- *     closes the seam.
- *  3. An OUTSET box-shadow on a sticky table cell is not painted at all (clipped to the cell's
- *     box), so the left-cast separation shadow is a positioned gradient strip (ROW_MENU_SEAM_CLASS)
- *     rendered inside the cell — see DESIGN.md §6 Row actions. */
-const ROW_MENU_STICKY_CLASS =
-  'sticky -right-px shadow-[inset_1px_0_0_hsl(var(--border))]';
+/** Actions scroll with their row so they never cover a currency figure. */
+const ROW_MENU_STICKY_CLASS = "relative";
+/** The sticky actions cell's opaque surface, only while content scrolls under it (see 4 above). */
+const ROW_MENU_COVER = '[[data-dt-overflowing]_&]:bg-card';
 /** Left-cast separation gradient for the sticky actions column: from the `foreground` token
  *  (near-black in light, near-light in dark — the token flips the cast with the mode) fading out
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
@@ -134,7 +125,7 @@ function useStickyRowMenuSeam(
     const scrollport = scrollportRef.current;
     const table = tableRef.current;
     const report = (overflowing: boolean) => {
-      store.set(overflowing);
+      store.set(Boolean(scrollport && scrollport.scrollWidth > scrollport.clientWidth + 1));
       scrollport?.toggleAttribute('data-dt-overflowing', overflowing);
       onOverflowChange?.(overflowing);
     };
@@ -246,6 +237,13 @@ function DataTableRowInner<Row>({
     : onActivate
       ? 'bg-card group-hover:bg-surface-hover'
       : 'bg-card';
+  // The actions cell covers scrolled content only while there is any (ROW_MENU_STICKY_CLASS note 4); otherwise it is
+  // transparent and the row's own surface (hover, selected, an embedded table's page) shows through.
+  const stickyMenuSurface = selected
+    ? '[[data-dt-overflowing]_&]:bg-surface-selected'
+    : onActivate
+      ? cn(ROW_MENU_COVER, '[[data-dt-overflowing]_&]:group-hover:bg-surface-hover')
+      : ROW_MENU_COVER;
   return (
     // The <tr> keeps its IMPLICIT role="row" (never role="link",
     // which breaks table-row semantics and hides body rows from
@@ -302,11 +300,11 @@ function DataTableRowInner<Row>({
             {...(col.rowHeader ? { scope: 'row' as const } : {})}
             style={{
               width: columnWidthVar(col.key),
-              ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}),
+              minWidth: columnMinSize(col) ?? 120,
               ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}),
             }}
             className={cn(
-              'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+              'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
               compactRows ? 'py-0.5' : 'py-2',
               col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
               columnAlignmentClass(col),
@@ -327,7 +325,7 @@ function DataTableRowInner<Row>({
         );
       })}
       {rowMenu && (
-        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
+        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyMenuSurface)}>
           <RowMenuSeam store={seamStore} />
           {(() => {
             const items = rowMenu(row) ?? [];
@@ -614,7 +612,7 @@ export function DataTableDesktop<Row>({
     frozenKeys.current = keyed;
   }
   const { rowKeys, rowKeysSignature } = keyed;
-  const rowFingerprint = i18n.language;
+  const rowFingerprint = `${i18n.language}:${getNumberLocale()}`;
   const resizeHeaderKey = modelHeaders.map((header) => header.id).join('|');
   const resizeColumnVisibilityKey = columns
     .map((column) => `${column.key}:${column.colClassName ?? ''}`)
@@ -634,9 +632,10 @@ export function DataTableDesktop<Row>({
   const seamStore = useStickyRowMenuSeam(
     tableBranchRef,
     tableRef,
-    Boolean(rowMenu) || Boolean(onOverflowChange),
+    true,
     onOverflowChange,
   );
+  const tableOverflows = React.useSyncExternalStore(seamStore.subscribe, seamStore.get, () => false);
 
   React.useLayoutEffect(() => {
     updateResizeHandlePositions();
@@ -655,23 +654,34 @@ export function DataTableDesktop<Row>({
     .filter((column) => /(^|\s)hidden($|\s)/.test(column.colClassName ?? ''))
     .reduce((sum, column) => sum + (column.size ?? 0), 0);
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
+  // Default sizes are preferences: let the browser fit columns to the available panel.
+  // Once a person resizes a column, keep the fixed-width layout and its scrollport.
+  const hasUserColumnSizing = Object.keys(columnSizing).length > 0;
 
   return (
     /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
     // `relative` makes this scroller the containing block for the absolutely-positioned
     // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
     // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
+    <>
+    {tableOverflows && <div className="flex justify-end gap-1 border-b border-border bg-card px-2 py-1 print:hidden">
+      <button type="button" aria-label={t('ui:table.scrollLeft', 'Scroll table left')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => tableBranchRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}><Icon name="chev" className="size-4 rotate-180" /></button>
+      <button type="button" aria-label={t('ui:table.scrollRight', 'Scroll table right')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => tableBranchRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}><Icon name="chev" className="size-4" /></button>
+    </div>}
     <div
       ref={tableBranchRef}
+      tabIndex={0}
+      aria-label={accessibleName}
       data-testid="dt-table-branch"
-      className="relative overflow-x-auto"
+      className="relative min-w-0 max-w-full overflow-x-auto"
     >
       <table
         ref={tableRef}
         aria-label={accessibleName}
         style={{
           ...columnSizeVars,
-          ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+          minWidth: columns.filter((column) => !/(^|\s)hidden($|\s)/.test(column.colClassName ?? "")).reduce((sum, column) => sum + (columnMinSize(column) ?? 120), 0) + (rowMenu ? 40 : 0) + (selection ? 40 : 0),
+          ...(hasUserColumnSizing ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
         }}
         className="w-full border-collapse text-control"
       >
@@ -696,10 +706,10 @@ export function DataTableDesktop<Row>({
                   aria-labelledby={`datatable-header-label-${tableInstanceId}-${col.key}`}
                   aria-describedby={col.caveat ? caveatId : undefined}
                   style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
-                    ? { width: columnWidthVar(col.key), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
-                    : undefined}
+                    ? { width: columnWidthVar(col.key), minWidth: columnMinSize(col) ?? 120, ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
+                    : { minWidth: columnMinSize(col) ?? 120 }}
                   className={cn(
-                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground break-words select-none',
+                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] text-control font-semibold text-foreground break-normal select-none',
                     col.stickyLeft && 'left-0 z-[3]',
                     columnAlignmentClass(col),
                     numericColumnClass(col),
@@ -710,14 +720,14 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex max-w-full items-center gap-1 hover:text-foreground [&_svg]:size-3 [&_svg]:shrink-0"
+                      className="inline-flex max-w-full items-center gap-1 text-inherit hover:text-foreground [&_svg]:size-3 [&_svg]:shrink-0"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{col.header}</span>
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:normal]">{col.header}</span>
                       {col.caveat && <span aria-hidden="true" className="ml-0.5 shrink-0 text-warning-foreground">*</span>}
                       {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="shrink-0 opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                    <span className="inline-flex max-w-full items-baseline gap-0.5"><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:normal]">{col.header}</span>{col.caveat && <span aria-hidden="true" className="shrink-0 text-warning-foreground">*</span>}</span>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;
@@ -853,5 +863,6 @@ export function DataTableDesktop<Row>({
         </tfoot>}
       </table>
     </div>
+    </>
   );
 }

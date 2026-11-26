@@ -1,4 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { preloadProjectOrders } from '@/src/lib/routeData';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
@@ -66,6 +69,7 @@ const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project 
 
 /** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void; /** The Activity panel (delivery projects only). */ activity?: React.ReactNode }> = ({ project, isPipeline, onOpen, activity }) => {
+  const { t } = useTranslation('project');
   const lens = useLens();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -99,8 +103,13 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     }
     return (
       <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-2">
-        <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
-        <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
+        <details className="min-w-0 xl:col-span-2">
+          <summary className="cursor-pointer py-2 text-control font-semibold">{t('executionPlan', 'Execution plan')}</summary>
+          <div className="mt-3 grid min-w-0 gap-4 xl:grid-cols-2">
+            <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
+            <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
+          </div>
+        </details>
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
         {/* One surface language: the finances sit in a panel like their neighbours, never bare on the page. */}
         {canSeeMoney && <div className="panel-card min-w-0 p-[var(--panel-inset)] xl:col-span-2 [&>section]:border-y-0 [&>section]:py-0"><ProjectFinancesSection project={project} /></div>}
@@ -215,6 +224,9 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
 const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header, overviewPending = false }) => {
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
+  const client = useContext(QueryClientContext);
+  const viewer = useContext(AuthContext)?.currentUser;
+  const may = usePermission();
   const sectionsLabel = t('projectDetail.tabs.ariaLabel', 'Project sections');
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
   const [loadedCounts, setLoadedCounts] = useState<{ projectId: string; values: ProjectTabCounts }>(() => ({ projectId: project.id, values: {} }));
@@ -248,16 +260,20 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   // intent-driven preload the rail nav links use — instead of only after the
   // click, where it lands behind the Suspense boundary as one more serial
   // step. preloadProjectTab is memoized per chunk, so repeats are free.
-  const preloadTabChunk = (event: React.PointerEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
+  const preloadTab = (event: React.PointerEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
     const prefix = `${tabId('project-detail', '')}`;
     const tab = (event.target as HTMLElement).closest('[role="tab"]');
     if (!tab || !tab.id.startsWith(prefix)) return;
-    preloadProjectTab(tab.id.slice(prefix.length) as Area);
+    const next = tab.id.slice(prefix.length) as Area;
+    preloadProjectTab(next);
+    if (next === 'orders' && client && viewer?.org_id) {
+      preloadProjectOrders(client, viewer.org_id, project.id, may('view', 'workOrderPlan'), viewer);
+    }
   };
   return (
     <>
       {header}
-      <div data-testid="mobile-project-area-select" className="mb-4 md:hidden">
+      <div data-testid="mobile-project-area-select" className="sticky top-0 z-10 mb-4 bg-background py-2 md:hidden">
         <SelectField
           label={sectionsLabel}
           hideLabel
@@ -270,9 +286,9 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
       <div
         data-testid="project-section-tabs"
         className="hidden md:block"
-        onPointerOver={preloadTabChunk}
-        onPointerDown={preloadTabChunk}
-        onFocusCapture={preloadTabChunk}
+        onPointerOver={preloadTab}
+        onPointerDown={preloadTab}
+        onFocusCapture={preloadTab}
       >
         <Tabs<Area>
           items={items}

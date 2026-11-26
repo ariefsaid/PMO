@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { signIn } from '../helpers';
-import { need, ORG_ID, serviceClient } from '../support/jobJourney';
+import { need, ORG_ID, orgToday, serviceClient } from '../support/jobJourney';
 
 test.setTimeout(120_000);
 
@@ -59,7 +59,7 @@ test('AC-CLR-011: an Admin defines an item (the checklist is on for everyone, #2
   await expect(page.getByText('Not cleared').first()).toBeVisible();
   await page.getByRole('button', { name: `Record ${itemName}` }).click();
   const state = page.getByRole('dialog');
-  await state.getByRole('textbox', { name: /Date done/ }).fill(new Date().toISOString().slice(0, 10));
+  await state.getByRole('textbox', { name: /Date done/ }).fill(orgToday());
   await page.keyboard.press('Tab');
   await state.getByRole('button', { name: 'Save' }).click();
   await expect(state).toHaveCount(0);

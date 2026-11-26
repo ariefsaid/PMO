@@ -1,7 +1,8 @@
 // @e2e-isolation: self-isolated — own organisation, role logins and cost/progress records; deletes the organisation and users.
 import { test, expect } from '@playwright/test';
-import { serviceClient, need } from './support/jobJourney';
+import { serviceClient, need, inDays, orgToday } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120000);
 test('JOB-PC26 project control sees cost and schedule indices after approved labour is posted', async ({ page }) => {
@@ -11,10 +12,8 @@ test('JOB-PC26 project control sees cost and schedule indices after approved lab
   const pcm = await createJobRoleUser(db, org.id, 'project_control_manager');
   const engineer = await createJobRoleUser(db, org.id, 'engineer');
   const administrator = await createJobRoleUser(db, org.id, 'administrator');
-  const monday = new Date();
-  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
-  const week = monday.toISOString().slice(0, 10);
-  const day = new Date().toISOString().slice(0, 10);
+  const day = orgToday(); // the organisation's day: timesheets, site reports and rate effectivity are read by it
+  const week = inDays(-((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7)); // Monday of the organisation's week
   try {
     const project = must('project', await db.from('projects').insert({ org_id: org.id, name: 'Measured work', status: 'Ongoing Project', currency: 'IDR' }).select('id').single());
     const wo = must('work order', await db.from('work_orders').insert({ org_id: org.id, project_id: project.id, title: 'Site work', status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'IDR', start_date: day, end_date: day }).select('id').single());
@@ -30,7 +29,7 @@ test('JOB-PC26 project control sees cost and schedule indices after approved lab
     must('earned work', await db.from('dsr_progress_lines').insert({ org_id: org.id, report_id: report.id, position: 1, work_order_line_id: line.id, quantity: 50, unit: 'm', frozen_amount: 500 }).select('id'));
     await pcm.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Cost and plan', exact: true }).click();
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByTestId('wo-page-performance-cpi-value')).toContainText('1.25');
     await expect(page.getByTestId('wo-page-performance-spi-value')).toContainText('0.50');
   } finally {

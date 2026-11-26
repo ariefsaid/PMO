@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { serviceClient, need, ok, ORG_ID, PM_ID, runId, sqlAsOwner } from './support/jobFixtures';
+import { inDays } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { makeItem, makeWarehouse, runSuffix } from './support/stockFixture';
 
@@ -67,11 +68,11 @@ test('JOB-A8 a field user sees only their tasks, clock-in, deliveries and issues
   personId = need('person', await admin.from('people').insert({
     org_id: ORG_ID, kind: 'own', code: `A8-${sfx.slice(-8)}`, name: `Field person ${sfx}`, profile_id: worker.id,
   }).select('id').single()).id as string;
-  const from = new Date(); from.setDate(from.getDate() - 1);
+  const from = inDays(-1); // rostered from yesterday by the organisation's clock, which is what today's roster reads
   ok('roster', await admin.from('work_order_crews').insert({
-    org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from.toISOString().slice(0, 10),
+    org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from,
   }));
-  ok('crew member', await admin.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: personId, valid_from: from.toISOString().slice(0, 10) }));
+  ok('crew member', await admin.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: personId, valid_from: from }));
   const taskName = `Lay cable ${sfx}`;
   ok('task', await admin.from('tasks').insert({
     org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, name: taskName, status: 'To Do', assignee_id: worker.id,

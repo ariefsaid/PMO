@@ -32,6 +32,8 @@ export const MyNotices: React.FC = () => {
     const route = entityRoute(readMetadata(row.metadata as never).entity);
     if (route && LIGHT_ROUTE_PATHS.some((p) => matchPath(p, route))) navigate(route);
   };
+  if (notices.isSuccess && rows.length === 0) return null;
+
   return (
     <MySection id="my-notices" title={t('myHome:notices.title', 'Notices')}>
       {notices.isPending ? <p className="text-control text-muted-foreground">{t('common:shell.notifications.loading', 'Loading notifications…')}</p>

@@ -1,3 +1,4 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 /** AC-TX-008 (#2712): Administration › Terminology › Role names. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -17,17 +18,35 @@ vi.mock('@/src/lib/db/orgRoleNames', async (orig) => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
 
+import { listOrgRoleNames } from '@/src/lib/db/orgRoleNames';
 import AdministrationRoleNames from './AdministrationRoleNames';
 
 const wrap = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider><AdministrationRoleNames /></ToastProvider>
+      <ToastProvider><SettingsSaveProvider><SettingsSaveAction /><AdministrationRoleNames /></SettingsSaveProvider></ToastProvider>
     </QueryClientProvider>,
   );
 
 describe('AC-TX-008 role names screen', () => {
   beforeEach(() => { vi.clearAllMocks(); permissions.write = true; });
+  it('#2813 shows the stored wording after the second language fails to save', async () => {
+    save.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Failed to fetch'));
+    wrap();
+    await screen.findByTestId('role-name-card-storekeeper');
+    const english = within(screen.getByTestId('role-name-row-storekeeper-en')).getByRole('textbox', { name: 'Name' });
+    const bahasa = within(screen.getByTestId('role-name-row-storekeeper-id')).getByRole('textbox', { name: 'Name' });
+    expect(english).toHaveValue('Yard Lead');
+    vi.mocked(listOrgRoleNames).mockResolvedValueOnce({ en: { storekeeper: 'Yard Supervisor' } });
+    await userEvent.clear(english);
+    await userEvent.type(english, 'Yard Supervisor');
+    await userEvent.type(bahasa, 'Pengawas');
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+    await userEvent.click(saveButton);
+    await waitFor(() => expect(bahasa).toHaveValue(''));
+    expect(english).toHaveValue('Yard Supervisor');
+    expect(saveButton).toBeDisabled();
+  });
   it('lists all 28 roles with both languages', async () => {
     wrap();
     await screen.findByTestId('role-name-card-storekeeper');
@@ -41,7 +60,7 @@ describe('AC-TX-008 role names screen', () => {
     await waitFor(() => expect(input.value).toBe('Yard Lead'));
     await userEvent.clear(input);
     await userEvent.type(input, 'Yard Chief');
-    await userEvent.click(within(screen.getByTestId('role-name-card-storekeeper')).getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith({ roleKey: 'storekeeper', locale: 'en', name: 'Yard Chief' }));
     expect(save).toHaveBeenCalledTimes(1);
   });

@@ -6,7 +6,9 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { serviceClient, SEED_SUPPLIER_ID } from './procurement-fixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -95,7 +97,7 @@ test.beforeAll(async () => {
     procurement_id: procurementId,
     work_order_id: workOrderId,
     status: 'Complete',
-    receipt_date: new Date().toISOString().slice(0, 10),
+    receipt_date: orgToday(),
     org_id: ORG_ID,
   });
   if (receiptError) throw new Error(`JOB-PU22 receipt: ${receiptError.message}`);
@@ -200,6 +202,7 @@ test('JOB-PU22 the receipt row shows its value read from the order lines (Rp 45 
 
   // Navigate to real work-order cost page as lawful role (Finance)
   await page.goto(`/work-orders/${workOrderId}`);
+  await openWorkOrderArea(page, 'cost');
   await expect(page.getByRole('heading', { name: woNumber })).toBeVisible({ timeout: 20_000 });
 
   // Assert goods receipt commitment explanation: no bill recorded, so 0 recognized direct cost

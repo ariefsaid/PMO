@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { PriorRequests } from './materialRequests/PriorRequests';
+import { PlanFigures } from './materialRequests/PlanFigures';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Combobox, DateField, ListState, SelectField, TextArea, TextField, useToast } from '@/src/components/ui';
@@ -146,7 +146,7 @@ const MaterialRequestNewPage: React.FC = () => {
 
   const busy = m.saveDraft.isPending || m.submit.isPending;
   return (
-    <div className="mx-auto max-w-2xl pb-8">
+    <div className="max-w-2xl pb-8">
       <BackBar label={t('form.back', 'Material requests')} onBack={() => navigate('/material-requests')} />
       <h1 className="mb-4 text-xl font-semibold">{requestId ? t('form.editTitle', 'Edit request') : t('form.title', 'New material request')}</h1>
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
@@ -202,30 +202,16 @@ const MaterialRequestNewPage: React.FC = () => {
                   error={touched && extraErrors[i] === 'quantityDecimals' ? t('form.quantityDecimals', 'Use at most three decimals.')
                     : touched && extraErrors[i] === 'wholeOnly' ? t('form.wholeOnly', 'This item is counted in whole units. Enter a whole number.')
                     : err === 'quantityRequired' ? t('form.quantityRequired', 'Enter a quantity above zero.') : undefined} />
-                {l.itemId && (
-                  <p className="text-control text-muted-foreground" data-testid="mrq-plan">
-                    {plans.isPending ? '…' : p
-                      ? (
-                        <>
-                          {t('form.planLead', 'Plan {{plan}} · ', { plan: p.planQty })}
-                          <PriorRequests workOrderId={workOrderId} itemId={l.itemId} excludeRequestId={requestId} prior={p.priorQty} />
-                          {t('form.planTail', ' · new total {{total}}', { total: st?.newTotal })}
-                        </>
-                      )
-                      : t('form.planUnknown', 'Plan figures unavailable')}
-                    {p?.planSource && <span className="ml-2" data-testid="mrq-plan-source">{t(`form.planSource.${p.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[p.planSource])}</span>}
-                    {st?.overPlan && <strong className="ml-2 text-warning-foreground">{t('form.overPlan', 'Over plan')}</strong>}
-                  </p>
-                )}
+                {l.itemId && (plans.isPending ? <p className="text-control text-muted-foreground">…</p> : p
+                  ? <PlanFigures workOrderId={workOrderId} itemId={l.itemId} excludeRequestId={requestId} unit={item ? unitName(item.unit_id) : ''}
+                    plan={p.planQty} prior={p.priorQty} newTotal={st?.newTotal} overPlan={Boolean(st?.overPlan)}
+                    source={p.planSource ? t(`form.planSource.${p.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[p.planSource]) : undefined}
+                    section={sp && sp.sectionPlanQty !== null ? { label: terms.section, plan: sp.sectionPlanQty, prior: sp.sectionPriorQty ?? 0 } : null} />
+                  : <p className="text-control text-muted-foreground" data-testid="mrq-plan">{t('form.planUnknown', 'Plan figures unavailable')}</p>)}
                 {l.itemId && p && !plans.isPending && <UsageWarning line={{ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity) }} thresholds={usage.thresholds} />}
-                {l.itemId && sp && sp.sectionPlanQty !== null && (
-                  <p className="text-control text-muted-foreground" data-testid="mrq-section-plan">
-                    {t('form.sectionPlanLine', '{{section}} plan {{plan}} · already requested {{prior}}', { section: terms.section, plan: sp.sectionPlanQty, prior: sp.sectionPriorQty ?? 0 })}
-                  </p>
-                )}
                 {/* A reason already typed stays visible (and editable) even before the plan figures load, so a returned request never looks like it lost it. */}
                 {(st?.overPlan || l.reason.trim() !== '') && (
-                  <TextArea label={t('form.reason', 'Why do you need more than the plan?')} required maxLength={500} rows={2}
+                  <TextArea label={st?.overPlan ? t('form.reason', 'Why do you need more than the plan?') : t('form.savedReason', 'Saved reason')} required={Boolean(st?.overPlan)} maxLength={500} rows={2}
                     value={l.reason} onChange={(v) => patch(l.key, { reason: v })}
                     error={err === 'reasonRequired' ? t('form.reasonRequired', 'Give a reason (up to 500 characters).') : err === 'reasonTooLong' ? t('form.reasonTooLong', 'Keep the reason under 500 characters.') : undefined} />
                 )}

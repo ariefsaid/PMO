@@ -18,7 +18,7 @@ test.setTimeout(180_000);
 
 const PROJECT_ID = '40000000-0000-0000-0000-000000000001';
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date) => d.toISOString().slice(0, 10); // e2e-org-day: allow — the Gantt (and its Today button) run on the browser's UTC clock; seeded days match that same UTC month
 const now = new Date();
 const monthDay = (day: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day));
 const START = monthDay(10);

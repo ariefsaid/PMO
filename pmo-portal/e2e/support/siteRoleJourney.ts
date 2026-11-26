@@ -1,14 +1,19 @@
 import { expect, type Page } from '@playwright/test';
 import { serviceClient, need, ORG_ID } from './jobJourney';
+import { jobRoleUser } from './jobRole';
+
 export async function siteRole(jobRole: string, role: 'Engineer' | 'Project Manager' | 'Finance' = 'Engineer') {
- const db=serviceClient(jobRole); const must=need(jobRole); const suffix=crypto.randomUUID();
- const email=`site-${suffix}@example.invalid`; const password=`${suffix}-Aa1!`;
- const created = await db.auth.admin.createUser({email,password,email_confirm:true}); if(created.error || !created.data.user) throw new Error(created.error?.message ?? 'User not created'); const user = created.data.user;
- must('profile',await db.from('profiles').insert({id:user.id,org_id:ORG_ID,email,full_name:`Test ${jobRole}`,role,built_in_role:jobRole}).select('id').single());
- return {id:user.id, db, async login(page:Page) {
-  await page.goto('/login'); await page.getByLabel(/email/i).fill(email); await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button',{name:/sign in/i}).click(); await expect(page).toHaveURL(jobRole === 'foreman' ? /\/my$/ : /\/$/);
- }, async cleanup() { await db.from('profiles').delete().eq('id',user.id); await db.auth.admin.deleteUser(user.id); }};
+  const db = serviceClient(jobRole);
+  const actor = await jobRoleUser({ service: db, jobRole, role, displayName: `Test ${jobRole}` });
+  return {
+    id: actor.id,
+    db,
+    async login(page: Page) {
+      await actor.signIn(page);
+      await expect(page).toHaveURL(jobRole === 'foreman' ? /\/my$/ : /\/$/);
+    },
+    cleanup: actor.cleanup,
+  };
 }
 
 export async function siteWorkOrder(db: ReturnType<typeof serviceClient>) {

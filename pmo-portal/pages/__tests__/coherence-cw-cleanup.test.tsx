@@ -261,16 +261,13 @@ describe('AC-S20-001: one evidence-first decision area', () => {
   it('AC-S20-001: the approver has exactly one Approve action in the header and no mirrored desktop CTA', () => {
     renderPage();
     // Scoped to the header: the phone-only fixed bar (sm:hidden) carries the same verb in the DOM.
-    const actions = screen.getByTestId('record-header-actions');
-    expect(within(actions).getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
+    const decision = screen.getByTestId('procurement-decision');
+    expect(within(decision).getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
   });
 
-  it('AC-S20-001: the decision control lives in the RecordHeader actions slot (placement holds)', () => {
-    renderPage();
-    const actions = screen.getByTestId('record-header-actions');
-    expect(within(actions).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
-  });
+
 });
 
 // ---------------------------------------------------------------------------

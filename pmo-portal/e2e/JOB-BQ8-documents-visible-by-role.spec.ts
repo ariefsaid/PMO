@@ -6,7 +6,9 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { createJobRoleUser } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -53,7 +55,7 @@ test.beforeEach(async () => {
   // Both documents are attached to this work order's BASTs — which is how a work order's Documents section finds them.
   for (const [i, documentId] of [hiddenDocId, openDocId].entries()) {
     ok('acceptance', await db.from('work_order_acceptances').insert({
-      org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: new Date().toISOString().slice(0, 10),
+      org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: orgToday(),
       is_final: false, status: 'Draft', prepared_by: finance.id, document_id: documentId, note: `stage ${i + 1}`,
     }));
   }
@@ -79,6 +81,7 @@ test('JOB-BQ8 a quality inspector opens a work order and does not see the catego
   try {
     await quality.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'documents');
     const documents = page.getByTestId('wo-documents');
     await expect(documents.getByText(`${run} quality report`)).toBeVisible({ timeout: 15_000 });
     await expect(documents.getByText(`${run} commercial report`)).toHaveCount(0);

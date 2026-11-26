@@ -1,9 +1,13 @@
 {
   "asOf": "As of {{date}}",
+  "table": {
+    "scrollLabel": "{{currency}} contracts and work orders"
+  },
   "attention": {
     "noRate": "No billing rate",
     "over": "Billed over value",
-    "title": "Needs a look"
+    "title": "Needs a look",
+    "sharedReason": "{{count}} projects: {{reason}}"
   },
   "col": {
     "backlog": "Months of backlog",
@@ -64,7 +68,8 @@
     "open": "Open {{name}}",
     "over": "Billed over value",
     "showMonths": "Show months for {{name}}",
-    "workOrder": "Work order"
+    "workOrder": "Work order",
+    "monthDetails": "Monthly details"
   },
   "sort": {
     "backlog": "Months of backlog",

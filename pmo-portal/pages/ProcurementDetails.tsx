@@ -52,9 +52,7 @@ import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { ProcurementDetailsTab, ProcurementItemsTab, ProcurementQuotesTab } from './procurement/ProcurementDetailTabs';
-import { LinePlanningPanel } from './procurement/LinePlanningPanel';
-import { OrderNeededByPanel } from './procurement/OrderNeededByPanel';
-import { LineWorkOrdersPanel } from './procurement/LineWorkOrdersPanel';
+import { LinePlanPanel } from './procurement/LinePlanPanel';
 import { OrderReceivingProgress } from './stock/OrderReceivingProgress';
 import { procurementAttachTargets, procurementDetailRows, procurementTabs, tabFromParam, type ProcTab } from './procurement/procurementDetailView';
 import { useProcurementDecision } from './procurement/useProcurementDecision';
@@ -613,7 +611,10 @@ const ProcurementDetails: React.FC = () => {
 
   // Counts are derived from the loaded records; SharePoint references stay out.
   const ledgerRows = buildLedgerRows(p);
-  const documentsCount = ledgerRows.length + linkedDocs.length + p.statusEvents.length;
+  const visibleLinkedDocsCount = isEngineer
+    ? linkedDocs.filter((doc) => doc.doctype !== 'Purchase Invoice' && doc.doctype !== 'Payment Entry').length
+    : linkedDocs.length;
+  const documentsCount = 1 + ledgerRows.length + visibleLinkedDocsCount + p.statusEvents.length;
   const attachTargets = procurementAttachTargets(ledgerRows, linkedDocs, t);
   const procTabs = procurementTabs(p, t, documentsCount, ledgerRows);
   // AC-IXD-PROC-005: a closed procurement (Paid, Cancelled, Rejected) takes no new documents — same rule as the Files-tab capture row.
@@ -725,6 +726,7 @@ const ProcurementDetails: React.FC = () => {
   </label>;
   const headerNotes = [
     mutationError && <p key="error" role="alert" data-testid="procurement-mutation-error" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>,
+    waitingNote && <p key="waiting" data-testid="procurement-waiting" className="text-control text-muted-foreground">{waitingNote}</p>,
     !decidesHere && approverLimitLine && <p key="limit" className="font-medium">{approverLimitLine}</p>,
     !decidesHere && decisionContextNote && <p key="sod" data-testid="sod-ready-hint">{decisionContextNote}</p>,
     isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p key="gate" data-testid="line-items-gate">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>,
@@ -744,6 +746,12 @@ const ProcurementDetails: React.FC = () => {
         <span>{decisionLine.map((part, i) => <React.Fragment key={i}>{i > 0 && ' · '}<span>{part}</span></React.Fragment>)}</span>
       </p>}
       {approvalNote}
+      {!isNarrow && mainAction && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" size="sm" onClick={clickMainAction}>{mainAction.label}</Button>
+          {returnAction && <Button variant="outline" size="sm" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>}
+        </div>
+      )}
     </div>
   ) : null;
   const budgetImpact = requestStage && p.project_id ? <DecisionSupportPanel
@@ -797,21 +805,11 @@ const ProcurementDetails: React.FC = () => {
         // Each later item carries its dot before it in a fixed 16px slot; the row is shifted left by one slot inside a
         // clipping wrapper, so the dot that starts a wrapped line falls outside it and no line begins with "·".
         meta={meta.length ? <span className="block overflow-hidden"><span data-testid="record-meta" className="flex flex-col gap-y-1 sm:-ml-4 sm:flex-row sm:flex-wrap sm:items-center [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className={i === 0 ? 'sm:whitespace-nowrap sm:pl-4' : 'sm:whitespace-nowrap'}>{i > 0 && <span data-meta-dot aria-hidden="true" className="hidden w-4 text-center text-muted-foreground sm:inline-block">·</span>}{part}</span>)}</span></span> : undefined}
-        // Where no action is offered, the slot says who the purchase waits on (#1404).
-        actions={waitingNote || !isNarrow ? <>
-          {waitingNote && <span data-testid="procurement-waiting" className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
-          {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
-        </> : undefined}
+        actions={!isNarrow ? <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} /> : undefined}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.
-        primaryAction={mainAction && !isNarrow ? (
-          returnAction && mainAction.to === 'Approved' ? (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>
-              <Button variant="primary" size="sm" onClick={clickMainAction}>{mainAction.label}</Button>
-            </div>
-          ) : (
-            <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
-          )
+        // When deciding an approval, Approve + Return sit directly under the approval note in the tinted decision band.
+        primaryAction={mainAction && !isNarrow && !decidesHere ? (
+          <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
         ) : undefined}
         menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}
@@ -878,7 +876,7 @@ const ProcurementDetails: React.FC = () => {
         <div className="mb-3">
           <RentalPanel readOnly={readOnlyDecision} procurementId={p.id} title={p.title} status={p.status} purchaseTypeId={p.purchase_type_id}
             rentalFrom={p.rental_from} rentalTo={p.rental_to} extendsId={p.extends_procurement_id}
-            lines={(p.items ?? []).map((i) => ({ id: i.id, name: i.name, description: i.description ?? null, quantity: Number(i.quantity), rate: Number(i.rate) }))} />
+            lines={(p.items ?? []).map((i) => ({ id: i.id, name: i.name, description: i.description ?? null, quantity: Number(i.quantity), rate: i.rate === null ? null : Number(i.rate) }))} />
         </div>
       )}
 
@@ -902,7 +900,6 @@ const ProcurementDetails: React.FC = () => {
       >
         {tab === 'timeline' && <RecordStack>
           <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
-          <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />
           {primaryPo && (
             <RecordSection data-testid="procurement-po-print" title={t('procurement:purchaseOrderPrint.section', 'Purchase order')}>
               {poPrintEnabled
@@ -913,7 +910,12 @@ const ProcurementDetails: React.FC = () => {
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
-        {tab === 'items' && <><ProcurementItemsTab readOnly={readOnlyDecision} p={p} stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><OrderNeededByPanel procurementId={p.id} items={p.items} editable={!readOnlyDecision && ['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={!readOnlyDecision && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /></>}
+        {tab === 'items' && <RecordStack><ProcurementItemsTab readOnly={readOnlyDecision} p={p} stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} />
+          {/* One table for when and for what each line is needed (category, needed-by, work order), under the money table. */}
+          <LinePlanPanel procurementId={p.id} items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id}
+            planningEditable={canEditItems && canEditItemValues}
+            neededByEditable={!readOnlyDecision && ['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')}
+            workOrdersEditable={!readOnlyDecision && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /></RecordStack>}
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
@@ -1015,8 +1017,7 @@ const ProcurementDetails: React.FC = () => {
 
         {tab === 'quotes' && p.status === 'Approved' && <div data-testid="quote-next-step" className="mb-3 space-y-3"><p>{t('walkMoney:quotes.next', 'Request quotations before adding and selecting supplier quotes.')}</p>{actionFor('Vendor Quoted') && <Button variant="outline" onClick={() => onActionClick(actionFor('Vendor Quoted')!)}>{actionFor('Vendor Quoted')!.label}</Button>}</div>}
         {tab === 'quotes' && <ProcurementQuotesTab p={p} selectedQuote={selectedQuote} vendorMap={vendorMap} mutations={mutations} crud={crud} canAddQuote={canAddQuote && p.status === 'Vendor Quoted'} canSelectQuote={canSelectQuote} canManageFiles={canManageFiles} currentUserId={currentUserId} onMutationError={onMutationError} />}
-        {tab === 'details' && <ProcurementDetailsTab rows={detailRows} canEditHeader={canEditHeader} onEdit={() => setHeaderEditOpen(true)} />}
-        {tab === 'details' && <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />}
+        {tab === 'details' && <ProcurementDetailsTab rows={detailRows} canEditHeader={canEditHeader} onEdit={() => setHeaderEditOpen(true)} extra={<PaymentChannelSection asDetailRow procurementId={p.id} canSet={canSetPaymentChannel} />} />}
       </div>
 
       {captureKind && <RecordSection className="mt-[var(--space-section)]" data-testid="procurement-record-capture" title={recordKindLabels[captureKind]} actions={<Button variant="outline" size="sm" onClick={() => guardCaptureLeave(closeCapture)}>{t('procurementRecord:close', 'Close')}</Button>}>

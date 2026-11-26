@@ -44,6 +44,19 @@ describe('rental panel and the guided extension (#2697)', () => {
     expect(arg.lines).toEqual([expect.objectContaining({ name: 'Crane', quantity: 1, rate: 1000 })]);
   });
 
+  it('#2788 with the rate hidden, the extension sends no rate and names the line it continues', async () => {
+    h.extend.mockResolvedValue('p2');
+    view({ lines: [{ id: 'l1', name: 'Crane', description: null, quantity: 1, rate: null }] });
+    await userEvent.click(screen.getByRole('button', { name: 'Extend rental' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText('Rate')).toHaveValue('');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create extension order' }));
+    expect(h.extend).toHaveBeenCalledTimes(1);
+    const [line] = h.extend.mock.calls[0][0].lines;
+    expect(line).toMatchObject({ name: 'Crane', quantity: 1, originalLineId: 'l1' });
+    expect('rate' in line).toBe(false);
+  });
+
   it('AC-PTR-015 a refusal from the server shows on the form', async () => {
     h.extend.mockRejectedValue(new Error('PTYPE_EXT_OVERLAP: another extension of this rental already covers part of that period'));
     view();

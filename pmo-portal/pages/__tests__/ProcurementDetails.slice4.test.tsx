@@ -277,7 +277,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     // u-alice is NOT the requester
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
     await openMoreActions();
     expect(screen.getByRole('menuitem', { name: /^return$/i })).toBeInTheDocument();
   });
@@ -387,7 +387,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     detailState.data = { ...BASE, status: 'Cancelled' };
     renderPage();
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Cancelled');
-    expect(headerActions().queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
   });
 
   it('F3: while a goods receipt form is open, no lifecycle-buttons line is shown at all', async () => {
@@ -420,7 +420,7 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     // The restructured header (#1404) replaces the long self-approve paragraph with "Waiting for approval".
-    expect(headerActions().getByText(/^waiting for /i)).toBeInTheDocument();
+    expect(screen.getByText(/^waiting for /i)).toBeInTheDocument();
     // No Approve button offered to the requester
     expect(screen.queryByRole('button', { name: /^approve$/i })).toBeNull();
   });
@@ -750,7 +750,7 @@ describe('AC-PR-S4-007 (edge case): terminal/rejected states', () => {
     detailState.data = { ...BASE, status: 'Cancelled' };
     renderPage('proc-001', 'timeline');
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Cancelled');
-    expect(headerActions().queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
   });
 
   it('Rejected: requester rework path shown; capture row hidden', () => {
@@ -780,7 +780,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     authState.userId = 'u-alice';
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(headerActions().getByRole('button', { name: /^approve$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^approve$/i }));
     // A dialog must appear (role=dialog or role=alertdialog)
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();

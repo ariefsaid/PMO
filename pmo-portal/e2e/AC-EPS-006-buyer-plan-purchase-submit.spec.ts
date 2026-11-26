@@ -1,4 +1,5 @@
 // @e2e-isolation: self-isolated — owns an organisation, two job logins, its Admin, approved plan and generated purchases; changes no shared setting.
+import { jobRoleUser } from './support/jobRole';
 import { test, expect } from '@playwright/test';
 import { serviceClient, need, ok, runId } from './support/jobFixtures';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
@@ -18,12 +19,9 @@ test.beforeEach(async () => {
   ok('organisation', await db.from('organizations').insert({ id: orgId, name: tag, built_in_roles_enabled: true }));
   buyer = await createJobRoleUser(db, orgId, 'buyer');
   officer = await createJobRoleUser(db, orgId, 'equipment_officer');
-  const email = `${tag}-admin@example.test`;
-  const password = crypto.randomUUID() + 'Aa1!';
-  const user = await db.auth.admin.createUser({ email, password, email_confirm: true });
-  if (user.error || !user.data.user) throw user.error ?? new Error('Admin fixture missing');
-  adminId = user.data.user.id;
-  ok('Admin profile', await db.from('profiles').upsert({ id: adminId, org_id: orgId, email, full_name: 'Journey Admin', role: 'Admin', status: 'active' }));
+  const actor = await jobRoleUser({ jobRole: 'administrator', role: 'Admin', org: orgId, service: db, run: `${tag}-admin`, displayName: 'Journey Admin' });
+  const { email, password } = actor;
+  adminId = actor.id;
   const admin = serviceClient('equipment-plan fixture Admin');
   ok('Admin sign-in', await admin.auth.signInWithPassword({ email, password }));
   ok('ordering roles', await admin.rpc('po_set_order_job_roles', { p_keys: ['buyer'] }));

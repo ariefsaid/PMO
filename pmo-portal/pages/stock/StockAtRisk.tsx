@@ -91,6 +91,7 @@ const StockAtRisk: React.FC = () => {
       }
     >
       <StockTabs />
+      <p className="mb-4 text-sm text-muted-foreground">{t(showCost || showGuardCover ? 'atRisk.scope' : 'atRisk.scopeNoCost')}</p>
       {state === undefined && showCost && (
         <div className="mb-3">
           {/* The exposure figure leads; the held value is its context. */}
@@ -105,8 +106,7 @@ const StockAtRisk: React.FC = () => {
             </figure>
           </div>
           <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-            <span>
-              <b className="font-semibold text-foreground tabular-nums">{exposedCount}</b>{' '}
+            <span className="tabular-nums">
               {exposedCount === 1 ? t('atRisk.summary.exposedOne') : t('atRisk.summary.exposed', { count: exposedCount })}
             </span>
           </p>

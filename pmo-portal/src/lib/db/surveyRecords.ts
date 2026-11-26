@@ -81,8 +81,30 @@ export async function listSurveyRecords(workOrderId: string): Promise<SurveyReco
   }));
 }
 
+export interface SurveyAttachmentFailure {
+  documentId: string;
+  error: unknown;
+}
+
+export interface RecordedSurvey {
+  id: string;
+  failures: SurveyAttachmentFailure[];
+}
+
+export async function attachSurveyDocuments(id: string, documentIds: string[]): Promise<SurveyAttachmentFailure[]> {
+  const failures: SurveyAttachmentFailure[] = [];
+  for (const documentId of new Set(documentIds)) {
+    try {
+      await attachSurveyDocument(id, documentId);
+    } catch (error) {
+      failures.push({ documentId, error });
+    }
+  }
+  return failures;
+}
+
 /** Records a draft, then attaches its documents. A refused attachment leaves the draft; the person sees why and can retry. */
-export async function recordSurvey(input: RecordSurveyInput): Promise<string> {
+export async function recordSurvey(input: RecordSurveyInput): Promise<RecordedSurvey> {
   const { data, error } = await supabase.rpc('record_survey', {
     p_work_order: input.workOrderId,
     p_boq_item: input.boqItemId,
@@ -95,8 +117,7 @@ export async function recordSurvey(input: RecordSurveyInput): Promise<string> {
   });
   if (error) fail(error);
   if (typeof data !== 'string' || data === '') throw new AppError('the server recorded the survey but returned no id', 'survey-malformed');
-  for (const documentId of input.documentIds ?? []) await attachSurveyDocument(data, documentId);
-  return data;
+  return { id: data, failures: await attachSurveyDocuments(data, input.documentIds ?? []) };
 }
 
 export async function attachSurveyDocument(id: string, documentId: string): Promise<void> {

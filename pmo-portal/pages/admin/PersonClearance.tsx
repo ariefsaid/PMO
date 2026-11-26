@@ -12,7 +12,7 @@ import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { clearanceDueByItem } from '@/src/lib/checklistDue';
 import { formatCalendarDayInTimeZone, formatIsoDay } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import type { ClearanceState, PersonChecklistRow } from '@/src/lib/repositories/clearance';
 
 const STATE_VARIANT: Record<ClearanceState, StatusVariant> = { done: 'won', expiring: 'warn', expired: 'overdue', missing: 'neutral' };
@@ -23,7 +23,7 @@ const StateForm: React.FC<{ personId: string; row: PersonChecklistRow; onClose: 
   const { toast } = useToast();
   const { save } = useClearanceStateMutations(personId);
   // The date done starts as today on the organisation calendar; an existing record keeps its own.
-  const [doneOn, setDoneOn] = useState(row.done_on ?? formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone));
+  const [doneOn, setDoneOn] = useState(row.done_on ?? formatCalendarDayInTimeZone(new Date(), getActiveOrgTimezone()));
   const [expiresOn, setExpiresOn] = useState(row.expires_on ?? '');
   const [note, setNote] = useState(row.note ?? '');
   const [doneError, setDoneError] = useState<string>();

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { can } from '@/src/auth/policy';
 import type { Role } from '@/src/auth/AuthContext';
@@ -21,11 +22,12 @@ import { CrewImports } from './CrewImports';
 const renderIt = () => render(<QueryClientProvider client={new QueryClient()}><CrewImports /></QueryClientProvider>);
 
 describe('AC-CIM-011 the Crews import buttons', () => {
-  it('shows both to a crew manager', () => {
+  it('shows both to a crew manager', async () => {
     h.role = 'Project Manager';
     renderIt();
-    expect(screen.getByRole('button', { name: /Import crews/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Import crew members/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Import/ }));
+    expect(screen.getByRole('menuitem', { name: /Import crews/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Import crew members/ })).toBeInTheDocument();
   });
   it('shows neither to a role that only reads crews', () => {
     h.role = 'Engineer';

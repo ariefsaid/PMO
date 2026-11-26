@@ -27,23 +27,32 @@ export const ScopeSection: React.FC<Props> = ({ projectId, progress, isPending, 
   }
   const pct = (v: number | null) => (v == null ? '—' : `${formatNumberExact(Math.round(v * 10) / 10)}%`);
   return (
-    <RecordSection title={title} subline={progress.overallPercent != null ? t('scope.overall', 'Overall {{pct}} complete', { pct: pct(progress.overallPercent) }) : undefined}>
-      <ul className="divide-y divide-border" data-testid="scope-lines">
-        {progress.lines.map((l) => (
-          <li key={l.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0" data-testid={`scope-line-${l.boqItemId}`}>
-            <span className="min-w-0">
-              <span className="font-medium">{l.itemCode ?? '—'}</span>
-              {l.description && <span className="ml-2 text-muted-foreground">{l.description}</span>}
-            </span>
-            <span className="tabular-nums text-control">
-              {l.lumpSum
-                ? t('scope.lump', '{{done}} of {{all}}', { done: pct(l.accepted * 100), all: pct(l.allocated * 100) })
-                : t('scope.qty', '{{done}} of {{all}} {{unit}}', { done: formatNumberExact(l.accepted), all: formatNumberExact(l.allocated), unit: l.unit ?? '' })}
-              {' · '}<span data-testid={`scope-pct-${l.boqItemId}`}>{pct(l.percent)}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+    <RecordSection title={title}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-control" data-testid="scope-lines">
+          <thead className="max-sm:sr-only"><tr className="text-muted-foreground">
+            <th scope="col" className="pb-2 pr-4 text-left font-normal">{t('scope.col.line', 'Contract line')}</th>
+            <th scope="col" className="pb-2 pr-4 text-right font-normal">{t('scope.col.accepted', 'Accepted')}</th>
+            <th scope="col" className="w-20 pb-2 text-right font-normal">{t('scope.col.percent', 'Complete')}</th>
+          </tr></thead>
+          <tbody>
+            {progress.lines.map((l) => (
+              <tr key={l.id} className="border-t border-border max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-4 max-sm:py-3" data-testid={`scope-line-${l.boqItemId}`}>
+                <td className="py-2.5 pr-4 align-baseline max-sm:col-span-2 max-sm:py-0">
+                  <span className="whitespace-nowrap font-medium">{l.itemCode ?? '—'}</span>
+                  {l.description && <span className="block text-muted-foreground sm:ml-2 sm:inline">{l.description}</span>}
+                </td>
+                <td className="whitespace-nowrap py-2.5 pr-4 text-right align-baseline tabular-nums max-sm:pr-0 max-sm:text-left max-sm:pb-0">
+                  <span className="block text-muted-foreground sm:hidden">{t('scope.col.accepted', 'Accepted')}</span>{l.lumpSum
+                    ? t('scope.lump', '{{done}} of {{all}}', { done: pct(l.accepted * 100), all: pct(l.allocated * 100) })
+                    : t('scope.qty', '{{done}} of {{all}} {{unit}}', { done: formatNumberExact(l.accepted), all: formatNumberExact(l.allocated), unit: l.unit ?? '' })}
+                </td>
+                <td className="py-2.5 text-right align-baseline font-medium tabular-nums"><span className="block font-normal text-muted-foreground sm:hidden">{t('scope.col.percent', 'Complete')}</span><span data-testid={`scope-pct-${l.boqItemId}`}>{pct(l.percent)}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </RecordSection>
   );
 };

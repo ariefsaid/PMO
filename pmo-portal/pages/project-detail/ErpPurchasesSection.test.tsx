@@ -8,7 +8,7 @@ import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 const { purchasesMock, orphansMock, mayMock } = vi.hoisted(() => ({ purchasesMock: vi.fn(), orphansMock: vi.fn(), mayMock: vi.fn() }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: purchasesMock, useErpOrphans: orphansMock }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => mayMock }));
-vi.mock('@/src/lib/efaktur', () => ({ localToday: () => '2026-03-15' }));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-03-15', orgDayNow: () => '2026-03-15' }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [] }) }));
 

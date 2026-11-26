@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(60_000);
@@ -46,7 +47,7 @@ test('AC-WOD-008 the work-order level is one click from the project header and f
       issued_at: new Date().toISOString(), order_value: 500_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'EUR',
     });
     if (wo.error) throw new Error('AC-WOD-008 fixture work order: ' + wo.error.message);
-    const started = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const started = inDays(-30);
     const step = await admin.from('work_order_billing_steps').insert({
       org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 1, name: 'Measurement sheet', target_days: 5, started_on: started,
     });
@@ -58,8 +59,9 @@ test('AC-WOD-008 the work-order level is one click from the project header and f
     await page.goto('/projects/' + projectId);
     await page.getByTestId('project-section-tabs').getByRole('tab', { name: 'Work order' }).click();
     await expect(page).toHaveURL((url) => url.pathname === '/projects/' + projectId + '/orders');
-    const projectRow = page.getByRole('row', { name: new RegExp(number) });
-    await expect(projectRow.getByTestId('wo-billed-' + workOrderId)).toContainText('500,000');
+    const projectRow = page.getByRole('table', { name: 'Work order', exact: true }).getByRole('row', { name: new RegExp(number) });
+    await expect(projectRow.getByRole('cell', { name: '€500,000', exact: true })).toBeVisible();
+    await expect(projectRow.getByTestId('wo-billed-' + workOrderId)).toHaveText('€0');
     await expect(projectRow.getByTestId('wo-missing-' + workOrderId)).toContainText('1 late');
 
     // From the dashboard: every work order, narrowed to what is late, then to this one.

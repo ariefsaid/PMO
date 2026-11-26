@@ -79,7 +79,7 @@ describe('ContextBar', () => {
     const trigger = screen.getByRole('button', { name: /command palette/i });
     expect(trigger.className.split(/\s+/)).toContain('px-3');
     expect(trigger.className.split(/\s+/)).toContain('min-h-11');
-    expect(trigger.className.split(/\s+/)).toContain('max-[921px]:min-w-11');
+    expect(trigger.className.split(/\s+/)).toContain('max-[1101px]:min-w-11');
     expect(trigger).toHaveAttribute('aria-keyshortcuts');
     await userEvent.click(trigger);
     expect(onOpenPalette).toHaveBeenCalled();

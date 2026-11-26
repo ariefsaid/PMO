@@ -3,6 +3,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SEED_PASSWORD } from './helpers';
+import { inDays, orgToday } from './support/jobJourney';
 import { bindCall, createPacer, OdooError } from '../src/lib/adapterSeam/odoo/client';
 import { externalIdentifier } from '../src/lib/adapterSeam/odoo/revenue/anchors';
 import { paymentStatus } from '../src/lib/adapterSeam/odoo/revenue/status';
@@ -175,7 +176,7 @@ async function provision(admin: AdminClient, stamp: string) {
     })) as string;
     await must(serviceRpc(admin, 'finalize_odoo_connect', {
       p_org_id: orgId, p_secret_ref: staged, p_site_url: BED_URL, p_database: BED_DB,
-      p_key_expires_on: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+      p_key_expires_on: inDays(1),
       p_discard: false, p_kill_switch_enabled: true, p_actor_id: approver.id,
     }));
     connected = true;
@@ -308,8 +309,9 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
     await firstRow.getByRole('button', { name: /row actions/i }).click();
     await approverPage.getByRole('menuitem', { name: 'Record e-Faktur', exact: true }).click();
     const efakturNumber = `010.000-26.${String(Date.now()).slice(-8)}`;
+    const efakturDate = orgToday(); // captured once: the fill and the later DB read-back must name the same day
     await approverPage.getByLabel('e-Faktur number').fill(efakturNumber);
-    await approverPage.getByLabel('e-Faktur date').fill(new Date().toISOString().slice(0, 10));
+    await approverPage.getByLabel('e-Faktur date').fill(efakturDate);
     await approverPage.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(approverPage.getByText('e-Faktur details saved', { exact: true })).toBeVisible();
     await approverPage.goto(`/sales-invoices/${invoices[0].id}`);
@@ -342,7 +344,7 @@ test('AC-OCI-100: one user raises project invoices, another approves them, and r
     expect(['Unpaid', 'Paid']).toContain(finalInvoices?.[0]?.status);
     expect(finalInvoices?.[0]?.erp_outstanding_amount).toBe(finalInvoices?.[0]?.status === 'Paid' ? 0 : INV_TOTAL);
     expect(finalInvoices?.[0]?.efaktur_number).toMatch(/^010\.000-26\./);
-    expect(finalInvoices?.[0]?.efaktur_date).toBe(new Date().toISOString().slice(0, 10));
+    expect(finalInvoices?.[0]?.efaktur_date).toBe(efakturDate);
     expect(finalInvoices?.[1]).toMatchObject({ id: invoices[1].id, project_id: fixture.projectId, amount: INV_TOTAL, erp_docstatus: 1 });
     expect(['Unpaid', 'Paid']).toContain(finalInvoices?.[1]?.status);
     expect(finalInvoices?.[1]?.erp_outstanding_amount).toBe(finalInvoices?.[1]?.status === 'Paid' ? 0 : INV_TOTAL);

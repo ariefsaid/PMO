@@ -82,7 +82,7 @@
     },
     "location": {
       "title": "Data Location",
-      "body": "Your data is hosted on a per-client Supabase Cloud Pro environment. The hosting location for this deployment is {{hosting}} (configurable per client per ADR-0047)."
+      "body": "Your data is hosted on a per-client Supabase Cloud Pro environment. The hosting location for this deployment is {{hosting}} (configurable per client)."
     },
     "export": {
       "title": "Data Export",

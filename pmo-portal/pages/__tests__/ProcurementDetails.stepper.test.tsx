@@ -166,7 +166,6 @@ function stages(): Array<{ label: string; current: boolean }> {
     current: el.getAttribute('aria-current') === 'step',
   }));
 }
-const headerActions = () => within(screen.getByTestId('record-header-actions'));
 
 beforeEach(() => {
   detailState.isPending = false;
@@ -196,7 +195,7 @@ describe('AC-IXD-PROC-002: the lifecycle tracker advances as the purchase progre
   it('AC-IXD-PROC-002: approving moves the case on, with NO standalone "Approved" stage', () => {
     detailState.data = { ...base, status: 'Requested' };
     const { unmount } = renderPage();
-    expect(headerActions().getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     unmount();
 
     detailState.data = { ...base, status: 'Approved', approved_by_id: 'u-fin' };
@@ -205,7 +204,7 @@ describe('AC-IXD-PROC-002: the lifecycle tracker advances as the purchase progre
     expect(stages().map((stage) => stage.label)).toEqual(['Request', 'Order', 'Receive', 'Pay']);
     // The request stage is still the current one, but Approve is gone: the next step took its place.
     expect(stages()[0]).toEqual({ label: 'Request', current: true });
-    expect(headerActions().queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
     expect(screen.getByTestId('procurement-status-badge')).not.toHaveTextContent(/waiting for approval/i);
   });
 });

@@ -1,7 +1,9 @@
-// @e2e-isolation: serial - switches the organisation's approvals-inbox setting for material requests on (it adds a section to every approver's /approvals page) and sets the chain; it switches the setting back off in finally.
+// @e2e-isolation: serial - switches the organisation's approvals-inbox setting for material requests on (it adds a section to every approver's /approvals page) and sets the chain; it restores both settings in finally.
 /** AC-MRI-018 — goal: when a material request needs an approver, that approver finds it in the approvals inbox and is notified; once they decide, both are gone and the next approver has it. */
 import { test, expect } from '@playwright/test';
 import { signIn } from '../helpers';
+import { captureMaterialRequestApproval } from '../support/materialRequestApproval';
+import { inDays } from '../support/jobJourney';
 import { SEED_PROJECT_ID, makeItem, runSuffix, userClient } from '../support/stockFixture';
 
 test.setTimeout(180_000);
@@ -9,9 +11,12 @@ test.setTimeout(180_000);
 test('AC-MRI-018: an approver is told and sees the request in the approvals inbox; deciding clears it and hands it to the next approver', async ({ page }) => {
   const sfx = runSuffix();
   const admin = await userClient('admin@acme.test');
+  const project = await admin.from('projects').select('org_id').eq('id', SEED_PROJECT_ID).single();
+  if (project.error) throw new Error('project organisation: ' + project.error.message);
+  const orgId = project.data.org_id as string;
+  const restoreApproval = await captureMaterialRequestApproval(admin, orgId);
   try {
     // Fixture: an issued work order, a two-step chain (Project Manager, then Finance), and a request from the Engineer.
-    const orgId = (await admin.from('projects').select('org_id').eq('id', SEED_PROJECT_ID).single()).data?.org_id as string;
     const item = await makeItem(admin, sfx, 'N');
     const draft = await admin.from('work_orders').insert({ org_id: orgId, project_id: SEED_PROJECT_ID, title: `E2E MRI ${sfx}`, order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0 }).select('id').single();
     if (draft.error) throw new Error('work order: ' + draft.error.message);
@@ -35,7 +40,7 @@ test('AC-MRI-018: an approver is told and sees the request in the approvals inbo
     const engineer = await userClient('engineer@acme.test');
     const saved = await engineer.rpc('mrq_save_draft', {
       p_request_id: null,
-      p_header: { work_order_id: draft.data.id, needed_by: new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10) },
+      p_header: { work_order_id: draft.data.id, needed_by: inDays(5) },
       p_lines: [{ item_id: item.id, quantity: 7, over_plan_reason: 'Extra pour' }],
     });
     if (saved.error) throw new Error('draft: ' + saved.error.message);
@@ -76,6 +81,6 @@ test('AC-MRI-018: an approver is told and sees the request in the approvals inbo
     await page.goto('/approvals');
     await expect(page.getByRole('region', { name: 'Material requests awaiting you' }).getByText(number)).toBeVisible({ timeout: 15_000 });
   } finally {
-    await admin.rpc('mrq_set_approver_inbox', { p_on: false });
+    await restoreApproval();
   }
 });

@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../src/lib/supabase/database.types';
 import { login, requireServiceRoleKey } from './helpers';
+import { inDays } from './support/jobJourney';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -30,7 +31,7 @@ function adminClient() {
 
 async function seed(admin: ReturnType<typeof adminClient>) {
   const check = (label: string, error: { message: string } | null) => { if (error) throw new Error(`${label} fixture failed: ${error.message}`); };
-  const hundredDaysAgo = new Date(Date.now() - 100 * 86_400_000).toISOString().slice(0, 10);
+  const hundredDaysAgo = inDays(-100);
   check('vendor', (await admin.from('companies').insert({ id: ids.vendor, org_id: ORG_ID, name: vendorName, type: 'Vendor' })).error);
   check('project', (await admin.from('projects').insert({
     id: ids.project, org_id: ORG_ID, name: `VSR project ${suffix}`, status: 'Ongoing Project', contract_value: 1_000_000,

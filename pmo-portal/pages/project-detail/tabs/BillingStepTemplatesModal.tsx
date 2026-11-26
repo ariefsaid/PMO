@@ -155,11 +155,11 @@ const BillingStepTemplatesModalBody: React.FC<{ onClose: () => void }> = ({ onCl
 
   if (editing) return <TemplateForm template={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />;
   return <EntityFormModal open width="lg" title={t('projectDetail.billing.templates.title', 'Billing step templates')}
-    submitLabel={t('projectDetail.billing.templates.done', 'Done')} onSubmit={(e) => { e.preventDefault(); onClose(); }} onClose={onClose}>
-    <p className="text-sm text-muted-foreground">{t('projectDetail.billing.templates.help', "A template is a list of steps your team uses. Load one onto a project or a claim; it is copied, so later edits to a template change nothing already made.")}</p>
+    hideSubmit cancelLabel={t('common.close', 'Close')} submitLabel={t('common.close', 'Close')} onSubmit={(e) => { e.preventDefault(); onClose(); }} onClose={onClose}>
+    {(templates.data?.length ?? 0) > 0 && <p className="text-sm text-muted-foreground">{t('projectDetail.billing.templates.help', "A template is a list of steps your team uses. Load one onto a project or a claim; it is copied, so later edits to a template change nothing already made.")}</p>}
     {templates.isError && <p className="mt-2 text-sm text-muted-foreground" role="status">{t('projectDetail.billing.templates.loadError', 'The templates could not be loaded.')}</p>}
     {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
-    {templates.data && templates.data.length === 0 && <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.templates.empty', 'No templates yet.')}</p>}
+    {!templates.isPending && !templates.isError && (templates.data?.length ?? 0) === 0 && <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.templates.empty', 'No templates yet.')}</p>}
     <ul className="mt-3 divide-y divide-border">
       {(templates.data ?? []).map((tpl) => <li key={tpl.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
         <span>
@@ -187,7 +187,7 @@ const BillingStepTemplatesModalBody: React.FC<{ onClose: () => void }> = ({ onCl
         </span>
       </li>)}
     </ul>
-    <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setEditing('new')}>{t('projectDetail.billing.templates.new', 'New template')}</Button>
+    <Button type="button" variant="primary" size="sm" className="mt-3" onClick={() => setEditing('new')}>{t('projectDetail.billing.templates.new', 'New template')}</Button>
   </EntityFormModal>;
 };
 

@@ -23,6 +23,16 @@ const baseRow: UsageSummaryRow = {
   margin_usd: null,
 };
 
+describe('AdministrationUsage — token counts', () => {
+  it('identifies input and output counts separately', () => {
+    render(<AdministrationUsage rows={[baseRow]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    expect(screen.getByRole('columnheader', { name: 'Input tokens' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Output tokens' })).toBeInTheDocument();
+    expect(screen.getByText('100')).toBeInTheDocument();
+    expect(screen.getByText('40')).toBeInTheDocument();
+  });
+});
+
 describe('AdministrationUsage — cost unit (FR-L10N-023)', () => {
   it('labels the cost column USD and renders it as a dollar amount', () => {
     render(<AdministrationUsage rows={[{ ...baseRow, cost: 737.123456 }]} isPending={false} isError={false} onRetry={vi.fn()} />);

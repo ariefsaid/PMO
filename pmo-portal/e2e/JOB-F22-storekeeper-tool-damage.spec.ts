@@ -1,7 +1,7 @@
-// @e2e-isolation: self-isolated — creates its own disposable storekeeper login, project, work order, site warehouse, crew and hand-tool line without changing organisation-wide tool settings, and deletes all owned rows in finally.
+// @e2e-isolation: self-isolated — creates its own disposable site-supervisor login, project, work order, site warehouse, crew and hand-tool line without changing organisation-wide tool settings, and deletes all owned rows in finally.
 /**
- * JOB-F22 — storekeeper reports a damaged crew hand tool with a mandatory photo.
- * For a crew rostered today at a site store the storekeeper keeps, the storekeeper opens Crews -> Tools,
+ * JOB-F22 — site supervisor as the crew field controller reports a damaged crew hand tool with a mandatory photo.
+ * For a crew rostered today at a site, the site supervisor opens Crews -> Tools,
  * sees Send report disabled until a photo is attached, submits a damage report with a photo, sees usable
  * drop from 2 to 1 and damaged rise to 1, opens the attached photo link on the open report, and verifies
  * the updated counts and open report persist across reload.
@@ -11,7 +11,7 @@ import { visibleToast } from './helpers';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { orgToday } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
-import { keeperOf, makeWarehouse, runSuffix, userClient } from './support/stockFixture';
+import { makeWarehouse, runSuffix, userClient } from './support/stockFixture';
 
 test.setTimeout(180_000);
 
@@ -20,13 +20,13 @@ const PNG = Buffer.from(
   'base64',
 );
 
-test('JOB-F22 storekeeper reports a damaged hand tool with a photo and usable count drops with the open report preserved', async ({ page }) => {
+test('JOB-F22 site supervisor as the crew field controller reports a damaged hand tool with a photo and usable count drops with the open report preserved', async ({ page }) => {
   const svc = serviceClient('JOB-F22');
   const admin = await userClient('admin@acme.test');
   const run = runId('f22');
   const sfx = runSuffix();
   const skRun = runId('f22-sk');
-  const storekeeper = await roleJobUser(svc, 'storekeeper', skRun);
+  const storekeeper = await roleJobUser(svc, 'site_supervisor', skRun);
   const toolName = `${run} grinder`;
   let projectId = '';
   let workOrderId = '';
@@ -38,7 +38,6 @@ test('JOB-F22 storekeeper reports a damaged hand tool with a photo and usable co
     }).select('id').single()).id;
     const site = await makeWarehouse(admin, sfx, 'F22', 'site', projectId);
     warehouseId = site.id;
-    await keeperOf(admin, site.id, storekeeper.id);
 
     workOrderId = need('work order', await svc.from('work_orders').insert({
       org_id: ORG_ID, project_id: projectId, title: `${run} site work`, status: 'Issued',
@@ -46,7 +45,7 @@ test('JOB-F22 storekeeper reports a damaged hand tool with a photo and usable co
       currency: 'USD', site_warehouse_id: site.id,
     }).select('id').single()).id;
     crewId = need('crew', await svc.from('crews').insert({
-      org_id: ORG_ID, code: `F22-${sfx.slice(-8)}`, name: `${run} crew`, kind: 'own',
+      org_id: ORG_ID, code: `F22-${sfx.slice(-8)}`, name: `${run} crew`, kind: 'own', field_controller_id: storekeeper.id, // an Admin makes the site supervisor the crew's field controller
     }).select('id').single()).id;
     ok('roster', await svc.from('work_order_crews').insert({
       org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: orgToday(),

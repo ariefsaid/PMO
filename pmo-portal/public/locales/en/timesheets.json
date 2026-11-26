@@ -87,13 +87,22 @@
     "filteredEmpty": "No timesheets match these filters",
     "unknownPerson": "Team member",
     "hoursTotal": "{{hours}} h",
-    "showEntries": "Show entries",
-    "hideEntries": "Hide entries",
     "showEntriesFor": "Show entries for {{name}}",
-    "hideEntriesFor": "Hide entries for {{name}}",
     "pagination": "Timesheet pages",
     "showingRange": "Showing {{from}}–{{to}} of {{total}}",
     "previous": "Previous",
-    "next": "Next"
-  }
+    "next": "Next",
+    "week": "Week",
+    "projects": "Projects",
+    "hours": "Hours",
+    "status": "Status"
+  },
+  "weekHours": {
+    "project": "Project",
+    "total": "Total",
+    "dailyTotal": "Daily total",
+    "weekTotal": "Week total",
+    "noHours": "No hours"
+  },
+  "hoursTotal": "{{formatted}} hours"
 }

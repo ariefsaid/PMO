@@ -21,7 +21,8 @@ export const SiteReportPhotos: React.FC<{ report: DsrReport; photos: DsrPhoto[];
   // #2897: photos are accepted only while the report is editable (the server's rule, dsr_photo_writable),
   // so the section offers the upload — buttons AND the file input — only in that state, whatever the
   // caller passes; a refusal read on a submitted report says the rule instead of a generic failure.
-  const writable = canWrite && (report.status === 'draft' || report.status === 'returned');
+  const editable = report.status === 'draft' || report.status === 'returned';
+  const writable = canWrite && editable;
   const submittedNote = () => t('photos.submittedOnly', 'Photos can be added only before the report is submitted.');
 
   const send = async (file: File) => {
@@ -58,8 +59,8 @@ export const SiteReportPhotos: React.FC<{ report: DsrReport; photos: DsrPhoto[];
         onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void send(f); }} />}
       {failed && (
         <p role="alert" className="mb-3 flex flex-wrap items-center gap-2 text-foreground">
-          {failed.message}
-          {failed.retryable && <Button variant="outline" size="sm" onClick={() => void send(failed.file)}>{t('photos.retry', 'Retry')}</Button>}
+          {editable ? failed.message : submittedNote()}
+          {writable && failed.retryable && <Button variant="outline" size="sm" onClick={() => void send(failed.file)}>{t('photos.retry', 'Retry')}</Button>}
         </p>
       )}
       {photos.length === 0 ? (

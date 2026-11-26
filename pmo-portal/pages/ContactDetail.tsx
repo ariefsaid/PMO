@@ -170,7 +170,7 @@ const ContactDetail: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="record-page">
       <style>{`@media (max-width: 480px) { [data-testid="contact-archive"] { min-height: 44px; } }`}</style>
       {/* Mobile escape route (rail collapses ≤920px). */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
@@ -178,6 +178,7 @@ const ContactDetail: React.FC = () => {
       </div>
 
       <RecordHeader
+        panelInset
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
         status={contact.archived_at
@@ -194,7 +195,8 @@ const ContactDetail: React.FC = () => {
             value: contact.email ? (
               <a
                 href={`mailto:${contact.email}`}
-                className="block min-w-0 max-w-full break-all text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                title={contact.email}
+                className="block min-w-0 max-w-full truncate text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {contact.email}
               </a>

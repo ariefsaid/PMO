@@ -39,6 +39,7 @@ per-branch heavy-proof queues and per-branch PR queues. Acceptance requirements 
 
 Every coordinator brief and takeover includes this section's path and a compact execution table:
 `batch/ref | sole writer | ready slices | check + runner + executor | evidence/result | next action`.
+For database branches, include `scripts/check-schema-registrations.sh` against the reset local schema in the brief.
 Every new heavy allocation must name the evidence gap it closes and check the table for overlap.
 Handoffs distinguish source-ready, runtime-proven and CI-accepted; no outer proof loop is added
 merely because the coordinator changed. Independent hosts can run independent batches within

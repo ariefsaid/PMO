@@ -1,7 +1,7 @@
 /** AC-EAV-013 (unit layer): the bulk "set today's status" screen sends only the machines the user changed, and a field
  *  controller sees no rental check. AC-EAV-014 (unit layer): Finance sees the deduction and the day-by-day proof list. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -25,6 +25,8 @@ const h = vi.hoisted(() => ({
   orgToday: '',
   provenRows: [] as { asset_id: string; proven: boolean }[],
   statusRows: [] as { asset_id: string; status_date: string; status: string }[],
+  latestRows: [] as { asset_id: string; status: string }[],
+  flagRows: [] as { asset_id: string }[],
 }));
 vi.mock('@/src/hooks/useEquipment', () => ({
   useEquipmentAssetPages: () => ({ data: { pages: [{ rows: h.assets, truncated: !!h.nextAssets.length }, ...(h.nextAssets.length ? [{ rows: h.nextAssets, truncated: false }] : [])] }, isPending: false, isError: h.assetsError, refetch: vi.fn(), hasNextPage: false }),
@@ -35,9 +37,9 @@ vi.mock('./RentalInvoiceCheck', () => ({ default: () => <div>Rental invoice chec
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useStatusDays: (from: string, to: string) => { h.statusRange = [from, to]; return { data: h.statusRows, isError: h.statusError }; },
-  useLatestStatusDays: () => ({ data: [] }),
+  useLatestStatusDays: () => ({ data: h.latestRows }),
   useEquipmentProofs: () => ({ data: h.provenRows }),
-  useDowntimeFlags: () => ({ data: [] }),
+  useDowntimeFlags: () => ({ data: h.flagRows }),
   useEquipmentMetrics: (ids: string[]) => { h.metricIds = ids; return { data: [] }; },
   useSetStatusBulk: () => ({ mutateAsync: h.bulk, isPending: false }),
   useAttachProof: () => ({ mutateAsync: h.proof, isPending: false }),
@@ -54,6 +56,7 @@ import { EquipmentRentalTerms } from './EquipmentRentalTerms';
 
 const asset = (id: string, code: string, ownership = 'owned') => ({ id, code, name: `Machine ${code}`, default_unit: 'hours', ownership, archived_at: null });
 const renderPage = () => render(<MemoryRouter><ToastProvider><EquipmentAvailabilityPage /></ToastProvider></MemoryRouter>);
+const dlg = () => within(screen.getByRole('dialog'));
 const renderTerms = (id: string) => render(<ToastProvider><EquipmentRentalTerms key={id} asset={asset(id, 'EQU-' + id.slice(1), id === 'a3' ? 'rented' : 'owned')} /></ToastProvider>);
 
 beforeEach(() => {
@@ -65,11 +68,23 @@ beforeEach(() => {
   h.workingHours = vi.fn().mockResolvedValue(undefined);
   h.proof = vi.fn().mockResolvedValue(undefined);
   h.nextAssets = [];
-  h.assetsError = false; h.statusError = false; h.statusRows = []; h.provenRows = [];
+  h.assetsError = false; h.statusError = false; h.statusRows = []; h.provenRows = []; h.latestRows = []; h.flagRows = [];
   h.assets = [asset('a1', 'EQU-1'), asset('a2', 'EQU-2'), asset('a3', 'EQU-3', 'rented')];
 });
 
 describe('Equipment availability screen', () => {
+  it('shows an escalated machine before the others', () => {
+    h.flagRows = [{ asset_id: 'a3' }];
+    renderPage();
+    const table = screen.getByRole('table', { name: 'Equipment status' });
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('EQU-3');
+  });
+  it('shows the status legend and unrecorded days explanation in page help', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'About Availability' }));
+    expect(await screen.findByText('What each status does to planning')).toBeInTheDocument();
+    expect(screen.getByText(/Unrecorded days are days in service/)).toBeInTheDocument();
+  });
   it('offers an accessible status selector and upload action without repeating the visible label', () => {
     h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
     renderPage();
@@ -94,9 +109,10 @@ describe('Equipment availability screen', () => {
   it('Finance can enter rental terms for an asset', async () => {
     h.role = 'Finance';
     renderTerms('a1');
-    await userEvent.selectOptions(screen.getByLabelText('Vendor'), 'v1');
-    await userEvent.type(screen.getByLabelText('Rate'), '100');
-    await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-01');
+    await userEvent.click(screen.getByRole('button', { name: 'Add rental terms' }));
+    await userEvent.selectOptions(dlg().getByLabelText('Vendor'), 'v1');
+    await userEvent.type(dlg().getByLabelText('Rate'), '100');
+    await userEvent.type(dlg().getByLabelText('Rental start'), '2026-01-01');
     await userEvent.click(screen.getByRole('button', { name: 'Save rental terms' }));
     await waitFor(() => expect(h.saveTerm).toHaveBeenCalledWith(expect.objectContaining({ asset_id: 'a1', vendor_id: 'v1', rate: '100', rented_from: '2026-01-01' })));
   });
@@ -141,18 +157,20 @@ describe('Equipment availability screen', () => {
 
   it('allows Finance to mark an asset owned', async () => {
     h.role = 'Finance'; renderTerms('a1');
-    await userEvent.click(screen.getByText('Other asset actions'));
-    await userEvent.click(screen.getByRole('button', { name: 'Mark owned' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Other asset actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Mark owned' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Mark this machine owned?' })).getByRole('button', { name: 'Mark owned' }));
     expect(h.ownership).toHaveBeenCalledWith({ assetId: 'a1', ownership: 'owned', inServiceOn: null });
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Ownership saved'));
   });
 
   it('allows Finance to change a rental rate from an effective date', async () => {
     h.role = 'Finance'; renderTerms('a3');
-    await userEvent.type(screen.getByLabelText('Rate'), '120');
-    await userEvent.type(screen.getByLabelText('Rental start'), '2026-01-15');
-    await userEvent.click(screen.getByText('Other asset actions'));
-    await userEvent.click(screen.getByRole('button', { name: 'Change rate from date' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Other asset actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Change rate from date' }));
+    await userEvent.type(dlg().getByLabelText('Rate'), '120');
+    await userEvent.type(dlg().getByLabelText('New rate from'), '2026-01-15');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Change rate from date' }));
     expect(h.changeRate).toHaveBeenCalledWith({ assetId: 'a3', date: '2026-01-15', rate: '120' });
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Rate changed'));
   });
@@ -184,6 +202,7 @@ describe('Equipment availability screen', () => {
 
   it('lets an admin set the hours used by utilisation', async () => {
     h.role = 'Admin'; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Targets and hours' }));
     await userEvent.type(screen.getByLabelText('Working hours per day'), '10');
     await userEvent.click(screen.getByRole('button', { name: 'Save working hours' }));
     expect(h.workingHours).toHaveBeenCalledWith('10');
@@ -198,9 +217,10 @@ describe('Equipment availability screen', () => {
 
   it('lets Finance record the in-service date of rented equipment', async () => {
     h.role = 'Finance'; renderTerms('a3');
-    await userEvent.type(screen.getByLabelText('In service from (optional)'), '2026-01-10');
-    await userEvent.click(screen.getByText('Other asset actions'));
-    await userEvent.click(screen.getByRole('button', { name: 'Save in-service date' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Other asset actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Save in-service date' }));
+    await userEvent.type(dlg().getByLabelText('In service from (optional)'), '2026-01-10');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save in-service date' }));
     expect(h.ownership).toHaveBeenCalledWith({ assetId: 'a3', ownership: 'rented', inServiceOn: '2026-01-10' });
   });
 
@@ -220,7 +240,7 @@ describe('Equipment availability screen', () => {
     expect(screen.getByRole('button', { name: 'Save statuses' })).toBeDisabled();
   });
 
-  it('clears incomplete terms when switching asset records', async () => { const view = renderTerms('a1'); await userEvent.type(screen.getByLabelText('Rate'), '100'); view.rerender(<ToastProvider><EquipmentRentalTerms key="a3" asset={asset('a3', 'EQU-3', 'rented')} /></ToastProvider>); expect(screen.getByLabelText('Rate')).toHaveValue(''); expect(screen.getByRole('button', { name: 'Save rental terms' })).toBeDisabled(); });
+  it('clears incomplete terms when switching asset records', async () => { const view = renderTerms('a1'); await userEvent.click(screen.getByRole('button', { name: 'Add rental terms' })); await userEvent.type(dlg().getByLabelText('Rate'), '100'); view.rerender(<ToastProvider><EquipmentRentalTerms key="a3" asset={asset('a3', 'EQU-3', 'rented')} /></ToastProvider>); expect(screen.queryByRole('dialog')).toBeNull(); await userEvent.click(screen.getByRole('button', { name: 'Add rental terms' })); expect(dlg().getByLabelText('Rate')).toHaveValue(''); expect(screen.getByRole('button', { name: 'Save rental terms' })).toBeDisabled(); });
 
   it('shows that a saved down status still needs proof', () => {
     h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
@@ -243,7 +263,7 @@ describe('Equipment availability screen', () => {
     expect(screen.getByText('Proven')).toBeInTheDocument();
   });
 
-  it('clears incomplete terms when switching asset records', async () => { const view = renderTerms('a1'); await userEvent.type(screen.getByLabelText('Rate'), '100'); view.rerender(<ToastProvider><EquipmentRentalTerms key="a3" asset={asset('a3', 'EQU-3', 'rented')} /></ToastProvider>); expect(screen.getByLabelText('Rate')).toHaveValue(''); expect(screen.getByRole('button', { name: 'Save rental terms' })).toBeDisabled(); });
+
 
   it('offers the rental check to Finance and not to a field controller', async () => {
     const engineer = renderPage();

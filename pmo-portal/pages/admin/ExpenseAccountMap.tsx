@@ -175,7 +175,7 @@ const ExpenseAccountMap: React.FC = () => {
             <li
               key={key}
               data-testid="expense-account-row"
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-control"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-2 text-control"
             >
               <span className="font-medium">{label(key)}</span>
               <span className="flex min-w-0 flex-wrap items-center gap-2">

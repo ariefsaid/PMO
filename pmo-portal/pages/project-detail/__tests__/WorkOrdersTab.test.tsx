@@ -207,9 +207,9 @@ describe('list states', () => {
     expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
   });
 
-  it('M17 explains client-PO drawdown in the empty register', () => {
+  it('M17 empty register says where work orders are created and that they draw down the contract', () => {
     renderTab();
-    expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
+    expect(screen.getByText(/No work orders yet\. Create one on the Work orders tab/)).toBeInTheDocument();
   });
 
   it('shows quantity source failure and retry even when no orders or lines loaded', async () => {
@@ -264,10 +264,10 @@ describe('the rows', () => {
     renderTab('Finance');
     await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
     const firstDrawer = screen.getByRole('dialog');
-    expect(firstDrawer).toHaveTextContent('$250,000 · excl. PPN');
+    expect(firstDrawer).toHaveTextContent('$250,000 · excl. tax');
     await user.click(within(firstDrawer).getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'View details for WO-0001' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('$111,000 · incl. PPN');
+    expect(screen.getByRole('dialog')).toHaveTextContent('$111,000 · incl. tax');
   });
 
   it('SUB-C: rate and DPP details remain available in the customer-order drawer', async () => {
@@ -279,11 +279,11 @@ describe('the rows', () => {
     const user = userEvent.setup();
     renderTab('Finance');
     await user.click(screen.getByRole('button', { name: 'View details for Standard tax' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN');
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. tax');
     expect(screen.getByRole('dialog')).not.toHaveTextContent('11%');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'View details for WO-2' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. tax 11% · DPP 11/12');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'View details for Unknown tax rate' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('rate not recorded');
@@ -481,10 +481,11 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
   });
 
-  it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
+  it('a PM gets edit, set-value, issue and cancel on a draft set by a senior user; creating lives on the Work orders tab', () => {
     listState.data = [row({ order_value_set_by: 'u-2' })];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New work order' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Work orders' })).toHaveAttribute('href', '/projects/p1/orders');
     for (const name of ['Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
@@ -518,7 +519,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     listState.data = [row()];
     renderTab('Engineer');
     expect(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' })).toBeInTheDocument();
-    for (const name of ['Add customer order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
+    for (const name of ['New work order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });

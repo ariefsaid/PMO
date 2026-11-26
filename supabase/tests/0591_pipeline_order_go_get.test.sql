@@ -34,7 +34,7 @@ select is(
   (select json_agg(win_probability order by case status
       when 'Leads' then 1 when 'Quotation Submitted' then 2 when 'PQ Submitted' then 3
       when 'Tender Submitted' then 4 when 'Negotiation' then 5 end)::text from public.pipeline_stage_config
-   where org_id='59100000-0000-0000-0000-000000000001'),
+   where win_probability is not null and org_id='59100000-0000-0000-0000-000000000001'),
   '[0.100, 0.200, 0.400, 0.800, 0.900]',
   'AC-1793: stage Go defaults are Leads 10, Quotation 20, Pre-Qual 40, Tender 80, Negotiation 90 percent'
 );

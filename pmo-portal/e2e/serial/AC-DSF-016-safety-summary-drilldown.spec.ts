@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, pinEnglishLocale } from '../helpers';
+import { orgToday } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -26,8 +27,7 @@ const woIds: string[] = [];
 let personId = '';
 let flagBefore = false;
 let tag = '';
-const now = new Date();
-const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+const month = orgToday().slice(0, 7); // the organisation's current month: the summary buckets by it, not the runner's
 const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`AC-DSF-016 fixture ${step}: ${e.message}`); };
 
 test.beforeEach(async () => {
@@ -65,7 +65,7 @@ test('AC-DSF-016 a count on the monthly safety summary opens exactly the rows be
   await pinEnglishLocale(page);
   await signIn(page, 'finance@acme.test');
   await page.goto('/safety');
-  await page.getByLabel('Month').fill(month);
+  await page.getByLabel('Month').fill(`${month}-01`);
 
   await page.getByLabel('Project').selectOption({ label: `${tag} worked` });
   const without = page.getByTestId('safety-figure-daysWithoutRecord');

@@ -51,8 +51,8 @@ function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: St
   return begun[begun.length - 1] ?? choices[choices.length - 1] ?? null;
 }
 
-function pairLabel(pair: FinancialStatementPair, priorLabel: string): string {
-  return `${formatDayYear(pair.currentStart)} – ${formatDayYear(pair.currentEnd)} · ${priorLabel}: ${formatDayYear(pair.priorStart)} – ${formatDayYear(pair.priorEnd)}`;
+function pairLabel(pair: FinancialStatementPair): string {
+  return `${formatDayYear(pair.currentStart)} – ${formatDayYear(pair.currentEnd)}`;
 }
 
 function completeDetailRead(value: FinancialStatementRead | undefined): value is FinancialStatementRead & {
@@ -200,7 +200,7 @@ const FinancialStatements: React.FC = () => {
   const periodChoices = kindPeriods.map((pair) => ({
     kind: pair.kind,
     periodStart: pair.currentStart,
-    label: pairLabel(pair, t('financialStatements.prior', 'Previous period')),
+    label: pairLabel(pair),
   }));
   const statementOptions = [
     { value: 'trial_balance', label: t('financialStatements.trialBalance', 'Trial balance') },

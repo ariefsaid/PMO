@@ -49,6 +49,7 @@ const ORGANIZATION_SECTIONS = [
 ] as const;
 
 const EXPECTED_ORGANIZATION_LINKS = [
+  'All settings',
   ...ORGANIZATION_SECTIONS.map(({ name }) => name),
   // #2746: Modules front door for an Admin.
   'Modules',

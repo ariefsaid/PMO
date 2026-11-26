@@ -47,7 +47,7 @@ test('JOB-BQ2 a submitted report waits at zero validated revenue until another p
     await page.goto('/site-reports');
     await page.getByRole('button', { name: 'New report' }).first().click();
     await page.getByLabel('Project').selectOption({ label: `${run} project` });
-    await page.getByLabel('Work order').selectOption({ label: `${run} grader` });
+    await page.getByRole('combobox', { name: 'Work order', exact: true }).selectOption({ label: `${run} grader` });
     await page.getByRole('button', { name: 'Start report' }).click();
     await expect(page).toHaveURL(/\/site-reports\/[0-9a-f-]{36}$/, { timeout: 15_000 });
     const reportUrl = page.url();

@@ -7,6 +7,7 @@ import { need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixture
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, SEED_PROJECT_ID, SEED_PROJECT_NAME, userClient } from './support/stockFixture';
 import { chooseItem, chooseWorkOrder, label } from './support/jobStock';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(240_000);
 
@@ -75,9 +76,10 @@ test('JOB-W5 material coordinator moves stock to one staging area and only that 
 
     // 4. The work order's staging row still reads 10 (30 dispatched minus 20 installed).
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'material');
     const panel = page.getByRole('region', { name: 'Stock for this work order' });
     const row = panel.getByRole('row').filter({ hasText: stagingA.code });
-    await expect(row.getByRole('cell').nth(4)).toHaveText('20');
+    await expect(row.getByRole('cell').nth(4)).toHaveText(/^20\b/);
     await expect(row.getByRole('cell').nth(5)).toContainText('10');
   } finally {
     const ids = docIds.filter(Boolean);

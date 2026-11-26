@@ -86,6 +86,15 @@ describe('subcontract certificate list', () => {
     expect(screen.getByText('No certificates yet')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'New certificate' }).length).toBeGreaterThan(0);
   });
+  it('AC-SPC-019 a project manager without an eligible order gets the purchase order remedy', () => {
+    h.realRole = 'Project Manager';
+    h.currentUser = { id: 'pm-1', org_id: 'o1' };
+    h.pos = [];
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Open subcontract purchase orders' })).toBeInTheDocument();
+    expect(screen.getByText(/Certificates are prepared from subcontract purchase orders/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New certificate' })).not.toBeInTheDocument();
+  });
   it('AC-SPC-019 error: a failed read is an error state, not an empty list', () => {
     h.isError = true;
     renderPage();

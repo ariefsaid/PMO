@@ -47,14 +47,14 @@ test('JOB-M1 the Executive sees plan, actual and the difference per work order, 
   const rowA = pva.getByTestId(`wo-pva-row-${a.id}`);
   const rowB = pva.getByTestId(`wo-pva-row-${b.id}`);
   await expect(rowA).toBeVisible({ timeout: 30_000 });
-  await expect(rowA).toContainText('400.00');          // plan
-  await expect(rowA.getByTestId('wo-pva-direct')).toContainText('300.00');   // actual
-  await expect(rowA.getByTestId('wo-pva-direct')).toContainText('100.00 left'); // difference
-  await expect(rowB).toContainText('150.00');
-  await expect(rowB.getByTestId('wo-pva-direct')).toContainText('200.00');
-  await expect(rowB.getByTestId('wo-pva-direct')).toContainText('Over plan by $50.00');
+  await expect(rowA.getByTestId('wo-pva-plan-direct')).toHaveText('$400');     // plan
+  await expect(rowA.getByTestId('wo-pva-direct')).toHaveText('$300');          // actual
+  await expect(rowA.getByTestId('wo-pva-difference')).toHaveText('$100 left'); // difference
+  await expect(rowB.getByTestId('wo-pva-plan-direct')).toHaveText('$150');
+  await expect(rowB.getByTestId('wo-pva-direct')).toHaveText('$200');
+  await expect(rowB.getByTestId('wo-pva-difference')).toHaveText('Over plan by $50');
   const total = pva.getByTestId('wo-pva-total-USD');
-  await expect(total).toContainText('550.00');         // 400 + 150 planned direct: the sum of the rows
-  await expect(total).toContainText('500.00');         // 300 + 200 actual: the sum of the rows
-  await expect(total).toContainText('Planned indirect: $100.00'); // the shared leg reaches the project total
+  await expect(total).toContainText('$550');         // 400 + 150 planned direct: the sum of the rows
+  await expect(total).toContainText('$500');         // 300 + 200 actual: the sum of the rows
+  await expect(total).toContainText('$100');         // the shared leg's plan reaches the project total
 });

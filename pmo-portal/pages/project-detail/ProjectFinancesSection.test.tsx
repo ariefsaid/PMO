@@ -355,7 +355,7 @@ describe('ProjectFinancesSection reading states', () => {
     });
     render(<ProjectFinancesSection project={{ ...project, status: 'Ongoing Project' } as ProjectWithRefs} />);
     expect(screen.getByRole('heading', { name: 'Contract invoice position · USD' })).toBeInTheDocument();
-    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('incl. PPN');
+    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('incl. tax');
     expect(screen.queryByTestId('project-invoiced-basis')).not.toBeInTheDocument();
     expect(screen.queryByTestId('project-remaining-basis')).not.toBeInTheDocument();
     expect(screen.getByText('Recorded spending · USD')).toBeInTheDocument();

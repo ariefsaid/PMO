@@ -110,7 +110,8 @@
     "notSent": "Not sent",
     "notSentReason": "Not sent: this purchase started before the ERP connection",
     "valueFromLines": "From the order lines",
-    "valueNotRecorded": "Value not recorded for this receipt"
+    "valueNotRecorded": "Value not recorded for this receipt",
+    "withholding": "Withholding"
   },
   "gates": {
     "heading": "Purchase rules",
@@ -379,7 +380,7 @@
     "projectBudget": "Project budget",
     "reservedSub": "Approved, not yet ordered",
     "reserved": "Reserved",
-    "thisProcurement": "Procurement total",
+    "thisProcurement": "Procurement estimate",
     "notCompared": "In a different currency: not compared with the budget",
     "budgetUsed": "Budget used",
     "budgetUsedBasis": "Recorded spending, before tax",
@@ -770,7 +771,8 @@
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting",
-    "waitingOnYou": "waiting on your decision"
+    "waitingOnYou": "waiting on your decision",
+    "selectTimesheets": "Select timesheets"
   },
   "threeWayMatch": {
     "title": "Three-way match · {{bill}}",
@@ -954,6 +956,10 @@
     "spendingNotVisible": "whether it fits the project's {{category}} budget is checked when it is decided."
   },
   "purchaseOrderPrint": {
+    "number": "Number",
+    "preparedBy": "Prepared by",
+    "approvedBy": "Approved by",
+    "vendorAcceptance": "Vendor acceptance",
     "printAction": "Print purchase order",
     "title": "Purchase Order",
     "print": "Print",
@@ -1068,17 +1074,13 @@
     "retireConfirm": "Retire category",
     "loadError": "Couldn’t load line planning",
     "onlyAdmin": "Only an Admin can change this.",
-    "saving": "Saving…",
     "saved": "Saved",
     "noCategories": "No categories yet.",
     "retired": "Retired",
-    "section": "Category and needed by",
     "category": "Line category",
     "neededBy": "Needed by",
     "none": "None",
-    "lineLabel": "Line {{name}}",
-    "saveFailed": "The category and date could not be saved for some lines. Open the request to set them.",
-    "columnEmpty": "—"
+    "saveFailed": "The category and date could not be saved for some lines. Open the request to set them."
   },
   "billHold": {
     "rule": {
@@ -1092,8 +1094,6 @@
   },
   "lineWorkOrders": {
     "loadError": "Could not load this project’s work orders.",
-    "section": "Work order per line",
-    "intro": "Say which work order, and discipline, each line is for. When every line names the same work order, the request takes it.",
     "field": "Work order for {{line}}",
     "disciplineField": "Discipline for {{line}}",
     "noDiscipline": "No discipline",
@@ -1103,11 +1103,7 @@
     "unknownWorkOrder": "A work order you cannot open",
     "cancelled": "cancelled",
     "noProject": "Choose a project first: work orders belong to a project, and each line can then be given one.",
-    "noWorkOrders": "This project has no work orders yet, so lines cannot be given one. A project manager adds work orders on the project’s Work orders tab.",
-    "differs": "The request is on {{workOrder}}; this line is for a different work order.",
     "save": "Save",
-    "saved": "Saved",
-    "nothingToSave": "Change a line’s work order or discipline to save.",
     "saveFailed": "The request is saved, but the work order of some lines was not set.",
     "saveFailedNext": "Open the request and set them on the Items tab."
   },
@@ -1128,17 +1124,20 @@
     "turnOn": "Turn on built-in roles in Administration > People > Built-in roles to name roles that can order."
   },
   "orderNeededBy": {
-    "heading": "Needed by",
-    "help": "Required before the order is sent to the supplier. It fills every line; a line can carry its own date.",
     "orderDate": "Order needed by",
-    "lineDate": "Line needed by",
-    "none": "—",
-    "save": "Save",
-    "saved": "Saved",
     "settingHeading": "Order needed-by date",
     "settingHelp": "When on, an order cannot be sent to the supplier until it has a needed-by date. Orders created before you turn this on are not blocked.",
     "settingLabel": "Require a needed-by date before an order is sent",
     "loadError": "Couldn’t load this setting",
     "valueLoadError": "Couldn’t load this order’s needed-by date"
+  },
+  "linePlan": {
+    "line": "Line",
+    "category": "Category",
+    "workOrder": "Work order",
+    "discipline": "Discipline",
+    "differs": "Not the request’s {{workOrder}}",
+    "orderDateHelp": "Required to send the order. Fills every line.",
+    "noWorkOrders": "No work orders on this project yet, so lines take none. A project manager adds them on the project’s Work orders tab."
   }
 }

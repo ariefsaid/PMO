@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
 import { inDays, orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -69,6 +70,7 @@ test('JOB-F16 the welder certificate and the permit to work both show with their
     // 2. The safety officer opens the work order and its safety record for today.
     await safetyOfficer.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'documents');
     const section = page.getByTestId('safety-section');
     await expect(section).toBeVisible({ timeout: 20_000 });
     const todayRow = page.locator(`[data-testid="safety-day-row"][data-date="${today}"]`);

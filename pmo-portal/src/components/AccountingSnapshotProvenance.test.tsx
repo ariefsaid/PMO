@@ -66,12 +66,12 @@ describe('AC-PLC-005: the snapshot date follows the profile timezone', () => {
     const asOf = '2026-06-14T23:30:00Z';
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
     const { unmount } = render(<AccountingSnapshotProvenance asOf={asOf} sourceReport="GL Entry" reportVersion={null} />);
-    expect(screen.getByText(/Jun 14, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/14 Jun 2026/)).toBeInTheDocument();
     unmount();
 
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
     render(<AccountingSnapshotProvenance asOf={asOf} sourceReport="GL Entry" reportVersion={null} />);
-    expect(screen.getByText(/Jun 15, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/15 Jun 2026/)).toBeInTheDocument();
   });
 });
 

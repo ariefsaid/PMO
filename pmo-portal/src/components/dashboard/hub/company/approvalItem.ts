@@ -31,7 +31,7 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
     }
     case 'expense': {
       const { claim } = entry.row as ExpenseClaimAwaiting;
-      return { key: entry.key, what: claim.title, who: claim.claimant?.full_name ?? null, amount: money(claim.amount, claim.float?.currency ?? claim.currency), days, href: `/expenses/${claim.id}` };
+      return { key: entry.key, what: claim.title, who: claim.claimant?.full_name ?? null, amount: Number(claim.amount) === 0 ? null : money(claim.amount, claim.float?.currency ?? claim.currency), days, href: `/expenses/${claim.id}` };
     }
     case 'invoice': {
       const row = entry.row as SalesInvoiceRow;

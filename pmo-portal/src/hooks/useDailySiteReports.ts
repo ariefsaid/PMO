@@ -63,21 +63,27 @@ export function useDsrLookups(workOrderId: string | undefined, reportId: string 
   return { idle, weather, items, hours };
 }
 
-export function useDailySiteReportMutations() {
+export function useDailySiteReportMutations(projectId?: string) {
   const orgId = useOrg();
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: dsrKeys.root(orgId) });
-  const opts = { onSuccess: refresh };
+  const refreshReports = () => qc.invalidateQueries({ queryKey: dsrKeys.root(orgId) });
+  const refreshProgress = () => {
+    void refreshReports();
+    void qc.invalidateQueries({ queryKey: projectId
+      ? ['billing-reconciliation', orgId, projectId]
+      : ['billing-reconciliation', orgId] });
+  };
+  const progressOpts = { onSuccess: refreshProgress };
   return {
-    save: useMutation({ mutationFn: (input: DsrDraftInput) => repo().saveDraft(input), ...opts }),
-    submit: useMutation({ mutationFn: (id: string) => repo().submit(id), ...opts }),
-    withdraw: useMutation({ mutationFn: (id: string) => repo().withdraw(id), ...opts }),
-    validate: useMutation({ mutationFn: (id: string) => repo().validate(id), ...opts }),
-    returnReport: useMutation({ mutationFn: (v: { id: string; reason: string }) => repo().returnReport(v.id, v.reason), ...opts }),
-    correct: useMutation({ mutationFn: (v: { id: string; reason: string }) => repo().correct(v.id, v.reason), ...opts }),
+    save: useMutation({ mutationFn: (input: DsrDraftInput) => repo().saveDraft(input), ...progressOpts }),
+    submit: useMutation({ mutationFn: (id: string) => repo().submit(id), ...progressOpts }),
+    withdraw: useMutation({ mutationFn: (id: string) => repo().withdraw(id), ...progressOpts }),
+    validate: useMutation({ mutationFn: (id: string) => repo().validate(id), ...progressOpts }),
+    returnReport: useMutation({ mutationFn: (v: { id: string; reason: string }) => repo().returnReport(v.id, v.reason), ...progressOpts }),
+    correct: useMutation({ mutationFn: (v: { id: string; reason: string }) => repo().correct(v.id, v.reason), ...progressOpts }),
     uploadPhoto: useMutation({
       mutationFn: (v: { report: Pick<DsrReport, 'id' | 'org_id'>; file: File; kind?: DsrPhoto['kind'] }) => repo().uploadPhoto(v.report, v.file, v.kind),
-      ...opts,
+      onSuccess: refreshReports,
     }),
   };
 }

@@ -72,7 +72,8 @@
   },
   "filter": {
     "all": "All",
-    "status": "Status"
+    "status": "Status",
+    "allStatuses": "All statuses"
   },
   "include": "Include",
   "includeBackcharge": "Include a recorded backcharge",
@@ -156,5 +157,10 @@
     "returned": "Returned",
     "setAside": "Set aside",
     "submitted": "Submitted for approval"
-  }
+  },
+  "moreActions": "More certificate actions",
+  "emptyFiltered": "No certificates in this status",
+  "clearFilter": "Show all",
+  "openProcurement": "Open subcontract purchase orders",
+  "prepareRemedy": "Certificates are prepared from subcontract purchase orders by Finance or the project manager."
 }

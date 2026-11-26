@@ -1260,13 +1260,13 @@ calculate it from crews or productivity; the daily report's revenue is read agai
 per-currency value total at the column. It holds no data of its own. A step waiting on a role shows in that person's needs-you list and
 clears when the step completes.
 
-**Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
+**Candidate work order** — *Retired (#2898, #2915): a client's order is now captured as a Draft work order with checks; earlier candidate records stay readable.* A work order that started as an offer under a contract and is assessed with a checklist before the project
 manager accepts or rejects it, with the reason recorded.
 
-**Assessment checklist** — the organisation's own list of checks made on a candidate work order (the system supplies none); each candidate
+**Assessment checklist** — *Retired (#2898, #2915): replaced by the checks on a Draft work order.* The organisation's own list of checks made on a candidate work order (the system supplies none); each candidate
 copies it when opened, and every check there has an owner, a target date, a result (open, passed, failed or not applicable), a note and proof files.
 
-**Ready to accept** — a candidate whose required checks are all passed or not applicable. Only then can it be accepted; rejecting is always possible.
+**Ready to accept** — *Retired (#2898, #2915).* A candidate whose required checks are all passed or not applicable. Only then can it be accepted; rejecting is always possible.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.

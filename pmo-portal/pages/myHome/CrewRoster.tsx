@@ -12,7 +12,7 @@ const OneRoster: React.FC<{ wo: MyHomeWorkOrder; today: string }> = ({ wo, today
   const day = useAttendanceDay(wo.work_order_id, today);
   const crew = roster.data?.find((c) => c.crew_id === wo.crew_id);
   return (
-    <div className="rounded-md border border-border p-3">
+    <div className="rounded-md border border-border p-3 [&_[data-mobile-action-bar]]:static! [&_[data-mobile-action-bar]]:mt-4">
       <p className="text-control font-semibold">{wo.title}</p>
       {roster.isPending || day.isPending ? <ListState variant="loading" rows={2} />
         : roster.isError || day.isError ? <ListState variant="error" quiet title={t('myHome:roster.error', "Couldn't load the crew")} onRetry={() => { void roster.refetch(); void day.refetch(); }} />

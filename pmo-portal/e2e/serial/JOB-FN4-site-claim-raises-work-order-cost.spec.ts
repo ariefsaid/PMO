@@ -7,8 +7,10 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
+import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -50,7 +52,7 @@ test('JOB-FN4 an approved one-million site claim raises its work order and disci
     await page.locator('div[role="option"]', { hasText: run }).first().click();
     await page.getByRole('combobox', { name: 'Discipline' }).click();
     await page.locator('div[role="option"]', { hasText: `${run} Civil` }).first().click();
-    await page.getByLabel(/^Date/).first().fill(new Date().toISOString().slice(0, 10));
+    await page.getByLabel(/^Date/).first().fill(orgToday());
     await page.getByLabel(/^Type/).first().selectOption('Travel');
     await page.getByLabel(/^Description/).first().fill('Site run');
     await page.getByRole('textbox', { name: 'Amount' }).first().fill('1000000');
@@ -69,6 +71,7 @@ test('JOB-FN4 an approved one-million site claim raises its work order and disci
 
     // 3. Goal: the work order's cost carries the claim, once, at one million, under the named discipline.
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'cost');
     const group = page.getByTestId('cost-group-expense_claim');
     await expect(group).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('cost-total-expense_claim')).toContainText(/1[.,]000[.,]000/);

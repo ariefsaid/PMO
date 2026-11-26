@@ -108,7 +108,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   // Bail out — no project linked (takes precedence over the status gate, FR-RB-020),
   // or a viewer whose purchasing read is limited to their own requests.
-  if (!scopedProjectId) return null;
+  if (!scopedProjectId) return <>{aside}</>;
 
   // Bail out — post-Ordered / terminal: the panel is a pre-decision tool only, and
   // hiding it here makes the legacy double-count path structurally impossible.
@@ -322,8 +322,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       // One short line each, so the reason fits its cell: open orders unknown (inputs null) or only spending unknown.
       : inputs === null ? t('decisionSupport.leftOrdersUnknown', 'Open orders not known yet')
       : t('decisionSupport.leftSpendingUnknown', 'Spending not known yet'),
-    // Only spending unknown: the tile says one short word, the sentence under the tiles carries the fallback.
-    ...(inputs !== null ? { unavailableShort: t('decisionSupport.leftNotKnown', 'Not known') } : {}),
+    // Outside a figure scope the tile states the reason; inside one the page reports it once.
   };
   // The strip aligns labels and figures across each row itself (alignRows), so a label is plain text.
   const asTile = (part: Part): StatTile => ({ label: part.label, value: part.value, ...(part.sub ? { sub: part.sub } : {}), ...(part.exactValue ? { exactValue: part.exactValue } : {}) });

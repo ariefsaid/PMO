@@ -15,7 +15,7 @@ export const IssuesSection: React.FC<Props> = ({ issues, isPending, isError, onR
   if (isPending) return <RecordSection title={title}><ListState variant="loading" rows={1} /></RecordSection>;
   if (isError) return <RecordSection title={title}><ListState variant="error" title={t('issues.error', "Couldn't load the issues")} onRetry={onRetry} /></RecordSection>;
   return (
-    <RecordSection title={title}>
+    <RecordSection title={title} actions={<Link to="/incidents" className="text-control text-primary-text hover:underline">{t('issues.open', 'Open incidents')}</Link>}>
       {issues.length === 0
         ? <p className="text-control text-muted-foreground">{t('issues.empty', 'No issues name this work order.')}</p>
         : <ul className="divide-y divide-border" data-testid="wo-issues">

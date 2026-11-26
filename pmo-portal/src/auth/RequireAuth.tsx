@@ -7,6 +7,7 @@ import { Card, CardPad } from '../components/ui/Card';
 import { ListState } from '../components/ui/ListState';
 import { Icon } from '../components/ui/icons';
 import { returnToState } from './returnTo';
+import { useOrgDefaultsReady } from '@/src/hooks/useResolvedLocale';
 
 // -----------------------------------------------------------------------
 // RequireAuth — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -61,16 +62,16 @@ const SignOutButton: React.FC<{ className?: string }> = ({ className }) => {
 const ProfileErrorPage: React.FC<{ onRetry: () => void; retrying: boolean }> = ({ onRetry, retrying }) => {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
       <div
         role="alert"
         aria-live="assertive"
-        className="w-full max-w-sm rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5"
+        className="w-full max-w-sm rounded-lg border border-border bg-card p-6"
       >
         <div className="flex items-start gap-3">
           <Icon name="alert" className="size-5 shrink-0 text-destructive" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-control font-semibold text-destructive-text">
+            <h1 className="text-page font-semibold text-foreground">
               {t('auth:profileLoadError.title', 'Unable to load your profile.')}
             </h1>
             <p className="mt-px text-control text-muted-foreground">
@@ -79,41 +80,43 @@ const ProfileErrorPage: React.FC<{ onRetry: () => void; retrying: boolean }> = (
           </div>
         </div>
         <div className="mt-3 flex justify-end gap-2">
-          <Button type="button" variant="outline" size="sm" loading={retrying} onClick={onRetry}>
+          <Button type="button" variant="primary" size="sm" loading={retrying} onClick={onRetry}>
             <Icon name="refresh" />
             {t('ui.listState.retry', 'Retry')}
           </Button>
           <SignOutButton />
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 
 /** Full-page not-provisioned state — the session is valid but no profiles row exists yet. */
 const NotProvisionedPage: React.FC = () => {
+  const { t } = useTranslation();
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
       <div className="w-full max-w-sm">
         <Card>
           <CardPad className="space-y-3">
-            <h1 className="text-[15px] font-semibold text-foreground">
-              You&apos;re signed in, but your account isn&apos;t set up for this workspace yet.
+            <h1 className="text-page font-semibold text-foreground">
+              {t('auth:notProvisioned.title', 'Account not set up')}
             </h1>
-            <p className="text-[13px] text-muted-foreground">
-              Ask your administrator to invite you, then sign in again.
+            <p className="text-control text-muted-foreground">
+              {t('auth:notProvisioned.body', "You're signed in. Ask your administrator to invite you to this workspace, then sign in again.")}
             </p>
             <SignOutButton className="mt-1" />
           </CardPad>
         </Card>
       </div>
-    </div>
+    </main>
   );
 };
 
 export const RequireAuth: React.FC = () => {
   const { session, loading, profileError, profileErrorKind, refreshCurrentUser } = useAuth();
   const location = useLocation();
+  const orgDefaultsReady = useOrgDefaultsReady();
   const [retrying, setRetrying] = useState(false);
   const retryInFlightRef = useRef(false);
 
@@ -135,5 +138,7 @@ export const RequireAuth: React.FC = () => {
   if (profileErrorKind === 'not_provisioned') return <NotProvisionedPage />;
   if (profileError) return <ProfileErrorPage onRetry={() => { void retryProfile(); }} retrying={retrying} />;
 
+  // The organisation's timezone decides every default day: wait for it rather than mount forms on the UTC day (#2914).
+  if (!orgDefaultsReady) return <AuthLoading />;
   return <Outlet />;
 };

@@ -79,7 +79,7 @@ const FinanceRevenueTrend: React.FC<{ today: string | null; enabled: boolean }> 
           ? [collectedLabel]
           : [t('home.chartInvoiced', 'Invoiced, excl. tax'), collectedLabel]}
         labelAll
-        pairedLabelsOnBars
+        valueAxis={(value) => formatTileMoney(value, currencyState.currency) ?? String(value)}
         minWidth={660}
       />
       {!hasPair && <SeriesKey items={collectionsPrimary

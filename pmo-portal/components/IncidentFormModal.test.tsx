@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import type { IncidentRow } from '@/src/lib/db/incidents';
@@ -76,6 +76,16 @@ describe('IncidentFormModal project selector', () => {
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'America/Los_Angeles' });
     renderModal({ ...baseRow, due_at: '2050-01-02T07:59:00.000Z' });
     expect(screen.getByLabelText(/fix by/i)).toHaveValue('1 Jan 2050');
+  });
+
+  it("#2914: a new incident's date starts on the organisation's day, not the browser's", () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-25T18:00:00Z') });  // 26 Nov in Jakarta, still 25 Nov elsewhere
+    try {
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'America/New_York' });
+      setActiveOrgTimezone('Asia/Jakarta');
+      renderModal(null);
+      expect(screen.getByLabelText(/^date/i)).toHaveValue('26 Nov 2026');
+    } finally { vi.useRealTimers(); resetActiveLocale(); }
   });
 
   it('filing from a project register keeps that project on the new issue', async () => {

@@ -140,37 +140,53 @@ beforeEach(() => {
 });
 
 describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
-  it('C21: each probability Save sends only its estimate through its existing save path', async () => {
+  it('C21: leaving each probability field sends only its estimate through its existing save path', async () => {
     const user = userEvent.setup();
     renderLens();
     const goInput = screen.getByLabelText('Chance the project proceeds (%)');
     const getInput = screen.getByLabelText('Chance we win if the client proceeds (%)');
     await user.clear(goInput);
     await user.type(goInput, '65');
-    await user.clear(getInput);
-    await user.type(getInput, '40');
-
-    const goForm = goInput.closest('form') as HTMLElement;
-    const getForm = getInput.closest('form') as HTMLElement;
-    const goSave = within(goForm).getByRole('button', { name: 'Save' });
-    const getSave = within(getForm).getByRole('button', { name: 'Save' });
-    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(2);
-    expect(goSave).toBeEnabled();
-    expect(getSave).toBeEnabled();
-
-    await user.click(goSave);
+    await user.tab();
     await vi.waitFor(() => expect(repositoryUpdateGoProbability).toHaveBeenCalledWith('d1', 0.65));
     await vi.waitFor(() => expect(probabilityToast).toHaveBeenCalledTimes(1));
     expect(repositoryUpdateGetProbability).not.toHaveBeenCalled();
     expect(probabilityToast).toHaveBeenLastCalledWith('Opportunity estimate updated', '% Go: 65%', 'success');
 
-    await user.click(within(getInput.closest('form') as HTMLElement).getByRole('button', { name: 'Save' }));
+    await user.clear(getInput);
+    await user.type(getInput, '40');
+    await user.tab();
     await vi.waitFor(() => expect(repositoryUpdateGetProbability).toHaveBeenCalledWith('d1', 0.4));
     await vi.waitFor(() => expect(probabilityToast).toHaveBeenCalledTimes(2));
     expect(repositoryUpdateGoProbability).toHaveBeenCalledTimes(1);
     expect(probabilityToast).toHaveBeenLastCalledWith('Opportunity estimate updated', '% Get: 40%', 'success');
     expect(invalidateQueries).toHaveBeenCalledTimes(2);
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
+  });
+
+  it.each([
+    ['Chance the project proceeds (%)', repositoryUpdateGoProbability],
+    ['Chance we win if the client proceeds (%)', repositoryUpdateGetProbability],
+  ] as const)('shows a failed blur save for %s and lets the person retry', async (label, save) => {
+    const user = userEvent.setup();
+    save.mockRejectedValueOnce(new Error('Save unavailable'));
+    renderLens();
+    const input = screen.getByLabelText(label);
+    const probabilityForm = within(input.closest('form')!);
+    await user.clear(input);
+    await user.type(input, '65');
+    await user.tab();
+    expect(await probabilityForm.findByRole('alert')).toHaveTextContent("Couldn't save this probability. Check your access and retry.");
+    expect(save).toHaveBeenCalledWith('d1', 0.65);
+    expect(probabilityToast).not.toHaveBeenCalled();
+    expect(invalidateQueries).not.toHaveBeenCalled();
+    expect(input).toBeEnabled();
+    await user.click(input);
+    await user.tab();
+    await vi.waitFor(() => expect(probabilityToast).toHaveBeenCalledWith('Opportunity estimate updated', expect.any(String), 'success'));
+    expect(probabilityForm.queryByRole('alert')).not.toBeInTheDocument();
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith('d1', 0.65);
   });
 
   it('AC-1796: terminal opportunities do not expose editable probability controls', () => {

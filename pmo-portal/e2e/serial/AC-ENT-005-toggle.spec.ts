@@ -59,6 +59,8 @@ test(
     await expect(sw).toBeVisible({ timeout: 20_000 });
     if ((await sw.getAttribute('aria-checked')) !== 'true') {
       await sw.click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).not.toHaveAttribute('aria-busy', 'true');
       // The toggle mutation invalidates orgFeatures; wait for the switch to reflect "on".
       await expect(sw).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
     }
@@ -66,6 +68,8 @@ test(
     // ── When: the Operator toggles incidents OFF ──
     await expect(sw).toHaveAttribute('aria-checked', 'true');
     await sw.click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).not.toHaveAttribute('aria-busy', 'true');
     await expect(sw).toHaveAttribute('aria-checked', 'false', { timeout: 20_000 });
 
     // ── Then: an org member's next shell render hides the Incidents rail item ──
@@ -96,6 +100,8 @@ test(
     const sw2 = incidentsSwitch(page);
     await expect(sw2).toHaveAttribute('aria-checked', 'false');
     await sw2.click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).not.toHaveAttribute('aria-busy', 'true');
     await expect(sw2).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
 
     // ── And: the rail item + route reappear for an org member ──

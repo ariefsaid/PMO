@@ -261,11 +261,11 @@ describe('DataTable column resizing', () => {
     expect(ageCell.style.width).toBe('var(--dt-w-age)');
   });
 
-  it('does not impose heuristic widths on columns without caller sizing', () => {
+  it('keeps unsized columns flexible above their readable minimum', () => {
     desktop();
     renderTable({ rows, columns: columns.map(({ size: _size, minSize: _min, maxSize: _max, ...column }) => column), rowKey: (row) => row.id });
     expect(screen.getAllByRole('columnheader').map((th) => (th as HTMLElement).style.width)).toEqual(['', '']);
-    expect(screen.getAllByRole('cell').map((td) => (td as HTMLElement).style.minWidth)).toEqual(['', '']);
+    expect(screen.getAllByRole('cell').map((td) => (td as HTMLElement).style.minWidth)).toEqual(['120px', '120px']);
   });
 
   it('persists resized widths by table id and restores them on a later mount', () => {

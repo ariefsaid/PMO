@@ -49,7 +49,7 @@ test('JOB-H8 HR sees which work order each waiting line of hours belongs to', as
   await page.goto('/crews?view=attendance');
   for (const j of jobs) {
     const row = page.getByRole('row', { name: j.worker });
-    await expect(row.getByText('8 hours')).toBeVisible({ timeout: 20_000 });
+    await expect(row.getByRole('cell', { name: '8', exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(row.getByText(j.wo.title), `${j.worker}'s line names its work order`).toBeVisible();
   }
 });

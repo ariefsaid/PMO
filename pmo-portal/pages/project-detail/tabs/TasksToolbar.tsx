@@ -115,12 +115,24 @@ const TasksToolbar: React.FC<{
   selectedActiveCount,
 }) => {
   const { t } = useTranslation('project');
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
   return (
     <>
       <div className="mb-3.5 flex flex-col gap-3 p-[var(--panel-inset)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-page font-bold tracking-[-0.02em]">{heading}</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>
+            options={[
+              { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
+              { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
+              { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
+              { value: 'calendar', label: t('projectDetail.tasks.view.calendar', 'Calendar') },
+            ]}
+            value={view}
+            onChange={setTaskView}
+            ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
+          />}
             <Menu.Root open={toolbarMenuOpen} onOpenChange={setToolbarMenuOpen}>
               <Menu.Trigger render={<Button variant="outline" size="sm" />} aria-label={t('projectDetail.tasks.moreOptions', 'More task options')}>
                 <span aria-hidden="true">⋯</span>
@@ -166,8 +178,10 @@ const TasksToolbar: React.FC<{
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Button variant="outline" className="sm:hidden" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>{t('ui:filters', 'Filters')}</Button>
+        <div className={cn('min-w-0 flex-wrap items-center gap-2 sm:flex', filtersOpen ? 'flex' : 'hidden')}>
           <ViewToggle<TaskScope>
+            className="shrink-0"
             options={[
               { value: 'mine', label: t('projectDetail.tasks.scope.mine', 'Mine') },
               { value: 'all', label: t('projectDetail.tasks.scope.all', 'All') },
@@ -177,7 +191,7 @@ const TasksToolbar: React.FC<{
             ariaLabel={t('projectDetail.tasks.scopeAriaLabel', 'Task scope')}
             semantics="toggle"
           />
-          <div className="min-w-[128px] flex-1 sm:flex-none">
+          <div className="min-w-0 flex-1 sm:basis-0">
             <SelectField
               id="tasks-filter-status"
               hideLabel
@@ -190,12 +204,12 @@ const TasksToolbar: React.FC<{
               ]}
             />
           </div>
-          <div className="basis-full sm:basis-auto sm:min-w-[144px] sm:flex-none">
+          <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
             <SelectField id="tasks-filter-work-order" hideLabel
               label={t('tasks:workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={onWorkOrderFilter}
               options={[{ value: 'all', label: t('tasks:workOrderFilter.all', 'All work orders') }, { value: 'none', label: t('tasks:workOrderFilter.none', 'No work order') }, ...workOrderOptions]} />
           </div>
-          <div className="basis-full sm:basis-auto sm:min-w-[144px] sm:flex-none">
+          <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
             <SelectField
               id="tasks-filter-assignee"
               hideLabel
@@ -209,7 +223,7 @@ const TasksToolbar: React.FC<{
               ]}
             />
           </div>
-          <div className="min-w-[160px] flex-1">
+          <div className="min-w-0 basis-full xl:basis-auto xl:flex-1">
             {/* F6: the shared list-toolbar search (SearchMini) — same shell, magnifier and
                 searchbox role the FilterBar/DataTable toolbars give. TextField has no leading
                 icon, and inventing a second search look is exactly what the picture sitting caught. */}
@@ -218,20 +232,10 @@ const TasksToolbar: React.FC<{
               placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')}
               value={searchText}
               onChange={(event) => onSearchText(event.target.value)}
-              containerClassName="sm:min-w-0"
+              containerClassName="w-full min-w-0"
             />
           </div>
-          {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>
-            options={[
-              { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
-              { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
-              { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
-              { value: 'calendar', label: t('projectDetail.tasks.view.calendar', 'Calendar') },
-            ]}
-            value={view}
-            onChange={setTaskView}
-            ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
-          />}
+          
         </div>
         {view === 'list' && selectedCount > 0 && <div role="group" aria-label={t('projectDetail.tasks.bulk.actions', 'Bulk task actions')} className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
           <span aria-live="polite" className="mr-1 text-sm font-medium text-foreground">{t('projectDetail.tasks.bulk.selected', '{{count}} selected', { count: selectedCount })}</span>

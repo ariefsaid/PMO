@@ -1,8 +1,7 @@
 import React, { useContext } from 'react';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { formatExactMoney, formatNumberExact } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { useProjectIdleCost } from '@/src/hooks/useIdleCost';
 import { totalIdleAmount } from '@/src/lib/db/idleCost';
 import { sumDecimal } from '@/src/lib/exactDecimal';
@@ -24,7 +23,7 @@ const IdleCostRows: React.FC<Props & { projectId: string }> = ({ projectId, work
   const q = useProjectIdleCost(projectId);
   const rows = (q.data ?? []).filter((r) => r.workOrderId === workOrderId);
   if (rows.length === 0) return null;
-  const money = (v: string | null, cur: string) => (v === null ? t('idle.noRate', 'No rate') : formatExactMoney(v, cur, getNumberLocale()) ?? v);
+  const money = (v: string | null, cur: string) => (v === null ? t('idle.noRate', 'No rate') : formatTableMoney(v, cur) ?? v);
   const cur = rows[0].currency;
   const total = totalIdleAmount(rows);
   const hours = rows.reduce((s, r) => s + Number(r.hours), 0);
@@ -37,7 +36,7 @@ const IdleCostRows: React.FC<Props & { projectId: string }> = ({ projectId, work
   return (
     <div className="mt-4 overflow-x-auto" data-testid={testId}>
       <table className="w-full text-control">
-        <caption className="py-1 text-left font-medium">{t('idle.title', 'Idle time cost by reason')}</caption>
+        <caption className="py-1 text-left font-semibold">{t('idle.title', 'Idle time cost by reason')}</caption>
         <thead><tr className="text-right text-muted-foreground">
           <th scope="col" className="py-1 pr-4 text-left font-normal">{t('idle.reason', 'Reason')}</th>
           <th scope="col" className="py-1 pr-4 font-normal">{t('idle.hours', 'Hours')}</th>

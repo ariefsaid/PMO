@@ -83,11 +83,11 @@ export const PrintSignatureBlocks: React.FC<PrintSignatureBlocksProps> = ({
             data-testid={`signature-block-${idx}`}
           >
             <div>
-              <div className="text-xs font-bold text-foreground text-center border-b border-border pb-1.5 mb-2">
+              <div className="text-sm font-bold text-foreground text-center border-b border-border pb-1.5 mb-2">
                 {block.title}
               </div>
               {block.note ? (
-                <div className="text-xs text-muted-foreground text-center mb-1">
+                <div className="text-sm text-muted-foreground text-center mb-1">
                   {block.note}
                 </div>
               ) : null}
@@ -95,12 +95,12 @@ export const PrintSignatureBlocks: React.FC<PrintSignatureBlocksProps> = ({
 
             {/* Wet-ink signature box */}
             <div className="h-16 flex items-end justify-center pb-1">
-              <span className="text-[11px] text-muted-foreground/60 italic print:hidden">
+              <span className="text-sm text-muted-foreground/60 italic print:hidden">
                 ({block.signLabel ?? signLabel})
               </span>
             </div>
 
-            <div className="space-y-1.5 border-t border-dashed border-border pt-2 text-xs">
+            <div className="space-y-1.5 border-t border-dashed border-border pt-2 text-sm">
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground shrink-0">{block.nameLabel}:</span>
                 <span className="border-b border-dotted border-border flex-1 min-w-[3rem]" />

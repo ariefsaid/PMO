@@ -12,7 +12,7 @@ import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 import { formatNumberMax2 } from '@/src/lib/format';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
@@ -75,8 +75,8 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 // #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
-vi.mock('@/src/hooks/useBillingStages', () => ({
-  claimBillingTraceKey: (orgId: string | undefined, claimId: string) => ['claim-billing-trace', orgId, claimId] as const,
+vi.mock('@/src/hooks/useBillingStages', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/hooks/useBillingStages')>(),
   useBillingReconciliation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
   useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),
@@ -294,7 +294,7 @@ describe('BillingTab', () => {
 
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
     renderTab();
-    expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('IDR · excl. PPN');
+    expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('IDR · excl. tax');
     expect(screen.getByTestId('billing-contract')).not.toHaveTextContent(/\.00|Rp|IDR/);
     expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
     expect(screen.getByTestId('billing-billed')).toHaveTextContent(money(250_000));
@@ -813,14 +813,14 @@ describe('BillingTab', () => {
       }
     });
 
-    it('SUB-B a non-zero assessed, DP-held or not-submitted figure appears again, and "excl. PPN" is said once on the summary head', () => {
+    it('SUB-B a non-zero assessed, DP-held or not-submitted figure appears again, and "excl. tax" is said once on the summary head', () => {
       renderTab();
       for (const id of ['billing-assessed', 'billing-gap', 'billing-dp-held', 'billing-not-submitted']) {
         expect(screen.getByTestId(id)).toBeInTheDocument();
       }
-      expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
-      expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('excl. PPN');
-      expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. PPN');
+      expect(screen.getAllByText(/excl\. tax/)).toHaveLength(1);
+      expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('excl. tax');
+      expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. tax');
     });
 
     it('SUB-B with no BoQ and no claims, both cards sit inside one closed "Quantity billing" disclosure', () => {
@@ -955,6 +955,7 @@ describe('BillingTab', () => {
       // the device zone (+07) still reads 2026-06-30.
       vi.setSystemTime(new Date('2026-06-30T20:00:00Z'));
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Pacific/Kiritimati' });
+      setActiveOrgTimezone('Pacific/Kiritimati');
       h.role = 'Project Manager'; h.userId = 'pm-1';
       renderTab();
 

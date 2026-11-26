@@ -1,11 +1,12 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAttendanceTimeRoles, useSaveAttendanceTimeRoles } from '@/src/hooks/useAttendanceSecondRecords';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
-import { Button, Checkbox, FieldError, ListState, useToast } from '@/src/components/ui';
+import { Button, FieldError, ListState, useToast } from '@/src/components/ui';
+import { RoleChecklist } from '@/src/components/admin/RoleChecklist';
 
 /**
  * Administration › People › Time records (pay-time, migration 1700). The organisation names which built-in roles may enter a second
@@ -14,22 +15,15 @@ import { Button, Checkbox, FieldError, ListState, useToast } from '@/src/compone
  */
 const RoleGroup: React.FC<{ legend: string; helper: string; value: string[]; onChange: (next: string[]) => void; disabled: boolean }> = ({ legend, helper, value, onChange, disabled }) => {
   const roleName = useBuiltInRoleName();
-  const helperId = useId();
-  const toggle = (key: string, on: boolean) => onChange(on ? [...value, key] : value.filter((k) => k !== key));
   return (
-    <fieldset className="min-w-0" aria-describedby={helperId}>
-      <legend className="text-control font-medium text-foreground">{legend}</legend>
-      <p id={helperId} className="mb-2 text-control text-muted-foreground">{helper}</p>
-      <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
-        {BUILT_IN_ROLES.map((r) => (
-          <Checkbox key={r.key} label={roleName(r.key)} checked={value.includes(r.key)} disabled={disabled} onChange={(on) => toggle(r.key, on)} className="min-h-11">
-            {roleName(r.key)}
-          </Checkbox>
-        ))}
-      </div>
-    </fieldset>
+    <RoleChecklist legend={legend} helper={helper} options={BUILT_IN_ROLES.map((r) => ({ key: r.key, name: roleName(r.key) }))}
+      value={value} onChange={onChange} disabled={disabled} />
   );
 };
+
+function sameRoles(a: string[], b: string[]) {
+  return a.length === b.length && a.every((role) => b.includes(role));
+}
 
 export default function OrgAttendanceTimeRoles() {
   const { t } = useTranslation('administration');
@@ -42,10 +36,10 @@ export default function OrgAttendanceTimeRoles() {
   useEffect(() => {
     if (query.data) { setSecond(query.data.secondRecordRoles); setDecider(query.data.deciderRoles); }
   }, [query.data]);
-  const dirty = !!query.data && (second.join() !== query.data.secondRecordRoles.join() || decider.join() !== query.data.deciderRoles.join());
+  const dirty = !!query.data && (!sameRoles(second, query.data.secondRecordRoles) || !sameRoles(decider, query.data.deciderRoles));
   const saveError = save.isError ? classifyMutationError(save.error) : null;
   return (
-    <section id="org-attendance-time-roles" tabIndex={-1} className="scroll-mt-4 mt-6" aria-labelledby="org-attendance-time-roles-heading">
+    <section id="org-attendance-time-roles" tabIndex={-1} className="scroll-mt-4" aria-labelledby="org-attendance-time-roles-heading">
       <h2 id="org-attendance-time-roles-heading" className="text-group font-semibold tracking-[-0.01em]">{t('admin.attendanceRoles.title', 'Time records')}</h2>
       <p className="mt-1 max-w-prose text-control text-muted-foreground">{t('admin.attendanceRoles.intro', "Name who may enter a second record of a worker's day (a surveyor or timekeeper) and who decides which hours stand when two records differ. A second record never changes paid hours on its own.")}</p>
       <div className="mt-3 space-y-4">

@@ -673,7 +673,10 @@
       "banner": {
         "title": "Items issued ahead of progress: {{count}}",
         "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",
-        "row": "{{name}}: issued {{issued}}% of planned, progress {{progress}}%, {{gap}} points ahead"
+        "item": "Item",
+        "issued": "Issued of plan",
+        "ahead": "Ahead of progress",
+        "points": "{{gap}} points"
       },
       "setting": {
         "manage": "Issued-versus-progress warning",
@@ -731,7 +734,7 @@
     }
   },
   "atRisk": {
-    "title": "Stock at risk",
+    "title": "Stock value cover",
     "count": "{{count}} locations",
     "countOne": "1 location",
     "columns": {
@@ -755,7 +758,9 @@
     "states": {
       "emptyTitle": "No location holds stock",
       "emptySub": "Locations with stock appear here against the cover recorded on them."
-    }
+    },
+    "scope": "Stock value per location compared with recorded cover. For stock below its reorder level, open Reorder.",
+    "scopeNoCost": "Locations holding stock. Your role does not display value or cover; stock below its reorder level is in Reorder."
   },
   "transfers": {
     "title": "Stock transfers",
@@ -763,7 +768,7 @@
     "sendTitle": "Send a stock transfer",
     "off": {
       "title": "Two-step stock transfers are off",
-      "sub": "An administrator can turn them on in Stock setup."
+      "sub": "Direct transfers are recorded in Documents. An Admin can enable two-step transfers in Stock setup."
     },
     "empty": {
       "title": "No stock transfers yet",
@@ -851,7 +856,19 @@
       "from": "From",
       "to": "To",
       "name": "Name",
-      "signatureDate": "Date"
+      "signatureDate": "Date",
+      "backShort": "Back",
+      "number": "Number",
+      "signature": "Signature",
+      "dispatchedBy": "Dispatched by",
+      "deliveredBy": "Delivered by",
+      "receivedBy": "Received by"
+    },
+    "columns": {
+      "transfer": "Transfer",
+      "sent": "Sent",
+      "rejected": "Rejected",
+      "note": "Note"
     }
   },
   "handover": {
@@ -903,6 +920,7 @@
     }
   },
   "transferSettings": {
+    "loadError": "Couldn't load stock transfer settings",
     "manage": "Stock transfers and proof",
     "mode": "How stock transfers are made",
     "oneStep": "One step: post at once",
@@ -1002,7 +1020,9 @@
       "roleHelp": "This role decides the last step of a borrowing request.",
       "label": "Name of the approval step",
       "labelDefault": "Borrowing approval"
-    }
+    },
+    "free": "Free",
+    "reserved": "Reserved"
   },
   "dsrIssue": {
     "setting": "Validated daily reports issue their material from stock",
@@ -1102,7 +1122,6 @@
     "date": "Receipt date",
     "noOrders": "No sent orders available.",
     "stockItem": "Stock item",
-    "progress": "Ordered {{ordered}} · Received {{received}} · Outstanding {{outstanding}}",
     "not_received": "Not received",
     "partly_received": "Partly received",
     "fully_received": "Fully received",
@@ -1124,7 +1143,16 @@
     "changeMode": "Change receiving for this organisation?",
     "changeModeBody": "This changes receiving for everyone. Unsaved entries on this form will be discarded.",
     "progressTitle": "Goods received",
-    "openReceiving": "Open receiving"
+    "openReceiving": "Open receiving",
+    "line": "Item",
+    "ordered": "Ordered",
+    "received": "Received",
+    "outstanding": "Outstanding",
+    "status": "Status",
+    "lines": "Order lines",
+    "qualityTitle": "Quality check",
+    "receipts": "Receipts",
+    "countedColumn": "Counted"
   },
   "materialCompletion": {
     "title": "Material completion",
@@ -1146,6 +1174,7 @@
     "print": "Print",
     "back": "Back to the work order",
     "preparedBy": "Prepared by",
-    "checkedBy": "Checked by"
+    "checkedBy": "Checked by",
+    "valueTotal": "Total value"
   }
 }

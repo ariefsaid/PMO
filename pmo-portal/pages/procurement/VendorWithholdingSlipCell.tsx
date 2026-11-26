@@ -26,7 +26,7 @@ export function VendorWithholdingSlipCell({ row, isLoading = false, isError = fa
     'not-required': t('bupot.state.notRequired', 'Not required'), 'return-review': t('bupot.state.returnReview', 'Return review'),
   };
   const isActive = Boolean(row.active_slip_id);
-  return <div className="flex max-w-[14rem] flex-col items-end gap-0.5 text-right text-sm">
+  return <div className="flex max-w-[14rem] flex-col items-end gap-0.5 text-right text-sm max-sm:items-start max-sm:text-left">
     <span className={row.coverage_state === 'needs-review' ? 'font-medium text-foreground' : 'text-muted-foreground'}>{labels[row.coverage_state] ?? labels.unavailable}</span>
     {isActive && <>
       <span className="max-w-full truncate record-id">{row.slip_number ?? ''}</span>

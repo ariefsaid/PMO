@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — creates its own disposable storekeeper login, item, site location and work item per run, and deletes all owned rows in finally.
-/** JOB-W10 — a closing job's leftover material is returned by the storekeeper to the warehouse; the warehouse balance rises back to 10, the
+/** JOB-W10 — a closing job's leftover material is returned by the site supervisor to the warehouse; the warehouse balance rises back to 10, the
  *  ledger carries the return, and the work order's own stock balance falls (4 issued to it, 0 after the return). */
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
@@ -11,11 +11,11 @@ import { label } from './support/jobStock';
 
 test.setTimeout(180_000);
 
-test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 again', async ({ page }) => {
+test('JOB-W10 site supervisor returns 4 leftover units and the warehouse reads 10 again', async ({ page }) => {
   const svc = serviceClient('JOB-W10');
   const admin = await userClient('admin@acme.test');
   const sfx = runSuffix();
-  const storekeeper = await roleJobUser(svc, 'storekeeper', runId('w10-sk'));
+  const storekeeper = await roleJobUser(svc, 'site_supervisor', runId('w10-sv')) // step 110 is the site supervisor's; an Admin names them keeper of the site store;
   let itemId = '';
   let unitId = '';
   let siteId = '';
@@ -50,7 +50,7 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
       return card.getByRole('row').filter({ hasText: site.code }).getByRole('cell').nth(4);
     };
     await signIn(page, 'admin@acme.test');
-    await expect(await woBalance()).toHaveText('4', { timeout: 20_000 });
+    await expect(await woBalance()).toHaveText(/^4\b/, { timeout: 20_000 });
 
     // 1. Storekeeper returns the 4 leftover units from the site store to the project.
     await storekeeper.signIn(page);
@@ -77,7 +77,7 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
     await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: site.name }).locator('span.tabular-nums').first()).toHaveText(/^10(?:[.,]0+)?(?:\s|$)/);
     // ...and the work order's balance falls: the 4 issued to it are returned, so it holds 0.
     await signIn(page, 'admin@acme.test');
-    await expect(await woBalance()).toHaveText('0', { timeout: 20_000 });
+    await expect(await woBalance()).toHaveText(/^0\b/, { timeout: 20_000 });
   } finally {
     const ids = docIds.filter(Boolean);
     if (ids.length) {

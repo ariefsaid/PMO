@@ -12,7 +12,7 @@ import type {
 } from './DataTable';
 import { LeadSlot, PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
-import { isNumericColumn, numericColumnClass } from './dataTableColumns';
+import { isNumericColumn } from './dataTableColumns';
 
 /**
  * Strips responsive-hide classes (e.g. "hidden xl:table-cell") from colClassName
@@ -180,7 +180,7 @@ function DataTableMobileCardInner<Row>({
                     // ONE value alignment in cards: every value starts at the label
                     // column's x — money keeps its tabular figures but loses the
                     // desktop column's right alignment here (director fix).
-                    numericColumnClass(col),
+                    isNumericColumn(col) && 'tabular tabular-nums',
                     col.align === 'center' && 'text-center',
                     stripHiddenClasses(col.colClassName),
                     // A cell whose desktop column stacks right-aligned (money cells
@@ -332,7 +332,7 @@ export function DataTableMobile<Row>({
             const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
               ? total.values[column.key]
               : index === 0 ? total.label : null;
-            return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', numericColumnClass(column), cardValuesEnd && isNumericColumn(column) && 'text-right')}>{value}</dd></React.Fragment>;
+            return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', isNumericColumn(column) && 'tabular tabular-nums', cardValuesEnd && isNumericColumn(column) && 'text-right')}>{value}</dd></React.Fragment>;
           })}
         </dl>
       </li>)}

@@ -28,6 +28,11 @@ function saveButton(page: Page) {
   return page.getByRole('button', { name: /^(save|simpan)$/i });
 }
 
+async function openSavedPreferences(page: Page) {
+  const details = page.locator('details').filter({ has: page.getByText(/^(Saved preferences|Preferensi tersimpan)$/) });
+  if (await details.getAttribute('open') === null) await details.locator('summary').click();
+}
+
 async function openProfileFromAccountMenu(page: Page) {
   await page.getByRole('button', { name: /account menu|menu akun/i }).click();
   await page.getByRole('menuitem', { name: /profile & preferences|profil & preferensi/i }).click();
@@ -51,6 +56,7 @@ test('AC-PLC-007: a phone user saves language, number format and timezone and se
   // Starting state: every preference inherits the seed org's defaults.
   await expect(languageSelect(page)).toHaveValue('inherit');
   await expect(numberSelect(page)).toHaveValue('inherit');
+  await openSavedPreferences(page);
   await expect(page.getByText('Effective timezone: Asia/Jakarta')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
@@ -71,6 +77,7 @@ test('AC-PLC-007: a phone user saves language, number format and timezone and se
   // Applied in this session, no reload: Bahasa labels, English digits, the chosen zone.
   await expect(page.locator('html')).toHaveAttribute('lang', 'id');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Profil & preferensi');
+  await openSavedPreferences(page);
   await expect(page.getByText('Bahasa aktif: Bahasa Indonesia')).toBeVisible();
   await expect(page.getByText('Format angka aktif: 1,234,567.89')).toBeVisible();
   await expect(page.getByText(`Zona waktu aktif: ${TIMEZONE}`)).toBeVisible();
@@ -81,26 +88,38 @@ test('AC-PLC-007: a phone user saves language, number format and timezone and se
   await expect(languageSelect(page)).toHaveValue('id');
   await expect(numberSelect(page)).toHaveValue('en-US');
   await expect(timezoneCombobox(page)).toContainText(TIMEZONE);
+  await openSavedPreferences(page);
   await expect(page.getByText(`Zona waktu aktif: ${TIMEZONE}`)).toBeVisible();
 });
 
-test.afterEach(async ({ page }) => {
+async function restorePreferences(page: Page) {
   // Restore the seed user's three overrides to inherit (NULL), even after an assertion failure.
   // A direct route, not the menu: the restore must not depend on the shell a failure may have
   // left in any state. Signing in again covers a failure before the first sign-in completed.
   await signIn(page, USER);
   await page.goto('/settings/profile');
   await expect(languageSelect(page)).toBeVisible();
+  const alreadyInherited = await languageSelect(page).inputValue() === 'inherit'
+    && await numberSelect(page).inputValue() === 'inherit'
+    && /organization default|default organisasi|bawaan organisasi/i.test(await timezoneCombobox(page).innerText());
   await languageSelect(page).selectOption('inherit');
   await numberSelect(page).selectOption('inherit');
   await timezoneCombobox(page).click();
-  await page.getByRole('listbox').getByRole('option', { name: /organization default|default organisasi/i }).click();
-  await saveButton(page).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Preferences saved' })).toHaveText('Preferences saved');
+  await page.getByRole('listbox').getByRole('option', { name: /organization default|default organisasi|bawaan organisasi/i }).click();
+  // A failure before editing leaves the original values unchanged; Save correctly stays disabled.
+  if (!alreadyInherited) {
+    await expect(saveButton(page)).toBeEnabled();
+    await saveButton(page).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Preferences saved' })).toHaveText('Preferences saved');
+  } else await expect(saveButton(page)).toBeDisabled();
 
   // Prove the restore persisted rather than trusting the success message.
   await page.reload();
   await expect(languageSelect(page)).toHaveValue('inherit');
   await expect(numberSelect(page)).toHaveValue('inherit');
+  await openSavedPreferences(page);
   await expect(page.getByText('Effective timezone: Asia/Jakarta')).toBeVisible();
-});
+}
+
+test.beforeEach(async ({ page }) => { await restorePreferences(page); });
+test.afterEach(async ({ page }) => { await restorePreferences(page); });

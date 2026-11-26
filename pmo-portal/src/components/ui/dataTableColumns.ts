@@ -19,7 +19,7 @@ export function columnAlignmentClass(column: ColumnPresentation): string {
 
 /** Keep the shared table marker and standard utility so figures stay fixed-width in every table branch. */
 export function numericColumnClass(column: ColumnPresentation): string | undefined {
-  return isNumericColumn(column) ? 'tabular tabular-nums' : undefined;
+  return isNumericColumn(column) ? 'tabular tabular-nums whitespace-nowrap' : undefined;
 }
 
 /** True when a cell renders nothing a person can read: null/false/''/whitespace, the "—" marker, or a list/fragment of those.
@@ -29,7 +29,14 @@ export function isBlankCell(node: React.ReactNode): boolean {
   if (typeof node === 'string') return node.trim() === '' || EMPTY_MARKERS.has(node.trim());
   if (typeof node === 'number' || typeof node === 'bigint') return false;
   if (Array.isArray(node)) return node.every(isBlankCell);
-  if (React.isValidElement(node) && node.type === React.Fragment) return isBlankCell((node.props as { children?: React.ReactNode }).children);
+  if (React.isValidElement(node)) {
+    const props = node.props as React.HTMLAttributes<HTMLElement>;
+    if (node.type === React.Fragment) return isBlankCell(props.children);
+    if (node.type === 'span' && typeof props.children === 'string'
+      && !props.role && !props['aria-label'] && !props['aria-labelledby'] && !props.title) {
+      return isBlankCell(props.children);
+    }
+  }
   return false;
 }
 

@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { cleanupAll, need, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 for (const key of ['project_control_manager', 'planner']) {
@@ -15,6 +16,7 @@ for (const key of ['project_control_manager', 'planner']) {
       project = fx.projectId; workOrder = fx.workOrders[0].id;
       await actor.signIn(page);
       await page.goto(`/work-orders/${workOrder}`);
+      await openWorkOrderArea(page, 'cost');
       const section = page.getByTestId('wo-page-revenue-plan');
       await section.getByRole('button', { name: 'Enter plan', exact: true }).click();
       const month = await page.locator('#wrp-month').inputValue();

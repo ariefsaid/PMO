@@ -38,6 +38,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectCardShell from './ProjectCardShell';
+import { orgStageName } from '@/src/lib/status/orgStageNames';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 // ---------------------------------------------------------------------------
@@ -189,7 +190,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
     internal: t('projects.kanban.internal', 'Internal'),
   };
   const stages: KanbanStageItem[] = PROJECT_KANBAN_COLUMNS.map((col) => ({
-    title: titles[col.key],
+    title: orgStageName(col.statuses[0]) ?? titles[col.key],
     dotColor: col.dotColor,
   }));
 
@@ -208,7 +209,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
         <Kanban aria-label={t('projects.kanban.board', 'Projects kanban board')} onScroll={onScroll}>
           {PROJECT_KANBAN_COLUMNS.map((col, colIdx) => {
             const colProjects = projects.filter((p) => col.statuses.includes(p.status as string));
-            const title = titles[col.key];
+            const title = orgStageName(col.statuses[0]) ?? titles[col.key];
             return (
               <div
                 key={col.testId}
