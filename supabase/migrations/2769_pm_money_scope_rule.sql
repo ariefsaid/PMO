@@ -6,7 +6,7 @@
 -- Own project: the caller manages it, is named its deputy (projects.deputy_manager_id, new), or stands in today for its manager.
 -- Reads shared with approval routing and other enforcement: definer code reads the whole project (the internal body);
 -- only a client's read is limited. money_read_is_internal() tells the two apart by the executing role.
--- Reverse: rollback/2751_pm_money_scope_rule_down.sql.
+-- Reverse: rollback/2769_pm_money_scope_rule_down.sql.
 -- drops: none; adds projects.deputy_manager_id, restates project_money_in_scope and five shared reads' guards.
 begin;
 
@@ -992,3 +992,129 @@ create trigger projects_guard_people_fields
   for each row execute function public.guard_project_people_fields();
 
 commit;
+
+-- drops: project_money_in_scope(uuid) | "select p_project is null" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_money_in_scope(uuid) | "or public.auth_role() is distinct from 'Project Manager'::public.user_role" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_money_in_scope(uuid) | "or public.actor_holds_job_role('project_control_manager')" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_money_in_scope(uuid) | "or exists (select 1 from public.projects p" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_money_in_scope(uuid) | "where p.id = p_project and p.org_id = public.auth_org_id() and p.project_manager_id = auth.uid())" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "perform public.assert_not_light();" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "if not public.is_active_member() or public.auth_role() is null or public.auth_role() not in ('Admin','Executive','Finance','Project Manager') then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "raise exception 'not authorized' using errcode='42501';" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "if not exists(select 1 from public.projects p where p.id=p_project and p.org_id=public.auth_org_id()) then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "raise exception 'project not found' using errcode='P0002';" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "end if;" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "if public.org_reads_erp_ledger() then return; end if;" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "return query select d.id,d.work_order_id,d.discipline_id,d.occurred_on,d.number,p.currency," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "case when p.currency=o.default_currency then -sum(l.value_delta) end" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "from public.stock_documents d" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "join public.stock_issue_cost_settings s on s.org_id=d.org_id and d.occurred_on>=s.effective_on" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "join public.stock_ledger l on l.document_id=d.id and l.org_id=d.org_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "left join public.work_orders wo on wo.id=d.work_order_id and wo.org_id=d.org_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "join public.projects p on p.id=coalesce(d.project_id,wo.project_id) and p.org_id=d.org_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "join public.organizations o on o.id=d.org_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "where d.org_id=public.auth_org_id() and d.status='Posted'" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "and ((d.kind in ('issue','return') and d.project_id=p_project)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "or (d.kind='count' and d.work_order_id is not null and wo.project_id=p_project))" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: stock_issue_cost_lines(uuid) | "group by d.id,p.currency,o.default_currency;" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "select c.category, count(*), sum(c.amount), max(c.as_of)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "from public.equipment_hire_charges(public.auth_org_id(), null, p_project_id) c" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "where public.is_active_member()" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "and coalesce(public.auth_role()::text in ('Admin','Finance','Executive','Project Manager'), false)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "and exists (select 1 from public.equipment_costing_settings s where s.org_id = public.auth_org_id() and s.basis = 'hire_rate')" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "and (p_fiscal_year is null or c.fiscal_year = p_fiscal_year)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals(uuid,text) | "group by c.category" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "select c.category, count(*), sum(c.amount), max(c.as_of)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "from public.equipment_hire_charges(public.auth_org_id(), null, p_project_id) c" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "where public.is_active_member()" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "and coalesce(public.auth_role()::text in ('Admin','Finance','Executive','Project Manager'), false)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "and exists (select 1 from public.equipment_costing_settings s where s.org_id = public.auth_org_id() and s.basis = 'hire_rate')" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "and (p_from is null or c.month >= p_from)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "and (p_to is null or c.month <= p_to)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: equipment_charge_project_actuals_between(uuid,date,date) | "group by c.category" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "select m.category, count(*)," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "case when count(*) filter (where a.amount is null or a.amount::text in ('NaN','Infinity','-Infinity')) > 0" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "then null else sum(a.amount) end," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "sum(a.amount), max(a.as_of)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "from public.cost_attribution_allocations(public.auth_org_id(), null, null, p_project_id) a" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "join public.budget_category_account_map m on m.org_id = public.auth_org_id() and m.erp_account = a.account" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "where public.is_active_member()" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "and (exists (select 1 from public.cost_attribution_rules r where r.org_id = public.auth_org_id() and r.is_current)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "or exists (select 1 from public.equipment_costing_settings s where s.org_id = public.auth_org_id() and s.basis = 'actual_cost')" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "or exists (select 1 from public.erp_capture_invoice_assignments x where x.org_id = public.auth_org_id() and x.undone_at is null and x.decision = 'project'))" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "and (p_fiscal_year is null or a.fiscal_year = p_fiscal_year)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "and (a.party_type is distinct from 'Employee' or coalesce(public.holds_spend_approval_authority(public.auth_role()), false))" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: cost_attribution_project_actuals(uuid,text) | "group by m.category" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "select a.fiscal_year, m.category, sum(a.amount), max(a.as_of)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "from public.cost_attribution_allocations(public.auth_org_id(), null, null, p_project_id) a" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "join public.budget_category_account_map m on m.org_id = public.auth_org_id() and m.erp_account = a.account" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "where public.is_active_member()" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "and a.fiscal_year = any(p_fiscal_years)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "and (a.party_type is distinct from 'Employee' or coalesce(public.holds_spend_approval_authority(public.auth_role()), false))" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: budget_attributed_year_sums(uuid,text[]) | "group by a.fiscal_year, m.category" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_finance_actuals(uuid) | "if not exists(select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id()) then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_pmo_positions(uuid[]) | "where p_project_ids is null or p.id = any (p_project_ids)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_mapped_actuals(uuid,text) | "and exists (select 1 from public.projects p where p.id = p_project_id)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_mapped_actuals(uuid,text) | "where exists (select 1 from public.projects p where p.id = p_project_id)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_mapped_actuals(uuid,text) | "where exists (select 1 from public.projects p where p.id = p_project_id)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: first_budget_spending_year(uuid,text[]) | "and exists (select 1 from public.projects p where p.id = p_project_id)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: first_budget_spending_year(uuid,text[]) | "where exists (select 1 from public.projects p where p.id = p_project_id)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_mapped_actuals_all(text) | "where s.org_id = public.auth_org_id() and s.project_id in (select id from visible)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_mapped_actuals_all(text) | "where x.project_id in (select id from visible)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_mapped_actuals_all(text) | "where x.project_id in (select id from visible)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "with g as materialized (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select public.is_active_member() and public.holds_spend_approval_authority(public.auth_role()) as ok" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "), pos as materialized (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select pp.* from public.project_budget_positions(p_project_ids) pp where (select ok from g)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "), erp_rec as materialized (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select a.project_id," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "from (select 1 where exists (select 1 from pos where pos.ledger_basis = 'erp')) one" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "cross join lateral public.project_mapped_actuals_all(null) a" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "where a.project_id in (select pos.project_id from pos where pos.ledger_basis = 'erp')" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "group by a.project_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | ")" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select pp.project_id," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "jsonb_build_object(" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'basis', pp.ledger_basis," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'ledger_currency', pp.currency," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'budget_currency', pp.budget_currency," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'proj_budget', pp.active_budget_amount::numeric," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'proj_spent', pp.spent::numeric + cl.amount," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'proj_open', case when pp.ledger_basis = 'erp' then cs.open else pp.open_commitment::numeric end," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'proj_reserved', rs.reserved," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'proj_foreign', coalesce(cs.foreign_amount, false) or rs.foreign_amount or cl.foreign_amount," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "'recorded', coalesce(er.by_category, rec.by_category, '{}'::jsonb))" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "from pos pp" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "left join lateral (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select coalesce(sum(c.amount) filter (where c.currency = pp.budget_currency), 0) as open," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "coalesce(bool_or(c.currency is distinct from pp.budget_currency and c.amount <> 0), false) as foreign_amount" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "from public.project_committed_spend(pp.project_id) c" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "where pp.ledger_basis = 'erp') cs on true" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "cross join lateral (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select coalesce(sum(greatest(0, pr.total_value," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "coalesce((select sum(i.amount) from public.procurement_items i where i.procurement_id = pr.id), 0)))" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "filter (where pr.currency = pp.budget_currency), 0) as reserved," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "coalesce(bool_or(pr.currency is distinct from pp.budget_currency), false) as foreign_amount" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "from public.procurements pr" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "where pr.org_id = public.auth_org_id() and pr.project_id = pp.project_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "and pr.status in ('Approved','Vendor Quoted','Quote Selected')) rs" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "cross join lateral (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select coalesce(sum(greatest(0, c.amount)) filter (where c.currency = pp.budget_currency), 0) as amount," | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "coalesce(bool_or(c.currency is distinct from pp.budget_currency), false) as foreign_amount" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "from public.expense_claims c" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "where c.org_id = public.auth_org_id() and c.project_id = pp.project_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "and c.kind = 'claim' and c.status in ('Approved','Paid')" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "and not (pp.ledger_basis = 'erp' and exists (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select 1 from public.expense_posting_erp_mirror m" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "where m.claim_id = c.id and m.posting = 'approval' and m.push_state = 'pushed'" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "and m.erp_cancelled_at is null and coalesce(m.erp_docstatus, 1) <> 2))) cl" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "left join erp_rec er on er.project_id = pp.project_id" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "left join lateral (" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "select jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "from public.project_finance_actuals(pp.project_id) a" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: spend_approval_project_figures(uuid[]) | "where pp.ledger_basis = 'pmo' and a.category is not null) rec on true" | Preserve the reviewed project read rule and internal dispatch behavior.

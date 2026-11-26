@@ -1,4 +1,4 @@
--- Reverses 2751_pm_money_scope_rule.sql: the 2750 rule, the shared reads unguarded, no deputy link.
+-- Reverses 2769_pm_money_scope_rule.sql: the 2768 rule, the shared reads unguarded, no deputy link.
 begin;
 -- the people-fields guard, the claim scope, the billing summary (2751 tail)
 drop trigger if exists projects_guard_people_fields on public.projects;

@@ -1,5 +1,5 @@
--- 2751_pm_money_scope_rule.test.sql — a Project Manager reads money for their own projects (DD-R1125-14, DD-R1125-15).
--- Migration under test: 2751_pm_money_scope_rule.sql.
+-- 2769_pm_money_scope_rule.test.sql — a Project Manager reads money for their own projects (DD-R1125-14, DD-R1125-15).
+-- Migration under test: 2769_pm_money_scope_rule.sql.
 -- Who is limited: access level Project Manager with job role Project Manager, Deputy Project Manager or none.
 -- Own project: managed, named deputy, or standing in today for its manager.
 -- Approval routing reads the whole project for every approver (AC-007); a client's own read is limited.

@@ -1,4 +1,4 @@
--- Reverse of 2750: restore the previous bodies, then drop the helper.
+-- Reverse of 2768: restore the previous bodies, then drop the helper.
 begin;
 CREATE OR REPLACE FUNCTION public.work_order_cost_amounts_unrounded(p_project_id uuid)
  RETURNS TABLE(source text, record_id uuid, project_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date, reference text, currency text, amount text, reason text, quantity numeric, quantity_unit text, person_id uuid)
@@ -133,7 +133,7 @@ begin
     -- 1263 (#2732, DD-SCWO-4): expense claims that NAME a work order. An unattributed claim adds no line and keeps its
     -- existing treatment. Approved or Paid counts at its amount; in PMO mode it is added to the project figure (it is not
     -- in the PMO-mode actual), in ledger mode only once its approval posting is pushed (so the ledger is never counted twice).
-    select c.id, c.work_order_id, c.discipline_id, coalesce(c.approved_at, c.created_at)::date as on_date,
+    select c.id, c.work_order_id, c.discipline_id, coalesce((select min(l.expense_date) from public.expense_claim_lines l where l.claim_id = c.id and l.org_id = c.org_id), public.native_org_date(c.org_id, c.created_at)) as on_date,
            c.claim_number, c.currency, c.amount,
            c.status in ('Approved', 'Paid') and (not v_erp or exists (
              select 1 from public.expense_posting_erp_mirror m

@@ -150,7 +150,7 @@ begin
     -- 1263 (#2732, DD-SCWO-4): expense claims that NAME a work order. An unattributed claim adds no line and keeps its
     -- existing treatment. Approved or Paid counts at its amount; in PMO mode it is added to the project figure (it is not
     -- in the PMO-mode actual), in ledger mode only once its approval posting is pushed (so the ledger is never counted twice).
-    select c.id, c.work_order_id, c.discipline_id, coalesce(c.approved_at, c.created_at)::date as on_date,
+    select c.id, c.work_order_id, c.discipline_id, coalesce((select min(l.expense_date) from public.expense_claim_lines l where l.claim_id = c.id and l.org_id = c.org_id), public.native_org_date(c.org_id, c.created_at)) as on_date,
            c.claim_number, c.currency, c.amount,
            c.status in ('Approved', 'Paid') and (not v_erp or exists (
              select 1 from public.expense_posting_erp_mirror m
@@ -1168,3 +1168,16 @@ begin
   return v_result;
 end $function$;
 commit;
+
+-- drops: work_order_cost_amounts_unrounded(uuid) | "if not exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = v_org) then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: work_order_cost_amounts(uuid) | "if not exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = v_org) then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: work_order_idle_cost(uuid) | "if not exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = v_org) then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: qcr_over_contract(uuid,boolean) | "if v_org is distinct from public.auth_org_id() then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: get_projects_money_collection(uuid[]) | "join public.projects p on p.id = requested.id and p.org_id = v_org" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: project_erp_journal_lines(uuid) | "with ln as (select * from public.erp_journal_cost_lines(public.auth_org_id(), p_project_id))" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: get_project_consumption(uuid,date,date) | "v_cost := public.stock_can_see_cost();" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: tpi_costs(uuid) | "v_money := public.auth_role() in ('Admin','Executive','Finance','Project Manager');" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: get_bill_match(uuid) | "if not exists (select 1 from public.procurement_invoices where id = p_invoice_id and org_id = public.auth_org_id()) then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: get_project_finances(uuid) | "if not exists(select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id()) then" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: get_project_finances(uuid) | "'equipment_charge_amount',equipment_charge_to_date::text) order by category) from gl)" | Preserve the reviewed project read rule and internal dispatch behavior.
+-- drops: get_project_finances(uuid) | ")" | Preserve the reviewed project read rule and internal dispatch behavior.
