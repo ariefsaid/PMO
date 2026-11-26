@@ -2,6 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { accessToken, adminClient, ANON_KEY, AUTH_URL, must, provisionOdooOrg, scenarioGate, setup, signIn, sweep, type ScenarioOrg } from './_connectScenario';
+import { orgToday } from './support/jobJourney';
 
 const gate = scenarioGate('AC-ODA-022');
 test.skip(!gate.ready, gate.reason);
@@ -20,7 +21,7 @@ test('AC-ODA-022: Finance sees the same Odoo project amount and reconciliation o
     partner = await make('res.partner', { name: stamp });
     account = await make('account.account', { name: stamp, code: `${Date.now()}`.slice(-8), account_type: 'expense', company_ids: [[6, 0, [company.id]]] });
     analytic = await make('account.analytic.account', { name: stamp, plan_id: scenario.planId, company_id: company.id });
-    move = await make('account.move', { move_type: 'in_invoice', partner_id: partner, invoice_date: new Date().toISOString().slice(0, 10),
+    move = await make('account.move', { move_type: 'in_invoice', partner_id: partner, invoice_date: orgToday(),
       invoice_line_ids: [[0, 0, { name: stamp, quantity: 1, price_unit: 234500, account_id: account, tax_ids: [[5, 0, 0]], analytic_distribution: { [analytic]: 100 } }]] });
     await call('account.move', 'action_post', { ids: [move] });
     const projectId = crypto.randomUUID();

@@ -17,7 +17,7 @@ test.skip(!svcKey, 'AC-MMP-016: SUPABASE_SERVICE_ROLE_KEY not set (local) — sk
 
 test('AC-MMP-016: Finance records progress and exports the monthly management pack', async ({ page }) => {
   const admin = createClient(SUPABASE_URL, svcKey!);
-  const now = new Date();
+  const now = new Date(); // e2e-org-day: allow — the same month is seeded AND typed into the UI's "As at" field, so the pair is self-consistent
   const year = now.getUTCFullYear();
   const ym = `${year}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
   const projectId = crypto.randomUUID();

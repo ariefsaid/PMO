@@ -128,7 +128,7 @@ test.describe('AC-SAR-050: AR aging read-back stores report-backed buckets', () 
       // ── 2. Refresh AR aging directly against the REAL bench report RPC + the local-DB snapshot
       //      write (mirrors AC-ENA-061's AP proof — refreshAging is the slice-7 logic; the served
       //      sweep TRIGGER is slice 8's task 8.6, not exercised here). ──
-      const reportDate = new Date().toISOString().slice(0, 10);
+      const reportDate = new Date().toISOString().slice(0, 10); // e2e-org-day: allow — the snapshot's own report_date, written and read back by this test
       const scope: AgingScope = {
         reportName: 'Accounts Receivable',
         snapshotTable: 'erp_ar_aging_snapshot',
