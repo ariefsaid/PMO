@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { monthEnd, monthStart, planTotal } from './equipmentPlans';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 describe('equipment plan helpers (#2700)', () => {
   it('AC-EQP-005 a month starts on its first day and ends on its last, leap years included', () => {
@@ -40,6 +41,16 @@ beforeEach(() => {
   h.from.mockClear(); h.rpc.mockClear();
   for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) h.calls[k].length = 0;
   h.results.length = 0;
+});
+
+describe('#2788 hidden prices: the month list reads plan lines through the masked view', () => {
+  afterEach(() => setHidePricesActive(false));
+  it('embeds equipment_plan_lines_masked under the same name while the setting is on', async () => {
+    setHidePricesActive(true);
+    h.push({ data: [], error: null });
+    await listPlansForMonth('2026-03-01');
+    expect(String(h.calls.select[0])).toContain('equipment_plan_lines:equipment_plan_lines_masked(');
+  });
 });
 
 describe('equipment plan IO (#2700)', () => {

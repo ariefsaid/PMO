@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { nullableArg } from './nullableArg';
+import { isHidePricesActive } from '@/src/lib/priceReadPath';
 import { AppError } from '@/src/lib/appError';
 import { formatDecimal, mulRound } from '@/src/lib/exactDecimal';
 import type { UserRole } from './adminUsers';
@@ -119,11 +120,14 @@ const toPlan = (r: PlanDbRow): EquipmentPlan => ({
 
 /** The plans of one month (every project the caller may read), with their lines. */
 export async function listPlansForMonth(month: string): Promise<EquipmentPlan[]> {
-  const { data, error } = await supabase.from('equipment_plans')
-    .select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)')
-    .eq('plan_month', month).order('created_at', { ascending: true }).limit(200);
+  // While prices are hidden the lines come from the price-free view under the same name (#2788).
+  const plans = supabase.from('equipment_plans');
+  const query = isHidePricesActive()
+    ? plans.select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines:equipment_plan_lines_masked(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)')
+    : plans.select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)');
+  const { data, error } = await query.eq('plan_month', month).order('created_at', { ascending: true }).limit(200);
   if (error) fail(error);
-  return (data ?? []).map(toPlan);
+  return ((data ?? []) as PlanDbRow[]).map(toPlan);
 }
 
 export async function savePlan(input: { id: string; projectId: string; month: string; lines: PlanLineInput[] }): Promise<string> {

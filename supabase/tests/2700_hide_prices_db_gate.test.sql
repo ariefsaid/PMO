@@ -1,5 +1,5 @@
 -- 2700_hide_prices_db_gate.test.sql — #2788: the database applies the hide-prices setting on every way of reading.
--- Migration under test: 2700_hide_prices_db_gate.
+-- Migrations under test: 2700_hide_prices_db_gate, 2701_hide_prices_review_fixes.
 -- Mutations (break one, the named assertion goes red, restore):
 --   drop policy price_hidden_deny on purchase_orders ........................ AC-HPG-003
 --   drop the organisation term from the WHERE of purchase_orders_masked ...... AC-HPG-001
@@ -8,8 +8,12 @@
 --   make actor_shown_prices() ignore the setting (= actor_may_see_prices_now) AC-HPG-009
 --   drop the gate line from equipment_rental_check ........................... AC-HPG-014
 --   drop the mask line from create_procurement_with_items .................... AC-HPG-012
+--   procurement_item_writer_ok returns true (2701) ............................ AC-HPG-033
+--   import_identity_facts unmasked in purchase_orders_masked (2701) ............ AC-HPG-003
+--   drop the price test from the order-roles guard (2701) ...................... AC-HPG-040
+--   drop the order-roles test from set_hide_prices_enabled (2701) .............. AC-HPG-039
 begin;
-select plan(24);
+select plan(41);
 
 insert into organizations (id, name, built_in_roles_enabled) values
   ('27000000-0000-0000-0000-000000000001', 'HPG Org A', true),
@@ -19,7 +23,7 @@ insert into org_features (org_id, feature_key, enabled) values
   ('27000000-0000-0000-0000-000000000001', 'procurement', true), ('27000000-0000-0000-0000-000000000002', 'procurement', true);
 insert into auth.users (id, email)
 select ('27000000-0000-0000-0000-0000000000' || n)::uuid, 'hpg-' || n || '@example.com'
-from unnest(array['a1','b1','c1','e1','f1','a2','a3','a4','a5','b2']) n;
+from unnest(array['a1','b1','c1','e1','f1','a2','a3','a4','a5','b2','0e','b3','e3','a6']) n;
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
   ('27000000-0000-0000-0000-0000000000a1','27000000-0000-0000-0000-000000000001','HPG Admin','hpg-a1@example.com','Admin','active',null),
   ('27000000-0000-0000-0000-0000000000b1','27000000-0000-0000-0000-000000000001','HPG PM','hpg-b1@example.com','Project Manager','active',null),
@@ -30,7 +34,11 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('27000000-0000-0000-0000-0000000000a3','27000000-0000-0000-0000-000000000001','HPG Foreman','hpg-a3@example.com','Engineer','active','foreman'),
   ('27000000-0000-0000-0000-0000000000a4','27000000-0000-0000-0000-000000000001','HPG Inactive','hpg-a4@example.com','Engineer','disabled',null),
   ('27000000-0000-0000-0000-0000000000a5','27000000-0000-0000-0000-000000000001','HPG Equipment','hpg-a5@example.com','Engineer','active','equipment_officer'),
-  ('27000000-0000-0000-0000-0000000000b2','27000000-0000-0000-0000-000000000002','HPG Engineer B','hpg-b2@example.com','Engineer','active',null);
+  ('27000000-0000-0000-0000-0000000000b2','27000000-0000-0000-0000-000000000002','HPG Engineer B','hpg-b2@example.com','Engineer','active',null),
+  ('27000000-0000-0000-0000-00000000000e','27000000-0000-0000-0000-000000000001','HPG Executive','hpg-x1@example.com','Executive','active',null),
+  ('27000000-0000-0000-0000-0000000000b3','27000000-0000-0000-0000-000000000001','HPG PM elsewhere','hpg-b3@example.com','Project Manager','active',null),
+  ('27000000-0000-0000-0000-0000000000e3','27000000-0000-0000-0000-000000000001','HPG Engineer elsewhere','hpg-e3@example.com','Engineer','active',null),
+  ('27000000-0000-0000-0000-0000000000a6','27000000-0000-0000-0000-000000000001','HPG Field','hpg-a6@example.com','Engineer','active','field_user');
 -- The Storekeeper holds the ordering right, so the ordering-right read arm is exercised (a person who may not see prices may still order).
 insert into purchase_order_settings (org_id, order_job_roles) values ('27000000-0000-0000-0000-000000000001', '{storekeeper}')
   on conflict (org_id) do update set order_job_roles = excluded.order_job_roles;
@@ -80,6 +88,7 @@ insert into procurement_receipts (id, org_id, procurement_id, status) values
   ('27000000-0000-0000-0000-000000000182','27000000-0000-0000-0000-000000000001','27000000-0000-0000-0000-000000000101','Partial');
 insert into companies (id, org_id, name, type) values
   ('27000000-0000-0000-0000-0000000000c9', '27000000-0000-0000-0000-000000000001', 'HPG Rental Co', 'Vendor');
+update procurements set vendor_id = '27000000-0000-0000-0000-0000000000c9' where id = '27000000-0000-0000-0000-000000000103';
 insert into equipment_assets (id, org_id, code, name, default_unit, ownership) values
   ('27000000-0000-0000-0000-0000000000f9', '27000000-0000-0000-0000-000000000001', 'HPG-EQ', 'Crane', 'hours', 'rented');
 insert into equipment_rental_terms (org_id, asset_id, vendor_id, rate, basis, currency, rented_from) values
@@ -87,22 +96,39 @@ insert into equipment_rental_terms (org_id, asset_id, vendor_id, rate, basis, cu
 insert into hourly_rental_checks (org_id, asset_id, period_from, period_to, result, created_by) values
   ('27000000-0000-0000-0000-000000000001', '27000000-0000-0000-0000-0000000000f9', '2026-09-01', '2026-09-30', '{"rate":"300.00"}', '27000000-0000-0000-0000-0000000000a1');
 
--- Ten actors; six tables with a masked view; two settings.
+-- Imported (identity v2) orders and requests carry their amount in import_identity_facts.
+insert into procurement_import_runs (id, org_id, identity_version) values ('27000000-0000-0000-0000-0000000001f1', '27000000-0000-0000-0000-000000000001', 2);
+insert into purchase_orders (id, org_id, procurement_id, po_number, reference_number, status, date, amount, currency, import_key, import_batch_id) values
+  ('27000000-0000-0000-0000-000000000125','27000000-0000-0000-0000-000000000001','27000000-0000-0000-0000-000000000101','HPG-PO1I','HPG-REF','Issued','2026-11-20',100,'IDR','hpg-po-key','27000000-0000-0000-0000-0000000001f1');
+insert into purchase_requests (id, org_id, procurement_id, pr_number, reference_number, status, date, amount, currency, import_key, import_batch_id) values
+  ('27000000-0000-0000-0000-000000000135','27000000-0000-0000-0000-000000000001','27000000-0000-0000-0000-000000000101','HPG-PR1I','HPG-REF','Submitted','2026-11-20',100,'IDR','hpg-pr-key','27000000-0000-0000-0000-0000000001f1');
+-- A month's equipment plan on the project, written by the Admin; the requester (an Engineer on the project) reads it.
+insert into equipment_plans (id, org_id, project_id, plan_month, status, created_by) values
+  ('27000000-0000-0000-0000-0000000001e1', '27000000-0000-0000-0000-000000000001', '27000000-0000-0000-0000-0000000000d1', '2026-11-01', 'Draft', '27000000-0000-0000-0000-0000000000a1');
+insert into equipment_plan_lines (id, org_id, plan_id, description, quantity, rate, vendor_id, date_from, date_to) values
+  ('27000000-0000-0000-0000-0000000001e2', '27000000-0000-0000-0000-000000000001', '27000000-0000-0000-0000-0000000001e1', 'HPG crane', 2, 50, '27000000-0000-0000-0000-0000000000c9', '2026-11-03', '2026-11-10');
+
+-- Fourteen actors; seven tables with a masked view; hiding off/on, each with order receiving off and on.
 create temp table hp_actor (uid text primary key, hidden_when_on boolean);
-insert into hp_actor values ('a1',false), ('b1',false), ('c1',false), ('e1',true), ('f1',false), ('a2',true), ('a3',true), ('a4',true), ('a5',true), ('b2',false);
+insert into hp_actor values ('a1',false), ('b1',false), ('c1',false), ('e1',true), ('f1',false), ('a2',true), ('a3',true), ('a4',true), ('a5',true), ('b2',false),
+  ('0e',false), ('b3',false), ('e3',true), ('a6',true);
 create temp table hp_pair (base text, vw text, price_cols text[], k text);
 insert into hp_pair values
   ('procurements','procurements_masked','{total_value,approved_total_value,vendor_id}','id::text'),
   ('procurement_items','procurement_items_masked','{rate,amount,erp_line_amount}','id::text'),
-  ('purchase_orders','purchase_orders_masked','{amount}','id::text'),
-  ('purchase_requests','purchase_requests_masked','{amount}','id::text'),
+  ('purchase_orders','purchase_orders_masked','{amount,import_identity_facts}','id::text'),
+  ('purchase_requests','purchase_requests_masked','{amount,import_identity_facts}','id::text'),
   ('purchase_order_lines','purchase_order_lines_masked','{rate,amount}','id::text'),
-  ('po_variation_lines','po_variation_lines_masked','{rate,amount}','variation_id::text || boq_item_id::text');
-create temp table hp_seen (uid text, base text, setting boolean, base_ids text, view_ids text, view_priced int);
+  ('po_variation_lines','po_variation_lines_masked','{rate,amount}','variation_id::text || boq_item_id::text'),
+  ('equipment_plan_lines','equipment_plan_lines_masked','{rate,vendor_id}','id::text');
+create temp table hp_seen (uid text, base text, setting boolean, recv boolean, base_ids text, view_ids text, view_priced int);
 grant all on hp_actor, hp_pair, hp_seen to authenticated;
 
-do $$ declare a record; p record; s boolean; b text; v text; vp int; begin
+do $$ declare a record; p record; s boolean; rc boolean; b text; v text; vp int; begin
   for a in select * from hp_actor loop
+    foreach rc in array array[false, true] loop
+    delete from order_receiving_settings where org_id = '27000000-0000-0000-0000-000000000001';
+    if rc then insert into order_receiving_settings (org_id, enabled) values ('27000000-0000-0000-0000-000000000001', true); end if;
     foreach s in array array[false, true] loop
       update organizations set hide_prices_from_requesters = s where id = '27000000-0000-0000-0000-000000000001';
       for p in select * from hp_pair loop
@@ -112,40 +138,45 @@ do $$ declare a record; p record; s boolean; b text; v text; vp int; begin
         execute format('select coalesce(string_agg(%s, %L order by %s), %L) from public.%I', p.k, ',', p.k, '', p.vw) into v;
         execute format('select count(*) from public.%I where %s', p.vw, (select string_agg(c || ' is not null', ' or ') from unnest(p.price_cols) c)) into vp;
         execute 'reset role';
-        insert into hp_seen values (a.uid, p.base, s, b, v, vp);
+        insert into hp_seen values (a.uid, p.base, s, rc, b, v, vp);
       end loop;
     end loop;
+    end loop;
   end loop;
+  delete from order_receiving_settings where org_id = '27000000-0000-0000-0000-000000000001';
   update organizations set hide_prices_from_requesters = false where id = '27000000-0000-0000-0000-000000000001';
 end $$;
 
 select is_empty($$ select o.uid, o.base from hp_seen o where o.setting = false and o.base_ids is distinct from o.view_ids $$,
-  'AC-HPG-001 setting off: each masked view returns exactly the rows of its table, for ten actors on six tables');
-select is_empty($$ select n.uid, n.base from hp_seen n join hp_seen o using (uid, base) join hp_actor a using (uid)
+  'AC-HPG-001 setting off: each masked view returns exactly the rows of its table, for fourteen actors on seven tables, receiving off and on');
+select is_empty($$ select n.uid, n.base from hp_seen n join hp_seen o using (uid, base, recv) join hp_actor a using (uid)
   where o.setting = false and n.setting = true and not a.hidden_when_on
     and (n.base_ids is distinct from o.base_ids or n.view_ids is distinct from o.base_ids or n.view_priced <> o.view_priced) $$,
   'AC-HPG-002 setting on: people who may see prices read the same rows and the same prices as before');
-select is_empty($$ select n.uid, n.base from hp_seen n join hp_seen o using (uid, base) join hp_actor a using (uid)
+select is_empty($$ select n.uid, n.base from hp_seen n join hp_seen o using (uid, base, recv) join hp_actor a using (uid)
   where o.setting = false and n.setting = true and a.hidden_when_on and (n.base_ids <> '' or n.view_ids is distinct from o.base_ids or n.view_priced <> 0) $$,
   'AC-HPG-003 setting on: a person who may not see prices reads no row from the tables, and the same rows without prices from the views');
-select is_empty($$ select u.uid, u.base from hp_seen u where u.setting = false and u.base_ids = ''
+select is_empty($$ select u.uid, u.base from hp_seen u where u.setting = false and not u.recv and u.base_ids = ''
   and ((u.uid in ('a1','e1','a2') and u.base in ('procurements','procurement_items','purchase_orders','purchase_requests','purchase_order_lines'))
-    or (u.uid = 'b2' and u.base in ('procurements','procurement_items','purchase_orders','purchase_requests'))) $$,
-  'AC-HPG-004 the comparison is not empty: the Admin, the requester, the ordering Storekeeper and the other organisation read rows');
-select is((select count(*)::int from hp_seen), 120, 'AC-HPG-005 ten actors, six tables, two settings were all read');
+    or (u.uid = 'b2' and u.base in ('procurements','procurement_items','purchase_orders','purchase_requests'))
+    or (u.uid in ('e1','0e') and u.base = 'equipment_plan_lines')) $$,
+  'AC-HPG-004 the comparison is not empty: the Admin, the requester, the ordering Storekeeper, the Executive and the other organisation read rows');
+select is((select count(*) filter (where import_identity_facts is not null)::int from purchase_orders where id = '27000000-0000-0000-0000-000000000125')
+          + (select count(*) filter (where import_identity_facts is not null)::int from purchase_requests where id = '27000000-0000-0000-0000-000000000135')
+          + (select count(*)::int from hp_seen), 394, 'AC-HPG-005 fourteen actors, seven tables, four setting states were all read, and the imported order and request carry their facts');
 
 -- The read rules the views copy are pinned: changing a SELECT policy of these tables must come back here together with the view.
 select is((select md5(string_agg(tablename || '|' || policyname || '|' || permissive || '|' || roles::text || '|' || cmd || '|' || coalesce(qual, ''),
                                  E'\n' order by tablename, policyname))
              from pg_policies where schemaname = 'public' and cmd in ('SELECT', 'ALL') and policyname <> 'price_hidden_deny'
-              and tablename in ('procurements','procurement_items','purchase_orders','purchase_requests','purchase_order_lines','po_variations','po_variation_lines')),
-  '1dc28bfbfbb2e8f665bf61d23ea57621', 'AC-HPG-006 the read rules the masked views copy are unchanged (policy hash of the seven tables)');
+              and tablename in ('procurements','procurement_items','purchase_orders','purchase_requests','purchase_order_lines','po_variations','po_variation_lines','equipment_plans','equipment_plan_lines')),
+  '1c9420f0f56b733f61e20612d5927348', 'AC-HPG-006 the read rules the masked views copy are unchanged (policy hash of the nine tables)');
 
 -- Every table that carries a price the ruling names refuses a person who may not see prices.
 select is_empty($$ select t from unnest(array['procurements','procurement_items','purchase_orders','purchase_requests','purchase_order_lines',
     'po_variations','po_variation_lines','purchase_order_revisions','procurement_quotations','rfqs','procurement_invoices','procurement_invoice_lines',
     'procurement_bill_match_lines','payments','erp_purchase_documents','equipment_rental_terms','equipment_rental_checks','hourly_rental_checks',
-    'contract_rate_lines','rate_catalogue_rates','subcontract_certificate_lines','subcontractor_rate_lines','odoo_stock_cost_lines']) t
+    'contract_rate_lines','rate_catalogue_rates','subcontract_certificate_lines','subcontractor_rate_lines','odoo_stock_cost_lines','equipment_plan_lines']) t
   where not exists (select 1 from pg_policies where schemaname = 'public' and tablename = t and policyname = 'price_hidden_deny'
                       and permissive = 'RESTRICTIVE' and cmd = 'SELECT' and roles = '{authenticated}') $$,
   'AC-HPG-007 each priced table refuses a person who may not see prices');
@@ -167,9 +198,7 @@ select is_empty($$ select distinct c.relname from pg_class c join pg_attribute a
       'work_order_consumable_plan_lines','stock_warehouses',
       -- read only at a level that always sees prices (Project Manager, Finance, Executive, Admin)
       'equipment_costing_settings','subcontract_certificates','subcontract_backcharges','subcontract_certificate_backcharges',
-      'vendor_withholding_slips','vendor_withholding_slip_bills',
-      -- planned equipment rates: not on the ruled list (see the ticket)
-      'equipment_plan_lines')
+      'vendor_withholding_slips','vendor_withholding_slip_bills')
   order by 1 $$,
   'AC-HPG-008 every readable table with a price column is gated or classified as visible');
 
@@ -243,6 +272,64 @@ select is((select count(*)::int from information_schema.role_table_grants where 
 select is((select count(*)::int from pg_proc where proname = 'actor_shown_prices' and prosecdef
              and proconfig @> array['search_path=public, pg_temp'] and not has_function_privilege('anon', oid, 'EXECUTE')), 1,
   'AC-HPG-024 the price gate is a definer function with a pinned search path, not callable anonymously');
+
+-- The owner-rights views: every jsonb or json column is masked, every text column is classified, and the owner bypasses row security.
+select is_empty($$ select c.table_name, c.column_name from information_schema.columns c join hp_pair p on p.vw = c.table_name
+  where c.table_schema = 'public' and c.data_type in ('json','jsonb') and not (c.column_name = any (p.price_cols)) $$,
+  'AC-HPG-025 every json column of a masked view is masked');
+select is_empty($$ select c.table_name, c.column_name from information_schema.columns c join hp_pair p on p.vw = c.table_name
+  where c.table_schema = 'public' and c.data_type in ('text','character varying')
+    and c.column_name not in ('approval_notes','code','currency','description','erp_amended_from','erp_attention','erp_modified','erp_state','external_ref',
+      'import_key','import_normalized_ref','name','origin','po_number','pr_number','reference_number','rejection_notes','status','title','unit') $$,
+  'AC-HPG-026 every text column of a masked view is classified as carrying no price');
+select is((select count(*)::int from pg_class c join pg_roles r on r.oid = c.relowner join hp_pair p on p.vw = c.relname
+             where c.relnamespace = 'public'::regnamespace and (r.rolbypassrls or r.rolsuper)), 7,
+  'AC-HPG-027 the masked views'' owner bypasses row security (the views depend on it)');
+
+-- 2701: the requester's own draft, in the shapes the app uses, while hiding is on.
+update organizations set hide_prices_from_requesters = true where id = '27000000-0000-0000-0000-000000000001';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"27000000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select throws_ok($$ insert into procurement_items (procurement_id, name, quantity, rate) values ('27000000-0000-0000-0000-000000000102', 'HPG returning', 1, 1) returning rate $$,
+  '42501', null, 'AC-HPG-028 a table insert that reads back the line refuses that person (no price comes back)');
+with u as (update procurement_items set quantity = 9 where id = '27000000-0000-0000-0000-000000000112' returning id)
+select is((select count(*)::int from u), 0,
+  'AC-HPG-029 a table update by id changes no row for that person (why the app uses the line functions)');
+select is((select (procurement_item_add('27000000-0000-0000-0000-000000000102', '{"id":"27000000-0000-0000-0000-000000000118","name":"HPG fn line","quantity":2,"rate":7}'::jsonb)).rate), null::numeric,
+  'AC-HPG-030 that person adds a line to their own draft and gets it back without its price');
+select lives_ok($$ select procurement_item_edit('27000000-0000-0000-0000-000000000118', '{"quantity":4,"description":"M8"}'::jsonb) $$,
+  'AC-HPG-031 that person edits the line');
+select is((select quantity from procurement_items_masked where id = '27000000-0000-0000-0000-000000000118'), 4.00::numeric, 'AC-HPG-032 and the edit is saved');
+select throws_ok($$ select procurement_item_add('27000000-0000-0000-0000-000000000101', '{"name":"HPG late","quantity":1,"rate":1}'::jsonb) $$, '42501', null,
+  'AC-HPG-033 a request past Draft takes no new line');
+select throws_ok($$ select procurement_item_add('27000000-0000-0000-0000-000000000104', '{"name":"HPG not mine","quantity":1,"rate":1}'::jsonb) $$, '42501', null,
+  'AC-HPG-034 another person''s draft takes no line from that person');
+select throws_ok($$ select procurement_item_edit('27000000-0000-0000-0000-000000000114', '{"quantity":9}'::jsonb) $$, 'P0002', null,
+  'AC-HPG-035 another person''s line is not edited');
+select lives_ok($$ select procurement_item_remove('27000000-0000-0000-0000-000000000118') $$, 'AC-HPG-036 that person removes the line');
+set local request.jwt.claims = '{"sub":"27000000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+select throws_ok($$ select procurement_item_add('27000000-0000-0000-0000-000000000102', '{"name":"HPG other org","quantity":1,"rate":1}'::jsonb) $$, '42501', null,
+  'AC-HPG-037 another organisation adds no line');
+-- Ordering-role holder without the price right: the order and the quotation come back without prices.
+set local request.jwt.claims = '{"sub":"27000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is(row((create_procurement_quotation('27000000-0000-0000-0000-000000000103', '27000000-0000-0000-0000-0000000000c9', 480, '2026-11-20')).total_amount,
+               (create_purchase_order('27000000-0000-0000-0000-000000000103', 'HPG-REF2', 'Draft', '2026-11-20', 480)).amount)::text, '(,)',
+  'AC-HPG-038 an order and a quotation come back without prices to a person who may not see them');
+set local request.jwt.claims = '{"sub":"27000000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok($$ select save_equipment_rental_term('{}'::jsonb) $$, '42501', null,
+  'AC-HPG-041 a person who may not see prices writes no rental term');
+reset role;
+-- Who may order, while prices are hidden.
+update organizations set hide_prices_from_requesters = false where id = '27000000-0000-0000-0000-000000000001';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"27000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$ select set_hide_prices_enabled(true) $$, '23514', null,
+  'AC-HPG-039 hiding is not switched on while a role without the price right may order');
+select po_set_order_job_roles('{buyer}');
+select set_hide_prices_enabled(true);
+select throws_ok($$ select po_set_order_job_roles('{storekeeper}') $$, '23514', null,
+  'AC-HPG-040 while prices are hidden, a role without the price right is not named to order');
+reset role;
 
 select * from finish();
 rollback;

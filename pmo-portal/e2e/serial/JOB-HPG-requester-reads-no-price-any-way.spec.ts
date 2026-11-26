@@ -3,6 +3,7 @@
  * JOB-HPG (#2788) — the database keeps the hide-prices promise on every way of reading: with the setting on, a Site Supervisor opens
  * their own request on screen, and the same signed-in session asking the database directly for that request's table, its lines and
  * its order gets no price (the request comes back only through the price-free read, without its total). Finance still reads the total.
+ * The same person adds, edits and removes a line on their own draft request while hiding is on.
  */
 import { expect, test, type Page } from '@playwright/test';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
@@ -14,6 +15,7 @@ test.setTimeout(120_000);
 
 let requester: Awaited<ReturnType<typeof roleJobUser>>;
 let purchase: ProcurementFixture;
+let draft: ProcurementFixture;
 let pricesWereHidden = false;
 
 test.beforeAll(async () => {
@@ -25,9 +27,11 @@ test.beforeAll(async () => {
   ok('hide prices', await admin.rpc('set_hide_prices_enabled', { p_enabled: true }));
   requester = await roleJobUser(svc, 'site_supervisor', runId('hpg-requester'));
   purchase = await createProcurementFixture({ status: 'Approved', title: 'JOB-HPG any way', withSupplier: true, requestedBy: requester.id });
+  draft = await createProcurementFixture({ status: 'Draft', title: 'JOB-HPG own draft', requestedBy: requester.id });
 });
 
 test.afterAll(async () => {
+  await draft?.cleanup();
   await purchase?.cleanup();
   await requester?.cleanup();
   if (!pricesWereHidden) {
@@ -66,4 +70,31 @@ test('JOB-HPG the Site Supervisor opens their request and no way of reading retu
   const priced = await finance.from('procurements').select('total_value').eq('id', purchase.id).single();
   ok('finance read', priced);
   expect(Number((priced.data as { total_value: number }).total_value)).toBe(12000);
+});
+
+test('JOB-HPG the Site Supervisor adds, edits and removes a line on their own draft while prices are hidden', async ({ page }) => {
+  const item = `HPG bolts ${runId('line')}`;
+  await requester.signIn(page);
+  await page.goto(draft.url);
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
+  await page.getByRole('tab', { name: /^Line items/ }).click();
+  const lines = page.getByTestId('line-items-section');
+  await expect(lines.getByRole('button', { name: 'Edit Fixture line', exact: true })).toBeVisible({ timeout: 20_000 });
+
+  await lines.getByLabel(/new item description/i).fill(item);
+  await lines.getByLabel(/new item quantity/i).fill('3');
+  await lines.getByLabel(/new item unit price/i).fill('4');
+  await lines.getByRole('button', { name: /add line item/i }).click();
+  const saved = lines.getByRole('row').filter({ hasText: item });
+  await expect(saved).toHaveCount(1, { timeout: 20_000 });
+  await expect(saved.getByText(/12[.,]00/)).toHaveCount(0);
+
+  await saved.getByRole('button', { name: `Edit ${item}` }).click();
+  await lines.getByLabel(`Edit quantity for ${item}`).fill('5');
+  await lines.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(saved.getByRole('cell', { name: '5', exact: true })).toBeVisible({ timeout: 20_000 });
+
+  await saved.getByRole('button', { name: `Remove ${item}` }).click();
+  await page.getByRole('button', { name: 'Remove item' }).click();
+  await expect(saved).toHaveCount(0, { timeout: 20_000 });
 });
