@@ -396,8 +396,7 @@
     "cost": "Cost and plan",
     "material": "Materials",
     "billing": "Billing",
-    "inspections": "Inspections",
-    "closeout": "Close-out",
+    "checks": "Inspections and close-out",
     "documents": "Documents and safety",
     "issues": "Issues and tasks"
   },

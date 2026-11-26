@@ -396,8 +396,7 @@
     "cost": "Biaya dan rencana",
     "material": "Material",
     "billing": "Penagihan",
-    "inspections": "Inspeksi",
-    "closeout": "Penutupan",
+    "checks": "Inspeksi dan penutupan",
     "documents": "Dokumen dan keselamatan",
     "issues": "Masalah dan tugas"
   },
