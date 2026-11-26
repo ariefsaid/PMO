@@ -33,7 +33,7 @@ export function OrderReceivingLines({ lines, quantities, onChange, checks, onChe
   const figure = (value: string | undefined, line: ReceivingLine) => <span className="tabular-nums whitespace-nowrap">{qty(value)}{unit(line)}</span>;
   const columns: Column<ReceivingLine>[] = [
     {
-      key: 'line', header: t('receiving.line'), rowHeader: true, size: purchaser ? 248 : 320,
+      key: 'line', header: t('receiving.line'), rowHeader: true, size: purchaser ? 224 : 320,
       cell: (line) => <div className="min-w-0 space-y-2">
         <span className="block break-words font-semibold text-foreground">{purchaser ? line.name : (line.stock_name ?? line.name)}</span>
         {!line.stock_item_id && <span className="block break-words text-control font-normal text-muted-foreground">{t('receiving.unmapped')}</span>}
@@ -41,9 +41,9 @@ export function OrderReceivingLines({ lines, quantities, onChange, checks, onChe
       </div>,
     },
     ...(purchaser ? [
-      { key: 'ordered', header: t('receiving.ordered'), align: 'num' as const, size: 96, cell: (line: ReceivingLine) => figure(line.ordered, line) },
-      { key: 'received', header: t('receiving.received'), align: 'num' as const, size: 96, cell: (line: ReceivingLine) => figure(line.received, line) },
-      { key: 'outstanding', header: t('receiving.outstanding'), align: 'num' as const, size: 96, cell: (line: ReceivingLine) => figure(line.outstanding, line) },
+      { key: 'ordered', header: t('receiving.ordered'), align: 'num' as const, size: 92, cell: (line: ReceivingLine) => figure(line.ordered, line) },
+      { key: 'received', header: t('receiving.received'), align: 'num' as const, size: 100, cell: (line: ReceivingLine) => figure(line.received, line) },
+      { key: 'outstanding', header: t('receiving.outstanding'), align: 'num' as const, size: 120, cell: (line: ReceivingLine) => figure(line.outstanding, line) },
       { key: 'status', header: t('receiving.status'), kind: 'status' as const, size: 176, colClassName: 'hidden xl:table-cell', cell: (line: ReceivingLine) => line.status ? <StatusPill variant={RECEIVING_VARIANT[line.status]}>{t(`receiving.${line.status}`)}</StatusPill> : null },
     ] : []),
     {
