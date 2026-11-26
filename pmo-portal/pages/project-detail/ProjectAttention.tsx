@@ -54,7 +54,7 @@ export const ProjectAttention: React.FC<{
       <ul data-testid="needs-attention-rows" className={cn('grid min-w-0', band && 'xl:grid-cols-2 xl:gap-x-[var(--space-section)]')}>
         {visibleItems.map((item) => (
           // One rule line between rows; in the two-up band the second row's line goes too, so both columns start flush.
-          <li key={item.key} className={cn('min-w-0 border-t border-border/70 first:border-t-0', band && 'xl:[&:nth-child(2)]:border-t-0')}>
+          <li key={item.key} className={cn('min-w-0 border-t border-border/70 first:border-t-0 first:[&>a]:pt-0', band && 'xl:[&:nth-child(2)]:border-t-0 xl:[&:nth-child(2)>a]:pt-0')}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
               <Link to={item.to} className="touch-target flex w-full items-center gap-x-4 py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="min-w-0 flex-1">
