@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(30);
+select plan(33);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('27460000-0000-0000-0000-0000000000a0', 'CIO Org A', 'IDR', 'UTC'),
@@ -109,6 +109,24 @@ select is(pg_temp.err('a1', $$update crm_activities set subject='edited' where i
   'ok', 'AC-CIO-004 an unrelated edit of a legacy violating activity passes');
 select is(pg_temp.err('b1', $$insert into crm_activities (org_id, contact_id, company_id, kind, subject, occurred_at, logged_by_id) values ('27460000-0000-0000-0000-0000000000b0','27460000-0000-0000-0000-0000000000e2','27460000-0000-0000-0000-0000000000c2','Note','x',now(),'27460000-0000-0000-0000-0000000000b1')$$),
   'ok', 'AC-CIO-003 the other organisation logs against its own company, unaffected');
+
+-- Changed-company UPDATE refusals.
+-- crm_activities: the Project Manager holds the UPDATE grant on company_id, so the real role is used.
+select is(pg_temp.err('a1', $$update crm_activities set company_id='27460000-0000-0000-0000-0000000000c2' where subject='x' and company_id='27460000-0000-0000-0000-0000000000c1'$$),
+  'P0002 company not found', 'AC-CIO-001 an activity cannot be moved to another organisation''s company');
+-- sales_invoices / incoming_payments: no user role holds UPDATE on customer_id, so the update trigger is dormant for users.
+-- It is exercised as the table owner (the role a definer function or a future grant would write as).
+create function pg_temp.err_owner(p_sql text) returns text language plpgsql as $$
+begin
+  execute p_sql;
+  return 'ok';
+exception when others then
+  return sqlstate || ' ' || split_part(sqlerrm, ':', 1);
+end $$;
+select is(pg_temp.err_owner($$update sales_invoices set customer_id='27460000-0000-0000-0000-0000000000c2' where reference_number='CIO-3'$$),
+  'P0002 company not found', 'AC-CIO-001 an invoice''s customer cannot be changed to another organisation''s company');
+select is(pg_temp.err_owner($$update incoming_payments set customer_id='27460000-0000-0000-0000-0000000000c2' where org_id='27460000-0000-0000-0000-0000000000a0' and customer_id='27460000-0000-0000-0000-0000000000c1'$$),
+  'P0002 company not found', 'AC-CIO-001 a receipt''s customer cannot be changed to another organisation''s company');
 
 -- the untouched ones: no user-role write path on these (grants at head), so nothing to guard
 select is((select count(*) from information_schema.column_privileges where grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE') and table_schema='public'
