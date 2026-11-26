@@ -32,7 +32,8 @@ export function PrintTable<T>({
   footer,
 }: PrintTableProps<T>): React.ReactElement {
   return (
-    <div className={cn('overflow-x-auto my-6', className)} data-testid="print-table">
+    <div className={cn('overflow-x-auto my-6', className)} data-testid="print-table"
+      role="group" aria-label={columns.map((column) => column.header).join(', ')} tabIndex={0}>
       <table className="w-full text-left text-sm border-collapse">
         <thead>
           <tr className="border-b-2 border-foreground bg-muted/40 print:bg-transparent">
@@ -49,7 +50,7 @@ export function PrintTable<T>({
                   scope="col"
                   style={col.width ? { width: col.width } : undefined}
                   className={cn(
-                    'py-2 px-2 sm:px-3 text-xs font-semibold text-foreground',
+                    'py-2 px-2 sm:px-3 text-sm font-semibold text-foreground',
                     alignClass,
                   )}
                 >
