@@ -759,7 +759,8 @@
       "emptyTitle": "No location holds stock",
       "emptySub": "Locations with stock appear here against the cover recorded on them."
     },
-    "scope": "Stock value per location compared with recorded cover. For stock below its reorder level, open Reorder."
+    "scope": "Stock value per location compared with recorded cover. For stock below its reorder level, open Reorder.",
+    "scopeNoCost": "Locations holding stock. Your role does not display value or cover; stock below its reorder level is in Reorder."
   },
   "transfers": {
     "title": "Two-step transfers",

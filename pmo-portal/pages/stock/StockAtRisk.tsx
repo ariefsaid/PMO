@@ -91,7 +91,7 @@ const StockAtRisk: React.FC = () => {
       }
     >
       <StockTabs />
-      <p className="mb-4 text-sm text-muted-foreground">{t('atRisk.scope')}</p>
+      <p className="mb-4 text-sm text-muted-foreground">{t(showCost || showGuardCover ? 'atRisk.scope' : 'atRisk.scopeNoCost')}</p>
       {state === undefined && showCost && (
         <div className="mb-3">
           {/* The exposure figure leads; the held value is its context. */}

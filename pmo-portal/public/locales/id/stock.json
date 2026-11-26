@@ -759,7 +759,8 @@
       "emptyTitle": "Belum ada lokasi yang menyimpan stok",
       "emptySub": "Lokasi yang menyimpan stok muncul di sini bersama perlindungan yang dicatat untuknya."
     },
-    "scope": "Nilai stok per lokasi dibandingkan dengan perlindungan yang dicatat. Untuk stok di bawah batas, buka Pesanan ulang."
+    "scope": "Nilai stok per lokasi dibandingkan dengan perlindungan yang dicatat. Untuk stok di bawah batas, buka Pesanan ulang.",
+    "scopeNoCost": "Lokasi yang menyimpan stok. Peran Anda tidak menampilkan nilai atau perlindungan; stok di bawah batas ada di Pesanan ulang."
   },
   "transfers": {
     "title": "Transfer dua langkah",
