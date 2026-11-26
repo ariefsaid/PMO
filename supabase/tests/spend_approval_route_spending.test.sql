@@ -213,8 +213,10 @@ insert into profiles (id, org_id, full_name, email, role, status)
 select ('a0923000-0000-0000-0000-0000000009a' || r.n)::uuid, 'a0923000-0000-0000-0000-0000000009a0', 'SRS Rank ' || r.n,
        'srs-rank-' || r.n || '@example.test', r.role, 'active'
   from (select row_number() over () as n, e as role from unnest(enum_range(null::public.user_role)) e) r;
-insert into projects (id, org_id, name, status, currency) values
-  ('a0923000-0000-0000-0000-0000000009b0', 'a0923000-0000-0000-0000-0000000009a0', 'Rank gate', 'Ongoing Project', 'USD');
+-- The rank's Project Manager manages the project: a Project Manager reads money for their own projects (DD-R1125-14).
+insert into projects (id, org_id, name, status, currency, project_manager_id) values
+  ('a0923000-0000-0000-0000-0000000009b0', 'a0923000-0000-0000-0000-0000000009a0', 'Rank gate', 'Ongoing Project', 'USD',
+   (select id from profiles where org_id = 'a0923000-0000-0000-0000-0000000009a0' and role = 'Project Manager'));
 insert into budget_versions (id, org_id, project_id, version, name, status, currency) values
   ('a0923000-0000-0000-0000-0000000009c0', 'a0923000-0000-0000-0000-0000000009a0', 'a0923000-0000-0000-0000-0000000009b0', 1, 'v1', 'Draft', 'USD');
 insert into budget_line_items (org_id, budget_version_id, category, budgeted_amount)
@@ -382,6 +384,8 @@ insert into projects (id, org_id, name, status, currency) values
   ('a0923000-0000-0000-0000-000000000503', 'a0923000-0000-0000-0000-00000000000d', 'D unknown spending', 'Ongoing Project', 'USD'),
   ('a0923000-0000-0000-0000-000000000504', 'a0923000-0000-0000-0000-00000000000d', 'D no named approver','Ongoing Project', 'USD'),
   ('a0923000-0000-0000-0000-000000000505', 'a0923000-0000-0000-0000-00000000000d', 'D named but disabled','Ongoing Project', 'USD');
+-- PM D reads 505's route as its manager: a Project Manager reads money for their own projects (DD-R1125-14).
+update projects set project_manager_id = 'a0923000-0000-0000-0000-0000000000f2' where id = 'a0923000-0000-0000-0000-000000000505';
 insert into budget_versions (id, org_id, project_id, version, name, status, currency)
 select ('a0923000-0000-0000-0000-000000000' || (p.n + 200)::text)::uuid, 'a0923000-0000-0000-0000-00000000000d', p.id, 1, 'v1', 'Draft', 'USD'
   from (select id, right(id::text, 3)::int as n from projects where org_id = 'a0923000-0000-0000-0000-00000000000d') p;
