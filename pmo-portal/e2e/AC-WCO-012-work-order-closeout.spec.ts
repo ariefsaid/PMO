@@ -72,15 +72,15 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
 
     // A document is needed before an item can be marked done; the first item is current.
     await openRowUpdate(page, 'Item one ' + suffix);
-    await expect(page.getByRole('button', { name: 'Mark Item one ' + suffix + ' done' })).toHaveCount(0);
-    await page.getByRole('combobox', { name: 'Document for Item one ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
+    await expect(page.getByRole('button', { name: 'Mark Item one ' + suffix + ' done' })).toBeDisabled();
+    await page.getByRole('combobox', { name: 'Project documents' }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Item one ' + suffix }).click();
     await page.getByRole('button', { name: 'Mark Item one ' + suffix + ' done' }).click();
     await expect(page.getByTestId('closeout-summary')).toContainText('Required items not done: 1');
 
     // The second item cannot be marked done before it has a document either; then it can.
     await openRowUpdate(page, 'Item two ' + suffix);
-    await page.getByRole('combobox', { name: 'Document for Item two ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
+    await page.getByRole('combobox', { name: 'Project documents' }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Item two ' + suffix }).click();
 
     // Closing while the second required item is open is refused by the database, with the count.
