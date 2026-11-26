@@ -31,6 +31,10 @@ const RoleGroup: React.FC<{ legend: string; helper: string; value: string[]; onC
   );
 };
 
+function sameRoles(a: string[], b: string[]) {
+  return a.length === b.length && a.every((role) => b.includes(role));
+}
+
 export default function OrgAttendanceTimeRoles() {
   const { t } = useTranslation('administration');
   const { toast } = useToast();
@@ -42,7 +46,7 @@ export default function OrgAttendanceTimeRoles() {
   useEffect(() => {
     if (query.data) { setSecond(query.data.secondRecordRoles); setDecider(query.data.deciderRoles); }
   }, [query.data]);
-  const dirty = !!query.data && (second.join() !== query.data.secondRecordRoles.join() || decider.join() !== query.data.deciderRoles.join());
+  const dirty = !!query.data && (!sameRoles(second, query.data.secondRecordRoles) || !sameRoles(decider, query.data.deciderRoles));
   const saveError = save.isError ? classifyMutationError(save.error) : null;
   return (
     <section id="org-attendance-time-roles" tabIndex={-1} className="scroll-mt-4 mt-6" aria-labelledby="org-attendance-time-roles-heading">

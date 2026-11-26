@@ -1,4 +1,10 @@
 -- Task roll-ups and task tree depth. Reverse with rollback/2766_task_rollups_down.sql.
+-- drops: check_task_tree_no_cycle() | "if exists (" | replace the existence subquery with a recursive aggregate and has_cycle check
+-- drops: check_task_tree_no_cycle() | "select 1 from up where up.id = new.id" | bool_or over the same ancestor walk detects the same cycle
+-- drops: check_task_tree_no_cycle() | ") then" | replace the existence subquery with a recursive aggregate and has_cycle check
+-- drops: get_executive_dashboard() | "left join public.tasks t on t.milestone_id = m.id and t.archived_at is null" | retain direct milestone and active task matching and also include linked task groups
+-- drops: scheduled_report_content(text,uuid,uuid,date,date,text,text) | "where t.org_id = p_org and t.status <> 'Done' and t.tombstoned_at is null and t.end_date < p_to" | retain existing overdue filters and require active leaf tasks
+-- drops: work_order_section_rollup(uuid) | "from public.tasks t where t.work_order_id = p_work_order_id group by t.section_id" | retain work order and grouping while counting active leaf tasks
 -- drops: the scheduled overdue filter now requires an active task, and section task counts use the leaf rule. Dashboard phase counts include active linked groups. The ancestor walk also checks tree depth.
 
 create or replace function public.scheduled_report_content(

@@ -18,7 +18,11 @@ export function useSurveyMutations(workOrderId: string, projectId: string) {
     void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
   };
   const record = useMutation({ mutationFn: (input: RecordSurveyInput) => repositories.surveyRecord.record(input), onSettled: refresh });
+  const attachDocuments = useMutation({
+    mutationFn: ({ id, documentIds }: { id: string; documentIds: string[] }) => repositories.surveyRecord.attachDocuments(id, documentIds),
+    onSettled: refresh,
+  });
   const confirm = useMutation({ mutationFn: (id: string) => repositories.surveyRecord.confirm(id), onSettled: refresh });
   const discard = useMutation({ mutationFn: (id: string) => repositories.surveyRecord.discard(id), onSettled: refresh });
-  return { record, confirm, discard };
+  return { record, attachDocuments, confirm, discard };
 }

@@ -32,6 +32,12 @@ describe('deriveWorkOrderMissing', () => {
     expect(rows[1].who).toEqual({ key: 'finance' });
   });
 
+  it('AC-WML-003 keeps outstanding quantities exact to three decimal places', () => {
+    const rows = deriveWorkOrderMissing({ ...none, scopeLines: [line({ accepted: 0.2 })],
+      reconciliation: [rec({ progressQty: 0.3, billedQty: 0.199 })] });
+    expect(rows.map((r) => [r.kind, r.reasonParams.quantity])).toEqual([['quantity-accept', 0.1], ['quantity-claim', 0.001]]);
+  });
+
   it('AC-WML-003 a shared item (reported unknown) and fully accepted or claimed items give no row', () => {
     expect(deriveWorkOrderMissing({ ...none, scopeLines: [line({ accepted: 3 })], reconciliation: [rec({ progressQty: null, billedQty: 3 })] })).toEqual([]);
   });
