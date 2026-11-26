@@ -13,7 +13,7 @@
       "degradedNext": "Missing: {{missing}}. Install them in Odoo, then Re-check.",
       "expiringNext": "Create a new key in Odoo and reconnect before it expires.",
       "notActivatedNext": "Syncing starts once a company is chosen.",
-      "disconnectedNext": "An administrator can connect it under Administration, Integrations."
+      "disconnectedNext": "An administrator can connect it under Administration → Organization integrations."
     },
     "state": {
       "unverified": "Not checked recently",
@@ -753,6 +753,7 @@
         "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
       },
       "setup": {
+        "readError": "Couldn't check field setup",
         "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
         "linkAction": "Link them to a person",
         "noCrew": "Not in any crew, so they have no work to check in to.",
@@ -951,13 +952,16 @@
     "action": "Action",
     "runs": "Runs",
     "tokens": "Tokens",
+    "promptTokens": "Input tokens",
+    "completionTokens": "Output tokens",
     "providerCost": "Provider cost",
     "monthUnavailable": "Month unavailable",
     "providerPricingUnavailable": "Provider pricing unavailable",
     "marginUnavailable": "Pricing unavailable",
     "cost": "Cost (USD)",
     "margin": "Margin",
-    "pricingNote": "Pricing not yet configured — margin will appear here once a per-credit USD rate is set."
+    "pricingNote": "Pricing not yet configured — margin will appear here once a per-credit USD rate is set.",
+    "openAssistant": "Open assistant"
   },
   "integrationStatus": {
     "connectedDateMissing": "Date not recorded",
@@ -1065,11 +1069,14 @@
     "singular": "Singular",
     "nav": "Terminology",
     "term": "Term",
-    "language": "Language"
+    "language": "Language",
+    "viewTerms": "Terms",
+    "viewRoles": "Role names",
+    "viewLabel": "What to rename"
   },
   "documentCategories": {
     "nav": "Document categories",
-    "intro": "Every document is filed under one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.",
+    "intro": "Each document has one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.",
     "m365Note": "Files linked from Microsoft 365 keep Microsoft’s own permissions. These settings control only the register entry, preview and open link in PMO.",
     "name": "Category name",
     "namePlaceholder": "e.g. Commercial approval",
@@ -1094,7 +1101,7 @@
     "hiddenFrom": "Hidden from these job roles",
     "hiddenNone": "No job role is hidden from it.",
     "hideFrom": "Hide from a job role",
-    "hideChoose": "Hide from a job role…",
+    "hideChoose": "Choose role",
     "unhide": "Show it to {{role}} again",
     "unhideShort": "Remove",
     "reordered": "Order saved",
@@ -1411,5 +1418,12 @@
     "none": "No role chosen",
     "done": "Done",
     "choose": "Choose roles"
+  },
+  "connections": {
+    "viewLabel": "Organization setup view",
+    "settings": "Organization settings"
+  },
+  "credits": {
+    "balanceHelp": "Balance after credit grants and usage."
   }
 }

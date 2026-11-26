@@ -8,7 +8,9 @@ import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgName } from '@/src/hooks/useOrgName';
-import { formatDay } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import {
   PrintDocument,
   PrintActionBar,
@@ -82,16 +84,16 @@ const DeliveryNotePrintPage: React.FC = () => {
   const documentTitle = t('deliveryNote.title', 'Delivery note');
   const signatureBlocks = settingsQuery.data?.signatureBlocks?.length
     ? settingsQuery.data.signatureBlocks
-    : ['Dispatched by', 'Delivered by', 'Received by'];
+    : [t('deliveryNote.dispatchedBy', 'Dispatched by'), t('deliveryNote.deliveredBy', 'Delivered by'), t('deliveryNote.receivedBy', 'Received by')];
 
   const metaItems: PrintHeaderMetaItem[] = [
     {
       label: t('deliveryNote.date', 'Date'),
-      value: formatDay(req.createdAt),
+      value: formatDayYear(req.createdAt),
     },
     {
       label: t('deliveryNote.neededBy', 'Needed by'),
-      value: formatDay(req.neededBy),
+      value: formatDayYear(req.neededBy),
     },
     {
       label: t('deliveryNote.workOrder', 'Work order'),
@@ -112,7 +114,7 @@ const DeliveryNotePrintPage: React.FC = () => {
     ...(req.note
       ? [
           {
-            label: t('form.note', 'Note'),
+            label: t('deliveryNote.remarks', 'Remarks'),
             value: req.note,
           },
         ]
@@ -148,7 +150,7 @@ const DeliveryNotePrintPage: React.FC = () => {
       header: t('deliveryNote.quantity', 'Quantity'),
       align: 'right',
       width: '100px',
-      render: (line) => <span className="font-semibold tabular-nums">{line.quantity}</span>,
+      render: (line) => <span className="font-semibold tabular-nums">{formatQuantity(String(line.quantity), getNumberLocale())}</span>,
     },
     {
       key: 'unit',
@@ -165,7 +167,7 @@ const DeliveryNotePrintPage: React.FC = () => {
       header: t('deliveryNote.remarks', 'Remarks'),
       width: '180px',
       render: (line) => (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {line.overPlanReason ?? '—'}
         </span>
       ),
@@ -187,10 +189,12 @@ const DeliveryNotePrintPage: React.FC = () => {
             orgName={orgName}
             documentTitle={documentTitle}
             documentNumber={req.number}
+            numberLabel={t('deliveryNote.number', 'Number')}
             metaItems={metaItems}
           />
 
           <PrintTable<MaterialRequestLine>
+            mobileStack
             columns={columns}
             data={req.lines}
             keyExtractor={(line) => line.id}
@@ -200,6 +204,7 @@ const DeliveryNotePrintPage: React.FC = () => {
             blocks={signatureBlocks}
             nameLabel={t('deliveryNote.signedBy', 'Name')}
             dateLabel={t('deliveryNote.signatureDate', 'Date')}
+            signLabel={t('deliveryNote.signature', 'Signature')}
           />
         </PrintDocument>
       </main>

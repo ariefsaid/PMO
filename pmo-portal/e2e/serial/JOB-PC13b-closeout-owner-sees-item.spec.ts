@@ -61,7 +61,7 @@ test('JOB-PC13b the owner job role sees the close-out item under waits-on-you an
     await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId('closeout-summary')).toContainText('Required items not done: 1', { timeout: 30_000 });
     await openRowUpdate(page, itemName);
-    await expect(page.getByLabel(`Document for ${itemName}`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('combobox', { name: 'Project documents', exact: true })).toBeVisible({ timeout: 20_000 });
   } finally {
     await svc.from('tasks').delete().eq('work_order_id', woId || '00000000-0000-0000-0000-000000000000');
     await svc.from('work_order_closeout_items').delete().eq('work_order_id', woId || '00000000-0000-0000-0000-000000000000');

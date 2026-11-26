@@ -35,6 +35,9 @@
   "discardBody": "The draft is removed from the list. It never counted towards the certified quantity.",
   "discardAction": "Discard draft",
   "form": {
+    "attachmentsFailed": "Survey saved, but some documents could not be attached.",
+    "retryAttachments": "Retry attachments",
+    "closeSaved": "Close",
     "titleNew": "Record a survey",
     "titleCorrect": "Correct a survey",
     "submit": "Save draft",

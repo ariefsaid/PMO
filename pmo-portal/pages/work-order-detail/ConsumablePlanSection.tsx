@@ -100,15 +100,15 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
     const remaining = remainingQuantity(planned, requested);
     return (
       <li key={id} className="py-2" data-testid={`consumable-row-${id}`}>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div className="grid grid-cols-1 items-baseline gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <span className="min-w-0 font-medium">{label}</span>
-          <span className="flex flex-wrap items-baseline gap-x-4 tabular-nums text-control">
+          <span className="grid grid-cols-3 items-baseline gap-x-4 gap-y-2 tabular-nums text-control lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.5fr)] [&>span]:min-w-0 [&>span]:break-words [&>span]:lg:text-right">
             {source === 'none'
               ? <span className="text-muted-foreground">{t('plan.noPlan', 'No plan')}</span>
-              : <span>{t('plan.planned', 'Plan {{qty}} {{unit}}', { qty: qty(planned), unit })}</span>}
-            <span className="text-muted-foreground">{t('plan.requested', 'Requested {{qty}}', { qty: qty(requested) })}</span>
-            <span className={remaining.startsWith('-') ? 'font-medium text-warning-foreground' : ''} data-testid={`consumable-remaining-${id}`}>{t('plan.remaining', 'Remaining {{qty}}', { qty: qty(remaining) })}</span>
-            <StatusPill variant={source === 'adjusted' ? 'warn' : 'neutral'}>{sourceLabel(source)}</StatusPill>
+              : <span><span className="block text-muted-foreground lg:sr-only">{t('plan.col.planned', 'Plan')}{' '}</span><span className="whitespace-nowrap">{qty(planned)} {unit}</span></span>}
+            <span><span className="block text-muted-foreground lg:sr-only">{t('plan.col.requested', 'Requested')}{' '}</span><span className="whitespace-nowrap">{qty(requested)}</span></span>
+            <span className={remaining.startsWith('-') ? 'font-medium text-warning-foreground' : ''} data-testid={`consumable-remaining-${id}`}><span className="block text-muted-foreground lg:sr-only">{t('plan.col.remaining', 'Remaining')}{' '}</span><span className="whitespace-nowrap">{qty(remaining)}</span></span>
+            <span className="col-span-3 min-w-0 lg:col-span-1 lg:justify-self-end"><StatusPill variant={source === 'adjusted' ? 'warn' : 'neutral'}>{sourceLabel(source)}</StatusPill></span>
           </span>
         </div>
         {extra}
@@ -123,7 +123,7 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
       data-testid="consumable-plan"
       actions={<span className="flex flex-wrap gap-2">
         {canAdjust && <Button variant="outline" size="sm" onClick={() => setEditing({ line: null })}>{t('plan.addItem', 'Add item')}</Button>}
-        {canGenerate && <Button variant={hasPlan ? 'outline' : 'primary'} size="sm" onClick={() => { setError(null); if (hasPlan) setPreviewing(true); else void confirmGenerate(); }} loading={m.generate.isPending && !previewing}>
+        {canGenerate && <Button variant={hasPlan || p.unplanned.length > 0 ? 'outline' : 'primary'} size="sm" onClick={() => { setError(null); if (hasPlan) setPreviewing(true); else void confirmGenerate(); }} loading={m.generate.isPending && !previewing}>
           {hasPlan ? t('plan.regenerate', 'Regenerate') : t('plan.generate', 'Generate plan')}</Button>}
         {canApprove && <Button variant="primary" size="sm" onClick={() => void approve()} loading={m.approve.isPending}>{t('plan.approval.approve', 'Approve plan')}</Button>}
       </span>}
@@ -143,6 +143,7 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
       {!hasPlan && p.unplanned.length === 0 && (
         <p className="text-control text-muted-foreground">{open ? t('plan.empty', 'No consumable plan yet. Generate one from the usage standards.') : t('plan.emptyClosed', 'No consumable plan was made for this work order.')}</p>
       )}
+      {(p.lines.length > 0 || p.unplanned.length > 0) && <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3 border-b border-border pb-2 text-control text-muted-foreground lg:grid"><span>{t('plan.col.item', 'Item')}</span><span className="grid grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.5fr)] gap-x-4 text-right">{(['planned', 'requested', 'remaining', 'source'] as const).map((key) => <span key={key}>{t(`plan.col.${key}`, { planned: 'Plan', requested: 'Requested', remaining: 'Remaining', source: 'Source' }[key])}</span>)}</span></div>}
       <ul className="divide-y divide-border">
         {p.lines.map((l) => row(l.itemId, <>{l.itemCode} <span className="font-normal text-muted-foreground">{l.itemName}</span></>, l.plannedQty, l.priorQty, l.unitCode, l.source,
           <>
@@ -157,13 +158,13 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
             )}
           </>,
           canAdjust ? <>
-            <Button variant="ghost" size="sm" onClick={() => setEditing({ line: l })}>{t('plan.adjust', 'Adjust')}</Button>
-            {l.source === 'adjusted' && <Button variant="ghost" size="sm" onClick={() => void revert(l)}>{t('plan.revert', 'Use generated quantity')}</Button>}
+            <Button variant="outline" size="sm" onClick={() => setEditing({ line: l })}>{t('plan.adjust', 'Adjust')}</Button>
+            {l.source === 'adjusted' && <Button variant="outline" size="sm" onClick={() => void revert(l)}>{t('plan.revert', 'Use generated quantity')}</Button>}
           </> : undefined))}
         {p.unplanned.map((u) => row(`u-${u.itemId}`, <>{u.itemCode} <span className="font-normal text-muted-foreground">{u.itemName}</span></>, u.plannedQty, u.priorQty, u.unitCode, u.source))}
       </ul>
       {p.noStandard.length > 0 && (
-        <div className="mt-3" data-testid="consumable-no-standard">
+        <div className="mt-4 border-t border-border pt-4" data-testid="consumable-no-standard">
           <h3 className="text-control font-medium">{t('plan.noStandardTitle', 'No standard for these contract lines')}</h3>
           <p className="text-control text-muted-foreground">{t('plan.noStandardHelp', 'A gap in the standards, not a need of zero.')}</p>
           <ul className="mt-1 text-control tabular-nums">

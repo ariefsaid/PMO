@@ -1584,5 +1584,7 @@
     "unpriced": "Unpriced",
     "sourceUnavailable": "Location unavailable",
     "noLocations": "No locations yet. Add a location."
-  }
+  },
+  "autoSave": "Auto-save",
+  "executionPlan": "Execution plan"
 }

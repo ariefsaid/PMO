@@ -525,7 +525,7 @@ const ApprovalsPage: React.FC = () => {
               data-testid="approvals-preview-region"
               className="min-w-0 max-lg:px-4 max-lg:pb-4"
             >
-              {selectedItem && <Button variant="outline" className="mb-3 lg:hidden" onClick={() => { setSelectedKey(null); document.querySelector('[data-testid="approvals-queue-region"]')?.scrollIntoView(); }}>{t('procurement:approvalQueue.back', 'Back')}</Button>}
+              {selectedItem && <Button variant="outline" className="mb-3 lg:hidden" onClick={() => { setSelectedKey(null); document.querySelector('[data-testid="approvals-queue-region"]')?.scrollIntoView(); }}>{t('ui:back', 'Back')}</Button>}
               {selectedItem ? (
                 selectedItem.kind === 'procurement' ? (
                   <ProcurementApprovalPreview row={selectedItem.row} surface="panel" />

@@ -70,12 +70,12 @@ export const WaitsOnYou: React.FC<{
   const bandHold = band ? 'max-[899px]:min-h-[140px]' : undefined;
   return (
     <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn('flex flex-col', 'bg-waiting-surface', className)}>
-      <CardHead level={2} actions={actions}>
+      <CardHead level={2} actions={actions} className="!flex-nowrap items-start [&>div:last-child]:shrink-0">
         {/* Title and badge never break inside; on a narrow card the badge drops whole under the title. */}
-        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="inline-flex flex-col items-start gap-y-1">
           <span className="whitespace-nowrap">{title ?? t('home.waits', 'Waits on you')}</span>
           {/* Every item waiting (each approval, each invoice in a row), so it says "in all"; the header link and the summary count approvals alone. */}
-          {badge ? <span data-testid="waits-count" className="inline-grid whitespace-nowrap min-w-6 place-items-center rounded-full bg-waiting-surface px-2 align-middle text-control font-medium leading-6 text-warning-foreground tabular">{t('home.waitingItemsAll', { count: badge, defaultValue_one: '{{count}} item in all', defaultValue_other: '{{count}} items in all' })}</span> : null}
+          {badge ? <span data-testid="waits-count" className="inline-grid whitespace-nowrap min-w-6 place-items-start bg-waiting-surface align-middle text-control font-medium leading-6 text-warning-foreground tabular">{t('home.waitingItemsAll', { count: badge, defaultValue_one: '{{count}} item in all', defaultValue_other: '{{count}} items in all' })}</span> : null}
         </span>
       </CardHead>
       <div className="flex flex-1 flex-col px-[var(--panel-inset)] pb-1">
@@ -335,7 +335,7 @@ export const ProjectRows: React.FC<{
                             style={{ '--cols': cols } as React.CSSProperties}
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
-                            <span className="min-w-0 text-control font-medium">{row.name}</span>
+                            <span className="min-w-0 text-control font-medium">{row.name}{row.status === 'Won, Pending KoM' && <span className="block text-control font-normal text-muted-foreground">{ts('project.kickoffDetail', 'Waiting for kickoff')}</span>}</span>
                             {/* The status column is wide enough for the longest translated status on one line. */}
                             <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-w-0 max-w-full justify-self-end text-right')}><StatusPill wrap={false} variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (

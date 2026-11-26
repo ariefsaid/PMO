@@ -104,5 +104,6 @@
     "dailyTotal": "Daily total",
     "weekTotal": "Week total",
     "noHours": "No hours"
-  }
+  },
+  "hoursTotal": "{{formatted}} hours"
 }

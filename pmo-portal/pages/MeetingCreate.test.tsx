@@ -326,7 +326,9 @@ describe('New meeting — floor: capture controls (floor-tests/new-meeting.md)',
   it('floor 3: the When field’s local date and time reach the payload as that instant', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Title/), 'Site walk');
-    fireEvent.change(screen.getByLabelText(/When/), { target: { value: '2026-11-20T09:30' } });
+    fireEvent.change(screen.getByLabelText(/When/), { target: { value: '20 Nov 2026' } });
+    fireEvent.blur(screen.getByLabelText(/When/));
+    fireEvent.change(screen.getByLabelText(/^Time$/), { target: { value: '09:30' } });
     await save();
 
     await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalled());

@@ -62,6 +62,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
       )}
     >
       <div data-testid="open-requests">
+        <p className="px-[var(--panel-inset)] pb-3 text-sm text-muted-foreground">{t('imprest:open.source', 'Project requests for planning, not float expenditure.')}</p>
         {q.isPending && <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="loading" rows={2} /></div>}
         {q.isError && <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="error" title={t('imprest:open.error', "Couldn't load the open purchase requests")} onRetry={() => void q.refetch()} /></div>}
         {!q.isPending && !q.isError && requests.length === 0 && (

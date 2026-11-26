@@ -23,7 +23,7 @@ test('JOB-WO1 the issuer creates a work order from the Work orders page by choos
 
     await pcm.signIn(page);
     await page.goto('/work-orders');
-    await page.getByRole('button', { name: 'New work order' }).click();
+    await page.getByRole('button', { name: 'New work order' }).first().click();
     const form = page.getByRole('dialog');
 
     // No project chosen yet: the draft cannot be created.
@@ -46,7 +46,7 @@ test('JOB-WO1 the issuer creates a work order from the Work orders page by choos
 
     // From the project's own Work orders tab the project is preset and locked.
     await page.goto(`/projects/${projectIds[0]}/orders`);
-    await page.getByRole('button', { name: 'New work order' }).click();
+    await page.getByRole('button', { name: 'New work order' }).first().click();
     const tabForm = page.getByRole('dialog');
     await expect(tabForm.getByRole('combobox', { name: /Project/ })).toBeDisabled();
     await expect(tabForm.getByRole('combobox', { name: /Project/ })).toContainText(`${run} harbour`);

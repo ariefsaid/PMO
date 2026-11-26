@@ -83,7 +83,7 @@ afterEach(() => cleanup());
 describe('AC-FX-007 JISDOR upload preview', () => {
   it('renders the upload title and native file-input label from the Indonesian catalogue', () => {
     renderUpload(true, 'id');
-    expect(screen.getByRole('dialog', { name: 'Unggah kurs' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Unggah berkas' })).toBeInTheDocument();
     expect(screen.getByLabelText('Pilih file Excel BI atau CSV tanggal,kurs')).toBeInTheDocument();
   });
 
@@ -160,7 +160,7 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     ).toBeInTheDocument();
     expect(h.upsert).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByRole('dialog', { name: 'Upload rates' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Upload file' })).toBeInTheDocument();
     expect(screen.getByText('16,234.56')).toBeInTheDocument();
     expect(h.upsert).not.toHaveBeenCalled();
   });
@@ -188,7 +188,7 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     await screen.findByText('16,234.56');
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Save rates' }));
-    expect(await screen.findByRole('dialog', { name: 'Upload rates' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Upload file' })).toBeInTheDocument();
     expect(await screen.findByText(/Your rates were not saved/i)).toBeInTheDocument();
     expect(screen.getByText('16,234.56')).toBeInTheDocument();
   });

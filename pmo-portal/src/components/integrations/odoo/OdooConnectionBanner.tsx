@@ -27,7 +27,7 @@ export function OdooConnectionBanner({ connection, binding, now = new Date(), ch
     degraded: { title: t('administration:odoo.state.degraded', 'Some Odoo apps are missing'), next: t('administration:odoo.banner.degradedNext', 'Missing: {{missing}}. Install them in Odoo, then Re-check.', { missing }), tone: 'warn' },
     'credential-expiring': { title: t('administration:odoo.state.credentialExpiring', 'The API key expires soon'), next: t('administration:odoo.banner.expiringNext', 'Create a new key in Odoo and reconnect before it expires.'), tone: 'warn' },
     'not-activated': { title: t('administration:odoo.state.notActivated', 'Choose the Odoo company to finish connecting'), next: t('administration:odoo.banner.notActivatedNext', 'Syncing starts once a company is chosen.'), tone: 'info' },
-    disconnected: { title: t('administration:odoo.state.disconnected', 'Odoo is not connected'), next: t('administration:odoo.banner.disconnectedNext', 'An administrator can connect it under Administration, Integrations.'), tone: 'info' },
+    disconnected: { title: t('administration:odoo.state.disconnected', 'Odoo is not connected'), next: t('administration:odoo.banner.disconnectedNext', 'An administrator can connect it under Administration → Organization integrations.'), tone: 'info' },
   };
   const c = copy[state];
   const tone = c.tone === 'bad' ? 'border-destructive/30 bg-destructive/[0.07]' : c.tone === 'warn' ? 'border-warning/40 bg-warning/12' : 'border-border bg-muted/40';

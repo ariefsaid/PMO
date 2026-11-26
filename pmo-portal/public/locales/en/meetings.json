@@ -42,5 +42,6 @@
   },
   "toast": {
     "restored": "Meeting restored"
-  }
+  },
+  "addActionItem": "Add action item"
 }

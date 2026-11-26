@@ -611,7 +611,7 @@ from months on conflict (id) do nothing;
 -- invoice; total billed work remains unchanged and the unknown state stays visible.
 insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, erp_due_date, amount, tax_amount, tax_treatment, currency, status, erp_docstatus, erp_outstanding_amount, pmo_native)
 select 'b5130000-0000-0000-0000-000000000001', org_id, project_id, customer_id,
-       'DEMO-SI-2401-UNKNOWN', invoice_date, erp_due_date, 330000 + 10000 - amount, 0, 'exclusive', currency, 'Unpaid', 1, null, false
+       'DEMO-SI-2401-013', invoice_date, erp_due_date, 330000 + 10000 - amount, 0, 'exclusive', currency, 'Unpaid', 1, null, false
 from sales_invoices where id = 'b5110000-0000-0000-0000-000000000001'
 on conflict (id) do nothing;
 

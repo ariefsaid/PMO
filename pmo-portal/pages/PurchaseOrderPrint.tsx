@@ -10,7 +10,7 @@ import { usePurchaseOrderSettings } from '@/src/hooks/usePurchaseOrderSettings';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useOrgName } from '@/src/hooks/useOrgName';
-import { formatDay, formatCurrency } from '@/src/lib/format';
+import { formatDayYear, formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 import {
@@ -23,9 +23,6 @@ import {
   type PrintTableColumn,
 } from '@/src/components/print';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
-
-/** Fallback used only when the client has configured no signature blocks at all (FR-POP-007). */
-const FALLBACK_SIGNATURE_BLOCKS = ['Prepared by', 'Approved by', 'Vendor acceptance'];
 
 /**
  * Printable purchase order view with the authorised-to-collect line (#2688).
@@ -100,13 +97,13 @@ const PurchaseOrderPrintPage: React.FC = () => {
 
   const signatureBlocks = settingsQuery.data.signatureBlocks?.length
     ? settingsQuery.data.signatureBlocks
-    : FALLBACK_SIGNATURE_BLOCKS;
+    : [t('purchaseOrderPrint.preparedBy', 'Prepared by'), t('purchaseOrderPrint.approvedBy', 'Approved by'), t('purchaseOrderPrint.vendorAcceptance', 'Vendor acceptance')];
   const collectorsList = settingsQuery.data.authorisedCollectors ?? [];
 
   const metaItems: PrintHeaderMetaItem[] = [
     {
       label: t('purchaseOrderPrint.date', 'Order date'),
-      value: formatDay(po.date || po.created_at),
+      value: formatDayYear(po.date || po.created_at),
     },
     {
       label: t('purchaseOrderPrint.procurementRef', 'Procurement reference'),
@@ -160,7 +157,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
         <div>
           <div className="font-medium text-foreground">{item.name}</div>
           {item.description ? (
-            <div className="text-xs text-muted-foreground mt-0.5">{item.description}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{item.description}</div>
           ) : null}
           {(() => {
             const order = item.work_order_id ? projectOrders.data?.find((w) => w.id === item.work_order_id) : undefined;
@@ -169,7 +166,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
               order ? `${t('purchaseOrderPrint.workOrder', 'Work order')} ${order.wo_number ?? order.title}` : null,
               discipline ? `${t('purchaseOrderPrint.discipline', 'Discipline')} ${discipline.name}` : null,
             ].filter(Boolean);
-            return parts.length > 0 ? <div className="text-xs text-muted-foreground mt-0.5" data-testid="po-line-attribution">{parts.join(' · ')}</div> : null;
+            return parts.length > 0 ? <div className="text-sm text-muted-foreground mt-0.5" data-testid="po-line-attribution">{parts.join(' · ')}</div> : null;
           })()}
         </div>
       ),
@@ -187,7 +184,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
       align: 'right',
       width: '140px',
       render: (item) => (
-        <span className="tabular-nums font-mono text-xs">
+        <span className="tabular-nums font-mono text-sm">
           {!maySeePrices || item.rate == null ? '—' : formatCurrency(Number(item.rate), currency)}
         </span>
       ),
@@ -198,7 +195,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
       align: 'right',
       width: '160px',
       render: (item) => (
-        <span className="tabular-nums font-mono text-xs font-semibold">
+        <span className="tabular-nums font-mono text-sm font-semibold">
           {!maySeePrices || item.amount == null ? '—' : formatCurrency(Number(item.amount), currency)}
         </span>
       ),
@@ -225,7 +222,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
 
       {/* Screen-only: choose one collector for this printed copy, or print every named collector. */}
       {collectorsList.length > 0 ? (
-        <div className="print:hidden mx-auto flex max-w-4xl items-end justify-end px-4 pt-4 sm:px-6">
+        <div className="print:hidden mx-auto flex max-w-4xl items-end justify-start px-4 pt-4 sm:px-0">
           <SelectField
             id="po-collector-picker"
             data-testid="collector-picker-select"
@@ -246,6 +243,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
             orgName={orgName}
             documentTitle={documentTitle}
             documentNumber={docNumber}
+            numberLabel={t('purchaseOrderPrint.number', 'Number')}
             metaItems={metaItems}
           />
 
@@ -255,7 +253,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
             data-testid="authorised-to-collect-section"
             aria-label={t('purchaseOrderPrint.authorisedToCollect', 'Authorised to collect')}
           >
-            <div className="text-xs font-semibold text-muted-foreground">
+            <div className="text-sm font-semibold text-muted-foreground">
               {t('purchaseOrderPrint.authorisedToCollect', 'Authorised to collect')}
             </div>
             <div
@@ -267,7 +265,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
               ) : collectorsList.length > 0 ? (
                 <span>{collectorsList.join(', ')}</span>
               ) : (
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="font-mono text-sm text-muted-foreground">
                   {t(
                     'purchaseOrderPrint.openCollectorLine',
                     '________________________________________',
@@ -278,6 +276,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
           </section>
 
           <PrintTable<ProcurementItemRow>
+            mobileStack
             columns={columns}
             data={items}
             keyExtractor={(item) => item.id}

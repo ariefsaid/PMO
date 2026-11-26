@@ -120,7 +120,7 @@ const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Bloc
  * one 38px control height per row beside the 38px status select, the 44px coarse-pointer target
  * from `.touch-target`, and a one-line label (`whitespace-nowrap`).
  */
-const ROW_ACTION_CLASS = `${buttonClasses('ghost')} whitespace-nowrap`;
+const ROW_ACTION_CLASS = `${buttonClasses('ghost')} whitespace-nowrap max-sm:min-h-11`;
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
@@ -260,12 +260,12 @@ const MyTasks: React.FC = () => {
       <PageHeader title={t('shell.nav.myTasks', 'My Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
-        <div className={`mb-4 flex min-w-0 flex-wrap items-center gap-4 ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
+        <div className={`mb-4 flex min-w-0 flex-wrap items-center gap-4 ${queue === 'open' ? 'border-b border-border pb-4' : 'border-b border-border pb-4'}`}>
           {queue === 'open' && openTaskCount !== null && (
             // Judging my-tasks #1 (Emphasis): one bare "17" and one bare red "15" made the reader
             // guess what was counted. Each figure now carries its word — "17 Open · 15 Overdue" —
             // and the exception colour sits once, on the overdue count, not on both.
-            <div className="flex shrink-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+            <div data-testid="my-tasks-waiting-summary" className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg bg-waiting-surface p-4">
               <span
                 data-testid="my-tasks-open-count"
                 aria-label={`${openTaskCount} ${t('myTasks.openTasks', 'Open tasks')}`}
@@ -315,7 +315,7 @@ const MyTasks: React.FC = () => {
           <div className="w-full min-w-0 sm:w-auto sm:max-w-xs"><SelectField id="my-task-work-order-filter" hideLabel
             label={tasksT('workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={setWorkOrderFilter}
             options={[{ value: 'all', label: tasksT('workOrderFilter.all', 'All work orders') }, { value: 'none', label: tasksT('workOrderFilter.none', 'No work order') }, ...Array.from(new Map((tasks ?? []).filter((task) => task.work_order_id && task.work_order_name).map((task) => [task.work_order_id!, task.work_order_name!])).entries()).map(([value, label]) => ({ value, label }))]} /></div>
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-1">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:basis-full xl:basis-auto xl:flex-1">
             {/* #1461: a due=week drill names the active window and can clear it. */}
             {dueBy && (
               <StatusPill variant="warn" className="shrink-0">
@@ -336,7 +336,7 @@ const MyTasks: React.FC = () => {
               searchSurface="my-tasks-list"
               module="tasks"
               resultCount={visibleTasks.length}
-              containerClassName="flex-1 max-sm:w-full max-sm:min-w-0"
+              containerClassName="min-w-0 flex-1 max-sm:w-full"
             />
             {search && (
               <button
@@ -542,7 +542,7 @@ const MyTasks: React.FC = () => {
                           )
                         }
                         options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabels[s] }))}
-                        className="w-full min-w-[120px] sm:w-auto"
+                        className="w-full min-w-[120px] sm:w-auto max-sm:[&_button]:min-h-11"
                       />
                     </div>
                   </div>

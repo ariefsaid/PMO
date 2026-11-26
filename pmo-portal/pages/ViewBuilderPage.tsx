@@ -404,13 +404,13 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
     : (existingView?.name ? t('viewBuilder.editView', '{{name}}', { name: existingView.name }) : t('viewBuilder.newView', 'New View'));
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
+    <div className="min-w-0">
       {/* Page header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">{pageTitle}</h1>
+          <h1 className="text-page font-bold tracking-[-0.02em]">{pageTitle}</h1>
           {/* AI-composed draft indicator (AC-AS-015, NFR-AS-A11Y-004) */}
-          <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
+          <div aria-live="polite" aria-atomic="true" className={aiDraft ? undefined : "sr-only"}>
             {aiDraft && (
               <span className="text-[12px] font-medium text-warning-foreground">
                 {t('viewBuilder.aiDraftReview', 'AI-composed draft: review before saving')}
@@ -418,17 +418,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Compose with AI button (FR-AS-014, AC-AS-011/012) — hidden when flags off */}
-          {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
-            <Button
-              variant="outline"
-              onClick={() => setAIComposerOpen(true)}
-              aria-label={t('viewBuilder.composeWithAi', 'Compose view with AI')}
-            >
-              {t('viewBuilder.composeWithAi', 'Compose view with AI')}
-            </Button>
-          )}
+        <div className="flex flex-nowrap gap-2">
           <Button
             variant="ghost"
             onClick={() => {
@@ -499,62 +489,83 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
         </div>
       )}
 
-      {/* Metadata section */}
-      <FormSection legend={t('viewBuilder.viewDetails', 'View details')}>
-        <FormGrid>
-          <TextField
-            label={t('viewBuilder.viewName', 'View name')}
-            required
-            aria-required="true"
-            value={name}
-            onChange={setName}
-            maxLength={120}
-          />
-          <TextArea
-            label={t('viewBuilder.description', 'Description')}
-            value={description}
-            onChange={setDescription}
-          />
-          <SelectField
-            label={t('viewBuilder.scope', 'Scope')}
-            value={scope}
-            options={scopeOptions}
-            onChange={(v) => setScope(v as 'private' | 'shared_org')}
-          />
-        </FormGrid>
-      </FormSection>
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
+          {/* Panel editor section */}
+          <FormSection legend={t('viewBuilder.panels', 'Panels')}>
+            <PanelList
+              panels={panels}
+              onEdit={handleEditPanel}
+              onRemove={handleRemovePanel}
+              onMoveUp={handleMoveUp}
+              onMoveDown={handleMoveDown}
+            />
 
-      {/* Panel editor section */}
-      <FormSection legend={t('viewBuilder.panels', 'Panels')}>
-        <PanelList
-          panels={panels}
-          onEdit={handleEditPanel}
-          onRemove={handleRemovePanel}
-          onMoveUp={handleMoveUp}
-          onMoveDown={handleMoveDown}
-        />
+            {noPanel && (
+              <p className="mt-2 text-[12.5px] text-muted-foreground">
+                {t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')}
+              </p>
+            )}
 
-        {noPanel && (
-          <p className="mt-2 text-[12.5px] text-muted-foreground">
-            {t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')}
-          </p>
-        )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+            {panels.length < MAX_PANELS_PER_VIEW ? (
+              <Button variant="outline" onClick={handleAddPanel}>
+                {t('viewBuilder.addPanel', '+ Add panel')}
+              </Button>
+            ) : (
+              <p className="mt-3 text-[12.5px] text-muted-foreground">
+                {t('viewBuilder.maximumPanelsReached', 'Maximum of {{count}} panels reached.', { count: MAX_PANELS_PER_VIEW })}
+              </p>
+            )}
+          {/* Compose with AI button (FR-AS-014, AC-AS-011/012) — hidden when flags off */}
+          {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
+            <Button
+              variant="outline"
+              onClick={() => setAIComposerOpen(true)}
+              aria-label={t('viewBuilder.composeWithAi', 'Compose view with AI')}
+            >
+              {t('viewBuilder.composeWithAi', 'Compose view with AI')}
+            </Button>
+          )}
+            </div>
+          </FormSection>
 
-        {panels.length < MAX_PANELS_PER_VIEW ? (
-          <Button variant="outline" onClick={handleAddPanel} className="mt-3">
-            {t('viewBuilder.addPanel', '+ Add panel')}
-          </Button>
-        ) : (
-          <p className="mt-3 text-[12.5px] text-muted-foreground">
-            {t('viewBuilder.maximumPanelsReached', 'Maximum of {{count}} panels reached.', { count: MAX_PANELS_PER_VIEW })}
-          </p>
-        )}
-      </FormSection>
+        </div>
+        <div className="min-w-0 lg:col-start-2 lg:row-span-2">
+          {/* Metadata section */}
+          <FormSection legend={t('viewBuilder.viewDetails', 'View details')}>
+            <FormGrid className="sm:[grid-template-columns:minmax(0,1fr)]">
+              <TextField
+                label={t('viewBuilder.viewName', 'View name')}
+                required
+                aria-required="true"
+                value={name}
+                onChange={setName}
+                maxLength={120}
+              />
+              <TextArea
+                label={t('viewBuilder.description', 'Description')}
+                value={description}
+                onChange={setDescription}
+              />
+              <SelectField
+                label={t('viewBuilder.scope', 'Scope')}
+                value={scope}
+                options={scopeOptions}
+                onChange={(v) => setScope(v as 'private' | 'shared_org')}
+              />
+            </FormGrid>
+          </FormSection>
 
-      {/* Live preview pane */}
-      <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
-        <ViewPreview spec={spec} />
-      </FormSection>
+        </div>
+
+        <div className="min-w-0 lg:col-start-1">
+          {/* Live preview pane */}
+          <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
+            <ViewPreview spec={spec} />
+          </FormSection>
+        </div>
+      </div>
 
       {/* Panel editor modal */}
       <PanelEditorForm

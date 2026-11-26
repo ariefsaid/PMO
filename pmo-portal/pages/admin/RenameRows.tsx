@@ -13,7 +13,7 @@ export const RenameHeader: React.FC<{ layout: RenameLayout; first: string; colum
     {layout === 'two-fields'
       ? columns.map((c) => <span key={c} className="min-w-0">{c}</span>)
       : <span className={RENAME_LANGUAGE_LINE}>{columns.map((c) => <span key={c} className="min-w-0">{c}</span>)}</span>}
-    <span className="w-[10.5rem]" />
+    <span className="w-20" />
   </div>
 );
 

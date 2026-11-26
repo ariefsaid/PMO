@@ -393,7 +393,7 @@ export const ListState: React.FC<ListStateProps> = ({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-3 px-6 py-14 text-center',
+        'flex flex-col items-start justify-start gap-3 px-6 py-6 text-left',
         className
       )}
     >

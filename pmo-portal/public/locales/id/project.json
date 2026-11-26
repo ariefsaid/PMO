@@ -488,7 +488,7 @@
           "name": "Beri nama langkah.",
           "shape": "Satu klaim paling banyak memiliki 20 langkah."
         },
-        "workOrderOwner": "Pemilik pada surat perintah kerja",
+        "workOrderOwner": "Pemilik pada perintah kerja",
         "hideFrom": "Sembunyikan langkah ini dari suatu peran",
         "hidePick": "Pilih peran",
         "hiddenList": "Disembunyikan dari",
@@ -519,11 +519,11 @@
         "addStep": "Tambah langkah",
         "stepsMissing": "Tambahkan minimal satu langkah dan beri nama setiap langkah.",
         "save": "Simpan templat",
-        "isDefault": "Dipakai untuk surat perintah kerja baru",
+        "isDefault": "Dipakai untuk perintah kerja baru",
         "clearDefault": "Berhenti memakai",
-        "clearDefaultNamed": "Berhenti memakai {{name}} untuk surat perintah kerja baru",
-        "useDefault": "Pakai untuk surat perintah kerja baru",
-        "useDefaultNamed": "Pakai {{name}} untuk surat perintah kerja baru"
+        "clearDefaultNamed": "Berhenti memakai {{name}} untuk perintah kerja baru",
+        "useDefault": "Pakai untuk perintah kerja baru",
+        "useDefaultNamed": "Pakai {{name}} untuk perintah kerja baru"
       },
       "terms": {
         "title": "Ketentuan penagihan",
@@ -1025,7 +1025,7 @@
       "onTrack": "Sesuai rencana",
       "openForecastCategory": "Buka detail proyeksi {{category}}",
       "openFullPage": "Buka halaman lengkap",
-      "overBudget": "Melebihi anggaran",
+      "overBudget": "Lewat anggaran",
       "projectCommitmentsShort": "Komitmen · seluruh proyek",
       "reasonBudgetedOtherYear": "Dianggarkan pada tahun fiskal lain: {{years}}",
       "reasonNoAccount": "Tidak ada akun buku besar akuntansi yang dipetakan untuk kategori ini.",
@@ -1584,5 +1584,7 @@
     "unpriced": "Belum ada tarif",
     "sourceUnavailable": "Lokasi tidak tersedia",
     "noLocations": "Belum ada lokasi. Tambahkan lokasi."
-  }
+  },
+  "autoSave": "Simpan otomatis",
+  "executionPlan": "Rencana pelaksanaan"
 }

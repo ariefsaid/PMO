@@ -99,7 +99,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       key: 'delta', header: t('ledger.columns.change'), align: 'num', size: 144, minSize: 144, colClassName: 'md:whitespace-nowrap',
       // Keep the signed quantity and its unit together; the full-width flex line also applies the
       // numeric column's right alignment to the cell content, matching its header.
-      cell: (r) => <span data-testid="stock-ledger-change" className={`flex w-full min-w-0 max-w-full flex-nowrap items-baseline justify-end gap-x-1 whitespace-nowrap tabular-nums ${r.qtyDelta.startsWith('-') ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
+      cell: (r) => <span data-testid="stock-ledger-change" className={`flex w-full min-w-0 max-w-full flex-nowrap items-baseline justify-end gap-x-1 whitespace-nowrap tabular-nums ${Number(r.qtyAfter) < 0 ? 'text-destructive-text' : ''}`}><span className="whitespace-nowrap">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)}</span>{' '}<span className="whitespace-nowrap">{r.unitCode}</span></span>,
       exportValue: (r) => r.qtyDelta,
     },
     { key: 'after', header: t('ledger.columns.balance'), align: 'num', size: 84, minSize: 84, colClassName: 'md:whitespace-nowrap', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },

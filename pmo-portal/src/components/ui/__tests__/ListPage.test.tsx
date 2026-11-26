@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { ListPage } from '../ListPage';
 
 describe('ListPage shell', () => {
@@ -46,12 +47,28 @@ describe('ListPage shell', () => {
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-view'));
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-export'));
     expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-import'));
-    expect(Array.from(toolbar.children).map((child) => (child as HTMLElement).dataset.testid)).toEqual([
-      'list-page-filter-group',
-      'list-page-search-group',
-      'list-page-action-group',
-    ]);
-    expect(toolbar.className).toContain('md:grid-cols-[minmax(0,1fr)_220px_auto]');
+  });
+
+  it('phone users can open the filter sheet and still filter, export and import', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    const onFilter = vi.fn();
+    const onExport = vi.fn();
+    try {
+      render(<ListPage title="Companies" search={<input aria-label="Search companies" />} filters={<button onClick={onFilter}>Suppliers</button>} exportAction={<button onClick={onExport}>Export companies</button>} importAction={<button>Import companies</button>} />);
+      expect(screen.getByRole('textbox', { name: 'Search companies' })).toBeVisible();
+      expect(screen.queryByRole('button', { name: 'Suppliers' })).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+      const sheet = await screen.findByRole('dialog', { name: 'Filters' });
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Suppliers' }));
+      expect(onFilter).toHaveBeenCalledOnce();
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Export companies' }));
+      expect(onExport).toHaveBeenCalledOnce();
+      expect(within(sheet).getByRole('button', { name: 'Import companies' })).toBeVisible();
+      await userEvent.keyboard('{Escape}');
+      await screen.findByRole('textbox', { name: 'Search companies' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('pushes the view-switcher to the right edge of the toolbar', () => {

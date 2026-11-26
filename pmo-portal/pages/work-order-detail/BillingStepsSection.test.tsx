@@ -123,10 +123,11 @@ describe('BillingStepsSection', () => {
     expect(screen.getByTestId('wo-billing-steps-summary')).toHaveTextContent('does not block invoicing');
   });
 
-  it('AC-WBS-002 with no list says who chooses the template', () => {
+  it('AC-WBS-002 with no list states what is absent without claiming a role restriction', () => {
     h.steps = [];
     renderIt();
-    expect(screen.getByTestId('wo-billing-steps-empty')).toHaveTextContent('Admin or a Finance person chooses that template');
+    expect(screen.getByTestId('wo-billing-steps-empty')).toHaveTextContent('No billing steps to show.');
+    expect(screen.getByTestId('wo-billing-steps-empty')).not.toHaveTextContent('not shown to your role');
   });
 
   it('a Draft work order shows nothing', () => {

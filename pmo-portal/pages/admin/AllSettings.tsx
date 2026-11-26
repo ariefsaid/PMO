@@ -43,7 +43,7 @@ const Row: React.FC<{ settingKey: OrgSettingKey; name: string; summary: string }
       <div className="flex shrink-0 items-center gap-3 text-control text-muted-foreground">
         {'alwaysOn' in entry ? <StatusPill variant="neutral">{t('allSettings.alwaysOn', 'On for everyone')}</StatusPill>
           : 'switch' in entry ? <MigratedStatus switchKey={entry.switch} /> : hasStatusHook(settingKey) ? <MappedStatus settingKey={settingKey} /> : null}
-        <span>{entry.writers.join(', ')}</span>
+        <span>{entry.writers.map((role) => t(`admin.roles.${({ 'Project Manager': 'projectManager' } as Record<string, string>)[role] ?? role.toLowerCase()}`, role)).join(', ')}</span>
       </div>
     </li>
   );

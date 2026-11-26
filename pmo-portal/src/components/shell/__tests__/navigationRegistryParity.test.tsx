@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { UserRole } from '@/types';
-import { MODULES } from '../routeMatch';
+import { MODULES, breadcrumbForPath } from '../routeMatch';
 import { ALL_ITEMS as RAIL_NAV_ITEMS } from '../Rail';
 import { NAVIGATION_ORDER } from '../navigationOrder';
 
@@ -21,6 +21,11 @@ const CANONICAL_NAV_ORDER: readonly string[] = NAVIGATION_ORDER.filter((path) =>
 const roleSetOf = (roles: UserRole[] | undefined) => new Set(roles && roles.length ? roles : ALL_ROLES);
 
 describe('navigation registry parity — every rail destination exists in MODULES with matching gates', () => {
+  it('resolves the quantity-change register breadcrumb without adding an unregistered navigation destination', () => {
+    expect(breadcrumbForPath('/quantity-changes')).toEqual([
+      { label: 'Quantity change requests', i18nKey: 'quantityChanges:title' },
+    ]);
+  });
   it('each rail item has a MODULES entry with the same path, roles and entitlement gates', () => {
     const mismatches: string[] = [];
 

@@ -49,7 +49,7 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
   const figure = (testId: string, label: string, value: React.ReactNode) => (
     <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
       <dt className="self-end text-muted-foreground">{label}</dt>
-      <dd className="self-start tabular-nums" data-testid={testId}>{value}</dd>
+      <dd className="self-start text-metric font-semibold tabular-nums" data-testid={testId}>{value}</dd>
     </div>
   );
   const summary = t('chartSummary', 'Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.', { plan: money(data.planToDate), actual: money(data.actualToDate), date: formatIsoDay(data.asOf) });
@@ -59,11 +59,13 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
       actions={canManage ? <Button variant="outline" size="sm" onClick={() => setOpen(true)}>{t('enter', 'Enter plan')}</Button> : undefined}>
       <p className="mb-3 text-control text-muted-foreground" data-testid="wo-revenue-plan-asof">{t('asOfDate', 'As of {{date}}', { date: formatIsoDay(data.asOf) })}</p>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-control sm:grid-cols-4">
-        {figure('wo-revenue-plan-plan', t('planToDate', 'Plan to date'), data.hasPlan ? money(data.planToDate) : t('noPlan', 'No plan entered'))}
+        {figure('wo-revenue-plan-plan', t('planToDate', 'Plan to date'), data.hasPlan ? money(data.planToDate) : '—')}
         {figure('wo-revenue-plan-actual', t('actualToDate', 'Actual to date'), money(data.actualToDate))}
-        {figure('wo-revenue-plan-gap', t('gap', 'Gap'), gapText)}
+        {figure('wo-revenue-plan-gap', t('gap', 'Gap'), data.hasPlan ? money(data.gap) : '—')}
         {figure('wo-revenue-plan-total', t('planTotal', 'Whole plan'), data.hasPlan ? money(data.planTotal) : '—')}
       </dl>
+      {data.hasPlan && <p className="mt-3 text-control text-muted-foreground">{gapText}</p>}
+      {!data.hasPlan && <p className="mt-3 text-control text-muted-foreground">{t('noPlan', 'No plan entered')}</p>}
       {data.pendingReports > 0 && (
         <p className="mt-2 text-control text-muted-foreground" data-testid="wo-revenue-plan-pending">
           {t('pending', '{{count}} daily report(s) not yet validated are not counted as actual.', { count: data.pendingReports })}

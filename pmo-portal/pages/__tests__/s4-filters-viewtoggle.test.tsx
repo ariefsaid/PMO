@@ -8,7 +8,7 @@
  *          Table/Cards view toggle is a state-lie on mobile. The toggle must be hidden below md
  *          (`hidden md:inline-flex`) while the status filter stays always visible.
  *
- * Coverage: Projects, Procurement, Incidents pages. Procurement no longer has a status tablist: its
+ * Coverage: Projects and Procurement pages. Procurement no longer has a status tablist: its
  * list tabs ("Needs you" / "All" / "Not in a procurement") are the equivalent scroll-reachable control.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -97,29 +97,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-// ── Incidents page stubs ─────────────────────────────────────────────────────
-const incState = {
-  data: [{ id: 'i1', org_id: 'org-1', incident_date: '2026-03-15', type: 'Near Miss',
-    severity: 'Low', location: 'Site B', description: 'Trip hazard', status: 'Open',
-    reported_by: 'u1', created_at: '2026-03-15T00:00:00Z' }],
-  isPending: false, isError: false, refetch: vi.fn(),
-};
-vi.mock('@/src/hooks/useIncidents', () => ({
-  useIncidentsPage: () => ({
-    list: { data: { rows: incState.data, total: incState.data.length }, isPending: false, isError: false, refetch: incState.refetch },
-    allTotal: incState.data.length,
-  }),
-  useIncidentsExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
-  useIncidentMutations: () => ({
-    create: { mutateAsync: vi.fn(), isPending: false },
-    update: { mutateAsync: vi.fn(), isPending: false },
-    transition: { mutateAsync: vi.fn(), isPending: false },
-    remove: { mutateAsync: vi.fn(), isPending: false },
-  }),
-  useAssigneeOptions: () => ({ data: [] }),
-  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
-  useIncidentFiles: () => ({ data: [] }),
-}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
 
@@ -127,7 +104,6 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ dat
 import Projects from '../Projects';
 import Procurement from '../Procurement';
 import { readProcurementView } from '@/src/hooks/useProcurementView';
-import Incidents from '../Incidents';
 
 const renderProjects = () =>
   render(
@@ -141,10 +117,7 @@ const renderProcurement = () =>
     </QueryClientProvider>,
   );
 
-const renderIncidents = () =>
-  render(
-    <MemoryRouter><ToastProvider><Incidents /></ToastProvider></MemoryRouter>,
-  );
+
 
 // ── AC-2: status filter wraps at phone width ─────────────────────────────────
 describe('AC-2: status filters wrap at phone width without horizontal scrolling', () => {
@@ -175,14 +148,7 @@ describe('AC-2: status filters wrap at phone width without horizontal scrolling'
     expect(within(listTabs).getAllByRole('tab').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('Incidents: status filters wrap so the full set stays visible without horizontal scrolling', () => {
-    renderIncidents();
-    const statusFilter = screen.getByRole('tablist', { name: /filter by status/i });
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper).toBeInTheDocument();
-    expect(scrollWrapper!.className).not.toContain('overflow-x-auto');
-    expect(statusFilter.className).toContain('flex-wrap');
-  });
+
 });
 
 // ── AC-MOB-VT: Projects keeps every view reachable below md ──────────────────

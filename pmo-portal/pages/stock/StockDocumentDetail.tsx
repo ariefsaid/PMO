@@ -157,10 +157,12 @@ const StockDocumentDetail: React.FC = () => {
     }] : []),
     ...(d?.kind === 'count' ? [{
       key: 'expected', header: liveDraft ? t('count.systemNow') : t('count.detail.expected'), align: 'num' as const,
+      keepWhenBlank: true,
       cell: (l: StockDocumentLine) => { const sys = systemOf(l); return <span className="tabular-nums">{sys === null ? '—' : formatQuantity(sys, loc)}</span>; },
       exportValue: (l: StockDocumentLine) => systemOf(l) ?? '',
     }, {
       key: 'variance', header: t('count.variance'), align: 'num' as const,
+      keepWhenBlank: true,
       cell: (l: StockDocumentLine) => {
         const v = varianceOf(l);
         if (v === null) return <span className="text-muted-foreground">—</span>;
@@ -170,6 +172,7 @@ const StockDocumentDetail: React.FC = () => {
     }] : []),
     ...(seeCost && d?.kind === 'adjustment' ? [{
       key: 'cost', header: t('count.detail.unitCost'), align: 'num' as const,
+      keepWhenBlank: true,
       cell: (l: StockDocumentLine) => {
         const c = costOf(l.id);
         if (c) return <span className="tabular-nums">{formatStockValue(c, currency, loc)}</span>;
@@ -182,6 +185,7 @@ const StockDocumentDetail: React.FC = () => {
     }] : []),
     ...(liveDraft && seeCost ? [{
       key: 'value', header: t('detail.columns.value'), align: 'num' as const,
+      keepWhenBlank: true,
       cell: (l: StockDocumentLine) => { const v = valueOf(l); return <span className="tabular-nums">{v === undefined ? '—' : formatStockValue(v, currency, loc)}</span>; },
       exportValue: (l: StockDocumentLine) => valueOf(l) ?? '',
     }] : []),

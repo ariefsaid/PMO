@@ -85,7 +85,7 @@ const DocumentsToolbar: React.FC<{
   const addContent = (
     <>
       <Icon name="plus" />
-      <span className="max-sm:sr-only">{addLabel}</span>
+      <span>{addLabel}</span>
     </>
   );
 
@@ -164,7 +164,7 @@ const AddDocumentControl: React.FC<{
     <Menu.Root modal={false}>
       <Menu.Trigger aria-label={label} className={buttonClasses('primary', 'sm', cn('gap-1.5', sizeClass))}>
         {content}
-        {!compact && <Icon name="chev" aria-hidden className="size-3.5 rotate-90" />}
+        <Icon name="chev" aria-hidden className="size-3.5 rotate-90" />
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">

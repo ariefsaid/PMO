@@ -28,7 +28,7 @@ const renderModal = (remaining = 80_000, over: Partial<WorkOrderRow> = {}) => re
       onClose={vi.fn()} onCreated={onCreated} />
   </MemoryRouter>,
 );
-const amountInput = () => screen.getByLabelText(/Amount \(excl\. PPN\)/);
+const amountInput = () => screen.getByLabelText(/Amount \(excl\. tax\)/);
 const submit = () => userEvent.click(screen.getByRole('button', { name: 'Create draft invoice' }));
 
 beforeEach(() => {
@@ -109,7 +109,7 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
       );
       await userEvent.type(screen.getByLabelText(/Kode item/), 'SVC');
       await userEvent.click(screen.getByRole('button', { name: 'Buat draf invoice' }));
-      expect(await screen.findByText('Tagihan ini akan melewati nilai Work order')).toBeInTheDocument();
+      expect(await screen.findByText('Tagihan ini akan melewati nilai Perintah kerja')).toBeInTheDocument();
       expect(screen.getByText(/Tidak ada yang ditulis ke ERPNext/)).toHaveTextContent(/Rp\s?80\.000,00/);
       expect(screen.queryByText(/only 0\.00/)).toBeNull();
     } finally {

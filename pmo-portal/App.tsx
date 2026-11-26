@@ -939,6 +939,10 @@ export const ShellChrome: React.FC = () => {
       parentProject ? { id: parentProject.id, name: projectDisplayName(parentProject) } : undefined,
     );
     const contractualName = recordContractualNameForPath(pathname, cachedLists);
+    const stageGroup = recordStatusGroupForPath(pathname, { projects, opportunities });
+    if ((stageGroup === 'pipeline' || stageGroup === 'lost') && /^\/projects\/[^/]+/.test(pathname) && parts.length > 0) {
+      parts[0] = { label: t('shell.nav.sales', 'Sales Pipeline'), href: '/sales', onClick: () => breadcrumbNavigate('/sales') };
+    }
     if (!contractualName || parts.length === 0) return parts;
     const current = parts.length - 1;
     return parts.map((part, index) => index === current ? { ...part, title: contractualName } : part);
@@ -951,6 +955,8 @@ export const ShellChrome: React.FC = () => {
     breadcrumbNavigate,
     cachedLists,
     recordResolved,
+    projects,
+    opportunities,
   ]);
 
   // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.

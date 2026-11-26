@@ -111,7 +111,7 @@ describe('AC-SFA-001: sales pipeline stages use one open-value scale', () => {
 
     expect(within(summary).queryByText(/\b\d+%/)).not.toBeInTheDocument();
     expect(parseFloat(leadsBarFill.style.width)).toBeCloseTo((200_000 / 1_200_000) * 100);
-    expect(within(leads).getByText('$20,000 weighted')).toBeInTheDocument();
+    expect(within(leads).getByTitle('$20,000 weighted')).toBeInTheDocument();
     // An empty stage is still a money row: its zero carries the band's currency, never a bare "0"
     // that reads as a deal count among the amounts.
     expect(within(quotation).getByText('$0', { exact: true })).toBeInTheDocument();

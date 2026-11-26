@@ -264,10 +264,10 @@ describe('the rows', () => {
     renderTab('Finance');
     await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
     const firstDrawer = screen.getByRole('dialog');
-    expect(firstDrawer).toHaveTextContent('$250,000 · excl. PPN');
+    expect(firstDrawer).toHaveTextContent('$250,000 · excl. tax');
     await user.click(within(firstDrawer).getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'View details for WO-0001' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('$111,000 · incl. PPN');
+    expect(screen.getByRole('dialog')).toHaveTextContent('$111,000 · incl. tax');
   });
 
   it('SUB-C: rate and DPP details remain available in the customer-order drawer', async () => {
@@ -279,11 +279,11 @@ describe('the rows', () => {
     const user = userEvent.setup();
     renderTab('Finance');
     await user.click(screen.getByRole('button', { name: 'View details for Standard tax' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN');
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. tax');
     expect(screen.getByRole('dialog')).not.toHaveTextContent('11%');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'View details for WO-2' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. tax 11% · DPP 11/12');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'View details for Unknown tax rate' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('rate not recorded');

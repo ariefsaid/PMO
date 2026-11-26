@@ -76,11 +76,14 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
     await expect(todayRow.locator('td').nth(0)).toHaveText(money('120.00'));
     await expect(todayRow.locator('td').nth(1)).toHaveText(money('50.00'));
     await expect(todayRow.locator('td').nth(2)).toHaveText(`${money('70.00')} behind target`);
-    // The month to date: the target so far, the actual, and the gap said in words.
-    await expect(daily.getByTestId('wo-daily-mtd-target')).toHaveText(money(mtdTarget.toFixed(2)));
-    await expect(daily.getByTestId('wo-daily-mtd-actual')).toHaveText(money('50.00'));
-    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(/behind target|ahead of target|On target/);
-    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(`${money((mtdTarget - 50).toFixed(2))} behind target`);
+    // Revenue plan carries the to-date summary after recomposition.
+    const summary = page.getByTestId('wo-page-revenue-plan');
+    await expect(summary.getByTestId('wo-revenue-plan-plan')).toHaveText(money(mtdTarget.toFixed(2)));
+    await expect(summary.getByTestId('wo-revenue-plan-actual')).toHaveText(money('50.00'));
+    await expect(summary.getByTestId('wo-revenue-plan-gap')).toHaveText(money((50 - mtdTarget).toFixed(2)));
+    const gapExplanation = summary.getByText(`${money((mtdTarget - 50).toFixed(2))} behind plan`, { exact: true });
+    await expect(gapExplanation).toContainText(/behind plan|ahead of plan|On plan/);
+    await expect(gapExplanation).toHaveText(`${money((mtdTarget - 50).toFixed(2))} behind plan`);
     await expect(daily.getByTestId('wo-daily-projection')).not.toHaveText('Not enough working days yet');
   } finally {
     if (reportId) sqlAsOwner(`delete from public.dsr_progress_lines where report_id = '${reportId}'; delete from public.daily_site_reports where id = '${reportId}';`);

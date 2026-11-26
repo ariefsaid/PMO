@@ -308,6 +308,7 @@
     "title": "Laporan lapangan",
     "empty": "Belum ada laporan lapangan pada perintah kerja ini.",
     "error": "Laporan lapangan tidak dapat dimuat",
-    "more": "Semua laporan lapangan"
+    "more": "Semua laporan lapangan",
+    "open": "Buka laporan"
   }
 }

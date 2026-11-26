@@ -294,7 +294,7 @@ describe('BillingTab', () => {
 
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
     renderTab();
-    expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('IDR · excl. PPN');
+    expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('IDR · excl. tax');
     expect(screen.getByTestId('billing-contract')).not.toHaveTextContent(/\.00|Rp|IDR/);
     expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
     expect(screen.getByTestId('billing-billed')).toHaveTextContent(money(250_000));
@@ -813,14 +813,14 @@ describe('BillingTab', () => {
       }
     });
 
-    it('SUB-B a non-zero assessed, DP-held or not-submitted figure appears again, and "excl. PPN" is said once on the summary head', () => {
+    it('SUB-B a non-zero assessed, DP-held or not-submitted figure appears again, and "excl. tax" is said once on the summary head', () => {
       renderTab();
       for (const id of ['billing-assessed', 'billing-gap', 'billing-dp-held', 'billing-not-submitted']) {
         expect(screen.getByTestId(id)).toBeInTheDocument();
       }
-      expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
-      expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('excl. PPN');
-      expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. PPN');
+      expect(screen.getAllByText(/excl\. tax/)).toHaveLength(1);
+      expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('excl. tax');
+      expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. tax');
     });
 
     it('SUB-B with no BoQ and no claims, both cards sit inside one closed "Quantity billing" disclosure', () => {

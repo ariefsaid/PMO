@@ -218,7 +218,9 @@ export const WorkCalendar: React.FC<WorkCalendarProps> = ({
             continues: t('lib.continues', 'continues'),
           },
         }}
-        className="min-h-[34rem] flex-1 text-control!"
+        className="min-h-[34rem] flex-1 text-control! has-[[data-slot=event-calendar-no-events]]:min-h-0 [&_*]:border-border [&_[data-weekend=true]]:bg-muted/50"
+        classNames={{ noEvents: 'min-h-0! py-8!', agendaView: 'border-t-0!' }}
+        renderNoEvents={() => <div className="space-y-2 text-center text-control text-muted-foreground"><p>{t('empty', 'Nothing due in this period')}</p>{emptyMonth?.action}</div>}
       >
         <Toolbar scopeNote={scopeNote} />
         {emptyMonth && !emptyMonth.pending && !loading && <EmptyMonth action={emptyMonth.action} />}

@@ -104,5 +104,6 @@
     "dailyTotal": "Total harian",
     "weekTotal": "Total minggu",
     "noHours": "Tanpa jam"
-  }
+  },
+  "hoursTotal": "{{formatted}} jam"
 }

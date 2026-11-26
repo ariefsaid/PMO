@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
 import { inDays } from './support/jobJourney';
+import { openWorkOrderArea } from './support/workOrderArea';
 import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
@@ -35,6 +36,7 @@ test('JOB-Q1 the supervisor of a work order sees its approved attendance day und
 
     await supervisor.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'cost');
     const costs = page.getByRole('heading', { name: 'Costs' }).locator('xpath=ancestor::section[1]');
     await expect(costs).toBeVisible({ timeout: 20_000 });
     // Goal: the approved day of the crew member is on the supervisor's own work order costs.

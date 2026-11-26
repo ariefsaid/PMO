@@ -315,6 +315,7 @@
   },
   "openingBalances": {
     "tableLabel": "Gulir tabel",
+    "scrollHint": "Gulir ke samping untuk melihat semua kolom.",
     "title": "Saldo awal",
     "setupDisabled": "Saldo awal dimatikan untuk organisasi ini. Minta Admin mengaktifkan alur kerja penyiapan.",
     "loading": "Memuat saldo awal",

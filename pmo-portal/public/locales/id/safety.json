@@ -97,7 +97,7 @@
     "checklist": "Daftar periksa sebelum kerja",
     "fitness_check": "Pemeriksaan kebugaran",
     "safety_record": "Catatan keselamatan",
-    "toolbox_talk_photo": "Foto pembicaraan kotak peralatan"
+    "toolbox_talk_photo": "Foto pengarahan keselamatan"
   },
   "permits": {
     "add": "Tambah izin",
@@ -119,7 +119,7 @@
   "section": {
     "empty": "Tidak ada hari keselamatan dalam 30 hari terakhir",
     "error": "Catatan keselamatan tidak dapat dimuat",
-    "subline": "Pemeriksaan kebugaran, pembicaraan kotak peralatan, daftar periksa sebelum kerja, izin kerja, dan laporan petugas keselamatan, per hari.",
+    "subline": "Pemeriksaan kebugaran, pengarahan keselamatan, daftar periksa sebelum kerja, izin kerja, dan laporan petugas keselamatan, per hari.",
     "summary": "Ringkasan bulanan",
     "title": "Catatan keselamatan harian"
   },
@@ -137,7 +137,7 @@
       "nearMisses": "Nyaris celaka",
       "recordableIncidents": "Insiden tercatat",
       "safeMinutes": "Jam aman",
-      "toolboxTalks": "Pembicaraan kotak peralatan",
+      "toolboxTalks": "Pengarahan keselamatan",
       "workedMinutes": "Jam kerja"
     },
     "hiddenDefault": "tidak dapat dihitung untuk periode ini",
@@ -149,7 +149,9 @@
     "showRows": "Tampilkan barisnya",
     "subtitle": "Jam kerja, insiden, dan catatan keselamatan untuk satu bulan.",
     "title": "Ringkasan keselamatan",
-    "workOrder": "$t(common:terms.clientWorkOrder)"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "noAttendanceHours": "belum ada kehadiran terkunci atau disetujui pada bulan ini",
+    "noAttendanceSafe": "belum ada kehadiran terkunci atau disetujui untuk dihitung"
   },
   "toast": {
     "corrected": "Koreksi dimulai",
@@ -160,14 +162,14 @@
     "attendeeCount": "{{count}} peserta",
     "attendees": "Peserta dari daftar tugas",
     "noRoster": "Tidak ada yang ditugaskan pada $t(common:terms.clientWorkOrder) ini untuk tanggal ini",
-    "none": "Belum ada pembicaraan kotak peralatan",
+    "none": "Belum ada pengarahan keselamatan",
     "photoCount": "{{count}} foto",
     "photoInput": "Foto kehadiran",
     "presentedBy": "Disampaikan oleh {{name}}",
     "presenter": "Penyampai",
-    "save": "Simpan pembicaraan kotak peralatan",
+    "save": "Simpan pengarahan keselamatan",
     "time": "Dilaksanakan pukul",
-    "title": "Pembicaraan kotak peralatan",
+    "title": "Pengarahan keselamatan",
     "topic": "Topik",
     "viewPhoto": "Foto kehadiran {{n}}",
     "visitor": "Tamu yang disebutkan namanya (opsional)"

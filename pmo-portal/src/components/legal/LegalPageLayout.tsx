@@ -69,12 +69,8 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
         tabIndex={-1}
         className="mx-auto max-w-3xl px-5 pb-16 pt-6 outline-none max-[921px]:px-4 max-[921px]:pt-5"
       >
-        <p className="text-support font-semibold text-muted-foreground">
-          {t('layout.overline', 'Legal')}
-        </p>
-
         {/* Page title — page-title token (24/700/-0.02em); the single h1 (AC-LEG-004/027). */}
-        <h1 className="mt-1 text-page font-bold tracking-[-0.02em] text-foreground">
+        <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
           {title}
         </h1>
 

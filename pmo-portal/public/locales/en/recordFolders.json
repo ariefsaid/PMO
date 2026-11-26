@@ -4,7 +4,8 @@
     "choose": "Choose existing folder",
     "reconnect": "Reconnect Microsoft",
     "chooseLibrary": "Choose the default document library",
-    "allowFolders": "Allow folder creation"
+    "allowFolders": "Allow folder creation",
+    "createShort": "Create folder"
   },
   "status": {
     "pending": "Creating folder…",

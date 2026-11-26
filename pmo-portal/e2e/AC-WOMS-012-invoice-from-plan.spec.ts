@@ -82,7 +82,7 @@ test('AC-WOMS-012 Finance invoices a work order from the project plan', async ({
       && url.searchParams.get('wo') === workOrderId && !url.searchParams.has('invoice'));
     const form = page.getByRole('dialog');
     await expect(form.getByRole('heading', { name: localized('Invoice this work order', 'Tagih Work Order ini') })).toBeVisible();
-    const amountField = form.getByLabel(/amount \(excl\. PPN\)|jumlah \(belum termasuk PPN\)/i);
+    const amountField = form.getByLabel(/amount \(excl\. tax\)|jumlah \(belum termasuk PPN\)/i);
     // Nothing is invoiced yet, so what is left on this work order is its whole value.
     await expect(amountField).toHaveValue(formatMoneyInputValue(1_000_000, 'en-US'));
     await amountField.fill(String(amount));

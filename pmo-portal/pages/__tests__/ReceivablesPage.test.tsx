@@ -337,6 +337,12 @@ describe('Receivables page', () => {
     expect(cash).not.toHaveTextContent(/999/);
   });
 
+  it('compares a foreign-currency receipt with the same currency in the prior month', () => {
+    h.payments = [payment({ currency: 'USD', received_amount: 100 })];
+    renderPage();
+    expect(tile('Received this month')).toHaveTextContent(/\+\$100 vs last month/);
+  });
+
   it('shows a minus sign when received cash is below last month', () => {
     h.payments = [
       payment({ received_amount: 40 }),

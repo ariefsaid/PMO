@@ -199,7 +199,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     }
   }, [openRecordId, openRecordType, boqRows, claimRows, canReadClaims]);
   const summary = billing.data ? summarizeBilling(billing.data) : null;
-  const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
+  const excl = t('projectDetail.billing.summary.exclTax', 'excl. tax');
   // C5: no padded .00, but a real fraction is money and is never rounded away. In-page figures are bare (the
   // heading names currency + basis once, C6); drawers and confirmations, which have no such heading, keep the currency.
   const money = (value: number) => formatNumberMax2(value);

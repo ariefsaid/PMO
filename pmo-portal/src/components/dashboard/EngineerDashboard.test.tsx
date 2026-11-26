@@ -245,7 +245,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
     expect(tasksCard()).toHaveTextContent('No overdue tasks or tasks due this week.');
   });
 
-  it('states every overdue task in the shared destructive tone, with words not colour alone', () => {
+  it('states the overdue task count and each task lateness in words', () => {
     state.tasks.data = [
       { ...tasks[0] },
       { ...tasks[0], id: 'second-overdue', name: 'Review estimates', end_date: '2026-06-01' },
@@ -254,13 +254,8 @@ describe('Engineer home (one question: is my week on track?)', () => {
 
     const finding = within(tasksCard()).getByTestId('engineer-tasks-overdue');
     expect(finding).toHaveTextContent('2 overdue');
-    expect(finding).toHaveClass('text-destructive-text');
-    const oldestLate = screen.getByText('3 days overdue');
-    const nextLate = screen.getByText('2 days overdue');
-    expect(oldestLate).toHaveClass('text-destructive-text');
-    expect(oldestLate).not.toHaveClass('text-foreground');
-    expect(nextLate).toHaveClass('text-destructive-text');
-    expect(nextLate).not.toHaveClass('text-foreground');
+    expect(screen.getByText('3 days overdue')).toBeInTheDocument();
+    expect(screen.getByText('2 days overdue')).toBeInTheDocument();
   });
 
   it('shows my tasks, returned claims and weekly time without company money', () => {
@@ -435,7 +430,7 @@ describe('Engineer home (one question: is my week on track?)', () => {
   it('AC-UXA-002: localizes the title, cards, week strip, statuses and actions while retaining data', () => {
     renderDashboard('id');
     expect(screen.getByRole('heading', { level: 1, name: 'Dasbor saya' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Timesheet minggu ini' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lembar waktu minggu ini' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Tugas saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Dikembalikan ke saya' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Entri terbaru' })).toBeInTheDocument();

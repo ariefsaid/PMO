@@ -55,7 +55,8 @@
       "date": "Date",
       "quantity": "Quantity",
       "amount": "Amount"
-    }
+    },
+    "open": "Open expenses"
   },
   "billing": {
     "error": "Couldn't load the billing figures",
@@ -105,14 +106,16 @@
     "empty": "No issues name this work order.",
     "due": "Fix by {{date}}",
     "noDue": "No due time",
-    "overdue": "Overdue"
+    "overdue": "Overdue",
+    "open": "Open incidents"
   },
   "openTasks": {
     "title": "Open tasks",
     "error": "Couldn't load the open tasks",
     "empty": "No open tasks name this work order.",
     "unassigned": "Unassigned",
-    "noDue": "No due date"
+    "noDue": "No due date",
+    "open": "Open tasks"
   },
   "siteLocation": {
     "title": "Site location",
@@ -354,9 +357,11 @@
       "stepAttachment": "Nothing is attached yet for step \"{{step}}\".",
       "quantityAccept": "{{quantity}} {{unit}} reported but not yet accepted. Record the acceptance.",
       "quantityClaim": "{{quantity}} {{unit}} accepted but not yet claimed."
-    }
+    },
+    "noProgress": "No work quantities have been reported yet."
   },
   "all": {
+    "summary": "Summary",
     "empty": "You have no work orders yet",
     "error": "Couldn't load your work orders",
     "noMatch": "No work order matches your search",
@@ -377,7 +382,8 @@
       "progress": "Progress",
       "cost": "Direct cost",
       "billed": "Billed",
-      "end": "End"
+      "end": "End",
+      "costBasis": "Budget / overrun"
     },
     "costOver": "Over budget by {{amount}}",
     "costBudget": "Budget {{amount}}",
@@ -459,5 +465,6 @@
   "new": {
     "action": "New work order"
   },
-  "complete": "Complete"
+  "complete": "Complete",
+  "stockOpen": "Open stock"
 }

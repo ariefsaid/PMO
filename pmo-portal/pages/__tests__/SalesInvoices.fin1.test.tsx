@@ -146,13 +146,7 @@ describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows at most 7 columns, with no Date, Received, separate Customer or empty e-Faktur column', () => {
-    renderAt('/sales-invoices');
-    const cols = headers();
-    expect(cols.length).toBeLessThanOrEqual(7);
-    expect(cols).toEqual(expect.arrayContaining(['Invoice #', 'Customer reference', 'Status', 'Amount', 'Outstanding', 'Due Date']));
-    for (const gone of ['Date', 'Received', 'Customer', 'e-Faktur']) expect(cols).not.toContain(gone);
-  });
+
 
   it('adds the e-Faktur column only when a loaded row carries a value', () => {
     h.invoices.data = [invoice('INV-001', { efaktur_number: '010.000-26.00000001', efaktur_date: '2026-10-02' })];

@@ -225,8 +225,8 @@ describe('#548 (OD-TAX-1): the Amount column carries the invoice’s tax basis',
     renderAs('Project Manager');
     const labels = screen.getAllByTestId('tax-basis');
     expect(labels.map((l) => l.getAttribute('data-tax-basis'))).toEqual(['inclusive', 'exclusive']);
-    expect(labels[0]).toHaveTextContent('incl. PPN');
-    expect(labels[1]).toHaveTextContent('excl. PPN');
+    expect(labels[0]).toHaveTextContent('incl. tax');
+    expect(labels[1]).toHaveTextContent('excl. tax');
     expect(screen.queryByText(/rate not recorded|DPP not recorded/i)).not.toBeInTheDocument();
   });
 

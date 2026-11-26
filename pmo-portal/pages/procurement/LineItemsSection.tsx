@@ -296,7 +296,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : !maySeePrices ? unknownAmount : it.rate == null ? '—' : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
     } }] as Column<LineTableRow>[]),
-    ...(!maySeePrices ? [] : [{ key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 146 : 150, cell: (row) => {
+    ...(!maySeePrices ? [] : [{ key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', keepWhenBlank: true, align: 'num', size: createFormLayout ? 146 : 150, cell: (row) => {
       if (row.kind === 'add') return <span data-add-cell aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular inline-flex h-[var(--control-height)] items-center text-muted-foreground">{addLineAmountLabel}</span>;
       const it = row.item;
       const amount = editable && editingId === it.id

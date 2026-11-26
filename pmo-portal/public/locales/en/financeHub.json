@@ -315,6 +315,7 @@
   },
   "openingBalances": {
     "tableLabel": "Scroll table",
+    "scrollHint": "Scroll sideways to see every column.",
     "title": "Opening balances",
     "setupDisabled": "Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows.",
     "loading": "Loading opening balances",

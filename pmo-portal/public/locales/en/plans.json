@@ -33,12 +33,14 @@
       "finance": "Finance",
       "platform": "Platform"
     },
-    "navLabel": "Your plan"
+    "navLabel": "Your plan",
+    "crmDirectory": "CRM (Companies, Contacts)",
+    "revenueDetails": "Revenue (Incoming payments, Revenue by Project)"
   },
   "console": {
     "organisationHeading": "Organisation and plan",
     "organisation": "Organisation",
-    "organisationHelper": "Every switch below is this organisation’s resolved state.",
+    "organisationHelper": "Effective state shows saved settings. Changes apply when you select Save.",
     "plan": "Plan",
     "planHelper": "Plan limits: {{seats}} seats, {{projects}} active projects, {{messages}} AI messages a month.",
     "planLoading": "Loading plan…",
@@ -103,7 +105,10 @@
     "loadFailedBody": "Nothing was changed. Try again; if it keeps failing, the registry read is unavailable.",
     "globalConfirmTitle": "Switch this off for every organisation?",
     "globalConfirmBody": "{{feature}} will be off for every organisation, whatever its plan or override. Data is kept; switching it back on restores it.",
-    "globalConfirmAction": "Switch off for all"
+    "globalConfirmAction": "Switch off for all",
+    "viewLabel": "Feature settings view",
+    "orgView": "This organisation",
+    "discard": "Discard changes"
   },
   "features": {
     "incidents": "Incidents",

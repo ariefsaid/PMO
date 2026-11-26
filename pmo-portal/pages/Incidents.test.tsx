@@ -1,3 +1,4 @@
+import { getActiveOrgTimezone, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -426,19 +427,23 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
 });
 
 describe('Incidents — create-form date default (AC-W6-IXD-INCDATE)', () => {
-  // Build today's local YYYY-MM-DD the same way the component must (avoid the
-  // UTC-midnight off-by-one).
-  const todayLocal = () => {
-    const d = new Date();
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  };
-
-  it('AC-W6-IXD-INCDATE: the File-incident (create) form pre-fills the Date field with today (local YYYY-MM-DD)', async () => {
-    renderPage('Engineer');
-    await userEvent.click(screen.getByRole('button', { name: /File incident/i }));
-    const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByLabelText(/Date/i)).toHaveValue(formatDayYear(todayLocal()));
+  it.each([
+    ['UTC', '2026-11-26'],
+    ['Asia/Jakarta', '2026-11-27'],
+  ])('AC-W6-IXD-INCDATE: the File-incident form pre-fills the organisation day in %s', async (timezone, expectedDay) => {
+    const previous = getActiveOrgTimezone();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-26T20:00:00Z'));
+    setActiveOrgTimezone(timezone);
+    try {
+      renderPage('Engineer');
+      await userEvent.click(screen.getByRole('button', { name: /File incident/i }));
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByLabelText(/Date/i)).toHaveValue(formatDayYear(expectedDay));
+    } finally {
+      vi.useRealTimers();
+      setActiveOrgTimezone(previous);
+    }
   });
 
   it('AC-W6-IXD-INCDATE: the Edit form keeps the incident stored date (not today)', async () => {

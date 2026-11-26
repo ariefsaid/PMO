@@ -1,3 +1,4 @@
+import { shippedTerm } from '@/src/lib/i18n/orgTerms';
 import { matchPath } from 'react-router';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
@@ -315,6 +316,7 @@ export function modulesForRoleWithOperator(role: UserRole, isOperator: boolean):
  * with the placeholder `<Route>` titles in App.tsx.
  */
 export const PLACEHOLDER_TITLES: Record<string, string> = {
+  '/quantity-changes': 'Quantity change requests', // i18n-exempt: resolved from quantityChanges:title below
   // Profile & preferences is a directly-routable personal page (account menu entry); keep its
   // route breadcrumb registered here (AC-ACCT-001).
   '/settings/profile': 'Profile & preferences',
@@ -380,6 +382,7 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   // #2700: the monthly equipment plan is reached from Procurement (its Back bar names it).
   '/equipment-plans': '/procurement',
   '/equipment-plans/settings': '/procurement',
+  '/purchase-types/settings': '/procurement',
   // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
   '/finance/billing-board': '/finance/receivables',
   '/finance/billing-plan': '/finance/receivables',
@@ -402,6 +405,7 @@ export function railParentForPath(pathname: string): string | undefined {
 }
 
 export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
+  '/purchase-types/settings': { label: 'Purchase types', i18nKey: 'purchaseTypes:settings.title' }, // i18n-exempt: translated at render
   '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
@@ -651,6 +655,7 @@ export function breadcrumbForPath(
     // `shell.nav.salesInvoices` / `shell.nav.incomingPayments` / `shell.nav.revenueByProject` keys
     // the Finance rail already uses.
     const PLACEHOLDER_I18N_KEY: Record<string, string> = {
+      '/quantity-changes': 'quantityChanges:title',
       '/administration': 'shell.nav.administration',
       '/integrations': 'shell.nav.integrations',
       '/sales-invoices': 'shell.nav.salesInvoices',
@@ -708,7 +713,7 @@ export function breadcrumbForPath(
   // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
   if (/^\/work-orders\/[^/]+$/.test(pathname)) {
     return [
-      { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
+      { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // the module's own label is translated from its shell key at render
       ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
       recordLabel
         ? { label: recordLabel }
@@ -734,7 +739,7 @@ export function breadcrumbForPath(
         const recordCrumb = recordLabel
           ? { label: recordLabel }
           : pathname === '/projects/new'
-            ? { label: 'New project', i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
+            ? { label: `New ${shippedTerm('en', 'project').singular.toLowerCase()}`, i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
             // Create routes render their working forms, never a record — the crumb names the
             // form instead of a stuck "Loading…" (tidy audit TA-015/018/019).
             : pathname === '/procurement/new'
@@ -746,7 +751,7 @@ export function breadcrumbForPath(
                   : pathname === '/material-requests/new'
                     ? { label: 'New material request', i18nKey: 'materialRequests:form.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
                     : pathname === '/material-requests/settings'
-                      ? { label: 'Approval settings', i18nKey: 'materialRequests:list.settings' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                      ? { label: `${shippedTerm('en', 'materialRequest').singular} settings`, i18nKey: 'materialRequests:settings.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
                       : recordResolved
                         ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
                         : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render

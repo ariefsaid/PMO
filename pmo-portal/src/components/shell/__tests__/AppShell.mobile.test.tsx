@@ -383,22 +383,25 @@ describe('AC-IXD-MOBILE-W4-C3 C3-9: body scroll-lock while drawer open', () => {
 // C3-10: Breadcrumb mobile truncation
 // ---------------------------------------------------------------------------
 describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb on a phone', () => {
-  it('parent crumb links hide at exactly the breakpoint where the phoneOnly BackBar shows (#735: no width without a way back)', () => {
+  it('parent breadcrumb and phone BackBar both provide a working way back', () => {
+    const onParent = vi.fn();
+    const onBack = vi.fn();
     const { container } = render(
       <Breadcrumb
         parts={[
-          { label: 'Projects', href: '/projects', onClick: vi.fn() },
+          { label: 'Projects', href: '/projects', onClick: onParent },
           { label: 'Alpha' },
         ]}
       />
     );
-    // Parent breadcrumb links have the mobile hide class
     const parentLink = container.querySelector('a');
-    expect(parentLink).not.toBeNull();
-    const { container: bar } = render(<BackBar label="Projects" phoneOnly onBack={vi.fn()} />);
-    const showAt = (bar.firstElementChild as HTMLElement).className.match(/max-\[(\d+)px\]:flex/)?.[1];
-    expect(showAt).toBeDefined();
-    expect(parentLink!.className).toContain(`max-[${showAt}px]:hidden`);
+    expect(parentLink).toHaveAccessibleName('Projects');
+    expect(parentLink).toHaveAttribute('href', '/projects');
+    fireEvent.click(parentLink!);
+    expect(onParent).toHaveBeenCalledTimes(1);
+    render(<BackBar label="Projects" phoneOnly onBack={onBack} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Projects' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it('with only one part (no parent), nothing is hidden', () => {

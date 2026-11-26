@@ -231,9 +231,8 @@ describe('AC-IXD-PROC-B3: Admin break-glass transitions with SoD preserved', () 
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-requester' };
     renderPage();
     // Approve is the one primary action; Reject sits in the header's "More procurement actions" menu.
-    expect(headerActions().getByRole('button', { name: /^Approve$/ })).toBeInTheDocument();
-    await openMoreActions();
-    expect(screen.getByRole('menuitem', { name: /^Return$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Approve$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Return$/ })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-B3: Admin who IS the requester does NOT see Approve/Reject on a Requested PR (SoD-a)', async () => {

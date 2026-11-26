@@ -104,6 +104,6 @@ describe('AC-CAE-002 open purchase requests beside the plan', () => {
     render(<I18nextProvider i18n={id}>{tree()}</I18nextProvider>);
     expect(screen.getByText('Permintaan pembelian terbuka')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mulai rencana dari daftar ini' })).toBeInTheDocument();
-    expect(screen.getAllByText('Tanpa work order').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tanpa perintah kerja').length).toBeGreaterThan(0);
   });
 });

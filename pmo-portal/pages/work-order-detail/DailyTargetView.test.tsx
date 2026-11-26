@@ -20,7 +20,7 @@ vi.mock('@/src/hooks/useWorkOrderDailyTarget', () => ({
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-12-03' }));
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
-  return { ...actual, ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div> };
+  return { ...actual, BarChart: ({ data }: { data: { date: string }[] }) => <div data-testid="chart-visible-days">{data.map((d) => d.date).join(',')}</div>, ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div> };
 });
 
 const day = (extra: Partial<DailyTargetDay>): DailyTargetDay => ({ date: '2026-12-01', working: true, listed: false, nonWorkingLabel: null, hasTarget: true, target: '100.00', actual: '80.00', gap: '-20.00', pendingReports: 0, ...extra });
@@ -36,14 +36,39 @@ const money = (v: string) => formatTableMoney(v, 'IDR');
 beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); state.asked = []; });
 
 describe('DailyTargetView (#2672)', () => {
+  it('keeps a lone late-month target visible as a row instead of a clipped empty chart', () => {
+    state.query = ok(target({ days: Array.from({ length: 31 }, (_, i) => day({ date: `2026-12-${String(i + 1).padStart(2, '0')}`, hasTarget: i === 26, target: i === 26 ? '100.00' : '0.00', actual: '0.00', gap: i === 26 ? '-100.00' : '0.00' })) }));
+    render(<DailyTargetView workOrderId="w" monthOnly />);
+    expect(screen.queryByTestId('wo-daily-chart')).toBeNull();
+    expect(screen.getByTestId('wo-daily-row-2026-12-27').textContent).toContain(money('100.00'));
+    expect(screen.getByRole('region', { name: 'Daily target' })).toContainElement(screen.getByTestId('wo-daily-row-2026-12-27'));
+  });
+  it('the chart visible range includes the full period and late-month targets', () => {
+    state.query = ok(target({ days: Array.from({ length: 31 }, (_, i) => day({ date: `2026-12-${String(i + 1).padStart(2, '0')}`, working: i % 7 !== 0, hasTarget: [0, 14, 26].includes(i), target: [0, 14, 26].includes(i) ? '100.00' : '0.00', actual: '0.00' })) }));
+    render(<DailyTargetView workOrderId="w" monthOnly />);
+    expect(screen.getByTestId('chart-visible-days').textContent?.split(',')).toEqual(Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')));
+    expect(screen.getByTestId('wo-daily-row-2026-12-27')).toBeVisible();
+  });
+  it('AC-WDT-014 keeps target to date available in the work-order month view for comparison with the project', () => {
+    state.query = ok(target());
+    render(<DailyTargetView workOrderId="w" monthOnly />);
+    expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe(money('200.00'));
+  });
   it('shows target to date, actual to date, the gap in words and the projection', () => {
     state.query = ok(target());
     render(<DailyTargetView workOrderId="w" />);
     expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe(money('200.00'));
     expect(screen.getByTestId('wo-daily-mtd-actual').textContent).toBe(money('80.00'));
+    expect(screen.getByTestId('wo-daily-row-2026-12-01').textContent).toContain(money('20.00') + ' behind target');
     expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toBe(`${money('120.00')} behind target`);
     expect(screen.getByTestId('wo-daily-projection').textContent).toBe(money('613.33'));
     expect(screen.getByTestId('wo-daily-projected-gap').textContent).toContain('ahead of target');
+  });
+  it('explains an ahead or on-target daily gap in words', () => {
+    state.query = ok(target({ days: [day({ gap: '20.00' }), day({ date: '2026-12-02', gap: '0.00' })] }));
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-row-2026-12-01').textContent).toContain(money('20.00') + ' ahead of target');
+    expect(screen.getByTestId('wo-daily-row-2026-12-02').textContent).toContain('On target');
   });
   it('AC-WDT-007 a null projection reads "not enough working days", never 0', () => {
     state.query = ok(target({ projection: null, projectedGap: null }));
@@ -78,11 +103,11 @@ describe('DailyTargetView (#2672)', () => {
     expect(screen.getByTestId('wo-daily-empty')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Enter plan' })).toBeNull();
   });
-  it('#1126 two blocks: the month against its target, then each day; a day with nothing on it gets no row, only a count', () => {
+  it('#1126 month summary and daily evidence share one section; quiet days get a count instead of zero rows', () => {
     state.query = ok(target({ days: [day({}), day({ date: '2026-12-02', hasTarget: false, target: '0.00', actual: '0.00', gap: '0.00' }), day({ date: '2026-12-03', hasTarget: false, target: '0.00', actual: '0.00', gap: '0.00' })] }));
     render(<DailyTargetView workOrderId="w" />);
     expect(screen.getByRole('region', { name: 'Daily target' })).toContainElement(screen.getByTestId('wo-daily-mtd-target'));
-    expect(screen.getByRole('region', { name: 'Each day' })).toContainElement(screen.getByTestId('wo-daily-row-2026-12-01'));
+    expect(screen.getByRole('region', { name: 'Daily target' })).toContainElement(screen.getByTestId('wo-daily-row-2026-12-01'));
     expect(screen.queryByTestId('wo-daily-row-2026-12-02')).toBeNull();
     expect(screen.getByTestId('wo-daily-quiet').textContent).toBe('2 days with nothing on them');
   });
@@ -126,6 +151,7 @@ describe('DailyTargetView (#2672)', () => {
     render(<I18nextProvider i18n={i18n}><DailyTargetView workOrderId="w" /></I18nextProvider>);
     expect(screen.getAllByText('Target sampai hari ini').length).toBeGreaterThan(0);
     expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toMatch(/di bawah target/);
+    expect(screen.getByTestId('wo-daily-row-2026-12-01').textContent).toContain(idRp.daily.behind.replace('{{amount}}', money('20.00')!));
     expect(screen.getByTestId('wo-daily-nonworking-2026-12-25').textContent).toBe('Hari tidak kerja: Holiday');
   });
   it('AC-WDT-013 every English key has an Indonesian translation', () => {

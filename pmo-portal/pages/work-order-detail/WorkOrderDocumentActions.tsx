@@ -89,7 +89,7 @@ export const WorkOrderDocumentActions: React.FC<Props> = ({
 
   const headerActions = (
     <div className="flex flex-wrap items-center gap-2">
-      <RecordFolderAction target={{ kind: 'work_order', id: workOrderId }} hasFolder={Boolean(folderDoc)} />
+      <RecordFolderAction compact target={{ kind: 'work_order', id: workOrderId }} hasFolder={Boolean(folderDoc)} />
       {canCreate && (
         <Button type="button" size="sm" variant="outline" onClick={() => setShowAdd(true)}>
           {t('documents.add', 'Add document')}

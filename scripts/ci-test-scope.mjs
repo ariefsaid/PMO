@@ -54,7 +54,7 @@ const UNIT_FULL = [
 // Everything the `pgtap` job runs besides `supabase/**` itself.
 const PGTAP = [
   /^supabase\//,
-  /^scripts\/(check-migration-collisions\.sh|check-project-short-name-reversal\.mjs|check-isolation-denominator\.mjs|isolation-probe-denominator\.d\/[\w.-]+\.json|anon-definer-inventory\.mjs|isolation-probe\.sh|isolation-proof\.sh|isolation-fixtures\.sql|with-db-lock\.sh)$/,
+  /^scripts\/(check-migration-collisions\.sh|check-project-short-name-reversal\.mjs|check-isolation-denominator\.mjs|check-schema-registrations(?:\.sh|(?:\.test)?\.mjs)|isolation-probe-denominator\.d\/[\w.-]+\.json|anon-definer-inventory\.mjs|isolation-probe\.sh|isolation-proof\.sh|isolation-fixtures\.sql|with-db-lock\.sh)$/,
   /^scripts\/financial-statements-[\w-]+\.test\.mjs$/,
   /^scripts\/2195-journal-safety-rollback\.test\.mjs$/,
   /^scripts\/(test-2195-capture-rollback\.sh|2195-capture-rollback\.test\.sql)$/,
@@ -464,6 +464,7 @@ async function selfTest() {
   });
   test('shards: the shard threshold is injectable', () => assert.equal(s(['pmo-portal/src/lib/a.ts', 'pmo-portal/src/lib/b.ts'], { shardThreshold: 1 }).shards, 4));
   for (const p of ['supabase/migrations/0400_x.sql', 'supabase/tests/x.sql', 'supabase/functions/a/index.ts', 'scripts/with-db-lock.sh',
+    'scripts/check-schema-registrations.sh', 'scripts/check-schema-registrations.mjs', 'scripts/check-schema-registrations.test.mjs',
     'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.d/legacy.json', 'scripts/anon-definer-inventory.mjs', 'scripts/isolation-probe.sh', 'scripts/isolation-proof.sh', 'scripts/isolation-fixtures.sql', 'scripts/financial-statements-rollback.test.mjs',
     'scripts/financial-statements-nightly-intent-race.test.mjs', 'scripts/2195-journal-safety-rollback.test.mjs',
     'scripts/test-2195-capture-rollback.sh', 'scripts/2195-capture-rollback.test.sql',

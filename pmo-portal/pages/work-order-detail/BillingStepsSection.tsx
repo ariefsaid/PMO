@@ -1,3 +1,4 @@
+import BillingStepTemplatesModal from '../project-detail/tabs/BillingStepTemplatesModal';
 import React, { useContext, useId, useState } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { Link } from 'react-router';
@@ -252,6 +253,7 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
   const query = useWorkOrderSteps(workOrderId);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const title = t('title', 'Billing steps');
@@ -277,7 +279,7 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
   return <RecordSection title={title} actions={actions}>
     {steps.length === 0
       ? <p className="text-control text-muted-foreground" data-testid="wo-billing-steps-empty">
-          {t('empty', 'No billing steps to show. Steps are copied from the organisation\'s default billing step template when a work order is issued: an Admin or a Finance person chooses that template under billing step templates. If a list exists, it is not shown to your role.')}
+          {t('emptyShort', 'No billing steps to show.')} {!viewOnly && may('edit', 'billingStage') && <button type="button" onClick={() => setTemplatesOpen(true)} className="text-primary-text hover:underline">{t('openTemplates', 'Open billing templates')}</button>}
         </p>
       : <>
         <p className="text-control text-muted-foreground" data-testid="wo-billing-steps-summary">
@@ -290,6 +292,7 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
       </>}
     {adding && canAdd && <AddStepForm id={formId} workOrderId={workOrderId} steps={steps} onClose={() => setAdding(false)} onError={setRefusal} />}
     {refusal && <p role="alert" className="mt-2 text-control text-destructive">{refusal}</p>}
+    {templatesOpen && <BillingStepTemplatesModal onClose={() => setTemplatesOpen(false)} />}
     {saving && canSave && <SaveTemplateModal workOrderId={workOrderId} steps={steps} onClose={() => setSaving(false)} onSaved={(n) => { setSaved(n); setSaving(false); }} />}
     {saved && <p role="status" className="mt-2 text-control text-muted-foreground" data-testid="wo-billing-step-template-saved">
       {t('templateSaved', 'Saved as template "{{name}}".', { name: saved })}</p>}

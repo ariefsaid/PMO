@@ -109,6 +109,7 @@ export interface ProjectDetailHeaderProps {
   commitmentPending?: boolean;
   commitmentError?: boolean;
   onEditProject?: () => void;
+  editIsPrimary?: boolean;
   /** The one filled action for the project's state, top-right of the title row (UX AC1/AC2). */
   primaryAction?: React.ReactNode;
   /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
@@ -305,6 +306,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   commitmentPending = false,
   commitmentError = false,
   onEditProject,
+  editIsPrimary = false,
   primaryAction,
   compact = false,
   editValueRequest = 0,
@@ -320,6 +322,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
   const isDesktopHeader = useIsDesktop();
+  const detailsPopupRef = useRef<HTMLDivElement>(null);
   // Below this width the actions leave the name too little room beside its status, so the status drops under the name.
   const isWideHeader = useIsDesktop(1280);
 
@@ -586,7 +589,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // Phone keeps the header to one row: Edit moves into the menu there.
   const editInMenu = canEdit && ((compact && !isDesktopHeader) || primaryRendered);
   const editButton = canEdit && !editInMenu ? (
-    <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
+    <Button variant={editIsPrimary && !primaryRendered ? "primary" : "outline"} size="sm" className="touch-target" onClick={onEditProject}>
       {t('projectDetail.header.action.edit', 'Edit')}
     </Button>
   ) : undefined;
@@ -606,13 +609,16 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const pastEndDays = projectLateDays(project, orgToday);
   const phoneLockNote = compact && !isDesktopHeader && showCompactContractLock;
   const hasDetails = compact && Boolean(menuContent || taxLabel || phoneLockNote);
+  // Focus the details surface on opening, so its first fact does not automatically open a nested tooltip.
+  // Tab still reaches each fact and control; Escape dismisses the details and restores its trigger.
   // The project's codes, status control and accounting link: a Base UI popover, not part of the action menu.
   const detailsPanel = hasDetails ? (
     <Popover>
       <PopoverTrigger className={`${buttonClasses('ghost', 'sm', 'touch-target')} shrink-0 whitespace-nowrap`}>
         {t('projectDetail.header.projectDetails', 'Project details')}
       </PopoverTrigger>
-      <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
+      <PopoverContent ref={detailsPopupRef} initialFocus={detailsPopupRef} align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
+        {!isDesktopHeader && facts && <div className="border-b border-border px-3 py-3">{facts}</div>}
         {menuContent && (
           <>
             <div id="project-menu-details" className="border-b border-border px-2 py-3">{menuContent}</div>
@@ -676,7 +682,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           <span className="-my-3 -mr-1.5 ml-auto shrink-0">{detailsPanel}</span>
         </span>
       ) : identityLine}
-      {facts}
+      <div className="max-sm:hidden">{facts}</div>
     </div>
   );
   const actions = compact ? (
@@ -806,6 +812,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   return (
     <>
       <RecordHeader
+        clampNameOnMobile
         // The header's text starts on the panels' inset (one left edge), as on the claim record.
         panelInset
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}

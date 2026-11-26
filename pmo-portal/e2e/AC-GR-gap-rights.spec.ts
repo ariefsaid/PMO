@@ -43,7 +43,7 @@ test('AC-GR-002 Project Control Manager reads another managers catalogue prices'
     await page.goto(`/projects/${project.id}/contract`);
     await page.getByRole('button', { name: 'Rate catalogue', exact: true }).click();
     const catalogue = page.getByRole('region', { name: 'Rate catalogue' });
-    await expect(catalogue.getByRole('cell', { name: 'GR-RATE · Catalogue work' })).toBeVisible();
+    await expect(catalogue.getByRole('rowheader', { name: 'GR-RATE Catalogue work' })).toBeVisible();
     await expect(catalogue.getByRole('cell', { name: 'Remote location' })).toBeVisible();
     await expect(catalogue.getByRole('cell', { name: /120/ })).toBeVisible();
     await expect(catalogue.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
