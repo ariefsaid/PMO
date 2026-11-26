@@ -177,8 +177,8 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
   ];
   return (
     <RecordSection headingId="eav-status-h" title={t('equipment:availability.statusHeading', 'Equipment status')} flush
-      subline={allowDate ? undefined : formatDay(statusDate)}
       actions={<>
+        {!allowDate && <span className="text-muted-foreground">{formatDay(statusDate)}</span>}
         {canSet && <Button variant="primary" disabled={!statusDate || !dirty || bulk.isPending || proof.isPending} onClick={() => void save()}>
           {t('equipment:availability.saveStatuses', 'Save statuses')}
         </Button>}

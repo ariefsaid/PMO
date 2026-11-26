@@ -35,8 +35,11 @@ const MachinesView: React.FC = () => {
     <ListPage
       title={t('equipment:usage.title', 'Equipment')}
       count={assets.total}
-      filters={<>
-      <nav aria-label={t('equipment:home.links', 'Equipment pages')} className="flex flex-wrap gap-2">
+      primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
+        <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:home.newEquipment', 'New equipment')}</Button>
+      </CanWrite>}
+    >
+      <nav aria-label={t('equipment:home.links', 'Equipment pages')} className="mb-6 flex flex-wrap gap-2">
         <Link className={buttonClasses('outline', 'sm')} to="/equipment?view=hours">{t('equipment:home.hoursLog', 'Hours log')}</Link>
         <Link className={buttonClasses('outline', 'sm')} to="/equipment/availability">{t('equipment:availability.title', 'Availability')}</Link>
         {planFeature && planOn && <Link className={buttonClasses('outline', 'sm')} to="/equipment-plans">{t('equipment:home.monthlyPlan', 'Monthly equipment plan')}</Link>}
@@ -44,11 +47,6 @@ const MachinesView: React.FC = () => {
         <Link className={buttonClasses('outline', 'sm')} to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
         <Link className={buttonClasses('outline', 'sm')} to="/equipment/assets">{t('equipment:home.register', 'All equipment and rental terms')}</Link>
       </nav>
-      </>}
-      primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
-        <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:home.newEquipment', 'New equipment')}</Button>
-      </CanWrite>}
-    >
       {problem && <p role="alert" className="mb-3 text-destructive-text">{problem}</p>}
       {assets.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {assets.isError && <ListState variant="error" title={t('equipment:availability.assetsError', "Couldn't load equipment")} onRetry={() => void assets.refetch()} />}
