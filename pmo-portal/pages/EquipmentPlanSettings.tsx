@@ -1,3 +1,5 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +28,7 @@ const CategoryRow: React.FC<{ category: PlanCategory | null; canManage: boolean;
       if (!category) { setName(''); setNameId(''); }
     } catch (err) { setError(refusal(err)); }
   };
+  const pageSave = useSettingsSaveEntry(category && canManage ? { dirty, invalid: !name.trim(), busy: m.upsertCategory.isPending, save } : null);
   const toggle = async () => {
     if (!category) return;
     setError(null);
@@ -40,9 +43,9 @@ const CategoryRow: React.FC<{ category: PlanCategory | null; canManage: boolean;
       {canManage && (
         <span className="flex min-h-10 flex-wrap items-center gap-2">
           {category && !category.active && <StatusPill variant="neutral">{t('settings.retired', 'Retired')}</StatusPill>}
-          <Button variant={category ? 'outline' : 'primary'} size="sm" disabled={!dirty || !name.trim()} loading={m.upsertCategory.isPending} onClick={() => void save()}>
+          {(!pageSave || !category) && <Button variant={category ? 'outline' : 'primary'} size="sm" disabled={!dirty || !name.trim()} loading={m.upsertCategory.isPending} onClick={() => void save()}>
             {category ? t('settings.save', 'Save') : t('settings.add', 'Add category')}
-          </Button>
+          </Button>}
           {category && <Button variant="ghost" size="sm" onClick={() => void toggle()}>{category.active ? t('settings.retire', 'Retire') : t('settings.restore', 'Restore')}</Button>}
         </span>
       )}
@@ -66,6 +69,7 @@ const SwitchSection: React.FC<{ canManage: boolean }> = ({ canManage }) => {
     try { await m.setSettings.mutateAsync({ enabled, approvalStep: step, allowSelfApproval: self }); setDraft({}); toast(t('settings.saved', 'Plan settings updated'), undefined, 'success'); }
     catch (err) { setError(refusal(err)); }
   };
+  const pageSave = useSettingsSaveEntry(canManage ? { dirty: Object.keys(draft).length > 0, busy: m.setSettings.isPending, save } : null);
   return (
     <RecordSection title={t('settings.switchTitle', 'Use the monthly plan')} subline={t('settings.switchSub', 'When on, planners list the month\'s equipment and services.')}>
       {settings.isError && <ListState variant="error" title={t('settings.loadError', "Couldn't load the plan settings")} onRetry={() => void settings.refetch()} />}
@@ -76,7 +80,7 @@ const SwitchSection: React.FC<{ canManage: boolean }> = ({ canManage }) => {
           <div className="w-full max-w-xl"><SelectField label={t('settings.stepLabel', 'Approval step')} helper={t(`settings.step.${step}`)} value={step} onChange={(v) => setDraft({ ...draft, step: v as ApprovalStep })} disabled={!canManage || settings.isPending}
             options={[{ value: 'spend_approvers', label: t('settings.stepShort.spend_approvers', 'Project approvers') }, { value: 'senior_role', label: t('settings.stepShort.senior_role', 'Senior approvers') }]} fullWidth /></div>
           <Checkbox checked={self} onChange={(v) => setDraft({ ...draft, self: v })} disabled={!canManage || settings.isPending} label={t('settings.selfApproval', 'The author may approve their own plan')}>{t('settings.selfApproval', 'The author may approve their own plan')}</Checkbox>
-          {canManage && <Button variant="primary" size="sm" disabled={Object.keys(draft).length === 0} loading={m.setSettings.isPending} onClick={() => void save()}>{t('settings.save', 'Save')}</Button>}
+          {canManage && !pageSave && <Button variant="primary" size="sm" disabled={Object.keys(draft).length === 0} loading={m.setSettings.isPending} onClick={() => void save()}>{t('settings.save', 'Save')}</Button>}
         </div>
       )}
     </RecordSection>
@@ -112,7 +116,7 @@ const EquipmentPlanSettingsPage: React.FC = () => {
   return (
     <div>
       <BackBar label={t('settings.back', 'Monthly plan')} onBack={() => navigate('/equipment-plans')} />
-      <PageHeader title={t('settings.title', 'Monthly plan settings')} />
+      <PageHeader title={t('settings.title', 'Monthly plan settings')} action={<SettingsSaveAction />} />
       {!canManage && <p className="mb-3 text-muted-foreground">{t('settings.adminOnly', 'Only an Admin can change the plan settings.')}</p>}
       <RecordStack>
         <SwitchSection canManage={canManage} />
@@ -121,4 +125,4 @@ const EquipmentPlanSettingsPage: React.FC = () => {
     </div>
   );
 };
-export default EquipmentPlanSettingsPage;
+export default function EquipmentPlanSettings() { return <SettingsSaveProvider><EquipmentPlanSettingsPage /></SettingsSaveProvider>; }
