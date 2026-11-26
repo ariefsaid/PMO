@@ -67,7 +67,6 @@ test('AC-WML-007 open steps and a missing attachment are listed, exported, and l
 
     await page.goto('/work-orders/' + workOrderId);
     await openWorkOrderArea(page, 'checks');
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Close-out', exact: true }).click();
     const list = page.getByTestId('missing-list');
     await expect(list).toContainText('First ' + suffix);
     await expect(list).toContainText('Second ' + suffix);
@@ -82,11 +81,11 @@ test('AC-WML-007 open steps and a missing attachment are listed, exported, and l
     expect(csv).toContain('Evidence slot ' + suffix);
 
     // Attach the document and finish the first step: its step row and attachment row leave the list; the second step stays.
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Billing', exact: true }).click();
+    await openWorkOrderArea(page, 'billing');
     await page.getByRole('combobox', { name: 'Document for Evidence slot ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Evidence slot ' + suffix }).click();
     await page.getByRole('button', { name: 'Mark First ' + suffix + ' done' }).click();
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Close-out', exact: true }).click();
+    await openWorkOrderArea(page, 'checks');
     await expect(list).not.toContainText('First ' + suffix);
     await expect(list).not.toContainText('Evidence slot ' + suffix);
     await expect(list).toContainText('Second ' + suffix);

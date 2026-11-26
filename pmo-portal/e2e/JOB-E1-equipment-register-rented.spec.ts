@@ -120,5 +120,7 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   await openWorkOrderArea(page, 'cost');
   const equipment = page.getByTestId('cost-group-equipment_usage');
   await expect(equipment).toContainText(pmCode, { timeout: 20_000 });
-  await expect(equipment).toContainText(new RegExp(`(?<!\\d)${workDay.getDate()} [A-Z][a-z]{2}( \\d{4})? · 8 hours`));
+  const crane = equipment.locator('tr', { hasText: pmCode });
+  await expect(crane).toContainText(new RegExp(`(?<!\\d)${workDay.getDate()} [A-Z][a-z]{2}( \\d{4})?`));
+  await expect(crane).toContainText('8 hours');
 });

@@ -32,7 +32,6 @@ test('JOB-PC26 project control sees cost and schedule indices after approved lab
     await pcm.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
     await openWorkOrderArea(page, 'cost');
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Cost and plan', exact: true }).click();
     await expect(page.getByTestId('wo-page-performance-cpi-value')).toContainText('1.25');
     await expect(page.getByTestId('wo-page-performance-spi-value')).toContainText('0.50');
   } finally {
