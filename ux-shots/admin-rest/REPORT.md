@@ -1,6 +1,6 @@
 # Administration screens — blocked
 
-Status: **not READY**. The work branch contains the prerequisite merge only; no screen was recomposed.
+Status: **not READY**. Three source-only layout changes are pushed; none has been rendered or accepted. The other eleven screens remain to be recomposed.
 
 ## Purpose and structure inventory
 
@@ -25,7 +25,12 @@ Source-based starting points only; the most obvious thing and final structure re
 
 ## Changes and measurements
 
-No UI changes were made. No captures or measurements were obtained; there are no screenshot paths. Every scoped screen, state, language, role and viewport remains to be reviewed.
+- Purchase types: aligned the two names, rental flag and existing row actions on wide screens; fields stack on phones. Purpose: maintain purchase types. Structure: type → names and rental flag → save or retire/restore.
+- Usage: split input and output tokens into named numeric columns and applied numeric and money column roles. Purpose: review recorded usage. Structure: month and action → counts → cost and margin.
+- Material requests: aligned the existing approval-step fields in a responsive grid. Purpose: set request and approval rules. Structure: step → role and check → order and save actions.
+- All three retain existing data calls, controls and permissions. The requested whole-screen one-save composition remains unverified and unfinished.
+
+No captures or measurements were obtained; there are no screenshot paths. Every scoped screen, state, language, role and viewport remains to be reviewed.
 
 | Measurement | Before | After |
 | --- | --- | --- |
@@ -36,26 +41,30 @@ No UI changes were made. No captures or measurements were obtained; there are no
 - Restructure: “Freeze the feature floor before any edit”; the floor could not be reconciled against a running app.
 - Impeccable: “Verify by looking at the rendered result at the sizes it ships at”; no rendered result was available. The context launcher failed on its read-only default cache, so project context was read directly.
 - Taste: “Placed space reads as calm; leftover space reads as unfinished.” No visual assessment was possible. Screen rules take precedence where taste differs.
-- UI UX Pro Max: source fetched for preparation; no composition or inspector result to claim.
-- The vendor script failed before installing these skills because an upstream directory it expects was absent. The project restructure override and independently fetched skill sources were consulted.
+- UI UX Pro Max: unavailable locally in this continuation; no composition or inspector result to claim.
+- The vendor script was not rerun. The project restructure override is available; impeccable and taste skill files were absent locally in this continuation, so the screen brief and rules were used.
 
 ## Journeys and gates
 
-- Prerequisite settings branch merged and work branch pushed.
-- `npm ci`: passed using a writable temporary cache. The lockfile was not changed.
-- Supabase start: failed. Docker reported no space left on its storage when registering the database image; after removing the disposable setup image, the retry downloaded the image but failed creating the database container for the same reason. Reset, seeded journeys and captures were not run.
-- Playwright browser download: failed with HTTP 403. System Chromium is present but was not used to claim requested journey results.
-- Guards, typecheck, lint, related tests, affected journeys and UX proof: not run; no source files changed and the stack was unavailable.
-- No journey steps or tests were changed.
+- Prerequisite settings branch and latest integration branch merged; work branch pushed. No pull request opened.
+- `npm ci`: passed in the earlier setup with a temporary cache; lockfile unchanged.
+- Lean stack: started after a temporary proxy bypass. Required `db reset` failed twice with container setup exit 125 as Docker exhausted disk; the retry followed the requested prune. The reset left no trustworthy seeded state. No seeded journey, UX proof or captures ran.
+- System Chromium was selected for a fallback; the journey could not be run against the failed reset. No sample records were created.
+- Typecheck: passed on the final work tree under Node 22.
+- ESLint: passed for the three changed screens and two changed tests.
+- Direct tests: purchase type and usage tests 17/17 passed; material-request settings tests 10/10 passed.
+- Related tests for purchase type and usage: 238 passed, 14 failed across administration-shell and command-palette suites. Related tests for material-request settings: 209 passed, three command-palette tests failed.
+- Guards: failed on unrelated missing and orphaned translation keys in the merged integration tree. Affected-journey discovery returned more than the 40-spec local cap; none ran.
+- The provider-cost test expected an em dash while the existing screen reports unavailable pricing. It now asserts that message and still asserts that unknown is never displayed as zero. No journey step changed.
 
 ## Owner to confirm
 
-No screen decisions were made. The prerequisite merge includes changes made by the other owner; this report does not assess them.
+Confirm the source-only changes after rendered review, including the separate input/output token headers and the new row arrangements. The prerequisite merge includes changes made by the other owner; this report does not assess them.
 
 ## Needs a data change
 
-Not assessed. No repository, RPC or schema changes were made.
+Not assessed across the screens. No repository, RPC or schema changes were made by this work.
 
 ## Not reached
 
-All fourteen scoped screens, feature-floor inventories, before and after captures, three render rounds, measured comparisons and final gates. Resume with enough Docker daemon storage to create the local database container and a usable Playwright browser at the requested path, then start/reset the stack and capture seeded before states.
+Eleven screens were not recomposed. The three touched screens still need full-screen composition and feature-floor reconciliation. All before and after captures, three render rounds, measured comparisons, journeys and UX proof remain outstanding. Resume with enough Docker daemon storage for a successful reset, then capture the seeded before states and review each screen at all requested sizes and languages.
