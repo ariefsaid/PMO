@@ -6,7 +6,7 @@ import { formatExactMoney, formatIsoDay } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseExactCents } from '@/src/lib/exactDecimal';
 import { useProjectPerformance } from '@/src/hooks/useWorkOrderPerformance';
-import { useAreaHelp } from './AreaHelp';
+import { useAreaHelp } from './useAreaHelp';
 import {
   deriveWorkOrderPerformance,
   type Bands,

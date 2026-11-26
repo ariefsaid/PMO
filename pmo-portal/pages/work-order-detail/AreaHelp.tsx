@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { AreaHelpContext, type AreaHelpEntry as Entry } from './useAreaHelp';
 import { HelpPopover } from '@/src/components/ui';
 
 /**
@@ -6,10 +7,6 @@ import { HelpPopover } from '@/src/components/ui';
  * give registers it while it is shown; the page's help, beside the area tabs, lists the open area's definitions.
  * The section itself keeps only figures, marks and the statements a person acts on.
  */
-interface Entry { id: string; title: string; body: React.ReactNode }
-interface Registry { set: (entry: Entry) => void; remove: (id: string) => void }
-
-const AreaHelpContext = createContext<Registry | null>(null);
 
 export const AreaHelpProvider: React.FC<{ children: (entries: Entry[]) => React.ReactNode }> = ({ children }) => {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -22,16 +19,6 @@ export const AreaHelpProvider: React.FC<{ children: (entries: Entry[]) => React.
   const registry = useMemo(() => ({ set, remove }), [set, remove]);
   return <AreaHelpContext.Provider value={registry}>{children(entries)}</AreaHelpContext.Provider>;
 };
-
-/** Registers one definition while the calling section is mounted. Outside the page (a bare render) it does nothing. */
-export function useAreaHelp(id: string, title: string, body: string | null) {
-  const registry = useContext(AreaHelpContext);
-  useEffect(() => {
-    if (!registry || !body) return;
-    registry.set({ id, title, body });
-    return () => registry.remove(id);
-  }, [registry, id, title, body]);
-}
 
 /** The page's help control: nothing when the open area has nothing to define. */
 export const AreaHelpButton: React.FC<{ subject: string; entries: Entry[] }> = ({ subject, entries }) => {

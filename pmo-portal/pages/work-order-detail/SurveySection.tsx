@@ -1,5 +1,5 @@
 import React, { useContext, useMemo, useState } from 'react';
-import { useAreaHelp } from './AreaHelp';
+import { useAreaHelp } from './useAreaHelp';
 import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';

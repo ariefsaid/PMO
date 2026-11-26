@@ -11,7 +11,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { asOfForMonth, shiftMonth, visibleDays } from '@/src/lib/dailyTarget';
 import { buildDailyCost, DAY_CATEGORIES, type SourceGroup } from '@/src/lib/workOrderCostView';
-import { useAreaHelp } from './AreaHelp';
+import { useAreaHelp } from './useAreaHelp';
 import { RevenuePlanModal } from './RevenuePlanModal';
 
 interface Props {

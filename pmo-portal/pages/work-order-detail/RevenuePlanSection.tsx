@@ -10,7 +10,7 @@ import { formatExactMoney, formatIsoDay, formatNumberMax2, formatShortAmount } f
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { RevenuePlanModal } from './RevenuePlanModal';
-import { useAreaHelp } from './AreaHelp';
+import { useAreaHelp } from './useAreaHelp';
 
 interface Props { workOrderId: string; woLabel: string; frozen: boolean }
 
