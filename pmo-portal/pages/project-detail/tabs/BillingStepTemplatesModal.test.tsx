@@ -88,7 +88,7 @@ describe('BillingStepTemplatesModal', () => {
   it('no templates yet says so', () => {
     view();
     expect(screen.getByText('No templates yet.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cancel', exact: true })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
     expect(screen.getByText('Close', { exact: true })).toBeInTheDocument();
   });
 

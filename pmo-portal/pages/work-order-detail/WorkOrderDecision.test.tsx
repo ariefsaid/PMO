@@ -59,7 +59,7 @@ describe('AC-WOC-002 issue or cancel a work order on its own page', () => {
 
   it('an issued work order has no further lifecycle transition to promote as a primary action', () => {
     renderWith({ ...draft, status: 'Issued' });
-    expect(screen.queryByRole('button', { name: 'Issue', exact: true })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Issue' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Cancel work order' })).toBeInTheDocument();
   });
   it('offers nothing on a closed or cancelled work order', () => {
