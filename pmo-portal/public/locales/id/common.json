@@ -1871,7 +1871,7 @@
       "contactTag": "Kontak",
       "empty": "Belum ada peserta tercatat. Peserta dapat membaca notulen rapat ini.",
       "guestLabel": "Tamu eksternal",
-      "guestPlaceholder": "mis. Ir. Sari (Acme)",
+      "guestPlaceholder": "mis. Tamu dari organisasi mitra",
       "guestTag": "Tamu",
       "memberNoun": "anggota",
       "remove": "Hapus peserta",

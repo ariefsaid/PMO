@@ -52,5 +52,23 @@
     "invalidTitle": "Definisi tampilan ini tidak sah.",
     "invalidSub": "Tampilan tidak bisa dirender karena spesifikasinya tidak sah."
   },
-  "noPanels": "Tampilan ini belum punya panel."
+  "noPanels": "Tampilan ini belum punya panel.",
+  "panelLabels": {
+    "StatTiles": "Ringkasan angka",
+    "KPITile": "Angka utama",
+    "DataTable": "Tabel",
+    "Funnel": "Pipeline",
+    "StatusBarChart": "Diagram batang",
+    "ProgressBar": "Progres"
+  },
+  "datasetLabels": {
+    "projects": "Proyek",
+    "companies": "Perusahaan",
+    "contacts": "Kontak"
+  },
+  "fieldLabels": {
+    "id": "Referensi",
+    "name": "Nama",
+    "status": "Tahap"
+  }
 }

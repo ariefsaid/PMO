@@ -809,6 +809,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   return (
     <>
       <RecordHeader
+        clampNameOnMobile
         // The header's text starts on the panels' inset (one left edge), as on the claim record.
         panelInset
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}

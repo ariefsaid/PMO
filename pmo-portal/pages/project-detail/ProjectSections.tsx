@@ -99,8 +99,13 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     }
     return (
       <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-2">
-        <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
-        <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
+        <details className="min-w-0 xl:col-span-2">
+          <summary className="cursor-pointer py-2 text-control font-semibold">{t('executionPlan', 'Execution plan')}</summary>
+          <div className="mt-3 grid min-w-0 gap-4 xl:grid-cols-2">
+            <CostBlock project={project} isPipeline onOpenBudget={openBudget} />
+            <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
+          </div>
+        </details>
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
         {/* One surface language: the finances sit in a panel like their neighbours, never bare on the page. */}
         {canSeeMoney && <div className="panel-card min-w-0 p-[var(--panel-inset)] xl:col-span-2 [&>section]:border-y-0 [&>section]:py-0"><ProjectFinancesSection project={project} /></div>}

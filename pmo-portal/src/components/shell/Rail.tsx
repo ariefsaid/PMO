@@ -338,6 +338,21 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
   const [hasScrollCue, setHasScrollCue] = useState(false);
+  useEffect(() => {
+    const region = scrollRegionRef.current;
+    if (!region || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        const element = entry.target as HTMLElement;
+        const whole = entry.intersectionRatio >= 0.99;
+        element.style.opacity = whole ? '' : '0';
+        element.style.pointerEvents = whole ? '' : 'none';
+      }
+    }, { root: region, threshold: [0, 0.99, 1] });
+    region.querySelectorAll('a, button').forEach(element => observer.observe(element));
+    return () => observer.disconnect();
+  }, [role, userViews?.length, collapsedGroups, orgFeatures, location.pathname]);
+
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
     if (!region) return;
@@ -628,7 +643,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
           </div>
         ))}
         <div className="relative min-h-0 flex-1">
-          <div ref={scrollRegionRef} data-rail-scroll-region className={cn('min-h-0 h-full overflow-y-auto p-2.5', inDrawer && 'pt-4')}>
+          <div ref={scrollRegionRef} data-rail-scroll-region onFocusCapture={event => event.target.scrollIntoView?.({ block: "nearest" })} className={cn('min-h-0 h-full overflow-y-auto p-2.5', inDrawer && 'pt-4')}>
             {items.filter((item) => item.to === '/').map(renderItem)}
             {/* HR's own desk: the people register first, not the last line behind Administration. */}
             {functionKey === 'hr' && may('view', 'person') && (
@@ -696,7 +711,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
             ))}
           </div>
           {hasScrollCue && (
-            <div aria-hidden="true" className="pointer-events-none absolute inset-x-2.5 bottom-0 h-6 bg-gradient-to-t from-[hsl(var(--surface-panel))] to-transparent" />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border" />
           )}
         </div>
       </nav>

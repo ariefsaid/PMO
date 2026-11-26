@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toolbar } from './DataTable';
 import { useIsDesktop } from './useIsDesktop';
 import { Card } from './Card';
 import { PageHeader } from './PageHeader';
+import { Button } from './Button';
+import { Drawer } from './Drawer';
 
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
@@ -106,7 +108,9 @@ export const ListPage: React.FC<ListPageProps> = ({
   bodyPanel = false,
   className,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'ui']);
+  const phone = !useIsDesktop(640);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const isBelowToolbarBreakpoint = !useIsDesktop(mobileToolbarBreakpoint);
   // A slot is "present" only when it renders something. Pages gate slots with
   // `state !== 'loading' && (…)`, which yields `false` during loading — so a
@@ -147,6 +151,14 @@ export const ListPage: React.FC<ListPageProps> = ({
             className={`flex-col items-stretch gap-2.5 ${mobileToolbarClassName ?? ''}`}
           >
             {mobileToolbar}
+          </Toolbar>
+        ) : phone ? (
+          <Toolbar standalone data-testid="list-page-toolbar" className="flex items-center gap-2">
+            {search && <div className="min-w-0 flex-1">{search}</div>}
+            <Button variant="outline" onClick={() => setFiltersOpen(true)}>{t('ui:filters', 'Filters')}</Button>
+            <Drawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title={t('ui:filters', 'Filters')}>
+              <div className="space-y-4">{filters}{secondaryFilter}<div className="flex flex-wrap gap-2">{view}{exportAction}{importAction}</div></div>
+            </Drawer>
           </Toolbar>
         ) : (
           <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 ${search ? 'md:grid-cols-[minmax(0,1fr)_220px_auto]' : 'md:grid-cols-[minmax(0,1fr)_auto]'} md:items-center ${desktopToolbarClassName ?? ''}`}>

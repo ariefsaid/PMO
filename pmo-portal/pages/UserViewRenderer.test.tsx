@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 // Panels run through usePanelQueries (react-query), so every render needs a client.
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -79,6 +80,7 @@ function renderRenderer(viewId = 'abc') {
     <MemoryRouter initialEntries={[`/views/${viewId}`]}>
       <Routes>
         <Route path="/views/:viewId" element={<UserViewRenderer />} />
+        <Route path="/views/:viewId/edit" element={<h1>Edit saved view</h1>} />
       </Routes>
     </MemoryRouter>
   );
@@ -140,7 +142,7 @@ describe('UserViewRenderer — guard states', () => {
     expect(screen.queryByText(/PieChart/i)).not.toBeInTheDocument(); // no partial render
   });
 
-  it('AC-VR-005: renders empty-spec state when spec has zero panels', () => {
+  it('AC-VR-005: the owner can open the builder from an empty saved view', async () => {
     mockUseUserView.mockReturnValue({
       data: { id: 'abc', name: 'Empty View', spec: { version: 1, panels: [] }, archived_at: null, scope: 'private', org_id: 'org1', user_id: 'u1', description: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
       isPending: false,
@@ -150,6 +152,8 @@ describe('UserViewRenderer — guard states', () => {
     renderRenderer();
     expect(screen.getByRole('heading', { name: 'Empty View' })).toBeInTheDocument();
     expect(screen.getByText(/this view has no panels yet/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(await screen.findByRole('heading', { name: 'Edit saved view' })).toBeInTheDocument();
   });
 
   it('AC-VR-019: renders page-level error state with retry when useUserView returns isError=true', () => {

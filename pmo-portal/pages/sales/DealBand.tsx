@@ -38,7 +38,7 @@ const DealBand: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const pill = <StatusPill variant={pillVariantForStatus(project.status as never)}>{stageLabel(project.status as never)}</StatusPill>;
   const stepper = (
-    <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-control" />
+    <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, journeyStepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-control [&_[role=list]]:grid! [&_[role=list]]:grid-cols-3 [&_.jstep]:min-w-0 [&_[data-testid=stepper-fade]]:hidden" />
   );
   const backLink = (
     <Link to={back.path} state={back.state} className="inline-flex text-control font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1">

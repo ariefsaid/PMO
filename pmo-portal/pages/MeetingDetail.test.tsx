@@ -508,6 +508,14 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
     expect(insertActionItem).not.toHaveBeenCalled();
   });
 
+  it('the author opens a blank action-item form from the visible section control without creating a task', async () => {
+    renderPage('Engineer');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add action item' }));
+    const dialog = await screen.findByRole('dialog', { name: /New action item/ });
+    expect(within(dialog).getByLabelText(/Task name/)).toHaveValue('');
+    expect(mutations.createActionItem.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it('submitting the modal creates the task with the text the author EDITED and inserts a block referencing ONLY its id (DD-MTG-2)', async () => {
     mutations.createActionItem.mutateAsync.mockResolvedValue({ id: 'task-new' });
     renderPage('Engineer');
@@ -752,7 +760,7 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
         id: 't1',
         name: 'Order the flange samples',
         status: 'To Do',
-        assignee: { id: 'peer-1', full_name: 'Putri Peer' },
+        assignee: { id: 'peer-1', full_name: 'Project manager' },
         end_date: null,
         dependencies: [],
       },
@@ -760,7 +768,8 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
     renderPage('Engineer');
     const list = screen.getByTestId('action-items-list');
     expect(within(list).getByText('Order the flange samples')).toBeInTheDocument();
-    expect(within(list).getByText('Owner: Putri Peer')).toBeInTheDocument();
+    expect(within(list).getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+    expect(within(list).getByText('Project manager')).toBeInTheDocument();
   });
 
   it('does not link a project-less action item to this meeting, but links project tasks', () => {

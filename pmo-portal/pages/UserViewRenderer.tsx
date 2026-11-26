@@ -26,6 +26,8 @@ import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useUserView } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
+import { BackBar } from '@/src/components/shell';
+import { Button } from '@/src/components/ui';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { PANEL_LOADING, usePanelQueries } from '@/src/hooks/usePanelQueries';
 import { MAX_PANELS_PER_VIEW, ValidationError } from '@/src/lib/viewspec/types';
@@ -117,7 +119,8 @@ const UserViewRenderer: React.FC = () => {
   // real DashPageHead's h1 + p layout so the page doesn't jump on ready.
   if (isPending || compiling) {
     return (
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex min-w-0 flex-col gap-4">
+        <BackBar label={t('financeCopy.myViews', 'My Views')} phoneOnly onBack={() => navigate('/views')} />
         {/* DashPageHead skeleton — mirrors h1 + p two-line structure (DESIGN.md §7) */}
         <div aria-hidden="true" className="flex flex-col gap-1">
           <div className="skel h-7 w-2/5 rounded" />
@@ -159,11 +162,18 @@ const UserViewRenderer: React.FC = () => {
     );
   }
 
+  const viewActions = view.user_id === currentUser?.id
+    ? <Button variant="primary" onClick={() => navigate(`/views/${view.id}/edit`)}>{t('financeCopy.edit', 'Edit')}</Button>
+    : undefined;
+  const back = <BackBar label={t('financeCopy.myViews', 'My Views')} phoneOnly onBack={() => navigate('/views')} />;
+
   // ── Spec-invalid / panel-count-exceeded (FR-VR-034, OD-2, OD-9) ────────
   if (specError !== null) {
     const isValidationError = specError instanceof ValidationError;
     return (
       <div className="flex flex-col gap-4 p-6">
+        {back}
+        <DashPageHead title={view.name} sub={view.description ?? ''} actions={viewActions} />
         <ErrBanner
           title={t('viewBuilder:renderer.invalidTitle', "This view's definition is invalid.")}
           sub={t('viewBuilder:renderer.invalidSub', 'The view cannot be rendered because its specification is invalid.')}
@@ -189,9 +199,9 @@ const UserViewRenderer: React.FC = () => {
   // ── Empty spec (FR-VR-035, OD-3) ────────────────────────────────────────
   if (compiledPanels !== null && compiledPanels.length === 0) {
     return (
-      <div className="flex flex-col gap-6 p-6">
-        <DashPageHead title={view.name} sub={view.description ?? ''} />
-        {/* TODO I4: add CTA to open builder */}
+      <div className="flex flex-col gap-4">
+        {back}
+        <DashPageHead title={view.name} sub={view.description ?? ''} actions={viewActions} />
         <ListState
           variant="empty"
           title={t('viewBuilder:noPanels', 'This view has no panels yet.')}
@@ -208,18 +218,19 @@ const UserViewRenderer: React.FC = () => {
   if (!compiledPanels) return null;
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <DashPageHead title={view.name} sub={view.description ?? ''} />
+    <div className="flex min-w-0 flex-col gap-4">
+      {back}
+      <DashPageHead title={view.name} sub={view.description ?? ''} actions={viewActions} />
       {/* NFR-VR-A11Y-002: DashGrid is inside the shell's <main>; panels use correct heading hierarchy */}
       <DashGrid>
         {compiledPanels.map((panel) => {
           const state = panelStates[panel.id] ?? PANEL_LOADING;
           const data = state.data ?? [];
           const colSpan = panel.layout?.colSpan;
-          const panelStyle = colSpan ? { gridColumn: `span ${colSpan}` } : undefined;
+          const panelStyle = compiledPanels.length === 1 ? { gridColumn: '1 / -1' } : colSpan ? { gridColumn: `span ${colSpan}` } : undefined;
 
           return (
-            <div key={panel.id} style={panelStyle} className="rounded-lg border border-border bg-card p-4">
+            <div key={panel.id} style={panelStyle} className="min-w-0">
               <ChartFrame
                 state={
                   state.loading

@@ -186,7 +186,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
             <div key={i} className={cn('row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1', hasSecondaryStats && s.secondaryOnMobile && !mobileStatsOpen && 'max-sm:hidden')}>
               <div className="self-end text-control font-medium text-foreground">{s.label}</div>
               {/* A name reads whole and wraps. */}
-              <div className="self-start text-group font-semibold tabular [overflow-wrap:anywhere]" title={s.title ?? (typeof s.value === 'string' ? s.value : undefined)}>{s.value}</div>
+              <div className="min-w-0 max-w-full self-start text-group font-semibold tabular [overflow-wrap:anywhere]" title={s.title ?? (typeof s.value === 'string' ? s.value : undefined)}>{s.value}</div>
             </div>
           ))}
         </div>

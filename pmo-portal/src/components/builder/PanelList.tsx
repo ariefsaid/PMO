@@ -2,6 +2,7 @@
  * PanelList — ordered panel cards with edit/remove/move-up/move-down (FR-VB-036/037, OD-VB-5).
  */
 import React from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui';
 import type { PanelSpec } from '@/src/lib/viewspec/types';
@@ -14,10 +15,11 @@ export interface PanelListProps {
   onMoveDown: (index: number) => void;
 }
 
-function panelSummary(p: PanelSpec): string {
-  const cols = p.querySpec.select.slice(0, 3).join(', ');
+const panelLabels: Record<string, string> = { StatTiles: 'Summary figures', KPITile: 'Key figure', DataTable: 'Table', Funnel: 'Pipeline', StatusBarChart: 'Bar chart', ProgressBar: 'Progress' };
+function panelSummary(p: PanelSpec, t: TFunction): string {
+  const cols = p.querySpec.select.slice(0, 3).map(field => t('viewBuilder:fieldLabels.' + field, field === 'id' ? 'Reference' : field.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()))).join(', ');
   const more = p.querySpec.select.length > 3 ? ` +${p.querySpec.select.length - 3}` : '';
-  return `${p.querySpec.entity} — ${cols}${more}`;
+  return `${t('viewBuilder:datasetLabels.' + p.querySpec.entity, p.querySpec.entity.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()))} — ${cols}${more}`;
 }
 
 export const PanelList: React.FC<PanelListProps> = ({
@@ -35,13 +37,13 @@ export const PanelList: React.FC<PanelListProps> = ({
       {panels.map((panel, idx) => (
         <li
           key={panel.id}
-          className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2"
+          className="flex flex-col items-stretch justify-between gap-2 rounded-md sm:flex-row sm:items-center border border-border bg-card px-3 py-2"
         >
           <div className="min-w-0 flex-1">
-            <span className="text-[13px] font-semibold">{panel.primitive}</span>
-            <span className="ml-2 text-[12px] text-muted-foreground">{panelSummary(panel)}</span>
+            <span className="block text-control font-semibold">{t('viewBuilder:panelLabels.' + panel.primitive, panelLabels[panel.primitive] ?? panel.primitive)}</span>
+            <span className="block text-control text-muted-foreground">{panelSummary(panel, t)}</span>
           </div>
-          <div className="ml-2 flex shrink-0 gap-1">
+          <div className="flex shrink-0 justify-end gap-1 sm:ml-2">
             <Button
               variant="ghost"
               size="sm"

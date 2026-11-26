@@ -100,6 +100,9 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
       // One line in the 56px top bar: a long record name truncates (full name in its title) instead of wrapping out of the bar.
       className={cn('flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-control', typeof window !== 'undefined' && window.location.pathname === '/my-tasks' && pageHasTitle && 'invisible', className)}
     >
+      {visibleParts.length === 1 && (
+        <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-primary text-control font-bold text-primary-foreground min-[921px]:hidden">P</span>
+      )}
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
         const label = resolveCrumb(part);
@@ -107,16 +110,16 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
         return (
           <React.Fragment key={i}>
             {i > 0 && (
-              // C3: the separator is hidden at mobile alongside its parent link.
+              // The parent remains a visible way back at phone widths.
               <span
                 aria-hidden
-                className="shrink-0 opacity-50 max-[920px]:hidden [&_svg]:size-3.5"
+                className="shrink-0 opacity-50 [&_svg]:size-3.5"
               >
                 <Icon name="chev" />
               </span>
             )}
             {!last && (part.onClick || part.href) && !canOpen(part.href) ? (
-              <span title={part.title ?? label} className={cn(parentTruncation, 'text-muted-foreground max-[920px]:hidden')}>
+              <span title={part.title ?? label} className={cn(parentTruncation, 'text-muted-foreground')}>
                 {label}
               </span>
             ) : last || (!part.onClick && !part.href) ? (
@@ -126,7 +129,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 className={cn(
                   'min-w-0 truncate font-semibold text-foreground',
                   visibleParts.length > 2 && 'min-[921px]:shrink-0 min-[921px]:max-w-[18rem]',
-                  pageHasTitle && 'max-[920px]:hidden',
+                  pageHasTitle && 'max-[920px]:max-w-[12rem]',
                 )}
               >
                 {label}
@@ -155,7 +158,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   }}
                   aria-label={part.ariaLabel}
                   title={part.title ?? label}
-                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[920px]:hidden')}
+                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground')}
                 >
                   {label}
                 </a>
@@ -165,7 +168,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   onClick={part.onClick}
                   aria-label={part.ariaLabel}
                   title={part.title ?? label}
-                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[920px]:hidden')}
+                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground')}
                 >
                   {label}
                 </button>

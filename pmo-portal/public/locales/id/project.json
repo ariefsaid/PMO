@@ -1583,5 +1583,7 @@
     "unpriced": "Belum ada tarif",
     "sourceUnavailable": "Lokasi tidak tersedia",
     "noLocations": "Belum ada lokasi. Tambahkan lokasi."
-  }
+  },
+  "autoSave": "Simpan otomatis",
+  "executionPlan": "Rencana pelaksanaan"
 }

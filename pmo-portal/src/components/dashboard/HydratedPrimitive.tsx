@@ -12,6 +12,7 @@
  * NFR-CV-LAYER: imports only from src/lib/viewspec/ and src/components/ui/.
  */
 import React from 'react';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { useTranslation } from 'react-i18next';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
@@ -74,6 +75,7 @@ export function HydratedPrimitive({
   data: unknown[];
 }): React.ReactElement | null {
   const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
   const descriptor = registry.get(panel.primitive);
   if (!descriptor) {
     // Should never happen: compileCompositionSpec already validated the primitive.
@@ -118,10 +120,10 @@ export function HydratedPrimitive({
     case 'StatTiles': {
       const { labelCol, valueCol } = categoryMetricCols(panel);
       const tiles = (data as Record<string, unknown>[]).map((row) => ({
-        label: String(row[labelCol] ?? ''),
+        label: panel.compiledQuery.entity === 'projects' && labelCol === 'status' ? statusLabel(String(row[labelCol]) as Parameters<typeof statusLabel>[0]) : String(row[labelCol] ?? ''),
         value: formatPrimitiveCellValue(row[valueCol]),
       }));
-      return <StatTiles tiles={tiles} columns={props.columns as number | undefined} />;
+      return <StatTiles tiles={tiles} columns={(props.columns as number | undefined) ?? (tiles.length % 4 === 0 ? 4 : tiles.length % 3 === 0 ? 3 : 2)} />;
     }
     case 'Funnel': {
       const { labelCol, valueCol } = categoryMetricCols(panel);
