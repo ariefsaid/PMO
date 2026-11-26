@@ -103,15 +103,26 @@ const SafetySummary: React.FC = () => {
                   {detail.isPending ? <ListState variant="loading" rows={2} />
                     : detail.isError ? <ListState variant="error" title={t('summary.detailError', "Couldn't load the rows")} onRetry={() => void detail.refetch()} />
                     : (
-                      <ul className="mt-2 divide-y divide-border">
-                        {detail.data.map((r, i) => (
-                          <li key={`${r.ref_id ?? r.date}-${i}`} className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid="safety-detail-row">
-                            <span className="tabular-nums">{formatDay(r.date)}</span>
-                            <span className="text-muted-foreground">{r.label}</span>
-                            {r.work_order_id && <Link to={`/work-orders/${r.work_order_id}`} className="text-primary-text hover:underline">{t('summary.workOrder', 'Work order')}</Link>}
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="w-full text-control">
+                          <thead className="text-left text-muted-foreground">
+                            <tr>
+                              <th scope="col" className="py-2 pr-4 font-medium">{t('day.date', 'Date')}</th>
+                              <th scope="col" className="py-2 pr-4 font-medium">{t('summary.record', 'Record')}</th>
+                              <th scope="col" className="py-2 font-medium">{t('summary.workOrder', 'Work order')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {detail.data.map((r, i) => (
+                              <tr key={`${r.ref_id ?? r.date}-${i}`} data-testid="safety-detail-row">
+                                <td className="py-2 pr-4 tabular-nums">{formatDay(r.date)}</td>
+                                <td className="py-2 pr-4">{r.label}</td>
+                                <td className="py-2">{r.work_order_id && <Link to={`/work-orders/${r.work_order_id}`} className="text-primary-text hover:underline">{t('summary.workOrder', 'Work order')}</Link>}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                 </div>
               </Card>
