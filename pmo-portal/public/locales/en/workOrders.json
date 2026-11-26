@@ -446,5 +446,9 @@
     "openWorkOrder": "Open the work order",
     "checks_one": "{{count}} check",
     "checks_other": "{{count}} checks"
+  },
+  "new": {
+    "action": "New work order",
+    "created": "Draft work order created"
   }
 }

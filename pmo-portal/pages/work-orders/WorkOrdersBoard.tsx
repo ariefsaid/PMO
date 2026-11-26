@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
 import { useTranslation } from 'react-i18next';
 import {
-  buttonClasses, cn, DataTable, FilterBar, ListPage, ProgressBar, StatTiles, StatusPill, useUrlFilters,
+  Button, buttonClasses, cn, DataTable, Icon, FilterBar, ListPage, ProgressBar, StatTiles, StatusPill, useUrlFilters,
   type Column, type FilterBarFilter, type StatTile,
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export/ExportButton';
@@ -16,6 +16,7 @@ import { COST_PROJECT_CAP, useWorkOrderDashboard } from '@/src/hooks/useWorkOrde
 import type { DashboardRow } from '@/src/lib/workOrderDashboard';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import { WorkOrderProjectPanels } from './WorkOrderProjectPanels';
+import { NewWorkOrderModal, useWorkOrderProjectChoices } from './NewWorkOrderModal';
 
 const STATUSES: WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
 const FILTER_KEYS = ['q', 'status', 'project', 'discipline'] as const;
@@ -49,6 +50,17 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   const workInHand = !projectId && revenueOn && may('view', 'workInHand')
     ? <Link to="/finance/work-in-hand" className={buttonClasses('outline')} data-testid="work-orders-work-in-hand">{t('all.workInHand', 'Work in hand')}</Link>
     : undefined;
+
+  // Create (the Work orders page and one project's tab share it): the form opens here, the project is chosen in it or, from a project's tab, preset.
+  const canCreate = may('create', 'workOrder');
+  const [creating, setCreating] = useState(false);
+  const projectChoices = useWorkOrderProjectChoices(canCreate);
+  const newButton = canCreate ? (
+    <Button id="new-work-order" variant="primary" size={projectId ? 'sm' : undefined} onClick={() => setCreating(true)} disabled={!projectChoices.isSuccess}>
+      <Icon name="plus" />
+      {t('new.action', 'New work order')}
+    </Button>
+  ) : undefined;
 
   // Cost reads follow the projects in view, so the project filter is applied before the reads are chosen.
   const all = useWorkOrderDashboard(projectId, values.project ? [values.project] : undefined);
@@ -161,10 +173,10 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
     <ListPage
       title={terms.clientWorkOrder}
       hideHeader={Boolean(projectId)}
-      primaryAction={workInHand}
+      primaryAction={newButton || workInHand ? <div className="flex flex-wrap items-center gap-2">{workInHand}{newButton}</div> : undefined}
       headingLevel={projectId ? 2 : 1}
       count={all.isPending ? undefined : rows.length}
-      exportAction={<ExportButton rows={filtered} columns={columns} entity="WorkOrders" />}
+      exportAction={<>{projectId && newButton}<ExportButton rows={filtered} columns={columns} entity="WorkOrders" /></>}
       banner={rows.length > 0 ? <StatTiles tiles={tiles} columns={tiles.length} frameClassName={cn('mb-4', projectId && '[--space-content-inset:var(--panel-inset)]')} /> : undefined}
       filters={(
         <FilterBar
@@ -195,6 +207,8 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         state={state}
         onRetry={() => all.refetch()}
         errorTitle={t('all.error', "Couldn't load your work orders")}
+        emptyAction={rows.length === 0 && canCreate && projectChoices.isSuccess ? { label: t('new.action', 'New work order'), onClick: () => setCreating(true) } : undefined}
+        emptyActionVariant="primary"
         emptyTitle={rows.length > 0 ? t('all.noMatch', 'No work order matches your search') : t('all.empty', 'You have no work orders yet')}
         cardValuesEnd
         filteredEmpty={rows.length > 0 ? { message: t('all.noMatch', 'No work order matches your search'), clearFiltersLabel: ts('ui.filterBar.clear', 'Clear all'), onClearFilters: clear } : undefined}
@@ -209,6 +223,9 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
           {t('all.figuresError', "Some figures couldn't load.")}{' '}
           <button type="button" className="font-medium text-primary-text hover:underline" onClick={all.retryFigures}>{ts('ui.listState.retry', 'Retry')}</button>
         </p>
+      )}
+      {creating && projectChoices.data && (
+        <NewWorkOrderModal projects={projectChoices.data} projectId={projectId ?? undefined} onClose={() => setCreating(false)} />
       )}
       {(projectId || values.project) && <WorkOrderProjectPanels projectId={projectId ?? values.project} />}
     </ListPage>

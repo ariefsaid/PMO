@@ -446,5 +446,9 @@
     "openWorkOrder": "Buka $t(common:terms.clientWorkOrder)",
     "checks_one": "{{count}} pemeriksaan",
     "checks_other": "{{count}} pemeriksaan"
+  },
+  "new": {
+    "action": "$t(common:terms.clientWorkOrder) baru",
+    "created": "Draft $t(common:terms.clientWorkOrder) dibuat"
   }
 }

@@ -481,10 +481,11 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
   });
 
-  it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
+  it('a PM gets edit, set-value, issue and cancel on a draft set by a senior user; creating lives on the Work orders tab', () => {
     listState.data = [row({ order_value_set_by: 'u-2' })];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New work order' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Work orders' })).toHaveAttribute('href', '/projects/p1/orders');
     for (const name of ['Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
@@ -518,7 +519,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     listState.data = [row()];
     renderTab('Engineer');
     expect(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' })).toBeInTheDocument();
-    for (const name of ['Add customer order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
+    for (const name of ['New work order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });
