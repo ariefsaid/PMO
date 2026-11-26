@@ -203,6 +203,23 @@ export const ManpowerNeeds: React.FC = () => {
         ) : (
           <DataTable<ManpowerNeedRow> embedded rows={rows} columns={columns} rowKey={(n) => n.id} tableId="manpower-needs-table"
             onActivate={(n) => setFilter('need', n.id)} selectedKey={openNeed?.id}
+            mobileCardDetails={(n) => {
+              const f = fig(n);
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3 text-muted-foreground">
+                    <span className="min-w-0">{projectName(n.project_id)} · {formatDay(n.needed_by)}</span>
+                    <StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    {([[t('crews:manpower.asked', 'Asked'), f.asked], [t('crews:manpower.filled', 'Filled'), f.filled],
+                      [t('crews:manpower.inProgress', 'In progress'), f.inProgress], [t('crews:manpower.toFill', 'To fill'), f.open]] as const).map(([label, v]) => (
+                      <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums text-foreground">{v}</dd></div>
+                    ))}
+                  </dl>
+                </div>
+              );
+            }}
             rowLabel={(n) => t('crews:manpower.openRow', 'Open the need for {{position}}', { position: positionName(n.discipline_id) })}
             state={rows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('crews:manpower.empty', 'No manpower needs yet')}
