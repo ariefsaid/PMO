@@ -40,7 +40,7 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
     // 1. The issuer captures the client's work order as a Draft, with the client's reference.
     await pcm.signIn(page);
     await page.goto(`/projects/${projectId}/orders`);
-    await page.getByRole('button', { name: 'New work order' }).click();
+    await page.getByRole('button', { name: 'New work order' }).first().click();
     const form = page.getByRole('dialog');
     await form.getByLabel('Client reference').fill(`${run}/WO/001`);
     await form.getByLabel(/^Title/).fill(`${run} site works`);
@@ -108,7 +108,7 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
     // 5. A second captured Draft is cancelled with a reason, and stays readable with it.
     await pcm.signIn(page);
     await page.goto(`/projects/${projectId}/orders`);
-    await page.getByRole('button', { name: 'New work order' }).click();
+    await page.getByRole('button', { name: 'New work order' }).first().click();
     await form.getByLabel(/^Title/).fill(`${run} withdrawn scope`);
     await form.getByTestId('wo-order-value').fill('1000000');
     await form.getByTestId('wo-tax-treatment').selectOption('exclusive');
