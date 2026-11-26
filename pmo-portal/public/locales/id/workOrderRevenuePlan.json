@@ -10,7 +10,6 @@
   "onPlan": "Sesuai rencana",
   "enter": "Isi rencana",
   "pending": "{{count}} laporan harian belum divalidasi dan tidak dihitung sebagai aktual.",
-  "asOf": "Per {{date}}. Aktual adalah pendapatan harian yang sudah divalidasi.",
   "chartSummary": "Pendapatan kumulatif: rencana {{plan}}, aktual {{actual}} sampai {{date}}.",
   "legend": "Garis putus-putus: rencana. Garis penuh: aktual (kumulatif).",
   "seriesPlan": "Rencana",
@@ -104,5 +103,7 @@
     "removeBody": "Tanggal ini kembali dihitung sebagai hari kerja. Target yang sudah diisi tidak berubah.",
     "empty": "Tidak ada hari tidak kerja. Setiap hari kerja dihitung.",
     "loadError": "Hari tidak kerja tidak dapat dimuat"
-  }
+  },
+  "asOfDate": "Per {{date}}",
+  "actualBasis": "Aktual adalah pendapatan harian yang sudah divalidasi."
 }

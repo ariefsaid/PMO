@@ -10,7 +10,6 @@
   "onPlan": "On plan",
   "enter": "Enter plan",
   "pending": "{{count}} daily report(s) not yet validated are not counted as actual.",
-  "asOf": "As of {{date}}. Actual is validated daily revenue.",
   "chartSummary": "Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.",
   "legend": "Dashed: plan. Solid: actual (cumulative).",
   "seriesPlan": "Plan",
@@ -104,5 +103,7 @@
     "removeBody": "This date counts as a working day again. Targets already entered do not change.",
     "empty": "No non-working dates. Every working day counts.",
     "loadError": "Couldn't load the non-working dates"
-  }
+  },
+  "asOfDate": "As of {{date}}",
+  "actualBasis": "Actual is validated daily revenue."
 }

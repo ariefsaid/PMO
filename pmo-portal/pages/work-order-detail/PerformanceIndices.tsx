@@ -6,6 +6,7 @@ import { formatExactMoney, formatIsoDay } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseExactCents } from '@/src/lib/exactDecimal';
 import { useProjectPerformance } from '@/src/hooks/useWorkOrderPerformance';
+import { useAreaHelp } from './AreaHelp';
 import {
   deriveWorkOrderPerformance,
   type Bands,
@@ -23,7 +24,9 @@ export const PerformanceFigures: React.FC<{
   currency: string;
   bands: Bands;
   idPrefix: string;
-}> = ({ performance, currency, bands, idPrefix }) => {
+  /** `false`: the range is defined elsewhere (the work-order page's help), not as a line under the figures. */
+  showBand?: boolean;
+}> = ({ performance, currency, bands, idPrefix, showBand = true }) => {
   const { t } = useTranslation('workOrderPva');
   const money = (v: string | null) =>
     v === null ? t('performance.unknown', 'Unknown') : formatExactMoney(v, currency, getNumberLocale()) ?? t('performance.unknown', 'Unknown');
@@ -61,7 +64,7 @@ export const PerformanceFigures: React.FC<{
       <dd>
         {index.state === 'value' ? (
           <>
-            <div className="text-lg font-semibold tabular-nums" data-testid={`${idPrefix}-${kind}-value`}>{index.value}</div>
+            <div className="text-metric font-semibold tabular-nums" data-testid={`${idPrefix}-${kind}-value`}>{index.value}</div>
             <div data-testid={`${idPrefix}-${kind}-reading`}>{readingText(kind, index.reading)}</div>
           </>
         ) : (
@@ -101,9 +104,11 @@ export const PerformanceFigures: React.FC<{
           )}
         </ul>
       )}
-      <p className="text-control text-muted-foreground" data-testid={`${idPrefix}-band`}>
-        {t('performance.band', 'Within range is {{low}} to {{high}}.', { low: bands.low, high: bands.high })}
-      </p>
+      {showBand && (
+        <p className="text-control text-muted-foreground" data-testid={`${idPrefix}-band`}>
+          {t('performance.band', 'Within range is {{low}} to {{high}}.', { low: bands.low, high: bands.high })}
+        </p>
+      )}
     </div>
   );
 };
@@ -129,14 +134,19 @@ const PerformancePanel: React.FC<{ projectId: string; workOrderId: string }> = (
   const row = rows.find((r) => r.workOrderId === workOrderId);
   const asOfText = row ? formatIsoDay(row.asOf) : asOf ? formatIsoDay(asOf) : '';
   return (
-    <RecordSection
-      title={title}
-      subline={<>{asOfText ? <span data-testid="wo-page-performance-asof">{t('performance.asOf', 'As of {{date}}', { date: asOfText })}</span> : null}{' '}{t('performance.basis', "Earned value is validated daily-report progress at contract rate. Planned value runs in a straight line between the work order's start and end dates. Actual cost is the direct cost recorded to the work order.")}</>}
-      data-testid="wo-page-performance"
-    >
+    <RecordSection title={title} data-testid="wo-page-performance">
+      <PerformanceHelp title={title} bands={bands} />
+      {asOfText && <p className="mb-3 text-control text-muted-foreground" data-testid="wo-page-performance-asof">{t('performance.asOf', 'As of {{date}}', { date: asOfText })}</p>}
       {row
-        ? <PerformanceFigures performance={deriveWorkOrderPerformance(row, bands)} currency={row.currency} bands={bands} idPrefix="wo-page-performance" />
+        ? <PerformanceFigures performance={deriveWorkOrderPerformance(row, bands)} currency={row.currency} bands={bands} idPrefix="wo-page-performance" showBand={false} />
         : <p className="text-control text-muted-foreground">{t('performance.nothing', 'Nothing is recorded yet for this work order.')}</p>}
     </RecordSection>
   );
+};
+
+/** What earned, planned and actual mean, and the range, for the page's one help control. */
+const PerformanceHelp: React.FC<{ title: string; bands: Bands }> = ({ title, bands }) => {
+  const { t } = useTranslation('workOrderPva');
+  useAreaHelp('performance', title, `${t('performance.basis', "Earned value is validated daily-report progress at contract rate. Planned value runs in a straight line between the work order's start and end dates. Actual cost is the direct cost recorded to the work order.")} ${t('performance.band', 'Within range is {{low}} to {{high}}.', { low: bands.low, high: bands.high })}`);
+  return null;
 };
