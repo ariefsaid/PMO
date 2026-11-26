@@ -59,7 +59,7 @@ export const WeekHoursTable: React.FC<{ days: TimesheetDay[]; rows: TimesheetGri
   }
 
   return (
-    <div className="min-w-0 overflow-x-auto scroll-fade-x">
+    <div className="min-w-0 overflow-x-auto">
     <table className="w-full min-w-[640px] table-fixed text-control" data-testid="week-hours-table">
       <colgroup>
         <col />

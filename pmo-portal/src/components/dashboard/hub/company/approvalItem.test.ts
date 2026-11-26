@@ -10,9 +10,9 @@ describe('approval work-list items (what · who · amount · how long)', () => {
     const entry = { key: 'procurement:p1', kind: 'procurement', createdAt: '2026-11-02T12:00:00Z', row: { id: 'p1', title: 'Site lighting', requested_by: { full_name: 'Dana Ruiz' }, total_value: 3400, currency: 'USD' } } as unknown as ApprovalPopulationEntry;
     expect(approvalItem(entry, t, now)).toEqual({ key: 'procurement:p1', what: 'Site lighting', who: 'Dana Ruiz', amount: '$3.4K', days: 10, href: '/procurement/p1' });
   });
-  it('a non-valued procurement review carries no monetary figure', () => {
-    const entry = { key: 'procurement:p0', kind: 'procurement', row: { id: 'p0', title: 'Route review', total_value: '0.00', currency: 'IDR' } } as unknown as ApprovalPopulationEntry;
-    expect(approvalItem(entry, t, now)).toMatchObject({ amount: null, href: '/procurement/p0' });
+  it('a non-valued expense review carries no monetary figure', () => {
+    const entry = { key: 'expense:e0', kind: 'expense', row: { claim: { id: 'e0', title: 'Route review', amount: '0.00', currency: 'IDR', float: null }, route: null } } as unknown as ApprovalPopulationEntry;
+    expect(approvalItem(entry, t, now)).toMatchObject({ amount: null, href: '/expenses/e0' });
   });
   it('an expense claim opens the claim with the claimant and amount', () => {
     const entry = { key: 'expense:e1', kind: 'expense', createdAt: '2026-11-12T08:00:00Z', row: { claim: { id: 'e1', title: 'Taxi', claimant: { full_name: 'Ari' }, amount: 25, currency: 'USD', float: null }, route: null } } as unknown as ApprovalPopulationEntry;
