@@ -82,10 +82,11 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
           { value: 'changes', label: t('projectDetail.activity.changes', 'Changes') },
         ]}
       />
-      {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {(view === 'all' || view === 'changes') && (
         <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={view === 'all'} />
       )}
+      {(view === 'all' || view === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
+
     </>
   );
   // In the drawer the header already names this screen: a card and a head inside it would say
