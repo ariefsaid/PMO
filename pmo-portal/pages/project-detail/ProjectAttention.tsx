@@ -52,11 +52,15 @@ export const ProjectAttention: React.FC<{
   return panel(
     <>
       <ul data-testid="needs-attention-rows" className={cn('grid min-w-0', band && 'xl:grid-cols-2 xl:gap-x-[var(--space-section)]')}>
-        {visibleItems.map((item) => (
+        {visibleItems.map((item, index) => (
           // One rule line between rows; in the two-up band the second row's line goes too, so both columns start flush.
-          <li key={item.key} className={cn('min-w-0 border-t border-border/70 first:border-t-0 first:[&>a]:pt-0', band && 'xl:[&:nth-child(2)]:border-t-0 xl:[&:nth-child(2)>a]:pt-0')}>
+          <li key={item.key} className={cn('min-w-0 border-t border-border/70 first:border-t-0', band && 'xl:[&:nth-child(2)]:border-t-0')}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
-              <Link to={item.to} className="touch-target flex w-full items-center gap-x-4 py-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Link to={item.to} className={cn(
+                'touch-target flex w-full items-center gap-x-4 pb-2.5 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                index > 0 && 'pt-2.5',
+                band && index === 1 && 'xl:pt-0',
+              )}>
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-medium text-foreground">{item.what}</span>
                   {item.size && <>{' '}<span className={cn('mt-0.5 block text-sm tabular-nums', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size.replace(/ · /gu, ' · ')}</span></>}
