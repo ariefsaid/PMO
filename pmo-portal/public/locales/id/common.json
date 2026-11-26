@@ -1020,7 +1020,8 @@
           "detail": "{{ok}} disetujui, {{failed}} gagal (pemisahan tugas atau data usang)",
           "headline": "Disetujui sebagian"
         }
-      }
+      },
+      "selectTimesheets": "Pilih timesheet"
     },
     "accessDenied": {
       "sub": "Persetujuan ditujukan untuk role yang menyetujui pengadaan atau $t(common:terms.timesheet). Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",

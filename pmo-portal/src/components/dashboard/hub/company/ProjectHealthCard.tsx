@@ -55,7 +55,7 @@ export const ProjectHealthCard: React.FC<{
             : rows.length === 0 ? <p className="pb-2 text-control text-muted-foreground">{t('home.noActiveProjects', 'No active projects.')}</p>
               : (
                 <ul className="divide-y divide-border">
-                  {rows.map((row) => {
+                  {rows.map((row, rowIndex) => {
                     const tasks = overdueTaskCount(row);
                     const wrong = [
                       tasks ? { key: 'tasks', red: true, text: t('home.mobileTasksOverdue', { count: tasks, defaultValue_one: '{{count}} task overdue', defaultValue_other: '{{count}} tasks overdue' }) } : null,
@@ -93,7 +93,7 @@ export const ProjectHealthCard: React.FC<{
                                   {index > 0 && ' '}
                                   <span className="whitespace-nowrap">
                                     {index > 0 && <span aria-hidden className="text-muted-foreground">·&nbsp;</span>}
-                                    <span className={fact.red ? 'text-destructive-text' : 'text-foreground'}>{fact.text}</span>
+                                    <span className={fact.red && rowIndex === 0 ? 'text-destructive-text' : 'text-foreground'}>{fact.text}</span>
                                   </span>
                                 </React.Fragment>
                               ))}

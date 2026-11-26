@@ -30,7 +30,7 @@ const MyHome: React.FC = () => {
             <MyNotices />
             <MyTasks tasks={home.data.tasks} busyId={status.isPending ? (status.variables?.id ?? null) : null}
               onSetStatus={(id, s) => status.mutate({ id, status: s })} />
-            <MyWorkOrders workOrders={home.data.work_orders} />
+            {home.data.work_orders.length === 0 && <MyWorkOrders workOrders={home.data.work_orders} />}
             <AbsentTodaySection today={home.data.today} workOrders={home.data.work_orders} />
             {isForeman && <CrewRoster today={home.data.today} workOrders={home.data.work_orders} />}
             <DeliveriesSection deliveries={deliveries.data ?? []} />
