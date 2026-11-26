@@ -1,3 +1,4 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
 import React, { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -164,7 +165,7 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-sm" data-testid="plan-total">{t('total', 'Month total')}: <span className="font-medium tabular-nums">{formatCurrency(total, currency)}</span></p>
+      <p className="mt-3 text-sm" data-testid="plan-total">{t('total', 'Month total')}: <span className="font-medium tabular-nums">{lines.some((line) => line.rateHidden && !line.rate.trim()) ? <WithheldPrice /> : formatCurrency(total, currency)}</span></p>
       <div className="mt-3 flex flex-wrap gap-2">
         {editable && <Button variant="outline" size="sm" onClick={() => setLines((ls) => [...ls, newLine(month)])}>{t('addLine', 'Add line')}</Button>}
         {editable && <Button variant="outline" size="sm" loading={m.save.isPending} disabled={busy} onClick={() => void save().then((ok) => { if (ok) toast(t('saved', 'Plan saved'), undefined, 'success'); })}>{t('save', 'Save draft')}</Button>}

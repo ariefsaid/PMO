@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import React, { useState } from 'react';
@@ -34,6 +36,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
   const { t } = useTranslation(['procurement', 'procurementRecord']);
   const { procurementId, orderId } = useParams<{ procurementId?: string; orderId?: string }>();
   const navigate = useNavigate();
+  const maySeePrices = useMaySeePrices();
 
   const [selectedCollector, setSelectedCollector] = useState('');
 
@@ -185,7 +188,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
       width: '140px',
       render: (item) => (
         <span className="tabular-nums font-mono text-xs">
-          {formatCurrency(Number(item.rate), currency)}
+          {!maySeePrices || item.rate == null ? '—' : formatCurrency(Number(item.rate), currency)}
         </span>
       ),
     },
@@ -196,14 +199,16 @@ const PurchaseOrderPrintPage: React.FC = () => {
       width: '160px',
       render: (item) => (
         <span className="tabular-nums font-mono text-xs font-semibold">
-          {formatCurrency(Number(item.amount), currency)}
+          {!maySeePrices || item.amount == null ? '—' : formatCurrency(Number(item.amount), currency)}
         </span>
       ),
     },
   ];
 
   const items = procurement.items ?? [];
-  const calculatedTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const calculatedTotal = items.length > 0 && items.every((item) => item.amount != null)
+    ? items.reduce((sum, item) => sum + Number(item.amount), 0)
+    : null;
   const totalAmount = po.amount != null ? Number(po.amount) : calculatedTotal;
 
   return (
@@ -283,7 +288,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
               <div className="flex items-center justify-between text-sm font-bold text-foreground">
                 <span>{t('purchaseOrderPrint.total', 'Order total')}:</span>
                 <span className="font-mono text-base tabular-nums">
-                  {formatCurrency(totalAmount, currency)}
+                  {!maySeePrices ? <WithheldPrice /> : totalAmount == null ? '—' : formatCurrency(totalAmount, currency)}
                 </span>
               </div>
             </div>

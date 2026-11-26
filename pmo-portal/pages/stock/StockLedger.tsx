@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -120,6 +122,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
 /** The stock trace: every posting with who, when, project, work item and the running balance (FR-STK-041). */
 const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ projectId: fixedProject, embedded }) => {
   const { t } = useTranslation('stock');
+  const maySeePrices = useMaySeePrices();
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
   const [params, setParams] = useSearchParams();
@@ -139,7 +142,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
   });
   const rows = useMemo(() => (ledger.data?.pages ?? []).flatMap((p) => p.rows), [ledger.data]);
   const total = ledger.data && !ledger.hasNextPage ? rows.length : undefined;
-  const showCost = rows.some((r) => r.valueDelta !== undefined);
+  const showCost = maySeePrices && rows.some((r) => r.valueDelta !== undefined);
 
   const columns: Column<StockLedgerRow>[] = useMemo(
     () => buildLedgerColumns({ t, loc, currency, showCost }),
@@ -156,6 +159,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
 
   const body = (
     <>
+      {!maySeePrices && ledger.isSuccess && <WithheldPrice />}
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
       {state === 'error' && (
         <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')}

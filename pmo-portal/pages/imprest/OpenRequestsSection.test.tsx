@@ -1,3 +1,4 @@
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -26,7 +27,11 @@ const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch
 const tree = (onStartPlan = vi.fn()) => <MemoryRouter><OpenRequestsSection floatId="f1" currency="IDR" onStartPlan={onStartPlan} /></MemoryRouter>;
 
 describe('AC-CAE-002 open purchase requests beside the plan', () => {
-  beforeEach(() => { h.can = true; h.q = ok({ rows, truncated: false }); });
+  beforeEach(() => {
+    setPricesHidden(false);
+    h.can = true;
+    h.q = ok({ rows, truncated: false });
+  });
   it('AC-CAE-002 lists the requests by purpose and work order, with their lines and totals', () => {
     render(tree());
     const materials = screen.getByTestId('open-purpose-Materials');
@@ -56,10 +61,12 @@ describe('AC-CAE-002 open purchase requests beside the plan', () => {
     expect(screen.queryByRole('button', { name: 'Start the plan from these' })).toBeNull();
   });
   it('AC-CAE-003 with hidden prices the action is disabled and says why', () => {
+    setPricesHidden(true);
     h.q = ok({ rows: rows.map((r) => ({ ...r, request_total: null, line_amount: null })), truncated: false });
     render(tree());
     expect(screen.getByRole('button', { name: 'Start the plan from these' })).toBeDisabled();
-    expect(screen.getByTestId('open-requests-reason')).toHaveTextContent("can't see prices");
+    expect(screen.getByTestId('open-requests-reason')).toHaveTextContent('— Prices are hidden from requesters.');
+    expect(screen.getByTestId('open-requests-reason')).toHaveTextContent('Add the lines yourself in the plan.');
   });
   it('AC-CAE-003 a request in another currency or with no purpose is left out of the plan and counted', async () => {
     const onStartPlan = vi.fn();

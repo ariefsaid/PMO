@@ -736,7 +736,7 @@ const ProcurementDetails: React.FC = () => {
   // them (tinted, first in the band, with the decision facts and note); for anyone else it follows the stage strip.
   const requestStage = stageForStatus(p.status) === 'Request';
   // The same visibility the panel applies to itself, so the money block leaves the total out only where the panel shows it.
-  const showsBudgetImpact = Boolean(p.project_id) && PANEL_VISIBLE_STATUSES.includes(p.status) && may('view', 'procurement');
+  const showsBudgetImpact = maySeePrices && p.total_value != null && Boolean(p.project_id) && PANEL_VISIBLE_STATUSES.includes(p.status) && may('view', 'procurement');
   const decisionAside = decidesHere ? (
     <div className="flex flex-col gap-4">
       {decisionLine.length > 0 && <p data-testid="sod-ready-hint" className="flex items-start gap-2 text-control text-foreground">
@@ -746,7 +746,7 @@ const ProcurementDetails: React.FC = () => {
       {approvalNote}
     </div>
   ) : null;
-  const budgetImpact = requestStage && p.project_id ? <DecisionSupportPanel
+  const budgetImpact = maySeePrices && p.total_value != null && requestStage && p.project_id ? <DecisionSupportPanel
     bare
     aside={decisionAside}
     projectId={p.project_id}

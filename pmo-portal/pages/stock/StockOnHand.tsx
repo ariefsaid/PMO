@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +40,7 @@ const compareBalanceRows = (a: StockOnHandRow, b: StockOnHandRow): number =>
 
 const StockOnHand: React.FC = () => {
   const { t } = useTranslation('stock');
+  const maySeePrices = useMaySeePrices();
   const may = usePermission();
   const woTransfers = useOrgSwitch('stockWoTransfers').data === true;   // the move between work orders starts here too, not only under Documents
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -101,7 +104,7 @@ const StockOnHand: React.FC = () => {
   }, [allRows, search, tag]);
   const tagNames = useMemo(() => [...new Set(allRows.flatMap((r) => (r.tagName ? [r.tagName] : [])))].sort((a, b) => a.localeCompare(b)), [allRows]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
-  const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
+  const showCost = maySeePrices && (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
 
   // The code is only said when two warehouses share a name.
   const sharedNames = useMemo(() => {
@@ -157,12 +160,12 @@ const StockOnHand: React.FC = () => {
         key: 'request', header: t('requestPurchase.column'), align: 'num',
         cell: (r) => {
           const b = (below.data ?? []).find((x) => x.itemId === r.itemId && x.warehouseId === r.warehouseId);
-          return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b, r.avgCost)}>{t('requestPurchase.action')}</Button> : null;
+          return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b, maySeePrices ? r.avgCost : undefined)}>{t('requestPurchase.action')}</Button> : null;
         },
       });
     }
     return cols;
-  }, [t, loc, currency, showCost, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf, mayReserveAt]);
+  }, [t, loc, currency, showCost, maySeePrices, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf, mayReserveAt]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
@@ -181,7 +184,8 @@ const StockOnHand: React.FC = () => {
       title={
         <>
           {t('onHand.title')}
-          {state === undefined && (
+          {!maySeePrices && onHand.isSuccess && <WithheldPrice />}
+      {state === undefined && (
             /* The count is a count OF BALANCES: the title says so, so "21" never stands alone. */
             <span className="ml-2.5 align-middle text-control font-semibold tabular-nums text-muted-foreground">
               {rows.length < allRows.length

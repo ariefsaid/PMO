@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useSyncExternalStore } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -20,11 +22,12 @@ import { WorkOrderMaterialProgressBanner } from './WorkOrderMaterialProgressBann
  */
 export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: string }> = ({ workOrderId, currency }) => {
   const { t } = useTranslation('stock');
+  const maySeePrices = useMaySeePrices();
   const q = useWorkOrderStockBalance({ workOrderId });
   const ownership = useSyncExternalStore(subscribeOwnershipCache, () => isOwnershipCacheSynced() ? routeDomainWrite('inventory') : 'unknown');
   const woTransfers = useOrgSwitch('stockWoTransfers').data === true;
   const rows = q.data ?? [];
-  const showValue = rows.some((r) => r.onSiteValue !== undefined);
+  const showValue = maySeePrices && rows.some((r) => r.onSiteValue !== undefined);
   const loc = getNumberLocale();
   // Unit shown once, beside the on-site figure; the other columns are bare numbers in the same unit.
   const qty = (v: string, unit?: string) => <span className="whitespace-nowrap tabular-nums">{formatQuantity(v, loc)}{unit ? <> <span className="text-muted-foreground">{unit}</span></> : null}</span>;
@@ -60,6 +63,7 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
   );
   return (
     <section aria-label={t('siteWork.balance.title')} className="space-y-2">
+      {!maySeePrices && q.isSuccess && <WithheldPrice />}
       {ownership === 'pmo' && <WorkOrderMaterialProgressBanner workOrderId={workOrderId} />}
       {ownership === 'unknown' ? (
         <p role="status" className="text-sm text-muted-foreground">{t('siteWork.balance.loading')}</p>

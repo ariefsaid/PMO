@@ -1,3 +1,4 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
 import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -292,7 +293,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
         <FieldError>{addErrors.rate}</FieldError>
       </div>;
       const it = row.item;
-      return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : !maySeePrices ? unknownAmount : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
+      return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : !maySeePrices ? unknownAmount : it.rate == null ? '—' : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
     } }] as Column<LineTableRow>[]),
     ...(!maySeePrices ? [] : [{ key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 146 : 150, cell: (row) => {
       if (row.kind === 'add') return <span data-add-cell aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular inline-flex h-[var(--control-height)] items-center text-muted-foreground">{addLineAmountLabel}</span>;
@@ -328,7 +329,8 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     </>;
   } : undefined;
   return <Card className={'mb-4' + (createFormLayout ? ' [&_td:has([data-add-cell])]:align-top' : '')} data-testid="line-items-section">
-    <CardHead className={createFormLayout && isDesktop ? 'px-[var(--table-cell-inset)]!' : undefined}>{t('lineItems.heading', 'Line items')}{!createFormLayout && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span>}</CardHead>
+    <CardHead className={createFormLayout && isDesktop ? 'px-[var(--table-cell-inset)]!' : undefined}>{t('lineItems.heading', 'Line items')}{!createFormLayout && maySeePrices && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span>}</CardHead>
+    {!maySeePrices && items.length > 0 && <CardPad><WithheldPrice /></CardPad>}
     <DataTable embedded rows={tableRows} columns={columns} rowKey={(row) => row.id} tableId="procurement-line-items" accessibleName={t('lineItems.heading', 'Line items')}
       state={items.length === 0 && !addRowInTable ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={isDesktop && maySeePrices ? [{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }] : undefined}

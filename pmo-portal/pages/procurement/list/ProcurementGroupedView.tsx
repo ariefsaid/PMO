@@ -1,3 +1,4 @@
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -29,6 +30,7 @@ const GroupedProcurementRow = React.memo(ProcurementListRowBase);
 
 export const ProcurementGroupedView: React.FC<ProcurementGroupedViewProps> = ({ rows, role, reasonText }) => {
   const { t } = useTranslation('procurementList');
+  const maySeePrices = useMaySeePrices();
   // #2104: ONE return-context hook for the whole list. Each row used to call `useListReturn`
   // itself, which subscribed every row to `location` + `navigate`: any URL change re-rendered the
   // entire list.
@@ -64,7 +66,7 @@ export const ProcurementGroupedView: React.FC<ProcurementGroupedViewProps> = ({ 
                 <h2 id={`group-title-${group.key}`} className="text-[14px] font-semibold">{label}</h2>
                 <span data-testid={`group-count-${group.key}`} className="tabular text-sm text-muted-foreground">{group.rows.length}</span>
               </div>
-              <MoneyTotalLines totals={totals} tooltip={tooltip} testId={`group-total-${group.key}`} className="items-end" />
+              {maySeePrices && <MoneyTotalLines totals={totals} tooltip={tooltip} testId={`group-total-${group.key}`} className="items-end" />}
             </header>
             {group.rows.length > 0 ? (
               <div>

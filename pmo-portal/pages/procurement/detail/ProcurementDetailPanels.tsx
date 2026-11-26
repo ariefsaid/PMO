@@ -1,3 +1,4 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
 import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
@@ -278,7 +279,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   // The record's one hidden-figures line lives here, so any figure hidden on the record keeps this block.
   const anyHidden = shown.some((entry) => entry.hidden) || (figureScope?.hidden.length ?? 0) > 0;
   // No figure, no hidden figure and no budget line: no empty block.
-  if (!maySeePrices) return null; // #2699: no price figures, no block
+  if (!maySeePrices) return <WithheldPrice />;
   if (visible.length === 0 && !anyHidden && !budgetSignal && !isEngineer) return null;
 
   // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.

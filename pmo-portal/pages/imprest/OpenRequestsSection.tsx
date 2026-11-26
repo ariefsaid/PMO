@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -16,10 +18,11 @@ import { formatCurrency } from '@/src/lib/format';
  */
 export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; onStartPlan: (lines: PlanSeedLine[]) => void }> = ({ floatId, currency, onStartPlan }) => {
   const { t } = useTranslation();
+  const maySeePrices = useMaySeePrices();
   const q = useImprestOpenRequests(floatId);
   const requests = useMemo(() => foldRequests(q.data?.rows ?? []), [q.data]);
   const seed = useMemo(() => seedFromRequests(requests, currency), [requests, currency]);
-  const pricesHidden = requests.length > 0 && requests.every((r) => r.total === null);
+  const pricesHidden = !maySeePrices && requests.length > 0;
   // purpose -> work order (or none) -> requests, in the order the read gave them
   const groups = useMemo(() => {
     const byPurpose = new Map<string, Map<string, OpenRequest[]>>();
@@ -32,9 +35,9 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
     }
     return [...byPurpose.entries()];
   }, [requests]);
-  const money = (v: number | null, cur: string) => (v === null ? '—' : formatCurrency(Number(v), cur));
+  const money = (v: number | null, cur: string) => (pricesHidden || v === null ? '—' : formatCurrency(Number(v), cur));
   const reason = pricesHidden
-    ? t('imprest:open.noPrices', "You can't see prices on requests, so amounts can't be filled in. Add the lines yourself in the plan.")
+    ? t('imprest:open.noPrices', 'Add the lines yourself in the plan.')
     : seed.lines.length === 0
       ? t('imprest:open.nothingToStart', 'None of these requests has a purpose and a price in {{currency}}, so there is nothing to fill in. Add the lines yourself in the plan.', { currency })
       : null;
@@ -63,7 +66,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
             <p className="text-control text-muted-foreground">
               {t('imprest:open.help', 'Requests not yet ordered or paid. This list only suggests; the plan is yours to edit and save.')}
             </p>
-            {reason && <p className="text-control text-muted-foreground" data-testid="open-requests-reason">{reason}</p>}
+            {reason && <div className="text-control text-muted-foreground" data-testid="open-requests-reason">{pricesHidden && <WithheldPrice />}{reason}</div>}
             {!reason && seed.skipped > 0 && (
               <p className="text-control text-muted-foreground" data-testid="open-requests-skipped">
                 {t('imprest:open.skipped', '{{count}} request(s) with no purpose, no visible price or another currency are not counted in the plan.', { count: seed.skipped })}

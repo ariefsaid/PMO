@@ -15,7 +15,7 @@ afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 line items without prices', () => {
   it('shows the Line total column and the estimated total while prices are visible', () => {
-    renderSection();
+    renderSection({ items: [{ ...items[0], rate: 12, amount: 288 }] });
     expect(screen.getAllByText('Line total').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Unit price').length).toBeGreaterThan(0);
   });
@@ -26,6 +26,20 @@ describe('AC-009 line items without prices', () => {
     expect(screen.queryByText('Unit price')).toBeNull();
     expect(screen.queryByText('Estimated total')).toBeNull();
     expect(screen.getByText('MIG welding wire')).toBeInTheDocument();
+  });
+
+  it('explains withheld line prices for a saved request', () => {
+    act(() => setPricesHidden(true));
+    renderSection();
+    expect(screen.getByText('—')).toBeVisible();
+    expect(screen.getByText('Prices are hidden from requesters.')).toBeVisible();
+  });
+
+  it('formats supplied prices as before', () => {
+    renderSection({ items: [{ ...items[0], rate: 12, amount: 288 }] });
+    expect(screen.getByText('$12')).toBeVisible();
+    expect(screen.getAllByText('$288').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Prices are hidden from requesters.')).toBeNull();
   });
 
   // F2: a requester writing their own draft must still be able to add and edit a line even while

@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 /**
  * ProcurementLedger — the Documents tab case ledger (Slice 2).
  *
@@ -406,6 +408,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const [voidTarget, setVoidTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation(['common', 'procurement']);
+  const maySeePrices = useMaySeePrices();
   const may = usePermission();
   // Migration 0350: a role that reads no vendor bills or payments must not read their absence as "none exist".
   // Said once, only where a bill is expected (the case has reached Vendor Invoiced).
@@ -480,6 +483,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
     key: 'amount', size: 168, header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
+      if (!maySeePrices) return <WithheldPrice />;
       if (row.amount == null && row.valueFromLines !== undefined) {
         return <span className="inline-flex flex-col items-end"><span className="whitespace-nowrap tabular-nums" data-testid="receipt-value">{formatCurrency(row.valueFromLines, row.currency)}</span><span className="text-xs text-muted-foreground">{t('procurement:ledger.valueFromLines', 'From the order lines')}</span></span>;
       }
@@ -491,7 +495,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
       return figures ? <div className="inline-flex flex-col items-end gap-0.5">{total}<WithholdingBreakdown figures={figures} currency={row.currency} />{slipCell}</div> : slipCell ? <div className="inline-flex flex-col items-end gap-0.5">{total}{slipCell}</div> : total;
     },
-  }), [t, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
+  }), [t, maySeePrices, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
 
   const columns = useMemo<Column<LedgerRow>[]>(
     () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, ...STATIC_COLUMNS.slice(6), fileColumn],

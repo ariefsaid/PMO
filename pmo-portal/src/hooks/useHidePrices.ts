@@ -30,7 +30,7 @@ export function usePriceVisibilitySync(): void {
   const orgId = currentUser?.org_id;
   const enabled = useHidePricesEnabled();
   const may = useQuery({
-    queryKey: [MAY_SEE_PRICES_KEY, orgId],
+    queryKey: [MAY_SEE_PRICES_KEY, orgId, currentUser?.id],
     queryFn: () => hidePricesRepository.getMaySee(),
     enabled: Boolean(orgId) && enabled.data === true,
     staleTime: 5 * 60_000,
@@ -38,7 +38,6 @@ export function usePriceVisibilitySync(): void {
   });
   const active = enabled.data === true;
   useEffect(() => {
-    if (!orgId) return;
     if (isHidePricesActive() !== active) { setHidePricesActive(active);
       void qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== HIDE_PRICES_ENABLED_KEY && q.queryKey[0] !== MAY_SEE_PRICES_KEY });
     }
