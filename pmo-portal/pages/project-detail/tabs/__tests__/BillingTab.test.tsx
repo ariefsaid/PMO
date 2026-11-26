@@ -734,7 +734,8 @@ describe('BillingTab', () => {
     h.connected = false;
     const user = renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
+    const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+    await user.click(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' }));
     expect(await screen.findByRole('button', { name: /Quantity or progress claim/ })).toBeInTheDocument();
   });
 
@@ -822,23 +823,34 @@ describe('BillingTab', () => {
       expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. PPN');
     });
 
-    it('offers billing terms before any quantity setup or claims exist', () => {
+    it('SUB-B with no BoQ and no claims, both cards sit inside one closed "Quantity billing" disclosure', () => {
       h.boq = []; h.claims = [];
       renderTab();
-      expect(screen.getByRole('button', { name: 'Billing terms' })).toBeInTheDocument();
-      expect(screen.getByText('No billing claims yet')).toBeVisible();
+      const details = screen.getByText('Quantity billing').closest('details') as HTMLDetailsElement;
+      expect(details).not.toBeNull();
+      expect(details.open).toBe(false);
+      expect(within(details).getByText('Bill of quantities')).toBeInTheDocument();
+      expect(within(details).getByText('Billing claims')).toBeInTheDocument();
+    });
+
+    it('SUB-B once there is a BoQ line or a claim, the cards render plainly without the disclosure', () => {
+      renderTab();
+      expect(screen.queryByText('Quantity billing')).toBeNull();
+      expect(screen.getByText('Bill of quantities').closest('details')).toBeNull();
     });
 
     it('M18 "New claim" is hidden while "Raise invoice" is offered, and shown when it is not', () => {
       renderTab();
-      expect(screen.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     });
 
     it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
       h.routeReady = false;
       renderTab();
-      expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
   });
