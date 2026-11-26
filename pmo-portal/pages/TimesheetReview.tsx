@@ -13,7 +13,6 @@ import {
   ListState,
   SelectField,
   StatusPill,
-  TimesheetGrid,
   parsePageParam,
   useClampPage,
   useUrlFilters,
@@ -26,6 +25,7 @@ import type { TimesheetForReview } from '@/src/lib/db/timesheets';
 import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { datesInWeek, entriesToGridRows, gridDaysForWeek } from './timesheets/timesheetWeekModel';
+import { WeekHoursTable } from './timesheets/WeekHoursTable';
 
 const REVIEW_PAGE_SIZE = 25;
 
@@ -303,7 +303,7 @@ const ReviewDrawer: React.FC<{ sheet: TimesheetForReview; projectFilterId: strin
       subtitle={t('timesheets:review.hoursTotal', '{{hours}} h', { hours: formatNumberMax2(view.hours) })}>
       {gridRows.length === 0
         ? <p className="text-control text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
-        : <TimesheetGrid days={gridDays} rows={gridRows} stacked />}
+        : <WeekHoursTable days={gridDays} rows={gridRows} />}
     </Drawer>
   );
 };
