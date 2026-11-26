@@ -49,14 +49,26 @@ describe('DailyTargetView (#2672)', () => {
     expect(screen.getByTestId('chart-visible-days').textContent?.split(',')).toEqual(Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')));
     expect(screen.getByTestId('wo-daily-row-2026-12-27')).toBeVisible();
   });
+  it('AC-WDT-014 keeps target to date available in the work-order month view for comparison with the project', () => {
+    state.query = ok(target());
+    render(<DailyTargetView workOrderId="w" monthOnly />);
+    expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe(money('200.00'));
+  });
   it('shows target to date, actual to date, the gap in words and the projection', () => {
     state.query = ok(target());
     render(<DailyTargetView workOrderId="w" />);
     expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe(money('200.00'));
     expect(screen.getByTestId('wo-daily-mtd-actual').textContent).toBe(money('80.00'));
+    expect(screen.getByTestId('wo-daily-row-2026-12-01').textContent).toContain(money('20.00') + ' behind target');
     expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toBe(`${money('120.00')} behind target`);
     expect(screen.getByTestId('wo-daily-projection').textContent).toBe(money('613.33'));
     expect(screen.getByTestId('wo-daily-projected-gap').textContent).toContain('ahead of target');
+  });
+  it('explains an ahead or on-target daily gap in words', () => {
+    state.query = ok(target({ days: [day({ gap: '20.00' }), day({ date: '2026-12-02', gap: '0.00' })] }));
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-row-2026-12-01').textContent).toContain(money('20.00') + ' ahead of target');
+    expect(screen.getByTestId('wo-daily-row-2026-12-02').textContent).toContain('On target');
   });
   it('AC-WDT-007 a null projection reads "not enough working days", never 0', () => {
     state.query = ok(target({ projection: null, projectedGap: null }));
@@ -139,6 +151,7 @@ describe('DailyTargetView (#2672)', () => {
     render(<I18nextProvider i18n={i18n}><DailyTargetView workOrderId="w" /></I18nextProvider>);
     expect(screen.getAllByText('Target sampai hari ini').length).toBeGreaterThan(0);
     expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toMatch(/di bawah target/);
+    expect(screen.getByTestId('wo-daily-row-2026-12-01').textContent).toContain(idRp.daily.behind.replace('{{amount}}', money('20.00')!));
     expect(screen.getByTestId('wo-daily-nonworking-2026-12-25').textContent).toBe('Hari tidak kerja: Holiday');
   });
   it('AC-WDT-013 every English key has an Indonesian translation', () => {

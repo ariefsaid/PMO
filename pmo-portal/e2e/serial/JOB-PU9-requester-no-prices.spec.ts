@@ -52,6 +52,7 @@ test('JOB-PU9 the requester opens My requests and no price or supplier shows', a
 
   // The request itself is there — title, status, its line.
   await expect(page.getByRole('heading', { name: /JOB-PU9 prices hidden/ }).first()).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('tab', { name: /^Line items/ }).click();
   await expect(page.getByText('Fixture line').first()).toBeVisible();
 
   // …and no money: no line amounts, no stage amounts, no money panel, and the request total never renders.

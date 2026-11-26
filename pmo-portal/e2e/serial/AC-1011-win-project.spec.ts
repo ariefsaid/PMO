@@ -77,9 +77,8 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   // The user sees the win acknowledged (success toast) before moving on — wait for it so the
   // transition has committed + the caches invalidated before we navigate away (natural journey:
   // you read the confirmation, then go look at your projects).
-  // ux/1110 phrases the toast with the stored status ("Moved to Won, Pending KoM"); the display
-  // vocabulary on the list below stays "Won, pending kickoff".
-  await expect(visibleToast(page, /Moved to Won, Pending KoM/i)).toBeVisible({
+  // The confirmation uses the same display vocabulary as the project list.
+  await expect(visibleToast(page, /Moved to Won, pending kickoff/i)).toBeVisible({
     timeout: 15_000,
   });
 

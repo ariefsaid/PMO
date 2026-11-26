@@ -78,7 +78,7 @@ test('JOB-A4 administrator adds a new idle reason, project administrator uses it
     await page.goto('/site-reports');
     await page.getByRole('button', { name: 'New report' }).first().click();
     await page.getByLabel('Project').selectOption(projectId);
-    await page.getByLabel('Work order').selectOption(woId);
+    await page.getByRole('combobox', { name: 'Work order', exact: true }).selectOption(woId);
     await page.getByRole('button', { name: 'Start report' }).click();
     await expect(page).toHaveURL(/\/site-reports\/[0-9a-f-]{36}$/, { timeout: 20_000 });
     reportId = page.url().split('/').pop()!;
