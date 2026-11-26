@@ -24,7 +24,7 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
   const pm = await roleJobUser(svc, 'project_manager', `${run}-pm`);
   const owners = [
     { user: await roleJobUser(svc, 'engineer', `${run}-eng`), name: `${run}-eng`, check: `${run} drawings and scope checked` },
-    { user: await roleJobUser(svc, 'material_coordinator', `${run}-mat`), name: `${run}-mat`, check: `${run} material availability checked` },
+    { user: await roleJobUser(svc, 'storekeeper', `${run}-mat`), name: `${run}-mat`, check: `${run} material availability checked` },
     { user: await roleJobUser(svc, 'hr_officer', `${run}-hr`), name: `${run}-hr`, check: `${run} crew availability checked` },
   ];
   let projectId = '';
