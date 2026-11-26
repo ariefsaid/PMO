@@ -218,7 +218,10 @@
     "daysAvailable": "Hari tersedia",
     "awaitingApproval": "Menunggu persetujuan",
     "settings": "Target dan jam kerja",
-    "metricAssetsCount": "Alat: {{count}}"
+    "metricAssetsCount": "Alat: {{count}}",
+    "files": "Berkas",
+    "noDownDays": "Tidak ada hari rusak pada periode ini",
+    "statusCol": "Status"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",

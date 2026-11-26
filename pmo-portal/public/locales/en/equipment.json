@@ -218,7 +218,10 @@
     "daysAvailable": "Days available",
     "awaitingApproval": "Awaiting approval",
     "settings": "Targets and hours",
-    "metricAssetsCount": "Machines: {{count}}"
+    "metricAssetsCount": "Machines: {{count}}",
+    "files": "Files",
+    "noDownDays": "No down days in this period",
+    "statusCol": "Status"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",
