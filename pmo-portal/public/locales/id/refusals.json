@@ -223,6 +223,8 @@
   "PO_ORDER_FORBIDDEN": "Anda tidak dapat memesan pembelian. Minta Admin mencantumkan peran bawaan Anda pada siapa yang dapat memesan, atau minta orang yang dapat memesan.",
   "PO_ORDER_NOT_APPROVED": "Pembelian ini belum disetujui, jadi belum dapat dipesan. Ajukan persetujuan terlebih dahulu.",
   "PO_ORDER_ROLE_INVALID": "Pilih peran bawaan dari daftar. Peran lapangan tidak dapat memesan.",
+  "PO_ORDER_ROLE_NO_PRICES": "Saat harga disembunyikan, hanya peran bawaan yang dapat melihat harga yang boleh memesan pembelian. Hapus peran itu atau matikan penyembunyian harga terlebih dahulu.",
+  "HIDE_PRICES_ORDER_ROLE": "Peran bawaan yang ditetapkan untuk memesan pembelian tidak dapat melihat harga. Hapus peran itu dari daftar yang dapat memesan sebelum menyembunyikan harga.",
   "PPL_DATE": "Pilih hari terakhir orang itu bekerja.",
   "PPL_FORBIDDEN": "Hanya Admin yang dapat menandai orang sudah keluar.",
   "PPL_NOT_FOUND": "Orang itu tidak ditemukan, atau sudah keluar.",

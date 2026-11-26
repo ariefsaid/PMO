@@ -204,7 +204,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
   };
   const startEdit = (it: ProcurementItemRow) => {
     setEditingId(it.id);
-    setEditDraft({ name: it.name, description: it.description ?? '', quantity: formatMoneyInputValue(Number(it.quantity)), rate: formatMoneyInputValue(Number(it.rate)), stockItemId: it.stock_item_id ?? null });
+    setEditDraft({ name: it.name, description: it.description ?? '', quantity: formatMoneyInputValue(Number(it.quantity)), rate: maySeePrices ? formatMoneyInputValue(Number(it.rate)) : '', stockItemId: it.stock_item_id ?? null });
     setEditErrors({});
     setEditMutationError(null);
   };
@@ -212,12 +212,14 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     if (!editDraft.name.trim()) return;
     setEditMutationError(null);
     const quantityError = valuesEditable ? validateLineNum(editDraft.quantity, 'Quantity') : undefined;
-    const rateError = valuesEditable ? validateLineNum(editDraft.rate, 'Unit price') : undefined;
-    const rate = valuesEditable ? parseRate(editDraft.rate) : null;
-    if (quantityError || rateError || (valuesEditable && rate === null)) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
+    // #2788: with prices hidden the stored price is unknown here, so an empty price box keeps it (nothing is sent back).
+    const keepHiddenRate = !maySeePrices && editDraft.rate.trim() === '';
+    const rateError = valuesEditable && !keepHiddenRate ? validateLineNum(editDraft.rate, 'Unit price') : undefined;
+    const rate = valuesEditable && !keepHiddenRate ? parseRate(editDraft.rate) : null;
+    if (quantityError || rateError || (valuesEditable && !keepHiddenRate && rate === null)) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
     setEditErrors({});
     try {
-      await onUpdate(id, { name: editDraft.name.trim(), ...(valuesEditable && rate !== null ? { quantity: num(editDraft.quantity), rate } : {}), ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}), ...(stockItems ? { stockItemId: editDraft.stockItemId ?? null } : {}) });
+      await onUpdate(id, { name: editDraft.name.trim(), ...(valuesEditable && (rate !== null || keepHiddenRate) ? { quantity: num(editDraft.quantity), ...(rate !== null ? { rate } : {}) } : {}), ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}), ...(stockItems ? { stockItemId: editDraft.stockItemId ?? null } : {}) });
       setEditingId(null);
     } catch (err) {
       setEditMutationError(classifyMutationError(err, undefined, { suppressCapture: true }));

@@ -27258,6 +27258,121 @@ export type Database = {
           },
         ]
       }
+      equipment_plan_lines_masked: {
+        Row: {
+          category_id: string | null
+          created_at: string | null
+          date_from: string | null
+          date_to: string | null
+          description: string | null
+          equipment_asset_id: string | null
+          id: string | null
+          org_id: string | null
+          plan_id: string | null
+          procurement_id: string | null
+          quantity: number | null
+          rate: number | null
+          vendor_id: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          description?: string | null
+          equipment_asset_id?: string | null
+          id?: string | null
+          org_id?: string | null
+          plan_id?: string | null
+          procurement_id?: string | null
+          quantity?: number | null
+          rate?: never
+          vendor_id?: never
+          work_order_id?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          description?: string | null
+          equipment_asset_id?: string | null
+          id?: string | null
+          org_id?: string | null
+          plan_id?: string | null
+          procurement_id?: string | null
+          quantity?: number | null
+          rate?: never
+          vendor_id?: never
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_plan_lines_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_plan_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_equipment_asset_id_fkey"
+            columns: ["equipment_asset_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements_masked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "equipment_plan_lines_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_financial_statement_availability: {
         Row: {
           calendar: Json | null
@@ -35434,6 +35549,36 @@ export type Database = {
         }
         Returns: string
       }
+      procurement_item_add: {
+        Args: { p_line: Json; p_procurement_id: string }
+        Returns: {
+          amount: number | null
+          description: string | null
+          discipline_id: string | null
+          erp_docstatus: number | null
+          erp_line_amount: number | null
+          erp_modified: string | null
+          id: string | null
+          name: string | null
+          org_id: string | null
+          procurement_id: string | null
+          quantity: number | null
+          rate: number | null
+          stock_item_id: string | null
+          work_order_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurement_items_masked"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      procurement_item_edit: {
+        Args: { p_id: string; p_patch: Json }
+        Returns: undefined
+      }
+      procurement_item_remove: { Args: { p_id: string }; Returns: undefined }
       procurement_item_values_editable: {
         Args: { p_case: string }
         Returns: boolean

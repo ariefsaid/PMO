@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { isHidePricesActive } from '@/src/lib/priceReadPath';
+import { arePricesHidden, isHidePricesActive } from '@/src/lib/priceReadPath';
 import { assertWriteLanded } from '@/src/lib/appError';
 import { ProcurementError } from './procurementLifecycle';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
@@ -246,6 +246,7 @@ export async function createProcurementItem(
   procurementId: string,
   input: ProcurementItemInput,
 ): Promise<ProcurementItemRow> {
+  if (arePricesHidden()) return createItemPriceHidden(procurementId, input);
   const { data, error } = await supabase
     .from('procurement_items')
     .insert({
@@ -286,6 +287,23 @@ export async function createProcurementItem(
   return maskedItemAfterWrite(data as ProcurementItemRow);
 }
 
+/** #2788: a person the setting hides prices from reads no row of the table, so their line writes go through the line functions,
+ *  which keep the table's write rules and return the line without its price. */
+async function createItemPriceHidden(procurementId: string, input: ProcurementItemInput): Promise<ProcurementItemRow> {
+  const line = {
+    ...(input.id !== undefined ? { id: input.id } : {}),
+    name: input.name,
+    quantity: input.quantity,
+    rate: input.rate,
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.stockItemId !== undefined ? { stock_item_id: input.stockItemId } : {}),
+  };
+  const { data, error } = await supabase.rpc('procurement_item_add', { p_procurement_id: procurementId, p_line: line });
+  if (error?.code === '23505') throw new ProcurementError(RECONCILE_LINE_MESSAGE, '23505');
+  if (error) throwWrite(error);
+  return data as unknown as ProcurementItemRow;
+}
+
 /** #2699: while the organisation hides prices, the write response carries no price: the row is read back through the masked view. */
 async function maskedItemAfterWrite(row: ProcurementItemRow): Promise<ProcurementItemRow> {
   if (!isHidePricesActive()) return row;
@@ -318,6 +336,11 @@ export async function updateProcurementItem(
   if (patch.description !== undefined) set.description = patch.description;
   if (patch.stockItemId !== undefined) set.stock_item_id = patch.stockItemId;
 
+  if (arePricesHidden()) {
+    const { error } = await supabase.rpc('procurement_item_edit', { p_id: id, p_patch: set });
+    if (error) throwWrite(error);
+    return;
+  }
   const { data, error } = await supabase
     .from('procurement_items')
     .update(set)
@@ -334,6 +357,11 @@ export async function updateProcurementItem(
  * Deletes a line item by id (AC-PROC-003). org_id is NEVER sent — RLS scopes it.
  */
 export async function deleteProcurementItem(id: string): Promise<void> {
+  if (arePricesHidden()) {
+    const { error } = await supabase.rpc('procurement_item_remove', { p_id: id });
+    if (error) throwWrite(error);
+    return;
+  }
   const { data, error } = await supabase
     .from('procurement_items')
     .delete()
