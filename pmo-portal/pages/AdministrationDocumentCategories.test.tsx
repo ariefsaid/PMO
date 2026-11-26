@@ -1,3 +1,4 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -32,7 +33,7 @@ const cats: DocumentCategory[] = [
 const wrap = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider><AdministrationDocumentCategories /></ToastProvider>
+      <ToastProvider><SettingsSaveProvider><SettingsSaveAction /><AdministrationDocumentCategories /></SettingsSaveProvider></ToastProvider>
     </QueryClientProvider>,
   );
 
@@ -57,10 +58,10 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     expect(byName(/Finance/)).toBeChecked();
     expect(byName(/Engineer/)).not.toBeChecked();
     // Save is idle until something changes
-    expect(within(card).getByRole('button', { name: /Save who can see it/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
     await user.click(byName(/Finance/));
     await user.click(byName(/Executive/));
-    await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Executive', 'Admin'], []));
   });
 
@@ -69,7 +70,7 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     wrap();
     const card = await screen.findByTestId('document-category-c-inv');
     await user.click(within(card).getByRole('checkbox', { name: /Finance/ }));
-    await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Admin'], []));
   });
 

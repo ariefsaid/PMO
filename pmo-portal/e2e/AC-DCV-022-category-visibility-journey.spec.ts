@@ -50,7 +50,7 @@ test('AC-DCV-022: a category visible to Finance and Executive keeps its document
   await form.getByRole('checkbox', { name: /Finance/ }).click();
   await form.getByRole('checkbox', { name: /Executive/ }).click();
   await expect(form.getByRole('checkbox', { name: /Admin/ })).toBeDisabled();
-  await form.getByRole('button', { name: /create category/i }).click();
+  await admin.page.getByRole('dialog', { name: 'New category' }).getByRole('button', { name: /create category/i }).click();
   const card = admin.page.locator('[data-testid^="document-category-"]').filter({ has: admin.page.getByRole('heading', { name: category }) });
   await expect(card).toBeVisible({ timeout: 15_000 });
   await expect(card.getByRole('checkbox', { name: /Finance/ })).toBeChecked();

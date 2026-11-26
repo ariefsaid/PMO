@@ -1,3 +1,5 @@
+import { AdministrationActions } from '@/src/components/admin/AdministrationActions';
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, EntityFormModal, Checkbox, ConfirmDialog, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
@@ -74,8 +76,8 @@ const CategoryCard: React.FC<{
   isFirst: boolean;
   isLast: boolean;
   busy: boolean;
-  onSaveRoles: (roles: CategoryRole[], hiddenJobRoles: string[]) => void;
-  onRename: (name: string) => void;
+  onSaveRoles: (roles: CategoryRole[], hiddenJobRoles: string[]) => Promise<boolean>;
+  onRename: (name: string) => Promise<boolean>;
   onArchive: () => void;
   onRestore: () => void;
   onMove: (delta: -1 | 1) => void;
@@ -97,6 +99,8 @@ const CategoryCard: React.FC<{
 
   const hiddenDirty = hidden.join() !== (category.hidden_job_roles ?? []).join();
   const dirty = ROLE_ORDER.some((r) => roles.has(r) !== saved.has(r)) || hiddenDirty;
+  const pageSave = useSettingsSaveEntry(canManage ? { dirty, busy, save: async () => { if (!await onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)) throw new Error('Category was not saved'); } } : null);
+  useSettingsSaveEntry(canManage ? { dirty: renaming && name.trim() !== category.name, invalid: name.trim() === '', busy, save: async () => { if (!await onRename(name)) throw new Error('Category was not renamed'); setRenaming(false); } } : null);
   const archived = category.archived_at !== null;
   const menuItems = canManage ? [
     ...(!category.is_system && !renaming ? [{ label: t('administration:documentCategories.rename', 'Rename'), onClick: () => setRenaming(true), disabled: busy }] : []),
@@ -122,13 +126,13 @@ const CategoryCard: React.FC<{
               fullWidth
             />
             <div className="flex flex-wrap gap-2">
-              <Button
+              {!pageSave && <Button
                 variant="primary"
                 disabled={busy || name.trim() === '' || name.trim() === category.name}
                 onClick={() => { onRename(name); setRenaming(false); }}
               >
                 {t('administration:documentCategories.saveName', 'Save name')}
-              </Button>
+              </Button>}
               <Button variant="outline" onClick={() => { setName(category.name); setRenaming(false); }}>
                 {t('administration:documentCategories.cancel', 'Cancel')}
               </Button>
@@ -170,10 +174,10 @@ const CategoryCard: React.FC<{
 
       {canManage ? (
         <div className="flex items-center gap-2 xl:justify-end">
-          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)}
+          {!pageSave && <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)}
             aria-label={t('administration:documentCategories.saveRoles', 'Save who can see it')}>
             {t('administration:documentCategories.saveShort', 'Save')}
-          </Button>
+          </Button>}
           {menuItems.length > 0 && <RowMenu items={menuItems} ariaLabel={t('administration:documentCategories.moreActions', 'More actions for {{name}}', { name: display })} />}
         </div>
       ) : <span className="hidden xl:block" />}
@@ -229,9 +233,11 @@ const AdministrationDocumentCategories: React.FC = () => {
     try {
       await action();
       toast(done, 'success');
+      return true;
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
+      return false;
     }
   };
 
@@ -259,9 +265,9 @@ const AdministrationDocumentCategories: React.FC = () => {
       {!isPending && !isError ? (
         <>
           {canManage && (
-            <Button variant="outline" onClick={() => setNewOpen(true)}>
+            <AdministrationActions><Button variant="outline" onClick={() => setNewOpen(true)}>
               {t('administration:documentCategories.newTitle', 'New category')}
-            </Button>
+            </Button></AdministrationActions>
           )}
           <div role="list" aria-label={t('administration:documentCategories.listLabel', 'Document categories')} className="min-w-0 rounded-lg border border-border bg-card">
           <CategoryHeader />
@@ -273,8 +279,8 @@ const AdministrationDocumentCategories: React.FC = () => {
               isFirst={i === 0}
               isLast={i === live.length - 1}
               busy={busy}
-              onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
-              onRename={(name) => void run(() => m.rename.mutateAsync({ id: c.id, name }), t('administration:documentCategories.renamed', 'Category renamed'))}
+              onSaveRoles={(roles, keys) => run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
+              onRename={(name) => run(() => m.rename.mutateAsync({ id: c.id, name }), t('administration:documentCategories.renamed', 'Category renamed'))}
               onArchive={() => setArchiveTarget(c)}
               onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}
               onMove={(delta) => move(c.id, delta)}
@@ -302,8 +308,8 @@ const AdministrationDocumentCategories: React.FC = () => {
                   isFirst
                   isLast
                   busy={busy}
-                  onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
-                  onRename={() => undefined}
+                  onSaveRoles={(roles, keys) => run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
+                  onRename={async () => false}
                   onArchive={() => undefined}
                   onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}
                   onMove={() => undefined}
