@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, FormActions, FormGrid, ListState, PageHeader, SelectField, TextField, MobileActionBar, useToast } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -31,6 +32,7 @@ const StockTransferSend: React.FC = () => {
   const items = useStockItems(false);
   const units = useStockUnits(true);
   const profiles = useAssignableProfiles();
+  const wide = useIsDesktop();
   const requestId = useRef(crypto.randomUUID());
   const nextKey = useRef(2);
   const [from, setFrom] = useState('');
@@ -109,14 +111,27 @@ const StockTransferSend: React.FC = () => {
           <SelectField label={t('form.toWarehouse')} required value={to} onChange={(v) => { setTo(v); setReceiver(''); }} options={destinations.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.to} />
           <SelectField label={t('transfers.receiver')} value={receiver} onChange={setReceiver} options={candidates.map((p) => ({ value: p.id, label: p.full_name ?? '' }))} placeholder={t('transfers.receiverNone')} helper={t('transfers.receiverHelp')} />
         </FormGrid>
-        <ul className="space-y-3">{lines.map((l, i) => (
-          <li key={l.key} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
-            <ItemPicker label={`${t('form.item')}${i + 1}`} required value={l.itemId} onChange={(v) => setLine(l.key, { itemId: v })} error={errors[`item${l.key}`]} />
-            <TextField label={`${t('form.quantity')}${i + 1}`} required inputMode="decimal" value={l.quantity} onChange={(v) => setLine(l.key, { quantity: v })} error={errors[`qty${l.key}`]} />
-            {lines.length > 1 && <Button variant="ghost" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>{t('form.removeLine')}</Button>}
-          </li>
-        ))}</ul>
-        <Button variant="outline" onClick={() => setLines((ls) => [...ls, { key: nextKey.current++, itemId: null, quantity: '' }])}>{t('form.addLine')}</Button>
+        <div className="rounded-lg border border-border bg-card">
+          <div className="hidden grid-cols-[1fr_9rem_6rem] gap-3 border-b border-border px-4 py-3 text-control font-semibold sm:grid" aria-hidden="true">
+            <span>{t('form.item')}</span><span className="text-right">{t('form.quantity')}</span><span />
+          </div>
+          <ul className="divide-y divide-border">{lines.map((l, i) => (
+            <li key={l.key} className="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_9rem_6rem] sm:items-start">
+              <ItemPicker label={`${t('form.item')}${i + 1}`} hideLabel={wide} required value={l.itemId} onChange={(v) => setLine(l.key, { itemId: v })} error={errors[`item${l.key}`]} />
+              <div className="flex items-start gap-2">
+                <TextField label={`${t('form.quantity')}${i + 1}`} hideLabel={wide} required inputMode="decimal" value={l.quantity} onChange={(v) => setLine(l.key, { quantity: v })} error={errors[`qty${l.key}`]} wrapperClassName="flex-1" className="text-right tabular-nums" />
+                <span className="min-h-[38px] w-8 pt-2 text-control text-muted-foreground sm:hidden">{unitCodeOf(l.itemId)}</span>
+              </div>
+              <div className="flex items-start justify-between gap-2 sm:justify-end">
+                <span className="hidden pt-2 text-control text-muted-foreground sm:inline">{unitCodeOf(l.itemId)}</span>
+                {lines.length > 1 && <Button variant="ghost" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>{t('form.removeLine')}</Button>}
+              </div>
+            </li>
+          ))}</ul>
+          <div className="border-t border-border px-4 py-3">
+            <Button variant="outline" onClick={() => setLines((ls) => [...ls, { key: nextKey.current++, itemId: null, quantity: '' }])}>{t('form.addLine')}</Button>
+          </div>
+        </div>
         <TextField label={t('form.note')} value={note} onChange={setNote} />
         <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
           <FormActions submitLabel={t('transfers.send')} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/transfers')} loading={busy} />
