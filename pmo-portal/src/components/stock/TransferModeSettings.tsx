@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SelectField } from '@/src/components/ui';
+import { ListState, SelectField } from '@/src/components/ui';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useStockTransfers, useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { stockTransfersRepository as repo, type HandoverScope, type ProofTiming, type TransferMode } from '@/src/lib/repositories/stockTransfers';
@@ -23,6 +23,9 @@ export const TransferModeSettings: React.FC = () => {
     onSuccess: async () => { setError(''); await refresh(); },
     onError: (err) => setError(errorText(err)),
   });
+  if (settings.isError) {
+    return <ListState variant="error" title={t('transferSettings.loadError', "Couldn't load stock transfer settings")} onRetry={() => void settings.refetch()} />;
+  }
   if (!settings.data) return null;
   return (
     <div className="space-y-4">

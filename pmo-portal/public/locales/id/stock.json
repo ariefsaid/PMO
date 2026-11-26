@@ -903,6 +903,7 @@
     }
   },
   "transferSettings": {
+    "loadError": "Tidak dapat memuat pengaturan transfer stok",
     "manage": "Transfer stok dan bukti",
     "mode": "Cara transfer stok dilakukan",
     "oneStep": "Satu langkah: langsung diposting",

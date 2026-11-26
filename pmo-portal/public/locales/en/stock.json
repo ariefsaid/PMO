@@ -903,6 +903,7 @@
     }
   },
   "transferSettings": {
+    "loadError": "Couldn't load stock transfer settings",
     "manage": "Stock transfers and proof",
     "mode": "How stock transfers are made",
     "oneStep": "One step: post at once",

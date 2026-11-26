@@ -160,7 +160,7 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
       dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
         <Combobox id="crew-place-worker" label={t('crews:person', 'Person')} value={chosen || null} selectedOption={selectedOption}
-          serverSearch={{ options: workerOptions, status: workers.isPending ? 'loading' : 'ready', onQueryChange: setQuery, onRetry: () => undefined }}
+          serverSearch={{ options: workerOptions, status: workers.isPending || workers.isFetching ? 'loading' : workers.isError ? 'error' : 'ready', onQueryChange: setQuery, onRetry: () => void workers.refetch() }}
           onChange={(v) => {
             if (v.startsWith(NEW)) { form.setValue('worker', ''); form.setValue('newName', v.slice(NEW.length)); }
             else { form.setValue('worker', v); form.setValue('newName', ''); }

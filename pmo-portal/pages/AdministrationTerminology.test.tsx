@@ -21,6 +21,7 @@ vi.mock('@/src/lib/db/orgRoleNames', async (orig) => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
 
+import { listOrgTerminology } from '@/src/lib/db/orgTerminology';
 import AdministrationTerminology from './AdministrationTerminology';
 import { TERM_KEYS } from '@/src/lib/i18n/orgTerms';
 
@@ -35,6 +36,23 @@ const wrap = () =>
 
 describe('AC-TERM-004 Administration › Terminology', () => {
   beforeEach(() => { vi.clearAllMocks(); permissions.write = true; });
+  it('#2813 shows the stored wording after the second language fails to save', async () => {
+    save.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Failed to fetch'));
+    wrap();
+    const card = await screen.findByTestId('term-card-workOrder');
+    const english = within(screen.getByTestId('term-row-workOrder-en')).getByRole('textbox', { name: 'Singular' });
+    const bahasa = within(screen.getByTestId('term-row-workOrder-id')).getByRole('textbox', { name: 'Singular' });
+    expect(english).toHaveValue('Job card');
+    vi.mocked(listOrgTerminology).mockResolvedValueOnce({ en: { workOrder: { singular: 'Job sheet', plural: 'Job sheets' } } });
+    await userEvent.clear(english);
+    await userEvent.type(english, 'Job sheet');
+    await userEvent.type(bahasa, 'Pengawas');
+    const saveButton = within(card).getByRole('button', { name: 'Save' });
+    await userEvent.click(saveButton);
+    await waitFor(() => expect(bahasa).toHaveValue(''));
+    expect(english).toHaveValue('Job sheet');
+    expect(saveButton).toBeDisabled();
+  });
   it('AC-TR-002 lists a card, with its default wording in both languages, for every registry term', async () => {
     wrap();
     await screen.findByTestId('term-card-workOrder');

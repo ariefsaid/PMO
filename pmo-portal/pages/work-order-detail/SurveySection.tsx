@@ -41,7 +41,7 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
   const refusal = useRefusalText();
   const query = useSurveyRecords(workOrderId);
   const documents = useDocuments(projectId);
-  const { record, confirm, discard } = useSurveyMutations(workOrderId, projectId);
+  const { record, attachDocuments, confirm, discard } = useSurveyMutations(workOrderId, projectId);
   const [form, setForm] = useState<{ correcting: { id: string; boqItemId: string } | null } | null>(null);
   const [confirming, setConfirming] = useState<SurveyRecord | null>(null);
   const [discarding, setDiscarding] = useState<SurveyRecord | null>(null);
@@ -51,9 +51,6 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
   const titleOf = (id: string) => (documents.data ?? []).find((d) => d.id === id)?.title ?? t('documents_one', '{{count}} document', { count: 1 });
 
   const title = t('title', 'Surveys');
-  if (query.isError) {
-    return <RecordSection title={title}><ListState variant="error" title={t('loadError', "Couldn't load the surveys")} onRetry={() => void query.refetch()} /></RecordSection>;
-  }
   const records = query.data ?? [];
   const ctx = { currentUserId: currentUser?.id ?? null, record: { status, project_manager_id: projectManagerId } };
   const canRecord = may('create', 'surveyRecord', ctx as never);
@@ -68,14 +65,16 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
   };
 
   return <RecordSection title={title} subline={t('subline', "What was measured on site, by line. Each confirmed survey ADDS to the line's certified quantity, which caps a claim. Enter what this survey measured, not a running total; to change a mistaken survey use Correct.")}
-    actions={canRecord ? <Button variant="primary" size="sm" onClick={() => setForm({ correcting: null })}>{t('record', 'Record a survey')}</Button> : undefined}>
+    actions={canRecord && !query.isError ? <Button variant="primary" size="sm" onClick={() => setForm({ correcting: null })}>{t('record', 'Record a survey')}</Button> : undefined}>
     {!canRecord && (
       <p className="text-control text-muted-foreground" data-testid="survey-hint">
         {status === 'Issued' ? t('hintNotPermitted', 'Only the project manager, Finance or an Admin can record a survey.') : t('hintNotIssued', 'Surveys are recorded while the work order is issued.')}
       </p>
     )}
     {message && <p role="alert" className="mt-2 text-control text-destructive">{message}</p>}
-    {records.length === 0 ? (
+    {query.isError ? (
+      <ListState variant="error" title={t('loadError', "Couldn't load the surveys")} onRetry={() => void query.refetch()} />
+    ) : records.length === 0 ? (
       <div data-testid="survey-empty" className="mt-2">
         <p className="font-medium">{t('empty', 'No surveys recorded yet.')}</p>
         <p className="text-control text-muted-foreground">{t('emptyWho', 'The project manager, Finance or an Admin records a survey here; Finance or an Admin other than the recorder confirms it. A confirmed survey adds to the certified quantity, so enter each measurement once.')}</p>
@@ -134,7 +133,8 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
       </>
     )}
     {form && <SurveyModal workOrderId={workOrderId} lines={lines} documents={eligible} correcting={form.correcting} today={today}
-      onClose={() => setForm(null)} onSave={(input) => record.mutateAsync(input)} />}
+      onClose={() => setForm(null)} onSave={(input) => record.mutateAsync(input)}
+      onRetryAttachments={(id, documentIds) => attachDocuments.mutateAsync({ id, documentIds })} />}
     <ConfirmDialog open={confirming !== null} title={t('confirmTitle', 'Confirm this survey')} confirmLabel={t('confirmAction', 'Confirm survey')}
       description={confirming ? t('confirmBody', 'Confirming adds {{surveyed}} {{unit}} to the certified quantity of {{line}}. A confirmed survey cannot be edited; a mistake is fixed by recording a correction.',
         { surveyed: formatNumberExact(confirming.surveyedQuantity), unit: lineOf(confirming.boqItemId)?.unit ?? '', line: lineOf(confirming.boqItemId)?.label ?? '' }) : ''}
