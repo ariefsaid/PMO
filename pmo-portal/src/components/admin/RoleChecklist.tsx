@@ -36,13 +36,13 @@ export function RoleChecklist({ legend, hideLegend, helper, describedBy, options
       {helper && <p id={helperId} className="text-control text-muted-foreground">{helper}</p>}
       <div className="mt-2 flex min-h-8 flex-wrap items-center gap-2">
         {chosen.length === 0
-          ? <span className="text-control text-muted-foreground">{t('roleChecklist.none', 'No role chosen')}</span>
+          ? <span className="text-control text-muted-foreground">{t('administration:roleChecklist.none', 'No role chosen')}</span>
           : chosen.map((o) => (
             <span key={o.key} className="inline-flex h-7 items-center rounded-full border border-border bg-secondary px-2.5 text-control">{o.name}</span>
           ))}
         {!disabled && (
           <Button variant="outline" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((v) => !v)}>
-            {open ? t('roleChecklist.done', 'Done') : t('roleChecklist.choose', 'Choose roles')}
+            {open ? t('administration:roleChecklist.done', 'Done') : t('administration:roleChecklist.choose', 'Choose roles')}
           </Button>
         )}
       </div>

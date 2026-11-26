@@ -132,10 +132,10 @@ const NAV_GROUPS: ReadonlyArray<{ id: NavGroup; sections: ReadonlyArray<Administ
 
 const navGroupLabel = (t: TFunction, id: NavGroup): string => {
   switch (id) {
-    case 'access': return t('admin.navGroups.access', 'People and access');
-    case 'setup': return t('admin.navGroups.setup', 'Setup');
-    case 'connections': return t('admin.navGroups.connections', 'Connections');
-    case 'plan': return t('admin.navGroups.plan', 'Plan');
+    case 'access': return t('administration:adminShell.navGroups.access', 'People and access');
+    case 'setup': return t('administration:adminShell.navGroups.setup', 'Setup');
+    case 'connections': return t('administration:adminShell.navGroups.connections', 'Connections');
+    case 'plan': return t('administration:adminShell.navGroups.plan', 'Plan');
   }
 };
 
@@ -150,14 +150,14 @@ const SETTINGS_GROUPS: Partial<Record<AdministrationSection, ReadonlyArray<Setti
 
 const settingsGroupLabel = (t: TFunction, id: SettingsGroupId): string => {
   switch (id) {
-    case 'accounting-tax': return t('admin.settingsGroups.accountingTax', 'Tax and fiscal year');
-    case 'accounting-approvals': return t('admin.settingsGroups.accountingApprovals', 'Approvals and checks');
-    case 'accounting-orders': return t('admin.settingsGroups.accountingOrders', 'Purchase orders');
-    case 'accounting-posting': return t('admin.settingsGroups.accountingPosting', 'Costs and account mapping');
-    case 'projects-numbering': return t('admin.settingsGroups.projectsNumbering', 'Numbering and project lists');
-    case 'projects-site': return t('admin.settingsGroups.projectsSite', 'Daily site reports');
-    case 'projects-work-orders': return t('admin.settingsGroups.projectsWorkOrders', 'Work orders');
-    case 'projects-issues': return t('admin.settingsGroups.projectsIssues', 'Issues');
+    case 'accounting-tax': return t('administration:adminShell.settingsGroups.accountingTax', 'Tax and fiscal year');
+    case 'accounting-approvals': return t('administration:adminShell.settingsGroups.accountingApprovals', 'Approvals and checks');
+    case 'accounting-orders': return t('administration:adminShell.settingsGroups.accountingOrders', 'Purchase orders');
+    case 'accounting-posting': return t('administration:adminShell.settingsGroups.accountingPosting', 'Costs and account mapping');
+    case 'projects-numbering': return t('administration:adminShell.settingsGroups.projectsNumbering', 'Numbering and project lists');
+    case 'projects-site': return t('administration:adminShell.settingsGroups.projectsSite', 'Daily site reports');
+    case 'projects-work-orders': return t('administration:adminShell.settingsGroups.projectsWorkOrders', 'Work orders');
+    case 'projects-issues': return t('administration:adminShell.settingsGroups.projectsIssues', 'Issues');
   }
 };
 
@@ -378,7 +378,7 @@ const SelectedAdministrationPanel: React.FC<{
           <People />
           <div className="mt-8">
             <SettingsGroups>
-              <SettingsGroup id="people-settings" title={t('admin.settingsGroups.peopleSettings', 'People settings')}>
+              <SettingsGroup id="people-settings" title={t('administration:adminShell.settingsGroups.peopleSettings', 'People settings')}>
                 <OrgAttendanceTimeRoles />
                 <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
               </SettingsGroup>

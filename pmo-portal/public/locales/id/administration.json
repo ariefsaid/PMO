@@ -1357,5 +1357,29 @@
     "migration": "Migrasikan biaya stok yang ada sebelum mengaktifkan pengaturan ini.",
     "erp": "Pengaturan ini tersedia untuk organisasi yang menggunakan biaya pembayaran PMO."
   },
-  "documentTypesNav": "Jenis dokumen"
+  "documentTypesNav": "Jenis dokumen",
+  "adminShell": {
+    "navGroups": {
+      "access": "Orang dan akses",
+      "setup": "Penyiapan",
+      "connections": "Koneksi",
+      "plan": "Paket"
+    },
+    "settingsGroups": {
+      "accountingTax": "Pajak dan tahun buku",
+      "accountingApprovals": "Persetujuan dan pemeriksaan",
+      "accountingOrders": "Pesanan pembelian",
+      "accountingPosting": "Biaya dan pemetaan akun",
+      "projectsNumbering": "Penomoran dan daftar proyek",
+      "projectsSite": "Laporan harian lapangan",
+      "projectsWorkOrders": "Perintah kerja",
+      "projectsIssues": "Masalah",
+      "peopleSettings": "Pengaturan orang"
+    }
+  },
+  "roleChecklist": {
+    "none": "Belum ada peran dipilih",
+    "done": "Selesai",
+    "choose": "Pilih peran"
+  }
 }

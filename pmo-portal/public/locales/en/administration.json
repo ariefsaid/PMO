@@ -1357,5 +1357,29 @@
     "migration": "Migrate existing stock costs before enabling this setting.",
     "erp": "This setting is available for organisations using PMO-paid costs."
   },
-  "documentTypesNav": "Document types"
+  "documentTypesNav": "Document types",
+  "adminShell": {
+    "navGroups": {
+      "access": "People and access",
+      "setup": "Setup",
+      "connections": "Connections",
+      "plan": "Plan"
+    },
+    "settingsGroups": {
+      "accountingTax": "Tax and fiscal year",
+      "accountingApprovals": "Approvals and checks",
+      "accountingOrders": "Purchase orders",
+      "accountingPosting": "Costs and account mapping",
+      "projectsNumbering": "Numbering and project lists",
+      "projectsSite": "Daily site reports",
+      "projectsWorkOrders": "Work orders",
+      "projectsIssues": "Issues",
+      "peopleSettings": "People settings"
+    }
+  },
+  "roleChecklist": {
+    "none": "No role chosen",
+    "done": "Done",
+    "choose": "Choose roles"
+  }
 }
