@@ -4,7 +4,7 @@ import { EarnedAgainstContract, EarnedInvoicedTrend } from '@/src/components/rep
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Toolbar, type Column,
+  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, DateField, Toolbar, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { FinanceAccessDenied } from '@/src/components/finance/FinanceAccessDenied';
@@ -336,7 +336,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       minSize: 135,
       cell: (row) => (
         <span data-testid="pack-cell-contract" className="tabular text-right text-control">
-          {money(row.contractNet, row.currency)}
+          {row.contractValueMissing ? "—" : money(row.contractNet, row.currency)}
         </span>
       ),
     },
@@ -585,11 +585,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       <div className="flex min-w-0 flex-col">
       <div className="order-2 mt-6 md:order-1 md:mt-0">
       {isPending && !pack ? (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-6">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
           {figureSpecs.map((spec) => <KPITile key={spec.key} loading tone="blue" icon="grid" label={spec.label} value="" />)}
         </KPIRow>
       ) : showFigures && homeMonth && (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-6">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
           {figureSpecs.map((spec) => {
             const tile = tileFor(spec);
             return (
@@ -615,8 +615,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
 
       <div data-testid="management-pack-table-card" className="order-1 min-w-0 md:order-2">
       <Toolbar data-testid="management-pack-table-toolbar" className="items-end gap-3">
-        <TextField id="pack-from" type="month" label={t('managementPack.from', 'From')} value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''} onChange={(v) => setMonth('from', v)} />
-        <TextField id="pack-as-at" type="month" label={t('managementPack.asAt', 'As at')} value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''} onChange={(v) => setMonth('to', v)} />
+        <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+          <DateField compact id="pack-from" label={t("managementPack.from", "From")} value={(params.get("from") ?? pack?.from.slice(0, 7) ?? "") + "-01"} onChange={(v) => setMonth("from", v.slice(0, 7))} />
+          <DateField compact id="pack-as-at" label={t("managementPack.asAt", "As at")} value={(params.get("to") ?? pack?.to.slice(0, 7) ?? "") + "-01"} onChange={(v) => setMonth("to", v.slice(0, 7))} />
+        </div>
         <TextField id="pack-search" type="search" label={t('financeHub:managementPack.search', 'Search projects')} value={search} onChange={setSearch} />
         <Button variant="outline" disabled={!pack || busy} onClick={onExport} className="ml-auto"><Icon name="export" className="size-4 mr-2" />{t('finance:area.export', 'Export')}</Button>
       </Toolbar>
@@ -687,6 +689,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             rows={filteredRows}
             columns={columns}
             rowKey={(row) => row.key}
+            cardValuesEnd
             tableId="managementpack-1-table"
             accessibleName={t('managementPack.col.project', 'Project')}
             totals={projectTotals}
