@@ -105,8 +105,6 @@
     "planUnknown": "Angka rencana tidak tersedia",
     "priorError": "Gagal memuat permintaan sebelumnya",
     "priorNone": "Belum ada permintaan sebelumnya untuk barang ini",
-    "priorRow": "{{number}} · {{status}} · {{quantity}} · dibutuhkan {{date}}",
-    "priorSent": "Stok yang sudah dikirim ke $t(common:terms.clientWorkOrder) ini: {{quantity}}",
     "priorTitle": "Permintaan sebelumnya untuk barang ini",
     "priorToggle": "sudah diminta {{prior}}",
     "project": "Proyek",
@@ -127,7 +125,9 @@
     "title": "Permintaan material baru",
     "wholeOnly": "Barang ini dihitung dalam satuan utuh. Masukkan bilangan bulat.",
     "workOrder": "$t(common:terms.clientWorkOrder)",
-    "workOrderNoun": "$t(common:terms.clientWorkOrder)"
+    "workOrderNoun": "$t(common:terms.clientWorkOrder)",
+    "priorNeeded": "dibutuhkan {{date}}",
+    "priorSentLabel": "Stok yang sudah dikirim ke work order ini"
   },
   "inbox": {
     "scope": "Permintaan material",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -65,9 +65,10 @@ describe('raise a material request on a section (#2576)', () => {
     expect(screen.queryByTestId('mrq-prior-list')).toBeNull();
     await userEvent.click(screen.getByTestId('mrq-prior-toggle'));
     const list = screen.getByTestId('mrq-prior-list');
-    expect(list).toHaveTextContent('MR-009 · Approved · 3');
+    const earlier = within(list).getByRole('row', { name: /MR-009/ });
+    expect(within(earlier).getAllByRole('cell').map((c) => c.textContent)).toEqual(['Approved', '3', 'needed 20 Nov']);
     // 4 already requested, 3 on the request, so 1 is stock already sent to the work order
-    expect(list).toHaveTextContent('Stock already sent to this work order: 1');
+    expect(within(within(list).getByRole('row', { name: /Stock already sent to this work order/ })).getAllByRole('cell')[0]).toHaveTextContent('1');
   });
 
   it('FR-WOS-015 a line within the work order\'s plan but over its section\'s allocation asks for a reason, and the header carries the section', async () => {

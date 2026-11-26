@@ -31,19 +31,31 @@ export const PriorRequests: React.FC<Props> = ({ workOrderId, itemId, excludeReq
         {t('form.priorToggle', { defaultValue: 'already requested {{prior}}', prior })}
       </button>
       {open && (
-        <div role="region" aria-label={t('form.priorTitle', 'Earlier requests for this item')} className="mt-1 rounded-md border border-border bg-card p-2 text-foreground" data-testid="mrq-prior-list">
-          {list.isPending ? <p>…</p>
-            : list.isError ? <p>{t('form.priorError', "Couldn't load the earlier requests")}</p>
-              : (
-                <ul className="space-y-1">
-                  {(list.data ?? []).map((r) => (
-                    <li key={r.requestId}>{t('form.priorRow', { defaultValue: '{{number}} · {{status}} · {{quantity}} · needed {{date}}', number: r.number, status: statusLabel('materialRequest', r.status, tStatus), quantity: r.quantity, date: formatDay(r.neededBy) })}</li>
-                  ))}
-                  {sent > 0 && <li>{t('form.priorSent', { defaultValue: 'Stock already sent to this work order: {{quantity}}', quantity: sent })}</li>}
-                  {(list.data ?? []).length === 0 && sent === 0 && <li>{t('form.priorNone', 'No earlier request for this item')}</li>}
-                </ul>
-              )}
-        </div>
+        // Spans with grid roles, not a <table>: the disclosure opens inside the line's plan sentence (a paragraph).
+        <span role="region" aria-label={t('form.priorTitle', 'Earlier requests for this item')} className="mt-1 block rounded-md border border-border bg-card p-3 text-control text-foreground" data-testid="mrq-prior-list">
+          {list.isPending ? <span className="block">…</span>
+            : list.isError ? <span className="block" role="alert">{t('form.priorError', "Couldn't load the earlier requests")}</span>
+              : (list.data ?? []).length === 0 && sent === 0 ? <span className="block">{t('form.priorNone', 'No earlier request for this item')}</span>
+                : (
+                  <span role="table" aria-label={t('form.priorTitle', 'Earlier requests for this item')} className="grid grid-cols-[auto_1fr_auto] gap-x-4 gap-y-2 sm:grid-cols-[auto_1fr_auto_auto]">
+                    {(list.data ?? []).map((r) => (
+                      <span key={r.requestId} role="row" className="contents">
+                        <span role="rowheader" className="font-semibold">{r.number}</span>
+                        <span role="cell">{statusLabel('materialRequest', r.status, tStatus)}</span>
+                        <span role="cell" className="text-right tabular-nums">{r.quantity}</span>
+                        <span role="cell" className="col-span-3 -mt-1 text-muted-foreground sm:col-span-1 sm:mt-0 sm:text-right">{t('form.priorNeeded', { defaultValue: 'needed {{date}}', date: formatDay(r.neededBy) })}</span>
+                      </span>
+                    ))}
+                    {sent > 0 && (
+                      <span role="row" className="contents">
+                        <span role="rowheader" className="col-span-2 border-t border-border pt-2 text-muted-foreground">{t('form.priorSentLabel', 'Stock already sent to this work order')}</span>
+                        <span role="cell" className="border-t border-border pt-2 text-right tabular-nums">{sent}</span>
+                        <span role="cell" className="hidden border-t border-border pt-2 sm:block" />
+                      </span>
+                    )}
+                  </span>
+                )}
+        </span>
       )}
     </>
   );

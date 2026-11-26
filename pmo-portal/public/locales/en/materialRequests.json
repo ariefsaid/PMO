@@ -105,8 +105,6 @@
     "planUnknown": "Plan figures unavailable",
     "priorError": "Couldn't load the earlier requests",
     "priorNone": "No earlier request for this item",
-    "priorRow": "{{number}} · {{status}} · {{quantity}} · needed {{date}}",
-    "priorSent": "Stock already sent to this work order: {{quantity}}",
     "priorTitle": "Earlier requests for this item",
     "priorToggle": "already requested {{prior}}",
     "project": "Project",
@@ -127,7 +125,9 @@
     "title": "New material request",
     "wholeOnly": "This item is counted in whole units. Enter a whole number.",
     "workOrder": "Work order",
-    "workOrderNoun": "work order"
+    "workOrderNoun": "work order",
+    "priorNeeded": "needed {{date}}",
+    "priorSentLabel": "Stock already sent to this work order"
   },
   "inbox": {
     "scope": "Material requests",
