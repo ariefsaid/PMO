@@ -3,7 +3,7 @@
 # the ORGANISATION's day (#2917). The organisation runs on Asia/Jakarta: between 17:00 and 24:00 UTC
 # the runner's UTC day (and on CI, whose local zone is UTC, every local-getter day) is a day behind
 # the organisation's — AC-ATR-010 and AC-DSF-015 went red in exactly that window. Specs take days
-# from `orgDay()` (e2e/support/orgDay.ts). New or edited specs also use the shared job-role fixture.
+# from `orgDay()` (e2e/support/orgDay.ts). Journey actors use the shared job-role fixture or a documented provisioning exception.
 #
 # Flagged patterns (heuristic, not a proof — same ceiling as check-e2e-isolation.sh):
 #   A) `.toISOString().slice(0, 10)` — an instant sliced into a day on the runner's clock.
@@ -21,39 +21,26 @@ CREATE_USER='auth[[:space:]]*\.[[:space:]]*admin[[:space:]]*\.[[:space:]]*create
 PATTERN_B='\.getFullYear\(\)|\.getMonth\(\)|\.getDate\(\)|\.getDay\(\)|\.setDate\('
 ALLOW='e2e-org-day: allow'
 
+# Scan every journey regardless of checkout depth or worktree metadata visibility.
+# A bind-mounted linked worktree cannot resolve its host gitdir in Linux; selecting
+# changed files there otherwise silently selects a different policy than on the host.
+FIXTURE_ALLOWLIST=$(cd "$(dirname "$0")" && pwd)/e2e-job-role-allowlist.txt
+fixture_allowed() {
+  local file reason restore
+  while IFS="|" read -r file reason restore; do
+    if [[ "$file" == "$1" && -n "$reason" && -n "$restore" ]]; then return 0; fi
+  done < "$FIXTURE_ALLOWLIST"
+  return 1
+}
+
 check_dir() {
-  local root="$1" role_scope="$2" rc=0 f line prev role_check changed_file
-  local -a changed=('')
-  if [[ "$role_scope" == changed ]]; then
-    local base
-    if base=$(git -C "$root" merge-base HEAD "${E2E_FIXTURE_BASE:-origin/dev}" 2>/dev/null); then
-      while IFS= read -r -d "" f; do changed+=("$f"); done < <(
-        git -C "$root" diff --relative --name-only -z "$base" -- e2e
-        git -C "$root" ls-files --others --exclude-standard -z -- e2e
-      )
-    else
-      # CI may have a shallow checkout with no base ref. Check every journey rather than fetching
-      # or letting an unavailable merge-base silently skip the fixture check.
-      role_scope=all
-    fi
-  fi
+  local root="$1" rc=0 f line prev
   while IFS= read -r f; do
     prev=""
-    role_check=0
-    if [[ "$role_scope" == all ]]; then
-      role_check=1
-    else
-      for changed_file in "${changed[@]}"; do
-        if [[ "$changed_file" == "${f#"$root"/}" ]]; then
-          role_check=1
-          break
-        fi
-      done
-    fi
     # Strip pure-comment lines (so the rule's own documentation never trips it) but KEEP allow-marker
     # lines, then judge each remaining line against the previous kept line (for a marker above).
     while IFS= read -r line; do
-      if [[ "$role_check" == 1 && "$line" =~ $CREATE_USER ]]; then
+      if [[ "$line" =~ $CREATE_USER ]] && ! fixture_allowed "${f#"$root"/e2e/}"; then
         echo "  direct user provisioning in $f: use jobRoleUser() from e2e/support/jobRole.ts" >&2
         rc=1
       fi
@@ -103,21 +90,20 @@ if [[ "${1:-}" == "--self-test" ]]; then
   rm "$tmp/e2e/comment.spec.ts"
   printf 'const y = d.getUTCFullYear(); // deliberate UTC pin\n' > "$tmp/e2e/utc.spec.ts"
   check_dir "$tmp" all >/dev/null || { echo "self-test FAIL: getUTC getter flagged" >&2; exit 1; }
-  # Exercise change selection from the app subdirectory inside a repository.
+  # Regression: available and unavailable Git metadata must enforce the same policy.
   app="$tmp/repo/pmo-portal"
   mkdir -p "$app/e2e"
   git -C "$tmp/repo" init -q
   printf 'await admin.auth.admin.createUser({ email, password });\n' > "$app/e2e/legacy.spec.ts"
   git -C "$tmp/repo" add .
   git -C "$tmp/repo" -c user.name=Fixture -c user.email=fixture@example.test commit -qm 'Seed guard case'
-  E2E_FIXTURE_BASE=HEAD check_dir "$app" changed || { echo "self-test FAIL: unchanged role setup flagged" >&2; exit 1; }
+  if E2E_FIXTURE_BASE=HEAD check_dir "$app" changed >/dev/null 2>&1; then echo "self-test FAIL: available base bypassed unchanged provisioning (CI parity)" >&2; exit 1; fi
   printf '\n// edited spec\n' >> "$app/e2e/legacy.spec.ts"
   if E2E_FIXTURE_BASE=HEAD check_dir "$app" changed >/dev/null 2>&1; then
     echo "self-test FAIL: edited spec bypassed job-role guard" >&2
     exit 1
   fi
-  # A shallow CI checkout may have no origin/dev ref. In that case unchanged legacy specs must
-  # still be checked; failing the merge-base lookup must never skip the role fixture guard.
+  # Also cover the missing-base case used by shallow and bind-mounted worktree checkouts.
   shallow="$tmp/shallow/pmo-portal"
   mkdir -p "$shallow/e2e"
   git -C "$tmp/shallow" init -q
@@ -132,11 +118,25 @@ if [[ "${1:-}" == "--self-test" ]]; then
     echo "$output" >&2
     exit 1
   fi
+  # Exceptions are exact paths with a reason and a restore path.
+  saved_allowlist="$FIXTURE_ALLOWLIST"
+  FIXTURE_ALLOWLIST="$tmp/allowlist"
+  printf 'exception.spec.ts|special provisioning|Extend fixture, convert, remove entry\ninvalid.spec.ts||\n' > "$FIXTURE_ALLOWLIST"
+  fixture_allowed exception.spec.ts || { echo "self-test FAIL: justified exception rejected" >&2; exit 1; }
+  if fixture_allowed invalid.spec.ts || fixture_allowed other.spec.ts; then echo "self-test FAIL: unjustified exception accepted" >&2; exit 1; fi
+  FIXTURE_ALLOWLIST="$saved_allowlist"
   echo "self-test OK"; exit 0
 fi
 
 root=$(cd "${1:-$(dirname "$0")/../pmo-portal}" && pwd)
-if check_dir "$root" changed; then
+while IFS="|" read -r file reason restore; do
+  [[ "$file" == "#"* || -z "$file" ]] && continue
+  if [[ -z "$reason" || -z "$restore" || ! -f "$root/e2e/$file" ]] || ! grep -Eq "$CREATE_USER" "$root/e2e/$file"; then
+    echo "ERROR: invalid or stale job-role exception: $file" >&2
+    exit 1
+  fi
+done < "$FIXTURE_ALLOWLIST"
+if check_dir "$root" all; then
   echo "e2e org-day OK ($(find "$root/e2e" -name '*.spec.ts' | wc -l | tr -d ' ') specs checked)"
 else
   echo "ERROR: use the shared journey fixtures for the cases above (#2917)." >&2
