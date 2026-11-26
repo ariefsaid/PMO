@@ -13,13 +13,14 @@ export async function listStageNames(): Promise<StageNameRow[]> {
   const { data, error } = await supabase
     .from('pipeline_stage_config')
     .select('status, label_en, label_id')
+    .order('status')
     .limit(STAGE_COUNT); // bounded: one row per stage key
   if (error) throw new AppError(error.message, error.code);
   return (data ?? []) as StageNameRow[];
 }
 
-/** `others` = the names the OTHER stages show in the same language. ponytail: compares against saved names
- *  and English shipped words only; a clash with a shipped Bahasa word is not caught (cosmetic, fixable by renaming). */
+/** `others` = the names the OTHER stages show in the same language; the caller passes the shipped wording
+ *  for any stage that has no name of its own in that language. */
 export function validateStageName(name: string, others: readonly string[]): 'tooLong' | 'duplicate' | null {
   const n = name.trim();
   if (!n) return null;

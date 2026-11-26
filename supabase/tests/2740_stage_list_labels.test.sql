@@ -3,7 +3,7 @@
 -- (b) add 'Project Manager' to pipeline_stage_config_write -> the PM case goes red;
 -- (c) restate seed_org_defaults with only the five pipeline rows -> the new-org count goes red.
 begin;
-select plan(14);
+select plan(16);
 
 insert into auth.users (id, email) values
   ('27400000-0000-0000-0000-0000000000a1','stg-admin@example.com'),
@@ -56,7 +56,9 @@ select throws_ok($$ update pipeline_stage_config set label_id = repeat('x', 41)
 insert into projects (id, org_id, name, status) values
   ('27400000-0000-0000-0000-000000000010','27400000-0000-0000-0000-000000000001','STG Deal','Tender Submitted');
 create temp table stg_before as
-  select count(*)::int as entries from project_stage_entries where project_id = '27400000-0000-0000-0000-000000000010';
+  select count(*)::int as entries, (select string_agg(x.k, ',' order by x.k) from (
+    select distinct s->>'status' as k from jsonb_array_elements(public.get_sales_pipeline()::jsonb->'stages') s) x) as keys
+  from project_stage_entries where project_id = '27400000-0000-0000-0000-000000000010';
 grant select on stg_before to authenticated;
 
 -- AC-STG-003: only an active Admin of the organisation renames.
@@ -88,6 +90,10 @@ select is((select status::text from projects where id = '27400000-0000-0000-0000
   'AC-STG-005 the deal''s stored status is unchanged by the rename');
 select is((select count(*)::int from project_stage_entries where project_id = '27400000-0000-0000-0000-000000000010'),
   (select entries from stg_before), 'AC-STG-005 the deal''s stage history is unchanged by the rename');
+select is((select string_agg(x.k, ',' order by x.k) from (
+    select distinct s->>'status' as k from jsonb_array_elements(public.get_sales_pipeline()::jsonb->'stages') s) x),
+  (select keys from stg_before), 'AC-STG-005 get_sales_pipeline reports the same stage keys after the rename');
+select ok((select keys from stg_before) like '%Tender Submitted%', 'AC-STG-005 the deal''s stage key is among them (the check is not vacuous)');
 
 select * from finish();
 rollback;

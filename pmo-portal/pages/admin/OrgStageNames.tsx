@@ -24,8 +24,8 @@ type Draft = { en: string; id: string };
 type Lang = 'en' | 'id';
 
 /** The names a stage's draft would show, per language, for the duplicate check across the whole list. */
-function shownName(row: StageNameRow, draft: Draft, lang: Lang): string {
-  return (draft[lang].trim() || (lang === 'en' ? shippedStatusLabel('project', row.status, english) : '')).toLowerCase();
+function shownName(row: StageNameRow, draft: Draft, lang: Lang, shipped: Record<Lang, (status: string) => string>): string {
+  return (draft[lang].trim() || shipped[lang](row.status)).toLowerCase();
 }
 
 const StageNamesCard: React.FC = () => {
@@ -51,6 +51,11 @@ const StageNamesCard: React.FC = () => {
   const [, bump] = useState(0);
   useEffect(() => { void Promise.resolve(i18n.loadLanguages?.('id')).then(() => bump((n) => n + 1)); }, [i18n]);
   const idT = i18n.getFixedT?.('id', 'status');
+  // A stage with no name of its own shows its shipped wording in that language, so it counts as that name.
+  const shippedBy: Record<Lang, (status: string) => string> = {
+    en: (status) => shippedStatusLabel('project', status, english),
+    id: (status) => shippedStatusLabel('project', status, idT ?? english),
+  };
   const saved = (r: StageNameRow): Draft => ({ en: r.label_en ?? '', id: r.label_id ?? '' });
   const draftOf = (r: StageNameRow): Draft => drafts[r.status] ?? saved(r);
   const dirty = rows.filter((r) => {
@@ -63,7 +68,7 @@ const StageNamesCard: React.FC = () => {
     for (const r of dirty) {
       const d = draftOf(r);
       const bad = (['en', 'id'] as const).map((lang) => {
-        const others = rows.filter((o) => o.status !== r.status).map((o) => shownName(o, draftOf(o), lang)).filter(Boolean);
+        const others = rows.filter((o) => o.status !== r.status).map((o) => shownName(o, draftOf(o), lang, shippedBy)).filter(Boolean);
         return validateStageName(d[lang], others);
       }).find(Boolean);
       if (bad) found[r.status] = bad === 'tooLong' ? t('admin.stageNames.tooLong', 'Use 40 characters or fewer') : t('admin.stageNames.duplicate', 'Another stage already has this name');

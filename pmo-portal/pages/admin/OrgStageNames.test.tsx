@@ -4,6 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
+// The Bahasa catalogue is not loaded in jsdom: give the placeholders' fixed translator one shipped Bahasa word.
+vi.mock('react-i18next', async (orig) => {
+  const actual = await orig<typeof import('react-i18next')>();
+  return {
+    ...actual,
+    useTranslation: (...args: Parameters<typeof actual.useTranslation>) => {
+      const r = actual.useTranslation(...args);
+      return { ...r, i18n: { ...r.i18n, loadLanguages: async () => {}, getFixedT: () => (k: string, d: string) => (String(k).endsWith('project.negotiation') ? 'Negosiasi' : d) } };
+    },
+  };
+});
+
 const permissions = vi.hoisted(() => ({ manage: true }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => permissions.manage }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
@@ -84,6 +96,15 @@ describe('Administration › stage names (#2906)', () => {
     await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByTestId('stage-name-error-Leads')).toBeInTheDocument();
     expect(screen.queryByTestId('stage-name-error-Tender Submitted')).toBeNull();
+  });
+
+  it('AC-STG-006: in Bahasa an unnamed stage counts under its shipped Bahasa name when checking for a duplicate', async () => {
+    wrap();
+    const leads = await screen.findByTestId('stage-name-row-Leads');
+    await userEvent.type(within(leads).getByLabelText('Leads, Bahasa Indonesia name'), 'negosiasi');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await within(leads).findByText('Another stage already has this name')).toBeInTheDocument();
+    expect(saveMock).not.toHaveBeenCalled();
   });
 
   it('one header row names the columns; inputs show the shipped name as placeholder', async () => {

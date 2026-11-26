@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom } }));
 
-import { saveStageName, validateStageName } from './stageNames';
+import { listStageNames, saveStageName, validateStageName } from './stageNames';
 
 describe('stage name validation (AC-STG-006)', () => {
   it('AC-STG-006: blank is allowed (back to shipped), over 40 characters and a taken name are refused', () => {
@@ -32,5 +32,16 @@ describe('saveStageName', () => {
   it('throws when the row policy let nothing change', async () => {
     chain({ data: [], error: null });
     await expect(saveStageName('Leads', { en: 'Prospect', id: '' })).rejects.toThrow();
+  });
+});
+
+describe('listStageNames', () => {
+  it('reads the twelve rows in a stable order', async () => {
+    const limit = vi.fn().mockResolvedValue({ data: [], error: null });
+    const order = vi.fn(() => ({ limit }));
+    mockFrom.mockReturnValue({ select: vi.fn(() => ({ order })) });
+    await listStageNames();
+    expect(order).toHaveBeenCalledWith('status');
+    expect(limit).toHaveBeenCalledWith(12);
   });
 });
