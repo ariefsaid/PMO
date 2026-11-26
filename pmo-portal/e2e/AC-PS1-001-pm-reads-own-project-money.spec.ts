@@ -22,6 +22,7 @@ test('AC-PS1-001 a Project Manager sees the money of their own project and none 
         status: 'Submitted', erp_docstatus: 1, pmo_native: false, author_user_id: null }).select('id').single()).id);
     }
     const [own, other] = ids;
+    const errors = page.getByRole('alert').filter({ hasText: /\S/ });   // the app keeps one empty live region; an error has words
     await pm.signIn(page);
     await pinEnglishLocale(page);
 
@@ -29,9 +30,9 @@ test('AC-PS1-001 a Project Manager sees the money of their own project and none 
     await page.goto('/projects');
     await expect(page.getByText(nameA)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(nameB)).toBeVisible();
-    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(errors).toHaveCount(0);
     await page.goto('/');
-    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(errors).toHaveCount(0);
 
     // Own project: the finance figures are there.
     await page.goto(`/projects/${own}`);
@@ -46,7 +47,7 @@ test('AC-PS1-001 a Project Manager sees the money of their own project and none 
     await expect(page.getByRole('heading', { name: nameB }).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('project-finances')).toHaveCount(0);
     await expect(page.getByTestId('money-position-details')).toHaveCount(0);
-    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(errors).toHaveCount(0);
   } finally {
     for (const id of invoices) await db.from('sales_invoices').delete().eq('id', id);
     for (const id of ids) { await db.from('record_changes').delete().eq('entity_id', id); await db.from('projects').delete().eq('id', id); }
