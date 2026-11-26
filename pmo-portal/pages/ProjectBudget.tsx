@@ -1045,6 +1045,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <CardHead className="pb-1">{t('projectDetail.budget.byCategory', 'Budget by category')}</CardHead>
           <CardPad className="pt-2">
             <StackedBar
+              minLabelledShare={15}
               ariaLabel={t('projectDetail.budget.byCategory', 'Budget by category')}
               otherLabel={t('projectDetail.budget.otherCategories', 'Other')}
               segments={enrichedRows.filter((row) => row.budget > 0).map((row) => ({
