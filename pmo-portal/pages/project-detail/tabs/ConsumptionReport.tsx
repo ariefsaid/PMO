@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, TextField } from '@/src/components/ui';
+import { ListState, StatusPill, SelectField } from '@/src/components/ui';
 import { useProjectConsumption } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -57,18 +57,25 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   const signed = (v: string) => (v.startsWith('-') || /^0(\.0+)?$/.test(v) ? formatQuantity(v, loc) : `+${formatQuantity(v, loc)}`);
 
   const r = q.data;
+  const monthOptions = React.useMemo(() => {
+    if (!range) return [];
+    const start = Number(range.fromMonth.slice(0, 4)) - 5;
+    const end = Number(range.toMonth.slice(0, 4)) + 5;
+    return Array.from({ length: Math.max(1, end - start + 1) * 12 }, (_, index) => {
+      const year = start + Math.floor(index / 12);
+      const month = String(index % 12 + 1).padStart(2, '0');
+      const value = `${year}-${month}`;
+      return { value, label: formatUtcMonthYearFull(new Date(`${value}-01T00:00:00Z`)) };
+    });
+  }, [range]);
   const showValue = (r?.months ?? []).some((m: ConsumptionMonthRow) => m.netValue !== undefined);
   const empty = !reversed && r && r.months.length === 0 && r.allowances.length === 0 && r.unplanned.length === 0;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {range && <div className="grid grid-cols-2 items-end gap-3">
-        <TextField label={t('consumption.from')} type="month" value={range.fromMonth} max={range.toMonth}
-          onChange={(value) => value && setRange({ ...range, fromMonth: value })}
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
-        <TextField label={t('consumption.to')} type="month" value={range.toMonth} min={range.fromMonth}
-          onChange={(value) => value && setRange({ ...range, toMonth: value })}
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
+        <SelectField label={t('consumption.from')} value={range.fromMonth} options={monthOptions} onChange={(value) => value && setRange({ ...range, fromMonth: value })} />
+        <SelectField label={t('consumption.to')} value={range.toMonth} options={monthOptions} onChange={(value) => value && setRange({ ...range, toMonth: value })} />
       </div>}
 
       {reversed && <p role="alert" className="text-sm text-destructive-text">{t('consumption.rangeReversed')}</p>}
