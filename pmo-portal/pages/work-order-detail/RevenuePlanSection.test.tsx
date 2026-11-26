@@ -47,8 +47,9 @@ describe('RevenuePlanSection (#2671)', () => {
   it('AC-WRP-011 a work order with no plan says "No plan entered", not a zero gap', () => {
     state.query = ok(figures({ hasPlan: false, planToDate: '0.00', gap: '300.00', planTotal: '0.00', series: [] }));
     renderIt();
-    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe('No plan entered');
-    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe('No plan entered');
+    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe('—');
+    expect(screen.getByText('No plan entered')).toBeTruthy();
+    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe('—');
   });
   it('AC-WRP-009 a refused caller sees "restricted", never a zero', () => {
     state.query = { data: undefined, isPending: false, isError: true, error: { code: '42501' }, refetch: vi.fn() };
