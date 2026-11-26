@@ -31,14 +31,14 @@ export function RoleChecklist({ legend, hideLegend, helper, describedBy, options
   const toggle = (key: string, on: boolean) => onChange(on ? [...value, key] : value.filter((k) => k !== key));
   const described = [helper ? helperId : null, describedBy].filter(Boolean).join(' ') || undefined;
   return (
-    <fieldset className="min-w-0" aria-describedby={described}>
+    <fieldset className="m-0 min-w-0 border-0 p-0" aria-describedby={described}>
       <legend className={hideLegend ? 'sr-only' : 'text-control font-medium text-foreground'}>{legend}</legend>
-      {helper && <p id={helperId} className="text-control text-muted-foreground">{helper}</p>}
+      {helper && <p id={helperId} className="mt-1 text-control text-muted-foreground">{helper}</p>}
       <div className="mt-2 flex min-h-8 flex-wrap items-center gap-2">
         {chosen.length === 0
           ? <span className="text-control text-muted-foreground">{t('administration:roleChecklist.none', 'No role chosen')}</span>
           : chosen.map((o) => (
-            <span key={o.key} className="inline-flex h-7 items-center rounded-full border border-border bg-secondary px-2.5 text-control">{o.name}</span>
+            <span key={o.key} data-layout-ignore className="inline-flex h-7 items-center rounded-full border border-border bg-secondary px-2.5 text-control">{o.name}</span>
           ))}
         {!disabled && (
           <Button variant="outline" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((v) => !v)}>
