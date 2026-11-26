@@ -333,6 +333,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       align: 'num',
       // N2: wide enough for a full IDR figure so neighbouring totals never touch.
       size: 135,
+      minSize: 135,
       cell: (row) => (
         <span data-testid="pack-cell-contract" className="tabular text-right text-control">
           {money(row.contractNet, row.currency)}
@@ -342,7 +343,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     ...(['recognisedToDate', 'invoicedToDate', 'unbilled', 'leftToBill'] as Measure[]).map((k): Column<PackRow> => ({
       key: k,
       header: k === 'recognisedToDate' ? t('financeHub:managementPack.col.earned', 'Earned') : k === 'invoicedToDate' ? t('managementPack.col.invoiced', 'Invoiced') : label[k],
-      kind: 'money', align: 'num', size: 135, cell: measureCell(k),
+      kind: 'money', align: 'num', size: 135, minSize: 135, cell: measureCell(k),
     })),
     {
       key: 'invoiceCount',
@@ -602,6 +603,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
                 value={tile?.value ?? null}
                 exactValue={tile?.exactValue}
                 caption={spec.caption && tile ? spec.caption(homeMonth, homeCurrency) : undefined}
+                captionWrap
                 unavailableReason={tile ? undefined : spec.key === 'leftToBill' ? leftToBillReason : unpricedSpec(spec) ? unpricedReason : t('financeHub:managementPack.figures.unknownReason', 'a foreign-currency invoice needs reconciliation')}
                 hiddenLink={spec.key === 'leftToBill' || unpricedSpec(spec) ? reviewInvoices : { to: '/finance/receivables', label: t('financeHub:managementPack.figures.reconcile', 'Open invoices') }}
               />
