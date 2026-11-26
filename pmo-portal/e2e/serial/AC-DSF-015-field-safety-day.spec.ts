@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, pinEnglishLocale } from '../helpers';
-import { orgToday } from '../support/jobJourney';
+import { orgDay } from '../support/orgDay';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 import { openWorkOrderArea } from '../support/workOrderArea';
 
@@ -33,13 +33,14 @@ let personIds: string[] = [];
 let listIds: string[] = [];
 let flagBefore = false;
 let tag = '';
-const today = orgToday; // the organisation's day: the screen reads it, not the runner's
+let today = '';
 const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`AC-DSF-015 fixture ${step}: ${e.message}`); };
 
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('AC-DSF-015 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
+  today = await orgDay();
   tag = `DSF-015 ${Date.now()}`;
   const org = await admin.from('organizations').select('safety_records_enabled').eq('id', ORG_ID).single();
   fail('org', org.error);
@@ -59,7 +60,7 @@ test.beforeEach(async () => {
   fail('members', (await admin.from('crew_members').insert(personIds.map((worker_id) => ({ org_id: ORG_ID, crew_id: crewId, worker_id, valid_from: start })))).error);
   fail('roster', (await admin.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: woId, crew_id: crewId, valid_from: start })).error);
   fail('attendance', (await admin.from('attendance_days').insert(personIds.map((worker_id) => ({
-    org_id: ORG_ID, worker_id, work_order_id: woId, project_id: projectId, work_date: today(), status: 'present', hours: 8, source: 'manual_correction',
+    org_id: ORG_ID, worker_id, work_order_id: woId, project_id: projectId, work_date: today, status: 'present', hours: 8, source: 'manual_correction',
   })))).error);
   const items = await admin.from('safety_list_items').insert([
     { org_id: ORG_ID, kind: 'checklist_item', label: `${tag} Area barricaded`, position: 1 },
@@ -132,7 +133,7 @@ test('AC-DSF-015 a field Engineer records and submits today\'s safety day on a p
 
   await page.goto(`/work-orders/${woId}`);
   await openWorkOrderArea(page, 'documents');
-  const today1 = page.getByTestId('safety-day-row').filter({ has: page.locator(`[data-date="${today()}"]`) }).or(page.locator(`[data-testid="safety-day-row"][data-date="${today()}"]`)).first();
+  const today1 = page.getByTestId('safety-day-row').filter({ has: page.locator(`[data-date="${today}"]`) }).or(page.locator(`[data-testid="safety-day-row"][data-date="${today}"]`)).first();
   await expect(today1).toHaveAttribute('data-complete', 'yes', { timeout: 15_000 });
   await expect(today1).toContainText('Complete');
 });

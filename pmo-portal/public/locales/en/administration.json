@@ -753,6 +753,7 @@
         "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
       },
       "setup": {
+        "readError": "Couldn't check field setup",
         "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
         "linkAction": "Link them to a person",
         "noCrew": "Not in any crew, so they have no work to check in to.",

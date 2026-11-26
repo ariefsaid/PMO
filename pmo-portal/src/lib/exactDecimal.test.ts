@@ -108,9 +108,15 @@ describe('mulRound', () => {
 describe('sumDecimal', () => {
   it('sums exactly where floats drift and skips null and malformed entries', () => {
     expect(sumDecimal(['0.10', '0.20', null], 2)).toBe('0.30');
-    expect(sumDecimal(['1.005', '1.00'], 2)).toBe('1.00');
+    expect(sumDecimal(['invalid', '1.00'], 2)).toBe('1.00');
     expect(sumDecimal([null], 2)).toBe('0.00');
     expect(sumDecimal(['-1.23', '0.23'], 2)).toBe('-1.00');
+  });
+  it('rounds the exact total once, including finer inputs', () => {
+    expect(sumDecimal(['1.005'], 2)).toBe('1.01');
+    expect(sumDecimal(['1.005', '1.00'], 2)).toBe('2.01');
+    expect(sumDecimal(['0.005', '0.005'], 2)).toBe('0.01');
+    expect(sumDecimal(['-1.005'], 2)).toBe('-1.01');
   });
   it('keeps large sums exact, past the float integer limit', () => {
     expect(sumDecimal(['9007199254740993.99', '0.01'], 2)).toBe('9007199254740994.00');
