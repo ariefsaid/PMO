@@ -1,4 +1,10 @@
 -- Access scope. Rollback: rollback/2760_access_scope_down.sql
+-- drops: create_procurement_with_items(uuid,jsonb,jsonb) | "or v_intent.header is distinct from p_header or v_intent.items is distinct from p_items) then" | compare all fields for price-visible callers; omit hidden supplier and rates for price-hidden callers
+-- drops: create_procurement_with_items(uuid,jsonb,jsonb) | "or v_parent.vendor_id is distinct from v_vendor or v_parent.budget_category is distinct from v_category" | retain category comparison and compare supplier for price-visible callers
+-- drops: create_procurement_with_items(uuid,jsonb,jsonb) | "or v_existing.quantity is distinct from round(v_item.quantity,2) or v_existing.rate is distinct from round(v_item.rate,2)" | retain quantity comparison and compare rates for price-visible callers
+-- drops: extend_rental_procurement(uuid,uuid,date,date,jsonb) | "select * into v_o from public.procurements where id = p_original and org_id = v_org;" | retain id and organisation predicates and require masked procurement visibility
+-- drops: po_needed_by_required_from_of(uuid) | "select (select o.po_needed_by_required_from from public.organizations o where o.id = p_org)" | retain organisation lookup and require active membership in the caller organisation
+-- drops: stock_handover_scope_of(uuid) | "select coalesce((select o.stock_handover_scope from public.organizations o where o.id = p_org), 'transfers')" | retain organisation lookup and default while requiring active membership in the caller organisation
 -- drops: the prior settings and rental lookup predicates and two retry comparisons; these gain caller-aware scope.
 alter policy storage_objects_qcr_file_read on storage.objects to authenticated;
 alter policy storage_objects_qcr_file_write on storage.objects to authenticated;
