@@ -316,7 +316,7 @@ function DataTableRowInner<Row>({
             {...(col.rowHeader ? { scope: 'row' as const } : {})}
             style={{
               width: columnWidthVar(col.key),
-              ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}),
+              minWidth: columnMinSize(col) ?? 120,
               ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}),
             }}
             className={cn(
@@ -714,8 +714,8 @@ export function DataTableDesktop<Row>({
                   aria-labelledby={`datatable-header-label-${tableInstanceId}-${col.key}`}
                   aria-describedby={col.caveat ? caveatId : undefined}
                   style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
-                    ? { width: columnWidthVar(col.key), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
-                    : undefined}
+                    ? { width: columnWidthVar(col.key), minWidth: columnMinSize(col) ?? 120, ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
+                    : { minWidth: columnMinSize(col) ?? 120 }}
                   className={cn(
                     'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] text-control font-semibold text-foreground break-normal select-none',
                     col.stickyLeft && 'left-0 z-[3]',
