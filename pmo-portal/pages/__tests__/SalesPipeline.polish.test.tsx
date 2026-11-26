@@ -26,8 +26,8 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn((media: string) => ({ matches: true, media, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 
-it('shows the pipeline figures and filters deals from Needs attention', async () => {
-  page();
+it('shows the pipeline figures and filters the sales table from Needs attention', async () => {
+  page('/sales?view=table');
 
   const summary = within(screen.getByRole('region', { name: 'Pipeline summary' }));
   const attention = within(screen.getByRole('region', { name: 'Needs attention' }));
