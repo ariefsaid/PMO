@@ -37,7 +37,7 @@ const OrgClaimOverCap: React.FC = () => {
   });
 
   return (
-    <section id="org-claim-over-cap" tabIndex={-1} className="scroll-mt-4 mt-8 border-t border-border pt-6" aria-labelledby="org-claim-over-cap-heading">
+    <section id="org-claim-over-cap" tabIndex={-1} className="scroll-mt-4" aria-labelledby="org-claim-over-cap-heading">
       <h2 id="org-claim-over-cap-heading" className="text-group font-semibold tracking-[-0.01em]">
         {t('admin.claimOverCap.title', 'Claims over the claimable quantity')}
       </h2>

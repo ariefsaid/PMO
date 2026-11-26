@@ -5,7 +5,7 @@ import React, { useContext, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
-import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -59,6 +59,7 @@ import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgAttendanceTimeRoles from './admin/OrgAttendanceTimeRoles';
 import OrgModules from './admin/OrgModules';
 import { ModuleGate } from '@/src/components/admin/ModuleGate';
+import { SettingsGroup, SettingsGroups } from '@/src/components/admin/SettingsGroup';
 import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
 import WorkOrderCheckTemplate from './admin/WorkOrderCheckTemplate';
@@ -120,6 +121,46 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   features: 'Features',
 };
 
+/** The sections grouped by the job they serve, in the order the side navigation lists them (#1126). */
+type NavGroup = 'access' | 'setup' | 'connections' | 'plan';
+const NAV_GROUPS: ReadonlyArray<{ id: NavGroup; sections: ReadonlyArray<AdministrationSection> }> = [
+  { id: 'access', sections: ['users', 'people', 'document-types', 'clearance'] },
+  { id: 'setup', sections: ['modules', 'accounting', 'projects', 'cost-attribution', 'terminology', 'document-categories', 'exchange-rates'] },
+  { id: 'connections', sections: ['integrations', 'scheduled-reports'] },
+  { id: 'plan', sections: ['plan', 'credits'] },
+];
+
+const navGroupLabel = (t: TFunction, id: NavGroup): string => {
+  switch (id) {
+    case 'access': return t('admin.navGroups.access', 'People and access');
+    case 'setup': return t('admin.navGroups.setup', 'Setup');
+    case 'connections': return t('admin.navGroups.connections', 'Connections');
+    case 'plan': return t('admin.navGroups.plan', 'Plan');
+  }
+};
+
+/** The setting groups on the two long setup pages, by job (#1126). The side navigation links to each one. */
+type SettingsGroupId =
+  | 'accounting-tax' | 'accounting-approvals' | 'accounting-orders' | 'accounting-posting'
+  | 'projects-numbering' | 'projects-site' | 'projects-work-orders' | 'projects-issues';
+const SETTINGS_GROUPS: Partial<Record<AdministrationSection, ReadonlyArray<SettingsGroupId>>> = {
+  accounting: ['accounting-tax', 'accounting-approvals', 'accounting-orders', 'accounting-posting'],
+  projects: ['projects-numbering', 'projects-site', 'projects-work-orders', 'projects-issues'],
+};
+
+const settingsGroupLabel = (t: TFunction, id: SettingsGroupId): string => {
+  switch (id) {
+    case 'accounting-tax': return t('admin.settingsGroups.accountingTax', 'Tax and fiscal year');
+    case 'accounting-approvals': return t('admin.settingsGroups.accountingApprovals', 'Approvals and checks');
+    case 'accounting-orders': return t('admin.settingsGroups.accountingOrders', 'Purchase orders');
+    case 'accounting-posting': return t('admin.settingsGroups.accountingPosting', 'Costs and account mapping');
+    case 'projects-numbering': return t('admin.settingsGroups.projectsNumbering', 'Numbering and project lists');
+    case 'projects-site': return t('admin.settingsGroups.projectsSite', 'Daily site reports');
+    case 'projects-work-orders': return t('admin.settingsGroups.projectsWorkOrders', 'Work orders');
+    case 'projects-issues': return t('admin.settingsGroups.projectsIssues', 'Issues');
+  }
+};
+
 /**
  * Section labels resolved through i18n. Reference every key STATICALLY: the completeness gate
  * (scripts/check-i18n-completeness.mjs) collects only literal `t('key')` references, so a computed
@@ -179,35 +220,15 @@ const AdministrationNavigation: React.FC<{
   showAllSettings?: boolean;
 }> = ({ section, sections, isOperator, label, showAllSettings }) => {
   const { t } = useTranslation();
-  const linkClass = (active: boolean) =>
-    cn(
-      'touch-target flex min-h-11 min-w-0 shrink-0 items-center justify-center rounded-md px-3 py-1.5 text-center text-control leading-tight transition-colors md:min-h-0 md:shrink',
-      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-      active
-        ? 'bg-background font-semibold text-nav-active-text shadow-sm'
-        : 'text-foreground hover:bg-accent hover:text-accent-foreground',
-    );
-
-  const links = (items: ReadonlyArray<AdministrationSection>) =>
-    items.map((id) => (
-      <Link
-        key={id}
-        to={`/administration/${id}`}
-        aria-current={section === id ? 'page' : undefined}
-        className={linkClass(section === id)}
-      >
-        {label(id)}
-      </Link>
-    ));
-
   const listed = [...ORGANIZATION_SECTIONS, 'clearance' as const, 'cost-attribution' as const, 'scheduled-reports' as const].filter((id) => sections.includes(id));
   const operatorListed = isOperator ? OPERATOR_SECTIONS : [];
-  const narrow = useIsNarrow();
+  // Below the side-navigation width (768px) every section sits in one picker.
+  const narrow = !useIsDesktop();
   const navigate = useNavigate();
+  const ariaLabel = t('admin.nav.ariaLabel', 'Administration sections');
 
   if (narrow) {
     // A phone shows every section in one control instead of a strip that scrolls out of sight.
-    const ariaLabel = t('admin.nav.ariaLabel', 'Administration sections');
     return (
       <nav aria-label={ariaLabel} className="mb-4 min-w-0">
         <select
@@ -225,25 +246,72 @@ const AdministrationNavigation: React.FC<{
     );
   }
 
+  // Wider screens: one list down the side, grouped by the job each section serves; the open section lists its own
+  // setting groups under it, so a setting is found by what it does without scrolling a long page (#1126).
+  const groups = NAV_GROUPS
+    .map((g) => ({ id: g.id, items: g.sections.filter((id) => listed.includes(id)) }))
+    .filter((g) => g.items.length > 0);
+  const ungrouped = listed.filter((id) => !NAV_GROUPS.some((g) => g.sections.includes(id)));
+  const subGroups = SETTINGS_GROUPS[section] ?? [];
+  const groupHeading = 'px-3 pb-1 text-control font-medium text-muted-foreground';
+  const item = (id: AdministrationSection) => (
+    <li key={id}>
+      <Link to={`/administration/${id}`} aria-current={section === id ? 'page' : undefined} className={sideLinkClass(section === id)}>
+        {label(id)}
+      </Link>
+      {section === id && subGroups.length > 0 && (
+        <ul className="mb-1 mt-0.5 space-y-0.5 border-l border-border pl-2 ml-3">
+          {subGroups.map((g) => (
+            <li key={g}>
+              <a href={`#${g}`} className="flex min-h-8 items-center rounded-md px-2 text-control text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                {settingsGroupLabel(t, g)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+
   return (
-    <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-4 min-w-0 md:mb-6">
-      <div className="grid min-w-0 max-w-full grid-cols-2 items-stretch gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap md:items-center">
-        {links(listed)}
-        {showAllSettings && (
-          <Link to="/administration/all-settings" className={linkClass(false)}>{t('allSettings.title', 'All settings')}</Link>
-        )}
-        {operatorListed.length > 0 && (
-          <>
-            <span className="shrink-0 px-1 text-control font-semibold text-muted-foreground md:ml-1 md:self-center">
-              {t('admin.nav.platform', 'Platform')}
-            </span>
-            {links(operatorListed)}
-          </>
-        )}
-      </div>
+    <nav aria-label={ariaLabel} className="mb-4 min-w-0 md:mb-0 md:sticky md:top-0 md:self-start">
+      {groups.map((g) => (
+        <div key={g.id} className="mt-5 first:mt-0">
+          <p className={groupHeading}>{navGroupLabel(t, g.id)}</p>
+          <ul className="space-y-0.5">{g.items.map(item)}</ul>
+        </div>
+      ))}
+      {ungrouped.length > 0 && <ul className="mt-2 space-y-0.5">{ungrouped.map(item)}</ul>}
+      {showAllSettings && (
+        <ul className="mt-3 border-t border-border pt-3">
+          <li><Link to="/administration/all-settings" className={sideLinkClass(false)}>{t('allSettings.title', 'All settings')}</Link></li>
+        </ul>
+      )}
+      {operatorListed.length > 0 && (
+        <div className="mt-5">
+          <p className={groupHeading}>{t('admin.nav.platform', 'Platform')}</p>
+          <ul className="space-y-0.5">{operatorListed.map(item)}</ul>
+        </div>
+      )}
     </nav>
   );
 };
+
+/** Side-navigation link: 32px row on desktop, the open section on the selected surface. */
+const sideLinkClass = (active: boolean) =>
+  cn(
+    'flex min-h-8 min-w-0 items-center rounded-md px-3 py-1 text-control leading-tight transition-colors',
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+    active ? 'bg-secondary font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent hover:text-accent-foreground',
+  );
+
+/** The frame every Administration section shares: the side navigation beside the section's content (#1126). */
+const AdministrationFrame: React.FC<{ nav: React.ReactNode; children: React.ReactNode }> = ({ nav, children }) => !nav ? <>{children}</> : (
+  <div className="min-w-0 md:grid md:grid-cols-[12rem_minmax(0,1fr)] md:gap-6 xl:grid-cols-[13.5rem_minmax(0,1fr)] xl:gap-8">
+    {nav}
+    <div className="min-w-0">{children}</div>
+  </div>
+);
 
 const OperatorMembershipPending: React.FC = () => {
   const { t } = useTranslation();
@@ -293,7 +361,7 @@ const SelectedAdministrationPanel: React.FC<{
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
 }> = ({ section, orgId, isOperator, label }) => {
-  const { t } = useTranslation(['billingSteps', 'siteReport']);
+  const { t } = useTranslation(['common', 'billingSteps', 'siteReport']);
   switch (section) {
     case 'users':
       return (
@@ -340,29 +408,37 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <SectionName name={label('accounting')} />
-          <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
-            <StockIssueCostSettings />
-            <OrgTaxDefault />
-            <OrgFiscalYearStart />
-            <SpendApprovers />
-            <OrgWithholdingAccount />
-            <OrgVendorTaxAccounts />
-            <OrgDownPaymentItem />
-            <OrgClaimOverCap />
-            <OrgProcurementGates />
-            <div id="work-order-checklist" className="scroll-mt-4">
-              <OrgSwitchSetting setting="workOrderChecklist"
-                label={t('billingSteps:settings.workOrderChecklist.label', 'Edit issued work-order checklists')}
-                helper={t('billingSteps:settings.workOrderChecklist.helper', 'When on, billing-step runners can add steps to issued work orders, and Finance or an Admin can save a checklist as a template for new work orders.')} />
-            </div>
-            <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /><OrderJobRolesSection /></ModuleGate>
-            <OrgThreeWayMatch />
-            <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
-            <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
-            <OrgOrderNeededBy />
-            <BudgetAccountMap />
-            <ExpenseAccountMap />
-          </div>
+          <SettingsGroups>
+            <SettingsGroup id="accounting-tax" title={settingsGroupLabel(t, 'accounting-tax')}>
+              <OrgTaxDefault />
+              <OrgFiscalYearStart />
+              <OrgWithholdingAccount />
+              <OrgVendorTaxAccounts />
+              <OrgDownPaymentItem />
+            </SettingsGroup>
+            <SettingsGroup id="accounting-approvals" title={settingsGroupLabel(t, 'accounting-approvals')}>
+              <SpendApprovers />
+              <OrgProcurementGates />
+              <OrgThreeWayMatch />
+              <OrgClaimOverCap />
+              <div id="work-order-checklist" className="scroll-mt-4">
+                <OrgSwitchSetting setting="workOrderChecklist"
+                  label={t('billingSteps:settings.workOrderChecklist.label', 'Edit issued work-order checklists')}
+                  helper={t('billingSteps:settings.workOrderChecklist.helper', 'When on, billing-step runners can add steps to issued work orders, and Finance or an Admin can save a checklist as a template for new work orders.')} />
+              </div>
+            </SettingsGroup>
+            <SettingsGroup id="accounting-orders" title={settingsGroupLabel(t, 'accounting-orders')}>
+              <ModuleGate module="modulePurchasingExtras"><OrderJobRolesSection /><PurchaseOrderSettingsSection /></ModuleGate>
+              <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
+              <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
+              <OrgOrderNeededBy />
+            </SettingsGroup>
+            <SettingsGroup id="accounting-posting" title={settingsGroupLabel(t, 'accounting-posting')}>
+              <StockIssueCostSettings />
+              <BudgetAccountMap />
+              <ExpenseAccountMap />
+            </SettingsGroup>
+          </SettingsGroups>
         </div>
       );
     case 'cost-attribution':
@@ -376,28 +452,36 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-projects" className="min-w-0">
           <SectionName name={label('projects')} />
-          <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
-            <OrgProjectNumberPattern />
-            <OrgProjectClassificationOptions />
-            <SiteReportLists />
-            <DailyReportValidateRoles />
-            <OrgSwitchSetting setting="qsReportRevenue"
-              label={t('siteReport:revenue.qsAccess', 'Quantity Surveyors see validated daily report revenue')}
-              helper={t('siteReport:revenue.qsAccessHelp', 'Shows frozen rates and amounts for one validated report. Other revenue and cost permissions stay unchanged.')} />
-            <OrgIssueTypes />
-            <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
-            <NonWorkingDatesCard />
-            <SiteCheckpointTemplate />
-            <WorkOrderCheckTemplate />
-            <ModuleGate module="moduleSiteDay"><SafetyLists /></ModuleGate>
-            <CostDisciplines />
-            <WorkOrderCloseoutTemplate />
-            <WorkOrderLists />
-            <ModuleGate module="moduleSiteDay"><OrgPerformanceIndices /></ModuleGate>
-            <OrgAttendanceTarget />
-            <OrgWorkInHandCapacity />
-            <IssueClosingReportSettings />
-          </div>
+          <SettingsGroups>
+            <SettingsGroup id="projects-numbering" title={settingsGroupLabel(t, 'projects-numbering')}>
+              <OrgProjectNumberPattern />
+              <OrgProjectClassificationOptions />
+              <CostDisciplines />
+            </SettingsGroup>
+            <SettingsGroup id="projects-site" title={settingsGroupLabel(t, 'projects-site')}>
+              <SiteReportLists />
+              <DailyReportValidateRoles />
+              <OrgSwitchSetting setting="qsReportRevenue"
+                label={t('siteReport:revenue.qsAccess', 'Quantity Surveyors see validated daily report revenue')}
+                helper={t('siteReport:revenue.qsAccessHelp', 'Shows frozen rates and amounts for one validated report. Other revenue and cost permissions stay unchanged.')} />
+              <SiteCheckpointTemplate />
+              <ModuleGate module="moduleSiteDay"><SafetyLists /></ModuleGate>
+              <NonWorkingDatesCard />
+              <OrgAttendanceTarget />
+              <ModuleGate module="moduleSiteDay"><OrgPerformanceIndices /></ModuleGate>
+            </SettingsGroup>
+            <SettingsGroup id="projects-work-orders" title={settingsGroupLabel(t, 'projects-work-orders')}>
+              <WorkOrderLists />
+              <WorkOrderCheckTemplate />
+              <WorkOrderCloseoutTemplate />
+              <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
+              <OrgWorkInHandCapacity />
+            </SettingsGroup>
+            <SettingsGroup id="projects-issues" title={settingsGroupLabel(t, 'projects-issues')}>
+              <OrgIssueTypes />
+              <IssueClosingReportSettings />
+            </SettingsGroup>
+          </SettingsGroups>
         </div>
       );
     case 'plan':
@@ -543,15 +627,14 @@ const Administration: React.FC = () => {
       {operatorMembership.isPending && needsOperatorCheck ? (
         <OperatorMembershipPending />
       ) : operatorMembership.isError && needsOperatorCheck ? (
-        <>
-          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />}
+        <AdministrationFrame nav={isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />}>
           <ListState
             variant="error"
             title={t('admin.access.verifyError', 'Could not verify access')}
             sub={t('admin.access.verifyErrorSub', 'Try again to open Administration controls.')}
             onRetry={operatorMembership.retry}
           />
-        </>
+        </AdministrationFrame>
       ) : !canEnterAdministration ? (
         <GateNotice variant="blocked">
           {t(
@@ -560,46 +643,41 @@ const Administration: React.FC = () => {
           )}
         </GateNotice>
       ) : fxRoute && !canFx ? (
-        <>
-          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
+        <AdministrationFrame nav={isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}>
           <GateNotice variant="blocked">
             {t('fx.denied', 'Exchange rates are available to Finance and Admin.')}
           </GateNotice>
-        </>
+        </AdministrationFrame>
       ) : section === 'document-categories' && !canManageDocumentCategories ? (
-        <>
-          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
+        <AdministrationFrame nav={isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}>
           <GateNotice variant="blocked">
             {t('administration:documentCategories.denied', 'Document categories are managed by an Admin.')}
           </GateNotice>
-        </>
+        </AdministrationFrame>
       ) : section === 'scheduled-reports' && !canManageScheduledReports ? (
-        <>
-          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
+        <AdministrationFrame nav={isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}>
           <GateNotice variant="blocked">
             {t('emailNotifications:scheduled.denied', 'Scheduled reports are managed by an Admin or an enabled Project Control Manager.')}
           </GateNotice>
-        </>
+        </AdministrationFrame>
       ) : operatorRoute && !isOperator ? (
-        <>
-          <AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />
+        <AdministrationFrame nav={<AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />}>
           <GateNotice variant="blocked">
             {t(
               'admin.access.operatorOnly',
               'Operator-only access: Usage and Features are available to platform Operators.',
             )}
           </GateNotice>
-        </>
+        </AdministrationFrame>
       ) : (
-        <>
-          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} showAllSettings={isAdminViewer} />
+        <AdministrationFrame nav={<AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} showAllSettings={isAdminViewer} />}>
           <SelectedAdministrationPanel
             section={section}
             orgId={currentUser?.org_id ?? ''}
             isOperator={isOperator}
             label={label}
           />
-        </>
+        </AdministrationFrame>
       )}
     </div>
   );

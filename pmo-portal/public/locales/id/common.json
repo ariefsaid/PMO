@@ -981,6 +981,22 @@
         "save": "Tambah",
         "projectLoadError": "Tidak bisa memuat daftar proyek"
       }
+    },
+    "navGroups": {
+      "access": "Orang dan akses",
+      "setup": "Penyiapan",
+      "connections": "Koneksi",
+      "plan": "Paket"
+    },
+    "settingsGroups": {
+      "accountingTax": "Pajak dan tahun buku",
+      "accountingApprovals": "Persetujuan dan pemeriksaan",
+      "accountingOrders": "Pesanan pembelian",
+      "accountingPosting": "Biaya dan pemetaan akun",
+      "projectsNumbering": "Penomoran dan daftar proyek",
+      "projectsSite": "Laporan harian lapangan",
+      "projectsWorkOrders": "Perintah kerja",
+      "projectsIssues": "Masalah"
     }
   },
   "approvals": {
