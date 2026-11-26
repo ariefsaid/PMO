@@ -632,6 +632,8 @@ jobs:
         run: node scripts/check-isolation-denominator.mjs --self-test
       - name: Isolation denominator guard
         run: node scripts/check-isolation-denominator.mjs
+      - name: Schema registration scratch proof
+        run: scripts/with-db-lock.sh node --test scripts/check-schema-registrations.test.mjs
       - name: Isolation proof self-test
         run: scripts/isolation-proof.sh --self-test
 

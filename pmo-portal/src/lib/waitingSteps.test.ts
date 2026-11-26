@@ -26,7 +26,12 @@ describe('summariseWaitingSteps (AC-CBS-012)', () => {
     expect(summariseWaitingSteps([step(), step({ stageId: 's2', projectId: 'p2' })])?.href).toBe('/projects');
   });
 
+  it('opens the waiting claim directly when one billing step waits', () => {
+    expect(summariseWaitingSteps([step({ claimId: 'claim 1' })])?.href)
+      .toBe('/projects/p1/billing?open=claim%201&openType=billingClaim');
+  });
+
   it('encodes the project id in the link', () => {
-    expect(summariseWaitingSteps([step({ projectId: 'a b' })])?.href).toBe('/projects/a%20b/billing');
+    expect(summariseWaitingSteps([step({ projectId: 'a b' })])?.href).toBe('/projects/a%20b/billing?open=c1&openType=billingClaim');
   });
 });

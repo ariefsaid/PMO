@@ -8,9 +8,9 @@
  * silent drop into a red check: `create or replace function` is compared with the newest earlier definition
  * of the same name + argument types, and a line of that definition missing from the new body fails.
  *
- * The escape hatch is deliberate and visible: a migration may carry `-- drops: <reason>` (anywhere in the
- * file, reason non-empty). Then its restatements are an ACCEPTED exemption, and the guard still prints
- * which function lost which lines and where they came from, so the reviewer sees it in the CI log.
+ * List each removed line as `-- drops: signature(types) | "exact trimmed SQL" | reason`.
+ * Use JSON string escaping for SQL containing double quotes or backslashes. Repeat the note for
+ * each removed occurrence. Historical prose notes are pinned to their original line sets.
  *
  * HISTORY: migrations numbered below FLOOR (the first one written with this rule in place) are exempt —
  * they are already applied, and retro-fitting a marker into them would rewrite the migration history the
@@ -28,6 +28,7 @@
  * Run: node scripts/check-restated-functions.mjs [--floor N] [--self-test]
  */
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -193,6 +194,28 @@ export function dropMarkers(sql) {
     .filter(Boolean);
 }
 
+const historicalDrops = new Set(JSON.parse(fs.readFileSync(
+  new URL('./restated-function-history.json', import.meta.url), 'utf8',
+)));
+
+function dropFingerprint(file, key, previous, missing) {
+  return createHash('sha256').update(JSON.stringify([file, key, previous, missing])).digest('hex');
+}
+
+function listedDrops(markers, key) {
+  const listed = [];
+  for (const marker of markers) {
+    const match = /^(.*?) \| ("(?:[^"\\]|\\.)*") \| (\S.*)$/.exec(marker);
+    if (match?.[1] !== key) continue;
+    try {
+      listed.push(JSON.parse(match[2]));
+    } catch {
+      // Malformed JSON cannot exempt a line.
+    }
+  }
+  return listed;
+}
+
 /**
  * files: [{name, number, sql}] in apply order. Returns {problems, exemptions, checked, scanned, unread}.
  * A problem is a line the restated body dropped without the file carrying a marker; an exemption is the
@@ -220,13 +243,16 @@ export function analyze(files, { floor = FLOOR } = {}) {
       if (previous && restates) {
         const lines = bodyLines(definition.body);
         const missing = droppedLines(previous.lines, lines);
-        if (missing.length > 0) {
-          const where = `${file.name} ${definition.name}(${definition.args || ''}) drops ${missing.length} line${missing.length === 1 ? '' : 's'} of its definition in ${previous.file}`;
-          const sample = missing.slice(0, 3).map((line) => JSON.stringify(line.slice(0, 100))).join(', ');
-          const detail = `${where}: ${sample}${missing.length > 3 ? `, … ${missing.length - 3} more` : ''}`;
-          if (file.number >= floor) {
-            if (markers.length > 0) exemptions.push(`${detail} — exempt: -- drops: ${markers[0]}`);
-            else problems.push(`supabase/migrations/${detail} — add one \`-- drops: <reason>\` line naming what the restatement removes`);
+        if (missing.length > 0 && file.number >= floor) {
+          const report = (drops) => `${file.name} ${key} drops ${drops.length} line${drops.length === 1 ? '' : 's'} of its definition in ${previous.file}: ${drops.map((line) => JSON.stringify(line)).join(', ')}`;
+          const fingerprint = dropFingerprint(file.name, key, previous.file, missing);
+          if (markers.length && historicalDrops.has(fingerprint)) {
+            exemptions.push(`${report(missing)} — historical -- drops: note`);
+          } else {
+            const unlisted = droppedLines(missing, listedDrops(markers, key));
+            const listed = droppedLines(missing, unlisted);
+            if (listed.length) exemptions.push(`${report(listed)} — listed in -- drops: notes`);
+            if (unlisted.length) problems.push(`supabase/migrations/${report(unlisted)} — add \`-- drops: ${key} | "exact trimmed SQL" | <reason>\` for each intentional removal`);
           }
         }
         checked++;
@@ -258,9 +284,14 @@ $$;`;
   check('planted drop names the line', /return false/.test(dropped.problems[0] ?? ''), dropped.problems[0] ?? '');
   const excused = analyze([
     at(1490, fn('begin\n  return true;\n  return false;\nend;')),
-    at(1491, fn('begin\n  return true;\nend;', '-- drops: the second arm became a registry row\n')),
+    at(1491, fn('begin\n  return true;\nend;', '-- drops: t_fn(uuid) | "return false;" | the second arm became a registry row\n')),
   ]);
   check('marker exempts it', excused.problems.length === 0 && excused.exemptions.length === 1, excused.problems.join('; '));
+  const partial = analyze([
+    at(1490, fn('begin\n  perform 1;\n  return false;\nend;')),
+    at(1491, fn('begin\nend;', '-- drops: t_fn(uuid) | "return false;" | moved to the caller\n')),
+  ]);
+  check('marker leaves unlisted drops red', partial.problems.length === 1 && /perform 1/.test(partial.problems[0]));
   const history = analyze([at(1413, fn('begin\n  return true;\n  return false;\nend;')), at(1417, fn('begin\n  return true;\nend;'))]);
   check('below-floor restatement is history', history.problems.length === 0, history.problems.join('; '));
   const unreadable = analyze([at(1490, "create or replace function public.t_fn(p_id uuid) returns boolean language sql as 'select true';")]);
@@ -278,7 +309,7 @@ export function run({ floor = FLOOR } = {}) {
     return 1;
   }
   if (result.problems.length > 0) {
-    console.error(`✗ restated-function guard: ${result.problems.length} restatement(s) dropped lines without a \`-- drops:\` marker`);
+    console.error(`✗ restated-function guard: ${result.problems.length} restatement(s) dropped unlisted lines`);
     return 1;
   }
   console.log(

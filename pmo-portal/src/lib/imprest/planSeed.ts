@@ -1,4 +1,5 @@
 import type { BudgetCategory, ImprestOpenRequestRow } from '@/src/lib/db/imprest';
+import { sumDecimal } from '@/src/lib/exactDecimal';
 
 /** One purpose with the amount the open requests add up to: what the plan editor starts from. */
 export interface PlanSeedLine { category: BudgetCategory; amount: number }
@@ -33,13 +34,16 @@ export function foldRequests(rows: ImprestOpenRequestRow[]): OpenRequest[] {
  * purpose, another currency or no visible price is left out and counted in `skipped` (the screen says so).
  */
 export function seedFromRequests(requests: OpenRequest[], currency: string): { lines: PlanSeedLine[]; skipped: number } {
-  const sums = new Map<BudgetCategory, number>();
+  const amounts = new Map<BudgetCategory, string[]>();
   let skipped = 0;
   for (const r of requests) {
     if (!r.category || r.currency !== currency || r.total === null) { skipped += 1; continue; }
-    sums.set(r.category, Math.round(((sums.get(r.category) ?? 0) + Number(r.total)) * 100) / 100);
+    const group = amounts.get(r.category) ?? [];
+    group.push(String(r.total));
+    amounts.set(r.category, group);
   }
-  const lines = [...sums.entries()].filter(([, amount]) => amount > 0).map(([category, amount]) => ({ category, amount }))
+  const lines = [...amounts].map(([category, group]) => ({ category, amount: Number(sumDecimal(group, 2)) }))
+    .filter(({ amount }) => amount > 0)
     .sort((a, b) => a.category.localeCompare(b.category));
   return { lines, skipped };
 }

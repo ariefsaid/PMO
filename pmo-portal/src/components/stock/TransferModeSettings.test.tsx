@@ -6,18 +6,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18next from 'i18next';
 import stockEn from '@/public/locales/en/stock.json';
 
-const h = vi.hoisted(() => ({ sent: [] as unknown[], settings: { mode: 'one_step', proofTiming: 'before_posting', handoverScope: 'transfers' }, setMode: vi.fn(), setTiming: vi.fn(), setScope: vi.fn() }));
-vi.mock('@/src/hooks/useStockTransfers', () => ({ useTransferSettings: () => ({ data: h.settings }), useStockTransfers: () => ({ data: h.sent }), useTransferRefresh: () => async () => [] }));
+const h = vi.hoisted(() => ({ sent: [] as unknown[], failed: false, refetch: vi.fn(), settings: { mode: 'one_step', proofTiming: 'before_posting', handoverScope: 'transfers' }, setMode: vi.fn(), setTiming: vi.fn(), setScope: vi.fn() }));
+vi.mock('@/src/hooks/useStockTransfers', () => ({ useTransferSettings: () => ({ data: h.failed ? undefined : h.settings, isError: h.failed, refetch: h.refetch }), useStockTransfers: () => ({ data: h.sent }), useTransferRefresh: () => async () => [] }));
 vi.mock('@/src/lib/repositories/stockTransfers', () => ({ stockTransfersRepository: { settings: { setMode: h.setMode, setTiming: h.setTiming, setScope: h.setScope } } }));
 
 import { TransferModeSettings } from './TransferModeSettings';
 
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
-beforeEach(() => { vi.clearAllMocks(); h.sent = []; h.settings = { mode: 'one_step', proofTiming: 'before_posting', handoverScope: 'transfers' }; h.setScope.mockResolvedValue(undefined); h.setMode.mockResolvedValue(undefined); h.setTiming.mockResolvedValue(undefined); });
+beforeEach(() => { vi.clearAllMocks(); h.sent = []; h.failed = false; h.settings = { mode: 'one_step', proofTiming: 'before_posting', handoverScope: 'transfers' }; h.setScope.mockResolvedValue(undefined); h.setMode.mockResolvedValue(undefined); h.setTiming.mockResolvedValue(undefined); });
 const renderIt = () => render(<QueryClientProvider client={new QueryClient()}><TransferModeSettings /></QueryClientProvider>);
 
 // Moved from StockTransferSettings (#2746): the mode and proof timing sit in the Stock module card in Administration. Behaviour and defaults are unchanged.
 describe('TransferModeSettings (AC-TST-026, AC-TST-033)', () => {
+  it('#2812 shows a working Retry when transfer settings fail to load', async () => {
+    h.failed = true;
+    renderIt();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.refetch).toHaveBeenCalledOnce();
+  });
   it('AC-TST-026 reads one-step by default and writes two-step when chosen', async () => {
     renderIt();
     expect(screen.getByRole('combobox', { name: /How stock transfers are made/ })).toHaveValue('one_step');
