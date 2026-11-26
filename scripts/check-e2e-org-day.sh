@@ -26,11 +26,16 @@ check_dir() {
   local -a changed=('')
   if [[ "$role_scope" == changed ]]; then
     local base
-    base=$(git -C "$root" merge-base HEAD "${E2E_FIXTURE_BASE:-origin/dev}") || return 1
-    while IFS= read -r -d "" f; do changed+=("$f"); done < <(
-      git -C "$root" diff --relative --name-only -z "$base" -- e2e
-      git -C "$root" ls-files --others --exclude-standard -z -- e2e
-    )
+    if base=$(git -C "$root" merge-base HEAD "${E2E_FIXTURE_BASE:-origin/dev}" 2>/dev/null); then
+      while IFS= read -r -d "" f; do changed+=("$f"); done < <(
+        git -C "$root" diff --relative --name-only -z "$base" -- e2e
+        git -C "$root" ls-files --others --exclude-standard -z -- e2e
+      )
+    else
+      # CI may have a shallow checkout with no base ref. Check every journey rather than fetching
+      # or letting an unavailable merge-base silently skip the fixture check.
+      role_scope=all
+    fi
   fi
   while IFS= read -r f; do
     prev=""
@@ -109,6 +114,22 @@ if [[ "${1:-}" == "--self-test" ]]; then
   printf '\n// edited spec\n' >> "$app/e2e/legacy.spec.ts"
   if E2E_FIXTURE_BASE=HEAD check_dir "$app" changed >/dev/null 2>&1; then
     echo "self-test FAIL: edited spec bypassed job-role guard" >&2
+    exit 1
+  fi
+  # A shallow CI checkout may have no origin/dev ref. In that case unchanged legacy specs must
+  # still be checked; failing the merge-base lookup must never skip the role fixture guard.
+  shallow="$tmp/shallow/pmo-portal"
+  mkdir -p "$shallow/e2e"
+  git -C "$tmp/shallow" init -q
+  printf 'await admin.auth.admin.createUser({ email, password });\n' > "$shallow/e2e/unchanged.spec.ts"
+  git -C "$tmp/shallow" add .
+  git -C "$tmp/shallow" -c user.name=Fixture -c user.email=fixture@example.test commit -qm 'Seed shallow checkout case'
+  if output=$(E2E_FIXTURE_BASE=origin/dev check_dir "$shallow" changed 2>&1); then
+    echo "self-test FAIL: missing base ref skipped the all-journeys fallback" >&2
+    exit 1
+  elif [[ "$output" != *"direct user provisioning"* ]]; then
+    echo "self-test FAIL: missing base ref did not fall back to checking all journey files" >&2
+    echo "$output" >&2
     exit 1
   fi
   echo "self-test OK"; exit 0

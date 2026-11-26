@@ -23,12 +23,15 @@ function check({ before = '', inventory, denominator }) {
     select json_build_object(
       'history', coalesce((select json_agg(gap order by gap) from chg_gate_gaps), '[]'),
       'callable', coalesce((
-        select json_agg(distinct jsonb_build_object(
-          'name', proname,
-          'signature', oid::regprocedure::text,
-          'anonymous', has_function_privilege('anon', oid, 'EXECUTE')
-        ))
-        from anon_definer_write_sweep
+        select json_agg(entry order by entry->>'name', entry->>'signature')
+        from (
+          select distinct jsonb_build_object(
+            'name', proname,
+            'signature', oid::regprocedure::text,
+            'anonymous', has_function_privilege('anon', oid, 'EXECUTE')
+          ) as entry
+          from anon_definer_write_sweep
+        ) registrations
       ), '[]'),
       'stale', coalesce((
         select json_agg(proname order by proname) from client_callable_rpc_names c

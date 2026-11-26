@@ -4,7 +4,7 @@ import { jobRoleUser } from './jobRole';
 
 export async function siteRole(jobRole: string, role: 'Engineer' | 'Project Manager' | 'Finance' = 'Engineer') {
   const db = serviceClient(jobRole);
-  const actor = await jobRoleUser({ service: db, jobRole, role });
+  const actor = await jobRoleUser({ service: db, jobRole, role, displayName: `Test ${jobRole}` });
   return {
     id: actor.id,
     db,

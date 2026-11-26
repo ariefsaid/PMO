@@ -19,6 +19,6 @@ export function removeJobOrganization(orgId: string) {
 export async function createJobRoleUser(db: SupabaseClient, orgId: string, jobRole: string) {
   const role = baseLevelOf(jobRole);
   if (!role) throw new Error('Unknown job role: ' + jobRole);
-  const actor = await jobRoleUser({ service: db, org: orgId, jobRole, role });
+  const actor = await jobRoleUser({ service: db, org: orgId, jobRole, role, displayName: `Journey ${jobRole}` });
   return { id: actor.id, signIn: actor.signIn, remove: actor.removeLogin };
 }

@@ -10,11 +10,12 @@ type JobRoleOptions = {
   org?: string;
   service?: SupabaseClient;
   run?: string;
+  displayName?: string;
 };
 
 /** Create a disposable login and its job-role profile for a journey. */
 export async function jobRoleUser({
-  jobRole, role, org = ORG_ID, service = serviceClient('job-role fixture'), run,
+  jobRole, role, org = ORG_ID, service = serviceClient('job-role fixture'), run, displayName,
 }: JobRoleOptions) {
   const email = `${run ?? `journey-${crypto.randomUUID()}`}@example.test`;
   const password = `${crypto.randomUUID()}-Aa1!`;
@@ -26,7 +27,7 @@ export async function jobRoleUser({
       id,
       org_id: org,
       email,
-      full_name: run ?? 'Journey worker',
+      full_name: displayName ?? run ?? 'Journey worker',
       role: role ?? baseLevelOf(jobRole) ?? 'Engineer',
       status: 'active',
       built_in_role: jobRole,
