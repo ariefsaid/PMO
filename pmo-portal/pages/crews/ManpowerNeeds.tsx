@@ -182,13 +182,13 @@ export const ManpowerNeeds: React.FC = () => {
   const anyHidden = !readFailed && rows.some((n) => fig(n).hidden);
   const openNeed = rows.find((n) => n.id === values.need) ?? null;
   const columns: Column<ManpowerNeedRow>[] = [
-    { key: 'position', header: t('crews:manpower.position', 'Position'), kind: 'primary', rowHeader: true, cell: (n) => positionName(n.discipline_id) },
-    { key: 'project', header: t('crews:manpower.project', 'Project'), minSize: 240, cell: (n) => projectName(n.project_id) },
+    { key: 'position', header: t('crews:manpower.position', 'Position'), kind: 'primary', rowHeader: true, cell: (n) => positionName(n.discipline_id),
+      secondaryCell: (n) => projectName(n.project_id) },
     { key: 'needed', header: t('crews:manpower.neededBy', 'Needed by'), kind: 'date', size: 120, cell: (n) => formatDay(n.needed_by) },
-    { key: 'asked', size: 104, header: t('crews:manpower.asked', 'Asked'), kind: 'number', cell: (n) => fig(n).asked },
-    { key: 'filled', size: 104, header: t('crews:manpower.filled', 'Filled'), kind: 'number', cell: (n) => fig(n).filled },
-    { key: 'inProgress', size: 104, header: t('crews:manpower.inProgress', 'In progress'), kind: 'number', cell: (n) => fig(n).inProgress },
-    { key: 'open', size: 104, header: t('crews:manpower.toFill', 'To fill'), kind: 'number', cell: (n) => fig(n).open },
+    { key: 'asked', size: 96, header: t('crews:manpower.asked', 'Asked'), kind: 'number', cell: (n) => fig(n).asked },
+    { key: 'filled', size: 96, header: t('crews:manpower.filled', 'Filled'), kind: 'number', cell: (n) => fig(n).filled },
+    { key: 'inProgress', size: 96, header: t('crews:manpower.inProgress', 'In progress'), kind: 'number', cell: (n) => fig(n).inProgress },
+    { key: 'open', size: 96, header: t('crews:manpower.toFill', 'To fill'), kind: 'number', cell: (n) => fig(n).open },
     { key: 'status', header: t('crews:statusHeader', 'Status'), kind: 'status', size: 112, cell: (n) => <StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill> },
   ];
   return (
@@ -202,7 +202,7 @@ export const ManpowerNeeds: React.FC = () => {
           <CardPad><ListState variant="error" title={t('crews:manpower.error', "Couldn't load manpower needs")} onRetry={() => void needs.refetch()} retryLabel={t('crews:retry', 'Retry')} /></CardPad>
         ) : (
           <DataTable<ManpowerNeedRow> embedded rows={rows} columns={columns} rowKey={(n) => n.id} tableId="manpower-needs-table"
-            onActivate={(n) => setFilter('need', n.id)} selectedKey={openNeed?.id}
+            onActivate={(n) => setFilter('need', n.id)} selectedKey={openNeed?.id} cardBelow={880}
             mobileCardDetails={(n) => {
               const f = fig(n);
               return (

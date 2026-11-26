@@ -182,7 +182,7 @@ export const WorkOrderRoster: React.FC = () => {
             {rosterAction}
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2">{(roster.data ?? []).map((c) => <RosterCrewCard key={c.crew_id} crew={c} onLeave={onLeave} releaseHolds={releaseHolds} />)}</div>
+          <div className="grid gap-6 xl:grid-cols-2">{(roster.data ?? []).map((c) => <RosterCrewCard key={c.crew_id} crew={c} onLeave={onLeave} releaseHolds={releaseHolds} />)}</div>
         )
       )}
       {workOrderId && (
