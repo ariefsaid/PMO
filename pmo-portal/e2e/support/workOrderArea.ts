@@ -6,8 +6,10 @@ export type WorkOrderArea = 'scope' | 'cost' | 'billing' | 'material' | 'checks'
 
 export async function openWorkOrderArea(page: Page, area: WorkOrderArea): Promise<void> {
   const tab = page.locator(`#wo-tab-${area}`);
-  await expect(tab.or(page.getByTestId('wo-area-select').locator('select'))).toBeVisible({ timeout: 30_000 });
+  const picker = page.getByTestId('wo-area-select').locator('select');
+  // Both exist in the page; the width decides which one a person sees.
+  await expect.poll(async () => (await tab.isVisible()) || (await picker.isVisible()), { timeout: 30_000 }).toBe(true);
   if (await tab.isVisible()) await tab.click();
-  else await page.getByTestId('wo-area-select').locator('select').selectOption(area);
+  else await picker.selectOption(area);
   await expect(page.getByTestId(`wo-area-${area}`)).toBeVisible();
 }
