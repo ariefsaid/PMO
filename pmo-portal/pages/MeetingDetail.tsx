@@ -227,7 +227,7 @@ const MeetingDetail: React.FC = () => {
                 <thead className="text-muted-foreground">
                   <tr className="border-b border-border">
                     <th scope="col" className="w-2/5 px-2 py-3 font-normal">{t('meetingDetail.actionItems.title', 'Action items')}</th>
-                    <th scope="col" className="px-2 py-3 font-normal">{t('meetingDetail.actionItems.status', 'Status')}</th>
+                    <th scope="col" className="px-2 py-3 font-normal">{t('financeCopy.status', 'Status')}</th>
                     <th scope="col" className="px-2 py-3 font-normal">{t('meetingDetail.minutes.ownerLabel', 'Owner')}</th>
                     <th scope="col" className="px-2 py-3 font-normal">{t('meetingDetail.minutes.dueLabel', 'Due date')}</th>
                   </tr>
