@@ -185,7 +185,7 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
                 <li
                   key={`meeting-${m.id}`}
                   data-testid="timeline-meeting"
-                  className="flex flex-col gap-1 rounded-md border border-border bg-card p-3"
+                  className="flex flex-col gap-1 border-b border-border py-3 last:border-b-0"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <StatusPill variant="violet">
@@ -207,7 +207,7 @@ export const ContactActivityPanel: React.FC<ContactActivityPanelProps> = ({
             const a = entry.activity;
             const relatedHref = hrefForActivity(a);
             return (
-              <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3">
+              <li key={a.id} className="flex flex-col gap-1 border-b border-border py-3 last:border-b-0">
                 <div className="flex items-center justify-between gap-2">
                   <StatusPill variant={crmActivityVariant(a.kind)}>{kindLabel(a.kind, t)}</StatusPill>
                   <div className="flex items-center gap-1">
