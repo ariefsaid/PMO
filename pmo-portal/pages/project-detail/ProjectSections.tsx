@@ -5,6 +5,7 @@ import { Button, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, 
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import {
@@ -67,6 +68,8 @@ const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project 
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void; /** The Activity panel (delivery projects only). */ activity?: React.ReactNode }> = ({ project, isPipeline, onOpen, activity }) => {
   const lens = useLens();
   const may = usePermission();
+  const { currentUser } = useAuth();
+  const { realRole } = useEffectiveRole();
   const attention = useProjectAttention(project, lens);
   const attentionProps = { items: attention.items, isPending: attention.isPending, pendingSources: attention.pendingSources, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
   const visibleDeliveryAttention = lens === 'delivery'
@@ -79,7 +82,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
     : null, [isPipeline, project.id]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
-  const canSeeMoney = may('view', 'salesInvoice');
+  // A Project Manager reads the money of their own projects only; another project reads like one the role has no money for.
+  const canSeeMoney = may('view', 'salesInvoice') && (realRole !== 'Project Manager' || project.project_manager_id === currentUser?.id);
   if (isPipeline) {
     if (lens === 'delivery') {
       return (

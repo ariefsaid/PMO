@@ -3,6 +3,7 @@
 -- get_work_in_hand applies. Other roles, and money not bound to a project, are unchanged.
 -- A project outside the Project Manager's scope reads as not found, or as no rows, or with the money withheld.
 -- Reverse: rollback/2750_pm_reads_own_project_money_down.sql.
+-- drops: each restated function replaces its project-exists test (or filter) with the same test plus project_money_in_scope; nothing else changes.
 begin;
 create or replace function public.project_money_in_scope(p_project uuid)
   returns boolean language sql stable security invoker set search_path = public, pg_temp as $$
@@ -18,7 +19,7 @@ CREATE OR REPLACE FUNCTION public.project_pmo_positions(p_project_ids uuid[] DEF
  RETURNS TABLE(project_id uuid, spent numeric, spent_complete boolean, committed numeric, committed_complete boolean)
  LANGUAGE sql
  STABLE
- SET search_path TO 'public', 'pg_catalog'
+ SET search_path = public, pg_catalog
 AS $function$
   with g as materialized (                         -- the guards of both per-project functions, evaluated once
     select public.auth_org_id() as org_id,
@@ -147,7 +148,7 @@ CREATE OR REPLACE FUNCTION public.stock_issue_cost_lines(p_project uuid)
  RETURNS TABLE(record_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date, reference text, currency text, amount numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 begin
  perform public.assert_not_light();
@@ -176,7 +177,7 @@ CREATE OR REPLACE FUNCTION public.work_order_cost_amounts_unrounded(p_project_id
  RETURNS TABLE(source text, record_id uuid, project_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date, reference text, currency text, amount text, reason text, quantity numeric, quantity_unit text, person_id uuid)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org uuid := public.auth_org_id();
@@ -376,7 +377,7 @@ CREATE OR REPLACE FUNCTION public.work_order_cost_amounts(p_project_id uuid)
  RETURNS TABLE(source text, record_id uuid, project_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date, reference text, currency text, amount text, reason text, quantity numeric, quantity_unit text, person_id uuid, labour_class_id uuid)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org uuid := public.auth_org_id();
@@ -434,7 +435,7 @@ CREATE OR REPLACE FUNCTION public.work_order_idle_cost(p_project_id uuid)
  RETURNS TABLE(work_order_id uuid, reason_id uuid, reason_label text, minutes bigint, hours text, hourly_cost text, amount text, currency text, reason text, people_amount text, equipment_amount text, headcount_hours text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org uuid := public.auth_org_id();
@@ -524,7 +525,7 @@ CREATE OR REPLACE FUNCTION public.qcr_over_contract(p_project_id uuid, p_only_ov
  RETURNS TABLE(boq_item_id uuid, item_code text, description text, unit text, rate numeric, earning_basis text, contract_quantity numeric, progress_quantity numeric, progress_source text, forecast_quantity numeric, over_progress boolean, over_forecast boolean, open_request_id uuid)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare v_org uuid;
 begin
@@ -551,7 +552,7 @@ CREATE OR REPLACE FUNCTION public.get_projects_money_collection(p_project_ids uu
  RETURNS TABLE(project_id uuid, actuals jsonb, ledger_basis text, active_budget_amount text, active_budget_currency text, has_active_budget boolean)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_role public.user_role := public.auth_role();
@@ -702,7 +703,7 @@ CREATE OR REPLACE FUNCTION public.equipment_charge_project_actuals(p_project_id 
  RETURNS TABLE(category budget_category, n bigint, amount numeric, as_of timestamp with time zone)
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
   select q.* from (select c.category, count(*), sum(c.amount), max(c.as_of)
     from public.equipment_hire_charges(public.auth_org_id(), null, p_project_id) c
@@ -720,7 +721,7 @@ CREATE OR REPLACE FUNCTION public.equipment_charge_project_actuals_between(p_pro
  RETURNS TABLE(category budget_category, n bigint, amount numeric, as_of timestamp with time zone)
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
   select q.* from (select c.category, count(*), sum(c.amount), max(c.as_of)
     from public.equipment_hire_charges(public.auth_org_id(), null, p_project_id) c
@@ -739,7 +740,7 @@ CREATE OR REPLACE FUNCTION public.cost_attribution_project_actuals(p_project_id 
  RETURNS TABLE(category budget_category, n bigint, amount numeric, source_sum numeric, as_of timestamp with time zone)
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
   select q.* from (select m.category, count(*),
          case when count(*) filter (where a.amount is null or a.amount::text in ('NaN','Infinity','-Infinity')) > 0
@@ -763,7 +764,7 @@ CREATE OR REPLACE FUNCTION public.budget_attributed_year_sums(p_project_id uuid,
  RETURNS TABLE(fiscal_year text, category budget_category, source_sum numeric, as_of timestamp with time zone)
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
   select q.* from (select a.fiscal_year, m.category, sum(a.amount), max(a.as_of)
     from public.cost_attribution_allocations(public.auth_org_id(), null, null, p_project_id) a
@@ -781,7 +782,7 @@ CREATE OR REPLACE FUNCTION public.project_erp_journal_lines(p_project_id uuid)
  RETURNS TABLE(erp_doctype text, voucher_no text, project_id uuid, account text, category budget_category, posting_date date, amount numeric, currency text, remarks text, party text, is_cancelled boolean, erp_url text, link_id uuid, procurement_id uuid, procurement_title text, possibly_reversed boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_catalog', 'pg_temp'
+ SET search_path = public, pg_catalog, pg_temp
 AS $function$
   select q.* from (with ln as (select * from public.erp_journal_cost_lines(public.auth_org_id(), p_project_id))
   select l.erp_doctype, l.voucher_no, l.project_id, l.account, l.category, l.posting_date, l.amount,
@@ -814,7 +815,7 @@ CREATE OR REPLACE FUNCTION public.get_project_consumption(p_project_id uuid, p_f
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare v_org uuid; v_cost boolean; v_months jsonb; v_allow jsonb; v_unplanned jsonb; v_erp jsonb;
 begin
@@ -894,7 +895,7 @@ CREATE OR REPLACE FUNCTION public.tpi_costs(p_work_order_id uuid)
  RETURNS TABLE(inspection_id uuid, currency text, committed numeric, billed numeric, estimate numeric, estimate_currency text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare v_org uuid := public.auth_org_id(); v_money boolean;
 begin
@@ -946,7 +947,7 @@ CREATE OR REPLACE FUNCTION public.get_bill_match(p_invoice_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_catalog', 'pg_temp'
+ SET search_path = public, pg_catalog, pg_temp
 AS $function$
 begin
   perform public.assert_not_light();
@@ -965,7 +966,7 @@ CREATE OR REPLACE FUNCTION public.list_equipment_allocations(p_asset_id uuid, p_
  RETURNS TABLE(asset_id uuid, asset_code text, project_id uuid, project_name text, month date, basis text, setting_key uuid, version integer, status text, reason text, driver text, work_units numeric, standby_units numeric, work_rate numeric, standby_rate numeric, pool numeric, driver_value numeric, driver_total numeric, share numeric, amount numeric, category budget_category, line_count integer, entry_count integer, unit text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org uuid := public.auth_org_id();
@@ -1034,7 +1035,7 @@ CREATE OR REPLACE FUNCTION public.get_project_finances(p_project_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare v_result jsonb; v_role public.user_role := public.auth_role();
 begin
@@ -1406,7 +1407,7 @@ CREATE OR REPLACE FUNCTION public.project_pmo_spent_position(p_project_id uuid)
  RETURNS TABLE(amount numeric, complete boolean)
  LANGUAGE plpgsql
  STABLE
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_amount numeric;
@@ -1450,7 +1451,7 @@ CREATE OR REPLACE FUNCTION public.project_pmo_paid_by_category(p_project_id uuid
  RETURNS TABLE(category budget_category, amount numeric, n integer, as_of timestamp with time zone)
  LANGUAGE plpgsql
  STABLE
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 begin
   -- The same role/org guard as project_pmo_spent_position (0700): a restricted role reads no row.
@@ -1506,7 +1507,7 @@ CREATE OR REPLACE FUNCTION public.project_pmo_commitment_position(p_project_id u
  RETURNS TABLE(amount numeric, complete boolean)
  LANGUAGE sql
  STABLE
- SET search_path TO 'public', 'pg_catalog'
+ SET search_path = public, pg_catalog
 AS $function$
   with project as (
     select p.id, p.currency
