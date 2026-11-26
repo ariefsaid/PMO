@@ -1011,7 +1011,9 @@
       "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
       "label": "Nama langkah persetujuan",
       "labelDefault": "Persetujuan peminjaman"
-    }
+    },
+    "free": "Bebas",
+    "reserved": "Dicadangkan"
   },
   "dsrIssue": {
     "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",

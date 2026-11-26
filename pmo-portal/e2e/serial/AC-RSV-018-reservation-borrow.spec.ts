@@ -42,7 +42,16 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   await form.getByLabel('Quantity').fill('8');
   await form.getByRole('button', { name: 'Reserve', exact: true }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByText('2 free + 8 reserved').first()).toBeVisible();
+  // Free and reserved read from their own columns of the item's row.
+  const freeReserved = async (free: number, reserved: number, timeout = 5_000) => {
+    const table = page.getByRole('table', { name: 'Stock' });
+    const headers = await table.getByRole('columnheader').allInnerTexts();
+    const row = table.getByRole('row').filter({ hasText: item.code }).first();
+    const cellAt = (name: string) => row.locator('th, td').nth(headers.findIndex((h) => h.trim() === name));
+    await expect(cellAt('Free')).toHaveText(new RegExp(`^${free}\\b`), { timeout });
+    await expect(cellAt('Reserved')).toHaveText(new RegExp(`^${reserved}\\b`), { timeout });
+  };
+  await freeReserved(2, 8);
   await page.getByRole('button', { name: 'Show work order' }).first().click();
   await expect(page.getByRole('link', { name: new RegExp(wo.wo_number) }).first()).toBeVisible();
 
@@ -74,5 +83,5 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   await signIn(page, 'engineer@acme.test');
   await page.goto('/stock');
   await page.getByRole('searchbox').fill(item.code);
-  await expect(page.getByText('5 free + 5 reserved').first()).toBeVisible({ timeout: 15_000 });
+  await freeReserved(5, 5, 15_000);
 });
