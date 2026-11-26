@@ -78,8 +78,10 @@ export const PerformanceFigures: React.FC<{
       </div>
     );
   };
-  const cv = sign(performance.costVariance);
-  const sv = sign(performance.scheduleVariance);
+  const noRecordedData = performance.ev !== null && performance.ac !== null && parseExactCents(performance.ev) === 0n && parseExactCents(performance.ac) === 0n;
+  const cv = noRecordedData ? null : sign(performance.costVariance);
+  const sv = noRecordedData ? null : sign(performance.scheduleVariance);
+  if (noRecordedData) return <p className="text-control text-muted-foreground">{t('performance.recordNext', 'Record progress or costs to see performance.')}</p>;
   const acText = performance.ac === null && otherCurrencyNoted && performance.cpi.state === 'not-comparable'
     ? '—'
     : money(performance.ac);
