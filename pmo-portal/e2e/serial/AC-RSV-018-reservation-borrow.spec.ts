@@ -36,7 +36,9 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   await signIn(page, 'engineer@acme.test');
   await page.goto('/stock');
   await page.getByRole('searchbox').fill(item.code);
-  await page.getByRole('button', { name: 'Reserve', exact: true }).first().click();
+  // Reserve sits in the row's actions menu.
+  await page.getByRole('button', { name: 'Row actions' }).first().click();
+  await page.getByRole('menuitem', { name: 'Reserve' }).click();
   const form = page.getByRole('dialog');
   await form.getByLabel('Project').selectOption({ label: SEED_PROJECT_NAME });
   await form.getByLabel('Work order').selectOption({ label: `${wo.wo_number} - ${wo.title}` });

@@ -65,7 +65,8 @@ describe('AC-RSV-017 stock reads free and reserved', () => {
 
   it('W9 the reserve dialog says how much is free before the quantity is typed', async () => {
     renderPage('Project Manager');
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Reserve' }))[0]);
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Row actions' }))[0]);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Reserve' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('50 bag free here')).toBeInTheDocument();
   });
@@ -84,15 +85,16 @@ describe('AC-RSV-017 stock reads free and reserved', () => {
     renderPage('Admin');
     await screen.findByRole('table');
     expect(screen.queryByText(/reserved/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reserve' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
   });
 
   it('AC-RSV-005 offers Reserve to a planner but not to an Engineer who keeps nothing here', async () => {
     const planner = renderPage('Project Manager');
-    expect((await screen.findAllByRole('button', { name: 'Reserve' })).length).toBeGreaterThan(0);
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Row actions' }))[0]);
+    expect(await screen.findByRole('menuitem', { name: 'Reserve' })).toBeInTheDocument();
     planner.unmount();
     renderPage('Engineer');
     await screen.findAllByRole('columnheader', { name: 'Free' });
-    expect(screen.queryByRole('button', { name: 'Reserve' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Row actions' })).not.toBeInTheDocument();
   });
 });

@@ -9,7 +9,7 @@ import type { FreeReservedRow } from '@/src/lib/repositories/stockReservations';
 /** The free quantity of one item at one location, as a figure with its unit (#2693). Rendered only while reservations are on. */
 export const FreeQty: React.FC<{ figures: FreeReservedRow | undefined; unitCode: string }> = ({ figures, unitCode }) => {
   const loc = getNumberLocale();
-  return figures ? <span className="whitespace-nowrap tabular-nums">{formatQuantity(figures.freeQty, loc)} <span className="text-muted-foreground">{unitCode}</span></span> : <span className="text-muted-foreground">—</span>;
+  return figures ? <span className="tabular-nums">{formatQuantity(figures.freeQty, loc)} <span className="text-muted-foreground">{unitCode}</span></span> : <span className="text-muted-foreground">—</span>;
 };
 
 /** The reserved quantity, with the shortfall under it and the reserving work orders one tap away. */
@@ -21,7 +21,7 @@ export const ReservedQty: React.FC<{ figures: FreeReservedRow | undefined; unitC
   const holders = figures.reservations;
   return (
     <div className="flex min-w-0 flex-col items-end text-right">
-      <span className="whitespace-nowrap tabular-nums">{formatQuantity(figures.reservedQty, loc)} <span className="text-muted-foreground">{unitCode}</span></span>
+      <span className="tabular-nums">{formatQuantity(figures.reservedQty, loc)} <span className="text-muted-foreground">{unitCode}</span></span>
       {Number(figures.shortBy) > 0 && <span className="text-control text-muted-foreground">{t('reservations.shortBy', { n: formatQuantity(figures.shortBy, loc) })}</span>}
       {holders.length > 0 && (
         <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? t('reservations.hideHolders') : t('reservations.showHolders', { count: holders.length })}</Button>
@@ -40,8 +40,3 @@ export const ReservedQty: React.FC<{ figures: FreeReservedRow | undefined; unitC
   );
 };
 
-/** The Reserve action for a row the person may reserve at. */
-export const ReserveButton: React.FC<{ onReserve?: () => void }> = ({ onReserve }) => {
-  const { t } = useTranslation('stock');
-  return onReserve ? <Button variant="outline" size="sm" onClick={onReserve}>{t('reservations.reserve')}</Button> : null;
-};

@@ -56,7 +56,9 @@ test('JOB-W9 a request over the free stock is marked borrowing and takes the bor
     await coordinator.signIn(page);
     await page.goto('/stock');
     await page.getByPlaceholder('Search items').fill(item.code);
-    await page.getByRole('button', { name: 'Reserve', exact: true }).first().click();
+    // Reserve sits in the row's actions menu.
+  await page.getByRole('button', { name: 'Row actions' }).first().click();
+  await page.getByRole('menuitem', { name: 'Reserve' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel(/^Project/).selectOption(projectId);
     await dialog.getByLabel(/^Work order/).selectOption(woA);
