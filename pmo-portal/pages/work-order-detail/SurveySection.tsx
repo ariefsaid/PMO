@@ -71,7 +71,7 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
   };
 
   return <RecordSection title={title}
-    actions={canRecord ? <Button variant="primary" size="sm" onClick={() => setForm({ correcting: null })}>{t('record', 'Record a survey')}</Button> : undefined}>
+    actions={canRecord ? <Button variant="outline" size="sm" onClick={() => setForm({ correcting: null })}>{t('record', 'Record a survey')}</Button> : undefined}>
     {!canRecord && (
       <p className="text-control text-muted-foreground" data-testid="survey-hint">
         {status === 'Issued' ? t('hintNotPermitted', 'Only the project manager, Finance or an Admin can record a survey.') : t('hintNotIssued', 'Surveys are recorded while the work order is issued.')}

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { DateField } from '@/src/components/ui/DateField';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, DataTable, Drawer, HelpPopover, ListPage, ListState, RecordSection, RecordStack, SelectField, TextField, ViewToggle, useToast, type Column } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, Drawer, ListPage, ListState, RecordSection, RecordStack, SelectField, TextField, ViewToggle, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
@@ -61,7 +61,7 @@ const EquipmentAvailabilityScreen: React.FC = () => {
   const metrics = useEquipmentMetrics(metricAssets.length ? rows.filter((a) => metricAssets.includes(a.id)).map((a) => a.id) : rows.map((a) => a.id), metricFrom, metricTo, grain, canMetrics && rows.length > 0);
   const byAsset = new Map(rows.map((a) => [a.id, a]));
   type MetricRow = NonNullable<typeof metrics.data>[number];
-  const metricRows = useMemo(() => (metrics.data ?? []).filter((m) => byAsset.has(m.asset_id)), [metrics.data, rows]); // eslint-disable-line react-hooks/exhaustive-deps -- byAsset derives from rows
+  const metricRows = useMemo(() => (metrics.data ?? []).filter((m) => byAsset.has(m.asset_id)).sort((a, b) => (a.availability_pct == null ? Infinity : Number(a.availability_pct)) - (b.availability_pct == null ? Infinity : Number(b.availability_pct))), [metrics.data, rows]); // eslint-disable-line react-hooks/exhaustive-deps -- byAsset derives from rows
   const metricColumns: Column<MetricRow>[] = [
     { key: 'asset', header: t('equipment:availability.machine', 'Machine'), kind: 'primary', rowHeader: true, cell: (m) => <span className="record-id whitespace-nowrap font-medium">{byAsset.get(m.asset_id)?.code}</span> },
     { key: 'period', header: t('equipment:availability.period', 'Period'), cell: (m) => <span className="whitespace-nowrap">{formatIsoDay(m.bucket_start)}</span> },
@@ -83,13 +83,13 @@ const EquipmentAvailabilityScreen: React.FC = () => {
     { key: 'unrecorded', header: t('equipment:availability.unrecordedDays', 'Unrecorded days'), align: 'num', cell: (m) => <span className="tabular-nums">{m.unrecorded_days ?? '—'}</span> },
   ];
   const statusView = view === 'status' || !canCheck;
-  const help = <HelpPopover subject={t('equipment:availability.title', 'Availability')}>
+  const help = <>
     <p className="mb-2 font-semibold">{t('equipment:availability.effectsHeading', 'What each status does to planning')}</p>
     <dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
       {STATUSES.map((st) => <React.Fragment key={st}><dt className="font-medium">{statusLabel(t, st)}</dt><dd className="text-muted-foreground">{statusEffect(t, st)}</dd></React.Fragment>)}
     </dl>
     <p className="text-muted-foreground">{t('equipment:availability.unrecordedNote', 'Unrecorded days are days in service with no status. Days before the organisation started recording are not counted.')}</p>
-  </HelpPopover>;
+  </>;
 
   return (
     <ListPage title={t('equipment:availability.title', 'Availability')} help={help}

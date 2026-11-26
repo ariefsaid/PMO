@@ -18,7 +18,7 @@ describe('payment doorway on an ERP-owned purchase', () => {
     erpOwned();
     render(<LedgerCaptureRow status="Vendor Invoiced" existingTypes={new Set()} onCreate={async () => undefined} canWrite invoices={[]} />);
     expect(screen.getByText(LINE)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Capture Payment/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Record payment/i })).toBeNull();
   });
 
   it('choosing Payment first on an empty ERP-owned purchase shows the line instead of an empty bill selector', async () => {
@@ -38,13 +38,13 @@ describe('payment doorway on an ERP-owned purchase', () => {
     erpOwned();
     render(<LedgerCaptureRow status="Vendor Invoiced" existingTypes={new Set()} onCreate={async () => undefined} canWrite invoices={bill} />);
     expect(screen.queryByText(LINE)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Capture Payment' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeEnabled();
   });
 
   it('a PMO-native purchase keeps the optional-bill payment capture', () => {
     render(<LedgerCaptureRow status="Vendor Invoiced" existingTypes={new Set()} onCreate={async () => undefined} canWrite invoices={[]} />);
     expect(screen.queryByText(LINE)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Capture Payment' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeEnabled();
   });
 
   it('AC-OPP-080 an Odoo-owned purchase with no bill yet tells the user to record the invoice first, and never names ERPNext', () => {

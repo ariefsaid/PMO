@@ -145,6 +145,7 @@
     "off": "Safety records are turned off for this organisation. An Admin can turn them on under Modules.",
     "print": "Print",
     "project": "Project",
+    "record": "Record",
     "showRows": "Show the rows",
     "subtitle": "Hours, incidents and safety records for a month.",
     "title": "Safety summary",

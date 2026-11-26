@@ -854,7 +854,13 @@
       "from": "From",
       "to": "To",
       "name": "Name",
-      "signatureDate": "Date"
+      "signatureDate": "Date",
+      "backShort": "Back",
+      "number": "Number",
+      "signature": "Signature",
+      "dispatchedBy": "Dispatched by",
+      "deliveredBy": "Delivered by",
+      "receivedBy": "Received by"
     },
     "columns": {
       "transfer": "Transfer",

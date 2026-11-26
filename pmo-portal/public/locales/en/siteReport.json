@@ -106,6 +106,7 @@
     "withdrawn": "Taken back by the author"
   },
   "hours": {
+    "workTime": "Work time",
     "addIdle": "Add idle time",
     "end": "End",
     "idleMinutes": "Idle minutes",
@@ -129,6 +130,8 @@
     "title": "Reports",
     "crew": "Crew",
     "allCrews": "All crews",
+    "crewPerson": "Crew / person",
+    "author": "Author",
     "crewLabel": "Crew {{name}}",
     "personLabel": "Person {{name}}"
   },

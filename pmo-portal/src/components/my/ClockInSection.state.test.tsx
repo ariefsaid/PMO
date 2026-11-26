@@ -1,10 +1,11 @@
 /** AC-WCI-030..034 — the clock-in card says what became of the tap, the Foreman can clock in, and a button never sits dead without a reason. */
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { setOrgRoleNames } from '@/src/hooks/useOrgRoleNames';
 import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({ checkIn: vi.fn() }));
@@ -21,6 +22,8 @@ function mount(workOrders: MyHomeWorkOrder[], deciderRole: string | null = null)
 }
 beforeEach(() => { vi.clearAllMocks(); h.checkIn.mockResolvedValue({ status: 'recorded', outcome: 'no_area' }); });
 
+afterEach(() => setOrgRoleNames({}));
+
 describe('clock-in result state', () => {
   it('AC-WCI-030 clocked in: the card says so with the time and offers no second tap', () => {
     mount([wo({ check_in: { state: 'clocked_in', at: '2026-11-22T00:14:00Z' } })]);
@@ -32,6 +35,11 @@ describe('clock-in result state', () => {
     expect(screen.getByTestId('clock-in-state')).toHaveTextContent(/outside the work area/i);
     expect(screen.getByTestId('clock-in-state')).toHaveTextContent(/Waiting for Site Supervisor to approve/);
     expect(screen.queryByRole('button', { name: /Clock in/ })).not.toBeInTheDocument();
+  });
+  it('#2815 shows the organisation’s renamed approving role when it loads', () => {
+    mount([wo({ check_in: { state: 'pending', at: '2026-11-22T00:14:00Z', outcome: 'outside' } })], 'site_supervisor');
+    act(() => setOrgRoleNames({ en: { site_supervisor: 'Area Lead' } }));
+    expect(screen.getByTestId('clock-in-state')).toHaveTextContent('Waiting for Area Lead to approve');
   });
   it('AC-WCI-031 waiting with no role set says "your supervisor"', () => {
     mount([wo({ check_in: { state: 'pending', at: '2026-11-22T00:14:00Z', outcome: 'no_position' } })]);

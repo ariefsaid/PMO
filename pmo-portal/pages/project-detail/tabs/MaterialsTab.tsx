@@ -28,11 +28,11 @@ const MaterialsTab: React.FC<{ projectId: string }> = ({ projectId }) => {
           </Link>
         )}
       </div>
-      <section aria-labelledby="materials-consumption" className="flex min-w-0 flex-col gap-4">
+      <section aria-labelledby="materials-consumption" className="panel-card flex min-w-0 flex-col gap-4 p-[var(--panel-inset)]">
         <h3 id="materials-consumption" className="text-base font-semibold">{t('materials.consumption')}</h3>
         <ConsumptionReport projectId={projectId} />
       </section>
-      <section aria-labelledby="materials-movements" className="flex min-w-0 flex-col gap-4">
+      <section aria-labelledby="materials-movements" className="panel-card flex min-w-0 flex-col gap-4 p-[var(--panel-inset)]">
         <h3 id="materials-movements" className="text-base font-semibold">{t('materials.movements')}</h3>
         <StockLedger projectId={projectId} embedded />
       </section>

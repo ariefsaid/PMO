@@ -96,7 +96,7 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
             : status === 'skipped' ? t('skipped', 'Skipped {{date}}', { date: formatIsoDay(step.skippedOn ?? '') })
             : status === 'current' ? t('current', 'Current') : t('waiting', 'Not yet open')}
         </StatusPill>
-        {hasControls && <Button variant={canAct ? 'primary' : 'outline'} size="sm" aria-label={t('updateNamed', 'Update {{item}}', { item: step.name })}
+        {hasControls && <Button variant="outline" size="sm" aria-label={t('updateNamed', 'Update {{item}}', { item: step.name })}
           aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('update', 'Update')}</Button>}
       </span>
     </div>
@@ -117,11 +117,13 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
     </ul>}
     {open && <Drawer open title={step.name} subtitle={step.ownerRoleKey ? roleName(step.ownerRoleKey) : undefined} onClose={() => setOpen(false)}>
       <div className="flex flex-col gap-5">
+        <p className="text-control text-muted-foreground">{status === 'done' ? t('done', 'Done {{date}}', { date: formatIsoDay(step.doneOn ?? '') }) : status === 'current' ? t('current', 'Current') : status === 'skipped' ? t('skipped', 'Skipped {{date}}', { date: formatIsoDay(step.skippedOn ?? '') }) : t('waiting', 'Not yet open')}</p>
         {canEvidence && <Checkbox checked={step.claimEvidenceEnabled === true} disabled={markEvidence.isPending}
           label={t('claimEvidence', 'Documents here count as claim evidence')}
           onChange={(enabled) => void run(() => markEvidence.mutateAsync({ stepId: step.id, enabled }))}>
           {t('claimEvidence', 'Documents here count as claim evidence')}
         </Checkbox>}
+        {step.documents.length === 0 && <p className="text-control text-muted-foreground">{t('notAttached', 'No document attached')}</p>}
         {step.documents.length > 0 && <ul className="flex flex-col gap-3 text-control" aria-label={t('documents', 'Documents for {{step}}', { step: step.name })}>
           {step.documents.map((d) => <li key={d.id} className="flex flex-col gap-1">
             <span className="font-medium">{d.name}<span className="ml-2 font-normal text-muted-foreground">{d.required ? t('required', 'required') : t('optional', 'optional')}</span></span>
@@ -137,7 +139,7 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
                 : <span className="text-muted-foreground">{t('notAttached', 'No document attached')}</span>}
           </li>)}
         </ul>}
-        {canAttach && <div className="flex items-end gap-2">
+        {canAttach && <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
           <SelectField label={t('extraDocument', 'Additional document')} placeholder={t('pick', 'Choose a document')}
             value={picked.extra ?? ''} onChange={(v) => setPicked((p) => ({ ...p, extra: v }))}
             options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} className="min-w-0 flex-1" />

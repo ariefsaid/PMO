@@ -161,6 +161,13 @@ describe('Finance hub', () => {
     expect(screen.getByTestId('finance-hub-claims-board-link')).toHaveAttribute('href', '/finance/billing-board');
   });
 
+  it('lets Finance find billing destinations together in a named navigation region', () => {
+    renderHub();
+    const navigation = screen.getByRole('navigation', { name: 'Billing and work' });
+    expect(within(navigation).getByRole('link', { name: /Claims board/ })).toHaveAttribute('href', '/finance/billing-board');
+    expect(within(navigation).getByRole('link', { name: 'Work in hand' })).toHaveAttribute('href', '/finance/work-in-hand');
+  });
+
   it('shows known zero for no receivables and no supplier invoices', () => {
     state.position = { ...positionFixture(), receivablesCount: 0, receivablesAgeing: {}, payables: [], payablesTotals: {} };
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);
