@@ -109,7 +109,8 @@ test('JOB-PU6 the officer sets the channel, records the payment, and the stages 
   await form.getByTestId('payment-amount-input').fill('12000');
   await form.getByTestId('payment-save-btn').click();
   // The payment is only scheduled until the officer marks it paid: the page's Record payment action, confirmed.
-  await page.getByRole('button', { name: 'Record payment', exact: true }).click();
+  // The Files ledger offers a further payment record under the same name, so the page's own action is the one outside the ledger row.
+  await page.getByRole('button', { name: 'Record payment', exact: true }).and(page.locator(':not([data-testid="ledger-capture-open"])')).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Mark as Paid', exact: true }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Paid', { timeout: 20_000 });
   // The pay stage counts the bill and the payment together, so the recorded payment takes it from one record to two.
