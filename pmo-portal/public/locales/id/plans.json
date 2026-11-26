@@ -38,7 +38,7 @@
   "console": {
     "organisationHeading": "Organisasi dan paket",
     "organisation": "Organisasi",
-    "organisationHelper": "Setiap sakelar di bawah adalah status organisasi ini setelah resolusi.",
+    "organisationHelper": "Status efektif menunjukkan pengaturan tersimpan. Perubahan diterapkan setelah Anda memilih Simpan.",
     "plan": "Paket",
     "planHelper": "Batas paket: {{seats}} kursi, {{projects}} proyek aktif, {{messages}} pesan AI per bulan.",
     "planLoading": "Memuat paket…",
@@ -103,7 +103,10 @@
     "loadFailedBody": "Tidak ada yang diubah. Coba lagi; jika terus gagal, pembacaan registri tidak tersedia.",
     "globalConfirmTitle": "Nonaktifkan untuk semua organisasi?",
     "globalConfirmBody": "{{feature}} akan nonaktif untuk semua organisasi, apa pun paket atau penimpaannya. Data tetap disimpan; mengaktifkannya kembali akan memulihkannya.",
-    "globalConfirmAction": "Nonaktifkan untuk semua"
+    "globalConfirmAction": "Nonaktifkan untuk semua",
+    "viewLabel": "Tampilan pengaturan fitur",
+    "orgView": "Organisasi ini",
+    "discard": "Buang perubahan"
   },
   "features": {
     "incidents": "Insiden",
