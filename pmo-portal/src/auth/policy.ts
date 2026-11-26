@@ -380,6 +380,20 @@ const has = (set: Role[], role: Role | null): boolean => role != null && set.inc
 export const moneyScoped = (role: Role | null, builtInRoleKey: string | null | undefined): boolean =>
   role === 'Project Manager' && (!builtInRoleKey || builtInRoleKey === 'project_manager' || builtInRoleKey === 'deputy_project_manager');
 
+/**
+ * Mirrors guard_project_people_fields (2751): a limited Project Manager or deputy never changes who manages a project once it
+ * exists, and names the deputy only on a project they manage. Everyone else sets both.
+ */
+export const projectPeopleRights = (
+  role: Role | null,
+  builtInRoleKey: string | null | undefined,
+  userId: string | null | undefined,
+  { existing, managerId }: { existing: boolean; managerId: string | null | undefined },
+): { manager: boolean; deputy: boolean } =>
+  !moneyScoped(role, builtInRoleKey)
+    ? { manager: true, deputy: true }
+    : { manager: !existing, deputy: !!userId && managerId === userId };
+
 /** Mirrors project_money_in_scope (2751): own = managed, named deputy, or listed by actor_money_projects (stand-ins). */
 export const projectMoneyInScope = (
   role: Role | null,

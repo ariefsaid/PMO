@@ -4,7 +4,9 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import { initials } from '@/src/lib/initials';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { projectPeopleRights } from '@/src/auth/policy';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
@@ -259,6 +261,10 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     }
   }, [form, isEdit, numberProposal]);
   const [pmLabel, setPmLabel] = useState<string | null>(initial?.pmName ?? null);
+  const auth = useContext(AuthContext);
+  // Who may set the manager and the deputy here: the database decides (guard_project_people_fields); the form follows it.
+  const people = projectPeopleRights(auth?.role ?? null, auth?.currentUser?.built_in_role, auth?.currentUser?.id,
+    { existing: isEdit, managerId: isEdit ? initial?.project_manager_id : form.values.pmId });
   const [deputyLabel, setDeputyLabel] = useState<string | null>(null);
   // The deputy's name comes from the managers list until one is picked here.
   const deputyName = deputyLabel ?? managers.find((m) => m.id === form.values.deputyId)?.full_name ?? null;
@@ -399,7 +405,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             client_id: values.clientId,
             end_client_id: values.endClientId,
             project_manager_id: values.pmId,
-            ...(values.deputyId ? { deputy_manager_id: values.deputyId } : {}),
+            ...(values.deputyId && people.deputy ? { deputy_manager_id: values.deputyId } : {}),
             start_date: values.startDate || null,
             end_date: values.endDate || null,
           };
@@ -528,7 +534,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             nounPlural={t('projects:projectForm.endCustomer.nounPlural', 'companies')}
           />
 
-          <Combobox
+          {people.manager && <Combobox
             label={t('projectForm.pm.label', 'Project manager')}
             value={form.values.pmId}
             selectedOption={
@@ -543,9 +549,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             loadOptions={loadManagers}
             placeholder={t('projectForm.pm.placeholder', 'Assign a PM…')}
             noun={t('projectForm.pm.noun', 'manager')}
-          />
+          />}
 
-          <Combobox
+          {people.deputy && <Combobox
             label={t('projects:projectForm.deputy.label', 'Deputy manager')}
             value={form.values.deputyId}
             selectedOption={
@@ -560,7 +566,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             loadOptions={loadManagers}
             placeholder={t('projects:projectForm.deputy.placeholder', 'Assign a deputy…')}
             noun={t('projects:projectForm.deputy.noun', 'deputy')}
-          />
+          />}
 
           {isEdit ? (
             <TextField

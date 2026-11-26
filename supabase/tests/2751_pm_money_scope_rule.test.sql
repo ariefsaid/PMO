@@ -41,7 +41,8 @@ insert into approval_stand_ins (org_id, delegator_id, stand_in_id, starts_on, en
   ('27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000a4', '27510000-0000-0000-0000-0000000000b3', native_org_today('27510000-0000-0000-0000-00000000000a') - 1, native_org_today('27510000-0000-0000-0000-00000000000a') + 1, '27510000-0000-0000-0000-0000000000a1', null),
   ('27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000a4', '27510000-0000-0000-0000-0000000000b4', native_org_today('27510000-0000-0000-0000-00000000000a') - 1, native_org_today('27510000-0000-0000-0000-00000000000a') + 1, '27510000-0000-0000-0000-0000000000a1', now()),
   ('27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000a4', '27510000-0000-0000-0000-0000000000a6', native_org_today('27510000-0000-0000-0000-00000000000a') - 5, native_org_today('27510000-0000-0000-0000-00000000000a') - 1, '27510000-0000-0000-0000-0000000000a1', null);
--- B carries money: an active 1000 Labor budget and an 800 Labor purchase, paid. PM A approves spend org-wide; PM B is
+-- B carries money: an active 1000 Labor budget and an 800 Labor purchase, paid (B's spend is 1030 with the hire charge
+-- of 200 and the stock issue of 30 seeded below). PM A approves spend org-wide; PM B is
 -- B's named approver (so B is not on the flat matrix, which routes to every holder of approval rank).
 insert into budget_versions (id, org_id, project_id, version, name, status, currency) values
   ('27510000-0000-0000-0000-000000000101', '27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000d2', 1, 'v1', 'Draft', 'IDR');
@@ -56,6 +57,41 @@ insert into procurements (id, org_id, title, status, total_value, project_id, cu
   ('27510000-0000-0000-0000-000000000601', '27510000-0000-0000-0000-00000000000a', 'PS3 buy B', 'Ordered', 800, '27510000-0000-0000-0000-0000000000d2', 'IDR', 'Labor', '27510000-0000-0000-0000-0000000000a4');
 insert into payments (id, org_id, procurement_id, status, date, amount, currency) values
   ('27510000-0000-0000-0000-000000000701', '27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-000000000601', 'Paid', '2026-10-10', 800, 'IDR');
+
+-- B also carries one row of every other shared read, so each "no row" case below would show B's money without the rule:
+-- an issue of stock costed to it, an equipment hire charge, an attributed overhead, and a billing claim. A request on B
+-- waits for a decision (an approver reads its figures while it waits). C has no named approver and nothing waiting.
+insert into projects (id, org_id, name, status, project_manager_id, currency) values
+  ('27510000-0000-0000-0000-0000000000d3', '27510000-0000-0000-0000-00000000000a', 'PS3 Project C', 'Ongoing Project', '27510000-0000-0000-0000-0000000000a1', 'IDR');
+insert into stock_issue_cost_settings (org_id, effective_on) values ('27510000-0000-0000-0000-00000000000a', '2026-01-01');
+insert into erp_account_mirror (org_id, company, erp_name, account_name, root_type, report_type, parent_account, is_group, account_currency, lft, rgt, refresh_id) values
+  ('27510000-0000-0000-0000-00000000000a', 'PS3', 'Rent - PS3', 'Rent', 'Expense', 'Profit and Loss', null, false, 'IDR', 1, 2, '27510000-0000-0000-0000-0000000000f0');
+insert into budget_category_account_map (org_id, category, erp_account, is_push_target) values ('27510000-0000-0000-0000-00000000000a', 'Equipment', 'Rent - PS3', false);
+insert into erp_gl_entry_mirror (id, org_id, erp_name, company, account, cost_center, fiscal_year, project, party_type, party, posting_date, debit, credit, is_cancelled, erp_modified) values
+  ('27510000-0000-0000-0000-0000000001a1', '27510000-0000-0000-0000-00000000000a', 'PS3-GL-1', 'PS3', 'Rent - PS3', 'Main - PS3', '2026', null, null, null, '2026-09-30', 1000, 0, false, '1');
+insert into cost_attribution_rules (id, org_id, rule_key, version, name, match_account, effective_from, specificity) values
+  ('27510000-0000-0000-0000-0000000002a1', '27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000003a1', 1, 'PS3 rent', 'Rent - PS3', '2026-01-01', 2);
+insert into cost_attribution_rule_targets (rule_id, org_id, position, project_id, percent) values ('27510000-0000-0000-0000-0000000002a1', '27510000-0000-0000-0000-00000000000a', 0, '27510000-0000-0000-0000-0000000000d2', 100);
+insert into equipment_assets (id, org_id, code, name, default_unit) values ('27510000-0000-0000-0000-0000000000e1', '27510000-0000-0000-0000-00000000000a', 'PS3-GEN', 'Generator', 'hours');
+insert into equipment_costing_settings (org_id, asset_id, setting_key, version, basis, work_rate, rate_unit, charge_category, effective_from) values
+  ('27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000e1', '27510000-0000-0000-0000-0000000003c2', 1, 'hire_rate', 50, 'hours', 'Equipment', '2026-01-01');
+set local session_replication_role = replica;
+insert into equipment_usage_entries (org_id, asset_id, project_id, work_date, quantity, unit, kind, status, author_id, approver_id, approved_at) values
+  ('27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000e1', '27510000-0000-0000-0000-0000000000d2', '2026-09-11', 4, 'hours', 'work', 'Approved', '27510000-0000-0000-0000-0000000000a1', '27510000-0000-0000-0000-0000000000a4', now());
+insert into stock_units (id, org_id, code, name) values ('27510000-0000-0000-0000-000000000851', '27510000-0000-0000-0000-00000000000a', 'm', 'metre');
+insert into stock_items (id, org_id, code, name, unit_id) values ('27510000-0000-0000-0000-000000000852', '27510000-0000-0000-0000-00000000000a', 'CBL', 'Cable', '27510000-0000-0000-0000-000000000851');
+insert into stock_warehouses (id, org_id, code, name, kind, project_id) values ('27510000-0000-0000-0000-000000000801', '27510000-0000-0000-0000-00000000000a', 'PS3-C', 'Central', 'central', null);
+insert into stock_documents (id, org_id, number, kind, status, warehouse_id, project_id, occurred_on, created_by, posted_by, posted_at) values
+  ('27510000-0000-0000-0000-000000000811', '27510000-0000-0000-0000-00000000000a', 'SI-PS3-1', 'issue', 'Posted', '27510000-0000-0000-0000-000000000801', '27510000-0000-0000-0000-0000000000d2', '2026-11-16', '27510000-0000-0000-0000-0000000000a1', '27510000-0000-0000-0000-0000000000a1', now());
+insert into stock_document_lines (id, org_id, document_id, line_no, item_id, quantity, direction) values ('27510000-0000-0000-0000-000000000821', '27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-000000000811', 1, '27510000-0000-0000-0000-000000000852', 3, 'out');
+insert into stock_ledger (org_id, document_id, line_id, item_id, warehouse_id, project_id, kind, qty_delta, value_delta, qty_after, value_after, occurred_on, posted_by) values
+  ('27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-000000000811', '27510000-0000-0000-0000-000000000821', '27510000-0000-0000-0000-000000000852', '27510000-0000-0000-0000-000000000801', '27510000-0000-0000-0000-0000000000d2', 'issue', -3, -30, 0, 0, '2026-11-16', '27510000-0000-0000-0000-0000000000a1');
+insert into work_orders (id, org_id, project_id, wo_number, title, status, order_value, tax_treatment, tax_amount, currency) values
+  ('27510000-0000-0000-0000-000000000401', '27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000d2', 'WO-B', 'PS3 WO B', 'Issued', 900, 'exclusive', 0, 'IDR');
+insert into progress_claims (id, org_id, project_id, work_order_id, kind, currency, gross_amount, created_by) values ('27510000-0000-0000-0000-000000000a01', '27510000-0000-0000-0000-00000000000a', '27510000-0000-0000-0000-0000000000d2', '27510000-0000-0000-0000-000000000401', 'progress', 'IDR', 500, '27510000-0000-0000-0000-0000000000a4');
+insert into procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, requested_by_id) values
+  ('27510000-0000-0000-0000-000000000602', '27510000-0000-0000-0000-00000000000a', 'PS3 ask B', 'Requested', 100, '27510000-0000-0000-0000-0000000000d2', 'IDR', 'Labor', '27510000-0000-0000-0000-0000000000a4');
+set local session_replication_role = origin;
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -115,9 +151,13 @@ select is((select array_agg(project_id) from project_pmo_positions(array['275100
           array['27510000-0000-0000-0000-0000000000d1'::uuid], 'PS3 PM A: positions list A only');
 select is((select count(*) from stock_issue_cost_lines('27510000-0000-0000-0000-0000000000d2'))::int, 0, 'PS3 PM A: stock issue cost of B, no row');
 select is((select count(*) from equipment_charge_project_actuals('27510000-0000-0000-0000-0000000000d2'))::int, 0, 'PS3 PM A: equipment charge of B, no row');
-select is((select count(*) from equipment_charge_project_actuals_between('27510000-0000-0000-0000-0000000000d2', null, null))::int, 0, 'PS3 PM A: equipment charge window of B, no row');
+select is((select count(*) from equipment_charge_project_actuals_between('27510000-0000-0000-0000-0000000000d2', '2026-01-01', '2026-12-31'))::int, 0, 'PS3 PM A: equipment charge window of B, no row');
 select is((select count(*) from cost_attribution_project_actuals('27510000-0000-0000-0000-0000000000d2'))::int, 0, 'PS3 PM A: attributed cost of B, no row');
-select is((select count(*) from budget_attributed_year_sums('27510000-0000-0000-0000-0000000000d2', null))::int, 0, 'PS3 PM A: attributed year sums of B, no row');
+select is((select count(*) from budget_attributed_year_sums('27510000-0000-0000-0000-0000000000d2', array['2026']))::int, 0, 'PS3 PM A: attributed year sums of B, no row');
+select is(get_project_billing('27510000-0000-0000-0000-0000000000d2'), null, 'PS3 PM A: the billing summary of B reads as no project');
+select ok(get_project_billing('27510000-0000-0000-0000-0000000000d1') is not null, 'PS3 PM A: the billing summary of A returns');
+select is((select count(*) from progress_claims where project_id = '27510000-0000-0000-0000-0000000000d2')::int, 0, 'PS3 PM A: B''s billing claims are withheld');
+select is((select count(*) from work_order_billing where project_id = '27510000-0000-0000-0000-0000000000d2')::int, 0, 'PS3 PM A: B''s billing per work order is withheld');
 select throws_ok($$select * from stock_issue_cost_lines_core('27510000-0000-0000-0000-0000000000d2')$$, '42501', null,
   'PS3 a client cannot call the internal body directly');
 select throws_ok($$select * from equipment_charge_project_actuals_core('27510000-0000-0000-0000-0000000000d2', null)$$, '42501', null,
@@ -125,16 +165,27 @@ select throws_ok($$select * from equipment_charge_project_actuals_core('27510000
 
 -- ── Not limited: unchanged reads on another project ──────────────────────────────────────────────
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000a7');
-select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 800::numeric, 'PS3 Procurement Manager: B''s spend reads');
+select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 1030::numeric, 'PS3 Procurement Manager: B''s spend reads');
 select is(project_money_in_scope('27510000-0000-0000-0000-0000000000d2'), true, 'AC-004 Procurement Manager: B is in scope for bill match and the other project reads');
+select ok((select count(*) from stock_issue_cost_lines('27510000-0000-0000-0000-0000000000d2')) > 0, 'PS3 Procurement Manager: B''s stock issue cost reads');
+select ok((select count(*) from equipment_charge_project_actuals('27510000-0000-0000-0000-0000000000d2')) > 0, 'PS3 Procurement Manager: B''s equipment charge reads');
+select ok((select count(*) from equipment_charge_project_actuals_between('27510000-0000-0000-0000-0000000000d2', '2026-01-01', '2026-12-31')) > 0, 'PS3 Procurement Manager: B''s equipment charge window reads');
+select ok((select count(*) from cost_attribution_project_actuals('27510000-0000-0000-0000-0000000000d2')) > 0, 'PS3 Procurement Manager: B''s attributed cost reads');
+select ok((select count(*) from budget_attributed_year_sums('27510000-0000-0000-0000-0000000000d2', array['2026'])) > 0, 'PS3 Procurement Manager: B''s attributed year sums read');
+select ok((select count(*) from project_pmo_spent_position('27510000-0000-0000-0000-0000000000d2')) > 0, 'PS3 Procurement Manager: B''s spent position reads');
+select ok((select count(*) from project_pmo_commitment_position('27510000-0000-0000-0000-0000000000d2')) > 0, 'PS3 Procurement Manager: B''s commitment position reads');
+select ok((select count(*) from project_pmo_paid_by_category('27510000-0000-0000-0000-0000000000d2')) > 0, 'PS3 Procurement Manager: B''s paid by category reads');
+select ok(get_project_billing('27510000-0000-0000-0000-0000000000d2') is not null, 'PS3 Procurement Manager: B''s billing summary reads');
+select is((select count(*) from progress_claims where project_id = '27510000-0000-0000-0000-0000000000d2')::int, 1, 'PS3 Procurement Manager: B''s billing claim reads');
+select is((select pending from work_order_billing where project_id = '27510000-0000-0000-0000-0000000000d2'), 500::numeric, 'PS3 Procurement Manager: B''s billing per work order reads');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000a8');
-select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 800::numeric, 'PS3 Equipment Manager: B''s spend reads');
+select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 1030::numeric, 'PS3 Equipment Manager: B''s spend reads');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000a9');
-select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 800::numeric, 'PS3 HR Manager: B''s spend reads');
+select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 1030::numeric, 'PS3 HR Manager: B''s spend reads');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000b1');
-select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 800::numeric, 'PS3 Project Control Manager: B''s spend reads');
+select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 1030::numeric, 'PS3 Project Control Manager: B''s spend reads');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000b3');
-select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 800::numeric, 'PS3 stand-in for PM B: B''s spend reads');
+select is((select spent from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid])), 1030::numeric, 'PS3 stand-in for PM B: B''s spend reads');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000c1');
 select is((select count(*) from project_pmo_positions(array['27510000-0000-0000-0000-0000000000d2'::uuid]))::int, 0, 'PS3 another organisation: no row');
 
@@ -149,7 +200,7 @@ select results_eq($$select route, reason, approver_ids, line_budget, line_used f
   'AC-007 PM A approving on B: the same route as Admin');
 select results_eq($$select figures from figures_seen where who = 'pm_a'$$, $$select figures from figures_seen where who = 'admin'$$,
   'AC-007 PM A approving on B: the same project figures as Admin');
-select ok((select (figures->>'proj_spent')::numeric from figures_seen where who = 'pm_a') = 800, 'AC-007 PM A: figures carry B''s 800 spent');
+select ok((select (figures->>'proj_spent')::numeric from figures_seen where who = 'pm_a') = 1030, 'AC-007 PM A: figures carry B''s 1030 spent');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000a1');
 insert into gate_seen select 'admin', procurement_amount_eligibility('27510000-0000-0000-0000-000000000601', 100);
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000a3');
@@ -165,6 +216,21 @@ select is((select count(*) from spend_approval_project_figures(array['27510000-0
   'PS3 a Project Manager who neither owns B nor approves on it reads no figures of B');
 select is((select count(*) from spend_route_project_figures_routed(array['27510000-0000-0000-0000-0000000000d2'::uuid]))::int, 0,
   'PS3 nor through the routed read called directly');
+-- C has no named approver, so a request on it would route to every holder of approval rank; nothing waits on C yet.
+select is((select count(*) from spend_approval_project_figures(array['27510000-0000-0000-0000-0000000000d3'::uuid]))::int, 0,
+  'PS3 a limited Project Manager with approval rank reads no figures of a project without a named approver while nothing waits on it');
+select pg_temp.act_as('27510000-0000-0000-0000-0000000000a3');
+select is((select count(*) from spend_approval_project_figures(array['27510000-0000-0000-0000-0000000000d3'::uuid]))::int, 0,
+  'PS3 nor does an org-wide approver who is a limited Project Manager');
+reset role;
+insert into procurements (id, org_id, title, status, total_value, project_id, currency, budget_category, requested_by_id) values
+  ('27510000-0000-0000-0000-000000000603', '27510000-0000-0000-0000-00000000000a', 'PS3 ask C', 'Requested', 100, '27510000-0000-0000-0000-0000000000d3', 'IDR', 'Labor', '27510000-0000-0000-0000-0000000000a6');
+set local role authenticated;
+select is((select count(*) from spend_approval_project_figures(array['27510000-0000-0000-0000-0000000000d3'::uuid]))::int, 1,
+  'PS3 once a request on C waits for them, an approver on the flat route reads C''s figures');
+select pg_temp.act_as('27510000-0000-0000-0000-0000000000a6');
+select is((select count(*) from spend_approval_project_figures(array['27510000-0000-0000-0000-0000000000d3'::uuid]))::int, 0,
+  'PS3 the person who asked does not decide, so their own request opens no figures');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000c2');
 select is((select count(*) from spend_route_project_figures_routed(array['27510000-0000-0000-0000-0000000000d2'::uuid]))::int, 0,
   'PS3 an org-wide approver of another organisation reads no figures of B');
@@ -198,6 +264,28 @@ select lives_ok($$update projects set deputy_manager_id = '27510000-0000-0000-00
   'PS3 a Project Manager sets the deputy as they set the manager');
 select pg_temp.act_as('27510000-0000-0000-0000-0000000000a6');
 select is(project_money_in_scope('27510000-0000-0000-0000-0000000000d1'), true, 'PS3 the newly named deputy reads A');
+
+-- ── Who names a project's managers ───────────────────────────────────────────────────────────────
+select pg_temp.act_as('27510000-0000-0000-0000-0000000000a3');
+select throws_ok($$update projects set deputy_manager_id = '27510000-0000-0000-0000-0000000000a3' where id = '27510000-0000-0000-0000-0000000000d2'$$, '42501', 'only the project''s manager names its deputy',
+  'PS3 PM A cannot name themselves deputy of another manager''s project');
+select throws_ok($$update projects set project_manager_id = '27510000-0000-0000-0000-0000000000a3' where id = '27510000-0000-0000-0000-0000000000d2'$$, '42501', 'a Project Manager cannot change who manages a project',
+  'PS3 PM A cannot name themselves manager of another manager''s project');
+select throws_ok($$update projects set project_manager_id = '27510000-0000-0000-0000-0000000000a4' where id = '27510000-0000-0000-0000-0000000000d1'$$, '42501', 'a Project Manager cannot change who manages a project',
+  'PS3 PM A cannot hand their own project to another manager');
+select lives_ok($$insert into projects (id, org_id, name, status, project_manager_id, deputy_manager_id, currency)
+                  values ('27510000-0000-0000-0000-0000000000d4', '27510000-0000-0000-0000-00000000000a', 'PS3 Project D', 'Leads', '27510000-0000-0000-0000-0000000000a3', '27510000-0000-0000-0000-0000000000a5', 'IDR')$$,
+  'PS3 PM A creates a project naming themselves manager and a deputy');
+select throws_ok($$insert into projects (id, org_id, name, status, project_manager_id, deputy_manager_id, currency)
+                   values ('27510000-0000-0000-0000-0000000000d5', '27510000-0000-0000-0000-00000000000a', 'PS3 Project E', 'Leads', '27510000-0000-0000-0000-0000000000a4', '27510000-0000-0000-0000-0000000000a3', 'IDR')$$,
+  '42501', 'only the project''s manager names its deputy', 'PS3 PM A cannot create another manager''s project with themselves as deputy');
+select pg_temp.act_as('27510000-0000-0000-0000-0000000000a5');
+select throws_ok($$update projects set deputy_manager_id = '27510000-0000-0000-0000-0000000000a5' where id = '27510000-0000-0000-0000-0000000000d1'$$, '42501', 'only the project''s manager names its deputy',
+  'PS3 a deputy does not name the deputy');
+select pg_temp.act_as('27510000-0000-0000-0000-0000000000a7');
+select lives_ok($$update projects set deputy_manager_id = '27510000-0000-0000-0000-0000000000a7' where id = '27510000-0000-0000-0000-0000000000d2'$$, 'PS3 a Procurement Manager names a deputy as before');
+select pg_temp.act_as('27510000-0000-0000-0000-0000000000a1');
+select lives_ok($$update projects set project_manager_id = '27510000-0000-0000-0000-0000000000a3' where id = '27510000-0000-0000-0000-0000000000d2'$$, 'PS3 an Admin changes the manager as before');
 
 select * from finish();
 rollback;

@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useContext, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
+import { ProjectMoneyScopeContext } from './useProjectMoneyScope';
 import { useOrgQuery } from './useOrgQuery';
 import { useAllWorkOrders, useProjectWorkOrders } from './useWorkOrders';
 import { useBoqItems } from './useProgressBilling';
@@ -34,8 +35,10 @@ export function useWorkOrderDashboard(projectId?: string, costProjectIds?: reado
   const orgId = useAuth().currentUser?.org_id;
   const scoped = Boolean(projectId);
   const pid = projectId ?? '';
-  const canBilling = may('view', 'salesInvoice');
-  const canPlan = may('view', 'workOrderPlan');
+  // On a project page outside the reader's money scope (DD-R1125-14) the board reads like one for a role with no money.
+  const moneyInScope = useContext(ProjectMoneyScopeContext);
+  const canBilling = may('view', 'salesInvoice') && moneyInScope;
+  const canPlan = may('view', 'workOrderPlan') && moneyInScope;
 
   const allOrders = useAllWorkOrders(!scoped);
   const projectOrders = useProjectWorkOrders(pid);

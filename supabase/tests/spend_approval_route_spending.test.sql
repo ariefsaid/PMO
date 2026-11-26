@@ -38,6 +38,11 @@ insert into projects (id, org_id, name, status, currency) values
   ('a0923000-0000-0000-0000-0000000000e3', 'a0923000-0000-0000-0000-00000000000b', 'B claims and ledger',  'Ongoing Project', 'USD'),
   ('a0923000-0000-0000-0000-0000000000e4', 'a0923000-0000-0000-0000-00000000000b', 'B no ledger reading',  'Ongoing Project', 'USD'),
   ('a0923000-0000-0000-0000-0000000000f1', 'a0923000-0000-0000-0000-00000000000c', 'C ledger currency',    'Ongoing Project', 'USD');
+-- Each org's Project Manager manages its projects: a Project Manager reads money for their own projects (DD-R1125-14),
+-- and these cases read the route as that manager.
+update projects p set project_manager_id = case p.org_id when 'a0923000-0000-0000-0000-00000000000a' then 'a0923000-0000-0000-0000-0000000000a1'::uuid
+                                                         when 'a0923000-0000-0000-0000-00000000000b' then 'a0923000-0000-0000-0000-0000000000b1'::uuid end
+ where p.org_id in ('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-0000-00000000000b');
 insert into budget_versions (id, org_id, project_id, version, name, status, currency)
 select ('a0923000-0000-0000-0000-0000000001' || right(p.id::text, 2))::uuid, p.org_id, p.id, 1, 'v1', 'Draft', 'USD'
   from projects p where p.id::text like 'a0923000-%';
@@ -384,8 +389,8 @@ insert into projects (id, org_id, name, status, currency) values
   ('a0923000-0000-0000-0000-000000000503', 'a0923000-0000-0000-0000-00000000000d', 'D unknown spending', 'Ongoing Project', 'USD'),
   ('a0923000-0000-0000-0000-000000000504', 'a0923000-0000-0000-0000-00000000000d', 'D no named approver','Ongoing Project', 'USD'),
   ('a0923000-0000-0000-0000-000000000505', 'a0923000-0000-0000-0000-00000000000d', 'D named but disabled','Ongoing Project', 'USD');
--- PM D reads 505's route as its manager: a Project Manager reads money for their own projects (DD-R1125-14).
-update projects set project_manager_id = 'a0923000-0000-0000-0000-0000000000f2' where id = 'a0923000-0000-0000-0000-000000000505';
+-- PM D reads D's routes as their manager: a Project Manager reads money for their own projects (DD-R1125-14).
+update projects set project_manager_id = 'a0923000-0000-0000-0000-0000000000f2' where org_id = 'a0923000-0000-0000-0000-00000000000d';
 insert into budget_versions (id, org_id, project_id, version, name, status, currency)
 select ('a0923000-0000-0000-0000-000000000' || (p.n + 200)::text)::uuid, 'a0923000-0000-0000-0000-00000000000d', p.id, 1, 'v1', 'Draft', 'USD'
   from (select id, right(id::text, 3)::int as n from projects where org_id = 'a0923000-0000-0000-0000-00000000000d') p;

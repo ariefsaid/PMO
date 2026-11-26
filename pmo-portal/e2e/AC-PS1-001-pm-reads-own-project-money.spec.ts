@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { roleJobUser } from './support/roleJobUser';
 import { need, ORG_ID, PM_ID, serviceClient, orgToday, inDays } from './support/jobJourney';
 import { pinEnglishLocale } from './helpers';
+import { readFileSync } from 'node:fs';
 
 // AC-PS1-001 — a Project Manager reads money for their own projects only (owner rulings DD-R1125-14/15).
 // AC-004 (PS3) — a job role at the same access level that works across projects (Procurement Manager) keeps those reads.
@@ -14,7 +15,7 @@ async function withProjects(label: string, managerOfA: (db: Fixture['db']) => Pr
   const db = serviceClient(label); const must = need(label);
   const short = crypto.randomUUID().slice(0, 8);
   const nameA = `PS1 own ${short}`; const nameB = `PS1 other ${short}`;
-  const ids: string[] = []; const invoices: string[] = [];
+  const ids: string[] = []; const invoices: string[] = []; const orders: string[] = []; const claims: string[] = [];
   try {
     const managerA = await managerOfA(db);
     for (const [name, manager, amount] of [[nameA, managerA, 100], [nameB, PM_ID, 200]] as const) {
@@ -24,9 +25,17 @@ async function withProjects(label: string, managerOfA: (db: Fixture['db']) => Pr
       invoices.push(must('invoice', await db.from('sales_invoices').insert({ org_id: ORG_ID, project_id: project, si_number: `SI-PS1-${short}-${amount}`,
         invoice_date: orgToday(), amount, erp_outstanding_amount: amount, tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD',
         status: 'Submitted', erp_docstatus: 1, pmo_native: false, author_user_id: null }).select('id').single()).id);
+      // One work order with a billing claim of 300 on it: the Orders tab's billing figures.
+      const order = must('work order', await db.from('work_orders').insert({ org_id: ORG_ID, project_id: project, wo_number: `WO-PS1-${short}-${amount}`,
+        title: `${name} order`, status: 'Issued', order_value: 900, tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD' }).select('id').single()).id;
+      orders.push(order);
+      claims.push(must('claim', await db.from('progress_claims').insert({ org_id: ORG_ID, project_id: project, work_order_id: order, kind: 'progress',
+        currency: 'USD', gross_amount: 300, created_by: PM_ID }).select('id').single()).id);
     }
     await body({ db, nameA, nameB, own: ids[0], other: ids[1] });
   } finally {
+    for (const id of claims) await db.from('progress_claims').delete().eq('id', id);
+    for (const id of orders) { await db.from('record_changes').delete().eq('entity_id', id); await db.from('work_orders').delete().eq('id', id); }
     for (const id of invoices) await db.from('sales_invoices').delete().eq('id', id);
     for (const id of ids) { await db.from('record_changes').delete().eq('entity_id', id); await db.from('projects').delete().eq('id', id); }
   }
@@ -66,6 +75,9 @@ test('AC-PS1-001 a Project Manager sees the money of their own project and none 
       await tabs(page).filter({ hasText: 'Budget' }).click();
       await expect(page).toHaveURL(new RegExp(`/projects/${own}/budget`));
       await expect(errors).toHaveCount(0);
+      await page.goto(`/projects/${own}/orders`);
+      await expect(page.getByText(`${nameA} order`)).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('columnheader', { name: 'Billed' })).toBeVisible();
 
       // Another project by typed URL: it opens with its delivery areas; no money area, no money figure, nothing errors.
       await page.goto(`/projects/${other}`);
@@ -74,6 +86,17 @@ test('AC-PS1-001 a Project Manager sees the money of their own project and none 
       for (const money of ['Budget', 'Contract', 'Procurement']) await expect(tabs(page).filter({ hasText: money })).toHaveCount(0);
       await expect(page.getByTestId('project-finances')).toHaveCount(0);
       await expect(page.getByTestId('money-position-details')).toHaveCount(0);
+      await expect(errors).toHaveCount(0);
+      // Its Orders tab lists the work order with no billing money, and the export carries none either.
+      await page.goto(`/projects/${other}/orders`);
+      await expect(page.getByText(`${nameB} order`)).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('columnheader', { name: 'Billed' })).toHaveCount(0);
+      await expect(page.getByText('Left to bill')).toHaveCount(0);
+      const download = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Export' }).click();
+      const csv = readFileSync(await (await download).path(), 'utf-8');
+      expect(csv).toContain(`${nameB} order`);
+      expect(csv).not.toMatch(/Billed|Order value|,"?900|,"?300/);
       await expect(errors).toHaveCount(0);
       // A deep link to its budget lands on the Overview, as for a role with no money.
       await page.goto(`/projects/${other}/budget`);

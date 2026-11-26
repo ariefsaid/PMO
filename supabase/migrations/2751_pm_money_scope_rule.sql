@@ -830,18 +830,26 @@ create function public.spend_route_project_figures_routed(p_project_ids uuid[]) 
     select s.delegator_id from public.approval_stand_ins s
      where s.org_id = public.auth_org_id() and s.stand_in_id = auth.uid() and s.revoked_at is null
        and public.native_org_today(s.org_id) between s.starts_on and s.ends_on
+  ), waiting as (                                       -- requests waiting for a decision, never the caller's own
+    select pr.project_id from public.procurements pr
+     where pr.org_id = public.auth_org_id() and pr.status = 'Requested' and pr.requested_by_id is distinct from auth.uid()
+    union
+    select c.project_id from public.expense_claims c
+     where c.org_id = public.auth_org_id() and c.status = 'Submitted' and c.claimant_id is distinct from auth.uid()
   )
   select f.* from public.spend_route_project_figures_core(array(
     select p.id from public.projects p
      where public.assert_not_light() and p.org_id = public.auth_org_id() and p.id = any (p_project_ids)                    -- the caller's organisation only
        and public.is_active_member() and (select public.actor_shown_prices())
        and (p.id in (select public.actor_money_projects())
-            or exists (select 1 from public.spend_approvers sa                                 -- mut:figures_routed_approver
-                        where sa.org_id = p.org_id and (sa.project_id = p.id or sa.project_id is null)
-                          and sa.profile_id in (select id from me))
-            -- no named project approver: the flat matrix routes to every holder of approval rank (1292)
-            or (public.holds_spend_approval_authority(public.auth_role())
-                and not exists (select 1 from public.spend_approvers sa where sa.org_id = p.org_id and sa.project_id = p.id))))) f
+            -- another project: only while a request on it waits for a decision the caller may make
+            or (p.id in (select w.project_id from waiting w)                                    -- mut:figures_routed_waiting
+                and (exists (select 1 from public.spend_approvers sa                            -- mut:figures_routed_approver
+                              where sa.org_id = p.org_id and (sa.project_id = p.id or sa.project_id is null)
+                                and sa.profile_id in (select id from me))
+                     -- no named project approver: the flat matrix routes to every holder of approval rank (1292)
+                     or (public.holds_spend_approval_authority(public.auth_role())
+                         and not exists (select 1 from public.spend_approvers sa where sa.org_id = p.org_id and sa.project_id = p.id))))))) f
 $$;
 revoke all on function public.spend_route_project_figures_routed(uuid[]) from public, anon;
 grant execute on function public.spend_route_project_figures_routed(uuid[]) to authenticated, service_role;
@@ -854,5 +862,133 @@ create or replace function public.spend_approval_project_figures(p_project_ids u
   select r.* from public.spend_route_project_figures_routed(p_project_ids) r
    where not ((select public.money_read_is_internal()) or (select not public.actor_money_scoped()))
 $$;
+
+
+-- ── The project's billing: claims and their money (DD-R1125-14) ──────────────────────────────────────────────────────────
+-- The billing summary reads as no project for a client outside the project's money scope (null, as for an unseen project);
+-- the claim rows, their lines and their evidence follow the same scope at the table.
+create or replace function public.get_project_billing(p_project_id uuid)
+ returns jsonb language sql stable security invoker set search_path=public, pg_temp as $$
+with p as (
+ select pr.id,pr.org_id,pr.currency,case when pr.tax_treatment='inclusive' then pr.contract_value-coalesce(pr.tax_amount,0) else pr.contract_value end contract_net
+ from public.projects pr where pr.id=p_project_id
+   and (public.money_read_is_internal() or public.project_money_in_scope(pr.id))   -- mut:pm_scope_billing
+), counted as (
+ select w.is_down_payment,w.net,w.recovery from public.sales_invoice_work_billed w join p on p.id=w.project_id
+ where w.status in ('Submitted','Unpaid','Paid') and w.net is not null and w.currency=p.currency
+ union all
+ select false,ob.claimed_amount,0 from public.opening_balances ob join public.work_orders wo on wo.id=ob.work_order_id join p on p.id=wo.project_id
+ where ob.kind='work_order' and ob.reversed_at is null and ob.currency=p.currency
+), claims as (
+ select pc.id,pc.kind,pc.gross_amount,pc.dp_recovery_amount,pc.work_order_id,si.status
+ from public.progress_claims pc left join public.sales_invoices si on si.id=pc.id and si.org_id=pc.org_id
+ where pc.project_id=p_project_id and pc.withdrawn_at is null and si.status is distinct from 'Cancelled'
+), opening_claimed as (
+ select ob.work_order_id,x.boq_item_id,x.claimed_quantity claimed from public.opening_balance_lines x join public.opening_balances ob on ob.id=x.opening_id
+ join public.work_orders wo on wo.id=ob.work_order_id where wo.project_id=p_project_id and ob.reversed_at is null and x.claimed_quantity>0
+), claimed_line as (
+ select boq_item_id,sum(claimed) claimed from (
+  select l.boq_item_id,l.quantity claimed from public.progress_claim_lines l join claims c on c.id=l.claim_id
+  union all select boq_item_id,claimed from opening_claimed) u group by boq_item_id
+), claimed_alloc as (
+ select boq_item_id,work_order_id,sum(claimed) claimed from (
+  select l.boq_item_id,c.work_order_id,l.quantity claimed from public.progress_claim_lines l join claims c on c.id=l.claim_id where c.work_order_id is not null
+  union all select boq_item_id,work_order_id,claimed from opening_claimed) u group by boq_item_id,work_order_id
+), latest as (
+ select e.id,e.month,e.pct_complete from public.project_progress_entries e where e.project_id=p_project_id
+ and e.month<=public.org_current_month((select o.default_timezone from public.organizations o where o.id=public.auth_org_id()),now()) order by e.month desc limit 1
+), assessed as (select q.boq_item_id,q.quantity_to_date from public.progress_assessment_quantities q join latest l on l.id=q.entry_id),
+latest_bast as (
+ select distinct on (a.work_order_id) a.work_order_id,a.id,a.is_final
+ from public.work_order_acceptances a where a.project_id=p_project_id and a.status='Confirmed'
+ order by a.work_order_id,a.confirmed_at desc,a.id desc
+), allocation as (
+ select wl.boq_item_id,wl.work_order_id,wl.quantity,wo.status,
+   coalesce(ca.claimed,0) claimed,al.quantity accepted,coalesce(lb.is_final,false) final
+ from public.work_order_lines wl join public.work_orders wo on wo.id=wl.work_order_id
+ left join claimed_alloc ca on ca.boq_item_id=wl.boq_item_id and ca.work_order_id=wl.work_order_id
+ left join latest_bast lb on lb.work_order_id=wl.work_order_id
+ left join public.work_order_acceptance_lines al on al.acceptance_id=lb.id and al.boq_item_id=wl.boq_item_id
+ where wl.org_id=public.auth_org_id() and wo.project_id=p_project_id and wo.status<>'Cancelled'
+), agg as (
+ select b.id,b.earning_basis,b.line_no,b.created_at,b.quantity contract_quantity,b.rate,
+  coalesce((select sum(a.quantity) from allocation a where a.boq_item_id=b.id and a.status in ('Issued','Closed')),0) ordered_quantity,
+  coalesce((select sum(a.quantity) from allocation a where a.boq_item_id=b.id and a.status='Issued'),0) issued_ordered,
+  coalesce((select sum(a.accepted) from allocation a where a.boq_item_id=b.id and a.final and a.status='Closed'),0) closed_final,
+  coalesce((select sum(a.accepted) from allocation a where a.boq_item_id=b.id and a.accepted is not null),0) accepted_quantity,
+  coalesce(cl.claimed,0) claimed_quantity,a.quantity_to_date assessed_quantity,
+  coalesce((select jsonb_agg(jsonb_build_object('work_order_id',x.work_order_id,'boq_item_id',x.boq_item_id,'quantity',x.quantity,'claimed_quantity',x.claimed,'accepted_quantity',x.accepted,'final',x.final) order by x.work_order_id)
+    from allocation x where x.boq_item_id=b.id),'[]'::jsonb) allocations
+ from public.boq_items b left join claimed_line cl on cl.boq_item_id=b.id left join assessed a on a.boq_item_id=b.id where b.project_id=p_project_id
+), earned as (select * from public.project_line_earned(p_project_id)), lines as (
+ select a.*,coalesce(e.earned_quantity,0) earned_quantity,
+  a.contract_quantity-a.issued_ordered-a.closed_final contract_balance
+ from agg a left join earned e on e.boq_item_id=a.id
+)
+select jsonb_build_object(
+ 'currency',p.currency,'contract_net',p.contract_net,
+ 'work_billed',coalesce((select sum(net+recovery) from counted where not is_down_payment),0),
+ 'dp_billed',coalesce((select sum(net) from counted where is_down_payment),0),
+ 'dp_recovered',coalesce((select sum(recovery) from counted where not is_down_payment),0),
+ 'not_submitted',coalesce((select sum(gross_amount-dp_recovery_amount) from claims where status is null or status='Draft'),0),
+ 'assessment',(select jsonb_build_object('month',l.month,'pct_complete',l.pct_complete) from latest l),
+ 'earned_value',coalesce((select sum(earned_value) from earned),0),
+ 'boq',coalesce((select jsonb_agg(jsonb_build_object('boq_item_id',id,'claimed_quantity',claimed_quantity,'assessed_quantity',assessed_quantity,
+   'earning_basis',earning_basis,'line_no',line_no,'ordered_quantity',ordered_quantity,'accepted_quantity',accepted_quantity,'closed_final',closed_final,
+   'earned_quantity',earned_quantity,'contract_balance',contract_balance,'allocations',allocations) order by line_no nulls last,created_at,id)
+   from lines),'[]'::jsonb)) from p
+$$;
+
+-- Billing per work order (the project's Orders tab): a work order outside the reader's money scope is not listed.
+create or replace view public.work_order_billing with (security_invoker = true) as
+  select wo.id as work_order_id, wo.org_id, wo.project_id, wo.status, wo.wo_number, wo.title, wo.closed_at, wo.currency,
+         coalesce(wo.closing_value,case when wo.tax_treatment='inclusive' then wo.order_value-wo.tax_amount else wo.order_value end) as order_net,
+         coalesce(sum(l.billed) filter(where l.submitted),0) as invoiced,
+         coalesce(sum(l.billed) filter(where not l.submitted),0) as pending,
+         coalesce(sum(l.billed) filter(where l.paid),0) as paid,
+         coalesce(wo.closing_value,case when wo.tax_treatment='inclusive' then wo.order_value-wo.tax_amount else wo.order_value end)-coalesce(sum(l.billed),0) as remaining,
+         coalesce(bool_and(l.billed is not null and l.currency=wo.currency) filter(where l.record_id is not null),true) as figures_complete,
+         count(l.record_id)::int as line_count,(count(l.record_id) filter(where l.submitted and not l.paid))::int as unpaid_count
+    from public.work_orders wo left join public.work_order_billing_lines l on l.work_order_id=wo.id and l.org_id=wo.org_id
+   where (select public.money_read_is_internal()) or public.project_money_in_scope(wo.project_id)   -- mut:pm_scope_wo_billing
+   group by wo.id;
+
+create policy progress_claims_money_scope on public.progress_claims as restrictive for select to authenticated
+  using ((select public.money_read_is_internal()) or public.project_money_in_scope(project_id));
+create policy progress_claim_lines_money_scope on public.progress_claim_lines as restrictive for select to authenticated
+  using ((select public.money_read_is_internal())
+         or exists (select 1 from public.progress_claims c where c.id = progress_claim_lines.claim_id));
+create policy progress_claim_evidence_money_scope on public.progress_claim_evidence as restrictive for select to authenticated
+  using ((select public.money_read_is_internal())
+         or exists (select 1 from public.progress_claims c where c.id = progress_claim_evidence.claim_id));
+
+-- ── Who names a project's managers (Director ruling, 26 Nov) ─────────────────────────────────────────────────────────────
+-- A limited Project Manager or deputy: may name the deputy only on a project they manage, never changes the manager after
+-- the project is created, and so cannot bring another manager's project into their own money scope. Naming themselves
+-- manager of a project they create stays allowed. Everyone else is unchanged. Decided on the signed-in person, so a
+-- definer path acting for them is held to the same rule.
+create function public.guard_project_people_fields() returns trigger
+  language plpgsql set search_path = public, pg_temp as $$
+begin
+  if not public.actor_money_scoped() then return new; end if;                                     -- mut:people_who
+  if tg_op = 'INSERT' then
+    if new.deputy_manager_id is not null and new.project_manager_id is distinct from auth.uid() then
+      raise exception 'only the project''s manager names its deputy' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+  if new.project_manager_id is distinct from old.project_manager_id then                          -- mut:people_manager
+    raise exception 'a Project Manager cannot change who manages a project' using errcode = '42501';
+  end if;
+  if new.deputy_manager_id is distinct from old.deputy_manager_id
+     and old.project_manager_id is distinct from auth.uid() then                                  -- mut:people_deputy
+    raise exception 'only the project''s manager names its deputy' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke all on function public.guard_project_people_fields() from public, anon, authenticated;
+create trigger projects_guard_people_fields
+  before insert or update of project_manager_id, deputy_manager_id on public.projects
+  for each row execute function public.guard_project_people_fields();
 
 commit;
