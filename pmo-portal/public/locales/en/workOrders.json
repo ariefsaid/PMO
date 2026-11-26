@@ -106,14 +106,16 @@
     "empty": "No issues name this work order.",
     "due": "Fix by {{date}}",
     "noDue": "No due time",
-    "overdue": "Overdue"
+    "overdue": "Overdue",
+    "open": "Open incidents"
   },
   "openTasks": {
     "title": "Open tasks",
     "error": "Couldn't load the open tasks",
     "empty": "No open tasks name this work order.",
     "unassigned": "Unassigned",
-    "noDue": "No due date"
+    "noDue": "No due date",
+    "open": "Open tasks"
   },
   "siteLocation": {
     "title": "Site location",
@@ -355,7 +357,8 @@
       "stepAttachment": "Nothing is attached yet for step \"{{step}}\".",
       "quantityAccept": "{{quantity}} {{unit}} reported but not yet accepted. Record the acceptance.",
       "quantityClaim": "{{quantity}} {{unit}} accepted but not yet claimed."
-    }
+    },
+    "noProgress": "No work quantities have been reported yet."
   },
   "all": {
     "empty": "You have no work orders yet",
@@ -460,5 +463,6 @@
   "new": {
     "action": "New work order"
   },
-  "complete": "Complete"
+  "complete": "Complete",
+  "stockOpen": "Open stock"
 }

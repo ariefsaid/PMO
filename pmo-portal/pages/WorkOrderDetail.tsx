@@ -196,7 +196,7 @@ const WorkOrderDetail: React.FC = () => {
   return (
     <>
       <BackBar label={backLabel} phoneOnly onBack={goBack} />
-      <RecordHeader panelInset actionsOnTitleRow compactStatsOnMobile name={row.wo_number ?? t('notNumbered', 'Not yet numbered')}
+      <RecordHeader panelInset actionsOnTitleRow statusBelowMetaOnMobile compactStatsOnMobile name={row.wo_number ?? t('notNumbered', 'Not yet numbered')}
         status={<StatusPill record="workOrder" state={row.status} />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{row.title}</span>
