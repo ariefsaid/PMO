@@ -5,7 +5,8 @@ import { setOrgTerms } from './orgTerms';
 import { resetActiveLocale, setActiveLocale } from '../locale/activeLocale';
 import en from '../../../public/locales/en/notifications.json';
 import id from '../../../public/locales/id/notifications.json';
-import { NOTIFICATION_TITLE_KEYS, notificationBody, notificationTitle } from './notificationCopy';
+import { notificationBody, notificationTitle } from './notificationCopy';
+import { matchNotificationTitle, NOTIFICATION_TITLES } from './notificationTitles';
 
 // Every instance below mirrors the app's own config (`src/lib/i18n/index.ts`): `interpolation.escapeValue: false`.
 // The app can do that because a notification body is rendered as React text, never as HTML. Without the same option
@@ -61,7 +62,7 @@ describe('notification wording', () => {
     await inst.use(orgTermsPlugin).init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', interpolation: { escapeValue: false }, resources: { en: { notifications: en }, id: { notifications: id } } });
     const t = inst.t.bind(inst);
     const row = { body: 'stored', title: 'Leave request needs your decision', message_key: 'leaveRequestPending', message_params: { person: 'Worker without login', type: 'Annual', from: '2026-11-24', to: '2026-11-25' } };
-    expect(NOTIFICATION_TITLE_KEYS[row.title]).toBe('leaveRequestPending');
+    expect(matchNotificationTitle(row.title)?.key).toBe('leaveRequestPending');
     expect(notificationTitle(row, t)).toBe('Permintaan cuti menunggu keputusan Anda');
     expect(notificationBody(row, t)).toContain('Worker without login');
     expect(notificationBody(row, t)).toContain('memerlukan keputusan Anda');
@@ -106,9 +107,9 @@ describe('notification wording', () => {
       expect(notificationTitle({ title: 'Something written by a person', message_key: 'literal' }, t)).toBe('Something written by a person');
     });
     it('AC-WAIT-060 every title in the table has English and Bahasa text, so none can reach a Bahasa screen in English', () => {
-      for (const key of Object.values(NOTIFICATION_TITLE_KEYS)) {
-        expect((en as { title: Record<string, string> }).title[key], `en ${key}`).toBeTruthy();
-        expect((id as { title: Record<string, string> }).title[key], `id ${key}`).toBeTruthy();
+      for (const key of Object.values(NOTIFICATION_TITLES)) {
+        expect((en as { titles: Record<string, string> }).titles[key], `en ${key}`).toBeTruthy();
+        expect((id as { titles: Record<string, string> }).titles[key], `id ${key}`).toBeTruthy();
       }
     });
   });
