@@ -254,11 +254,12 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   });
 
   it('Project health names each non-zero need in words, overdue and late in red, approvals not; zero needs are not printed', () => {
-    h.dash = { ...base, attention_projects: [attn('p1', 'Project One', { attention_signals: 2, overdue_items: 3, overdue_tasks: 2, overdue_milestones: 1, waiting_approvals: 1 })] };
+    h.dash = { ...base, attention_projects: [attn('p1', 'Project One', { attention_signals: 2, overdue_items: 3, overdue_tasks: 2, overdue_milestones: 1, overdue_invoices: 3, waiting_approvals: 1 })] };
     renderExec();
     const wrong = within(screen.getByTestId('project-health')).getByTestId('health-wrong');
     expect(within(wrong).getByText('2 tasks overdue')).toHaveClass('text-destructive-text');
     expect(within(wrong).getByText('1 phase late')).toHaveClass('text-destructive-text');
+    expect(within(wrong).getByText('3 invoices overdue')).toHaveClass('text-destructive-text');
     expect(within(wrong).getByText('1 awaiting approval')).not.toHaveClass('text-destructive-text');
     expect(wrong).not.toHaveTextContent(/0 invoices overdue/);
   });

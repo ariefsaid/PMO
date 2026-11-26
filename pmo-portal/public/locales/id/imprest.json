@@ -269,7 +269,7 @@
     "skipped": "{{count}} permintaan tanpa keperluan, tanpa harga yang terlihat, atau dalam mata uang lain tidak dihitung dalam rencana.",
     "error": "Permintaan pembelian terbuka tidak bisa dimuat",
     "noPurpose": "Keperluan belum diisi",
-    "noWorkOrder": "Tanpa work order",
+    "noWorkOrder": "Tanpa perintah kerja",
     "truncated": "Hanya {{count}} baris pertama yang ditampilkan.",
     "created": "Draf rencana dibuat dari permintaan terbuka",
     "partial": "Draf rencana dibuat, tetapi {{count}} baris tidak tersimpan. Tambahkan di rencana.",
@@ -280,9 +280,10 @@
     "invalid": "Setiap jumlah harus lebih dari nol.",
     "col": {
       "request": "Permintaan",
-      "workOrder": "Work order",
+      "workOrder": "Perintah kerja",
       "status": "Status",
       "amount": "Jumlah"
-    }
+    },
+    "source": "Permintaan proyek untuk direncanakan, bukan pengeluaran kas lapangan."
   }
 }

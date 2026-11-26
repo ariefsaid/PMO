@@ -293,7 +293,7 @@ export const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: (
               return (
                 <li
                   key={a.id}
-                  className="flex flex-col gap-1 rounded-md border border-border bg-card p-3"
+                  className="flex flex-col gap-1 border-b border-border py-3 last:border-b-0"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <StatusPill variant={crmActivityVariant(a.kind)}>{kindLabel(a.kind, t)}</StatusPill>

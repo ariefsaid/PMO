@@ -208,7 +208,9 @@
     "workOrders": "By work order",
     "col": {
       "workOrder": "Work order"
-    }
+    },
+    "recordCostsNext": "Record actual costs or enter a cost plan to see performance.",
+    "recordNext": "Record progress or costs to see performance."
   },
   "earnedBilled": {
     "title": "Earned and billed revenue",

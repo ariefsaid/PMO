@@ -70,7 +70,8 @@
     "openRecord": "Open the equipment page",
     "edit": "Edit",
     "loggedIn": "Logged in",
-    "inServiceSince": "In service since"
+    "inServiceSince": "In service since",
+    "lastUsageMonth": "Last recorded month"
   },
   "availability": {
     "amountInvalid": "Enter the amount as a number with at most 2 decimals",
@@ -340,7 +341,8 @@
   "nav": {
     "assets": "Assets",
     "equipment": "Equipment",
-    "expiring": "Expiring documents"
+    "expiring": "Expiring documents",
+    "availability": "Availability"
   },
   "panel": {
     "notRecorded": "{{count}} not recorded",
@@ -499,7 +501,8 @@
     "renew": "Renew",
     "renewTitle": "Renew document",
     "renewed": "Document renewed",
-    "errRenew": "The new expiry date must be after the current one ({{date}})"
+    "errRenew": "The new expiry date must be after the current one ({{date}})",
+    "emptyAskAdmin": "No documents on this record; ask an administrator to add one."
   },
   "people": {
     "error": "Couldn't load this person",

@@ -1,3 +1,4 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 /**
  * AC-PLN-012 [Vitest] — the Operator console (FR-PLN-013).
  *
@@ -91,7 +92,7 @@ const renderConsole = () =>
   render(
     <QueryClientProvider client={makeQc()}>
       <ToastProvider>
-        <AdministrationFeatures isOperator orgId="org-1" />
+        <SettingsSaveProvider><SettingsSaveAction /><AdministrationFeatures isOperator orgId="org-1" /></SettingsSaveProvider>
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -124,6 +125,7 @@ describe('AC-PLN-012 — Operator console', () => {
     expect(within(incidents).getByTestId('source-incidents')).toHaveTextContent('Override');
 
     fireEvent.click(within(incidents).getByRole('switch', { name: /override for this organisation/i }));
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(api.toggle).toHaveBeenCalledWith({ orgId: 'org-1', key: 'incidents', enabled: false }));
   });
 
@@ -144,6 +146,7 @@ describe('AC-PLN-012 — Operator console', () => {
     renderConsole();
     const incidents = await screen.findByTestId('feature-row-incidents');
     fireEvent.click(within(incidents).getByRole('switch', { name: /override for this organisation/i }));
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() =>
       expect(api.toggle).toHaveBeenCalledWith({ orgId: 'org-1', key: 'incidents', enabled: false }),
     );
@@ -153,6 +156,7 @@ describe('AC-PLN-012 — Operator console', () => {
     renderConsole();
     const incidents = await screen.findByTestId('feature-row-incidents');
     fireEvent.click(within(incidents).getByRole('button', { name: /clear/i }));
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(api.clearOverride).toHaveBeenCalledWith({ orgId: 'org-1', key: 'incidents' }));
     // A plan-sourced key has no override to clear.
     const crm = screen.getByTestId('feature-row-crm');
@@ -163,34 +167,39 @@ describe('AC-PLN-012 — Operator console', () => {
     renderConsole();
     const planSelect = await screen.findByLabelText('Plan');
     fireEvent.change(planSelect, { target: { value: 'enterprise' } });
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(api.setOrgPlan).toHaveBeenCalledWith({ orgId: 'org-1', planId: 'enterprise' }));
   });
 
-  it('AC-PLN-012: the all-orgs column reflects the global switch and turning it ON writes immediately', async () => {
+  it('AC-PLN-012: the all-orgs column reflects the global switch and turning it ON writes on Save', async () => {
     renderConsole();
     const stock = await screen.findByTestId('feature-row-stock');
     const globalSwitch = within(stock).getByRole('switch', { name: /switch for all organisations/i });
     expect(globalSwitch).toHaveAttribute('aria-checked', 'false');
     fireEvent.click(globalSwitch);
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(api.setGlobal).toHaveBeenCalledWith({ key: 'stock', enabled: true }));
   });
 
-  it('AC-PLN-012: turning an all-orgs switch OFF asks first, then writes on confirmation', async () => {
+  it('AC-PLN-012: turning an all-orgs switch OFF asks first, then writes on Save after confirmation', async () => {
     renderConsole();
     const crm = await screen.findByTestId('feature-row-crm');
     fireEvent.click(within(crm).getByRole('switch', { name: /switch for all organisations/i }));
     // Nothing written until the Operator confirms a platform-wide off.
     expect(api.setGlobal).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole('button', { name: /switch off for all/i }));
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(api.setGlobal).toHaveBeenCalledWith({ key: 'crm', enabled: false }));
   });
 
   it('AC-PLN-012: the console shows plan defaults and writes a plan-default change', async () => {
     renderConsole();
     await screen.findByTestId('feature-row-crm');
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('Plan defaults and limits').closest('button')!);
     // 'crm' is enabled in the starter matrix; flipping it writes the plan default (plan editor = starter).
     const planDefaultSwitch = within(screen.getByTestId('plan-default-crm')).getByRole('switch');
     fireEvent.click(planDefaultSwitch);
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() =>
       expect(api.setPlanFeature).toHaveBeenCalledWith({ planId: 'starter', key: 'crm', enabled: false }),
     );
@@ -198,9 +207,11 @@ describe('AC-PLN-012 — Operator console', () => {
 
   it('AC-PLN-012: the limits editor writes numbers, and blank means "per contract"', async () => {
     renderConsole();
+    await screen.findByTestId('feature-row-crm');
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('Plan defaults and limits').closest('button')!);
     const seats = await screen.findByLabelText('Included seats');
     fireEvent.change(seats, { target: { value: '12' } });
-    fireEvent.click(screen.getByRole('button', { name: /save limits/i }));
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() =>
       expect(api.setPlanLimits).toHaveBeenCalledWith({
         planId: 'starter',
@@ -216,9 +227,12 @@ describe('AC-PLN-012 — Operator console', () => {
     await screen.findByTestId('feature-row-stock');
     // 'stock' is off in the Starter matrix the inspected org is on; Enterprise enables it.
     expect(screen.getByTestId('plan-default-cell-stock')).toHaveTextContent('Off');
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('Plan defaults and limits').closest('button')!);
     fireEvent.change(screen.getByLabelText('Plan to edit'), { target: { value: 'enterprise' } });
-    // The editor moves, but every org-scoped number in the table still describes THIS organisation.
+    // Inspect the organisation again: editing another plan never changes its saved defaults.
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('This organisation').closest('button')!);
     expect(screen.getByTestId('plan-default-cell-stock')).toHaveTextContent('Off');
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('Plan defaults and limits').closest('button')!);
     await waitFor(() =>
       expect(within(screen.getByTestId('plan-default-stock')).getByRole('switch')).toHaveAttribute(
         'aria-checked',
@@ -240,15 +254,22 @@ describe('AC-PLN-012 — Operator console', () => {
       Promise.resolve(orgId === 'org-2' ? 'enterprise' : 'starter'),
     );
     renderConsole();
+    await screen.findByTestId('feature-row-crm');
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('Plan defaults and limits').closest('button')!);
     const seats = await screen.findByLabelText('Included seats');
     // An unsaved draft typed against Starter.
     fireEvent.change(seats, { target: { value: '12' } });
+    fireEvent.click(screen.getByText('Discard changes', { selector: 'button' }));
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('This organisation').closest('button')!);
     fireEvent.change(screen.getByLabelText('Organisation'), { target: { value: 'org-2' } });
     // Org-2 is on Enterprise: the editor follows it and the Starter draft must not come along.
     await waitFor(() => expect(screen.getByLabelText('Organisation')).toHaveValue('org-2'));
+    fireEvent.click(within(screen.getByLabelText('Feature settings view')).getByText('Plan defaults and limits').closest('button')!);
     const enterpriseSeats = await screen.findByLabelText('Included seats');
     expect((enterpriseSeats as HTMLInputElement).value).toBe('');
-    fireEvent.click(screen.getByRole('button', { name: /save limits/i }));
+    fireEvent.change(enterpriseSeats, { target: { value: '1' } });
+    fireEvent.change(enterpriseSeats, { target: { value: '' } });
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() =>
       expect(api.setPlanLimits).toHaveBeenCalledWith({
         planId: 'enterprise',
@@ -266,6 +287,7 @@ describe('AC-PLN-012 — Operator console', () => {
     // The effective state comes from the global kill switch, but the override row still exists.
     expect(within(stock).getByTestId('source-stock')).toHaveTextContent('All organisations');
     fireEvent.click(within(stock).getByRole('button', { name: /clear/i }));
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(api.clearOverride).toHaveBeenCalledWith({ orgId: 'org-1', key: 'stock' }));
   });
 

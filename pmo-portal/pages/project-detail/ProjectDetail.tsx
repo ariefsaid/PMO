@@ -170,7 +170,8 @@ const ProjectDetail: React.FC = () => {
   // back to the bare index with clean state for a direct/copied link. The desktop parent
   // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
   const { returnToList } = useListReturn({ list: 'projects' });
-  const goBack = () => returnToList('projects');
+  const { returnToList: returnToSales } = useListReturn({ list: 'sales' });
+  const goBack = () => isPipelineRecord ? returnToSales('sales') : returnToList('projects');
 
   const openEditProject = () => setEditOpen(true);
   const closeEditProject = () => setEditOpen(false);
@@ -188,7 +189,7 @@ const ProjectDetail: React.FC = () => {
 
   const loadingView = (
     <>
-      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      <BackBar label={isPipelineRecord ? t('common:shell.nav.sales', 'Sales Pipeline') : t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       {/* O18: the page keeps a level-one heading while the project loads. */}
       <h1 className="sr-only">{t('projectDetail.loadingTitle', 'Loading project')}</h1>
       <ListState variant="loading" shape="detail" loadingLabel={t('projectDetail.loadingTitle', 'Loading project')} rows={6} />
@@ -204,7 +205,7 @@ const ProjectDetail: React.FC = () => {
     if (projectError) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          <BackBar label={isPipelineRecord ? t('common:shell.nav.sales', 'Sales Pipeline') : t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
           <ListState
             variant="error"
             titleAsPageHeading
@@ -220,7 +221,7 @@ const ProjectDetail: React.FC = () => {
     }
     return (
       <>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+        <BackBar label={isPipelineRecord ? t('common:shell.nav.sales', 'Sales Pipeline') : t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
         <ListState
           variant="empty"
           icon="inbox"
@@ -239,7 +240,7 @@ const ProjectDetail: React.FC = () => {
   // with the tabs directly under it. Sales history sits in the Project details panel.
   const header = (
     <>
-      <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
+      <ProjectDetailHeader project={project} onEditProject={openEditProject} editIsPrimary={area === 'overview'} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
         facts={<><ProjectHeaderFacts project={project} showBudgetFigures />{!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}</>}
         menuContent={(
@@ -255,7 +256,7 @@ const ProjectDetail: React.FC = () => {
   return (
     <div>
       {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
-      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      <BackBar label={isPipelineRecord ? t('common:shell.nav.sales', 'Sales Pipeline') : t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} overviewPending={overview.isLoading} />
       {primaryActionAllowed && <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} mobileBar />}
       {editOpen && (

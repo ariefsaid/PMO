@@ -67,7 +67,8 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await openWorkOrderArea(page, 'cost');
     const section = page.getByTestId('wo-page-revenue-plan');
     await expect(section).toBeVisible({ timeout: 15_000 });
-    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText('No plan entered');
+    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText('—');
+    await expect(section.getByText('No plan entered', { exact: true })).toBeVisible();
     await section.getByRole('button', { name: 'Enter plan', exact: true }).click();
     await shots(page, page.getByRole('dialog'), 'revenue-plan-entry-modal');
     await page.setViewportSize({ width: 390, height: 844 });
@@ -77,7 +78,8 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await page.getByRole('button', { name: 'Save plan', exact: true }).click();
     const expectedPlan = formatTableMoney('1000.00', 'EUR') ?? 'unformattable';
     await expect(section.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);
-    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(expectedPlan + ' behind plan');
+    await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(formatTableMoney('-1000.00', 'EUR') ?? 'unformattable');
+    await expect(section.getByText(expectedPlan + ' behind plan', { exact: true })).toBeVisible();
     await shots(page, section, 'work-order-revenue-plan');
 
     await page.goto('/projects/' + projectId + '/orders');

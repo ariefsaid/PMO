@@ -145,6 +145,13 @@
       "reasonRequired": "Isi alasan (maksimal 500 karakter).",
       "reasonTooLong": "Alasan maksimal 500 karakter.",
       "failed": "Rencana tidak dapat disimpan"
+    },
+    "col": {
+      "item": "Barang",
+      "planned": "Rencana",
+      "requested": "Diminta",
+      "remaining": "Sisa",
+      "source": "Sumber"
     }
   }
 }

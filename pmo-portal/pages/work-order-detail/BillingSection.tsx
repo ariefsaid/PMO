@@ -1,3 +1,4 @@
+import { useAreaHelp } from './useAreaHelp';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -24,13 +25,14 @@ interface Props {
 /** Billing and acceptances (FR-WORP-023): the shipped `work_order_billing` figures and the BAST list — no second formula. */
 export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, perMonth = null, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances, confirm }) => {
   const { t } = useTranslation('workOrders');
+  useAreaHelp('invoice-basis', t('billing.invoicesTitle', 'Invoices'), t('billing.perMonth.basis', 'Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.'));
   const title = t('billing.invoicesTitle', 'Invoices');
   const row = billing?.row ?? null;
   const pm = perMonth?.months;
   const monthsNewestFirst = pm ? [...pm.months].reverse() : [];
   const fig = (k: string, label: string, v: number) => (
     <div key={k} data-testid={`billing-${k}`}><dt className="text-control text-muted-foreground">{label}</dt>
-      <dd className="tabular-nums font-medium">{formatTableMoney(v, row!.currency) ?? '—'}</dd></div>
+      <dd className="text-metric tabular-nums font-semibold">{formatTableMoney(v, row!.currency) ?? '—'}</dd></div>
   );
   const link = contractHref
     ? <Link to={contractHref} className="text-control font-medium text-primary-text hover:underline" data-testid="wo-billing-contract-link">{t('billing.openContract', 'Claims and invoices')}</Link>
@@ -75,14 +77,13 @@ export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, 
           </ul>
         )}
       </RecordSection>
-      {perMonth && (
+      {perMonth && (perMonth.isPending || perMonth.isError || pm?.incomplete || (pm?.months.length ?? 0) > 0) && (
         <RecordSection title={t('billing.perMonth.title', 'Billed per month')} data-testid="billed-per-month-block">
           {perMonth.isPending && <ListState variant="loading" rows={1} />}
           {perMonth.isError && <ListState variant="error" title={t('billing.perMonth.error', "Couldn't load the billed months")} onRetry={perMonth.onRetry} />}
           {pm && !perMonth.isError && (
             <>
               {pm.incomplete && <p className="text-control text-muted-foreground" data-testid="billed-per-month-incomplete">{t('billing.perMonth.incomplete', "Some invoices could not be totalled in this work order's currency, so no monthly figures are shown.")}</p>}
-              {!pm.incomplete && pm.months.length === 0 && <p className="text-control text-muted-foreground">{t('billing.perMonth.empty', 'No submitted invoice yet.')}</p>}
               {!pm.incomplete && pm.months.length > 0 && (
                 <ul className="divide-y divide-border" data-testid="billed-per-month">
                   {monthsNewestFirst.map((m) => (
@@ -102,7 +103,6 @@ export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, 
                   <span className="tabular-nums">{formatTableMoney(pm.total, pm.currency) ?? '—'}</span>
                 </div>
               )}
-              <p className="mt-3 text-control text-muted-foreground">{t('billing.perMonth.basis', 'Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.')}</p>
             </>
           )}
         </RecordSection>

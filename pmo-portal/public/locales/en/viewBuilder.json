@@ -52,5 +52,23 @@
     "invalidTitle": "This view's definition is invalid.",
     "invalidSub": "The view cannot be rendered because its specification is invalid."
   },
-  "noPanels": "This view has no panels yet."
+  "noPanels": "This view has no panels yet.",
+  "panelLabels": {
+    "StatTiles": "Summary figures",
+    "KPITile": "Key figure",
+    "DataTable": "Table",
+    "Funnel": "Pipeline",
+    "StatusBarChart": "Bar chart",
+    "ProgressBar": "Progress"
+  },
+  "datasetLabels": {
+    "projects": "Projects",
+    "companies": "Companies",
+    "contacts": "Contacts"
+  },
+  "fieldLabels": {
+    "id": "Reference",
+    "name": "Name",
+    "status": "Stage"
+  }
 }

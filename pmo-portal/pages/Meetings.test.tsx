@@ -489,8 +489,8 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
   it('prefills "When" with the current wall time in the profile timezone (not the device zone)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
-    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
-    expect(when.value).toBe('2026-06-14T21:15');
+    expect(screen.getByLabelText(/When/i)).toHaveValue('14 Jun 2026');
+    expect(screen.getByLabelText(/^Time$/i)).toHaveValue('21:15');
   });
 
   it('submitting the unedited default keeps the same instant', async () => {

@@ -82,7 +82,7 @@ describe('refusalText', () => {
       expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('SPK khusus');
     }
     for (const code of ['ATT_HAS_TIMESHEET', 'ATT_LOCKED', 'ATT_TS_MANUAL_ENTRY', 'ATT_TS_NOT_DRAFT']) {
-      expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('Timesheet');
+      expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('Lembar waktu');
     }
     expect(refusalText(new Error('PCI_CREW: x'), translate).headline).toBe('Anda tidak ada di kru itu hari ini. Pilih kru lain atau tanyakan ke supervisor Anda.');
   });

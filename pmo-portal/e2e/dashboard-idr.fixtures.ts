@@ -217,7 +217,7 @@ export async function installIdrDashboardFixture(page: Page) {
       ? body.map((row) => ({ ...row, default_currency: 'IDR' }))
       : body && typeof body === 'object' ? { ...body, default_currency: 'IDR' } : body);
   });
-  for (const pattern of ['**/rest/v1/sales_invoice_work_billed?*', '**/rest/v1/sales_invoices?*', '**/rest/v1/rpc/get_management_pack*', '**/rest/v1/procurements?*']) {
+  for (const pattern of ['**/rest/v1/sales_invoice_work_billed?*', '**/rest/v1/sales_invoices?*', '**/rest/v1/rpc/get_management_pack*', '**/rest/v1/procurements?*', '**/rest/v1/procurements_masked?*']) {
     await page.route(pattern, (route) => {
       if (route.request().method() !== 'GET' && !/rpc/.test(route.request().url())) return route.fallback();
       return rewriteRead(route, (body) => {
@@ -225,7 +225,7 @@ export async function installIdrDashboardFixture(page: Page) {
         const url = new URL(route.request().url());
         if (url.pathname.endsWith('/sales_invoices') && !url.searchParams.has('project_id')
             && !url.searchParams.has('status') && !url.searchParams.has('pmo_native')) return financeInvoiceFixture(scaled);
-        if (url.pathname.endsWith('/procurements') && !url.searchParams.has('project_id')
+        if ((url.pathname.endsWith('/procurements') || url.pathname.endsWith('/procurements_masked')) && !url.searchParams.has('project_id')
             && !url.searchParams.has('vendor_id')) return financeProcurementFixture(scaled);
         if (url.pathname.endsWith('/rpc/get_management_pack')) return reportFactsFixture(scaled);
         return scaled;

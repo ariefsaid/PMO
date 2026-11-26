@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { DealActionsZone, DealFigures } from './DealParts';
 import type { DealActions } from './useDealActions';
 
@@ -27,12 +27,14 @@ describe('unrecorded deal figures', () => {
     expect(figure('% Go').getByText('—')).toBeInTheDocument();
   });
 
-  it('F14 keeps both probability Save actions available', () => {
+  it('F14 keeps both probability estimates editable and saves each on blur', () => {
+    const saveProbability = vi.fn(async (event: { preventDefault(): void }) => { event.preventDefault(); });
     const d = {
       ...deal(),
       canEditProbability: true,
       goInput: '80',
-      getInput: '25',
+      getInput: '40',
+      saveProbability,
       setGoInput: () => {},
       setGetInput: () => {},
       saving: null,
@@ -40,9 +42,12 @@ describe('unrecorded deal figures', () => {
     render(<DealFigures d={d} />);
     const goInput = screen.getByLabelText('Chance the project proceeds (%)');
     const getInput = screen.getByLabelText('Chance we win if the client proceeds (%)');
-    const saveButtons = screen.getAllByRole('button', { name: 'Save' });
-    expect(saveButtons).toHaveLength(2);
-    expect(within(goInput.closest('form') as HTMLElement).getByRole('button', { name: 'Save' })).toBeEnabled();
-    expect(within(getInput.closest('form') as HTMLElement).getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(goInput).toBeEnabled();
+    expect(getInput).toBeEnabled();
+    fireEvent.blur(goInput);
+    expect(saveProbability).toHaveBeenCalledWith(expect.anything(), 'go');
+    fireEvent.blur(getInput);
+    expect(saveProbability).toHaveBeenCalledWith(expect.anything(), 'get');
+    expect(saveProbability).toHaveBeenCalledTimes(2);
   });
 });

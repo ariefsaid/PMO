@@ -10,7 +10,6 @@ import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useLeaveEnabled } from '@/src/hooks/useLeave';
 import { useSafetyMenuOn } from '@/src/hooks/useSafetyDays';
 import { useTerms } from '@/src/lib/i18n/terms';
-import { Badge } from '@/src/components/ui/StatusPill';
 import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
 import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
@@ -205,7 +204,7 @@ const FinanceOverdueCountValue: React.FC<{ enabled: boolean }> = ({ enabled }) =
   if (isPending || isError || count === undefined || count <= 0) return null;
   return (
     <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-      <Badge aria-hidden="true">{count}</Badge>
+      <span aria-hidden="true" className="sr-only">{count}</span>
       {/* Same shape as the Approvals count: the link reads "Finance, 3 overdue invoices". */}
       <span className="sr-only">
         , {t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}
@@ -243,7 +242,8 @@ export function visibleNavItems({ role, realRole, featureEnabled, canViewStateme
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets)
          || (i.to === '/procurement' && mayOrderPurchases === true && role === realRole))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true).filter((i) => i.to !== '/safety' || safetyEnabled === true)
-    .filter((i) => { const gate = NAV_PERMISSION[i.to]; return !may || !gate || may(gate[0], gate[1]); });
+    .filter((i) => { const gate = NAV_PERMISSION[i.to]; return !may || !gate || may(gate[0], gate[1]); })
+    .map((item) => item.to === '/imprest' && (role === UserRole.Finance || role === UserRole.Executive) ? { ...item, group: 'Finance' as const } : item);
 }
 
 export interface RailProps {
@@ -337,10 +337,40 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
   const [hasScrollCue, setHasScrollCue] = useState(false);
+  useEffect(() => {
+    const region = scrollRegionRef.current;
+    if (!region || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        const element = entry.target as HTMLElement;
+        const whole = entry.intersectionRatio >= 0.99;
+        element.style.opacity = whole ? '' : '0';
+        element.style.pointerEvents = whole ? '' : 'none';
+      }
+    }, { root: region, threshold: [0, 0.99, 1] });
+    region.querySelectorAll('a, button').forEach(element => observer.observe(element));
+    return () => observer.disconnect();
+  }, [role, userViews?.length, collapsedGroups, orgFeatures, location.pathname]);
+
   useLayoutEffect(() => {
-    const active = scrollRegionRef.current?.querySelector<HTMLElement>('a[aria-current="page"]');
-    active?.scrollIntoView?.({ block: 'nearest' });
-  }, [location.pathname, location.search]);
+    const region = scrollRegionRef.current;
+    if (!region) return;
+    region.scrollTop = 0;
+    const reveal = () => {
+      const active = region.querySelector<HTMLElement>('a[aria-current="page"]');
+      if (!active) return false;
+      const group = active.closest<HTMLElement>('[role="group"]');
+      (group ?? active).scrollIntoView?.({ block: 'nearest' });
+      active.scrollIntoView?.({ block: 'nearest' });
+      return true;
+    };
+    reveal();
+    if (typeof MutationObserver === 'undefined') return;
+    // Entitlements can insert rows after the active link first appears; keep it in view as the content settles.
+    const observer = new MutationObserver(() => { reveal(); });
+    observer.observe(region, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+    return () => observer.disconnect();
+  }, [location.pathname, location.search, role]);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
     if (!region) return;
@@ -612,7 +642,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
           </div>
         ))}
         <div className="relative min-h-0 flex-1">
-          <div ref={scrollRegionRef} data-rail-scroll-region className={cn('min-h-0 h-full overflow-y-auto p-2.5', inDrawer && 'pt-4')}>
+          <div ref={scrollRegionRef} data-rail-scroll-region onFocusCapture={event => event.target.scrollIntoView?.({ block: "nearest" })} className={cn('min-h-0 h-full overflow-y-auto p-2.5', inDrawer && 'pt-4')}>
             {items.filter((item) => item.to === '/').map(renderItem)}
             {/* HR's own desk: the people register first, not the last line behind Administration. */}
             {functionKey === 'hr' && may('view', 'person') && (
@@ -641,7 +671,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
                     aria-controls={groupId}
                     onClick={() => toggleGroup(group)}
                     className={cn(
-                      'touch-target flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 text-left text-control font-normal text-muted-foreground hover:bg-surface-hover',
+                      'touch-target sticky top-0 z-10 flex min-h-11 w-full items-center gap-2 rounded-md bg-card px-2.5 text-left text-control font-normal text-muted-foreground hover:bg-surface-hover',
                       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:hover:bg-transparent',
                     )}
                   >
@@ -680,7 +710,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
             ))}
           </div>
           {hasScrollCue && (
-            <div aria-hidden="true" className="pointer-events-none absolute inset-x-2.5 bottom-0 h-6 bg-gradient-to-t from-[hsl(var(--surface-panel))] to-transparent" />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border" />
           )}
         </div>
       </nav>
@@ -713,7 +743,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
             className={({ isActive }: { isActive: boolean }) =>
               cn(
                 NAV_LINK_BASE,
-                isActive
+                (isActive || location.pathname.startsWith('/master-data/'))
                   ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
                   : 'text-foreground hover:bg-surface-hover',
               )

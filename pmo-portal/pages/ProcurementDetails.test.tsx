@@ -531,7 +531,7 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     renderPage();
     const bar = screen.getByRole('button', { name: /Back to Procurement/i }).parentElement!;
     expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(bar.className).toContain('max-[1100px]:flex');
   });
 
   it('AC-NAV-007: "Back to Procurement" navigates to the Procurement module index (no tab)', async () => {

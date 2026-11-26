@@ -277,7 +277,7 @@ describe('AC-IXD-PROC-W5-2d — figures rendered (whole budget basis)', () => {
 
   it('AC-1438 shows the procurement term in Bahasa budget-impact labels', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' }, 'id');
-    expect(screen.getByText('Total pengadaan')).toBeInTheDocument();
+    expect(screen.getByText('Perkiraan pengadaan')).toBeInTheDocument();
     expect(screen.getByText('Sisa setelah pembelian ini')).toBeInTheDocument();
   });
 

@@ -5,17 +5,17 @@ import { ListState, RecordSection } from '@/src/components/ui';
 import { formatDay, formatDaysOverdue } from '@/src/lib/format';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 
-interface Props { tasks: TaskWithRefs[]; isPending: boolean; isError: boolean; onRetry: () => void }
+interface Props { projectId?: string; tasks: TaskWithRefs[]; isPending: boolean; isError: boolean; onRetry: () => void }
 
 /** FR-WORP-025: the tasks (#2531) that name this work order and are not Done, with assignee and due date. */
-export const OpenTasksSection: React.FC<Props> = ({ tasks, isPending, isError, onRetry }) => {
+export const OpenTasksSection: React.FC<Props> = ({ projectId, tasks, isPending, isError, onRetry }) => {
   const { t } = useTranslation('workOrders');
   const { t: tStatus } = useTranslation('status');
   const title = t('openTasks.title', 'Open tasks');
   if (isPending) return <RecordSection title={title}><ListState variant="loading" rows={1} /></RecordSection>;
   if (isError) return <RecordSection title={title}><ListState variant="error" title={t('openTasks.error', "Couldn't load the open tasks")} onRetry={onRetry} /></RecordSection>;
   return (
-    <RecordSection title={title}>
+    <RecordSection title={title} actions={projectId && <Link to={`/projects/${projectId}/tasks`} className="text-control text-primary-text hover:underline">{t('openTasks.open', 'Open tasks')}</Link>}>
       {tasks.length === 0
         ? <p className="text-control text-muted-foreground">{t('openTasks.empty', 'No open tasks name this work order.')}</p>
         : <ul className="divide-y divide-border" data-testid="wo-open-tasks">

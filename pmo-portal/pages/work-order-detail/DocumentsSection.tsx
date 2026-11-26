@@ -52,7 +52,7 @@ export const DocumentsSection: React.FC<Props> = ({
   if (isError) return <RecordSection title={title}><ListState variant="error" title={t('documents.error', "Couldn't load the documents")} onRetry={onRetry} /></RecordSection>;
 
   const renderContent = (slot: WorkOrderDocumentSlot) => (
-    <RecordSection title={title} actions={slot.headerActions}>
+    <RecordSection title={title} className="[&_[data-testid=record-section-actions]]:w-full [&_[data-testid=record-section-actions]]:sm:w-auto" actions={slot.headerActions}>
       {slot.folderTree && <div className="mb-3 rounded-lg border border-border">{slot.folderTree}</div>}
       {documents.length === 0
         ? <p className="text-control text-muted-foreground">{t('documents.empty', 'No visible documents are linked to this work order yet.')}</p>

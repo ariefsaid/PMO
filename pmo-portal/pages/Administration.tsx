@@ -1,8 +1,10 @@
+import { SettingsSaveContext } from '@/src/components/admin/settingsSaveContext';
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
 import OrgStageNames from './admin/OrgStageNames';
 import CostDisciplines from './admin/CostDisciplines';
 import WorkOrderLists from './admin/WorkOrderLists';
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
@@ -13,7 +15,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import { cn } from '@/src/components/ui/cn';
-import { GateNotice, ListState, PageHeader } from '@/src/components/ui';
+import { GateNotice, ListState, PageHeader, ViewToggle } from '@/src/components/ui';
 import AdminUsers from './AdminUsers';
 import People from './admin/People';
 import Clearance from './admin/Clearance';
@@ -203,6 +205,7 @@ const AdministrationHeader: React.FC<{ section?: AdministrationSection; title?: 
   return (
     <PageHeader
       title={title ?? t('admin.nav.title', 'Administration')}
+      action={<div className="flex flex-wrap items-center gap-2"><div id="administration-page-actions" className="flex gap-2" /><SettingsSaveAction /></div>}
       help={section === 'accounting' ? <AccountingHelp /> : undefined}
       helpSubject={t('admin.nav.accounting', 'Accounting setup')}
     />
@@ -225,6 +228,11 @@ const AdministrationNavigation: React.FC<{
   const operatorListed = isOperator ? OPERATOR_SECTIONS : [];
   // Below the side-navigation width (768px) every section sits in one picker.
   const narrow = !useIsDesktop();
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current; const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (nav && active) nav.scrollTop = Math.max(0, active.offsetTop - nav.clientHeight / 2);
+  }, [section, narrow]);
   const navigate = useNavigate();
   const ariaLabel = t('admin.nav.ariaLabel', 'Administration sections');
 
@@ -232,7 +240,8 @@ const AdministrationNavigation: React.FC<{
     // A phone shows every section in one control instead of a strip that scrolls out of sight.
     return (
       <nav aria-label={ariaLabel} className="mb-4 min-w-0">
-        <select
+        <label htmlFor="administration-section-picker" className="mb-1 block text-control font-medium text-muted-foreground">{ariaLabel}</label>
+        <select id="administration-section-picker"
           aria-label={ariaLabel}
           value={section}
           onChange={(event) => navigate(`/administration/${event.target.value}`)}
@@ -275,7 +284,7 @@ const AdministrationNavigation: React.FC<{
   );
 
   return (
-    <nav aria-label={ariaLabel} className="mb-4 min-w-0 md:mb-0 md:sticky md:top-0 md:self-start">
+    <nav aria-label={ariaLabel} ref={navRef} className="relative mb-4 min-w-0 md:mb-0 md:sticky md:top-0 md:self-start md:max-h-[calc(100dvh-8rem)] md:overflow-y-auto md:overscroll-contain">
       {groups.map((g) => (
         <div key={g.id} className="mt-5 first:mt-0">
           <p className={groupHeading}>{navGroupLabel(t, g.id)}</p>
@@ -307,12 +316,13 @@ const sideLinkClass = (active: boolean) =>
   );
 
 /** The frame every Administration section shares: the side navigation beside the section's content (#1126). */
-const AdministrationFrame: React.FC<{ nav: React.ReactNode; children: React.ReactNode }> = ({ nav, children }) => !nav ? <>{children}</> : (
-  <div className="min-w-0 md:grid md:grid-cols-[12rem_minmax(0,1fr)] md:gap-6 xl:grid-cols-[13.5rem_minmax(0,1fr)] xl:gap-8">
-    {nav}
-    <div className="min-w-0">{children}</div>
-  </div>
-);
+const AdministrationFrame: React.FC<{ nav: React.ReactNode; children: React.ReactNode }> = ({ nav, children }) => {
+  const { t } = useTranslation();
+  const section = administrationSectionForPath(useLocation().pathname);
+  const title = section ? buildSectionLabels(t)[section] : undefined;
+  const content = <div className="min-w-0"><AdministrationHeader section={section} title={title} />{children}</div>;
+  return !nav ? content : <div className="min-w-0 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-6">{nav}{content}</div>;
+};
 
 const OperatorMembershipPending: React.FC = () => {
   const { t } = useTranslation();
@@ -328,13 +338,27 @@ const OperatorMembershipPending: React.FC = () => {
   );
 };
 
+const OrganizationConnections: React.FC = () => {
+  const { t } = useTranslation('administration');
+  const [view, setView] = useState('integrations');
+  const saveContext = useContext(SettingsSaveContext);
+  return <div className="space-y-4">
+    <ViewToggle semantics="toggle" ariaLabel={t('administration:connections.viewLabel', 'Organization setup view')} value={view} onChange={setView} options={[
+      { value: 'integrations', label: t('admin.nav.integrations', 'Organization integrations') },
+      { value: 'settings', label: t('administration:connections.settings', 'Organization settings') },
+    ]} />
+    <div hidden={view !== 'integrations'}><IntegrationsView /></div>
+    <div hidden={view !== 'settings'}><SettingsSaveContext.Provider value={view === 'settings' ? saveContext : null}><FeedbackSurveysSetting /><EmailNotificationsSetting /></SettingsSaveContext.Provider></div>
+  </div>;
+};
+
 const UsagePanel: React.FC = () => {
   const usageQuery = useUsage();
   const runStatsQuery = useAgentRunStats();
 
   return (
     <>
-      <div className="mb-4">
+      {(usageQuery.isPending || runStatsQuery.isPending || usageQuery.isError || runStatsQuery.isError || (usageQuery.data?.length ?? 0) > 0 || (runStatsQuery.data?.length ?? 0) > 0) && <div className="mb-4">
         <AgentCostMetrics
           summaryRows={usageQuery.data ?? []}
           runStatsRows={runStatsQuery.data ?? []}
@@ -345,7 +369,7 @@ const UsagePanel: React.FC = () => {
             void runStatsQuery.refetch();
           }}
         />
-      </div>
+      </div>}
       <AdministrationUsage
         rows={usageQuery.data ?? []}
         isPending={usageQuery.isPending}
@@ -400,9 +424,7 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-integrations" className="min-w-0">
           <SectionName name={label('integrations')} />
-          <IntegrationsView />
-          <FeedbackSurveysSetting />
-          <EmailNotificationsSetting />
+          <OrganizationConnections />
         </div>
       );
     case 'modules':
@@ -606,6 +628,7 @@ const Administration: React.FC = () => {
         .filter((id) => id !== 'document-categories' || canManageDocumentCategories),
       ...(showClearance ? ['clearance' as const] : []),
       ...(canViewCostAttribution ? ['cost-attribution' as const] : []),
+      ...(canManageScheduledReports ? ['scheduled-reports' as const] : []),
     ];
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
@@ -634,8 +657,8 @@ const Administration: React.FC = () => {
   }
 
   return (
-    <div className="min-w-0">
-      <AdministrationHeader section={section} title={section ? label(section) : undefined} />
+    <SettingsSaveProvider key={section}><div className="min-w-0">
+      {((operatorMembership.isPending && needsOperatorCheck) || !canEnterAdministration) && <AdministrationHeader section={section} title={label(section)} />}
 
       {operatorMembership.isPending && needsOperatorCheck ? (
         <OperatorMembershipPending />
@@ -692,7 +715,7 @@ const Administration: React.FC = () => {
           />
         </AdministrationFrame>
       )}
-    </div>
+    </div></SettingsSaveProvider>
   );
 };
 

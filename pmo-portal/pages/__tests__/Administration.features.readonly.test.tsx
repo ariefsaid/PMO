@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -92,9 +93,10 @@ const makeQc = () =>
 const renderSection = (isOperator: boolean) =>
   render(
     <QueryClientProvider client={makeQc()}>
-      <ToastProvider>
+      <ToastProvider><SettingsSaveProvider>
+        <SettingsSaveAction />
         <AdministrationFeatures isOperator={isOperator} orgId="org-1" />
-      </ToastProvider>
+      </SettingsSaveProvider></ToastProvider>
     </QueryClientProvider>,
   );
 
@@ -133,6 +135,7 @@ describe('AC-ENT-004 — Features: org-Admin read-only, Operator controls', () =
     renderSection(true);
     const incidentsRow = await screen.findByTestId('feature-row-incidents');
     fireEvent.click(within(incidentsRow).getByRole('switch', { name: /override for this organisation/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(toastSpy.fn).toHaveBeenCalled());
     const [headline] = toastSpy.fn.mock.calls[0];
     expect(String(headline).toLowerCase()).toMatch(/core/);

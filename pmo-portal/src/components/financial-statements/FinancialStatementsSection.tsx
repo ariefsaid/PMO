@@ -69,12 +69,15 @@ export function FinancialStatementsSection({
     content = errorState;
   } else if (state.kind === 'unavailable') {
     content = (
+      <>
       <ListState
         variant="empty"
         title={labels.unavailable}
         sub={labels.unavailableDescription}
-        action={unavailableAction}
+        action={unavailableAction ?? (refreshNow ? { label: refreshNow.label, onClick: refreshNow.onClick, loading: refreshNow.pending } : undefined)}
       />
+      {refreshNow?.note && <p role="status" className="text-control text-muted-foreground">{refreshNow.note}</p>}
+      </>
     );
   } else if (formatInstantDate(state.asOf) === '—') {
     // AccountingSnapshotProvenance deliberately displays malformed timestamps as their raw input.

@@ -256,14 +256,14 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             {canViewMoney && !projectFinances.isPending && <MoneyStep
               label={t('projectDetail.cascade.invoiced', 'Invoiced')}
               value={contractInvoiceFigure.amount === null ? '—' : tableMoney(Number(contractInvoiceFigure.amount))}
-              percentage={contractInvoiceFigure.percentage}
+              percentage={invoiceRows.length > 0 ? contractInvoiceFigure.percentage : null}
               detail={t('projectDetail.cascade.source.invoiced', 'Invoices under the signed contract, in the contract currency and tax basis. Shown as unknown when an invoice currency or tax basis differs from the contract. The percentage is of the signed contract value.')}
             />}
             {canViewMoney && settlementReading !== null && !projectFinances.isPending && (settlement === null || settlement.balancesKnown) && <MoneyStep
               label={t('projectDetail.cascade.paid', 'Paid')}
               value={settlement?.settled == null ? '—' : tableMoney(settlement.settled)}
-              percentage={percent(settlement?.settled ?? null)}
-              caption={settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tableMoney(settlement.gross), interpolation: { escapeValue: false } })}
+              percentage={invoiceRows.length > 0 ? percent(settlement?.settled ?? null) : null}
+              caption={invoiceRows.length === 0 || settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tableMoney(settlement.gross), interpolation: { escapeValue: false } })}
               detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')}
             />}
           </ol>

@@ -186,7 +186,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
               error={quantityField.error} localeAware />
           )}
           <div>
-          <NumberField id={rateField.id} label={t('projectDetail.billing.boqForm.rate', 'Rate (excl. PPN)')} required
+          <NumberField id={rateField.id} label={t('projectDetail.billing.boqForm.rate', 'Rate (excl. tax)')} required
             prefix={currencySymbolPrefix} readOnly={pricing !== null} value={rateField.value} onChange={rateField.onChange} onBlur={rateField.onBlur}
             error={rateField.error} localeAware />
           {pricing && pricing.rate === null && <div role="status" className="mt-2 text-sm text-muted-foreground"><span>{t('rateCatalogue.unpriced', 'Unpriced')}</span> — <span>{t('rateCatalogue.unpricedReason', 'No rate for this location on this date.')}</span> <Button variant="outline" onClick={() => setRetryKey((key) => key + 1)}>{t('rateCatalogue.retry', 'Retry')}</Button></div>}

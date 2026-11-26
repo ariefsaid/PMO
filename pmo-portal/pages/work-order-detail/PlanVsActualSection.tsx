@@ -1,3 +1,4 @@
+import { useAreaHelp } from './useAreaHelp';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, RecordSection } from '@/src/components/ui';
@@ -31,6 +32,7 @@ interface Props {
  */
 export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId, canPlan = false }) => {
   const { t } = useTranslation('workOrderPva');
+  useAreaHelp('cost-basis', t('title', 'Plan vs actual'), t('actualBasis', 'Actual follows project financial actuals; the costs below include other records.'));
   const [planning, setPlanning] = useState(false);
   const title = t('title', 'Plan vs actual');
   if (query.isPending) return <RecordSection title={title} data-testid="wo-page-pva"><ListState variant="loading" rows={3} /></RecordSection>;
@@ -96,22 +98,23 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
   const figure = (testId: string, label: string, value: React.ReactNode, className = '') => (
     <div key={testId} className="min-w-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className={`mt-1 font-medium tabular-nums ${className}`} data-testid={testId}>{value}</dd>
+      <dd className={`mt-1 text-metric font-semibold tabular-nums ${className}`} data-testid={testId}>{value}</dd>
     </div>
   );
   return (
-    <RecordSection title={title} subline={t('actualBasis', 'Actual follows project financial actuals; the costs below include other records.')} actions={planAction} data-testid="wo-page-pva">
+    <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
       {(f.directMargin.reason === 'different-currencies' || f.result.reason === 'different-currencies') && <OtherCurrencyNote />}
       <PvaTable dense testId="wo-page-pva-cost" caption={title} firstColumn={<span className="sr-only">{t('col.cost', 'Cost')}</span>} columns={columns} rows={[
         legRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct'),
         legRow('shared', t('col.shared', 'Shared cost'), f.plan.indirect_budget, f.allocated, 'wo-page-pva-plan-indirect', 'wo-page-pva-allocated'),
       ]} />
       <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-4 text-control sm:grid-cols-3">
-        {figure('wo-page-pva-revenue', t('col.revenue', 'Billed revenue'), revenue, w.revenue === null || !w.revenueComplete ? 'font-normal text-muted-foreground' : '')}
-        {figure('wo-page-pva-direct-margin', t('col.directMargin', 'Direct margin'), marginText(f.directMargin), tone(f.directMargin))}
-        {figure('wo-page-pva-result', t('col.result', 'After shared cost'), marginText(f.result), tone(f.result))}
+        {figure('wo-page-pva-revenue', t('col.revenue', 'Billed revenue'), w.revenue === null || !w.revenueComplete ? '—' : revenue, w.revenue === null || !w.revenueComplete ? 'font-normal text-muted-foreground' : '')}
+        {figure('wo-page-pva-direct-margin', t('col.directMargin', 'Direct margin'), f.directMargin.amount === null ? '—' : marginText(f.directMargin), tone(f.directMargin))}
+        {figure('wo-page-pva-result', t('col.result', 'After shared cost'), f.result.amount === null ? '—' : marginText(f.result), tone(f.result))}
         {f.otherCurrency.map((o) => figure(`wo-page-pva-other-${o.currency}`, t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency }), money(o.amount, o.currency)))}
       </dl>
+      {(w.revenue === null || !w.revenueComplete || f.directMargin.amount === null || f.result.amount === null) && <p className="mt-3 text-control text-muted-foreground">{[...new Set([w.revenue === null || !w.revenueComplete ? t('revenueUnknown', 'Revenue unknown') : null, f.directMargin.amount === null ? marginText(f.directMargin) : null, f.result.amount === null ? marginText(f.result) : null].filter(Boolean))].join(' · ')}</p>}
       {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={cur} testId="wo-page-pva-labour" />}
       <IdleCostBlock projectId={projectId} workOrderId={workOrderId} testId="wo-page-pva-idle" />
       {f.disciplines.length > 0 && (

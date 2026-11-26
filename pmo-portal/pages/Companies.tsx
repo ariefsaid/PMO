@@ -252,6 +252,7 @@ const Companies: React.FC = () => {
 
   return (
     <ListPage
+      className="max-w-3xl"
       title={filter === 'Vendor' ? t('shell.nav.vendors', 'Suppliers') : t('companies.title', 'Companies')}
       count={directory.data ? total : undefined}
       total={directory.data && !unfiltered ? directoryTotal : undefined}
@@ -388,6 +389,8 @@ const Companies: React.FC = () => {
       {state === undefined && (
         <>
           <DataTable<CompanyListRow>
+            mobileCardTitle={(c) => <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"><span className="min-w-0 [&_.truncate]:whitespace-normal">{columns[0].cell(c)}</span>{columns[1].cell(c)}</span>}
+            mobileCardDetails={() => null}
             rows={pageRows}
             columns={columns}
             rowKey={(c) => c.id}

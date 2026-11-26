@@ -288,6 +288,7 @@ describe('WorkOrderDetail', () => {
     h.wo = q(null);
     renderPage();
     expect(screen.getByText('Work order not found')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Work orders/i })).toBeVisible();
   });
   it('AC-WORP-005 scope shows accepted quantity and percent from confirmed acceptances of THIS work order', () => {
     renderPage();

@@ -87,7 +87,8 @@ describe('PlanVsActualSection', () => {
   it('says "No plan" rather than 0 when nothing is planned, and unknown revenue as such', () => {
     render(<PlanVsActualSection workOrderId="A" query={ok(data([wo('A', 'WO-1', { revenue: null, revenueComplete: false })], [line({ workOrderId: 'A', amount: '10.00' })]))} disciplines={[]} />);
     expect(screen.getByTestId('wo-page-pva-plan-direct').textContent).toBe('No plan');
-    expect(screen.getByTestId('wo-page-pva-revenue').textContent).toBe('Revenue unknown');
+    expect(screen.getByTestId('wo-page-pva-revenue').textContent).toBe('—');
+    expect(screen.getByText('Revenue unknown')).toBeTruthy();
   });
 
   // Walk PC3: the plan is entered on the work order's own page, with the project tab's dialog and gate.

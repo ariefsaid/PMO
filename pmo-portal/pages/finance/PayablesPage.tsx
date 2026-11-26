@@ -128,6 +128,7 @@ const PayablesPage: React.FC = () => {
     ...(channelsOn ? [{
       key: 'paymentChannel',
       header: t('procurement:paymentChannel.columnHeader', 'Payment channel'),
+      keepWhenBlank: true,
       kind: 'text' as const,
       size: 150,
       cell: (row: PayableRow) => <span className="min-w-0 truncate text-muted-foreground">{channelNames.data?.[row.procurement.id] ?? '—'}</span>,

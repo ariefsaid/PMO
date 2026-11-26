@@ -288,7 +288,7 @@ describe('ViewBuilderPage — guard states', () => {
     renderEdit('v1');
     expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('Q2 Projects');
     // Panel list should have one entry
-    expect(screen.getByText(/DataTable/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Table$/i)).toBeInTheDocument();
     // Save button should say "Update view"
     expect(screen.getByRole('button', { name: /update view/i })).toBeInTheDocument();
   });
@@ -595,7 +595,7 @@ describe('ViewBuilderPage — compile-before-save', () => {
       ).toBeInTheDocument(),
     );
     // Panel list should still show the panel
-    expect(screen.getByText(/DataTable/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Table$/i)).toBeInTheDocument();
   });
 });
 
@@ -609,10 +609,10 @@ describe('ViewBuilderPage — panel reorder and remove', () => {
     await user.click(screen.getByRole('button', { name: 'Move panel 3 up' }));
     // Now [B, C, A]
     const items = screen.getAllByRole('listitem');
-    // Panel 1 should now be B (id='b'): select ['id'] → summary "companies — id"
-    expect(items[0]).toHaveTextContent('companies — id');
-    // Panel 3 should now be A (id='a'): select ['id','name'] → summary "companies — id, name"
-    expect(items[2]).toHaveTextContent('companies — id, name');
+    // Panel 1 should now be B (id='b'): select ['id'] → summary "Companies — Reference"
+    expect(items[0]).toHaveTextContent('Companies — Reference');
+    // Panel 3 should now be A (id='a'): select ['id','name'] → summary "Companies — Reference, Name"
+    expect(items[2]).toHaveTextContent('Companies — Reference, Name');
   });
 
   it('AC-VB-015: Remove panel A; list = [B]; no mutation called', async () => {

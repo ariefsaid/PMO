@@ -6,7 +6,7 @@ import { useDeliveryNoteSettings } from '@/src/hooks/useMaterialRequests';
 import { useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { useStockTransfer } from '@/src/hooks/useStockTransfers';
 import { useOrgName } from '@/src/hooks/useOrgName';
-import { formatDay } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { PrintDocument, PrintActionBar, PrintHeader, PrintTable, PrintSignatureBlocks, type PrintTableColumn } from '@/src/components/print';
@@ -54,7 +54,7 @@ const StockTransferPrint: React.FC = () => {
       <main className="p-4 sm:p-6 print:p-0">
         <PrintDocument className="p-2 sm:p-10">
           <PrintHeader orgName={orgName} documentTitle={title} documentNumber={transfer.number} numberLabel={t('transfers.print.number')} metaItems={[
-            { label: t('transfers.print.date'), value: formatDay(transfer.sentAt) },
+            { label: t('transfers.print.date'), value: formatDayYear(transfer.sentAt) },
             { label: t('transfers.print.from'), value: wh(transfer.fromWarehouseId) },
             { label: t('transfers.print.to'), value: wh(transfer.toWarehouseId) },
             ...(transfer.note ? [{ label: t('form.note'), value: transfer.note }] : []),

@@ -5,6 +5,7 @@ import { Icon } from './icons';
 import { Button } from './Button';
 import { useMoneyInputMask } from './useMoneyInputMask';
 import { getDateLocale } from '@/src/lib/locale/activeLocale';
+import { formatMonthYear } from '@/src/lib/format';
 
 // ---------------------------------------------------------------------------
 // Shared form field primitives (crud-components §2.1 / §2.2). Strictly
@@ -282,6 +283,8 @@ export const TextField: React.FC<TextFieldProps> = ({
   const isSecret = type === 'password';
   const [revealed, setRevealed] = React.useState(false);
   const effectiveType = isSecret && revealed ? 'text' : type;
+  const monthParts = type === 'month' && /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  const monthDisplay = monthParts ? formatMonthYear(new Date(Number(monthParts[1]), Number(monthParts[2]) - 1, 1)) : null;
 
   return (
     <FieldShell
@@ -313,9 +316,11 @@ export const TextField: React.FC<TextFieldProps> = ({
               formControlShell,
               error && formControlInvalid,
               isSecret && 'pr-8',
+              monthDisplay && 'peer text-transparent [&::-webkit-datetime-edit]:text-transparent focus:text-foreground focus:[&::-webkit-datetime-edit]:text-foreground',
               className,
             )}
           />
+          {monthDisplay && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 right-10 flex items-center truncate text-control text-foreground peer-focus:hidden">{monthDisplay}</span>}
           {isSecret && (
             <button
               type="button"

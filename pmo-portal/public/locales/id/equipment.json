@@ -70,7 +70,8 @@
     "openRecord": "Buka halaman alat",
     "edit": "Ubah",
     "loggedIn": "Dicatat dalam",
-    "inServiceSince": "Beroperasi sejak"
+    "inServiceSince": "Beroperasi sejak",
+    "lastUsageMonth": "Bulan terakhir dicatat"
   },
   "availability": {
     "amountInvalid": "Masukkan jumlah sebagai angka dengan paling banyak 2 desimal",
@@ -340,7 +341,8 @@
   "nav": {
     "assets": "Aset",
     "equipment": "Peralatan",
-    "expiring": "Dokumen akan kedaluwarsa"
+    "expiring": "Dokumen akan kedaluwarsa",
+    "availability": "Ketersediaan"
   },
   "panel": {
     "notRecorded": "{{count}} tidak tercatat",
@@ -499,7 +501,8 @@
     "renew": "Perpanjang",
     "renewTitle": "Perpanjang dokumen",
     "renewed": "Dokumen diperpanjang",
-    "errRenew": "Tanggal kedaluwarsa baru harus setelah yang sekarang ({{date}})"
+    "errRenew": "Tanggal kedaluwarsa baru harus setelah yang sekarang ({{date}})",
+    "emptyAskAdmin": "Belum ada dokumen; minta admin menambahkan dokumen."
   },
   "people": {
     "error": "Orang ini tidak dapat dimuat",

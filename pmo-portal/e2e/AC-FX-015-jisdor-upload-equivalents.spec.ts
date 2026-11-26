@@ -82,8 +82,8 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
 
   const csv = Buffer.from('date,rate\n2026-10-09,16234.56\n2026-10-12,16300');
   const uploadFile = async (name: string) => {
-    await page.getByRole('button', { name: 'Upload rates' }).first().click();
-    const dialog = page.getByRole('dialog', { name: 'Upload rates' });
+    await page.getByRole('button', { name: 'Upload file' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Upload file' });
     await dialog
       .getByLabel('Choose BI Excel or date,rate CSV')
       .setInputFiles({ name, mimeType: 'text/csv', buffer: csv });

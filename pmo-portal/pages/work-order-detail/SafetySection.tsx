@@ -69,8 +69,9 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
   return (
     <RecordSection
       title={title}
+      className="[&>div:first-child]:flex-nowrap"
       data-testid="safety-section"
-      actions={<Link to="/safety" className="text-control text-primary-text hover:underline">{t('section.summary', 'Monthly summary')}</Link>}
+      actions={<Link to="/safety" className="shrink-0 whitespace-nowrap text-control text-primary-text hover:underline">{t('section.summary', 'Monthly summary')}</Link>}
     >
       {mayEnter && status === 'Issued' && (
         <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void open({ work_date: date, day_id: days.data?.find((d) => d.work_date === date)?.day_id ?? null }); }}>

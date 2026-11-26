@@ -237,7 +237,7 @@ describe('ViewBuilderPage floor', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     const panelList = screen.getByRole('list', { name: 'Panel list' });
-    expect(panelList).toHaveTextContent('DataTable');
-    expect(panelList).toHaveTextContent('companies — id');
+    expect(panelList).toHaveTextContent('Table');
+    expect(panelList).toHaveTextContent('Companies — Reference');
   });
 });

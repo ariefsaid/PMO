@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Button, Icon } from '@/src/components/ui';
 import { useRecordFolderAction, type RecordFolderActionProps } from './useRecordFolderAction';
 
@@ -10,6 +11,7 @@ export type { RecordFolderActionProps };
  * is never affected by what happens here; only this action is disabled while it works.
  */
 export function RecordFolderAction(props: RecordFolderActionProps) {
+  const { t } = useTranslation('recordFolders');
   const { allowed, pending, start, label, outcome, remedies, reconnectError, canStart } = useRecordFolderAction(props);
   if (!allowed) return null;
   return (
@@ -17,9 +19,9 @@ export function RecordFolderAction(props: RecordFolderActionProps) {
       {outcome}
       {!props.hasFolder && (
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" loading={pending} disabled={!canStart} onClick={start}>
+          <Button aria-label={label} title={label} variant="outline" size="sm" loading={pending} disabled={!canStart} onClick={start}>
             <Icon name="folder" />
-            {label}
+            {props.compact ? t('action.createShort', 'Create folder') : label}
           </Button>
           {remedies}
         </div>

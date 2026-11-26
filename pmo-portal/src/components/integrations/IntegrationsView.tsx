@@ -265,11 +265,13 @@ export const IntegrationsView: React.FC = () => {
             credential-and-health model it does not have. The card self-gates Admin-only on the FE;
             the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009).
             Step order: the org's own app registration (#1017) → org approval → each user connects. */}
+        <section aria-label="Microsoft 365" className="overflow-hidden rounded-lg border border-border bg-card [&>div]:mb-0 [&>div]:rounded-none [&>div]:border-x-0 [&>div]:border-b-0 [&>div:first-child]:border-t-0">
         <M365AppRegistrationCard />
         <M365OrgApprovalCard />
         {/* Org default document library — an org setting, deliberately separate from the personal
             connection and from the org approval above (it grants no access to anything). */}
         <M365DefaultLibraryCard />
+        </section>
         {TIERS.map((tier) => (
           <TierConnectionCard
             key={tier}

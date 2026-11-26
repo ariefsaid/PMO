@@ -398,6 +398,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 flex-col gap-0.5">
             <span className="min-w-0 truncate text-control font-semibold">{payment.customer_name ?? '—'}</span>
             <span className="min-w-0 truncate record-id">{receiptNumber(payment) ?? '—'}</span>
+            <span className="text-control text-muted-foreground">{displayAllocations(payment, (id) => invoiceNumberById.get(id) ?? null)?.map((a) => a.invoice_number).join(' · ') || (payment.sales_invoice_id ? invoiceNumberById.get(payment.sales_invoice_id) : null) || '—'}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? (payment) => {
             const cancelled = displayStatus(payment) === 'Cancelled';
@@ -411,9 +412,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
                 {odoo ? <OdooReceiptStatus receipt={payment} fallback={fallbackStatus} /> : fallbackStatus}
                 <span className="shrink-0 text-control text-muted-foreground">{payment.date ? formatDay(payment.date) : '—'}</span>
               </div>
-              <span className="shrink-0 text-right text-control tabular">
-                <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
-                {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
+              <span className="min-w-0 text-right text-control tabular">
+                <span className="block">{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
+                {total != null && total !== receivedAmount && <span className="block text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
               </span>
             </div>;
           } : undefined}
@@ -530,10 +531,10 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         nestedOpen={Boolean(formOpen || cancelTarget || applyTarget || unapplyTarget)}
       >
         {panelPayment && <div className="space-y-5 p-4 sm:p-5">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
-            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrency(panelPayment.received_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
-            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrency(panelPayment.withheld_amount, panelPayment.currency, { precision: 'minor' })}</dd></div>
-            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrency(panelUnapplied, panelPayment.currency, { precision: 'minor' })}</dd></div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 text-sm">
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrency(panelPayment.received_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrency(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-control text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{panelUnapplied == null ? notReported : formatCurrency(panelUnapplied, panelPayment.currency)}</dd></div>
             <div><dt className="text-control text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 record-id text-foreground">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
           </dl>
           <section aria-labelledby="receivable-payment-invoices">
@@ -549,7 +550,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               {panelAllocations.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span className="record-id text-foreground">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
                 <span className="flex items-center gap-2">
-                  <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrency(Number(allocation.amount), allocation.currency, { precision: 'minor' }) : notReported}</span>
+                  <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrency(Number(allocation.amount), allocation.currency) : notReported}</span>
                   {canApplyHere && panelPayment.allocations?.[index] && (
                     <Button
                       type="button"

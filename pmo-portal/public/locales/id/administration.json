@@ -13,7 +13,7 @@
       "degradedNext": "Belum tersedia: {{missing}}. Pasang di Odoo, lalu Cek ulang.",
       "expiringNext": "Buat kunci baru di Odoo dan sambungkan ulang sebelum kedaluwarsa.",
       "notActivatedNext": "Sinkronisasi dimulai setelah perusahaan dipilih.",
-      "disconnectedNext": "Administrator dapat menyambungkannya di Administrasi, Integrasi."
+      "disconnectedNext": "Administrator dapat menghubungkannya di Administrasi → Integrasi organisasi."
     },
     "state": {
       "unverified": "Belum dicek baru-baru ini",
@@ -851,7 +851,7 @@
       "title": "Klaim melebihi kuantitas yang dapat ditagih",
       "loadError": "Pengaturan kuantitas klaim tidak dapat dimuat",
       "saved": "Pengaturan kuantitas klaim disimpan",
-      "helper": "Setiap baris klaim diukur terhadap kuantitas yang masih dapat ditagih pada baris work order-nya: kuantitas hasil survei bila ada, jika tidak kuantitas yang diterima (BAST), jika tidak kuantitas yang dipesan, dikurangi yang sudah diambil klaim aktif. Hanya peringatan meloloskan klaim dengan peringatan di formulir. Tolak menghentikan klaim sampai kuantitas diturunkan atau penerimaan berikutnya dikonfirmasi.",
+      "helper": "Setiap baris klaim diukur terhadap kuantitas yang masih dapat ditagih pada baris perintah kerja-nya: kuantitas hasil survei bila ada, jika tidak kuantitas yang diterima (BAST), jika tidak kuantitas yang dipesan, dikurangi yang sudah diambil klaim aktif. Hanya peringatan meloloskan klaim dengan peringatan di formulir. Tolak menghentikan klaim sampai kuantitas diturunkan atau penerimaan berikutnya dikonfirmasi.",
       "warn": "Hanya peringatan",
       "block": "Tolak",
       "adminOnly": "Hanya Admin yang dapat mengubah ini.",
@@ -946,19 +946,22 @@
   "usage": {
     "errorTitle": "Penggunaan tidak dapat dimuat",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
-    "emptyTitle": "Belum ada penggunaan",
-    "emptySub": "Penggunaan agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",
+    "emptyTitle": "Belum ada pemakaian",
+    "emptySub": "Pemakaian agen tampil di sini setelah ruang kerja mulai menggunakan asisten.",
     "month": "Bulan",
     "action": "Aksi",
     "runs": "Eksekusi",
     "tokens": "Token",
+    "promptTokens": "Token masukan",
+    "completionTokens": "Token keluaran",
     "providerCost": "Biaya penyedia",
     "monthUnavailable": "Bulan tidak tersedia",
     "providerPricingUnavailable": "Harga penyedia tidak tersedia",
     "marginUnavailable": "Harga tidak tersedia",
     "cost": "Biaya (USD)",
     "margin": "Margin",
-    "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan."
+    "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan.",
+    "openAssistant": "Buka asisten"
   },
   "integrationStatus": {
     "connectedDateMissing": "Tanggal belum dicatat",
@@ -1066,11 +1069,14 @@
     "singular": "Tunggal",
     "nav": "Istilah",
     "term": "Istilah",
-    "language": "Bahasa"
+    "language": "Bahasa",
+    "viewTerms": "Istilah",
+    "viewRoles": "Nama peran",
+    "viewLabel": "Nama yang diubah"
   },
   "documentCategories": {
     "nav": "Kategori dokumen",
-    "intro": "Setiap dokumen disimpan dalam satu kategori. Pilih peran mana yang dapat melihat dokumen di setiap kategori; orang dengan peran lain tidak akan melihat dokumen maupun berkasnya. Admin selalu melihat semua kategori.",
+    "intro": "Dokumen memiliki satu kategori. Pilih peran mana yang dapat melihat dokumen di setiap kategori; orang dengan peran lain tidak akan melihat dokumen maupun berkasnya. Admin selalu melihat semua kategori.",
     "m365Note": "Berkas yang ditautkan dari Microsoft 365 tetap memakai izin Microsoft sendiri. Pengaturan ini hanya mengatur entri daftar, pratinjau, dan tautan buka di PMO.",
     "name": "Nama kategori",
     "namePlaceholder": "mis. Persetujuan komersial",
@@ -1095,7 +1101,7 @@
     "hiddenFrom": "Disembunyikan dari jabatan berikut",
     "hiddenNone": "Tidak ada jabatan yang disembunyikan.",
     "hideFrom": "Sembunyikan dari jabatan",
-    "hideChoose": "Sembunyikan dari jabatan…",
+    "hideChoose": "Pilih jabatan",
     "unhide": "Tampilkan lagi untuk {{role}}",
     "unhideShort": "Hapus",
     "reordered": "Urutan tersimpan",
@@ -1412,5 +1418,12 @@
     "none": "Belum ada peran dipilih",
     "done": "Selesai",
     "choose": "Pilih peran"
+  },
+  "connections": {
+    "viewLabel": "Tampilan pengaturan organisasi",
+    "settings": "Pengaturan organisasi"
+  },
+  "credits": {
+    "balanceHelp": "Saldo setelah pemberian dan pemakaian kredit."
   }
 }

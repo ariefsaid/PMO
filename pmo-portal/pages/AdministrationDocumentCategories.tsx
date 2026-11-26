@@ -1,6 +1,8 @@
+import { AdministrationActions } from '@/src/components/admin/AdministrationActions';
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Button, Card, Checkbox, ConfirmDialog, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Badge, Button, EntityFormModal, Checkbox, ConfirmDialog, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
 import { RowMenu } from '@/src/components/ui/RowMenu';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
@@ -74,8 +76,8 @@ const CategoryCard: React.FC<{
   isFirst: boolean;
   isLast: boolean;
   busy: boolean;
-  onSaveRoles: (roles: CategoryRole[], hiddenJobRoles: string[]) => void;
-  onRename: (name: string) => void;
+  onSaveRoles: (roles: CategoryRole[], hiddenJobRoles: string[]) => Promise<boolean>;
+  onRename: (name: string) => Promise<boolean>;
   onArchive: () => void;
   onRestore: () => void;
   onMove: (delta: -1 | 1) => void;
@@ -97,6 +99,8 @@ const CategoryCard: React.FC<{
 
   const hiddenDirty = hidden.join() !== (category.hidden_job_roles ?? []).join();
   const dirty = ROLE_ORDER.some((r) => roles.has(r) !== saved.has(r)) || hiddenDirty;
+  const pageSave = useSettingsSaveEntry(canManage ? { dirty, busy, save: async () => { if (!await onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)) throw new Error('Category was not saved'); } } : null);
+  useSettingsSaveEntry(canManage ? { dirty: renaming && name.trim() !== category.name, invalid: name.trim() === '', busy, save: async () => { if (!await onRename(name)) throw new Error('Category was not renamed'); setRenaming(false); } } : null);
   const archived = category.archived_at !== null;
   const menuItems = canManage ? [
     ...(!category.is_system && !renaming ? [{ label: t('administration:documentCategories.rename', 'Rename'), onClick: () => setRenaming(true), disabled: busy }] : []),
@@ -122,13 +126,13 @@ const CategoryCard: React.FC<{
               fullWidth
             />
             <div className="flex flex-wrap gap-2">
-              <Button
+              {!pageSave && <Button
                 variant="primary"
                 disabled={busy || name.trim() === '' || name.trim() === category.name}
                 onClick={() => { onRename(name); setRenaming(false); }}
               >
                 {t('administration:documentCategories.saveName', 'Save name')}
-              </Button>
+              </Button>}
               <Button variant="outline" onClick={() => { setName(category.name); setRenaming(false); }}>
                 {t('administration:documentCategories.cancel', 'Cancel')}
               </Button>
@@ -170,10 +174,10 @@ const CategoryCard: React.FC<{
 
       {canManage ? (
         <div className="flex items-center gap-2 xl:justify-end">
-          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)}
+          {!pageSave && <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)}
             aria-label={t('administration:documentCategories.saveRoles', 'Save who can see it')}>
             {t('administration:documentCategories.saveShort', 'Save')}
-          </Button>
+          </Button>}
           {menuItems.length > 0 && <RowMenu items={menuItems} ariaLabel={t('administration:documentCategories.moreActions', 'More actions for {{name}}', { name: display })} />}
         </div>
       ) : <span className="hidden xl:block" />}
@@ -181,13 +185,17 @@ const CategoryCard: React.FC<{
   );
 };
 
-const NewCategory: React.FC<{ busy: boolean; onCreate: (name: string, roles: CategoryRole[]) => Promise<void> }> = ({ busy, onCreate }) => {
+const NewCategory: React.FC<{ busy: boolean; open: boolean; onClose: () => void; onCreate: (name: string, roles: CategoryRole[]) => Promise<void> }> = ({ busy, open, onClose, onCreate }) => {
   const { t } = useTranslation();
   const [name, setName] = useState('');
+  const [error, setError] = useState<ReturnType<typeof classifyMutationError> | null>(null);
   const [roles, setRoles] = useState<Set<CategoryRole>>(() => new Set<CategoryRole>(['Admin']));
   return (
-    <Card className="space-y-3 p-4" data-testid="document-category-new">
-      <h3 className="text-base font-semibold">{t('administration:documentCategories.newTitle', 'New category')}</h3>
+    <EntityFormModal open={open} title={t('administration:documentCategories.newTitle', 'New category')}
+      submitLabel={t('administration:documentCategories.create', 'Create category')} onClose={onClose}
+      submitDisabled={name.trim() === ''} loading={busy} submitError={error}
+      onSubmit={(e) => { e.preventDefault(); setError(null); void onCreate(name, ROLE_ORDER.filter((r) => roles.has(r))).catch((err: unknown) => setError(classifyMutationError(err))); }}>
+      <div className="space-y-3" data-testid="document-category-new">
       <TextField
         label={t('administration:documentCategories.name', 'Category name')}
         value={name}
@@ -206,18 +214,8 @@ const NewCategory: React.FC<{ busy: boolean; onCreate: (name: string, roles: Cat
       <p className="text-sm text-text-secondary">
         {t('administration:documentCategories.newHint', 'Choose the roles on purpose: a new category starts with Admin only, so nobody else sees its documents until you add them.')}
       </p>
-      <Button
-        variant="primary"
-        disabled={busy || name.trim() === ''}
-        onClick={async () => {
-          await onCreate(name, ROLE_ORDER.filter((r) => roles.has(r)));
-          setName('');
-          setRoles(new Set<CategoryRole>(['Admin']));
-        }}
-      >
-        {t('administration:documentCategories.create', 'Create category')}
-      </Button>
-    </Card>
+      </div>
+    </EntityFormModal>
   );
 };
 
@@ -227,6 +225,7 @@ const AdministrationDocumentCategories: React.FC = () => {
   const canManage = usePermission()('manage', 'documentCategory');
   const { data, isPending, isError, refetch } = useDocumentCategories();
   const m = useDocumentCategoryMutations();
+  const [newOpen, setNewOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<DocumentCategory | null>(null);
   const busy = Object.values(m).some((x) => x.isPending);
 
@@ -234,9 +233,11 @@ const AdministrationDocumentCategories: React.FC = () => {
     try {
       await action();
       toast(done, 'success');
+      return true;
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
+      return false;
     }
   };
 
@@ -254,7 +255,7 @@ const AdministrationDocumentCategories: React.FC = () => {
   return (
     <div data-testid="administration-panel-document-categories" className="min-w-0 space-y-4">
       <p className="max-w-prose text-control text-muted-foreground">
-        {t('administration:documentCategories.intro', 'Every document is filed under one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.')}
+        {t('administration:documentCategories.intro', 'Each document has one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.')}
       </p>
       <p className="max-w-prose text-control text-muted-foreground">
         {t('administration:documentCategories.m365Note', 'Files linked from Microsoft 365 keep Microsoft’s own permissions. These settings control only the register entry, preview and open link in PMO.')}
@@ -264,10 +265,9 @@ const AdministrationDocumentCategories: React.FC = () => {
       {!isPending && !isError ? (
         <>
           {canManage && (
-            <NewCategory
-              busy={busy}
-              onCreate={(name, roles) => run(() => m.create.mutateAsync({ name, roles }), t('administration:documentCategories.created', 'Category created'))}
-            />
+            <AdministrationActions><Button variant="outline" onClick={() => setNewOpen(true)}>
+              {t('administration:documentCategories.newTitle', 'New category')}
+            </Button></AdministrationActions>
           )}
           <div role="list" aria-label={t('administration:documentCategories.listLabel', 'Document categories')} className="min-w-0 rounded-lg border border-border bg-card">
           <CategoryHeader />
@@ -279,14 +279,22 @@ const AdministrationDocumentCategories: React.FC = () => {
               isFirst={i === 0}
               isLast={i === live.length - 1}
               busy={busy}
-              onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
-              onRename={(name) => void run(() => m.rename.mutateAsync({ id: c.id, name }), t('administration:documentCategories.renamed', 'Category renamed'))}
+              onSaveRoles={(roles, keys) => run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
+              onRename={(name) => run(() => m.rename.mutateAsync({ id: c.id, name }), t('administration:documentCategories.renamed', 'Category renamed'))}
               onArchive={() => setArchiveTarget(c)}
               onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}
               onMove={(delta) => move(c.id, delta)}
             />
           ))}
           </div>
+          {canManage && (
+            <NewCategory key={newOpen ? 'open' : 'closed'} open={newOpen} onClose={() => setNewOpen(false)}
+              busy={busy} onCreate={async (name, roles) => {
+                await m.create.mutateAsync({ name, roles });
+                toast(t('administration:documentCategories.created', 'Category created'), 'success');
+                setNewOpen(false);
+              }} />
+          )}
           {archived.length > 0 && (
             <>
               <h3 className="pt-4 text-group font-semibold">{t('administration:documentCategories.archivedHeading', 'Archived categories')}</h3>
@@ -300,8 +308,8 @@ const AdministrationDocumentCategories: React.FC = () => {
                   isFirst
                   isLast
                   busy={busy}
-                  onSaveRoles={(roles, keys) => void run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
-                  onRename={() => undefined}
+                  onSaveRoles={(roles, keys) => run(() => m.setAccess.mutateAsync({ id: c.id, roles, keys }), t('administration:documentCategories.rolesSaved', 'Saved'))}
+                  onRename={async () => false}
                   onArchive={() => undefined}
                   onRestore={() => void run(() => m.restore.mutateAsync(c.id), t('administration:documentCategories.restored', 'Category restored'))}
                   onMove={() => undefined}

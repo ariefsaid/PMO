@@ -25,14 +25,14 @@ test('AC-TX-010: an Admin renames a new term and a role; both persist and reset 
     const term = page.getByTestId('term-row-deliveryNote-en');
     await term.getByLabel('Singular').fill('waybill');
     await term.getByLabel('Plural').fill('waybills');
-    await page.getByTestId('term-card-deliveryNote').getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Terminology saved').first()).toBeVisible();
 
     // Role names are one switch away from the terms (the page opens on Terms).
     await page.getByRole('button', { name: 'Role names' }).click();
     const role = page.getByTestId('role-name-row-storekeeper-en');
     await role.getByLabel('Name').fill('Yard Lead');
-    await page.getByTestId('role-name-card-storekeeper').getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Role name saved').first()).toBeVisible();
 
     await page.reload();
