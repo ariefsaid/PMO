@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { signIn, requireServiceRoleKey } from '../helpers';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 // AC-IHC-011 (idle hours as cost, #2673): a person sees idle time as cost per reason on the work order's plan versus actual
 // once labour cost in money is on. Idle time as cost is on by default for every organisation (#2746), so there is no switch to flip:
@@ -55,12 +56,14 @@ test('AC-IHC-011 idle time shows as cost per reason on the work order once labou
     await signIn(page, 'admin@acme.test');
     // Labour cost off: nothing about idle cost shows, whatever idle time was recorded.
     await page.goto(`/work-orders/${ids.wo}`);
+    await openWorkOrderArea(page, 'cost');
     await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('wo-page-pva-idle')).toHaveCount(0);
 
     // Labour cost on: each reason lists 0.5 h at 50000 an hour, the total 1 h and 50000.
     await admin.from('labour_cost_settings').upsert({ org_id: ORG_ID, enabled: true }).throwOnError();
     await page.goto(`/work-orders/${ids.wo}`);
+    await openWorkOrderArea(page, 'cost');
     const block = page.getByTestId('wo-page-pva-idle');
     await expect(block).toBeVisible();
     await expect(page.getByTestId(`wo-page-pva-idle-${ids.reasonA}`)).toContainText('IHC Rain');

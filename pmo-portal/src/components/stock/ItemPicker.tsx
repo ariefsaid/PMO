@@ -10,10 +10,12 @@ export interface ItemPickerProps {
   error?: React.ReactNode;
   id?: string;
   required?: boolean;
+  /** Keep the label as the accessible name only (a picker inside a table cell under its column header). */
+  hideLabel?: boolean;
 }
 
 /** Active items only; the search matches the code or the name (Combobox filters label and sub). */
-export const ItemPicker: React.FC<ItemPickerProps> = ({ label, value, onChange, error, id, required }) => {
+export const ItemPicker: React.FC<ItemPickerProps> = ({ label, value, onChange, error, id, required, hideLabel }) => {
   const { t } = useTranslation('stock');
   const items = useStockItems(false);
   const load = useCallback(async (): Promise<ComboboxOption[]> => {
@@ -26,6 +28,7 @@ export const ItemPicker: React.FC<ItemPickerProps> = ({ label, value, onChange, 
       selectedOption={picked ? { value: picked.id, label: `${picked.code} - ${picked.name}` } : null}
       id={id}
       label={label}
+      hideLabel={hideLabel}
       required={required}
       value={value}
       onChange={(v) => onChange(v)}

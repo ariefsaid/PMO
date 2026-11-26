@@ -6,6 +6,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -65,6 +66,7 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
 
     // The record shows the checklist with the two required items open.
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId('closeout-summary')).toContainText('Required items not done: 2');
 
     // A document is needed before an item can be marked done; the first item is current.
@@ -88,6 +90,7 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
 
     // Mark it done, close again, and the record names who closed it.
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
     await page.getByRole('button', { name: 'Mark Item two ' + suffix + ' done' }).click();
     await expect(page.getByTestId('closeout-summary')).toContainText('Every required item is done');
     await page.goto('/projects/' + projectId + '/contract');
@@ -95,6 +98,7 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
     await page.getByRole('menuitem', { name: 'Close order' }).click();
     await page.getByRole('button', { name: 'Close work order' }).click();
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId('closeout-summary')).toContainText('by ' + profile.data.full_name);
     await expect(page.getByTestId('record-header')).toContainText('Closed');
   } catch (e) {

@@ -7,6 +7,7 @@ import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/j
 import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 import { formatExactMoney } from '../../src/lib/format';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -63,6 +64,7 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
 
     await actor.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     const daily = page.getByTestId('wo-page-daily-target');
     await expect(daily).toBeVisible({ timeout: 30_000 });
     await expect(daily).not.toContainText('restricted for your role');
