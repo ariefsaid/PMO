@@ -1,6 +1,11 @@
-create or replace function public.my_waiting_decisions()
-  returns table (kind text, record_id uuid, project_id uuid, title text, created_at timestamptz)
-  language plpgsql stable security definer set search_path = public, pg_temp as $$
+-- Restore the function definitions that preceded migration 2765.
+
+CREATE OR REPLACE FUNCTION public.my_waiting_decisions()
+ RETURNS TABLE(kind text, record_id uuid, project_id uuid, title text, created_at timestamp with time zone)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_role user_role := public.auth_role();
 begin
   perform public.assert_is_active_member();
@@ -117,10 +122,14 @@ begin
    where q.org_id = v_org and q.status = 'pending' and public.phone_check_in_may_decide(q.id)
     ) as waiting(kind, record_id, project_id, title, created_at)
    order by waiting.created_at asc nulls last, waiting.kind asc, waiting.record_id asc;
-end; $$;
+end; $function$;
 
-create or replace function public.stock_assert_writeoff_approver(p_doc public.stock_documents, p_uid uuid) returns void
-  language plpgsql stable security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.stock_assert_writeoff_approver(p_doc stock_documents, p_uid uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare v_self_ok boolean; v_rank_ok boolean;
 begin
   v_self_ok := p_doc.created_by is distinct from p_uid;                                                   -- mut:selfapprove
@@ -128,13 +137,13 @@ begin
   v_rank_ok := coalesce(public.role_rank(public.auth_role()) >= 20, false)                                -- mut:writeoff_rank
                or coalesce(public.actor_holds_job_role('material_coordinator'), false);           -- mut:rr_mc_writeoff
   if not v_rank_ok then raise exception 'STK_RANK: only a Project Manager or above, or the Material Coordinator, posts a write-off' using errcode = 'P0001'; end if;
-end $$;
+end $function$;
 
-create or replace function public.dsr_validate(p_report uuid)
+CREATE OR REPLACE FUNCTION public.dsr_validate(p_report uuid)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path = public, pg_temp
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
 declare v_org uuid; v_uid uuid := auth.uid(); r public.daily_site_reports; l record; v record;
 begin
@@ -171,8 +180,12 @@ begin
   end if;
 end $function$;
 
-create or replace function public.qcr_assert_approver(p_request public.quantity_change_requests) returns void
-  language plpgsql stable security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.qcr_assert_approver(p_request quantity_change_requests)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare v_uid uuid := auth.uid();
 begin
   if not public.qcr_may_approve_role(p_request.org_id) then
@@ -181,12 +194,17 @@ begin
   if v_uid = p_request.author_id or v_uid = any (p_request.editor_ids) or v_uid is not distinct from p_request.submitted_by then
     raise exception 'QCR_SOD_AUTHOR: separation of duties: the person who raised, edited or submitted a request cannot approve it; ask another reviewer' using errcode = '42501';
   end if;
-end; $$;
+end; $function$;
 
-create or replace function public.approve_subcontract_certificate(p_certificate uuid) returns void
-  language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.approve_subcontract_certificate(p_certificate uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare v_org uuid := public.auth_org_id(); c public.subcontract_certificates; v_v jsonb;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin', 'Finance', 'Executive') then
     raise exception 'only Finance, Executive and Admin approve a certificate' using errcode = '42501'; end if;
@@ -223,12 +241,14 @@ begin
   perform set_config('pmo.spc_transition', '', true);
   perform public.log_audit('subcontract_certificate.approve', v_org, auth.uid(), c.id, jsonb_build_object(
     'prepared_by', c.prepared_by, 'submitted_by', c.submitted_by, 'net', c.net));
-end $$;
+end $function$;
 
-create or replace function public.attendance_second_record_decide(p_worker_id uuid, p_work_order_id uuid, p_work_date date,
-                                                       p_stand text, p_reason text)
-  returns void
-  language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.attendance_second_record_decide(p_worker_id uuid, p_work_order_id uuid, p_work_date date, p_stand text, p_reason text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare
   v_uid uuid := auth.uid();
   v_org uuid := public.auth_org_id();
@@ -300,13 +320,14 @@ begin
    where id = v_sec.id;
   perform public.log_audit('attendance.second_record_decide', v_org, v_uid, p_work_order_id,
             jsonb_build_object('worker_id', p_worker_id, 'work_date', p_work_date, 'stand', p_stand, 'reason', v_reason));
-end $$;
+end $function$;
 
-create or replace function public.transition_work_order(
-  p_id uuid,
-  p_to public.work_order_status,
-  p_over_commit_ack boolean default null)
-  returns void language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.transition_work_order(p_id uuid, p_to work_order_status, p_over_commit_ack boolean DEFAULT NULL::boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare
   v_from       public.work_order_status;
   v_org        uuid;
@@ -331,6 +352,7 @@ declare
     'Cancelled', jsonb_build_array()
   );
 begin
+  perform public.assert_not_light();
   -- Load + lock the work order. The witness pair is read under the SAME lock as the value it
   -- witnesses — a concurrent set_work_order_value takes that lock too, so they cannot be read torn.
   -- ⚑ #513: this row's OWN tax facts are read under the SAME lock as its value, for the same reason
@@ -499,10 +521,14 @@ begin
                                               'contract_ceiling',   v_ceiling,
                                               'committed_before',   v_committed,
                                               'over_commit_ack_by', v_ack_by));
-end; $$;
+end; $function$;
 
-create or replace function public.transition_procurement(p_id uuid, p_to procurement_status, p_notes text default null)
-  returns void language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.transition_procurement(p_id uuid, p_to procurement_status, p_notes text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare
   v_from procurement_status; v_org uuid; v_requester uuid; v_approver uuid;
   v_project uuid; v_category public.budget_category; v_currency text; v_amount numeric; v_route record;
@@ -720,10 +746,14 @@ begin
 
   insert into public.procurement_status_events (procurement_id, org_id, from_status, to_status, actor_id, notes)
   values (p_id, v_org, v_from, p_to, auth.uid(), p_notes);
-end; $$;
+end; $function$;
 
-create or replace function public.receive_stock_transfer(p_transfer uuid, p_lines jsonb, p_confirmation jsonb default null) returns void
-  language plpgsql volatile security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.receive_stock_transfer(p_transfer uuid, p_lines jsonb, p_confirmation jsonb DEFAULT NULL::jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare
   t public.stock_transfers; v_uid uuid := auth.uid(); e jsonb; l public.stock_transfer_lines; v_item record; v_c numeric; v_a numeric; v_r numeric;
   v_q text; v_reason text; v_acc jsonb := '[]'::jsonb; v_rej jsonb := '[]'::jsonb; v_open boolean; v_missing text; v_seen uuid[] := '{}';
@@ -769,7 +799,7 @@ begin
   update public.stock_transfers set status = case when v_open then 'Received' else 'Closed' end, received_by = v_uid, received_at = now() where id = t.id;
   if not v_open then perform public.stock_close_transit(t); end if;
   perform public.log_audit('stock.transfer.receive', t.org_id, v_uid, t.id, jsonb_build_object('number', t.number, 'short_open', v_open));
-end $$;
+end $function$;
 
 drop function public.stock_writeoff_may_decide(uuid);
 drop function public.daily_report_may_decide(uuid);

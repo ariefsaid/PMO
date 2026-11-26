@@ -186,8 +186,6 @@ begin
     join public.attendance_days ad on ad.worker_id = asr.worker_id and ad.work_order_id = asr.work_order_id and ad.work_date = asr.work_date
    where dr.org_id = v_org and dr.supersedes_id is null and dr.archived_at is null
      and asr.decided_at is null and ad.locked_at is null and ad.submitted_at is null
-     and not exists (select from public.timesheet_entries e join public.timesheets t on t.id = e.timesheet_id
-                      where e.id = ad.timesheet_entry_id and t.status <> 'Draft')
      and public.attendance_decision_may_decide(asr.id)
      and public.attendance_day_undecided(asr.worker_id, asr.work_order_id, asr.work_date)
    group by dr.id, dr.project_id, aw.wo_number, aw.title, dr.work_date
@@ -279,6 +277,7 @@ create or replace function public.approve_subcontract_certificate(p_certificate 
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.auth_org_id(); c public.subcontract_certificates; v_v jsonb;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin', 'Finance', 'Executive') then
     raise exception 'only Finance, Executive and Admin approve a certificate' using errcode = '42501'; end if;
@@ -421,6 +420,7 @@ declare
     'Cancelled', jsonb_build_array()
   );
 begin
+  perform public.assert_not_light();
   -- Load + lock the work order. The witness pair is read under the SAME lock as the value it
   -- witnesses — a concurrent set_work_order_value takes that lock too, so they cannot be read torn.
   -- ⚑ #513: this row's OWN tax facts are read under the SAME lock as its value, for the same reason
