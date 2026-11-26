@@ -6,6 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
 import { formatExactMoney } from '../../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(90_000);
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -63,6 +64,7 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'cost');
     const section = page.getByTestId('wo-page-revenue-plan');
     await expect(section).toBeVisible({ timeout: 15_000 });
     await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText('No plan entered');

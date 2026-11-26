@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, runSuffix, userClient } from './support/stockFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(240_000);
 
@@ -50,6 +51,7 @@ test('JOB-W15 material coordinator calls off client material, hits the reservati
     // 1. Material coordinator opens the work order, raises a requisition for 100, and sends it to the client.
     await coordinator.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'material');
     await expect(page.getByTestId('client-material-section')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('csr-empty')).toBeVisible();
 

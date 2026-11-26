@@ -4,6 +4,7 @@ import { signIn } from './helpers';
 import { siteRole } from './support/siteRoleJourney';
 import { createBillingFixture, cleanupBilling } from './support/billingFixture';
 import { ORG_ID, inDays, need } from './support/jobJourney';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 // The journey is two tests so each stays well inside its time budget: the inspector files the document once, then the
 // billing officer's claims reuse it. The second starts from the filed document, set up as the first leaves it.
@@ -21,6 +22,7 @@ test('AC-WQE-001 the inspector files a quality document once on the step an admi
     // Admin chooses the step whose documents may count for a claim.
     await signIn(page, 'admin@acme.test');
     await page.goto(`/work-orders/${fixture.workOrderId}`);
+    await openWorkOrderArea(page, 'billing');
     const stepRow = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
     const evidenceMark = stepRow.getByRole('checkbox', { name: 'Documents here count as claim evidence' });
     await evidenceMark.click();
@@ -30,6 +32,7 @@ test('AC-WQE-001 the inspector files a quality document once on the step an admi
     await page.evaluate(() => localStorage.clear());
     await inspector.login(page);
     await page.goto(`/work-orders/${fixture.workOrderId}`);
+    await openWorkOrderArea(page, 'billing');
     const quality = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
     await quality.getByRole('combobox', { name: 'Additional document' }).selectOption(fixture.documentId);
     await quality.getByRole('button', { name: 'Attach additional document' }).click();

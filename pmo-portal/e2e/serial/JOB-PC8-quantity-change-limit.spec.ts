@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 import { asUser } from '../qcrFixture';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -48,6 +49,7 @@ test('JOB-PC8 a project control manager raises, revises and submits a quantity c
     // 1. The project control manager raises a request, revises its quantity, and submits it.
     await pcm.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'billing');
     const section = page.getByTestId('wo-quantity-changes');
     await expect(section).toContainText('0 / 3', { timeout: 30_000 });
     await section.getByRole('button', { name: 'Request a quantity change' }).click();
@@ -81,6 +83,7 @@ test('JOB-PC8 a project control manager raises, revises and submits a quantity c
     await pm.signIn(page);
     for (const code of ['FIL', 'CMP']) {
       await page.goto(`/work-orders/${woId}`);
+      await openWorkOrderArea(page, 'billing');
       await expect(section.getByRole('button', { name: 'Request a quantity change' })).toBeEnabled({ timeout: 30_000 });
       await section.getByRole('button', { name: 'Request a quantity change' }).click();
       dialog = page.getByRole('dialog');
@@ -95,6 +98,7 @@ test('JOB-PC8 a project control manager raises, revises and submits a quantity c
 
     // 3. Three requests are used: the work order refuses a fourth, naming the limit.
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'billing');
     await expect(section).toContainText('3 / 3', { timeout: 30_000 });
     await expect(section).toContainText('This work order has reached its request limit');
     await expect(section.getByRole('button', { name: 'Request a quantity change' })).toBeDisabled();
