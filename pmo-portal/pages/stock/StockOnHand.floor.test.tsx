@@ -73,6 +73,16 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('stock on hand floor controls', () => {
+  it('pages through balances and returns to the first page when searching', async () => {
+    reports.onHand.mockResolvedValue(Array.from({ length: 30 }, (_, i) => ({ ...row, itemId: `i${i}`, itemCode: `ITEM-${String(i).padStart(2, '0')}` })));
+    renderRouted();
+    expect(await screen.findByText('ITEM-00')).toBeInTheDocument();
+    expect(screen.queryByText('ITEM-29')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(await screen.findByText('ITEM-29')).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('searchbox', { name: /search/i }), 'ITEM-00');
+    expect(await screen.findByText('ITEM-00')).toBeInTheDocument();
+  });
   it('floor: Documents section navigation opens the documents list', async () => {
     renderRouted();
     await screen.findByText('CEM');

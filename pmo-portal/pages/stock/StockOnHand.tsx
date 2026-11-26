@@ -46,17 +46,18 @@ const StockOnHand: React.FC = () => {
   const loc = getNumberLocale();
   // R2: all four filters are URL-owned so Back/refresh keep them; defaults stay out of the URL
   // (empty = all warehouses, zero balances hidden, no search, worklist off).
-  const { values, setFilter } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder', 'tag', 'page']);
+  const { values, setFilter, setFilters } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder', 'tag', 'page']);
   const warehouseId = values.warehouse;
   const includeZero = values.zero === '1';
   const search = values.q;
   const belowOnly = values.belowReorder === '1';
   const tag = values.tag;
   const requestedPage = Math.max(1, Number.parseInt(values.page, 10) || 1);
-  const setWarehouseId = (value: string) => setFilter('warehouse', value);
-  const setIncludeZero = (checked: boolean) => setFilter('zero', checked ? '1' : '');
-  const setSearch = (value: string) => setFilter('q', value);
-  const setBelowOnly = (checked: boolean) => setFilter('belowReorder', checked ? '1' : '');
+  const setStockFilter = (key: string, value: string) => setFilters({ [key]: value, page: '' });
+  const setWarehouseId = (value: string) => setStockFilter('warehouse', value);
+  const setIncludeZero = (checked: boolean) => setStockFilter('zero', checked ? '1' : '');
+  const setSearch = (value: string) => setStockFilter('q', value);
+  const setBelowOnly = (checked: boolean) => setStockFilter('belowReorder', checked ? '1' : '');
   const navigate = useNavigate();
   const { canRequest, request: requestPurchase } = useRequestPurchase();
 
@@ -70,6 +71,7 @@ const StockOnHand: React.FC = () => {
   const rsvOn = useReservationsEnabled();
   const figures = useFreeReserved(rsvOn);
   const [reserving, setReserving] = useState<StockOnHandRow | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
   const figureOf = useMemo(() => new Map((figures.data ?? []).map((f) => [`${f.itemId}:${f.warehouseId}`, f])), [figures.data]);
   const mayReserveAt = useCallback((r: StockOnHandRow): boolean => r.warehouseKind !== 'vendor'
     && mayReserve(realRole, realRole !== effectiveRole, (keepers.data ?? []).some((k) => k.user_id === me && k.warehouse_id === r.warehouseId)),
@@ -241,7 +243,7 @@ const StockOnHand: React.FC = () => {
             placeholder={t('onHand.filters.allWarehouses')}
           />
           {tagNames.length > 0 && (
-            <SelectField label={t('onHand.filters.tag', 'Tag')} hideLabel value={tag} onChange={(value) => setFilter('tag', value)}
+            <SelectField label={t('onHand.filters.tag', 'Tag')} hideLabel value={tag} onChange={(value) => setStockFilter('tag', value)}
               options={tagNames.map((n) => ({ value: n, label: n }))} placeholder={t('onHand.filters.allTags', 'All tags')} />
           )}
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
@@ -302,10 +304,11 @@ const StockOnHand: React.FC = () => {
         />
       )}
       {state === undefined && (
-        <div className="order-1 md:order-2"><DataTable<StockOnHandRow>
+        <div className="relative order-1 md:order-2"><DataTable<StockOnHandRow>
           rows={pageRows}
           total={rows.length}
           pagination={{ page, pageSize, onPageChange: (p) => setFilter('page', p <= 1 ? '' : String(p)) }}
+          onOverflowChange={setOverflowing}
           columns={columns}
           onActivate={(r) => navigate(`/stock/ledger?item=${r.itemId}`)}
           rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
@@ -352,7 +355,7 @@ const StockOnHand: React.FC = () => {
               {rsvOn && mayReserveAt(r) && <dd className="col-span-2 pt-1"><ReserveAction onReserve={() => setReserving(r)} /></dd>}
             </dl>
           )}
-        /></div>
+        />{overflowing && <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-r from-transparent to-card" />}</div>
       )}
       </div>
       {reserving && (
