@@ -1,6 +1,6 @@
 {
   "action": {
-    "create": "Buat folder di SharePoint",
+    "create": "Buat folder",
     "choose": "Pilih folder yang ada",
     "chooseLibrary": "Pilih pustaka dokumen default",
     "allowFolders": "Izinkan pembuatan folder",

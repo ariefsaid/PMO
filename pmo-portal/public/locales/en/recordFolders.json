@@ -1,6 +1,6 @@
 {
   "action": {
-    "create": "Create folder in SharePoint",
+    "create": "Create folder",
     "choose": "Choose existing folder",
     "reconnect": "Reconnect Microsoft",
     "chooseLibrary": "Choose the default document library",
