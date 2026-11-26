@@ -18,7 +18,7 @@ import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
 import type { ProjectOrdersViewer } from '@/src/hooks/useWorkOrders';
-import { preloadClaimDrawer, preloadOrderReconciliation, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
+import { preloadClaimDrawer, preloadContractProject, preloadOrderReconciliation, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
@@ -277,6 +277,9 @@ const PRELOAD_RULES: PreloadRule[] = [
     chunks: PROJECT_TAB_CHUNKS_BY_PATH['/projects/:projectId/contract'],
     namespaces: PROJECT_TAB_NAMESPACES.contract,
     data: ({ projectId }, { client, orgId, canReadClaims, canViewBilling, viewer }, search) => {
+      if (projectId && tab === 'contract') {
+        preloadContractProject(client, orgId, projectId, canViewBilling === true, viewer);
+      }
       const id = search.get('open');
       const type = search.get('openType');
       if (!projectId || !id) return;

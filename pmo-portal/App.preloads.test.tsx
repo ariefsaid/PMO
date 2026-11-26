@@ -265,3 +265,39 @@ it('#2819 starts one order’s reconciliation before the project or contract tab
     prefetch.mockRestore();
   }
 });
+
+it.each(['/projects/p1/contract?wo=w1', '/projects/p1/contract'])(
+  'preloads the contract project, work orders and project reconciliation at %s',
+  (href) => {
+    const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+    try {
+      preloadForPath(href, {
+        orgId: 'o1',
+        client: queryClient,
+        canViewBilling: true,
+        viewer: { org_id: 'o1', id: 'u1', role: 'Finance', manager_id: null },
+      });
+      const queryKeys = prefetch.mock.calls.map(([options]) => options.queryKey);
+      expect(queryKeys).toContainEqual(['project', 'o1', 'p1']);
+      expect(queryKeys).toContainEqual(['work-orders', 'o1', 'p1', 'u1', 'Finance', null]);
+      expect(queryKeys).toContainEqual(['billing-reconciliation', 'o1', 'p1', null]);
+    } finally {
+      prefetch.mockRestore();
+    }
+  },
+);
+
+it('does not preload project reconciliation when billing is not visible', () => {
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    preloadForPath('/projects/p1/contract?wo=w1', {
+      orgId: 'o1',
+      client: queryClient,
+      viewer: { org_id: 'o1', id: 'u1', role: 'Project Manager', manager_id: null },
+    });
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey))
+      .not.toContainEqual(['billing-reconciliation', 'o1', 'p1', null]);
+  } finally {
+    prefetch.mockRestore();
+  }
+});

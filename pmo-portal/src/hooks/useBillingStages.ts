@@ -5,8 +5,11 @@ import { useAuth } from '@/src/auth/useAuth';
 import type { CompleteStageInput, RetentionReleaseInput, StageTemplateInput } from '@/src/lib/db/billingStages';
 
 /** One claim's billing stages, retention and the project's invoice deadline (#2522). Keys carry org_id. */
+const claimBillingTraceKey = (orgId: string | undefined, claimId: string, projectId: string) =>
+  ['claim-billing-trace', orgId, claimId, projectId] as const;
+
 export const claimBillingTraceQuery = (orgId: string | undefined, claimId: string, projectId: string) => ({
-  queryKey: ['claim-billing-trace', orgId, claimId, projectId],
+  queryKey: claimBillingTraceKey(orgId, claimId, projectId),
   queryFn: () => repositories.billingStages.trace(claimId, projectId),
   enabled: Boolean(orgId) && Boolean(claimId) && Boolean(projectId),
 });
@@ -35,7 +38,7 @@ export function useBillingStageMutations(claimId: string, projectId: string) {
   const qc = useQueryClient();
   const orgId = useAuth().currentUser?.org_id;
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['claim-billing-trace', orgId, claimId] });
+    void qc.invalidateQueries({ queryKey: claimBillingTraceKey(orgId, claimId, projectId) });
     void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
   };
   const attachDocument = useMutation({
@@ -89,7 +92,7 @@ export function useRetentionReleases(claimId: string, projectId: string) {
   const orgId = useAuth().currentUser?.org_id;
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['retention-releases', orgId, claimId] });
-    void qc.invalidateQueries({ queryKey: ['claim-billing-trace', orgId, claimId] });
+    void qc.invalidateQueries({ queryKey: claimBillingTraceKey(orgId, claimId, projectId) });
     void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
   };
   const releases = useQuery({ queryKey: ['retention-releases', orgId, claimId], queryFn: () => repositories.billingStages.listReleases(claimId), enabled: Boolean(orgId && claimId) });

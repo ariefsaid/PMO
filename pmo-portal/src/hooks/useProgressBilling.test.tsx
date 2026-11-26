@@ -56,7 +56,11 @@ describe('useProgressBillingMutations', () => {
     const { result, keys } = setup();
     await act(async () => { await result.current.recordAssessment.mutateAsync({ month: '2026-09-01', quantities: [], note: null }); });
     expect(h.recordAssessment).toHaveBeenCalledWith({ projectId: 'p1', month: '2026-09-01', quantities: [], note: null });
-    expect(keys()).toEqual(expect.arrayContaining([JSON.stringify(['project-billing', 'org-1', 'p1']), JSON.stringify(['managementPack'])]));
+    expect(keys()).toEqual(expect.arrayContaining([
+      JSON.stringify(['project-billing', 'org-1', 'p1']),
+      JSON.stringify(['billing-reconciliation', 'org-1', 'p1']),
+      JSON.stringify(['managementPack']),
+    ]));
   });
 
   // OD-BILL-1: an unraised claim counts as pending against its work order, so every claim write moves the

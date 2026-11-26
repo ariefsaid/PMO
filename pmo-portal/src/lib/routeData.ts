@@ -38,6 +38,17 @@ export function preloadProjectOrders(client: QueryClient, orgId: string, project
   });
 }
 
+function preloadProjectAndOrders(client: QueryClient, orgId: string, projectId: string, viewer?: ProjectOrdersViewer): void {
+  void client.prefetchQuery(projectQuery(orgId, projectId));
+  if (viewer) void client.prefetchQuery(projectWorkOrdersQuery(viewer, projectId));
+}
+
+/** The contract tab's shared project, work-order list and billing reconciliation reads. */
+export function preloadContractProject(client: QueryClient, orgId: string, projectId: string, canViewBilling: boolean, viewer?: ProjectOrdersViewer): void {
+  preloadProjectAndOrders(client, orgId, projectId, viewer);
+  if (canViewBilling) void client.prefetchQuery(billingReconciliationQuery(orgId, projectId, null));
+}
+
 export function preloadClaimDrawer(client: QueryClient, orgId: string, projectId: string, claimId: string): void {
   void client.prefetchQuery(projectQuery(orgId, projectId));
   void client.prefetchQuery(projectClaimsQuery(orgId, projectId));
@@ -45,7 +56,6 @@ export function preloadClaimDrawer(client: QueryClient, orgId: string, projectId
 }
 
 export function preloadOrderReconciliation(client: QueryClient, orgId: string, projectId: string, workOrderId: string, viewer?: ProjectOrdersViewer): void {
-  void client.prefetchQuery(projectQuery(orgId, projectId));
-  if (viewer) void client.prefetchQuery(projectWorkOrdersQuery(viewer, projectId));
+  preloadProjectAndOrders(client, orgId, projectId, viewer);
   void client.prefetchQuery(billingReconciliationQuery(orgId, projectId, workOrderId));
 }
