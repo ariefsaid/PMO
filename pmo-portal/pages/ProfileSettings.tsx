@@ -1,3 +1,6 @@
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
+import { useSettingsSaveEntry, useSettingsSaveDirty } from '@/src/components/admin/settingsSaveContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
@@ -51,8 +54,12 @@ function numberExample(numberLocale: string): string {
  */
 const ProfileSettings: React.FC = () => {
   const { t } = useTranslation();
+  const roleName = useBuiltInRoleName();
   const { textSize, setTextSize } = useTextSize();
   const { homeLayout, setHomeLayout } = useHomeLayout();
+  const [textDraft, setTextDraft] = useState(textSize);
+  const [homeDraft, setHomeDraft] = useState(homeLayout);
+  const pageDirty = useSettingsSaveDirty();
   const { currentUser, refreshCurrentUser } = useAuth();
   const resolvedLocale = useResolvedLocale();
   const orgDefaults = useOrgLocaleDefaults();
@@ -84,7 +91,7 @@ const ProfileSettings: React.FC = () => {
   }, [currentUser?.locale, currentUser?.number_locale, currentUser?.timezone]);
   const dirty = languageChoice !== savedPreferences.language || numberChoice !== savedPreferences.number || timezoneChoice !== savedPreferences.timezone;
   const holdLeave = useCallback((leave: () => void, stay: () => void) => setPendingLeave({ leave, stay }), []);
-  useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  useUnsavedChangesGuard({ dirty: dirty || pageDirty, guardHistory: true, onBlocked: holdLeave });
 
   // What each "Organization default" would give this user: the SAME resolver with that preference
   // cleared — never `resolvedLocale`, which carries the user's own override when one is set. The
@@ -117,6 +124,8 @@ const ProfileSettings: React.FC = () => {
   const selectedTimezone = timezoneOptions.find((option) => option.value === timezoneChoice)
     ?? (timezoneChoice === 'inherit' ? null : { value: timezoneChoice, label: timezoneChoice });
 
+  useSettingsSaveEntry(currentUser ? { dirty, busy: status === 'saving', invalid: timezoneChoice !== 'inherit' && !isValidTimeZone(timezoneChoice), save: () => handleSave() } : null);
+  useSettingsSaveEntry(currentUser ? { dirty: textDraft !== textSize || homeDraft !== homeLayout, save: async () => { setTextSize(textDraft); setHomeLayout(homeDraft); } } : null);
   if (!currentUser) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
@@ -229,7 +238,8 @@ const ProfileSettings: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-      <PageHeader title={t('profileSettings.title', 'Profile & preferences')} />
+      <PageHeader title={t('profileSettings.title', 'Profile & preferences')} action={<SettingsSaveAction describedBy={SAVE_NO_CHANGES_ID} />} />
+      <p className="mb-4 text-control text-muted-foreground">{currentUser.full_name} · {currentUser.email}{currentUser.built_in_role ? ` · ${roleName(currentUser.built_in_role)}` : ''}</p>
       <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
@@ -244,9 +254,7 @@ const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-control text-muted-foreground">
-              {t('profileSettings.language.effective', { defaultValue: 'Effective language: {{value}}', value: effectiveLanguage })}
-            </p>
+
           </div>
 
           <div>
@@ -262,9 +270,7 @@ const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-control text-muted-foreground">
-              {t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}
-            </p>
+
           </div>
 
           <div className="sm:col-span-2">
@@ -275,6 +281,7 @@ const ProfileSettings: React.FC = () => {
               onChange={(value) => {
                 setTimezoneChoice(value);
                 resetStatus();
+                if (value !== 'inherit' && !isValidTimeZone(value)) setErrorMsg(t('profileSettings.invalidTimezone', 'Choose a valid timezone before saving.'));
               }}
               loadOptions={loadTimezoneOptions}
               placeholder={t('profileSettings.timezone.placeholder', 'Select a timezone')}
@@ -282,25 +289,19 @@ const ProfileSettings: React.FC = () => {
               noun={t('profileSettings.timezone.noun', 'timezone')}
               disabled={isSaving}
             />
-            <p className="mt-2 text-control text-muted-foreground">
-              {t('profileSettings.timezone.effective', { defaultValue: 'Effective timezone: {{value}}', value: resolvedLocale.timezone })}
-            </p>
+
           </div>
         </div>
 
+        <details className="mt-4 text-control text-muted-foreground"><summary className="cursor-pointer font-medium">{t('profilePreferences:savedDetails', 'Saved preferences')}</summary>
+          <p>{t('profileSettings.language.effective', { defaultValue: 'Effective language: {{value}}', value: effectiveLanguage })}</p>
+          <p>{t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}</p>
+          <p>{t('profileSettings.timezone.effective', { defaultValue: 'Effective timezone: {{value}}', value: resolvedLocale.timezone })}</p>
+        </details>
         <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Button
-            type="button"
-            variant="primary"
-            onClick={handleSave}
-            disabled={isSaving || !dirty}
-            loading={isSaving}
-            aria-describedby={!dirty ? SAVE_NO_CHANGES_ID : undefined}
-          >
-            {t('profileSettings.save', 'Save')}
-          </Button>
+
           {/* A disabled control says why: the reason sits beside Save and leaves with the first change. */}
-          {!dirty && (
+          {!dirty && !pageDirty && (
             <p id={SAVE_NO_CHANGES_ID} className="text-control text-muted-foreground">
               {t('profilePreferences:noChanges', 'No changes to save')}
             </p>
@@ -339,31 +340,31 @@ const ProfileSettings: React.FC = () => {
             </Button>
           </div>
         )}
-        {status === 'error' && errorMsg && (
+        {((status === 'error' && errorMsg) || (dirty && timezoneChoice !== 'inherit' && !isValidTimeZone(timezoneChoice))) && (
           <p role="alert" className="mt-3 text-control font-medium text-destructive-text">
-            {errorMsg}
+            {errorMsg ?? t('profileSettings.invalidTimezone', 'Choose a valid timezone before saving.')}
           </p>
         )}
         <div className="mt-6 grid grid-cols-1 gap-5 border-t border-border pt-6 sm:grid-cols-2">
           <div>
             <SelectField label={t('profilePreferences:textSize.label', 'Text size')}
-              value={textSize} onChange={(value) => setTextSize(value as TextSize)}
+              value={textDraft} onChange={(value) => setTextDraft(value as TextSize)}
               options={[
                 { value: 'default', label: t('profilePreferences:textSize.default', 'Default') },
                 { value: 'large', label: t('profilePreferences:textSize.large', 'Large') },
                 { value: 'larger', label: t('profilePreferences:textSize.larger', 'Larger') },
               ]}
-              helper={t('profilePreferences:textSize.help', 'Applied immediately on this device.')} fullWidth />
+              helper={t('profilePreferences:deviceSave', 'Saved on this device when you select Save.')} fullWidth />
           </div>
 
           <div>
             <SelectField label={t('profilePreferences:homeLayout.label', 'Home layout')}
-              value={homeLayout} onChange={(value) => setHomeLayout(value as HomeLayout)}
+              value={homeDraft} onChange={(value) => setHomeDraft(value as HomeLayout)}
               options={[
                 { value: 'overview', label: t('profilePreferences:homeLayout.overview', 'Overview') },
                 { value: 'focused', label: t('profilePreferences:homeLayout.focused', 'Focused') },
               ]}
-              helper={t('profilePreferences:homeLayout.help', 'Applied immediately on this device.')} fullWidth />
+               fullWidth />
           </div>
 
         </div>
@@ -378,4 +379,5 @@ const ProfileSettings: React.FC = () => {
   );
 };
 
-export default ProfileSettings;
+const ProfileSettingsPage: React.FC = () => <SettingsSaveProvider><ProfileSettings /></SettingsSaveProvider>;
+export default ProfileSettingsPage;

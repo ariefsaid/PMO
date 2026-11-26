@@ -3773,8 +3773,8 @@
     "language": {
       "label": "Bahasa antarmuka",
       "options": {
-        "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi: {{value}}",
+        "inherit": "Bawaan organisasi",
+        "inheritWithEffective": "Bawaan organisasi: {{value}}",
         "id": "Bahasa Indonesia",
         "en": "Inggris"
       },
@@ -3785,8 +3785,8 @@
       "label": "Format angka",
       "help": "Pratinjau: {{value}}",
       "options": {
-        "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi: {{value}}",
+        "inherit": "Bawaan organisasi",
+        "inheritWithEffective": "Bawaan organisasi: {{value}}",
         "id": "Indonesia (1.234.567,89)",
         "en": "Inggris (1,234,567.89)"
       },
@@ -3803,8 +3803,8 @@
       "search": "Cari zona waktu…",
       "noun": "zona waktu",
       "options": {
-        "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi: {{timezone}}"
+        "inherit": "Bawaan organisasi",
+        "inheritWithEffective": "Bawaan organisasi: {{timezone}}"
       },
       "effective": "Zona waktu aktif: {{value}}"
     },

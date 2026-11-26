@@ -84,9 +84,11 @@ function languageSelect() {
 }
 
 describe('ProfileSettings (profile language settings slice)', () => {
-  it('applies text size immediately and remembers it on this device', () => {
+  it('applies text size on Save and remembers it on this device', async () => {
     renderPage();
     fireEvent.change(screen.getByLabelText(/text size/i), { target: { value: 'larger' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(document.documentElement.dataset.textSize).toBe('larger'));
     expect(document.documentElement.dataset.textSize).toBe('larger');
     expect(localStorage.getItem('text-size')).toBe('larger');
   });
@@ -101,13 +103,13 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
   });
 
-  it('C10 ProfileSettings.tsx:307,81: Save is disabled until a stored preference changes', () => {
+  it('C10 ProfileSettings.tsx:307,81: Save is disabled until a preference changes', () => {
     renderPage();
     const save = screen.getByRole('button', { name: /^save$/i });
     expect(save).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/text size/i), { target: { value: 'larger' } });
-    expect(save).toBeDisabled();
+    expect(save).toBeEnabled();
 
     fireEvent.change(languageSelect(), { target: { value: 'id' } });
     expect(save).toBeEnabled();
