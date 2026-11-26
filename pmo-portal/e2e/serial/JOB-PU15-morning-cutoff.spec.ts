@@ -28,7 +28,7 @@ test('JOB-PU15 a request for tomorrow sent after the cut-off is refused naming t
     // The Administrator sets the daily cut-off on the approval settings screen. 00:00 makes "after the cut-off" true at any time the journey runs.
     await signIn(page, 'admin@acme.test');
     await page.goto('/material-requests/settings');
-    await page.getByLabel(/^Time \(24-hour/).fill('00:00');
+    await page.getByLabel('Time', { exact: true }).fill('00:00');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByLabel(/Notifications/).getByText('Cut-off saved')).toBeVisible({ timeout: 15_000 });
 
