@@ -422,3 +422,27 @@ begin
     ) t),'[]'::json)
   ));
 end $$;
+
+create or replace function public.check_task_tree_no_cycle()
+  returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if new.parent_task_id is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.parent_task_id is not distinct from old.parent_task_id then
+    return new;   -- the parent did not move: nothing to check, and no lock behind a long sync transaction
+  end if;
+  -- ponytail: one transaction lock per project serialises re-parenting, so two crossing moves cannot both pass.
+  perform pg_advisory_xact_lock(hashtextextended('task_tree:' || coalesce(new.project_id, new.org_id)::text, 0));
+  if exists (
+    with recursive up(id, parent_task_id) as (
+      select t.id, t.parent_task_id from public.tasks t where t.id = new.parent_task_id
+      union
+      select t.id, t.parent_task_id from public.tasks t join up on t.id = up.parent_task_id
+    )
+    select 1 from up where up.id = new.id
+  ) then
+    raise exception 'TASK_TREE_CYCLE: a task cannot sit under one of its own subtasks' using errcode = '23514';
+  end if;
+  return new;
+end; $$;

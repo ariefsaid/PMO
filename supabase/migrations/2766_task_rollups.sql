@@ -1,5 +1,5 @@
 -- Task roll-ups and task tree depth. Reverse with rollback/2766_task_rollups_down.sql.
--- drops: the scheduled overdue filter now requires an active task, and section task counts use the leaf rule. Dashboard phase counts include active linked groups.
+-- drops: the scheduled overdue filter now requires an active task, and section task counts use the leaf rule. Dashboard phase counts include active linked groups. The ancestor walk also checks tree depth.
 
 create or replace function public.scheduled_report_content(
   p_kind text, p_org uuid, p_recipient uuid, p_from date, p_to date, p_locale text, p_name text
@@ -436,3 +436,44 @@ begin
   ));
 end $$;
 
+create or replace function public.check_task_tree_no_cycle()
+  returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  ancestor_count integer;
+  has_cycle boolean;
+begin
+  if new.parent_task_id is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.parent_task_id is not distinct from old.parent_task_id then
+    return new;   -- the parent did not move: nothing to check, and no lock behind a long sync transaction
+  end if;
+  -- ponytail: one transaction lock per project serialises re-parenting, so two crossing moves cannot both pass.
+  perform pg_advisory_xact_lock(hashtextextended('task_tree:' || coalesce(new.project_id, new.org_id)::text, 0));
+  with recursive up(id, parent_task_id) as (
+    select t.id, t.parent_task_id from public.tasks t where t.id = new.parent_task_id
+    union
+    select t.id, t.parent_task_id from public.tasks t join up on t.id = up.parent_task_id
+  )
+  select count(*)::integer, coalesce(bool_or(up.id = new.id), false)
+    into ancestor_count, has_cycle from up;
+
+  if has_cycle then
+    raise exception 'TASK_TREE_CYCLE: a task cannot sit under one of its own subtasks' using errcode = '23514';
+  end if;
+
+  -- The root is level 1. When moving a branch, check the deepest task in it as well.
+  if ancestor_count >= 32 or (tg_op = 'UPDATE' and exists (
+    with recursive branch(id, depth) as (
+      select new.id, ancestor_count + 1
+      union
+      select t.id, b.depth + 1
+        from branch b join public.tasks t on t.parent_task_id = b.id
+       where b.depth < 33
+    )
+    select 1 from branch where depth = 33
+  )) then
+    raise exception 'TASK_TREE_DEPTH: A task can sit at most 32 levels down' using errcode = '23514';
+  end if;
+  return new;
+end; $$;
