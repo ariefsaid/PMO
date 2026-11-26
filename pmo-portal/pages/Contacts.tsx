@@ -212,16 +212,7 @@ const Contacts: React.FC = () => {
       key: 'email',
       header: t('contacts.columns.email', 'Email'),
       cell: (c) => (
-        <span className="block min-w-0 whitespace-normal break-normal text-muted-foreground md:truncate">
-          {c.email
-            ? c.email.split(/([@._+-])/).map((part, index) => (
-                <React.Fragment key={index}>
-                  {part}
-                  {/^[@._+-]$/.test(part) && <wbr />}
-                </React.Fragment>
-              ))
-            : '—'}
-        </span>
+        <span className="block min-w-0 truncate text-muted-foreground" title={c.email ?? undefined}>{c.email ?? "—"}</span>
       ),
       colClassName: 'col-span-2',
       exportValue: (c) => c.email ?? '',
@@ -229,7 +220,7 @@ const Contacts: React.FC = () => {
     {
       key: 'phone',
       header: t('contacts.columns.phone', 'Phone'),
-      cell: (c) => <span className="truncate text-muted-foreground">{c.phone ?? '—'}</span>,
+      cell: (c) => <span className="block truncate whitespace-nowrap text-muted-foreground" title={c.phone ?? undefined}>{c.phone ?? '—'}</span>,
       exportValue: (c) => c.phone ?? '',
     },
   ];
@@ -301,6 +292,7 @@ const Contacts: React.FC = () => {
           <>
             <Combobox
               compact
+              hideLabel
               label={t('contacts.filters.companyLabel', 'Filter by company')}
               value={companyFilter && companyFilter !== 'All' ? companyFilter : null}
               selectedOption={companyFilterOptions.find(({ value }) => value === companyFilter) ?? null}
@@ -431,6 +423,8 @@ const Contacts: React.FC = () => {
       {state === undefined && !awaitingRows && (
         <>
           <DataTable<ContactRow>
+            mobileCardTitle={(c) => <span className="font-semibold">{c.full_name}{c.title && <span className="ml-2 font-normal text-muted-foreground">{c.title}</span>}<span className="mt-1 block font-normal text-muted-foreground">{companyById.get(c.company_id ?? '') ?? '—'}</span></span>}
+            mobileCardDetails={(c) => <p className="flex min-w-0 gap-2 text-control text-muted-foreground"><span className="min-w-0 flex-1 truncate" title={c.email ?? undefined}>{c.email || '—'}</span><span className="shrink-0 whitespace-nowrap">{c.phone || '—'}</span></p>}
             rows={pageRows}
             columns={columns}
             rowKey={(c) => c.id}
