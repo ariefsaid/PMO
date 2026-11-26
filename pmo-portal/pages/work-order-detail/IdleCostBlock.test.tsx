@@ -1,7 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /** #2673 (AC-IHC-001, AC-IHC-010): idle block shows only with rows, apart from direct cost. */
@@ -31,9 +31,9 @@ describe('idle cost block', () => {
     render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
     const rain = screen.getByTestId('idle-r1');
     expect(within(rain).getByText('Rain')).toBeVisible();
-    expect(rain.textContent).toContain(formatExactMoney('62500.00', 'IDR', 'en-US'));
+    expect(rain.textContent).toContain(formatTableMoney('62500.00', 'IDR'));
     expect(screen.queryByText('Other WO')).toBeNull();
-    expect(screen.getByTestId('idle-total').textContent).toContain(formatExactMoney('93750.00', 'IDR', 'en-US'));
+    expect(screen.getByTestId('idle-total').textContent).toContain(formatTableMoney('93750.00', 'IDR'));
     expect(screen.getByText(/not added again/)).toBeVisible();
   });
   it('AC-IHC-007 a reason with no rate shows hours and no money', () => {
@@ -56,13 +56,13 @@ describe('idle cost block', () => {
     expect(screen.getByRole('columnheader', { name: 'People' })).toBeVisible();
     expect(screen.getByRole('columnheader', { name: 'Equipment' })).toBeVisible();
     const rain = screen.getByTestId('idle-r1').textContent ?? '';
-    expect(rain).toContain(formatExactMoney('281250.00', 'IDR', 'en-US'));
-    expect(rain).toContain(formatExactMoney('50000.00', 'IDR', 'en-US'));
-    expect(rain).toContain(formatExactMoney('331250.00', 'IDR', 'en-US'));
+    expect(rain).toContain(formatTableMoney('281250.00', 'IDR'));
+    expect(rain).toContain(formatTableMoney('50000.00', 'IDR'));
+    expect(rain).toContain(formatTableMoney('331250.00', 'IDR'));
     const total = screen.getByTestId('idle-total').textContent ?? '';
-    expect(total).toContain(formatExactMoney('950000.00', 'IDR', 'en-US'));
-    expect(total).toContain(formatExactMoney('750000.00', 'IDR', 'en-US'));
-    expect(total).toContain(formatExactMoney('200000.00', 'IDR', 'en-US'));
+    expect(total).toContain(formatTableMoney('950000.00', 'IDR'));
+    expect(total).toContain(formatTableMoney('750000.00', 'IDR'));
+    expect(total).toContain(formatTableMoney('200000.00', 'IDR'));
     expect(screen.getByText(/not added again/)).toBeVisible();
   });
   it('AC-IWR-011 a reason whose people have no rate says so and still shows its equipment', () => {
@@ -70,6 +70,6 @@ describe('idle cost block', () => {
     render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
     const r = screen.getByTestId('idle-r1');
     expect(within(r).getByText('No rate')).toBeVisible();
-    expect(r.textContent).toContain(formatExactMoney('50000.00', 'IDR', 'en-US'));
+    expect(r.textContent).toContain(formatTableMoney('50000.00', 'IDR'));
   });
 });

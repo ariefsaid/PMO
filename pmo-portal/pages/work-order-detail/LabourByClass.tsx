@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatExactMoney, formatNumberExact } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { useLabourClasses } from '@/src/hooks/useLabourCost';
 import type { LabourFigure } from '@/src/lib/workOrderPlanVsActual';
 
@@ -19,7 +18,7 @@ export const LabourByClass: React.FC<{ labour: readonly LabourFigure[]; currency
   return (
     <div className="mt-4 overflow-x-auto" data-testid={testId}>
       <table className="w-full text-control">
-        <caption className="py-1 text-left font-medium">{t('labour.title', 'Labour cost by class')}</caption>
+        <caption className="py-1 text-left font-semibold">{t('labour.title', 'Labour cost by class')}</caption>
         <thead><tr className="text-right text-muted-foreground">
           <th scope="col" className="py-1 pr-4 text-left font-normal">{t('labour.class', 'Class')}</th>
           <th scope="col" className="py-1 pr-4 font-normal">{t('labour.hours', 'Hours')}</th>
@@ -29,7 +28,7 @@ export const LabourByClass: React.FC<{ labour: readonly LabourFigure[]; currency
           <tr key={l.classId ?? 'all'} className="border-t border-border" data-testid={`${testId}-${l.classId ?? 'all'}`}>
             <th scope="row" className="py-1 pr-4 text-left font-normal">{nameOf(l.classId)}</th>
             <td className="py-1 pr-4 text-right tabular-nums">{l.hours === null ? '—' : formatNumberExact(l.hours)}</td>
-            <td className="py-1 text-right tabular-nums">{formatExactMoney(l.amount, currency, getNumberLocale()) ?? l.amount}</td>
+            <td className="py-1 text-right tabular-nums">{formatTableMoney(l.amount, currency) ?? l.amount}</td>
           </tr>
         ))}</tbody>
       </table>
