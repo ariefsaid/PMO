@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
-  role: 'Project Manager', userId: 'u1', enabled: true, plans: [] as unknown[], canApprove: false,
+  role: 'Project Manager', userId: 'u1', enabled: true, plans: [] as unknown[], canApprove: false, currencyResolved: true,
   routeData: undefined as unknown, routePending: false, routeError: false, routeRefetch: vi.fn(), routeCalls: [] as Array<[string | undefined, boolean]>,
   save: vi.fn(), submit: vi.fn(), approve: vi.fn(), reject: vi.fn(), reopen: vi.fn(),
 }));
@@ -29,7 +29,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   useVendorOptions: () => ({ ...ok, data: [{ value: 'v1', label: 'Acme Hire' }] }),
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ ...ok, data: [{ id: 'w1', title: 'Foundations' }] }) }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }) }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrencyState: () => ({ currency: h.currencyResolved ? 'IDR' : 'USD', isResolved: h.currencyResolved, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1', role: h.role } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
@@ -50,9 +50,33 @@ const pickProject = async () => {
 
 describe('monthly equipment plan page (#2700)', () => {
   beforeEach(() => {
-    h.role = 'Project Manager'; h.userId = 'u1'; h.enabled = true; h.plans = []; h.canApprove = false;
+    h.role = 'Project Manager'; h.userId = 'u1'; h.enabled = true; h.plans = []; h.canApprove = false; h.currencyResolved = true;
     h.routeData = undefined; h.routePending = false; h.routeError = false; h.routeCalls.length = 0;
     for (const f of [h.save, h.submit, h.approve, h.reject, h.reopen, h.routeRefetch]) f.mockReset();
+  });
+
+  it('shows plan rates and totals in the organisation currency', async () => {
+    h.plans = [plan()];
+    renderPage();
+    await pickProject();
+    expect(screen.getByTestId('plan-line').textContent?.replace(/\s/g, ' ')).toContain('IDR 1,500');
+    expect(screen.getByTestId('plan-total').textContent?.replace(/\s/g, ' ')).toContain('IDR 3,000');
+  });
+
+  it('omits the work order column when no plan line names one', async () => {
+    h.plans = [plan({ lines: [{ ...(plan().lines[0] as object), workOrderId: null }] })];
+    renderPage();
+    await pickProject();
+    expect(screen.queryByRole('columnheader', { name: 'Work order' })).not.toBeInTheDocument();
+  });
+
+  it('does not display a placeholder currency while the organisation currency loads', async () => {
+    h.currencyResolved = false;
+    h.plans = [plan()];
+    renderPage();
+    await pickProject();
+    expect(screen.getByTestId('plan-total')).toHaveTextContent('—');
+    expect(screen.getByTestId('plan-line')).not.toHaveTextContent('$');
   });
 
   it('AC-EQP-001 with the plan off the screen says so and offers no plan controls', () => {
