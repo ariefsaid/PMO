@@ -70,6 +70,7 @@ export interface WorkOrderRepository {
   list(projectId: string): Promise<WorkOrderRow[]>;
   /** Every work order the reader may see across projects (RLS-scoped; no money). */
   listAll(): Promise<WorkOrderListRow[]>;
+  listOpenForHome(): Promise<Pick<WorkOrderListRow, 'id' | 'wo_number' | 'title' | 'status'>[]>;
   get(id: string): Promise<WorkOrderRow | null>;
   create(projectId: string, input: WorkOrderInput): Promise<WorkOrderRow>;
   /** Spreadsheet import: Draft work orders (area, scope lines) for one project, all saved or none (FR-WOI-003). */

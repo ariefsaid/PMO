@@ -51,6 +51,19 @@ export const listStockItems = (filters: boolean | StockItemFilters = false): Pro
   }, f.limit);
 };
 export interface StockItemTagName { itemId: string; tagName: string }
+export type ReadStockItemTags = () => Promise<StockItemTagName[]>;
+
+export async function withStockItemTags<T extends { itemId: string; tagName?: string }>(
+  rows: T[], readTags: ReadStockItemTags,
+): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const tags = await readTags().catch(() => []);
+  const byItem = new Map(tags.map(({ itemId, tagName }) => [itemId, tagName]));
+  return rows.map((row) => {
+    const tagName = byItem.get(row.itemId);
+    return tagName ? { ...row, tagName } : row;
+  });
+}
 type TaggedItemRow = { id: string; tag: { name: string } | null };
 
 /**
