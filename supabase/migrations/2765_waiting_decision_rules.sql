@@ -214,12 +214,18 @@ end; $$;
 
 create or replace function public.stock_assert_writeoff_approver(p_doc public.stock_documents, p_uid uuid) returns void
   language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v_self_ok boolean; v_rank_ok boolean;
 begin
-  if public.stock_writeoff_may_decide(p_doc.id) then return; end if;
-  if p_doc.created_by is not distinct from p_uid then
+  v_self_ok := p_doc.created_by is distinct from p_uid;                                                   -- mut:selfapprove
+  if not v_self_ok then
     raise exception 'STK_SELF_APPROVE: a write-off must be posted by someone other than its author' using errcode = 'P0001';
   end if;
-  raise exception 'STK_RANK: only a Project Manager or above, or the Material Coordinator, posts a write-off' using errcode = 'P0001';
+  v_rank_ok := (
+    public.stock_writeoff_may_decide(p_doc.id) -- mut:writeoff_rank
+  );
+  if not v_rank_ok then
+    raise exception 'STK_RANK: only a Project Manager or above, or the Material Coordinator, posts a write-off' using errcode = 'P0001';
+  end if;
 end $$;
 
 create or replace function public.dsr_validate(p_report uuid)
