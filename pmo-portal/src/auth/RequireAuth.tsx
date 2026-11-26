@@ -62,7 +62,7 @@ const SignOutButton: React.FC<{ className?: string }> = ({ className }) => {
 const ProfileErrorPage: React.FC<{ onRetry: () => void; retrying: boolean }> = ({ onRetry, retrying }) => {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
       <div
         role="alert"
         aria-live="assertive"
@@ -87,28 +87,29 @@ const ProfileErrorPage: React.FC<{ onRetry: () => void; retrying: boolean }> = (
           <SignOutButton />
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 
 /** Full-page not-provisioned state — the session is valid but no profiles row exists yet. */
 const NotProvisionedPage: React.FC = () => {
+  const { t } = useTranslation();
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4">
       <div className="w-full max-w-sm">
         <Card>
           <CardPad className="space-y-3">
-            <h1 className="text-[15px] font-semibold text-foreground">
-              You&apos;re signed in, but your account isn&apos;t set up for this workspace yet.
+            <h1 className="text-page font-semibold text-foreground">
+              {t('auth:notProvisioned.title', 'Account not set up')}
             </h1>
-            <p className="text-[13px] text-muted-foreground">
-              Ask your administrator to invite you, then sign in again.
+            <p className="text-control text-muted-foreground">
+              {t('auth:notProvisioned.body', "You're signed in. Ask your administrator to invite you to this workspace, then sign in again.")}
             </p>
             <SignOutButton className="mt-1" />
           </CardPad>
         </Card>
       </div>
-    </div>
+    </main>
   );
 };
 
