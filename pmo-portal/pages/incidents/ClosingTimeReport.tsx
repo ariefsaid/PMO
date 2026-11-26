@@ -222,7 +222,7 @@ export const ClosingTimeReport: React.FC = () => {
               {t('closingReport.backToRegister', 'Back to register')}
             </Button>
           </div>
-          <h1 className="text-page-title font-semibold tracking-tight text-foreground">
+          <h1 className="text-page font-semibold tracking-tight text-foreground">
             {t('closingReport.title', 'Issue closing-time report')}
           </h1>
         </div>
