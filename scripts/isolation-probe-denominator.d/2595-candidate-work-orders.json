@@ -32,5 +32,8 @@
       "b_read": "own-org-only",
       "by_id": "applicable"
     }
+  ],
+  "buckets": [
+    "work-order-candidate-proofs"
   ]
 }
