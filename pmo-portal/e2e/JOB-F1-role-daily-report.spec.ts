@@ -44,7 +44,7 @@ test('JOB-F1 quantity surveyor files a daily site report with a paper-form photo
     await page.goto('/site-reports');
     await page.getByRole('button', { name: 'New report' }).first().click();
     await page.getByLabel('Project').selectOption({ label: `${run} project` });
-    await page.getByLabel('Work order').selectOption({ label: `${run} pipe run` });
+    await page.getByRole('combobox', { name: 'Work order' }).selectOption({ label: `${run} pipe run` });
     await page.getByRole('button', { name: 'Start report' }).click();
     await expect(page).toHaveURL(/\/site-reports\/[0-9a-f-]{36}$/, { timeout: 15_000 });
 
