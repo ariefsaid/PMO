@@ -36,11 +36,14 @@ test('JOB-PC3 project control manager saves a direct and hour plan on a work ord
     await dialog.getByRole('button', { name: /save plan/i }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
 
-    await expect(row).toContainText('500.00');
-    await expect(row.getByTestId('wo-pva-direct')).toContainText('0.00');
-    await row.getByRole('button', { name: /basis/i }).click();
-    await expect(page.getByTestId('wo-pva-project-hours')).toContainText(/Equipment hours\s*0 · Plan: 10/);
-    await expect(page.getByTestId('wo-pva-project-hours')).toContainText(/Crew hours\s*0 · Plan: 40/);
+    // The plan shows beside zero actuals: the direct plan in the work order's row, the hour plans in the hours table.
+    await expect(row.getByTestId('wo-pva-plan-direct')).toHaveText('$500');
+    await expect(row.getByTestId('wo-pva-direct')).toHaveText('$0');
+    const hours = page.getByTestId('wo-pva-project-hours');
+    await expect(hours.getByTestId('wo-pva-hours-plan-equipment')).toHaveText('10');
+    await expect(hours.getByTestId('wo-pva-hours-equipment')).toHaveText('0');
+    await expect(hours.getByTestId('wo-pva-hours-plan-crew')).toHaveText('40');
+    await expect(hours.getByTestId('wo-pva-hours-crew')).toHaveText('0');
 
     // An approved timesheet of 8 h on the work order raises the crew-hours actual beside the plan.
     const ts = need('timesheet', await admin.from('timesheets').insert({
@@ -62,7 +65,8 @@ test('JOB-PC3 project control manager saves a direct and hour plan on a work ord
     }));
 
     await page.reload();
-    await expect(page.getByTestId('wo-pva-project-hours')).toContainText(/Crew hours\s*8 · Plan: 40/, { timeout: 30_000 });
+    await expect(page.getByTestId('wo-pva-project-hours').getByTestId('wo-pva-hours-crew')).toHaveText('8', { timeout: 30_000 });
+    await expect(page.getByTestId('wo-pva-project-hours').getByTestId('wo-pva-hours-plan-crew')).toHaveText('40');
   } finally {
     await cleanupAll(admin, [
       ['timesheets', 'id', timesheetId ? [timesheetId] : []],

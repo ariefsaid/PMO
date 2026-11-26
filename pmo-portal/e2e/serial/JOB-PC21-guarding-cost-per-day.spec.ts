@@ -3,7 +3,7 @@
 // people under a daily-rated guard class, the project manager approves it, and the project control manager sees the work order's direct cost
 // increase by three times the daily rate on the project orders screen.
 import { test, expect } from '@playwright/test';
-import { formatExactMoney } from '../../src/lib/format';
+import { formatTableMoney } from '../../src/lib/format';
 import { cleanupAll, need, ok, ORG_ID, runId, serviceClient } from '../support/jobFixtures';
 import { inDays } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
@@ -118,14 +118,14 @@ test('JOB-PC21 project administrator enters unnamed guard head count, project ma
     await expect(page.getByRole('row', { name: className })).toContainText('Approved', { timeout: 20_000 });
 
     // 3. Project control manager confirms the work order's direct cost reflects 3 guards x 150/day = 450.00.
-    const expectedCost = formatExactMoney('450.00', currency, 'en-US') ?? 'unformattable';
+    const expectedCost = formatTableMoney('450.00', currency) ?? 'unformattable';
     await pcm.signIn(page);
     await page.goto(`/projects/${projectId}/orders`);
     const pvaRow = page.getByTestId(`wo-pva-row-${woId}`);
     await expect(pvaRow).toBeVisible({ timeout: 30_000 });
     await expect(pvaRow.getByTestId('wo-pva-direct')).toContainText(expectedCost);
 
-    await pvaRow.getByRole('button', { name: /basis/i }).click();
+    await pvaRow.getByRole('link', { name: /details/i }).click();
     const labour = page.getByTestId(`wo-pva-labour-${woId}`);
     await expect(labour).toBeVisible({ timeout: 20_000 });
     await expect(labour).toContainText(expectedCost);
