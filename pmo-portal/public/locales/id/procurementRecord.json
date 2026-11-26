@@ -71,7 +71,7 @@
     "addLineItem": "Tambahkan setidaknya satu item baris sebelum mengajukan."
   },
   "waiting": {
-    "payment": "Pembayaran: menunggu Finance"
+    "payment": "Pembayaran: menunggu Keuangan"
   },
   "record": {
     "purchaseRequest": "Permintaan pembelian",
@@ -141,7 +141,7 @@
     "calculation": "Jumlah dari nilai {{figure}} yang tercatat. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
     "projectBudget": "Anggaran proyek terlacak",
     "projectBudgetTooltip": "Data anggaran proyek dan pengeluaran yang dicadangkan ditampilkan jika tersedia. Dampak penuh ditampilkan saat pengadaan masih di tahap Permintaan.",
-    "financeOnly": "Invoice dan pembayaran ditangani oleh Finance.",
+    "financeOnly": "Invoice dan pembayaran ditangani oleh Keuangan.",
     "sourceMissing": "jumlah {{figure}} belum dicatat",
     "source": {
       "requested": "permintaan pembelian",
@@ -163,7 +163,7 @@
     "procurementRaised": "Pengadaan diajukan",
     "all": "Semua",
     "financial": "Keuangan",
-    "hasFile": "Ada berkas",
+    "hasFile": "Dengan berkas",
     "empty": "Belum ada aktivitas yang dicatat.",
     "fromAccounting": "dari sistem akuntansi",
     "supplierInvoice": "Invoice supplier",

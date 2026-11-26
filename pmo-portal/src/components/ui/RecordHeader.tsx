@@ -140,7 +140,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
             {icon}
           </span>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[min(100%,18rem)] flex-1">
           <div className={cn(
             'min-w-0 gap-2',
             statusBelowMetaOnMobile

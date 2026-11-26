@@ -79,8 +79,9 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
   usage?: React.ReactNode;
   /** The usage block already says there is no plan: do not say it twice below it. */
   usageEmpty?: boolean;
+  secondaryCreate?: boolean;
   /** Lines to start a new plan from (the open purchase requests); the editor opens above the list until it is created or discarded. */
-  seed?: PlanSeedLine[] | null; onSeedDone?: () => void }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false, seed = null, onSeedDone }) => {
+  seed?: PlanSeedLine[] | null; onSeedDone?: () => void }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false, secondaryCreate = false, seed = null, onSeedDone }) => {
   const { t } = useTranslation();
   // Phone: three buttons fill the row's line in Bahasa (the group then starts near the text edge), so Cancel moves into the row's ⋯ menu.
   const isNarrow = useIsNarrow();
@@ -113,7 +114,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
           <SelectField hideLabel compact wrapperClassName="max-sm:basis-full" label={t('imprest:plan.month', 'Month')} value={month} onChange={setMonth}
             options={[{ value: currentMonth, label: t('imprest:plan.thisMonth', 'This month ({{month}})', { month: monthLabel(currentMonth) }) },
               { value: nextMonth(currentMonth), label: t('imprest:plan.nextMonth', 'Next month ({{month}})', { month: monthLabel(nextMonth(currentMonth)) }) }]} />
-          <Button variant={plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0 ? 'primary' : 'outline'} size="sm" disabled={create.isPending}
+          <Button variant={!secondaryCreate && (plans.isPending || plans.isError || !plans.data || plans.data.rows.length === 0) ? 'primary' : 'outline'} size="sm" disabled={create.isPending}
             onClick={() => void run(() => create.mutateAsync({ floatId, month }), t('imprest:plan.toast.created', 'Draft plan created'))}>
             {t('imprest:plan.new', 'New plan')}
           </Button>
