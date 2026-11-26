@@ -27,7 +27,7 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
   switch (entry.kind) {
     case 'procurement': {
       const row = entry.row as ProcurementWithRefs;
-      return { key: entry.key, what: row.title, who: row.requested_by?.full_name ?? null, amount: row.total_value === 0 ? null : money(row.total_value, row.currency), days, href: `/procurement/${row.id}` };
+      return { key: entry.key, what: row.title, who: row.requested_by?.full_name ?? null, amount: Number(row.total_value) === 0 ? null : money(row.total_value, row.currency), days, href: `/procurement/${row.id}` };
     }
     case 'expense': {
       const { claim } = entry.row as ExpenseClaimAwaiting;

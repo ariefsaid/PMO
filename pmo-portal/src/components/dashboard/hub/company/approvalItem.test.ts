@@ -11,7 +11,7 @@ describe('approval work-list items (what · who · amount · how long)', () => {
     expect(approvalItem(entry, t, now)).toEqual({ key: 'procurement:p1', what: 'Site lighting', who: 'Dana Ruiz', amount: '$3.4K', days: 10, href: '/procurement/p1' });
   });
   it('a non-valued procurement review carries no monetary figure', () => {
-    const entry = { key: 'procurement:p0', kind: 'procurement', row: { id: 'p0', title: 'Route review', total_value: 0, currency: 'IDR' } } as unknown as ApprovalPopulationEntry;
+    const entry = { key: 'procurement:p0', kind: 'procurement', row: { id: 'p0', title: 'Route review', total_value: '0.00', currency: 'IDR' } } as unknown as ApprovalPopulationEntry;
     expect(approvalItem(entry, t, now)).toMatchObject({ amount: null, href: '/procurement/p0' });
   });
   it('an expense claim opens the claim with the claimant and amount', () => {
