@@ -357,6 +357,7 @@
     }
   },
   "all": {
+    "summary": "Summary",
     "empty": "You have no work orders yet",
     "error": "Couldn't load your work orders",
     "noMatch": "No work order matches your search",

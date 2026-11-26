@@ -47,6 +47,10 @@
     "requested": "Diminta"
   },
   "deliveryNote": {
+    "number": "Nomor",
+    "dispatchedBy": "Dikirim oleh",
+    "deliveredBy": "Diantar oleh",
+    "receivedBy": "Diterima oleh",
     "back": "Kembali ke permintaan",
     "date": "Tanggal",
     "deliveredTo": "Tujuan pengiriman",

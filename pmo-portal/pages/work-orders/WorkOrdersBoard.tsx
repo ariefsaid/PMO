@@ -18,6 +18,7 @@ import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import { WorkOrderProjectPanels } from './WorkOrderProjectPanels';
 import { NewWorkOrderModal } from './NewWorkOrderModal';
 import { useWorkOrderProjectChoices } from '@/src/hooks/useWorkOrderProjectChoices';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 const STATUSES: WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
 const FILTER_KEYS = ['q', 'status', 'project', 'discipline'] as const;
@@ -44,6 +45,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   const { t: ts } = useTranslation();
   const terms = useTerms();
   const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
   const { values, setFilters, clear } = useUrlFilters(FILTER_KEYS);
   // Walk M8: work in hand (the company's order book in months) is reached from the work orders, for the roles its route admits.
   const may = usePermission();
@@ -169,6 +171,18 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
     ];
   }, [scoped, canBilling, costState, values.status, setFilters, t]);
 
+  const exceptionCount = costState === 'shown' ? 2 : 1;
+  const positionTiles = tiles.slice(0, -exceptionCount);
+  const exceptionTiles = tiles.slice(-exceptionCount);
+  const summary = (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-x-8 gap-y-1 rounded-md border border-border bg-card px-4 py-1">
+        {exceptionTiles.map((tile, index) => <div key={index} className="flex items-center gap-2 text-control"><span>{tile.label}</span>{tile.value}</div>)}
+      </div>
+      {positionTiles.length > 0 && <StatTiles tiles={positionTiles} columns={positionTiles.length} />}
+    </div>
+  );
+
   const state = all.isPending ? 'loading' : all.isError ? 'error' : filtered.length === 0 ? 'empty' : undefined;
   return (
     <ListPage
@@ -178,7 +192,9 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
       headingLevel={projectId ? 2 : 1}
       count={all.isPending ? undefined : rows.length}
       exportAction={<>{projectId && (all.isPending || rows.length > 0) && newButton}<ExportButton rows={filtered} columns={columns} entity="WorkOrders" /></>}
-      banner={rows.length > 0 ? <StatTiles tiles={tiles} columns={tiles.length} frameClassName={cn('mb-4', projectId && '[--space-content-inset:var(--panel-inset)]')} /> : undefined}
+      banner={rows.length > 0 ? (isDesktop
+        ? <div className={cn('mb-4', projectId && '[--space-content-inset:var(--panel-inset)]')}>{summary}</div>
+        : <details className="mb-4 rounded-md border border-border bg-card"><summary className="cursor-pointer px-4 py-3 text-control font-medium">{t('all.summary', 'Summary')}</summary><div className="px-4 pb-4">{summary}</div></details>) : undefined}
       filters={(
         <FilterBar
           searchKey="q"

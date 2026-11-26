@@ -9,6 +9,8 @@ import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgName } from '@/src/hooks/useOrgName';
 import { formatDay } from '@/src/lib/format';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import {
   PrintDocument,
   PrintActionBar,
@@ -82,7 +84,7 @@ const DeliveryNotePrintPage: React.FC = () => {
   const documentTitle = t('deliveryNote.title', 'Delivery note');
   const signatureBlocks = settingsQuery.data?.signatureBlocks?.length
     ? settingsQuery.data.signatureBlocks
-    : ['Dispatched by', 'Delivered by', 'Received by'];
+    : [t('deliveryNote.dispatchedBy', 'Dispatched by'), t('deliveryNote.deliveredBy', 'Delivered by'), t('deliveryNote.receivedBy', 'Received by')];
 
   const metaItems: PrintHeaderMetaItem[] = [
     {
@@ -148,7 +150,7 @@ const DeliveryNotePrintPage: React.FC = () => {
       header: t('deliveryNote.quantity', 'Quantity'),
       align: 'right',
       width: '100px',
-      render: (line) => <span className="font-semibold tabular-nums">{line.quantity}</span>,
+      render: (line) => <span className="font-semibold tabular-nums">{formatQuantity(String(line.quantity), getNumberLocale())}</span>,
     },
     {
       key: 'unit',
@@ -187,6 +189,7 @@ const DeliveryNotePrintPage: React.FC = () => {
             orgName={orgName}
             documentTitle={documentTitle}
             documentNumber={req.number}
+            numberLabel={t('deliveryNote.number', 'Number')}
             metaItems={metaItems}
           />
 
