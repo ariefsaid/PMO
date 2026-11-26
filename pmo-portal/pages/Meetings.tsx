@@ -260,7 +260,7 @@ const Meetings: React.FC = () => {
     <ListPage
       title={t('meetings.title', 'Meetings')}
       primaryAction={
-        canCreate && (
+        canCreate && state !== 'empty' && (
           <Button variant="primary" onClick={() => openRecord('/meetings/new')}>
             <Icon name="plus" />
             {t('meetings.actions.new', 'New meeting')}
@@ -342,6 +342,7 @@ const Meetings: React.FC = () => {
             : t('meetings.states.emptyTitle', 'No meetings yet')}
           stateId="meetings-empty"
           role={realRole ?? undefined}
+          action={canCreate ? { label: t('meetings.actions.new', 'New meeting'), onClick: () => openRecord('/meetings/new') } : undefined}
           module="meetings"
         />
       )}
@@ -363,7 +364,8 @@ const Meetings: React.FC = () => {
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
           emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
-        tableId="meetings-table" />
+          tableId="meetings-table"
+        />
       )}
 
       {state === undefined && !awaitingRows && hasNextPage && !isPlaceholderData && (
