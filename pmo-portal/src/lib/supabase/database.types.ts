@@ -18193,13 +18193,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "projects_deputy_manager_id_fkey"
-            columns: ["deputy_manager_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "projects_end_client_id_fkey"
             columns: ["end_client_id"]
             isOneToOne: false

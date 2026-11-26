@@ -10,7 +10,9 @@
 -- drops: none; adds projects.deputy_manager_id, restates project_money_in_scope and five shared reads' guards.
 begin;
 
-alter table public.projects add column deputy_manager_id uuid references public.profiles(id) on delete set null;
+-- No foreign key: a third key from projects to profiles would make every unqualified profiles embed ambiguous
+-- (postgrest_embed_ambiguity_guard); the same-organisation trigger below checks the person exists in the organisation.
+alter table public.projects add column deputy_manager_id uuid;
 create index projects_deputy_manager_idx on public.projects (deputy_manager_id) where deputy_manager_id is not null;
 grant insert (deputy_manager_id), update (deputy_manager_id) on public.projects to authenticated;
 update public.record_history_config set captured = captured || '{"deputy_manager_id":"ref"}'::jsonb where table_name = 'projects';
