@@ -537,7 +537,7 @@
   "AREA_UNKNOWN": "Pilih wilayah dari daftar organisasi Anda.",
   "AREA_RATE": "Isi tarif di atas nol, atau kosongkan kolom untuk menghapus tarif wilayah.",
   "AREA_RATE_CATALOGUE": "Baris ini dihargai dari katalog tarif, jadi tarifnya berasal dari katalog, bukan dari wilayah.",
-  "WBS_ORDER_NOT_FOUND": "perintah kerja itu tidak tersedia. Muat ulang halaman lalu coba lagi.",
+  "WBS_ORDER_NOT_FOUND": "Perintah kerja itu tidak tersedia. Muat ulang halaman lalu coba lagi.",
   "WBS_STEP_ADD_RIGHT": "Hanya orang yang menjalankan langkah penagihan yang dapat menambah langkah ke daftar periksa ini.",
   "WBS_STEP_ADD_RIGHT_detail": "Minta orang yang menjalankan langkah penagihan, atau Admin atau petugas Keuangan.",
   "WBS_STEP_ADD_PM": "Hanya manajer proyek yang dapat menambah langkah ke daftar periksa ini.",

@@ -1089,14 +1089,14 @@
     }
   },
   "lineWorkOrders": {
-    "loadError": "perintah kerja proyek ini tidak bisa dimuat.",
-    "field": "perintah kerja untuk {{line}}",
+    "loadError": "Perintah kerja proyek ini tidak bisa dimuat.",
+    "field": "Perintah kerja untuk {{line}}",
     "disciplineField": "Disiplin untuk {{line}}",
     "noDiscipline": "Tanpa disiplin",
     "unknownDiscipline": "Disiplin yang sudah tidak dipakai",
     "sameAsRequest": "Sama dengan permintaan",
     "sameAsRequestNamed": "Sama dengan permintaan ({{workOrder}})",
-    "unknownWorkOrder": "perintah kerja yang tidak dapat Anda buka",
+    "unknownWorkOrder": "Perintah kerja yang tidak dapat Anda buka",
     "cancelled": "dibatalkan",
     "noProject": "Pilih proyek dulu: perintah kerja milik sebuah proyek, setelah itu tiap baris bisa diberi perintah kerja.",
     "save": "Simpan",
@@ -1130,7 +1130,7 @@
   "linePlan": {
     "line": "Baris",
     "category": "Kategori",
-    "workOrder": "perintah kerja",
+    "workOrder": "Perintah kerja",
     "discipline": "Disiplin",
     "differs": "Bukan {{workOrder}} milik permintaan",
     "orderDateHelp": "Wajib untuk mengirim pesanan. Mengisi semua baris.",

@@ -508,8 +508,8 @@
     "workOrder": "Perintah kerja",
     "workOrderPlaceholder": "Lokasi saja (tanpa perintah kerja)",
     "workOrderSearch": "Cari perintah kerja…",
-    "workOrderNoun": "perintah kerja",
-    "workOrderNounPlural": "perintah kerja",
+    "workOrderNoun": "Perintah kerja",
+    "workOrderNounPlural": "Perintah kerja",
     "workOrderEmpty": "Proyek ini belum memiliki perintah kerja aktif.",
     "workOrderHelp": "Opsional: catat selisih hitungan ke perintah kerja ini."
   },

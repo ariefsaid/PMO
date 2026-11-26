@@ -220,6 +220,7 @@
     "empty": "Belum ada permintaan perubahan kuantitas pada $t(common:terms.clientWorkOrder) ini",
     "overLines": "{{count}} baris kontrak melebihi kuantitasnya",
     "raise": "Minta perubahan kuantitas",
-    "title": "Perubahan kuantitas"
+    "title": "Perubahan kuantitas",
+    "raiseShort": "Minta perubahan"
   }
 }

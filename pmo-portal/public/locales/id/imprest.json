@@ -280,7 +280,7 @@
     "invalid": "Setiap jumlah harus lebih dari nol.",
     "col": {
       "request": "Permintaan",
-      "workOrder": "perintah kerja",
+      "workOrder": "Perintah kerja",
       "status": "Status",
       "amount": "Jumlah"
     }

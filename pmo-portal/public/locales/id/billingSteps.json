@@ -42,7 +42,7 @@
   "needDocs": "Lampirkan semua dokumen wajib sebelum menandai langkah ini selesai.",
   "boardTitle": "Langkah penagihan perintah kerja",
   "boardError": "Langkah penagihan perintah kerja tidak dapat dimuat.",
-  "boardWorkOrder": "perintah kerja {{label}}",
+  "boardWorkOrder": "Perintah kerja {{label}}",
   "doneShort": "Selesai",
   "skippedShort": "Dilewati",
   "claimTitle": "Langkah penagihan perintah kerja",
@@ -79,5 +79,7 @@
   "extraDocument": "Dokumen tambahan",
   "attachExtra": "Lampirkan dokumen tambahan",
   "update": "Perbarui",
-  "updateNamed": "Perbarui {{item}}"
+  "updateNamed": "Perbarui {{item}}",
+  "emptyShort": "Belum ada langkah penagihan.",
+  "openTemplates": "Buka templat penagihan"
 }
