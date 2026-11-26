@@ -1,6 +1,5 @@
-import { expect, type Page } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { pinEnglishLocale } from '../helpers';
+import { jobRoleUser } from './jobRole';
 import { baseLevelOf } from '../../src/auth/builtInRoles';
 import { sqlAsOwner } from './jobFixtures';
 
@@ -16,32 +15,10 @@ export function removeJobOrganization(orgId: string) {
   end $$;`);
 }
 
-/** Own disposable login: never edits a shared seed person's job role. */
+/** Compatibility entry point for journeys that own their whole organisation. */
 export async function createJobRoleUser(db: SupabaseClient, orgId: string, jobRole: string) {
   const role = baseLevelOf(jobRole);
   if (!role) throw new Error('Unknown job role: ' + jobRole);
-  const email = `journey-${crypto.randomUUID()}@example.test`;
-  const password = crypto.randomUUID() + 'Aa1!';
-  const created = await db.auth.admin.createUser({ email, password, email_confirm: true });
-  if (created.error) throw created.error;
-  const id = created.data.user.id;
-  const profile = await db.from('profiles').upsert({ id, org_id: orgId, email, full_name: `Journey ${jobRole}`, role, built_in_role: jobRole, status: 'active' });
-  if (profile.error) { await db.auth.admin.deleteUser(id); throw profile.error; }
-  return {
-    id,
-    async signIn(page: Page) {
-      await pinEnglishLocale(page);
-      await page.goto('/login');
-      await page.evaluate(() => localStorage.clear());
-      await page.reload();
-      await page.locator('#email').fill(email);
-      await page.locator('#password').fill(password);
-      await page.locator('form button[type=submit]').click();
-      await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 });
-    },
-    async remove() {
-      const deleted = await db.auth.admin.deleteUser(id);
-      if (deleted.error) throw deleted.error;
-    },
-  };
+  const actor = await jobRoleUser({ service: db, org: orgId, jobRole, role });
+  return { id: actor.id, signIn: actor.signIn, remove: actor.removeLogin };
 }
