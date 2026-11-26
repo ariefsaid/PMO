@@ -324,7 +324,7 @@
       },
       "claimForm": {
         "dpAmount": "Nilai uang muka (belum termasuk PPN)",
-        "noLines": "Tidak ada baris bill of quantities dalam cakupan ini.",
+        "noLines": "Tidak ada baris daftar kuantitas dalam cakupan ini.",
         "errors": {
           "quantity": "Setiap kuantitas harus di atas 0 dengan paling banyak 3 angka desimal",
           "noQuantity": "Isi kuantitas untuk setidaknya satu baris",
@@ -344,7 +344,7 @@
         "scopeContract": "Baris tanpa $t(common:terms.clientWorkOrder)",
         "title": "Tagihan baru",
         "prefill": "Mulai dari penilaian {{month}}",
-        "kindProgress": "Progres: kuantitas terhadap bill of quantities"
+        "kindProgress": "Progres: daftar kuantitas"
       },
       "areaRates": {
         "title": "Tarif per wilayah",
