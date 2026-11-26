@@ -184,11 +184,11 @@ export const ManpowerNeeds: React.FC = () => {
   const columns: Column<ManpowerNeedRow>[] = [
     { key: 'position', header: t('crews:manpower.position', 'Position'), kind: 'primary', rowHeader: true, cell: (n) => positionName(n.discipline_id),
       secondaryCell: (n) => projectName(n.project_id) },
-    { key: 'needed', header: t('crews:manpower.neededBy', 'Needed by'), kind: 'date', size: 120, cell: (n) => formatDay(n.needed_by) },
-    { key: 'asked', size: 96, header: t('crews:manpower.asked', 'Asked'), kind: 'number', cell: (n) => fig(n).asked },
-    { key: 'filled', size: 96, header: t('crews:manpower.filled', 'Filled'), kind: 'number', cell: (n) => fig(n).filled },
-    { key: 'inProgress', size: 96, header: t('crews:manpower.inProgress', 'In progress'), kind: 'number', cell: (n) => fig(n).inProgress },
-    { key: 'open', size: 96, header: t('crews:manpower.toFill', 'To fill'), kind: 'number', cell: (n) => fig(n).open },
+    { key: 'needed', header: t('crews:manpower.neededBy', 'Needed by'), kind: 'date', size: 168, cell: (n) => formatDay(n.needed_by) },
+    { key: 'asked', size: 120, header: t('crews:manpower.asked', 'Asked'), kind: 'number', cell: (n) => fig(n).asked },
+    { key: 'filled', size: 120, header: t('crews:manpower.filled', 'Filled'), kind: 'number', cell: (n) => fig(n).filled },
+    { key: 'inProgress', size: 120, header: t('crews:manpower.inProgress', 'In progress'), kind: 'number', cell: (n) => fig(n).inProgress },
+    { key: 'open', size: 120, header: t('crews:manpower.toFill', 'To fill'), kind: 'number', cell: (n) => fig(n).open },
     { key: 'status', header: t('crews:statusHeader', 'Status'), kind: 'status', size: 112, cell: (n) => <StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill> },
   ];
   return (
@@ -208,7 +208,7 @@ export const ManpowerNeeds: React.FC = () => {
               return (
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-3 text-muted-foreground">
-                    <span className="min-w-0">{projectName(n.project_id)} · {formatDay(n.needed_by)}</span>
+                    <span className="min-w-0">{t('crews:manpower.neededByOn', 'Needed by {{date}}', { date: formatDay(n.needed_by) })}</span>
                     <span className="shrink-0"><StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill></span>
                   </div>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
