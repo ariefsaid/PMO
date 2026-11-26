@@ -85,7 +85,7 @@ export const PvaTable: React.FC<{
         <tbody className={k.block}>
           {rows.map((r) => (
             <tr key={r.key} data-testid={r.testId}
-              className={cn('border-b border-border last:border-b-0', k.row, r.total && 'border-t border-t-foreground/30 font-semibold')}>
+              className={cn('border-b border-border last:border-b-0', k.row, r.total && 'border-t-2 border-t-border font-semibold')}>
               <th scope="row" className={cn(head, k.rowHead, !dense && 'min-w-[11rem] max-w-[24rem]', r.total ? 'font-semibold' : 'font-normal')}>{r.head}</th>
               {r.cells.map((c, i) => (
                 <td key={columns[i]?.key ?? i} data-testid={c?.testId} data-label={phoneLabel(i)}
