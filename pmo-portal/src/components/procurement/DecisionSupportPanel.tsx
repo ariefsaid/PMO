@@ -323,7 +323,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       : inputs === null ? t('decisionSupport.leftOrdersUnknown', 'Open orders not known yet')
       : t('decisionSupport.leftSpendingUnknown', 'Spending not known yet'),
     // Only spending unknown: the tile says one short word, the sentence under the tiles carries the fallback.
-    
+
   };
   // The strip aligns labels and figures across each row itself (alignRows), so a label is plain text.
   const asTile = (part: Part): StatTile => ({ label: part.label, value: part.value, ...(part.sub ? { sub: part.sub } : {}), ...(part.exactValue ? { exactValue: part.exactValue } : {}) });

@@ -402,6 +402,7 @@ const Companies: React.FC = () => {
             rowMenu={canRowWrite ? rowMenu : undefined}
             state={pageRows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
+            emptyActionVariant="outline"
             emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
             tableId="companies-table"
           />

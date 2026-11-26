@@ -364,7 +364,8 @@ const Meetings: React.FC = () => {
           hasMore={false}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('meetings.table.emptyTitle', 'No meetings match')}
-          emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
+          emptyActionVariant="outline"
+            emptyAction={{ label: t('meetings.table.clearFilters', 'Clear filters'), onClick: clear }}
           tableId="meetings-table"
         />
       )}
