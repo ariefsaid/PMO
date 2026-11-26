@@ -64,6 +64,15 @@ describe('ProjectFormModal floor', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ project_manager_id: 'mgr-1' })));
   });
 
+  it('DD-R1125-15: naming a deputy manager sends the deputy id in the create payload', async () => {
+    const { onSubmit } = renderModal();
+    await fillName();
+    await pickOption(/client company/i, /acme client/i);
+    await pickOption(/deputy manager/i, /alice manager/i);
+    await userEvent.click(screen.getByRole('button', { name: /create project/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ deputy_manager_id: 'mgr-1' })));
+  });
+
   it('floor: a Nominal tax rate is saved and recalculates the tax amount live', async () => {
     const { onSubmit } = renderModal();
     await fillName();

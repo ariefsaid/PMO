@@ -12,10 +12,12 @@ const projectRows = [
     id: 'p1', name: 'Innovate HQ', status: 'Ongoing Project', budget: 100_000, spent: 0,
     archived_at: null, created_at: '', last_update: '', org_id: 'o1', contract_value: 200_000,
     win_probability: 1, stage_id: null, code: null, customer_contract_ref: null, client: null,
-    client_id: null, project_manager_id: null, pm: null, currency: 'USD',
+    client_id: null, project_manager_id: 'u-pm', pm: null, currency: 'USD',
   },
 ] as unknown as ProjectWithRefs[];
 
+// The signed-in Project Manager manages the project under test: a Project Manager reads money for their own projects.
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-pm' } }) }));
 vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProject: (id: string) => ({

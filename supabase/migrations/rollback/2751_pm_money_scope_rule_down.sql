@@ -645,5 +645,6 @@ end $function$
 ;
 create trigger projects_zz_project_manager_same_org before insert or update of project_manager_id, org_id
   on public.projects for each row execute function public.check_project_manager_same_org();
+update public.record_history_config set captured = captured - 'deputy_manager_id' where table_name = 'projects';
 alter table public.projects drop column deputy_manager_id;
 commit;

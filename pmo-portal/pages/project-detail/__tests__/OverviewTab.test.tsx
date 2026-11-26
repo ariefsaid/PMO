@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectSections from '../ProjectSections';
+import { ProjectMoneyScopeContext } from '@/src/hooks/useProjectMoneyScope';
 
 /**
  * The former OverviewTab was removed when the approved project composition moved to
@@ -46,11 +47,13 @@ const project = {
   contract_value: 10_000, project_manager_id: 'u-pm', client_id: null,
 } as unknown as ProjectWithRefs;
 
-const renderOverview = (role = 'Finance') => {
+const renderOverview = (role = 'Finance', moneyInScope = true) => {
   h.role = role;
   return render(
     <MemoryRouter>
-      <ProjectSections project={project} area="overview" setArea={vi.fn()} isPipeline={false} header={<h1>Alpha</h1>} />
+      <ProjectMoneyScopeContext.Provider value={moneyInScope}>
+        <ProjectSections project={project} area="overview" setArea={vi.fn()} isPipeline={false} header={<h1>Alpha</h1>} />
+      </ProjectMoneyScopeContext.Provider>
     </MemoryRouter>,
   );
 };
@@ -88,11 +91,27 @@ describe('active project Overview role composition', () => {
     const { unmount } = renderOverview('Project Manager');
     expect(within(screen.getByRole('tabpanel', { name: 'Overview' })).getByRole('region', { name: 'Project finances' })).toBeInTheDocument();
     unmount();
-    project.project_manager_id = 'someone-else';
-    try {
-      renderOverview('Project Manager');
-      expect(within(screen.getByRole('tabpanel', { name: 'Overview' })).queryByRole('region', { name: 'Project finances' })).not.toBeInTheDocument();
-    } finally { project.project_manager_id = 'u-pm'; }
+    renderOverview('Project Manager', false);
+    expect(within(screen.getByRole('tabpanel', { name: 'Overview' })).queryByRole('region', { name: 'Project finances' })).not.toBeInTheDocument();
+  });
+
+  it('AC-009: a Project Manager on another project gets no money tab or figure; the delivery areas stay', () => {
+    renderOverview('Project Manager', false);
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
+    expect(tabs).not.toContain('Budget');
+    expect(tabs).not.toContain('Contract');
+    expect(tabs).not.toContain('Procurement');
+    expect(tabs).toEqual(expect.arrayContaining(['Overview', 'Tasks', 'Materials', 'Documents']));
+    const panel = screen.getByRole('tabpanel', { name: 'Overview' });
+    expect(within(panel).queryByRole('region', { name: 'Project finances' })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('region', { name: 'Project costs' })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('region', { name: 'Project delivery' })).toBeInTheDocument();
+  });
+
+  it('AC-009: on their own project the same Project Manager gets the money tabs', () => {
+    renderOverview('Project Manager');
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
+    expect(tabs).toEqual(expect.arrayContaining(['Budget', 'Contract', 'Procurement']));
   });
 
   it('AC-WOMS-001 the Billing milestones block follows the Phase timeline on an active project', () => {

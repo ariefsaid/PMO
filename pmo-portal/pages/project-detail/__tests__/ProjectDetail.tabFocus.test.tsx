@@ -23,6 +23,8 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppShell } from '@/src/components/shell';
 import type { Role } from '@/src/auth/AuthContext';
 import React from 'react';
+// The signed-in Project Manager manages the project under test: a Project Manager reads money for their own projects.
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-pm' } }) }));
 vi.mock('@/src/hooks/useProjectOverviewRead', () => ({ useProjectOverviewRead: () => ({ isLoading: false }) }));
 vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
@@ -48,7 +50,7 @@ const projData = [
     customer_contract_ref: null,
     client: null,
     client_id: null,
-    project_manager_id: null,
+    project_manager_id: 'u-pm',
     pm: null,
   },
 ];

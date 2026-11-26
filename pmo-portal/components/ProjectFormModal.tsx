@@ -72,6 +72,8 @@ export interface ProjectFormInitial extends ProjectClassification {
   code: string | null;
   client_id: string | null;
   project_manager_id: string | null;
+  /** DD-R1125-15: the deputy reads this project's money as its manager does. */
+  deputy_manager_id?: string | null;
   clientName?: string | null;
   /** The end customer (#758) — nullable like the client; `endClientName` seeds the chip label. */
   end_client_id?: string | null;
@@ -97,6 +99,7 @@ interface FormValues {
   clientId: string | null;
   endClientId: string | null;
   pmId: string | null;
+  deputyId: string | null;
   status: ProjectStatus;
   value: string;
   /**
@@ -226,6 +229,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       clientId: initial?.client_id ?? null,
       endClientId: initial?.end_client_id ?? null,
       pmId: initial?.project_manager_id ?? null,
+      deputyId: initial?.deputy_manager_id ?? null,
       status: 'Leads',
       value: '',
       taxTreatment: '',
@@ -255,6 +259,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     }
   }, [form, isEdit, numberProposal]);
   const [pmLabel, setPmLabel] = useState<string | null>(initial?.pmName ?? null);
+  const [deputyLabel, setDeputyLabel] = useState<string | null>(null);
+  // The deputy's name comes from the managers list until one is picked here.
+  const deputyName = deputyLabel ?? managers.find((m) => m.id === form.values.deputyId)?.full_name ?? null;
   const [endClientLabel, setEndClientLabel] = useState<string | null>(initial?.endClientName ?? null);
 
   const nameField = form.fieldProps('name');
@@ -372,6 +379,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             client_id: values.clientId,
             end_client_id: values.endClientId,
             project_manager_id: values.pmId,
+            ...(values.deputyId !== (initial.deputy_manager_id ?? null) ? { deputy_manager_id: values.deputyId } : {}),
             start_date: values.startDate || null,
             end_date: values.endDate || null,
             ...(initial.receipt_withholding_article !== undefined
@@ -391,6 +399,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             client_id: values.clientId,
             end_client_id: values.endClientId,
             project_manager_id: values.pmId,
+            ...(values.deputyId ? { deputy_manager_id: values.deputyId } : {}),
             start_date: values.startDate || null,
             end_date: values.endDate || null,
           };
@@ -534,6 +543,23 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             loadOptions={loadManagers}
             placeholder={t('projectForm.pm.placeholder', 'Assign a PM…')}
             noun={t('projectForm.pm.noun', 'manager')}
+          />
+
+          <Combobox
+            label={t('projects:projectForm.deputy.label', 'Deputy manager')}
+            value={form.values.deputyId}
+            selectedOption={
+              form.values.deputyId && deputyName
+                ? { value: form.values.deputyId, label: deputyName, initials: initialsOf(deputyName) }
+                : null
+            }
+            onChange={(v, opt) => {
+              form.setValue('deputyId', v);
+              setDeputyLabel(opt.label);
+            }}
+            loadOptions={loadManagers}
+            placeholder={t('projects:projectForm.deputy.placeholder', 'Assign a deputy…')}
+            noun={t('projects:projectForm.deputy.noun', 'deputy')}
           />
 
           {isEdit ? (

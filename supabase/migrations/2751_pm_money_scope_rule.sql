@@ -13,6 +13,7 @@ begin;
 alter table public.projects add column deputy_manager_id uuid references public.profiles(id) on delete set null;
 create index projects_deputy_manager_idx on public.projects (deputy_manager_id) where deputy_manager_id is not null;
 grant insert (deputy_manager_id), update (deputy_manager_id) on public.projects to authenticated;
+update public.record_history_config set captured = captured || '{"deputy_manager_id":"ref"}'::jsonb where table_name = 'projects';
 comment on column public.projects.deputy_manager_id is
   'The project''s deputy project manager: reads this project''s money as its manager does (DD-R1125-15).';
 
@@ -20,7 +21,7 @@ CREATE OR REPLACE FUNCTION public.check_project_manager_same_org()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 begin
   if new.project_manager_id is not null
@@ -56,7 +57,7 @@ $$;
 create function public.actor_money_projects() returns setof uuid
   language sql stable security definer set search_path = public, pg_temp as $$
   select p.id from public.projects p
-   where p.org_id = public.auth_org_id()
+   where public.assert_not_light() and p.org_id = public.auth_org_id()
      and (p.project_manager_id = auth.uid()                                                         -- mut:pm_scope_own
           or p.deputy_manager_id = auth.uid()                                                       -- mut:pm_scope_deputy
           or p.project_manager_id in (
@@ -89,7 +90,7 @@ revoke all on function public.stock_issue_cost_lines_core(uuid) from public, ano
 grant execute on function public.stock_issue_cost_lines_core(uuid) to service_role;
 create function public.stock_issue_cost_lines_scoped(p_project uuid) returns TABLE(record_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date, reference text, currency text, amount numeric)
   language sql stable security definer set search_path = public, pg_temp as $$
-  select * from public.stock_issue_cost_lines_core(p_project) where public.project_money_in_scope(p_project)
+  select * from public.stock_issue_cost_lines_core(p_project) where public.assert_not_light() and public.project_money_in_scope(p_project)
 $$;
 revoke all on function public.stock_issue_cost_lines_scoped(uuid) from public, anon;
 grant execute on function public.stock_issue_cost_lines_scoped(uuid) to authenticated, service_role;
@@ -112,7 +113,7 @@ revoke all on function public.equipment_charge_project_actuals_core(uuid, text) 
 grant execute on function public.equipment_charge_project_actuals_core(uuid, text) to service_role;
 create function public.equipment_charge_project_actuals_scoped(p_project_id uuid, p_fiscal_year text) returns TABLE(category budget_category, n bigint, amount numeric, as_of timestamp with time zone)
   language sql stable security definer set search_path = public, pg_temp as $$
-  select * from public.equipment_charge_project_actuals_core(p_project_id, p_fiscal_year) where public.project_money_in_scope(p_project_id)
+  select * from public.equipment_charge_project_actuals_core(p_project_id, p_fiscal_year) where public.assert_not_light() and public.project_money_in_scope(p_project_id)
 $$;
 revoke all on function public.equipment_charge_project_actuals_scoped(uuid, text) from public, anon;
 grant execute on function public.equipment_charge_project_actuals_scoped(uuid, text) to authenticated, service_role;
@@ -135,7 +136,7 @@ revoke all on function public.equipment_charge_project_actuals_between_core(uuid
 grant execute on function public.equipment_charge_project_actuals_between_core(uuid, date, date) to service_role;
 create function public.equipment_charge_project_actuals_between_scoped(p_project_id uuid, p_from date, p_to date) returns TABLE(category budget_category, n bigint, amount numeric, as_of timestamp with time zone)
   language sql stable security definer set search_path = public, pg_temp as $$
-  select * from public.equipment_charge_project_actuals_between_core(p_project_id, p_from, p_to) where public.project_money_in_scope(p_project_id)
+  select * from public.equipment_charge_project_actuals_between_core(p_project_id, p_from, p_to) where public.assert_not_light() and public.project_money_in_scope(p_project_id)
 $$;
 revoke all on function public.equipment_charge_project_actuals_between_scoped(uuid, date, date) from public, anon;
 grant execute on function public.equipment_charge_project_actuals_between_scoped(uuid, date, date) to authenticated, service_role;
@@ -158,7 +159,7 @@ revoke all on function public.cost_attribution_project_actuals_core(uuid, text) 
 grant execute on function public.cost_attribution_project_actuals_core(uuid, text) to service_role;
 create function public.cost_attribution_project_actuals_scoped(p_project_id uuid, p_fiscal_year text) returns TABLE(category budget_category, n bigint, amount numeric, source_sum numeric, as_of timestamp with time zone)
   language sql stable security definer set search_path = public, pg_temp as $$
-  select * from public.cost_attribution_project_actuals_core(p_project_id, p_fiscal_year) where public.project_money_in_scope(p_project_id)
+  select * from public.cost_attribution_project_actuals_core(p_project_id, p_fiscal_year) where public.assert_not_light() and public.project_money_in_scope(p_project_id)
 $$;
 revoke all on function public.cost_attribution_project_actuals_scoped(uuid, text) from public, anon;
 grant execute on function public.cost_attribution_project_actuals_scoped(uuid, text) to authenticated, service_role;
@@ -181,7 +182,7 @@ revoke all on function public.budget_attributed_year_sums_core(uuid, text[]) fro
 grant execute on function public.budget_attributed_year_sums_core(uuid, text[]) to service_role;
 create function public.budget_attributed_year_sums_scoped(p_project_id uuid, p_fiscal_years text[]) returns TABLE(fiscal_year text, category budget_category, source_sum numeric, as_of timestamp with time zone)
   language sql stable security definer set search_path = public, pg_temp as $$
-  select * from public.budget_attributed_year_sums_core(p_project_id, p_fiscal_years) where public.project_money_in_scope(p_project_id)
+  select * from public.budget_attributed_year_sums_core(p_project_id, p_fiscal_years) where public.assert_not_light() and public.project_money_in_scope(p_project_id)
 $$;
 revoke all on function public.budget_attributed_year_sums_scoped(uuid, text[]) from public, anon;
 grant execute on function public.budget_attributed_year_sums_scoped(uuid, text[]) to authenticated, service_role;
@@ -825,7 +826,7 @@ create function public.spend_route_project_figures_routed(p_project_ids uuid[]) 
   )
   select f.* from public.spend_route_project_figures_core(array(
     select p.id from public.projects p
-     where p.org_id = public.auth_org_id() and p.id = any (p_project_ids)                    -- the caller's organisation only
+     where public.assert_not_light() and p.org_id = public.auth_org_id() and p.id = any (p_project_ids)                    -- the caller's organisation only
        and public.is_active_member() and (select public.actor_shown_prices())
        and (p.id in (select public.actor_money_projects())
             or exists (select 1 from public.spend_approvers sa                                 -- mut:figures_routed_approver

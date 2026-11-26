@@ -1,4 +1,5 @@
 import { BillingReconciliation } from './BillingReconciliation';
+import { useMayViewProjectMoney } from '@/src/hooks/useProjectMoneyScope';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -242,7 +243,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   //    past-the-value invoices before any write (0262), ERP or native.
   const revenueMode = useRevenueMode();
   const revenueRouteReady = useRevenueRouteReady(revenueMode);
-  const canViewBilling = may('view', 'salesInvoice');
+  const canViewBilling = useMayViewProjectMoney();
   const canReadClaims = may('view', 'progressClaim');
   const canInvoice = may('create', 'salesInvoice') && revenueRouteReady && Boolean(clientId);
   const erp = useErpItemOptions('sales');

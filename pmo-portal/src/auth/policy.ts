@@ -371,6 +371,26 @@ const equipmentManagerRights = (role: Role | null, ctx: PolicyContext): boolean 
   role === 'Admin' || ctx.builtInRoleKey === 'equipment_manager' || (!ctx.builtInRoleKey && role === 'Project Manager');
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
+
+/**
+ * DD-R1125-14/15: a Project Manager reads money for their own projects only. Mirrors actor_money_scoped (2751): access level
+ * Project Manager with the job role Project Manager, Deputy Project Manager, or none. Other job roles at that level work across
+ * projects by function and are not limited.
+ */
+export const moneyScoped = (role: Role | null, builtInRoleKey: string | null | undefined): boolean =>
+  role === 'Project Manager' && (!builtInRoleKey || builtInRoleKey === 'project_manager' || builtInRoleKey === 'deputy_project_manager');
+
+/** Mirrors project_money_in_scope (2751): own = managed, named deputy, or listed by actor_money_projects (stand-ins). */
+export const projectMoneyInScope = (
+  role: Role | null,
+  builtInRoleKey: string | null | undefined,
+  userId: string | null | undefined,
+  project: { id: string; project_manager_id?: string | null; deputy_manager_id?: string | null },
+  ownProjectIds?: readonly string[] | null,
+): boolean =>
+  !moneyScoped(role, builtInRoleKey)
+  || (!!userId && (project.project_manager_id === userId || project.deputy_manager_id === userId))
+  || Boolean(ownProjectIds?.includes(project.id));
 /** Mirrors actor_holds_job_role (2040): the person holds this job role by key. A person with no job role holds none. */
 const holds = (ctx: PolicyContext, key: string): boolean => ctx.builtInRoleKey === key;
 

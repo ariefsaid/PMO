@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useMayViewProjectMoney } from '@/src/hooks/useProjectMoneyScope';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { buttonClasses, ListState, StatusPill, TaxBasisLabel, Tooltip } from '@/src/components/ui';
@@ -93,7 +94,6 @@ const Body: React.FC<{ projectId: string; empty: 'panel' | 'none' | 'line' }> = 
 /** Mounted only for the revenue read set; the queries never run otherwise (same gate as the Money block).
  *  `empty`: 'panel' keeps the empty panel; 'none' hides it (its line lives in Money position); 'line' renders only that line. */
 export const BillingMilestonesBlock: React.FC<{ projectId: string; empty?: 'panel' | 'none' | 'line' }> = ({ projectId, empty = 'panel' }) => {
-  const may = usePermission();
-  return may('view', 'salesInvoice') ? <Body projectId={projectId} empty={empty} /> : null;
+  return useMayViewProjectMoney() ? <Body projectId={projectId} empty={empty} /> : null;
 };
 export default BillingMilestonesBlock;
