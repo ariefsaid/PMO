@@ -9,7 +9,7 @@ const h = vi.hoisted(() => {
   const query: Record<string, unknown> = {};
   const fromCalls: string[] = [];
   const from = vi.fn((t: string) => { fromCalls.push(t); return query; });
-  Object.assign(query, { select: () => query, order: () => query, eq: () => query, limit: () => query, update: () => query, maybeSingle, then: (r: (v: unknown) => void) => r(queue.shift() ?? { data: [], error: null }) });
+  Object.assign(query, { select: () => query, order: () => query, eq: () => query, limit: () => query, range: () => query, update: () => query, maybeSingle, then: (r: (v: unknown) => void) => r(queue.shift() ?? { data: [], error: null }) });
   return { rpc, queue, upload, query, maybeSingle, signed, fromCalls, from };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from, storage: { from: () => ({ upload: h.upload, createSignedUrl: h.signed }) } } }));

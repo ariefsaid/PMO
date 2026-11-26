@@ -3,6 +3,7 @@
  * Spec docs/specs/stock-two-step-transfer.spec.md. The database enforces every rule (counts, quality, proof, self-receive, write-off);
  * this file only reads, writes and maps. Quantities stay decimal strings (NFR-STK-007).
  */
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { toAppError } from '@/src/lib/appError';
@@ -96,10 +97,11 @@ const mapTransfer = (t: TransferRow): StockTransfer => ({
 });
 
 export async function listStockTransfers(status?: TransferStatus): Promise<StockTransfer[]> {
-  const q = supabase.from('stock_transfers').select('*, stock_transfer_lines(*)').order('sent_at', { ascending: false }).order('id').limit(200);
-  const { data, error } = await (status ? q.eq('status', status) : q);
-  if (error) throw toAppError(error);
-  return (data ?? []).map(mapTransfer);
+  const rows = await fetchAllPages((from, to) => {
+    const query = supabase.from('stock_transfers').select('*, stock_transfer_lines(*)').order('sent_at', { ascending: false }).order('id');
+    return (status ? query.eq('status', status) : query).range(from, to);
+  });
+  return rows.map(mapTransfer);
 }
 export async function getStockTransfer(id: string): Promise<StockTransfer | null> {
   const { data, error } = await supabase.from('stock_transfers').select('*, stock_transfer_lines(*)').eq('id', id).maybeSingle();
