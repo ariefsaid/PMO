@@ -226,8 +226,7 @@
       "body": "The page hit an unexpected error. You can try again, or return to the Dashboard.",
       "retry": "Try again",
       "reload": "Reload",
-      "home": "Dashboard",
-      "more": "More recovery options"
+      "home": "Dashboard"
     },
     "accessDenied": {
       "title": "You don't have access to this page",
@@ -871,8 +870,7 @@
         "noteHelper": "Optional context recorded against the grant."
       },
       "amountRequired": "Amount is required.",
-      "amountPositive": "Grant amount must be positive.",
-      "balanceHelp": "Balance after credit grants and usage."
+      "amountPositive": "Grant amount must be positive."
     },
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",
@@ -3793,7 +3791,6 @@
       "effective": "Effective number format: {{value}}"
     },
     "refreshRetry": "Retry refresh",
-    "save": "Save",
     "saved": "Preferences saved",
     "saving": "Saving your preference…",
     "staleRefresh": "Refreshing this session failed — your choices are stored and will apply on your next sign-in.",
@@ -3819,7 +3816,6 @@
     "loadError": "This sign-in request could not be loaded.",
     "loading": "Loading the sign-in request…",
     "loopback": "After you answer, you return to a program on this computer.",
-    "missingRequest": "This sign-in request is incomplete.",
     "restart": "Start the sign-in again from the application that sent you here.",
     "returning": "Returning you to the application…",
     "signedInAs": "Signed in as {{email}}",
@@ -5026,9 +5022,5 @@
     "title": "Page not found",
     "body": "The page you're looking for doesn't exist or has been moved.",
     "back": "Back to Dashboard"
-  },
-  "pageSave": {
-    "save": "Save",
-    "failed": "Some changes were not saved. Try again."
   }
 }

@@ -58,10 +58,10 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     expect(byName(/Finance/)).toBeChecked();
     expect(byName(/Engineer/)).not.toBeChecked();
     // Save is idle until something changes
-    expect(screen.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.click(byName(/Finance/));
     await user.click(byName(/Executive/));
-    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Executive', 'Admin'], []));
   });
 
@@ -70,7 +70,7 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     wrap();
     const card = await screen.findByTestId('document-category-c-inv');
     await user.click(within(card).getByRole('checkbox', { name: /Finance/ }));
-    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Admin'], []));
   });
 
@@ -78,7 +78,7 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     const user = userEvent.setup();
     wrap();
     await screen.findByTestId('document-category-c-inv');
-    await user.click(screen.getByRole('button', { name: 'New category', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'New category' }));
     const form = await screen.findByTestId('document-category-new');
     expect(within(form).getByLabelText(/Category name/i)).toHaveFocus();
     await user.type(within(form).getByLabelText(/Category name/i), 'Commercial approval');

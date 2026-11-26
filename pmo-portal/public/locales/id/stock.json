@@ -763,7 +763,7 @@
     "scopeNoCost": "Lokasi yang menyimpan stok. Peran Anda tidak menampilkan nilai atau perlindungan; stok di bawah batas ada di Pesanan ulang."
   },
   "transfers": {
-    "title": "Transfer dua langkah",
+    "title": "Transfer stok",
     "send": "Kirim transfer stok",
     "sendTitle": "Kirim transfer stok",
     "off": {

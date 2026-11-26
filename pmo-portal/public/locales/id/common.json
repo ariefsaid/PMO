@@ -226,8 +226,7 @@
       "body": "Terjadi kesalahan pada halaman ini. Coba lagi, atau kembali ke Dasbor.",
       "retry": "Coba lagi",
       "reload": "Muat ulang",
-      "home": "Dasbor",
-      "more": "Pilihan pemulihan lain"
+      "home": "Dasbor"
     },
     "accessDenied": {
       "title": "Anda tidak memiliki akses ke halaman ini",
@@ -871,8 +870,7 @@
         "noteHelper": "Konteks opsional yang dicatat pada pemberian ini."
       },
       "amountRequired": "Jumlah wajib diisi.",
-      "amountPositive": "Jumlah pemberian harus positif.",
-      "balanceHelp": "Saldo setelah pemberian dan pemakaian kredit."
+      "amountPositive": "Jumlah pemberian harus positif."
     },
     "budgetMap": {
       "sectionLabel": "Peta kategori anggaran ke akun ERP",
@@ -3793,7 +3791,6 @@
       "effective": "Format angka aktif: {{value}}"
     },
     "refreshRetry": "Coba segarkan lagi",
-    "save": "Simpan",
     "saved": "Preferensi disimpan",
     "saving": "Menyimpan preferensi Anda…",
     "staleRefresh": "Menyegarkan sesi ini gagal — pilihan Anda sudah tersimpan dan akan berlaku saat masuk berikutnya.",
@@ -3819,7 +3816,6 @@
     "loadError": "Permintaan masuk ini tidak dapat dimuat.",
     "loading": "Memuat permintaan masuk…",
     "loopback": "Setelah Anda menjawab, Anda akan kembali ke program di komputer ini.",
-    "missingRequest": "Permintaan masuk ini tidak lengkap.",
     "restart": "Mulai proses masuk lagi dari aplikasi yang mengarahkan Anda ke sini.",
     "returning": "Mengembalikan Anda ke aplikasi…",
     "signedInAs": "Masuk sebagai {{email}}",
@@ -5026,9 +5022,5 @@
     "title": "Halaman tidak ditemukan",
     "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
     "back": "Kembali ke Dasbor"
-  },
-  "pageSave": {
-    "save": "Simpan",
-    "failed": "Sebagian perubahan belum disimpan. Coba lagi."
   }
 }

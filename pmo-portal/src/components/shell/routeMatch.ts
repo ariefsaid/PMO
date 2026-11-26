@@ -173,7 +173,6 @@ export const MODULES: ModuleDef[] = [
   // Safety summary: every role reads; the rail shows it only where the organisation switched the module on.
   { module: 'safety', icon: 'circle-check', label: 'Safety summary', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'safety:summary.title', path: '/safety' },
-  { module: "quantity-changes", icon: "doc", label: "Quantity change requests", labelKey: "quantityChanges:title", path: "/quantity-changes" }, // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
   // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
   { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
@@ -317,6 +316,7 @@ export function modulesForRoleWithOperator(role: UserRole, isOperator: boolean):
  * with the placeholder `<Route>` titles in App.tsx.
  */
 export const PLACEHOLDER_TITLES: Record<string, string> = {
+  '/quantity-changes': 'Quantity change requests', // i18n-exempt: resolved from quantityChanges:title below
   // Profile & preferences is a directly-routable personal page (account menu entry); keep its
   // route breadcrumb registered here (AC-ACCT-001).
   '/settings/profile': 'Profile & preferences',
@@ -655,6 +655,7 @@ export function breadcrumbForPath(
     // `shell.nav.salesInvoices` / `shell.nav.incomingPayments` / `shell.nav.revenueByProject` keys
     // the Finance rail already uses.
     const PLACEHOLDER_I18N_KEY: Record<string, string> = {
+      '/quantity-changes': 'quantityChanges:title',
       '/administration': 'shell.nav.administration',
       '/integrations': 'shell.nav.integrations',
       '/sales-invoices': 'shell.nav.salesInvoices',
@@ -712,7 +713,7 @@ export function breadcrumbForPath(
   // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
   if (/^\/work-orders\/[^/]+$/.test(pathname)) {
     return [
-      { label: MODULES.find((module) => module.path === '/work-orders')?.label ?? pathname, i18nKey: 'terms.clientWorkOrder', href: '/work-orders', onClick: () => navigate?.('/work-orders') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
+      { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // the module's own label is translated from its shell key at render
       ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
       recordLabel
         ? { label: recordLabel }
@@ -750,7 +751,7 @@ export function breadcrumbForPath(
                   : pathname === '/material-requests/new'
                     ? { label: 'New material request', i18nKey: 'materialRequests:form.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
                     : pathname === '/material-requests/settings'
-                      ? { label: 'Material request settings', i18nKey: 'materialRequests:settings.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                      ? { label: `${shippedTerm('en', 'materialRequest').singular} settings`, i18nKey: 'materialRequests:settings.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
                       : recordResolved
                         ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
                         : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render

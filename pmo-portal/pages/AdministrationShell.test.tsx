@@ -473,10 +473,10 @@ describe('Administration route-backed shell', () => {
     renderShell('/administration/integrations');
     const feedback = await screen.findByText('Feedback and surveys');
     expect(feedback).not.toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Save', exact: true })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Organization settings' }));
     expect(feedback).toBeVisible();
-    expect(screen.getAllByRole('button', { name: 'Save', exact: true })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
     expect(screen.getByText('Organization integrations panel')).not.toBeVisible();
   });
 

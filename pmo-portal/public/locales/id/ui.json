@@ -10,5 +10,12 @@
   "table": {
     "scrollLeft": "Gulir tabel ke kiri",
     "scrollRight": "Gulir tabel ke kanan"
+  },
+  "pageSave": {
+    "save": "Simpan",
+    "failed": "Sebagian perubahan belum disimpan. Coba lagi."
+  },
+  "errorBoundary": {
+    "more": "Pilihan pemulihan lain"
   }
 }

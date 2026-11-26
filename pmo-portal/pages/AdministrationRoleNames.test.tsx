@@ -41,7 +41,7 @@ describe('AC-TX-008 role names screen', () => {
     await userEvent.clear(english);
     await userEvent.type(english, 'Yard Supervisor');
     await userEvent.type(bahasa, 'Pengawas');
-    const saveButton = screen.getByRole('button', { name: 'Save', exact: true });
+    const saveButton = screen.getByRole('button', { name: 'Save' });
     await userEvent.click(saveButton);
     await waitFor(() => expect(bahasa).toHaveValue(''));
     expect(english).toHaveValue('Yard Supervisor');
@@ -60,7 +60,7 @@ describe('AC-TX-008 role names screen', () => {
     await waitFor(() => expect(input.value).toBe('Yard Lead'));
     await userEvent.clear(input);
     await userEvent.type(input, 'Yard Chief');
-    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith({ roleKey: 'storekeeper', locale: 'en', name: 'Yard Chief' }));
     expect(save).toHaveBeenCalledTimes(1);
   });

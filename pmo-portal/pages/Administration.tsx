@@ -343,9 +343,9 @@ const OrganizationConnections: React.FC = () => {
   const [view, setView] = useState('integrations');
   const saveContext = useContext(SettingsSaveContext);
   return <div className="space-y-4">
-    <ViewToggle semantics="toggle" ariaLabel={t('connections.viewLabel', 'Organization setup view')} value={view} onChange={setView} options={[
+    <ViewToggle semantics="toggle" ariaLabel={t('administration:connections.viewLabel', 'Organization setup view')} value={view} onChange={setView} options={[
       { value: 'integrations', label: t('admin.nav.integrations', 'Organization integrations') },
-      { value: 'settings', label: t('connections.settings', 'Organization settings') },
+      { value: 'settings', label: t('administration:connections.settings', 'Organization settings') },
     ]} />
     <div hidden={view !== 'integrations'}><IntegrationsView /></div>
     <div hidden={view !== 'settings'}><SettingsSaveContext.Provider value={view === 'settings' ? saveContext : null}><FeedbackSurveysSetting /><EmailNotificationsSetting /></SettingsSaveContext.Provider></div>

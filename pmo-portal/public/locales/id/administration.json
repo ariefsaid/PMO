@@ -1422,5 +1422,8 @@
   "connections": {
     "viewLabel": "Tampilan pengaturan organisasi",
     "settings": "Pengaturan organisasi"
+  },
+  "credits": {
+    "balanceHelp": "Saldo setelah pemberian dan pemakaian kredit."
   }
 }

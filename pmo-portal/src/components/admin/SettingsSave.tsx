@@ -51,13 +51,13 @@ export const SettingsSaveAction: React.FC<{ describedBy?: string }> = ({ describ
   return (
     <div className="flex flex-wrap items-center gap-3">
       {context.error && <p role="alert" className="text-control text-destructive-text">
-        {t('pageSave.failed', 'Some changes were not saved. Try again.')}
+        {t('ui:pageSave.failed', 'Some changes were not saved. Try again.')}
       </p>}
-      <Button aria-describedby={pending.length === 0 ? describedBy : undefined}
+      <Button variant="primary" aria-describedby={pending.length === 0 ? describedBy : undefined}
         loading={context.saving}
         disabled={pending.length === 0 || pending.some((entry) => entry.invalid || entry.busy)}
         onClick={() => void context.saveAll()}>
-        {t('pageSave.save', 'Save')}
+        {t('ui:pageSave.save', 'Save')}
       </Button>
     </div>
   );

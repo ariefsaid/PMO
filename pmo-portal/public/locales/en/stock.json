@@ -763,7 +763,7 @@
     "scopeNoCost": "Locations holding stock. Your role does not display value or cover; stock below its reorder level is in Reorder."
   },
   "transfers": {
-    "title": "Two-step transfers",
+    "title": "Stock transfers",
     "send": "Send stock transfer",
     "sendTitle": "Send a stock transfer",
     "off": {

@@ -4,7 +4,7 @@ import { AuthContext } from '@/src/auth/AuthContext';
 import { preloadProjectOrders } from '@/src/lib/routeData';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, RecordSection, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
+import { Button, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -145,7 +145,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <ProjectAttention items={attention.items} isPending={attention.isPending} pendingSources={attention.pendingSources} error={attention.error} band className="min-w-0" />
           {canSeeMoney && <div className="min-w-0"><MoneyBlock project={project} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
         </div>
-        <RecordSection title={t('projectDetail.tabs.budget', 'Budget')} actions={<Button variant="outline" size="sm" onClick={openBudget}>{t('projectDetail.cost.openBudgetArea', 'Open budget')}</Button>} />
+        <CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} />
         <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock><ProjectPerformance projectId={project.id} /></div>
         {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
         <WhenNearViewport>

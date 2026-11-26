@@ -1422,5 +1422,8 @@
   "connections": {
     "viewLabel": "Organization setup view",
     "settings": "Organization settings"
+  },
+  "credits": {
+    "balanceHelp": "Balance after credit grants and usage."
   }
 }

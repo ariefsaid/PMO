@@ -78,7 +78,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             </a>
           </div>
           <details className="mt-4 text-control text-muted-foreground">
-            <summary className="cursor-pointer">{t('ui.errorBoundary.more', 'More recovery options')}</summary>
+            <summary className="cursor-pointer">{t('ui:errorBoundary.more', 'More recovery options')}</summary>
             <Button variant="ghost" className="mt-2" onClick={this.handleReload}>{t('ui.errorBoundary.reload', 'Reload')}</Button>
           </details>
         </div>

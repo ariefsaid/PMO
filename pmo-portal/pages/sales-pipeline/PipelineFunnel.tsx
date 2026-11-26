@@ -66,7 +66,7 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
         : <span title={t('sales.funnel.weighted', '{{value}} weighted', { value: formatTableMoney(p.weightedValue, p.stageCurrency) })}>{t('sales.funnel.weighted', '{{value}} weighted', {
             value: money(p.weightedValue, p.stageCurrency),
           })}</span>,
-      barPct: p.barPct ?? (!p.unavailable && p.totalValue === 0 ? 0 : undefined),
+      barPct: p.barPct,
     };
   });
 

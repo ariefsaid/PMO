@@ -57,7 +57,7 @@ describe('monthly plan settings (#2700)', () => {
     renderPage();
     await userEvent.selectOptions(screen.getByLabelText('Approval step'), 'senior_role');
     await userEvent.click(screen.getByLabelText('The author may approve their own plan'));
-    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(h.setSettings).toHaveBeenCalledWith({ enabled: true, approvalStep: 'senior_role', allowSelfApproval: true });
   });
 
@@ -65,7 +65,7 @@ describe('monthly plan settings (#2700)', () => {
     h.setSettings.mockRejectedValue(new Error('EQP_PREREQ: turn on purchase types first'));
     renderPage();
     await userEvent.click(screen.getByLabelText('The author may approve their own plan'));
-    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Turn on purchase types and keep an active rental type first.')).toBeInTheDocument();
   });
 
