@@ -18,7 +18,6 @@ import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { StackedBar } from '@/src/components/projects/StackedBar';
 import { formatDay, formatTableMoney } from '@/src/lib/format';
 import { formatBudgetAmount, formatBudgetTile } from './project-detail/budget/budgetMoney';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -1031,7 +1030,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? (activeVersion || versions.length === 0 ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : noActiveBudgetCaption) : equivalentCaption(totalBudget, activeBudgetCurrency)} captionWrap captionNote={equivalentNote(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} captionWrap captionNote={equivalentNote(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} captionWrap captionNote={equivalentNote(totalCommitted, project.currency)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
@@ -1039,28 +1038,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       </KPIRow>
       {uncategorizedNote && <p className="text-sm text-muted-foreground">{uncategorizedNote}</p>}
 
-      {/* Parts of a whole: where the budget sits, drawn so the shares read at a glance. */}
-      {view === 'actual' && enrichedRows.filter((row) => row.budget > 0).length >= 3 && (
-        <Card className="min-w-0">
-          <CardHead className="pb-1">{t('projectDetail.budget.byCategory', 'Budget by category')}</CardHead>
-          <CardPad className="pt-2">
-            <StackedBar
-              minLabelledShare={15}
-              ariaLabel={t('projectDetail.budget.byCategory', 'Budget by category')}
-              otherLabel={t('projectDetail.budget.otherCategories', 'Other')}
-              segments={enrichedRows.filter((row) => row.budget > 0).map((row) => ({
-                key: row.category,
-                label: budgetCategoryLabel(row.category, t),
-                value: row.budget,
-                display: formatBudgetTile(row.budget, activeBudgetCurrency ?? project.currency),
-              }))}
-            />
-          </CardPad>
-        </Card>
-      )}
-
       <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
-        <CardHead className="pb-1">{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
+        <CardHead className="pb-1">{view === 'forecast' ? t('projectDetail.budget.forecast', 'Forecast') : t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
         <CardPad className="space-y-3 pt-2">
         {selectedRows.size > 0 && view === 'actual' ? (
           <div className="flex min-w-0 flex-wrap items-center gap-2" role="toolbar" aria-label={t('projectDetail.budget.selectedCategories', 'Selected categories')}>
@@ -1081,7 +1060,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
                 ...(canOpenForecast && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
               ]}
             />
-            <span className="text-sm font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
