@@ -391,7 +391,7 @@ export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
   // A work order's page, and a safety day (which belongs to its work order), light Work orders only (#2518, #2596).
   if (/^\/(work-orders|safety-days)\/[^/]+$/.test(pathname)) return '/work-orders';
-  if (/^\/stock\/transfers\/[^/]+$/.test(pathname)) return '/stock';
+  if (/^\/stock\/transfers\/[^/]+(\/print)?$/.test(pathname)) return '/stock';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -602,7 +602,7 @@ export function breadcrumbForPath(
   }
 
   // A stock transfer's page reads Stock > Transfers (the page title carries its number), never a stuck "Loading…".
-  if (/^\/stock\/transfers\/[^/]+$/.test(pathname)) {
+  if (/^\/stock\/transfers\/[^/]+(\/print)?$/.test(pathname)) {
     const stock = MODULES.find((m) => m.path === '/stock');
     const transfers = CHILD_PAGE_CRUMB['/stock/transfers'];
     if (stock) {
