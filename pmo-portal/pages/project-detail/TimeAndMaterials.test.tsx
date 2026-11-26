@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -751,9 +752,10 @@ describe('TimeAndMaterials', () => {
     expect(within(drawer).queryByRole('button', { name: /Remove .* for Engineer/ })).not.toBeInTheDocument();
   });
 
-  it('defaults the assemble period to the local calendar date, not UTC', async () => {
+  it('defaults the assemble period to the organisation calendar date, not UTC', async () => {
     const previousTz = process.env.TZ;
     process.env.TZ = 'Asia/Jakarta';
+    setActiveOrgTimezone('Asia/Jakarta');
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-03T20:00:00Z') });
     try {
       renderPanel();
@@ -761,6 +763,7 @@ describe('TimeAndMaterials', () => {
       expect(screen.getByLabelText('From')).toHaveValue('1 Nov 2026');
     } finally {
       vi.useRealTimers();
+      resetActiveLocale();
       if (previousTz === undefined) delete process.env.TZ; else process.env.TZ = previousTz;
     }
   });

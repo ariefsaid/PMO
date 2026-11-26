@@ -31,6 +31,8 @@ const ROOTS = ['pages', 'src/components'];
 export const RULES = {
   'toIso-new-date': (code) => (code.match(/(?<![\w.$])toIso\s*\(\s*new\s+Date\s*\(\s*\)\s*\)/g) ?? []).length,
   'iso-slice-0-10': (code) => (code.match(/new\s+Date\s*\(\s*\)\s*\.toISOString\(\)\s*\.slice\(\s*0\s*,\s*10\s*\)/g) ?? []).length,
+  // The person's own timezone decides which day a RECORD belongs to nowhere: it only renders instants (#2914).
+  'person-tz-day': (code) => (code.match(/formatCalendarDayInTimeZone\s*\(\s*new\s+Date\s*\(\s*\)\s*,\s*getActiveLocale\s*\(\s*\)\s*\.timezone/g) ?? []).length,
 };
 
 const blankComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
@@ -91,6 +93,7 @@ function selfTest() {
     ['a slice on another Date is not flagged (the rule is the default-day literal)', Object.keys(bad('const d = d2.toISOString().slice(0, 10);')).length === 0],
     ['a comment mention is not flagged', Object.keys(bad('// was toIso(new Date())\n/* new Date().toISOString().slice(0, 10) */')).length === 0],
     ['a test file is skipped', Object.keys(scan({ 'pages/X.test.tsx': 'toIso(new Date())' })).length === 0],
+    ['a day from the person timezone is flagged', bad('formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone)')['person-tz-day'] === 1],
     ['useOrgToday passes', Object.keys(bad("const today = useOrgToday();")).length === 0],
     ['an unlisted offender fails', compare({ 'pages/X.tsx': { 'toIso-new-date': 1 } }, {}).length === 1],
     ['a listed offender passes', compare({ 'pages/X.tsx': { 'toIso-new-date': 1 } }, allow({ rule: 'toIso-new-date', count: 1, reason: 'this widget shows the viewer\'s own device day by design', verified: '2026-11-26' })).length === 0],

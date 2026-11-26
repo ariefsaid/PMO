@@ -84,6 +84,20 @@ export function setActiveLocale(resolved: ResolvedLocale): void {
 /** Test/teardown helper — restore the boot default. */
 export function resetActiveLocale(): void {
   active = FALLBACK;
+  activeOrgTimezone = 'UTC';
+}
+
+/**
+ * The ORGANISATION's business timezone: which calendar day a record belongs to. Never the person's own
+ * timezone (that only renders instants). UTC until the provider sets it, as the server's
+ * `coalesce(default_timezone, 'UTC')` does (#2914).
+ */
+let activeOrgTimezone = 'UTC';
+export function setActiveOrgTimezone(tz: string): void {
+  activeOrgTimezone = isUsableTimeZone(tz) ? tz : 'UTC';
+}
+export function getActiveOrgTimezone(): string {
+  return activeOrgTimezone;
 }
 
 export function getActiveLocale(): ResolvedLocale {

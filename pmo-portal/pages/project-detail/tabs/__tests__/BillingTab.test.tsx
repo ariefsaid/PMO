@@ -12,7 +12,7 @@ import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 import { formatNumberMax2 } from '@/src/lib/format';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
@@ -935,6 +935,7 @@ describe('BillingTab', () => {
       // the device zone (+07) still reads 2026-06-30.
       vi.setSystemTime(new Date('2026-06-30T20:00:00Z'));
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Pacific/Kiritimati' });
+      setActiveOrgTimezone('Pacific/Kiritimati');
       h.role = 'Project Manager'; h.userId = 'pm-1';
       renderTab();
 

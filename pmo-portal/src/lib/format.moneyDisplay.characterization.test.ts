@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatCurrency, formatExactMoney, formatNumberMax2 } from '@/src/lib/format';
 import { milli } from '@/src/lib/progressBilling';
-import { localToday } from '@/src/lib/efaktur';
 
 const EN = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' } as const;
 const norm = (value: string) => value.replace(/\u00a0/g, ' ');
@@ -59,20 +58,5 @@ describe('milli — integer milli-unit quantity conversion (pinned before the Bi
     expect(milli(1.2345)).toBe(1235);
     expect(milli(0.0004)).toBe(0);
     expect(milli(0.0005)).toBe(1);
-  });
-});
-
-describe('localToday — the browser LOCAL calendar date (pinned before the WorkOrdersTab share-out)', () => {
-  it('follows the local calendar across local midnight, not the UTC day', () => {
-    vi.useFakeTimers();
-    try {
-      // Local Date constructors keep these pins timezone-independent.
-      vi.setSystemTime(new Date(2026, 5, 14, 23, 59, 59, 999));
-      expect(localToday()).toBe('2026-06-14');
-      vi.setSystemTime(new Date(2026, 5, 15, 0, 0, 0, 0));
-      expect(localToday()).toBe('2026-06-15');
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

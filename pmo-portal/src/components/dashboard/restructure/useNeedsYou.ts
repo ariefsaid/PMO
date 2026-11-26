@@ -38,7 +38,7 @@ import { useCheckInRequests } from '@/src/hooks/usePhoneCheckIn';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
 import { summariseWaitingWorkOrderSteps } from '@/src/lib/workOrderBillingSteps';
 import type { WaitingWorkOrderStepsFact } from '@/src/lib/workOrderBillingSteps';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import type { WaitingStepsFact } from '@/src/lib/waitingSteps';
 import { useManpowerToFill } from '@/src/hooks/useManpowerNeeds';
 import { summariseManpowerToFill } from '@/src/lib/waitingManpower';
@@ -466,7 +466,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     waitingManpower: manpowerToFillQuery.isSuccess ? summariseManpowerToFill(manpowerToFillQuery.data ?? []) ?? undefined : undefined,
     checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
-    waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? localToday()) ?? undefined : undefined,
+    waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? orgDayNow()) ?? undefined : undefined,
     waitingMaterialAlerts: waitingAlertsQuery.isSuccess ? summariseWaitingMaterialAlerts(waitingAlertsQuery.data ?? []) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };

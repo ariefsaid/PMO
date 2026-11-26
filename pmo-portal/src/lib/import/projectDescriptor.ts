@@ -7,7 +7,7 @@ import {
   type TaxTreatment,
 } from '@/src/lib/db/projects';
 import { parseNeutralMoneyInputAtScale, formatCalendarDayInTimeZone } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveLocale, getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import type { ImportStageDate } from '@/src/lib/db/projectStageEntries';
 import { TAX_TREATMENT_OPTIONS, parseNeutralTaxFacts } from '@/src/lib/taxTreatment';
 import type { ImportDescriptor } from './types';
@@ -59,7 +59,7 @@ function stageDateErrors(cells: Record<string, string>): Partial<Record<StageDat
   const dated = STAGE_DATE_COLUMNS.filter((c) => cells[c.key]?.trim());
   if (dated.length === 0) return {};
   if (cells.status?.trim() !== 'Leads') return { [dated[0].key]: 'Only a lead can carry stage dates.' };
-  const today = formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
+  const today = formatCalendarDayInTimeZone(new Date(), getActiveOrgTimezone());
   for (let i = 0; i < dated.length; i++) {
     const v = cells[dated[i].key].trim();
     if (!ISO_DATE.test(v)) return { [dated[i].key]: 'Stage dates must be YYYY-MM-DD.' };
