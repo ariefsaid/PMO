@@ -17,7 +17,8 @@ import { RouterProvider } from 'react-router/dom';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
-import { preloadWorkOrder } from '@/src/lib/routeData';
+import type { ProjectOrdersViewer } from '@/src/hooks/useWorkOrders';
+import { preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
@@ -234,6 +235,7 @@ const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Obje
  * point is a smaller boot, and a needless catalogue is the cost this change removed.
  */
 const PROJECT_TAB_NAMESPACES: Record<string, readonly string[]> = {
+  orders: ['project', 'workOrderPva', 'workOrders', 'status'],
   budget: ['project'],
   procurement: ['project', 'procurement'],
   materials: ['project', 'stock'],
@@ -245,6 +247,8 @@ const PROJECT_TAB_NAMESPACES: Record<string, readonly string[]> = {
 interface RouteDataContext {
   orgId: string;
   client: QueryClient;
+  canViewWorkOrderPlan?: boolean;
+  viewer?: ProjectOrdersViewer;
 }
 
 interface PreloadRule {
@@ -258,11 +262,21 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/', chunks: [ExecutiveDashboard], namespaces: ['dashboard', 'home'] },
   { path: '/projects', chunks: [Projects], namespaces: ['projects'] },
   { path: '/projects/new', chunks: [ProjectNew], namespaces: ['projects'] },
-  ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH).map(([path, chunks]) => ({
-    path,
-    chunks,
-    namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
-  })),
+  {
+    path: '/projects/:projectId/orders',
+    chunks: PROJECT_TAB_CHUNKS_BY_PATH['/projects/:projectId/orders'],
+    namespaces: PROJECT_TAB_NAMESPACES.orders,
+    data: ({ projectId }, { client, orgId, canViewWorkOrderPlan, viewer }) => {
+      if (projectId) preloadProjectOrders(client, orgId, projectId, canViewWorkOrderPlan === true, viewer);
+    },
+  },
+  ...Object.entries(PROJECT_TAB_CHUNKS_BY_PATH)
+    .filter(([path]) => path !== '/projects/:projectId/orders')
+    .map(([path, chunks]) => ({
+      path,
+      chunks,
+      namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
+    })),
   { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
   { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
@@ -704,10 +718,12 @@ export const ShellChrome: React.FC = () => {
   const location = useLocation();
   const { pathname, search } = location;
   const router = React.useContext(AppRouterContext);
-  const orgId = useAuth().currentUser?.org_id;
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const canViewWorkOrderPlan = usePermission()('view', 'workOrderPlan');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId ? { orgId, client: queryClient } : undefined);
-  }, [orgId]);
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, viewer: currentUser } : undefined);
+  }, [orgId, canViewWorkOrderPlan, currentUser]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);

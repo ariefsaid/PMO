@@ -1,11 +1,16 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { disciplineProfitRepository } from '@/src/lib/repositories/disciplineProfit';
-import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Validated revenue per discipline; only asked for while the setting is on. */
+export const disciplineRevenueQuery = (orgId: string | undefined, projectId: string, enabled = true) => ({
+  queryKey: ['discipline-revenue', orgId, projectId],
+  queryFn: () => disciplineProfitRepository.revenue(projectId),
+  enabled: enabled && Boolean(orgId) && Boolean(projectId),
+});
+
 export function useDisciplineRevenue(projectId: string, enabled: boolean) {
-  return useOrgQuery(['discipline-revenue', projectId], () => disciplineProfitRepository.revenue(projectId), { enabled: enabled && Boolean(projectId) });
+  return useQuery(disciplineRevenueQuery(useAuth().currentUser?.org_id, projectId, enabled));
 }
 
 export function useSetItemDiscipline(projectId: string) {

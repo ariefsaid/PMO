@@ -200,3 +200,34 @@ it('#2919 starts work order reads during navigation, before the new page can com
     prefetch.mockRestore();
   }
 });
+
+it('#2895 starts the project orders panel reads at entry and respects the billing extra switches', async () => {
+  const orgId = 'o1';
+  const fetch = vi.spyOn(queryClient, 'fetchQuery').mockResolvedValue(true);
+  const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
+  try {
+    const context = {
+      orgId, client: queryClient, canViewWorkOrderPlan: true,
+      viewer: { org_id: orgId, id: 'u1', role: 'Finance' as const, manager_id: null },
+    };
+    preloadForPath('/projects/p1/orders', context);
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual(expect.arrayContaining([
+      ['work-orders', orgId, 'p1', 'u1', 'Finance', null],
+      ['work-order-plan-vs-actual', orgId, 'p1'],
+    ]));
+    expect(fetch.mock.calls.map(([options]) => options.queryKey)).toEqual([
+      ['org-setting', orgId, 'moduleBillingExtras'],
+      ['org-setting', orgId, 'disciplineProfit'],
+    ]);
+    await vi.waitFor(() => expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['earned-billed', orgId, 'p1']));
+
+    fetch.mockResolvedValue(false);
+    prefetch.mockClear();
+    preloadForPath('/projects/p2/orders', context);
+    await Promise.resolve();
+    expect(prefetch.mock.calls.map(([options]) => options.queryKey)).not.toContainEqual(['earned-billed', orgId, 'p2']);
+  } finally {
+    fetch.mockRestore();
+    prefetch.mockRestore();
+  }
+});
