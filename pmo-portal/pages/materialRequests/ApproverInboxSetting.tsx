@@ -25,7 +25,9 @@ const Editor: React.FC = () => {
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       {!setting.isError && (
         <Checkbox checked={setting.data === true} disabled={setting.isPending || save.isPending} onChange={(v) => void change(v)}
-          label={t('settings.approverInboxLabel', 'Show material request approvals in the approvals inbox and notify approvers')} />
+          label={t('settings.approverInboxLabel', 'Show material request approvals in the approvals inbox and notify approvers')}>
+          {t('settings.approverInboxLabel', 'Show material request approvals in the approvals inbox and notify approvers')}
+        </Checkbox>
       )}
     </RecordSection>
   );
