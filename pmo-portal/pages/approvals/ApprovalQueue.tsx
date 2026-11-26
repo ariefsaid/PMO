@@ -99,14 +99,14 @@ export function QueueButton({
           </div>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-control text-muted-foreground">
         <span>
           {row.entries.length}{' '}
           {row.entries.length === 1
             ? t('approvals.entryOne', 'entry')
             : t('approvals.entryOther', 'entries')}
         </span>
-        <span className="tabular font-medium text-foreground">{formatNumberExact(sumHours(row))} h</span>
+        <span className="ml-auto text-right tabular text-foreground">{formatNumberExact(sumHours(row))} h</span>
       </div>
     </button>
   );

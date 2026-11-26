@@ -352,7 +352,7 @@ const ApprovalsPage: React.FC = () => {
               className="min-w-0 overflow-x-auto scroll-fade-x lg:overflow-visible"
             >
               <ViewToggle<Scope>
-                className="max-w-full"
+                className="max-w-full flex-wrap"
                 options={availableScopes.map((scope) => ({
                   value: scope,
                   label: scopeLabels[scope],
