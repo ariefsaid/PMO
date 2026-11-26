@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, ListState, RecordSection, RecordStack, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, Checkbox, ListState, PageHeader, RecordSection, RecordStack, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { usePermission } from '@/src/auth/usePermission';
@@ -32,13 +32,14 @@ const CategoryRow: React.FC<{ category: PlanCategory | null; canManage: boolean;
     try { await m.setCategoryActive.mutateAsync({ id: category.id, active: !category.active }); } catch (err) { setError(refusal(err)); }
   };
   return (
-    <li className="space-y-2 rounded-md border border-border p-3" data-testid={category ? 'plan-category-row' : 'plan-category-new'}>
-      {error && <FormErrorStrip>{error}</FormErrorStrip>}
-      {category && !category.active && <p className="text-sm text-muted-foreground">{t('settings.retired', 'Retired')}</p>}
-      <TextField label={t('settings.name', 'Name')} value={name} onChange={setName} disabled={!canManage} />
-      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} value={nameId} onChange={setNameId} disabled={!canManage} />
+    <li className="grid items-end gap-3 border-b border-border/70 py-3 last:border-b-0 sm:grid-cols-[1fr_1fr_auto]" data-testid={category ? 'plan-category-row' : 'plan-category-new'}>
+      {error && <div className="sm:col-span-3"><FormErrorStrip>{error}</FormErrorStrip></div>}
+      <TextField label={t('settings.name', 'Name')} value={name} onChange={setName} disabled={!canManage} fullWidth />
+      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} value={nameId} onChange={setNameId} disabled={!canManage} fullWidth />
+      {category && !category.active && !canManage && <StatusPill variant="neutral">{t('settings.retired', 'Retired')}</StatusPill>}
       {canManage && (
-        <span className="flex flex-wrap gap-2">
+        <span className="flex min-h-10 flex-wrap items-center gap-2">
+          {category && !category.active && <StatusPill variant="neutral">{t('settings.retired', 'Retired')}</StatusPill>}
           <Button variant={category ? 'outline' : 'primary'} size="sm" disabled={!dirty || !name.trim()} loading={m.upsertCategory.isPending} onClick={() => void save()}>
             {category ? t('settings.save', 'Save') : t('settings.add', 'Add category')}
           </Button>
@@ -70,11 +71,11 @@ const SwitchSection: React.FC<{ canManage: boolean }> = ({ canManage }) => {
       {settings.isError && <ListState variant="error" title={t('settings.loadError', "Couldn't load the plan settings")} onRetry={() => void settings.refetch()} />}
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       {!settings.isError && (
-        <div className="space-y-3">
-          <Checkbox checked={enabled} onChange={(v) => setDraft({ ...draft, enabled: v })} disabled={!canManage || settings.isPending} label={t('settings.enabled', 'The monthly plan is on')} />
-          <SelectField label={t('settings.stepLabel', 'Approval step')} value={step} onChange={(v) => setDraft({ ...draft, step: v as ApprovalStep })} disabled={!canManage || settings.isPending}
-            options={[{ value: 'spend_approvers', label: t('settings.step.spend_approvers', 'The spend approvers of the project') }, { value: 'senior_role', label: t('settings.step.senior_role', 'Anyone whose role can approve spend') }]} fullWidth />
-          <Checkbox checked={self} onChange={(v) => setDraft({ ...draft, self: v })} disabled={!canManage || settings.isPending} label={t('settings.selfApproval', 'The author may approve their own plan')} />
+        <div className="flex flex-col items-start gap-4">
+          <Checkbox checked={enabled} onChange={(v) => setDraft({ ...draft, enabled: v })} disabled={!canManage || settings.isPending} label={t('settings.enabled', 'The monthly plan is on')}>{t('settings.enabled', 'The monthly plan is on')}</Checkbox>
+          <div className="w-full max-w-xl"><SelectField label={t('settings.stepLabel', 'Approval step')} value={step} onChange={(v) => setDraft({ ...draft, step: v as ApprovalStep })} disabled={!canManage || settings.isPending}
+            options={[{ value: 'spend_approvers', label: t('settings.step.spend_approvers', 'The spend approvers of the project') }, { value: 'senior_role', label: t('settings.step.senior_role', 'Anyone whose role can approve spend') }]} fullWidth /></div>
+          <Checkbox checked={self} onChange={(v) => setDraft({ ...draft, self: v })} disabled={!canManage || settings.isPending} label={t('settings.selfApproval', 'The author may approve their own plan')}>{t('settings.selfApproval', 'The author may approve their own plan')}</Checkbox>
           {canManage && <Button variant="primary" size="sm" disabled={Object.keys(draft).length === 0} loading={m.setSettings.isPending} onClick={() => void save()}>{t('settings.save', 'Save')}</Button>}
         </div>
       )}
@@ -94,7 +95,7 @@ const CategoryList: React.FC<{ canManage: boolean }> = ({ canManage }) => {
       {categories.isError && <ListState variant="error" title={t('settings.loadError', "Couldn't load the plan settings")} onRetry={() => void categories.refetch()} />}
       {categories.data && list.length === 0 && <p className="text-muted-foreground">{t('settings.empty', 'No categories yet.')}</p>}
       {categories.data && (
-        <ul className="space-y-3">
+        <ul>
           {list.map((c) => <CategoryRow key={`${c.id}:${c.name}:${c.nameId ?? ''}`} category={c} canManage={canManage} nextPosition={0} />)}
           {canManage && <CategoryRow key={`new-${list.length}`} category={null} canManage nextPosition={list.length + 1} />}
         </ul>
@@ -111,7 +112,7 @@ const EquipmentPlanSettingsPage: React.FC = () => {
   return (
     <div>
       <BackBar label={t('settings.back', 'Monthly plan')} onBack={() => navigate('/equipment-plans')} />
-      <h1 className="mb-4 text-xl font-semibold">{t('settings.title', 'Monthly plan settings')}</h1>
+      <PageHeader title={t('settings.title', 'Monthly plan settings')} />
       {!canManage && <p className="mb-3 text-muted-foreground">{t('settings.adminOnly', 'Only an Admin can change the plan settings.')}</p>}
       <RecordStack>
         <SwitchSection canManage={canManage} />
