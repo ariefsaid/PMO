@@ -76,7 +76,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
       {!reversed && q.isError && (
         <ListState variant="error" title={t('consumption.errorTitle')} sub={t('consumption.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void q.refetch()} />
       )}
-      {empty && <ListState variant="empty" icon="folder" title={t('consumption.empty')} sub={t('consumption.emptySub')} />}
+      {empty && <ListState variant="empty" icon="folder" title={t('consumption.empty')} />}
 
       {!reversed && r && !empty && (
         <>
