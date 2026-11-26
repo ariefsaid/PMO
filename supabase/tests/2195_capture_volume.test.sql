@@ -60,6 +60,11 @@ select set_config('capture.census_cursor',(select id::text from erp_purchase_doc
 -- as it is when the served function calls them.
 select set_config('capture.cursors',(select string_agg(id::text,',' order by id) from (select id,row_number() over (order by id) rn
   from erp_gl_entry_mirror where org_id='21950650-0000-0000-0000-000000000001' and not is_cancelled) t where rn % 500 = 0),true);
+-- The synthetic rows are uncommitted until this test rolls back, so auto-analyze cannot see their volume.
+-- Refresh planner statistics before timing the page and batch queries.
+analyze public.erp_gl_entry_mirror, public.erp_account_mirror, public.erp_purchase_documents,
+  public.erp_journal_line_links, public.budget_category_account_map, public.external_org_bindings,
+  public.procurement_erp_links;
 select is((select count(*)::int from erp_purchase_documents where org_id='21950650-0000-0000-0000-000000000001'),970,'AC-ROP-065 the fixture holds ten times the purchase documents');
 select is((select count(*)::int from erp_gl_entry_mirror where org_id='21950650-0000-0000-0000-000000000001'),15370,'AC-ROP-065 the fixture holds ten times the ledger lines');
 
