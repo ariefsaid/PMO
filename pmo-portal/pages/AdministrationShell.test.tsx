@@ -1,5 +1,5 @@
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
@@ -213,6 +213,13 @@ vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
 }));
 
 import { AppRoutes } from '../App';
+
+// The Administration route is a lazy chunk whose cold jsdom evaluation costs seconds. A journey
+// that navigates into it (or deep-links a section) suspends on that import inside its wait
+// window, which times out before the chunk resolves — the same warm-up the ask-AI palette test
+// does for AssistantPanel. Warm it once so the journeys below exercise navigation, not module
+// download; every assertion is unchanged.
+beforeAll(async () => { await import('./Administration'); }, 60_000);
 
 const publishOperatorState = () => {
   operatorState.revision += 1;
