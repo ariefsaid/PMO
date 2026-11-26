@@ -23,6 +23,7 @@ vi.mock('@/src/hooks/useWorkOrderPerformance', () => ({
 }));
 
 import { PerformanceIndices } from './PerformanceIndices';
+import { AreaHelpProvider } from './AreaHelp';
 import { ProjectPerformance } from '../project-detail/ProjectPerformance';
 
 const row = (extra: Partial<PerformanceRow> = {}): PerformanceRow => ({
@@ -41,7 +42,7 @@ const i18n = (lng: 'en' | 'id') => {
   return i;
 };
 const wrap = (ui: React.ReactElement, lng: 'en' | 'id' = 'en') => render(
-  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><MemoryRouter><I18nextProvider i18n={i18n(lng)}>{ui}</I18nextProvider></MemoryRouter></AuthContext.Provider></QueryClientProvider>,
+  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><MemoryRouter><I18nextProvider i18n={i18n(lng)}><AreaHelpProvider>{(help) => <>{ui}<output data-testid="page-help">{help.map((e) => e.body).join(' ')}</output></>}</AreaHelpProvider></I18nextProvider></MemoryRouter></AuthContext.Provider></QueryClientProvider>,
 );
 
 beforeEach(() => {
@@ -96,13 +97,16 @@ describe('work-order panel', () => {
     expect(screen.getByTestId('wo-page-performance-asof').textContent).toContain('4 Jan 2026');
     expect(screen.getByTestId('wo-page-performance-schedule-variance').textContent).toMatch(/^Behind plan by /);
     expect(screen.getByTestId('wo-page-performance-cost-variance').textContent).toMatch(/^Earned value exceeds actual cost by /);
-    expect(screen.getByTestId('wo-page-performance-band').textContent).toBe('Within range is 0.90 to 1.10.');
+    // The definitions sit behind the page's one help control, not under the figures.
+    expect(screen.queryByTestId('wo-page-performance-band')).toBeNull();
+    expect(screen.getByTestId('page-help').textContent).toContain('Earned value is validated daily-report progress');
+    expect(screen.getByTestId('page-help').textContent).toContain('Within range is 0.90 to 1.10.');
   });
   it('uses the organisation bands for the reading', () => {
     h.project.mockReturnValue(read([row({ ev: '85.00', ac: '100.00', pv: '100.00' })], { bands: { low: '0.80', high: '1.25' } }));
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
     expect(screen.getByTestId('wo-page-performance-cpi-reading').textContent).toBe('Within range');
-    expect(screen.getByTestId('wo-page-performance-band').textContent).toContain('0.80 to 1.25');
+    expect(screen.getByTestId('page-help').textContent).toContain('0.80 to 1.25');
   });
   it('hides an uncomputable index with its reason, never as 0', () => {
     h.project.mockReturnValue(read([row({ ac: '0.00', pv: null, startDate: null })]));

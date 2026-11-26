@@ -57,3 +57,44 @@ export function buildCostView(lines: readonly WorkOrderCostLine[], moneyBySource
   }
   return out;
 }
+
+/**
+ * Per-day cost (#1126): the SAME lines and amounts the cost list shows, grouped by each record's own day. No second rule:
+ * a record is priced exactly as `buildCostView` prices it, so the days plus the undated line add up to the list's source totals.
+ * Only sources that count as direct cost appear (a request, order or receipt is a commitment, not a cost). A record with no day
+ * goes on `undated`; it is never spread over days. A cell is a number, `undefined` (no record of that kind) or `null` (a record
+ * whose amount this caller cannot read, or in another currency): unknown is never zero, and it makes the day's total unknown.
+ */
+export type DayCategory = 'labour' | 'equipment' | 'material' | 'other';
+export const DAY_CATEGORIES: readonly DayCategory[] = ['labour', 'equipment', 'material', 'other'];
+const CATEGORY_OF: Partial<Record<CostSource, DayCategory>> = {
+  timesheet_entry: 'labour', attendance_day: 'labour', equipment_usage: 'equipment',
+  stock_document: 'material', vendor_bill: 'material', expense_claim: 'other',
+};
+export type DailyCostCells = Record<DayCategory, number | null | undefined> & { total: number | null };
+export interface DailyCost { days: Record<string, DailyCostCells>; undated: DailyCostCells | null }
+
+export function buildDailyCost(groups: readonly SourceGroup[], currency: string): DailyCost {
+  const cents: Record<string, Partial<Record<DayCategory, number | null>>> = {};
+  const UNDATED = '';
+  for (const g of groups) {
+    const cat = CATEGORY_OF[g.source];
+    if (!cat) continue;
+    for (const l of g.lines) {
+      const m = g.moneyByRecord?.[l.recordId];
+      const value = m && m.currency === currency && Number.isFinite(m.amount) ? Math.round(m.amount * 100) : null;
+      const cell = (cents[l.occurredOn ?? UNDATED] ??= {});
+      const prev = cell[cat];
+      cell[cat] = value === null || prev === null ? null : (prev ?? 0) + value;
+    }
+  }
+  const finish = (c: Partial<Record<DayCategory, number | null>>): DailyCostCells => {
+    const known = DAY_CATEGORIES.map((k) => c[k]);
+    const out = { total: known.some((v) => v === null) ? null : known.reduce<number>((s, v) => s + (v ?? 0), 0) / 100 } as DailyCostCells;
+    for (const k of DAY_CATEGORIES) { const v = c[k]; out[k] = v == null ? v : v / 100; }
+    return out;
+  };
+  const days: Record<string, DailyCostCells> = {};
+  for (const d of Object.keys(cents).filter((k) => k !== UNDATED).sort()) days[d] = finish(cents[d]);
+  return { days, undated: cents[UNDATED] ? finish(cents[UNDATED]) : null };
+}

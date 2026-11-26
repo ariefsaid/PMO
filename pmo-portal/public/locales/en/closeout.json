@@ -62,5 +62,7 @@
     "generic": "The checklist could not be saved. Try again.",
     "noOwnerHelp": "Without an owner job role, only an Admin, Finance, or the project manager can complete this item."
   },
-  "projectDocuments": "Project documents"
+  "projectDocuments": "Project documents",
+  "update": "Update",
+  "updateNamed": "Update {{item}}"
 }

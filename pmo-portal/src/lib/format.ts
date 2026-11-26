@@ -1223,3 +1223,17 @@ export function formatFileSize(bytes: number | null | undefined, locale = getNum
     style: 'unit', unit: units[unit], unitDisplay: 'short', maximumSignificantDigits: 3,
   }).format(value);
 }
+
+/** The words for the time units a record carries ('hours', 'days'), per interface language. Other units are codes and stay as stored. */
+const UNIT_WORDS: Record<string, Record<string, [one: string, other: string]>> = {
+  en: { hours: ['hour', 'hours'], days: ['day', 'days'] },
+  id: { hours: ['jam', 'jam'], days: ['hari', 'hari'] },
+};
+
+/** "9 hours" / "9 jam", "7.5 hours" / "7,5 jam", "12 m3": an exact quantity with its unit in the reader's language. */
+export function formatQuantityUnit(quantity: number, unit: string | null | undefined): string {
+  const amount = formatNumberExact(quantity);
+  if (!unit) return amount;
+  const words = (UNIT_WORDS[getActiveLocale().locale] ?? UNIT_WORDS.en)[unit.toLowerCase()];
+  return `${amount} ${words ? (quantity === 1 ? words[0] : words[1]) : unit}`;
+}

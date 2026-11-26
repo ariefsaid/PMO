@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { serviceClient, need, ownProject, dropProject, uniq, ORG_ID, runId } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -43,6 +43,7 @@ test('JOB-T3 the current billing step is in the billing officer\'s needs-you lis
   await pointer.click();
   await expect(page).toHaveURL(new RegExp(`/work-orders/${wo.id}$`));
   await openWorkOrderArea(page, 'billing');
+  await openRowUpdate(page, 'Prepare billing evidence');
   await page.getByRole('button', { name: 'Mark Prepare billing evidence done' }).click();
   await expect(page.getByTestId('wo-billing-steps-summary')).toContainText('Every billing step is finished');
   await page.goto('/');

@@ -24,7 +24,7 @@ const Body: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
       {t('claimProgress', '{{done}} of {{total}} steps finished', { done, total: steps.length })}
       {current && ` · ${t('claimCurrent', 'now: {{name}}', { name: current.name })}`}
     </p>
-    <Link to={`/work-orders/${encodeURIComponent(workOrderId)}`} className="mt-1 inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
+    <Link to={`/work-orders/${encodeURIComponent(workOrderId)}#wo-billing`} className="mt-1 inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
       {t('claimOpen', 'Open the work order\'s billing steps')}
     </Link>
   </section>;

@@ -20,7 +20,7 @@ test('JOB-PC9 Planner identifies the machine allocated to its work order', async
     await openWorkOrderArea(page, 'cost');
     const equipment = page.getByTestId('cost-group-equipment_usage');
     await expect(equipment).toContainText('CR-1 · Site crane');
-    await expect(equipment).toContainText('1 days');
+    await expect(equipment).toContainText('1 day');
   } finally {
     removeJobOrganization(org.id);
     await planner.remove();

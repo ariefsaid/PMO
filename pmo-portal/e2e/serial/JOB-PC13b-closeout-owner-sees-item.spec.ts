@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { ok, ORG_ID, PM_ID, projectWithWorkOrders, runId, serviceClient } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
-import { openWorkOrderArea } from '../support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -60,6 +60,7 @@ test('JOB-PC13b the owner job role sees the close-out item under waits-on-you an
     await expect(page).toHaveURL(new RegExp(`/work-orders/${woId}$`), { timeout: 20_000 });
     await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId('closeout-summary')).toContainText('Required items not done: 1', { timeout: 30_000 });
+    await openRowUpdate(page, itemName);
     await expect(page.getByLabel(`Document for ${itemName}`)).toBeVisible({ timeout: 20_000 });
   } finally {
     await svc.from('tasks').delete().eq('work_order_id', woId || '00000000-0000-0000-0000-000000000000');
