@@ -141,7 +141,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
 
   // Weekend tint lives INSIDE the cell (cn does not merge classes, so a column class cannot reliably
   // override the table's own header/cell backgrounds).
-  const tint = (weekend: boolean | undefined) => cn('-mx-3 -my-2 flex flex-col items-center justify-center px-1', weekend && 'bg-secondary/60');
+  const tint = (weekend: boolean | undefined) => cn('-mx-3 -my-2 flex flex-col items-center justify-center whitespace-nowrap px-1', weekend && 'bg-secondary/60');
 
   const columns: Column<TimesheetGridRow>[] = [
     {
@@ -208,7 +208,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     ...days.map((d, i): Column<TimesheetGridRow> => ({
       key: `day-${i}`,
       header: (
-        <span className={cn('flex flex-col items-center justify-center px-1', d.weekend && 'bg-secondary/60')} style={{ minHeight: 38 }}>
+        <span className={cn('flex flex-col items-center justify-center whitespace-nowrap px-1', d.weekend && 'bg-secondary/60')} style={{ minHeight: 38 }}>
           {d.label}
           <span className="mt-0.5 block text-control font-normal tabular text-muted-foreground">{d.dateNum}</span>
         </span>
@@ -320,7 +320,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           tableId="timesheet-grid"
           accessibleName={t('timesheets.title', 'Timesheets')}
           totals={totals}
-          className="rounded-none! border-0!"
+          className="min-w-[760px] rounded-none! border-0!"
         />
       </div>
       {/* Decorative scroll-fade overlay (aria-hidden + pointer-events-none). */}
