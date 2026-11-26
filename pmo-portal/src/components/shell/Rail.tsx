@@ -339,12 +339,21 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const [hasScrollCue, setHasScrollCue] = useState(false);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
-    const active = region?.querySelector<HTMLElement>('a[aria-current="page"]');
-    if (!active) { if (region) region.scrollTop = 0; return; }
-    const group = active.closest<HTMLElement>('[role="group"]');
-    (group ?? active).scrollIntoView?.({ block: 'nearest' });
-    active.scrollIntoView?.({ block: 'nearest' });
-  }, [location.pathname, location.search]);
+    if (!region) return;
+    region.scrollTop = 0;
+    const reveal = () => {
+      const active = region.querySelector<HTMLElement>('a[aria-current="page"]');
+      if (!active) return false;
+      const group = active.closest<HTMLElement>('[role="group"]');
+      (group ?? active).scrollIntoView?.({ block: 'nearest' });
+      active.scrollIntoView?.({ block: 'nearest' });
+      return true;
+    };
+    if (reveal() || typeof MutationObserver === 'undefined') return;
+    const observer = new MutationObserver(() => { if (reveal()) observer.disconnect(); });
+    observer.observe(region, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+    return () => observer.disconnect();
+  }, [location.pathname, location.search, role]);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
     if (!region) return;
