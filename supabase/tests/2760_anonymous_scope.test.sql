@@ -1,9 +1,10 @@
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 select ok(not has_function_privilege('anon','public.actor_may_order_purchases()','EXECUTE'),'anonymous cannot execute ordering helper');
 select ok(not has_function_privilege('anon','public.qcr_file_object_access(text)','EXECUTE'),'anonymous cannot execute file helper');
 select is((select roles from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_qcr_file_read'),array['authenticated']::name[],'file read policy is scoped');
+select is((select roles from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_qcr_file_write'),array['authenticated']::name[],'file write policy is scoped');
 select is((select roles from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_read'),array['authenticated']::name[],'procurement file read policy is scoped');
 set local role anon;
 select throws_ok($$select public.actor_may_order_purchases()$$,'42501','permission denied for function actor_may_order_purchases','anonymous ordering helper call is denied');

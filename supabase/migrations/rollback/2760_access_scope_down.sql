@@ -2,8 +2,6 @@
 alter policy storage_objects_qcr_file_read on storage.objects to public;
 alter policy storage_objects_qcr_file_write on storage.objects to public;
 alter policy storage_objects_proc_file_read on storage.objects to public;
-alter policy purchase_orders_insert on public.purchase_orders to public;
-alter policy purchase_orders_update on public.purchase_orders to public;
 grant execute on function public.actor_may_order_purchases() to anon;
 grant execute on function public.qcr_file_object_access(text) to anon;
 create or replace function public.stock_handover_scope_of(p_org uuid) returns text

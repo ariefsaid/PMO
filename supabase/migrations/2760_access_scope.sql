@@ -3,8 +3,6 @@
 alter policy storage_objects_qcr_file_read on storage.objects to authenticated;
 alter policy storage_objects_qcr_file_write on storage.objects to authenticated;
 alter policy storage_objects_proc_file_read on storage.objects to authenticated;
-alter policy purchase_orders_insert on public.purchase_orders to authenticated;
-alter policy purchase_orders_update on public.purchase_orders to authenticated;
 revoke execute on function public.actor_may_order_purchases() from public, anon;
 revoke execute on function public.qcr_file_object_access(text) from public, anon;
 create or replace function public.stock_handover_scope_of(p_org uuid) returns text language sql stable security definer set search_path = public, pg_temp as $$ select coalesce((select o.stock_handover_scope from public.organizations o where o.id = p_org and o.id = public.auth_org_id()), 'transfers') $$;
