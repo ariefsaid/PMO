@@ -750,7 +750,7 @@ export function breadcrumbForPath(
                   : pathname === '/material-requests/new'
                     ? { label: 'New material request', i18nKey: 'materialRequests:form.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
                     : pathname === '/material-requests/settings'
-                      ? { label: 'Approval settings', i18nKey: 'materialRequests:list.settings' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                      ? { label: 'Material request settings', i18nKey: 'materialRequests:settings.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
                       : recordResolved
                         ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
                         : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render

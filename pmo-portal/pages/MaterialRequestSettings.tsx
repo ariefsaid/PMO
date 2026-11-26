@@ -1,7 +1,9 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, DateField, ListState, RecordSection, RecordStack, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, PageHeader, Checkbox, DateField, ListState, RecordSection, RecordStack, SelectField, TextField, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useAuth } from '@/src/auth/useAuth';
@@ -45,6 +47,7 @@ const ChainEditor: React.FC = () => {
     catch (err) { setError(refusal(err)); }
   };
   const valid = steps.length > 0 && steps.every((s) => s.label.trim());
+  const pageSave = useSettingsSaveEntry(canManage ? { dirty: draft !== null, invalid: !valid, busy: m.setChain.isPending, save } : null);
   return (
     <RecordSection title={t('settings.chain', 'Approval chain')} subline={t('settings.chainSub', 'Steps are taken in this order. A change applies to new requests only.')}>
       {chain.isPending && <ListState variant="loading" rows={2} />}
@@ -69,7 +72,7 @@ const ChainEditor: React.FC = () => {
                 helper={s.jobRole ? t('settings.roleSetByJobRole', 'Set by the built-in role.') : undefined} />
               <TextField label={t('settings.purpose', 'What this step checks')} value={s.label} onChange={(v) => edit(i, { label: v })} disabled={!canManage} />
               <Checkbox checked={s.onlyOverPlan} disabled={!canManage} onChange={(v) => edit(i, { onlyOverPlan: v })}
-                label={t('settings.onlyOverPlan', 'Only when a line is over plan')} />
+                label={t('settings.onlyOverPlan', 'Only when a line is over plan')}>{t('settings.onlyOverPlan', 'Only when a line is over plan')}</Checkbox>
               {canManage && <span className="flex flex-wrap gap-2 md:col-span-2">
                 <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)}>{t('settings.moveUp', 'Move up')}</Button>
                 <Button variant="ghost" size="sm" disabled={i === steps.length - 1} onClick={() => move(i, 1)}>{t('settings.moveDown', 'Move down')}</Button>
@@ -81,7 +84,7 @@ const ChainEditor: React.FC = () => {
         <CanWrite entity="approvalChain" action="manage">
           <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setDraft([...steps, { role: 'Project Manager', jobRole: null, label: '', onlyOverPlan: false }])}>{t('settings.addStep', 'Add step')}</Button>
-            <Button variant="primary" disabled={!draft || !valid} loading={m.setChain.isPending} onClick={() => void save()}>{t('settings.saveChain', 'Save chain')}</Button>
+            {!pageSave && <Button variant="primary" disabled={!draft || !valid} loading={m.setChain.isPending} onClick={() => void save()}>{t('settings.saveChain', 'Save chain')}</Button>}
           </div>
         </CanWrite>
       </>}
@@ -103,13 +106,14 @@ const CutoffEditor: React.FC = () => {
     try { await m.setCutoff.mutateAsync(shown ? shown : null); setValue(null); toast(t('settings.cutoffSaved', 'Cut-off saved'), undefined, 'success'); }
     catch (err) { setError(refusal(err)); }
   };
+  const pageSave = useSettingsSaveEntry({ dirty: value !== null, invalid: cutoff.isError, busy: m.setCutoff.isPending, save });
   return (
     <RecordSection title={t('settings.cutoff', 'Daily cut-off')} subline={t('settings.cutoffSub', 'A request needed tomorrow must be sent before this time. Leave empty for no cut-off.')}>
       {cutoff.isError && <ListState variant="error" title={t('settings.cutoffError', "Couldn't load the cut-off")} onRetry={() => void cutoff.refetch()} />}
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       {!cutoff.isError && <div className="flex flex-wrap items-end gap-2">
         <TextField label={t('settings.cutoffTime', 'Time')} type="time" value={shown} onChange={setValue} />
-        <Button variant="primary" disabled={value === null} loading={m.setCutoff.isPending} onClick={() => void save()}>{t('settings.saveCutoff', 'Save cut-off')}</Button>
+        {!pageSave && <Button variant="primary" disabled={value === null} loading={m.setCutoff.isPending} onClick={() => void save()}>{t('settings.saveCutoff', 'Save cut-off')}</Button>}
       </div>}
     </RecordSection>
   );
@@ -158,6 +162,7 @@ const DeliveryNoteEditor: React.FC = () => {
     }
   };
 
+  const pageSave = useSettingsSaveEntry({ dirty, invalid: !valid, busy: m.setDeliveryNoteSettings.isPending, save });
   return (
     <RecordSection
       title={t('settings.deliveryNote', 'Printable delivery note')}
@@ -207,7 +212,7 @@ const DeliveryNoteEditor: React.FC = () => {
           </div>
 
           <div className="pt-2">
-            <Button
+            {!pageSave && <Button
               variant="primary"
               disabled={!dirty || !valid}
               loading={m.setDeliveryNoteSettings.isPending}
@@ -215,7 +220,7 @@ const DeliveryNoteEditor: React.FC = () => {
               data-testid="save-delivery-note-settings-button"
             >
               {t('settings.saveDeliveryNote', 'Save delivery note settings')}
-            </Button>
+            </Button>}
           </div>
         </div>
       )}
@@ -284,7 +289,7 @@ const MaterialRequestSettingsPage: React.FC = () => {
   return (
     <div>
       <BackBar label={t('form.back', 'Material requests')} onBack={() => navigate('/material-requests')} />
-      <h1 className="mb-4 text-xl font-semibold">{t('settings.title', 'Approval settings')}</h1>
+      <PageHeader title={t('settings.title', 'Material request settings')} action={<SettingsSaveAction />} />
       <RecordStack>
         <ChainEditor />
         <CanWrite entity="approvalChain" action="manage"><CutoffEditor /></CanWrite>
@@ -295,4 +300,5 @@ const MaterialRequestSettingsPage: React.FC = () => {
     </div>
   );
 };
-export default MaterialRequestSettingsPage;
+const MaterialRequestSettings: React.FC = () => <SettingsSaveProvider><MaterialRequestSettingsPage /></SettingsSaveProvider>;
+export default MaterialRequestSettings;
