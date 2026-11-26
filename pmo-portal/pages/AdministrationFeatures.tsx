@@ -20,7 +20,7 @@ import { useOperatorOrgs, useOperatorOrgOverrides, useOperatorResolvedFeatures, 
 import {
   CORE_FEATURES,
   FEATURE_GROUPS,
-  FEATURE_LABELS,
+  featureLabel,
   type FeatureSource,
   type OrgFeatureKey,
 } from '@/src/lib/features';
@@ -371,7 +371,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     const globalOn = global[key];
                     const globalOffWins = source === 'global' && globalOn === false;
                     const planDefault = orgPlanDefaults[key];
-                    const label = FEATURE_LABELS[key];
+                    const label = featureLabel(t, key);
                     const isAdminOwned = key === 'feedback_surveys';
                     return (
                       <tr key={key} data-testid={`feature-row-${key}`}>
@@ -451,7 +451,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                   {t('console.coreHeading', 'Core modules (never switchable)')}
                 </th>
                 <td colSpan={5} className="px-4 py-2 text-control text-muted-foreground">
-                  {CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}
+                  {CORE_FEATURES.map((key) => featureLabel(t, key)).join(' · ')}
                 </td>
               </tr>
             </tbody>
@@ -470,7 +470,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                   const globalOn = global[key];
                   const globalOffWins = source === 'global' && globalOn === false;
                   const planDefault = orgPlanDefaults[key];
-                  const label = FEATURE_LABELS[key];
+                  const label = featureLabel(t, key);
                   const isAdminOwned = key === 'feedback_surveys';
                   return (
                     <li key={key} data-testid={`feature-phone-row-${key}`} className="min-w-0 space-y-2 p-3">
@@ -540,7 +540,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           ))}
           <section aria-label={t('console.coreHeading', 'Core modules (never switchable)')} className="rounded-lg border border-border bg-card p-3">
             <h3 className="text-control font-semibold text-foreground">{t('console.coreHeading', 'Core modules (never switchable)')}</h3>
-            <p className="mt-2 text-control text-muted-foreground">{CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}</p>
+            <p className="mt-2 text-control text-muted-foreground">{CORE_FEATURES.map((key) => featureLabel(t, key)).join(' · ')}</p>
           </section>
         </div>
       </section>
@@ -569,7 +569,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     const on = Boolean(editorPlanDefaults[key]);
                     return (
                       <li key={key} data-testid={`plan-default-${key}`} className="flex items-center justify-between gap-3 px-4 py-2">
-                        <span className="text-control">{FEATURE_LABELS[key]}</span>
+                        <span className="text-control">{featureLabel(t, key)}</span>
                         <Switch
                           checked={on}
                           onChange={() =>
@@ -577,7 +577,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                             planFeatureMutation.mutate({ planId: planEditor.planId, key, enabled: !on })
                           }
                           label={t('console.planDefaultSwitch', '{{feature}}: default for the {{plan}} plan', {
-                            feature: FEATURE_LABELS[key],
+                            feature: featureLabel(t, key),
                             plan: planEditor?.name ?? t('console.thisPlan', 'selected'),
                           })}
                           disabled={anyPending || !planEditor}
@@ -650,7 +650,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
         description={t(
           'console.globalConfirmBody',
           '{{feature}} will be off for every organisation, whatever its plan or override. Data is kept; switching it back on restores it.',
-          { feature: pendingGlobalOff ? FEATURE_LABELS[pendingGlobalOff] : '' },
+          { feature: pendingGlobalOff ? featureLabel(t, pendingGlobalOff) : '' },
         )}
         confirmLabel={t('console.globalConfirmAction', 'Switch off for all')}
         loading={globalMutation.isPending}
@@ -680,7 +680,7 @@ const ReadOnlyFeatures: React.FC = () => {
               const on = Boolean(states?.[key]?.displayEnabled);
               return (
                 <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-control font-medium">{FEATURE_LABELS[key]}</span>
+                  <span className="text-control font-medium">{featureLabel(t, key)}</span>
                   <StatusPill variant={on ? 'won' : 'neutral'}>
                     {key === 'feedback_surveys'
                       ? t('console.adminOwnedRow', 'Admin-owned')
@@ -693,7 +693,7 @@ const ReadOnlyFeatures: React.FC = () => {
         ))}
         {CORE_FEATURES.map((key) => (
           <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-control font-medium">{FEATURE_LABELS[key]}</span>
+            <span className="text-control font-medium">{featureLabel(t, key)}</span>
             <StatusPill variant="neutral">{t('console.sourceCore', 'Always on')}</StatusPill>
           </li>
         ))}
