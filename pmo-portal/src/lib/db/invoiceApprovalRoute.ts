@@ -1,3 +1,4 @@
+import { parseRoute } from './parseRoute';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 
@@ -30,31 +31,13 @@ export interface InvoiceApprovalRoute {
 
 const ROUTE_KINDS: readonly InvoiceApprovalRouteKind[] = ['named', 'nobody', 'missing_author', 'unavailable'];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+const malformedRoute = () => new AppError('The invoice approval route response was malformed', 'invoice-route-malformed');
 
-function nonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim() !== '';
-}
-
-/** Narrow the RPC's jsonb to the route shape. A malformed body is an error, never a fabricated route. */
 export function parseInvoiceApprovalRoute(data: unknown): InvoiceApprovalRoute {
-  if (!isRecord(data) || !Array.isArray(data.approvers) || !nonEmptyString(data.route_kind)) {
-    throw new AppError('The invoice approval route response was malformed', 'invoice-route-malformed');
-  }
-  if (!ROUTE_KINDS.includes(data.route_kind as InvoiceApprovalRouteKind)) {
-    throw new AppError('The invoice approval route response was malformed', 'invoice-route-malformed');
-  }
-  const approvers: InvoiceApprovalRouteApprover[] = data.approvers.map((entry) => {
-    // `profiles.full_name` is NOT NULL but has no non-blank invariant: a blank name is a valid server value,
-    // so it is accepted and the sentence falls back to the role word. Every other field shape is still strict.
-    if (!isRecord(entry) || !nonEmptyString(entry.id) || typeof entry.name !== 'string' || !nonEmptyString(entry.role)) {
-      throw new AppError('The invoice approval route response was malformed', 'invoice-route-malformed');
-    }
-    return { id: entry.id, name: entry.name.trim(), role: entry.role };
+  const { approvers, routeKind } = parseRoute(data, ROUTE_KINDS, {
+    mode: 'trim-name', malformed: malformedRoute,
   });
-  return { approvers, routeKind: data.route_kind as InvoiceApprovalRouteKind };
+  return { approvers, routeKind };
 }
 
 /**

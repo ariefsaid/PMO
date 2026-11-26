@@ -39,7 +39,6 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Your procurement was rejected': 'procurementRejected',
   'Your timesheet was approved': 'timesheetApproved',
   'Your timesheet was rejected': 'timesheetRejected',
-  // These mirror notificationCopy's earlier exact lookup so its existing output remains authoritative.
   'Your daily report was sent back': 'dsrReturned',
   'Your material request was approved': 'mrqApproved',
   'Your subcontract certificate was sent back': 'certReturned',
@@ -52,6 +51,10 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Clearance item is overdue': 'clearanceItemOverdue',
   'Work is done but not yet claimed': 'doneNotClaimed',
   'Action required': 'actionRequired',
+  'Your material request was sent back': 'mrqReturned',
+  'Your material request was refused': 'mrqRefused',
+  'Your equipment plan was sent back': 'eqpReturned',
+  'Your equipment plan was approved': 'eqpApproved',
 };
 
 /** The two expense-style nouns the producers use (kind-dependent), in the form each title carries. */
@@ -62,7 +65,7 @@ const LOWER_NOUNS: Record<string, string> = Object.fromEntries(Object.entries(NO
 
 /** The templates whose title carries a closed word or a number. Returns the matching key and its parameters. */
 export function matchNotificationTitle(title: string): NotificationTitleMatch | null {
-  const exact = NOTIFICATION_TITLES[title];
+  const exact = Object.hasOwn(NOTIFICATION_TITLES, title) ? NOTIFICATION_TITLES[title] : undefined;
   if (exact) return { key: exact, params: {} };
   let m = /^Equipment down more than (\d+) days?$/.exec(title);
   if (m) return { key: 'equipmentDown', params: { count: Number(m[1]) } };
@@ -78,7 +81,7 @@ export function matchNotificationTitle(title: string): NotificationTitleMatch | 
 }
 
 /** Every key the matcher can return, for the gate: a template with no text in both languages fails. */
-export const NOTIFICATION_TITLE_KEYS: string[] = [
+export const NOTIFICATION_TITLE_TEMPLATE_KEYS: string[] = [
   ...Object.values(NOTIFICATION_TITLES), 'equipmentDown', 'documentExpires',
   ...['awaiting_your_approval', 'ready_to_pay', 'requested', 'submitted', 'approved', 'rejected', 'paid'].map((s) => `noun_${s}`),
   ...['approved', 'rejected', 'paid'].map((s) => `your_${s}`),

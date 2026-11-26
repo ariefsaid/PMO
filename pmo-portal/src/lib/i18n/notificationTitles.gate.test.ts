@@ -8,12 +8,20 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import en from '../../../public/locales/en/notifications.json';
 import id from '../../../public/locales/id/notifications.json';
-import { matchNotificationTitle, NOTIFICATION_NOUN_KEYS, NOTIFICATION_TITLE_KEYS } from './notificationTitles';
+import { matchNotificationTitle, NOTIFICATION_NOUN_KEYS, NOTIFICATION_TITLE_TEMPLATE_KEYS } from './notificationTitles';
 
 const text = (catalogue: Record<string, unknown>, path: string): unknown => path.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], catalogue);
 
 describe('notification templates carry both languages', () => {
-  it.each(NOTIFICATION_TITLE_KEYS)('title %s has English and Bahasa Indonesia text', (key) => {
+  it('uses one catalogue entry per title', () => {
+    expect(Object.keys(en)).not.toContain('title');
+    expect(Object.keys(id)).not.toContain('title');
+    expect(new Set(NOTIFICATION_TITLE_TEMPLATE_KEYS).size).toBe(NOTIFICATION_TITLE_TEMPLATE_KEYS.length);
+    expect(Object.keys(en.titles).sort()).toEqual([...NOTIFICATION_TITLE_TEMPLATE_KEYS].sort());
+    expect(Object.keys(id.titles).sort()).toEqual([...NOTIFICATION_TITLE_TEMPLATE_KEYS].sort());
+  });
+
+  it.each(NOTIFICATION_TITLE_TEMPLATE_KEYS)('title %s has English and Bahasa Indonesia text', (key) => {
     for (const [lang, catalogue] of [['en', en], ['id', id]] as const) {
       const value = text(catalogue, `titles.${key}`);
       expect(typeof value === 'string' && value.trim().length > 0, `${lang}: titles.${key}`).toBe(true);

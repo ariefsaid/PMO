@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Combobox, EntityFormModal } from '@/src/components/ui';
 import { useProcurements } from '@/src/hooks/useProcurements';
 
-/** A supplier bill is recorded against a purchase that has been ordered; a closed or unapproved one takes none. */
-const BILLABLE_STATUSES: ReadonlySet<string> = new Set(['Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced']);
+import { canRecordBillAtStatus } from '@/src/lib/procurement/mainAction';
 
 /**
  * "New vendor bill" from the payables list: pick the purchase the bill belongs to, then the purchase page opens its
@@ -18,7 +17,7 @@ export const NewVendorBillDialog: React.FC<{ onClose: () => void }> = ({ onClose
   const purchases = useProcurements({ lean: true, withoutRoutes: true });
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
   const options = useMemo(() => (purchases.data ?? [])
-    .filter((p) => BILLABLE_STATUSES.has(p.status))
+    .filter((p) => canRecordBillAtStatus(p.status))
     .map((p) => ({
       value: p.id,
       label: p.code ?? p.title,
