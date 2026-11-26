@@ -10,7 +10,7 @@
 --
 -- Fixture namespace: 19710000-… (own org, so no seed row reaches the dashboard read).
 begin;
-select plan(6);
+select plan(7);
 
 \set ORG '19710000-0000-0000-0000-000000000001'
 \set EXE '19710000-0000-0000-0000-0000000000a1'
@@ -62,6 +62,13 @@ select is((select public.task_counts_toward_progress(t) from tasks t where t.id 
 select is((select body from public.scheduled_report_content('overdue_tasks', :'ORG', :'EXE',
             (now() at time zone 'UTC')::date - 30, (now() at time zone 'UTC')::date, 'en', 'Weekly')) like '%Leaf R: 1 overdue%',
   true, 'AC-TREE-104: the scheduled report counts the late leaf only, never the parent with all subtasks Done');
+
+-- AC-TREE-106
+insert into tasks (org_id, project_id, name, status, end_date, archived_at)
+values (:'ORG', :'R', 'archived late task', 'To Do', (now() at time zone 'UTC')::date - 5, now());
+select is((select split_part(body, E'\n\n', 2) from public.scheduled_report_content('overdue_tasks', :'ORG', :'EXE',
+            (now() at time zone 'UTC')::date - 30, (now() at time zone 'UTC')::date, 'en', 'Weekly')),
+  'Leaf R: 1 overdue', 'AC-TREE-106: the scheduled report excludes archived overdue tasks');
 
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', :'EXE', 'role', 'authenticated')::text, true);
