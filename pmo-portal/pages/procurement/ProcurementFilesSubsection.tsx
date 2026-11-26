@@ -34,6 +34,8 @@ export interface ProcurementFilesSubsectionProps {
   /** With `files`: the caller's own read of them has not landed yet / failed (shows the same states a per-row read did). */
   loading?: boolean;
   failed?: boolean;
+  /** Inside a table column already headed "Attachments", omit the repeated label and top divider. */
+  hideHeading?: boolean;
 }
 
 export type EmbeddedProcurementFile = Pick<ProcurementFileRow, 'id' | 'title' | 'file_path' | 'archived_at'> &
@@ -65,6 +67,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   files: embedded,
   loading,
   failed,
+  hideHeading = false,
 }) => {
   const { t } = useTranslation('procurementRecord');
   const { toast } = useToast();
@@ -136,12 +139,16 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   };
 
   return (
-    <div className="mt-2 flex flex-col gap-1.5 border-t border-dashed border-border/60 pt-2">
+    <div className={hideHeading ? 'flex flex-col gap-1.5' : 'mt-2 flex flex-col gap-1.5 border-t border-dashed border-border/60 pt-2'}>
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-muted-foreground">
-          {t('files.heading', 'Attachments')}
-        </span>
-        <span className="flex-1" />
+        {!hideHeading && (
+          <>
+            <span className="text-sm font-semibold text-muted-foreground">
+              {t('files.heading', 'Attachments')}
+            </span>
+            <span className="flex-1" />
+          </>
+        )}
         {canWrite && (
           <>
             <input

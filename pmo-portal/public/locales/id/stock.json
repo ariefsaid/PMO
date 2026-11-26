@@ -854,7 +854,13 @@
       "from": "Dari",
       "to": "Ke",
       "name": "Nama",
-      "signatureDate": "Tanggal"
+      "signatureDate": "Tanggal",
+      "backShort": "Kembali",
+      "number": "Nomor",
+      "signature": "Tanda tangan",
+      "dispatchedBy": "Dikirim oleh",
+      "deliveredBy": "Diantar oleh",
+      "receivedBy": "Diterima oleh"
     },
     "columns": {
       "transfer": "No. transfer",

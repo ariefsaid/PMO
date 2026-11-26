@@ -44,6 +44,7 @@ export default function RateCatalogue({ projectId, currency, canWrite, onImportO
   const rateLabel = t('rateCatalogue.rate', 'Rate');
   const dateLabel = t('rateCatalogue.effective', 'Effective from');
   return <section className="min-w-0 space-y-4" aria-label={title}>
+    {canWrite && <div className="flex justify-end"><Button variant="primary" onClick={() => { setImportOpen(true); onImportOpenChange?.(true); }} disabled={variants.length === 0}>{t('rateCatalogue.import', 'Import')}</Button></div>}
     {items.length === 0 ? (
       <p className="text-control text-muted-foreground">
         {variants.length === 0 && canWrite ? t('rateCatalogue.noLocations', 'No locations yet. Add a location.') : t('rateCatalogue.empty', 'No catalogue items')}
@@ -72,7 +73,7 @@ export default function RateCatalogue({ projectId, currency, canWrite, onImportO
                     <span className="min-w-0 break-words">{rate ? variantsById.get(rate.variant_id) : '—'}</span>
                   </td>
                   <td data-label={rateLabel} className={`${cell} ${narrowCell} text-right tabular-nums`}>{rate ? formatCurrency(rate.rate, currency, { precision: 'minor' }) : '—'}</td>
-                  <td data-label={dateLabel} className={`${cell} ${narrowCell} @max-[30rem]:text-right`}>{rate ? formatDayYear(rate.effective_from) : '—'}</td>
+                  <td data-label={dateLabel} className={`${cell} ${narrowCell} whitespace-nowrap @max-[30rem]:text-right`}>{rate ? formatDayYear(rate.effective_from) : '—'}</td>
                 </tr>
               ));
             })}
@@ -87,7 +88,7 @@ export default function RateCatalogue({ projectId, currency, canWrite, onImportO
       </div>
       <div className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
         <SelectField id="catalogue-default" label={t('rateCatalogue.defaultVariant', 'Default location')} value={variants.find((v) => v.is_default)?.id ?? ''} placeholder={t('rateCatalogue.none', 'None')} options={variants.map((v) => ({ value: v.id, label: v.name }))} onChange={(v) => void write(() => repositories.rateCatalogue.setDefaultVariant(projectId, v || null))} disabled={saving} />
-        <Button variant="primary" onClick={() => { setImportOpen(true); onImportOpenChange?.(true); }} disabled={variants.length === 0}>{t('rateCatalogue.import', 'Import')}</Button>
+
       </div>
     </div>}
     {error && <p role="alert">{t('rateCatalogue.saveError', 'Could not save. Try again.')}</p>}

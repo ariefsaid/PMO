@@ -4,7 +4,7 @@ import { ConfirmDialog, DateField, useToast } from '@/src/components/ui';
 import { usePeopleMutations } from '@/src/hooks/usePeople';
 import { refusalLine, useRefusalText } from '@/src/lib/refusals';
 import { formatCalendarDayInTimeZone } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 /** "Mark as left": the day a person left. They move to former staff and leave every crew roster from that day; their history
  *  stays. The day starts as today on the organisation calendar, and a cleared field stays blank until a real day is entered.
@@ -16,7 +16,7 @@ export const MarkLeftDialog: React.FC<{ person: { id: string; name: string } | n
   const { markLeft } = usePeopleMutations();
   const [day, setDay] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const today = formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
+  const today = formatCalendarDayInTimeZone(new Date(), getActiveOrgTimezone());
   // `null` = untouched: the dialog opens on the organisation's today. `''` = the admin cleared the field:
   // it stays blank while they edit, and the required day must be entered again — an emptied draft is never
   // silently turned back into today.
@@ -43,7 +43,7 @@ export const MarkLeftDialog: React.FC<{ person: { id: string; name: string } | n
           <p>{t('administration:people.leftBody', 'They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.')}</p>
           <DateField
             label={t('administration:people.leftOn', 'First day off crew roster')}
-            helper={t('administration:people.leftOnHelp', 'First day off crew roster')}
+            helper={t('administration:people.leftOnHelp', 'From this date onward, this person will no longer appear on crew rosters.')}
             value={leftOn}
             onChange={setDay}
             required

@@ -586,7 +586,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // Phone keeps the header to one row: Edit moves into the menu there.
   const editInMenu = canEdit && ((compact && !isDesktopHeader) || primaryRendered);
   const editButton = canEdit && !editInMenu ? (
-    <Button variant="primary" size="sm" className="touch-target" onClick={onEditProject}>
+    <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
       {t('projectDetail.header.action.edit', 'Edit')}
     </Button>
   ) : undefined;

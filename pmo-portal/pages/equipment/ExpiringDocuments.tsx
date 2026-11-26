@@ -35,7 +35,7 @@ const ExpiringDocumentsPage: React.FC = () => {
   const mostUrgent = rows.reduce<ExpiringDocumentRow | null>((worst, d) => (worst === null || d.days_left < worst.days_left ? d : worst), null);
   const columns: Column<ExpiringDocumentRow>[] = [
     { key: 'subject', header: t('equipment:expiry.subject', 'Person / equipment'), kind: 'primary', rowHeader: true,
-      cell: (d) => <Link className="font-semibold text-foreground underline-offset-2 hover:underline" to={recordPath(d)}
+      cell: (d) => <Link className="font-semibold text-primary-text underline-offset-2 hover:underline" to={recordPath(d)}
         aria-label={t('equipment:expiry.openRecord', 'Open the record of {{name}}', { name: d.subject_name })}>{d.subject_name}</Link>,
       secondaryCell: (d) => d.subject_kind === 'person' ? t('equipment:expiry.kindPerson', 'Person') : t('equipment:expiry.kindEquipment', 'Equipment') },
     { key: 'type', header: t('equipment:expiry.type', 'Document'),

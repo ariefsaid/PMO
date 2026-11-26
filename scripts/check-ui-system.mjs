@@ -91,7 +91,6 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/src/components/ui/DateField.tsx', rule: 'raw-control', count: 2, reason: 'DateField owns the typed input and the coarse-pointer native date input that implement the shared date field.' },
   { path: 'pmo-portal/src/components/ui/FormFields.tsx', rule: 'raw-control', count: 6, reason: 'FormFields owns the native input, select and textarea elements that implement the shared field primitives.' },
   { path: 'pmo-portal/src/components/ui/TableControls.tsx', rule: 'raw-control', count: 1, reason: 'SearchMini owns the native search input so browser search semantics stay inside the shared control.' },
-  { path: 'pmo-portal/components/IncidentFormModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing incident form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/components/project-status/ProjectTransitionConfirm.tsx', rule: 'raw-control', count: 1, reason: 'Existing transition form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/components/project-status/WinDetailsFields.tsx', rule: 'raw-control', count: 1, reason: 'Existing win detail controls are outside A1 ownership and are retained as shipped.' },
 ];

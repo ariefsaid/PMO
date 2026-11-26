@@ -76,6 +76,11 @@ function presentMirrorFields(canonical: PmoRecord): Record<string, unknown> {
   return out;
 }
 
+function shouldFlattenParent(fields: Record<string, unknown>, error: { code: string; message: string } | null): boolean {
+  return Boolean(fields.parent_task_id && error?.code === '23514' &&
+    /^TASK_TREE_(CYCLE|DEPTH):/.test(error.message));
+}
+
 /**
  * Build the shared ClickUp mirror-callback bag for one org (+ optional project). Each callback closes
  * over the service client / org / project; all writes are org-scoped. The `mintMirror` callback
@@ -105,13 +110,18 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
   const insertMirror = async (pmoRecordId: string, canonical: PmoRecord, sourceModMs: number): Promise<void> => {
     const project = (canonical.project_id as string | null | undefined) ?? projectId;
     if (!project) throw new AppError('projectId is required to adopt-mint a mirrored task', 'BAD_REQUEST');
-    const { error } = await serviceClient.from('tasks').insert({
+    const fields = presentMirrorFields(canonical);
+    const insert = (taskFields: Record<string, unknown>) => serviceClient.from('tasks').insert({
       id: pmoRecordId,
       org_id: orgId,
       project_id: project,
-      ...presentMirrorFields(canonical),
+      ...taskFields,
       source_updated_at: new Date(sourceModMs).toISOString(),
     });
+    let { error } = await insert(fields);
+    if (shouldFlattenParent(fields, error)) {
+      ({ error } = await insert({ ...fields, parent_task_id: null }));
+    }
     if (error) throw new AppError(error.message, error.code);
   };
   return {
@@ -148,10 +158,8 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
         .select('id');
       const fields = presentMirrorFields(canonical);
       let { data, error } = await write(fields);
-      // #2807: a move the task tool reports out of order can be refused as a cycle (the parent is still this
-      // task's own subtask in PMO). Land it flat, the unresolved-parent rule (inboundRecord: flat until it
-      // converges), so one refused move never stalls the whole sweep; the next change nests it again.
-      if (error && error.code === '23514' && error.message.includes('TASK_TREE_CYCLE') && fields.parent_task_id) {
+      // Keep the mirrored task usable when it cannot sit under its upstream parent.
+      if (shouldFlattenParent(fields, error)) {
         ({ data, error } = await write({ ...fields, parent_task_id: null }));
       }
       if (error) throw new AppError(error.message, error.code);

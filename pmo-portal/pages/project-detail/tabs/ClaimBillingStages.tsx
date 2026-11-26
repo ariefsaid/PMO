@@ -11,7 +11,7 @@ import { useBillingStageMutations, useClaimBillingTrace } from '@/src/hooks/useB
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { currentStageIndex, nextInvoiceDeadline, stageAgeDays, stageDaysPastTargetDate, stageOverdue } from '@/src/lib/billingStages';
 import { formatIsoDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { RetentionReleases } from './RetentionReleases';
 import { ClaimStepsPanel } from './ClaimStepsPanel';
 import { ClaimWorkOrderSteps } from './ClaimWorkOrderSteps';
@@ -75,7 +75,7 @@ const SkipStageDialog: React.FC<{ claimId: string; projectId: string; stage: Cla
     onConfirm={(reason) => void confirm(reason)} onCancel={onClose} />;
 };
 
-export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId, projectId, currency, invoiced, withdrawn, workOrderId, today = localToday() }) => {
+export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId, projectId, currency, invoiced, withdrawn, workOrderId, today = orgDayNow() }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const roles = useRoleOptions();

@@ -869,8 +869,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                   <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
                     <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
-                    <span className="flex min-w-0 flex-wrap justify-start gap-x-2 text-sm text-muted-foreground">
-                      {currencyTotals.map((item) => <span key={item.currency} title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
+                    <span className="flex min-w-0 flex-col text-sm text-muted-foreground">
+                      {currencyTotals.map((item, index) => <span key={item.currency} title={formatCurrency(item.value, item.currency)}>{index > 0 ? '+ ' : ''}{formatShortMoney(item.value, item.currency)}</span>)}
                     </span>
                   )}
                   </span>

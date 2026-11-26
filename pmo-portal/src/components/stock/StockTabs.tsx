@@ -14,12 +14,15 @@ export const StockFilters: React.FC<{ children: React.ReactNode }> = ({ children
 
 /** Section strip shared by every /stock page: On hand | Documents | Ledger | Reorder | Setup (Setup only for master-data writers). */
 const tabClass = ({ isActive }: { isActive: boolean }) =>
-  cn('whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground');
+  cn('shrink-0 whitespace-nowrap border-b-2 px-2.5 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground');
 
 /** #2690: the Transfers tab exists only once an organisation turns two-step transfers on. */
-const TransfersTab: React.FC = () => {
+const TransfersTab: React.FC<{ onMounted?: () => void }> = ({ onMounted }) => {
   const { t } = useTranslation('stock');
   const twoStep = useIsTwoStep();
+  React.useLayoutEffect(() => {
+    if (twoStep) onMounted?.();
+  }, [twoStep, onMounted]);
   return twoStep ? <NavLink to="/stock/transfers" end={false} className={tabClass}>{t('tabs.transfers')}</NavLink> : null;
 };
 
@@ -44,6 +47,13 @@ export const StockTabs: React.FC = () => {
   // is still something to the right to scroll to; when every tab fits, the rule runs edge to edge as on dev.
   const scrollerRef = React.useRef<HTMLElement | null>(null);
   const [moreToRight, setMoreToRight] = React.useState(false);
+  const syncScroll = React.useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const currentTab = el.querySelector<HTMLElement>('[aria-current="page"]');
+    currentTab?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+    setMoreToRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
   React.useLayoutEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -61,28 +71,25 @@ export const StockTabs: React.FC = () => {
     };
   });
   React.useLayoutEffect(() => {
-    const currentTab = scrollerRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
-    currentTab?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
-  }, [pathname]);
+    syncScroll();
+  }, [pathname, syncScroll]);
   return (
     <nav
       ref={scrollerRef}
       aria-label={t('tabs.label')}
-      className={cn('mb-4 flex flex-wrap gap-x-1 border-b border-border md:flex-nowrap md:overflow-x-auto', moreToRight && 'scroll-fade-x')}
+      className={cn('mb-4 flex flex-nowrap gap-x-0.5 overflow-x-auto border-b border-border', moreToRight && 'scroll-fade-x')}
     >
       {tabs.map((x) => (
         <NavLink
           key={x.to}
           to={x.to}
           end={x.end}
-          className={({ isActive }) =>
-            cn('whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')
-          }
+          className={tabClass}
         >
           {x.label}
         </NavLink>
       ))}
-      {hasProviders && <TransfersTab />}
+      {hasProviders && <TransfersTab onMounted={syncScroll} />}
     </nav>
   );
 };

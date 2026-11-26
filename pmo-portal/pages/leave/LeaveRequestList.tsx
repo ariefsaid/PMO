@@ -63,7 +63,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[]; tableId: stri
     { key: 'dates', header: t('crews:leave.dates', 'Dates'), kind: 'date', cell: range },
     { key: 'days', header: t('crews:leave.daysHeader', 'Days'), kind: 'number', cell: (r) => formatNumberExact(r.days) },
     ...(deciding
-      ? [{ key: 'reason', header: t('crews:reason', 'Reason'), kind: 'meta' as const, cell: (r: LeaveRequestRow) => r.reason }]
+      ? [{ key: 'reason', header: t('crews:reason', 'Reason'), kind: 'meta' as const, cell: (r: LeaveRequestRow) => r.reason || <span className="text-muted-foreground">—</span> }]
       : [
           { key: 'with', header: t('crews:leave.decider', 'Decider'), kind: 'meta' as const, cell: decider },
           { key: 'status', header: t('crews:statusHeader', 'Status'), kind: 'status' as const,
@@ -79,7 +79,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[]; tableId: stri
         rowLabel={(r) => t('crews:leave.openRow', 'Open the leave of {{name}}', { name: r.person_name })}
         rowMenu={rows.some(mayCancel) ? (r) => (mayCancel(r) ? [{ label: t('crews:leave.cancel', 'Cancel request'), onClick: () => cancelRequest(r) }] : []) : undefined} />
       <Drawer open={open !== null} onClose={() => setOpenId(null)}
-        title={open ? `${open.person_name} · ${open.type_name}` : ''}
+        title={open ? `${open.person_name} ·\u00a0${open.type_name}` : ''}
         status={open ? <StatusPill variant={PILL[open.status]}>{statusLabel[open.status]}</StatusPill> : undefined}
         footer={open && (mayDecide(open) || mayCancel(open)) ? (
           <div className="flex flex-wrap justify-end gap-2">
