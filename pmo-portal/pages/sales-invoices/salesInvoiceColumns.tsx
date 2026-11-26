@@ -100,7 +100,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
     secondaryCell: (inv) => {
       if (embedded) return null;
       const fullProject = projectLabelOf(inv);
-    const project = inv.customer_name && fullProject?.startsWith(inv.customer_name) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
+    const project = inv.customer_name && fullProject?.startsWith(`${inv.customer_name} `) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
       const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
       if (!customer && !project) return null;
       return (
@@ -245,7 +245,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
     size: 192,
     cell: (inv) => {
       const fullProject = projectLabelOf(inv);
-    const project = inv.customer_name && fullProject?.startsWith(inv.customer_name) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
+    const project = inv.customer_name && fullProject?.startsWith(`${inv.customer_name} `) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
       const managerLabel = projectManagerNameOf(inv);
       return <span className="flex min-w-0 flex-col gap-0.5">
@@ -293,7 +293,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
     const total = invoiceGross(inv);
     const partial = isPartlyPaid(inv);
     const fullProject = projectLabelOf(inv);
-    const project = inv.customer_name && fullProject?.startsWith(inv.customer_name) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
+    const project = inv.customer_name && fullProject?.startsWith(`${inv.customer_name} `) ? fullProject.slice(inv.customer_name.length).replace(/^[\s—–-]+/, '') : fullProject;
     return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <div className="flex w-full min-w-0 flex-col gap-0.5 text-control text-muted-foreground">
         <span className="min-w-0 break-words">{project ? `${project} · ${projectManagerNameOf(inv)}` : projectManagerNameOf(inv)}</span>
