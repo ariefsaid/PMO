@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { cn } from './cn';
+import { Icon } from './icons';
 import { tabId, tabPanelId } from './tabIds';
 import { scrollBehavior } from '@/src/lib/motion';
 
@@ -60,7 +62,30 @@ export function Tabs<V extends string = string>({
   className,
   insetFirstTab = false,
 }: TabsProps<V>) {
+  const { t } = useTranslation('common');
   const listRef = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState({ left: false, right: false });
+
+  const syncOverflow = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const left = list.scrollLeft > 2;
+    const right = list.scrollLeft + list.clientWidth < list.scrollWidth - 2;
+    setOverflow((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }, []);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return undefined;
+    syncOverflow();
+    list.addEventListener('scroll', syncOverflow, { passive: true });
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncOverflow);
+    ro?.observe(list);
+    return () => {
+      list.removeEventListener('scroll', syncOverflow);
+      ro?.disconnect();
+    };
+  }, [syncOverflow, items.length]);
 
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
@@ -68,6 +93,7 @@ export function Tabs<V extends string = string>({
   // Counts arriving after mount widen the tabs, so the selected one is brought back into view then too.
   const widths = items.map((item) => `${item.count ?? ''}${item.detail ?? ''}`).join('|');
   useEffect(() => {
+    syncOverflow();
     // First mount on the first tab: the strip is already at scroll 0, so skip the forced layout.
     const first = !mounted.current;
     mounted.current = true;
@@ -82,32 +108,52 @@ export function Tabs<V extends string = string>({
     const style = getComputedStyle(active);
     const left = tab.left - (parseFloat(style.scrollMarginLeft) || 0);
     const right = tab.right + (parseFloat(style.scrollMarginRight) || 0);
-    // Keep the selected label clear of the 28px scroll affordance at the right edge.
+    // Keep the selected label clear of the right-edge affordance.
     const offset = left < strip.left ? left - strip.left : right > strip.right - 28 ? right - strip.right + 28 : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
-  }, [value, widths]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+  }, [value, widths, syncOverflow]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+
+  const nudge = (dir: -1 | 1) => {
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollBy({ left: dir * Math.max(200, Math.round(list.clientWidth * 0.6)), behavior: scrollBehavior() });
+  };
+
+  const maskClass = overflow.left && overflow.right
+    ? '[mask-image:linear-gradient(to_right,transparent_0%,#000_36px,#000_calc(100%-36px),transparent_100%)]'
+    : overflow.right
+      ? '[mask-image:linear-gradient(to_right,#000_calc(100%-36px),transparent_100%)]'
+      : overflow.left
+        ? '[mask-image:linear-gradient(to_right,transparent_0%,#000_36px,#000_100%)]'
+        : '';
 
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
+    <div className="relative flex min-w-0 items-center">
+    {overflow.left && (
+      <button
+        type="button"
+        aria-label={t('tabs.scrollLeft', 'Scroll tabs left')}
+        onClick={() => nudge(-1)}
+        className="absolute left-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+      >
+        <span className="rotate-180"><Icon name="chev" /></span>
+      </button>
+    )}
     <BaseTabs.List
       ref={listRef}
       aria-label={ariaLabel}
       activateOnFocus
       className={cn(
         // Layout: flex strip, no wrap, gap between tabs
-        'mb-4 flex flex-nowrap whitespace-nowrap gap-0.5 border-b border-border',
-        // Mobile scroll-snap strip (OD-W4-2, C2):
-        // overflow-x-auto: allows horizontal scrolling when tabs exceed viewport
-        // snap-x snap-mandatory: each tab snaps cleanly
-        // The right-edge fade (mask-image) makes it clear more tabs exist
-        'overflow-x-auto snap-x snap-mandatory pe-7',
+        'mb-4 flex min-w-0 flex-1 flex-nowrap whitespace-nowrap gap-0.5 border-b border-border',
+        // Horizontal scroll-snap strip when tabs exceed container width
+        'overflow-x-auto snap-x snap-mandatory',
+        overflow.right && 'pe-9',
         // Scrollbar-free (aesthetic — chromeless thin scrollbar on macOS; no layout impact)
         '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        // Right-edge fade: linear gradient mask signals "scroll for more"
-        // Uses #000 (opaque mask) to transparent — compositor only, no repaint.
-        // Reduced-motion: the mask is CSS, no animation; always-on is correct.
-        '[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent_100%)]',
+        maskClass,
         className,
       )}
     >
@@ -159,6 +205,17 @@ export function Tabs<V extends string = string>({
         );
       })}
     </BaseTabs.List>
+    {overflow.right && (
+      <button
+        type="button"
+        aria-label={t('tabs.scrollRight', 'Scroll tabs right')}
+        onClick={() => nudge(1)}
+        className="absolute right-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+      >
+        <Icon name="chev" />
+      </button>
+    )}
+    </div>
     </BaseTabs.Root>
   );
 }

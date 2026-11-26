@@ -118,7 +118,7 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
   const newButton = canCreate ? (
     <>
       <ImportButton entity="clientRequisition" descriptor={takeoffDescriptor} onImported={() => void q.refetch()} label={t('clientMaterial.importTakeoff', 'Import take-off')} />
-      <Button size="sm" variant="primary" onClick={() => setDialog({ kind: 'new' })}>{t('clientMaterial.newRequisition', 'New requisition')}</Button>
+      <Button size="sm" variant="outline" onClick={() => setDialog({ kind: 'new' })}>{t('clientMaterial.newRequisition', 'New requisition')}</Button>
     </>
   ) : undefined;
 

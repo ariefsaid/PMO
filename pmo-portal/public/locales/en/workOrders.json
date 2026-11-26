@@ -24,7 +24,7 @@
   "costs": {
     "title": "Costs",
     "error": "Couldn't load the costs",
-    "empty": "No costs are attributed to this work order yet.",
+    "empty": "No costs are visible to you for this work order.",
     "noDiscipline": "No discipline",
     "unknownDiscipline": "Discipline",
     "restricted": "Amount restricted for your role",

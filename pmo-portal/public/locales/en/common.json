@@ -1,4 +1,5 @@
 {
+  "tabs": { "scrollLeft": "Scroll tabs left", "scrollRight": "Scroll tabs right", "showDetails": "Show details", "hideDetails": "Hide details" },
   "allSettings": {
     "alwaysOn": "On for everyone",
     "title": "All settings",

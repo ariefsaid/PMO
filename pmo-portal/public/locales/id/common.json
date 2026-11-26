@@ -1,4 +1,5 @@
 {
+  "tabs": { "scrollLeft": "Gulir tab ke kiri", "scrollRight": "Gulir tab ke kanan", "showDetails": "Tampilkan detail", "hideDetails": "Sembunyikan detail" },
   "allSettings": {
     "alwaysOn": "Aktif untuk semua",
     "title": "Semua pengaturan",
