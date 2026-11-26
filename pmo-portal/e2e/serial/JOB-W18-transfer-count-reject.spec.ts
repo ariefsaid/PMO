@@ -2,6 +2,7 @@
 /** JOB-W18 — sent, then received with a count: a storekeeper sends 10, the receiving storekeeper counts 8, accepts 6 and rejects 2 with a reason,
  *  and the transfer shows the sent, counted and rejected quantities. */
 import { test, expect } from '@playwright/test';
+import { tableCell } from '../support/tableCell';
 import { ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { visibleToast } from '../helpers';
 import { roleJobUser } from '../support/roleJobUser';
@@ -62,10 +63,10 @@ test('JOB-W18 the receiver counts less and rejects part, and the transfer shows 
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 
     // 3. Goal: the transfer shows the sent, counted and rejected quantities.
-    const line = page.getByRole('region', { name: 'Lines' }).getByRole('listitem').filter({ hasText: item.code });
-    await expect(line).toContainText('Sent 10');
-    await expect(line).toContainText('counted 8');
-    await expect(line).toContainText('rejected 2: Two were crushed in the truck');
+    const lines = page.getByRole('table', { name: 'Lines' });
+    await expect(await tableCell(page, item.code, 'Sent', lines)).toHaveText(/^10\b/);
+    await expect(await tableCell(page, item.code, 'Counted', lines)).toHaveText(/^8\b/);
+    await expect(await tableCell(page, item.code, 'Rejected', lines)).toHaveText(/^2\s*Two were crushed in the truck/);
   } finally {
     if (transferId) {
       sqlAsOwner(`delete from stock_handover_confirmations where transfer_id = '${transferId}'; delete from stock_transfer_lines where transfer_id = '${transferId}'; delete from stock_transfers where id = '${transferId}';`);

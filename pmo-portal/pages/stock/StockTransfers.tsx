@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, ListState, PageHeader, StatusPill, type Column } from '@/src/components/ui';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -15,6 +15,7 @@ const openShort = (t: StockTransfer): number => t.lines.filter((l) => l.qtyCount
 /** Two-step transfers in one table grouped in transit, short (an open shortfall), closed; cards on a phone, where the receiver often is. */
 const StockTransfers: React.FC = () => {
   const { t } = useTranslation('stock');
+  const navigate = useNavigate();
   const twoStep = useIsTwoStep();
   const transfers = useStockTransfers(undefined, twoStep);
   const proof = useProofStatus('outstanding');
@@ -46,7 +47,7 @@ const StockTransfers: React.FC = () => {
         : transfers.isError ? <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void transfers.refetch()} />
         : rows.length === 0 ? <ListState variant="empty" icon="folder" title={t('transfers.empty.title')} sub={t('transfers.empty.sub')} />
         : <DataTable<StockTransfer> rows={groups.flatMap((g) => g.items)} columns={columns} rowKey={(r) => r.id} tableId="stock-transfers" accessibleName={t('transfers.title')}
-            rowHref={(r) => `/stock/transfers/${r.id}`} rowLabel={(r) => r.number} cardValuesEnd
+            rowHref={(r) => `/stock/transfers/${r.id}`} onActivate={(r) => navigate(`/stock/transfers/${r.id}`)} rowLabel={(r) => r.number} cardValuesEnd
             groupBy={(r) => groupOf(r)} groupHeaderSpan groupOrder={['inTransit', 'short', 'closed']} groupLabel={(key) => <>{t(`transfers.groups.${key}`)}<span className="ml-2 font-normal text-muted-foreground">{groups.find((g) => g.key === key)?.items.length}</span></>} />}
     </div>
   );
