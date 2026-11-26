@@ -1,12 +1,13 @@
 // @e2e-isolation: self-isolated — unique item and locations per run; the posted stock ledger is append-only, so every code carries a per-run suffix.
 /**
- * JOB-F10 — proof of handover photos (#2523). The material person moves stock to a site location and attaches a photo of the
+ * JOB-F10 — proof of handover photos (#2523). The storekeeper (material control) moves stock to a site location and attaches a photo of the
  * handover before posting.
  * Goal oracle: after reload the posted transfer shows the photo among its attachments.
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
-import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
+import { roleJobUser } from './support/roleJobUser';
+import { runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
+import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
 import { chooseItem, whLabel } from './support/stockUi';
 
 test.setTimeout(180_000);
@@ -19,8 +20,12 @@ test('JOB-F10 a handover photo attached to a transfer stays on the posted record
   const central = await makeWarehouse(admin, sfx, 'CEN', 'central');
   const site = await makeWarehouse(admin, sfx, 'SITE', 'site');
   await postReceive(admin, central.id, item.id, '10');
+  // The storekeeper does the handover; an Admin names them keeper of both locations.
+  const keeper = await roleJobUser(serviceClient('JOB-F10'), 'storekeeper', runId('f10-sk'));
+  try {
+  for (const wh of [central, site]) await keeperOf(admin, wh.id, keeper.id);
 
-  await signIn(page, 'admin@acme.test');
+  await keeper.signIn(page);
   await page.goto('/stock/new/transfer');
   await page.getByLabel('From warehouse').selectOption({ label: whLabel(central) });
   await page.getByLabel('To warehouse').selectOption({ label: whLabel(site) });
@@ -41,4 +46,9 @@ test('JOB-F10 a handover photo attached to a transfer stays on the posted record
   await page.reload();
   await page.getByRole('button', { name: 'Attachments', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Unloading photo', exact: true })).toBeVisible({ timeout: 20_000 });
+  } finally {
+    const own = `select id from stock_documents where created_by = '${keeper.id}'`;
+    sqlAsOwner(`delete from stock_ledger where document_id in (${own}); delete from stock_document_lines where document_id in (${own}); delete from stock_documents where created_by = '${keeper.id}'; delete from stock_warehouse_keepers where user_id = '${keeper.id}';`);
+    await keeper.cleanup();
+  }
 });
