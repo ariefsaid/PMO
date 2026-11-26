@@ -25,8 +25,8 @@ export function SettingsGroup({ id, title, children }: { id: string; title: stri
           'min-w-0 divide-y divide-border px-4 sm:px-6',
           // every setting: same vertical rhythm, no margin or divider of its own
           '[&>*]:py-6 [&>*]:mt-0 [&>*:first-child]:pt-4',
-          // a setting's own heading sits one step below the group title
-          '[&_h2]:text-control [&_h2]:font-semibold [&_h2]:tracking-normal',
+          // a setting's own heading (and a list heading inside it) sits one step below the group title
+          '[&_h2]:text-control [&_h2]:font-semibold [&_h2]:tracking-normal [&_h3]:text-control [&_h3]:font-semibold [&_h3]:tracking-normal',
         ].join(' ')}
       >
         {children}
