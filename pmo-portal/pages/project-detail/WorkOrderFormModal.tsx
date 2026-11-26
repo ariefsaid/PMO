@@ -231,7 +231,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
         const value = parseMoneyInputAtScale(values.orderValue, 2);
         const tax = taxFields.facts;
         if (value === null || tax === null) return;
-        await onCreate?.({
+        const input: WorkOrderInput = {
           title: values.title.trim(),
           clientPoNumber: blankToNull(values.clientPoNumber),
           description: blankToNull(values.description),
@@ -244,7 +244,9 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           endDate: blankToNull(values.endDate),
           ...(showAreas ? { areaId: blankToNull(values.areaId) } : {}),
           ...(showGroups ? { groupId: blankToNull(values.groupId) } : {}),
-        }, values.projectId);
+        };
+        if (needsProject) await onCreate?.(input, values.projectId);
+        else await onCreate?.(input);
       } catch (err) {
         const { headline, detail } = classifyMutationError(err);
         setSaveError({ headline, detail });
