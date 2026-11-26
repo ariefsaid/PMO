@@ -120,7 +120,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         ? { label: t('projectDetail.cascade.openDraftOrder', 'Open draft order'), to: `/projects/${encodeURIComponent(project.id)}/contract?wo=${encodeURIComponent(draftOrder.id)}` }
         : undefined
       : may('create', 'workOrder')
-        ? { label: t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order'), to: `/projects/${encodeURIComponent(project.id)}/contract#add-customer-order` }
+        ? { label: t('projectDetail.workOrderForm.newTitle', 'New work order'), to: `/projects/${encodeURIComponent(project.id)}/orders` }
         : undefined
     : undefined;
   const allocationOrder = !hasAllocatedLines

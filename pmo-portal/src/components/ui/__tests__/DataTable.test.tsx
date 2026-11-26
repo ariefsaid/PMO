@@ -544,8 +544,9 @@ describe('DataTable', () => {
     const stickyCells = [...container.querySelectorAll('th.sticky, td.sticky')];
     expect(stickyCells.length).toBeGreaterThan(5);
     for (const cell of stickyCells) {
-      // These semantic roles are opaque in both themes; alpha backgrounds allow scrolled text through.
-      expect(cell.className).toMatch(/(?:^|\s)bg-(?:surface-table-head|card|surface-selected|secondary)(?:\s|$)/);
+      // These semantic roles are opaque in both themes; alpha backgrounds allow scrolled text through. The
+      // row-actions cell paints its cover only while content runs under it (the `data-dt-overflowing` variant).
+      expect(cell.className).toMatch(/(?:^|\s)(?:\[\[data-dt-overflowing\]_&\]:)?bg-(?:surface-table-head|card|surface-selected|secondary)(?:\s|$)/);
     }
   });
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog, ListState, RecordHeader, RecordStack, SelectField, StatusPill, Tabs, tabId, tabPanelId, useToast } from '@/src/components/ui';
+import { ConfirmDialog, ListState, RecordHeader, RecordSection, RecordStack, SelectField, StatusPill, Tabs, tabId, tabPanelId, useToast } from '@/src/components/ui';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -21,7 +21,7 @@ import { useOperationalWaitingRoute, operationalWaitingForText } from '@/src/hoo
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
-import { formatCurrency, formatNumberExact } from '@/src/lib/format';
+import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { WorkOrderSupplyWarning } from '@/src/components/SupplyRiskWarning';
 import { ScopeSection } from './work-order-detail/ScopeSection';
 import { CostSection } from './work-order-detail/CostSection';
@@ -57,6 +57,7 @@ import { isMicrosoftFolder } from './project-detail/tabs/documentUtils';
 import { WorkOrderStockBalance } from './stock/WorkOrderStockBalance';
 import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
 import { WorkOrderChecksSection } from './work-order-detail/WorkOrderChecksSection';
+import { AreaHelpButton, AreaHelpProvider, AreaNotes } from './work-order-detail/AreaHelp';
 import { useWorkOrderDecision } from './work-order-detail/WorkOrderDecision';
 
 /**
@@ -205,9 +206,9 @@ const WorkOrderDetail: React.FC = () => {
         primaryAction={decision.primaryAction}
         menuItems={decision.menuItems.length > 0 ? decision.menuItems : undefined}
         stats={[
-          { label: t('project', 'Project'), value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
+          { label: t('project', 'Project'), title: project.data?.name, value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
-          { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
+          { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatTableMoney(row.order_value ?? 0, row.currency ?? '') ?? '—'}</span> },
           // How far it has got, value-weighted over its contract lines (the scope area lists each line).
           ...(progress?.overallPercent != null ? [{ label: t('complete', 'Complete'), value: <span className="tabular-nums" data-testid="wo-complete">{`${formatNumberExact(Math.round(progress.overallPercent * 10) / 10)}%`}</span> }] : []),
         ]} />
@@ -233,14 +234,22 @@ const WorkOrderDetail: React.FC = () => {
       <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
-      <div data-testid="wo-area-select" className="mt-6 mb-4 md:hidden">
-        <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
-          options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full" />
+      <AreaHelpProvider>{(help, notes) => (<>
+      <div data-testid="wo-area-select" className="mt-6 mb-4 flex items-center gap-2 md:hidden">
+        <div className="min-w-0 flex-1">
+          <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
+            options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full" />
+        </div>
+        <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
-      <div data-testid="wo-area-tabs" className="mt-6 hidden md:block">
-        <Tabs<Area> items={tabItems} value={area} onChange={setArea} ariaLabel={areasLabel} idBase="wo" insetFirstTab="panel" className="mb-0! pr-8" />
+      <div data-testid="wo-area-tabs" className="mt-6 hidden items-center border-b border-border md:flex">
+        <div className="min-w-0 flex-1">
+          <Tabs<Area> items={tabItems} value={area} onChange={setArea} ariaLabel={areasLabel} idBase="wo" insetFirstTab="panel" className="mb-0! border-b-0! pr-8" />
+        </div>
+        <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
       <div role="tabpanel" id={tabPanelId('wo', area)} aria-labelledby={tabId('wo', area)} data-testid={`wo-area-${area}`} className="pt-4 md:pt-6">
+        <AreaNotes notes={notes} />
         <RecordStack>
           {area === 'scope' && <>
             <SiteCheckpointFlag workOrderId={row.id} />
@@ -261,7 +270,7 @@ const WorkOrderDetail: React.FC = () => {
             <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
             <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
             {/* #2672: the daily target view; same switch and role gate as the plan above. */}
-            <DailyTargetGate workOrderId={row.id} />
+            <DailyTargetGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} costGroups={groups} />
           </>}
           {area === 'billing' && <>
             <BillingSection contractHref={canBilling ? `/projects/${row.project_id}/contract?wo=${row.id}` : null} billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
@@ -302,7 +311,13 @@ const WorkOrderDetail: React.FC = () => {
           </>}
           {area === 'material' && <>
             {/* #2885: quantities for the stock roles, who have no Contract area; value shows only where the server sends it. */}
-            {stockOn && <div className="space-y-2"><h3 className="text-control font-medium">{t('stock:siteWork.balance.open', 'Stock for this work order')}</h3><WorkOrderStockBalance workOrderId={row.id} currency={row.currency} /></div>}
+            {/* What is on site for it, framed like its siblings: the table flush to the panel, a message or link on the inset. */}
+            {stockOn && (
+              <RecordSection title={t('stock:siteWork.balance.open', 'Stock for this work order')} flush data-testid="wo-stock"
+                bodyClassName="pb-[var(--panel-inset)] [&>section>p]:px-[var(--panel-inset)]">
+                <WorkOrderStockBalance workOrderId={row.id} currency={row.currency} />
+              </RecordSection>
+            )}
             {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
             {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
           </>}
@@ -334,6 +349,7 @@ const WorkOrderDetail: React.FC = () => {
           </>}
         </RecordStack>
       </div>
+      </>)}</AreaHelpProvider>
     </>
   );
 };

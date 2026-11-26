@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 import { keeperOf, makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, SEED_PROJECT_ID, SEED_PROJECT_NAME, userClient } from './support/stockFixture';
+import { onHandCell } from './support/stockUi';
 
 test.setTimeout(120_000);
 
@@ -34,8 +35,7 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
   // Then 1: the warehouse shows 70
   await page.goto('/stock');
   await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${wh.code} - ${wh.name}` });
-  const balance = page.getByRole('row', { name: new RegExp(item.code) });
-  await expect(balance.getByRole('cell', { name: /^70\s+\S+$/ }), 'the warehouse shows exactly 70 of that item').toBeVisible();
+  await expect(await onHandCell(page, item.code), 'the warehouse shows exactly 70 of that item').toHaveText(/^70\s+\S+$/);
 
   // Then 2: the trace names the actor, the project and the work item
   await page.goto(`/stock/ledger?item=${item.id}`);

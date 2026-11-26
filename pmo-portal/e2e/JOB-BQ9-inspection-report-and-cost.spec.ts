@@ -7,6 +7,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { createJobRoleUser } from './support/jobRoleUser';
 import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
 import { openWorkOrderArea } from './support/workOrderArea';
@@ -41,11 +42,11 @@ test('JOB-BQ9 a quality inspector records the test, attaches its report and the 
     purchase = await createProcurementFixture({ status: 'Approved', title: run, projectId, requestedBy: finance.id, withSupplier: true, rate: 12_000 });
     ok('purchase order', await db.from('purchase_orders').insert({
       procurement_id: purchase.id, org_id: ORG_ID, work_order_id: workOrderId, status: 'Issued',
-      po_number: `PO-${run}`, date: new Date().toISOString().slice(0, 10), amount: 12_000, currency: 'USD',
+      po_number: `PO-${run}`, date: orgToday(), amount: 12_000, currency: 'USD',
     }));
     inspectionId = need('inspection', await db.from('third_party_inspections').insert({
       org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, title: `${run} weld test`, test_kind: 'Radiography',
-      planned_date: new Date().toISOString().slice(0, 10), required_for: ['billing'], status: 'purchase_raised',
+      planned_date: orgToday(), required_for: ['billing'], status: 'purchase_raised',
       procurement_id: purchase.id, estimate: 12_000, estimate_currency: 'USD',
       created_by: finance.id, purchase_raised_at: new Date().toISOString(), purchase_raised_by: finance.id,
     }).select('id').single()).id as string;

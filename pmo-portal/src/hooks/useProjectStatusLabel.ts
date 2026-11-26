@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { stageLabelForStatus } from '@/components/procurement';
+import { OPEN_FUNNEL_STAGES } from '@/components/salesPipeline';
+import { orgStageName } from '@/src/lib/status/orgStageNames';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 /**
@@ -24,14 +26,14 @@ export function useProjectStatusLabel(): (status: string) => string {
     Declined: t('projects.status.declined', 'Declined'),
     'Internal Project': t('projects.status.internalProject', 'Internal Project'),
   };
-  return (status) => labels[status] ?? status;
+  return (status) => orgStageName(status) ?? labels[status] ?? status;
 }
 
 /**
  * Display title of a Sales-board column, keyed by its `testId`. Won reuses the Projects board's key
  * so both boards say the same word. English defaults are the columns' own titles.
  */
-export function useSalesStageLabel(): (col: { title: string; testId: string }) => string {
+export function useSalesStageLabel(): (col: { title: string; testId: string; statuses: readonly string[] }) => string {
   const { t } = useTranslation();
   const { t: tStatus } = useTranslation('status');
   const labels: Record<string, string> = {
@@ -44,7 +46,11 @@ export function useSalesStageLabel(): (col: { title: string; testId: string }) =
     'stage-Won': t('projects.kanban.won', 'Won'),
     'stage-Lost': t('sales.stage.lost', 'Lost'),
   };
-  return (col) => labels[col.testId] ?? col.title;
+  // A column that is one open pipeline stage takes that stage's organisation name; Won and Lost are groups (#2906).
+  return (col) => {
+    const stage = col.statuses.length === 1 && (OPEN_FUNNEL_STAGES as readonly string[]).includes(col.statuses[0]) ? col.statuses[0] : undefined;
+    return (stage ? orgStageName(stage) : undefined) ?? labels[col.testId] ?? col.title;
+  };
 }
 
 /** Display the shared full purchasing-state noun without changing its stored enum. */

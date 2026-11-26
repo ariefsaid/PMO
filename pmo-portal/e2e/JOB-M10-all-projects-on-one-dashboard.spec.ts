@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ok, ORG_ID, runId, serviceClient } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(120_000);
@@ -43,7 +44,7 @@ test('JOB-M10 the Executive sees both contracts with their value, billed and lef
     projectIds.push(project.data.id as string);
     const invoice = await admin.from('sales_invoices').insert({
       org_id: ORG_ID, project_id: project.data.id, amount: c.billed, currency: 'USD', tax_treatment: 'exclusive',
-      tax_amount: 0, status: 'Unpaid', invoice_date: new Date().toISOString().slice(0, 10), si_number: `SI-${c.name}`,
+      tax_amount: 0, status: 'Unpaid', invoice_date: orgToday(), si_number: `SI-${c.name}`,
     }).select('id').single();
     if (invoice.error) throw new Error('invoice: ' + invoice.error.message);
     invoiceIds.push(invoice.data.id as string);

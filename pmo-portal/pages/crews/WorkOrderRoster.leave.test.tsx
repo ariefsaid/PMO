@@ -33,7 +33,7 @@ describe('roster leave marker (#2708)', () => {
     open();
     const crew = screen.getByRole('region', { name: /Crew one/ });
     expect(within(crew).getAllByText('On leave')).toHaveLength(1);
-    expect(within(within(crew).getByText('Ana').closest('li')!).getByText('On leave')).toBeInTheDocument();
+    expect(within(within(crew).getByText('Ana').closest('tr')!).getByText('On leave')).toBeInTheDocument();
   });
   it('AC-LV-014 with no leave the roster shows no marker', () => {
     open();

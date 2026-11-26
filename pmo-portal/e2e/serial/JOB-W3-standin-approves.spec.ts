@@ -3,6 +3,7 @@
  *  request moves on to construction, and the history shows the stand-in approved for the engineer. */
 import { test, expect } from '@playwright/test';
 import { need, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
+import { inDays, orgToday } from '../support/jobJourney';
 import { clearStandIns, mrqSetup, submittedRequest } from '../support/mrqJobFixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { userClient } from '../support/stockFixture';
@@ -28,8 +29,8 @@ test('JOB-W3 a named stand-in approves the engineer step and the history shows w
     const requestId = await submittedRequest('engineer@acme.test', wo.id, item.id);
     // Other requests may wait at an engineer step too (any engineer is eligible): this run's own row is the one that names its number.
     const number = need('request number', await admin.from('material_requests').select('number').eq('id', requestId).single()).number as string;
-    const today = new Date().toISOString().slice(0, 10);
-    const until = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const today = orgToday();
+    const until = inDays(7);
     const set = await admin.rpc('mrq_set_stand_in', { p_delegator_id: engineer.id, p_stand_in_id: standIn.id, p_starts_on: today, p_ends_on: until });
     if (set.error) throw new Error(set.error.message);
 

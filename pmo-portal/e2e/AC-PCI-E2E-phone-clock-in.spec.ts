@@ -15,6 +15,7 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -127,8 +128,7 @@ test.beforeEach(async () => {
     crewId = need('crew', await admin.from('crews').insert({
       org_id: ORG_ID, code: `PCI-${suffix.slice(0, 8)}`, name: `${run} crew`, kind: 'own',
     }).select('id').single()).id;
-    const from = new Date(); from.setDate(from.getDate() - 2);
-    const day = from.toISOString().slice(0, 10);
+    const day = inDays(-2); // rostered two days back by the organisation's clock (clock-in times below are instants, not days)
     need('member', await admin.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: personId, valid_from: day }).select('id').single());
     need('roster', await admin.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: day }).select('id').single());
   } catch (error) {
@@ -182,7 +182,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
     await expect(adminPage).toHaveURL(/\/crews/);
     await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
     // The decision is made on this run's own request, not on whatever else the organisation happens to be waiting for.
-    const request = adminPage.getByRole('listitem').filter({ hasText: `${run} slab` });
+    const request = adminPage.getByRole('row').filter({ hasText: `${run} slab` });
     // The area they judge against is on the request.
     await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
     // First decision: refuse with a reason; the worker sees the reason and can try again.

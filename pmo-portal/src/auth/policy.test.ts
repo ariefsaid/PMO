@@ -685,6 +685,7 @@ describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement au
 
 it('AC-TAG-001 project classification option administration is Admin-only', () => {
   expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
+  expect(allowedRoles('manage', 'orgStageNames')).toEqual(['Admin']);
 });
 
 it('AC-TWM-015 a bill\'s match is read by Admin, Executive, Project Manager and Finance; only Admin and Finance approve an exception', () => {

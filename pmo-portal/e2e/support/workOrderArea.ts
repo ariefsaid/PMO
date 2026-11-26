@@ -13,3 +13,14 @@ export async function openWorkOrderArea(page: Page, area: WorkOrderArea): Promis
   else await picker.selectOption(area);
   await expect(page.getByTestId(`wo-area-${area}`)).toBeVisible();
 }
+
+/**
+ * A billing step or close-out item row is for scanning; what changes it opens in a right drawer (#1126). A journey opens it
+ * the way a person does, by the row's Update button, and works inside the drawer it returns.
+ */
+export async function openRowUpdate(page: Page, name: string) {
+  await page.getByRole('button', { name: `Update ${name}` }).click();
+  const drawer = page.getByRole('dialog', { name });
+  await expect(drawer).toBeVisible();
+  return drawer;
+}

@@ -4,7 +4,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
-import { formatExactMoney } from '../../src/lib/format';
+import { formatTableMoney } from '../../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 import { openWorkOrderArea } from '../support/workOrderArea';
 
@@ -75,7 +75,7 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await page.locator('#wrp-month').selectOption({ index: 5 });
     await page.locator('#wrp-amount').fill('1000.00');
     await page.getByRole('button', { name: 'Save plan', exact: true }).click();
-    const expectedPlan = formatExactMoney('1000.00', 'EUR', 'en-US') ?? 'unformattable';
+    const expectedPlan = formatTableMoney('1000.00', 'EUR') ?? 'unformattable';
     await expect(section.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);
     await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(expectedPlan + ' behind plan');
     await shots(page, section, 'work-order-revenue-plan');

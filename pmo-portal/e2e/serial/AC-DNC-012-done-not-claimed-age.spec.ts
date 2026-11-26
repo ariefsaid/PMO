@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -53,7 +54,7 @@ test.beforeEach(async () => {
   }).select('id').single()).id;
   must('order line', await db.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: boqId, quantity: 20 }).select('work_order_id').single());
   acceptanceId = must('acceptance', await db.from('work_order_acceptances').insert({
-    org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10), is_final: false, status: 'Confirmed',
+    org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: inDays(-10), is_final: false, status: 'Confirmed',
     prepared_by: finance.id, confirmed_by: finance.id, confirmed_at: new Date(Date.now() - 10 * 86_400_000).toISOString(), confirm_basis: 'standard',
   }).select('id').single()).id;
   must('acceptance line', await db.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: boqId, quantity: 12 }).select('acceptance_id').single());

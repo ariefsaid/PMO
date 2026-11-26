@@ -2906,7 +2906,7 @@
         "treatmentRequired": "Choose whether the order value already includes tax",
         "value": "Enter the order value as a non-negative amount with at most 2 decimal places"
       },
-      "newSubtitle": "Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.",
+      "newSubtitle": "Record the client’s purchase order against the project’s contract. It starts as a draft and draws down the contract only once it is issued.",
       "newTitle": "New work order",
       "orderDate": "Order date",
       "orderValue": "Order value",

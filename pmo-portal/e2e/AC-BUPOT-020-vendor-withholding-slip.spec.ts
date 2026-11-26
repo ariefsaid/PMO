@@ -11,6 +11,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../src/lib/supabase/database.types';
 import { login, requireServiceRoleKey } from './helpers';
+import { inDays, orgToday } from './support/jobJourney';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -39,8 +40,8 @@ async function seed(admin: ReturnType<typeof createClient<Database>>) {
   const { error: caseError } = await admin.from('procurements').insert(cases);
   if (caseError) throw new Error(`case fixtures failed: ${caseError.message}`);
   const bills = [
-    { id: ids.billA, org_id: ORG_ID, procurement_id: ids.caseA, vi_number: viA, invoice_date: new Date().toISOString().slice(0, 10), status: 'Paid' as const, amount: 100000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 20000, withheld_pph_type: 'pph23' },
-    { id: ids.billB, org_id: ORG_ID, procurement_id: ids.caseB, vi_number: viB, invoice_date: new Date().toISOString().slice(0, 10), status: 'Paid' as const, amount: 150000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 30000, withheld_pph_type: 'pph23' },
+    { id: ids.billA, org_id: ORG_ID, procurement_id: ids.caseA, vi_number: viA, invoice_date: orgToday(), status: 'Paid' as const, amount: 100000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 20000, withheld_pph_type: 'pph23' },
+    { id: ids.billB, org_id: ORG_ID, procurement_id: ids.caseB, vi_number: viB, invoice_date: orgToday(), status: 'Paid' as const, amount: 150000, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0, withheld_amount: 30000, withheld_pph_type: 'pph23' },
   ];
   const { error: billError } = await admin.from('procurement_invoices').insert(bills);
   if (billError) throw new Error(`bill fixtures failed: ${billError.message}`);
@@ -164,7 +165,7 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
 
     await page.getByRole('button', { name: localized('Correct metadata', 'Koreksi metadata') }).click();
     const correction = page.getByRole('dialog');
-    const correctedDate = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const correctedDate = inDays(-1);
     await correction.getByLabel(localized('Slip date', 'Tanggal slip')).fill(correctedDate);
     await correction.getByLabel(localized('Correction reason', 'Alasan koreksi')).fill('Corrected to match issued document');
     await correction.getByRole('button', { name: localized('Save changes', 'Simpan perubahan') }).click();

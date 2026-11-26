@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { signIn } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { mrqSetup } from '../support/mrqJobFixture';
 import { serviceClient } from '../support/jobFixtures';
 import { SEED_PROJECT_ID, SEED_PROJECT_NAME, keeperOf, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
@@ -42,14 +43,23 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   await form.getByLabel('Quantity').fill('8');
   await form.getByRole('button', { name: 'Reserve', exact: true }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByText('2 free + 8 reserved').first()).toBeVisible();
+  // Free and reserved read from their own columns of the item's row.
+  const freeReserved = async (free: number, reserved: number, timeout = 5_000) => {
+    const table = page.getByRole('table', { name: 'Stock' });
+    const headers = await table.getByRole('columnheader').allInnerTexts();
+    const row = table.getByRole('row').filter({ hasText: item.code }).first();
+    const cellAt = (name: string) => row.locator('th, td').nth(headers.findIndex((h) => h.trim() === name));
+    await expect(cellAt('Free')).toHaveText(new RegExp(`^${free}\\b`), { timeout });
+    await expect(cellAt('Reserved')).toHaveText(new RegExp(`^${reserved}\\b`), { timeout });
+  };
+  await freeReserved(2, 8);
   await page.getByRole('button', { name: 'Show work order' }).first().click();
   await expect(page.getByRole('link', { name: new RegExp(wo.wo_number) }).first()).toBeVisible();
 
   // The second work order asks for 5: 2 are free, 3 are borrowed.
   const engineer = await userClient('engineer@acme.test');
   const saved = await engineer.rpc('mrq_save_draft', {
-    p_request_id: null, p_header: { work_order_id: other.data.id, needed_by: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10), to_warehouse_id: dest.data.id, note: null },
+    p_request_id: null, p_header: { work_order_id: other.data.id, needed_by: inDays(3), to_warehouse_id: dest.data.id, note: null },
     p_lines: [{ item_id: item.id, quantity: '5', over_plan_reason: 'RSV journey' }], p_client_request_id: randomUUID(),
   });
   if (saved.error) throw new Error('draft: ' + saved.error.message);
@@ -74,5 +84,5 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   await signIn(page, 'engineer@acme.test');
   await page.goto('/stock');
   await page.getByRole('searchbox').fill(item.code);
-  await expect(page.getByText('5 free + 5 reserved').first()).toBeVisible({ timeout: 15_000 });
+  await freeReserved(5, 5, 15_000);
 });

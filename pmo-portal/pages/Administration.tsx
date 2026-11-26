@@ -1,4 +1,5 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
+import OrgStageNames from './admin/OrgStageNames';
 import CostDisciplines from './admin/CostDisciplines';
 import WorkOrderLists from './admin/WorkOrderLists';
 import React, { useContext, useEffect } from 'react';
@@ -462,6 +463,7 @@ const SelectedAdministrationPanel: React.FC<{
             <SettingsGroup id="projects-numbering" title={settingsGroupLabel(t, 'projects-numbering')}>
               <OrgProjectNumberPattern />
               <OrgProjectClassificationOptions />
+              <OrgStageNames />
               <CostDisciplines />
             </SettingsGroup>
             <SettingsGroup id="projects-site" title={settingsGroupLabel(t, 'projects-site')}>

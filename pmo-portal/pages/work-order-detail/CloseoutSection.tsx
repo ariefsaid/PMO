@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui/Button';
 import { DateField } from '@/src/components/ui/DateField';
 import { SelectField } from '@/src/components/ui/FormFields';
-import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
+import { Drawer, ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCloseoutItemMutations, useWorkOrderCloser, useWorkOrderCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
@@ -55,6 +55,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [doneOn, setDoneOn] = useState(today);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const ownerOptions = useJobRoleOptions(t('admin.noOwner', 'No owner job role'));
   const title = t('title', 'Close-out checklist');
@@ -85,7 +86,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
   };
   const complete = async (itemId: string) => {
     setRefusal(null);
-    try { await completeItem.mutateAsync({ itemId, doneOn }); } catch (err) { explain(err); }
+    try { await completeItem.mutateAsync({ itemId, doneOn }); setOpenId(null); } catch (err) { explain(err); }
   };
 
   // Walk F12-2: the picker offers any issued project document; this names where those documents live and opens it.
@@ -102,12 +103,17 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
         ? t('remaining', 'Required items not done: {{count}}. This work order closes only when every required item is done.', { count: remaining })
         : t('complete', 'Every required item is done. This work order can be closed.')}
     </p>
-    {refusal && <p role="alert" className="mt-2 text-control text-destructive">{refusal}</p>}
+    {refusal && !openId && <p role="alert" className="mt-2 text-control text-destructive">{refusal}</p>}
     <ol aria-label={title} className="mt-3 divide-y divide-border" data-testid="closeout-items">
       {items.map((item, index) => {
         const age = closeoutItemAgeDays(item, today);
         const isCurrent = closeoutItemActionable(items, index);
         const overdue = isChecklistItemOverdue({ dueOn: item.dueOn, done: item.doneOn !== null }, today);
+        const canOwner = !viewOnly && !item.doneOn && status === 'Issued' && may('edit', 'closeoutChecklist');
+        const canAttach = canRecord(item) && !item.doneOn && !item.documentId;
+        const canDone = isCurrent && canRecord(item) && Boolean(item.documentId);
+        const isOpen = openId === item.id;
+        // The row is for scanning (which item, how old, due, done, its document); what changes it opens on the right.
         return <li key={item.id} aria-label={item.name} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">
@@ -128,37 +134,44 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
                   ? t('done', 'Done {{date}}', { date: formatIsoDay(item.doneOn) })
                   : isCurrent ? t('current', 'Current') : t('waiting', 'Waiting')}
               </StatusPill>
+              {(canOwner || canAttach || canDone) && <Button variant={canDone ? 'primary' : 'outline'} size="sm" aria-haspopup="dialog"
+                aria-label={t('updateNamed', 'Update {{item}}', { item: item.name })} onClick={() => { setRefusal(null); setOpenId(item.id); }}>{t('update', 'Update')}</Button>}
             </span>
           </div>
-          {!viewOnly && !item.doneOn && status === 'Issued' && may('edit', 'closeoutChecklist') && <div className="mt-2">
-            <SelectField label={t('admin.owner', 'Owner job role')} value={item.ownerJobRole ?? ''} options={ownerOptions}
-              onChange={(ownerRole) => { setRefusal(null); void assignOwner.mutateAsync({ itemId: item.id, ownerRole }).catch(explain); }} />
-          </div>}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-control">
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-control">
             {item.documentId
               ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(item.documentId)}`}
                   className="font-medium text-primary-text hover:underline">{titleOf(item.documentId)}</Link>
-              : canRecord(item) && !item.doneOn
-                ? <span className="flex items-center gap-2">
+              : <span className="text-muted-foreground">{t('notAttached', 'No document attached')}</span>}
+            {item.doneOn && item.doneByName && <span className="text-muted-foreground">{t('doneBy', 'Marked done by {{name}}', { name: item.doneByName })}</span>}
+          </div>
+          {isOpen && <Drawer open title={item.name} onClose={() => setOpenId(null)}>
+            <div className="flex flex-col gap-5">
+              {canOwner && <SelectField label={t('admin.owner', 'Owner job role')} value={item.ownerJobRole ?? ''} options={ownerOptions}
+                onChange={(ownerRole) => { setRefusal(null); void assignOwner.mutateAsync({ itemId: item.id, ownerRole }).catch(explain); }} />}
+              {item.documentId
+                ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(item.documentId)}`}
+                    className="text-control font-medium text-primary-text hover:underline">{titleOf(item.documentId)}</Link>
+                : canAttach && <span className="flex items-center gap-2">
                     <SelectField compact inline hideLabel
                       label={t('pickFor', 'Document for {{item}}', { item: item.name })}
                       placeholder={t('pick', 'Choose a project document')}
                       value={picked[item.id] ?? ''}
                       onChange={(v) => setPicked((p) => ({ ...p, [item.id]: v }))}
-                      options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} />
+                      options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} className="min-w-0 flex-1" />
                     <Button variant="outline" size="sm" disabled={!picked[item.id] || attachDocument.isPending}
                       aria-label={t('attachTo', 'Attach to {{item}}', { item: item.name })}
                       onClick={() => void attach(item.id)}>{t('attach', 'Attach')}</Button>
-                  </span>
-                : <span className="text-muted-foreground">{t('notAttached', 'No document attached')}</span>}
-            {item.doneOn && item.doneByName && <span className="text-muted-foreground">{t('doneBy', 'Marked done by {{name}}', { name: item.doneByName })}</span>}
-          </div>
-          {isCurrent && canRecord(item) && item.documentId && <div className="mt-3 flex flex-wrap items-end gap-3">
-            <DateField compact label={t('doneOn', 'Done on')} value={doneOn} max={today} onChange={setDoneOn} />
-            <Button variant="primary" size="sm" disabled={completeItem.isPending}
-              aria-label={t('markDoneNamed', 'Mark {{item}} done', { item: item.name })}
-              onClick={() => void complete(item.id)}>{t('markDone', 'Mark done')}</Button>
-          </div>}
+                  </span>}
+              {canDone && <div className="flex flex-col gap-3 border-t border-border pt-4">
+                <DateField label={t('doneOn', 'Done on')} value={doneOn} max={today} onChange={setDoneOn} />
+                <div><Button variant="primary" size="sm" disabled={completeItem.isPending}
+                  aria-label={t('markDoneNamed', 'Mark {{item}} done', { item: item.name })}
+                  onClick={() => void complete(item.id)}>{t('markDone', 'Mark done')}</Button></div>
+              </div>}
+              {refusal && <p role="alert" className="text-control text-destructive">{refusal}</p>}
+            </div>
+          </Drawer>}
         </li>;
       })}
     </ol>

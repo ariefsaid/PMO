@@ -5,8 +5,9 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -46,7 +47,7 @@ test('AC-WBS-012 a work order\'s billing steps advance in order and appear on th
       issued_at: new Date().toISOString(), order_value: 500_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'EUR',
     });
     if (wo.error) throw new Error('AC-WBS-012 fixture work order: ' + wo.error.message);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = orgToday();
     const steps = await admin.from('work_order_billing_steps').insert([
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 1, name: 'First ' + suffix, owner_role_key: 'billing_officer', target_days: 5, started_on: today },
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 2, name: 'Second ' + suffix, owner_role_key: 'finance_officer' },
@@ -69,6 +70,7 @@ test('AC-WBS-012 a work order\'s billing steps advance in order and appear on th
     await page.goto('/work-orders/' + workOrderId);
     await openWorkOrderArea(page, 'billing');
     await expect(page.getByTestId('wo-billing-steps-summary')).toContainText('2 steps not finished');
+    await openRowUpdate(page, 'First ' + suffix);
     await expect(page.getByRole('button', { name: 'Mark First ' + suffix + ' done' })).toBeDisabled();
     await page.getByRole('combobox', { name: 'Document for Evidence slot ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Evidence slot ' + suffix }).click();
@@ -76,6 +78,7 @@ test('AC-WBS-012 a work order\'s billing steps advance in order and appear on th
     await expect(page.getByTestId('wo-billing-steps-summary')).toContainText('1 step not finished');
 
     // The next step is now current for its owner; the board lists the same rows.
+    await openRowUpdate(page, 'Second ' + suffix);
     await expect(page.getByRole('button', { name: 'Mark Second ' + suffix + ' done' })).toBeEnabled();
     await page.goto('/finance/billing-board?project=' + projectId);
     await expect(page.getByTestId('billing-board-wo-steps')).toContainText('Second ' + suffix);

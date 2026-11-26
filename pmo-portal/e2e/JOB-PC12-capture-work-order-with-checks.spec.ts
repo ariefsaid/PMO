@@ -24,7 +24,7 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
   const pm = await roleJobUser(svc, 'project_manager', `${run}-pm`);
   const owners = [
     { user: await roleJobUser(svc, 'engineer', `${run}-eng`), name: `${run}-eng`, check: `${run} drawings and scope checked` },
-    { user: await roleJobUser(svc, 'material_coordinator', `${run}-mat`), name: `${run}-mat`, check: `${run} material availability checked` },
+    { user: await roleJobUser(svc, 'storekeeper', `${run}-mat`), name: `${run}-mat`, check: `${run} material availability checked` },
     { user: await roleJobUser(svc, 'hr_officer', `${run}-hr`), name: `${run}-hr`, check: `${run} crew availability checked` },
   ];
   let projectId = '';
@@ -39,8 +39,8 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
 
     // 1. The issuer captures the client's work order as a Draft, with the client's reference.
     await pcm.signIn(page);
-    await page.goto(`/projects/${projectId}/contract`);
-    await page.getByRole('button', { name: 'Add customer order' }).click();
+    await page.goto(`/projects/${projectId}/orders`);
+    await page.getByRole('button', { name: 'New work order' }).click();
     const form = page.getByRole('dialog');
     await form.getByLabel('Client reference').fill(`${run}/WO/001`);
     await form.getByLabel(/^Title/).fill(`${run} site works`);
@@ -107,8 +107,8 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
 
     // 5. A second captured Draft is cancelled with a reason, and stays readable with it.
     await pcm.signIn(page);
-    await page.goto(`/projects/${projectId}/contract`);
-    await page.getByRole('button', { name: 'Add customer order' }).click();
+    await page.goto(`/projects/${projectId}/orders`);
+    await page.getByRole('button', { name: 'New work order' }).click();
     await form.getByLabel(/^Title/).fill(`${run} withdrawn scope`);
     await form.getByTestId('wo-order-value').fill('1000000');
     await form.getByTestId('wo-tax-treatment').selectOption('exclusive');

@@ -72,17 +72,17 @@ const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string>;
       <CardPad>
         {crew.roles.length > 0 && (
           <table className="mb-4 w-full text-sm">
-            <thead><tr className="text-left text-muted-foreground">
-              <th scope="col" className="py-1 font-normal">{t('crews:roleName', 'Crew role')}</th>
-              <th scope="col" className="py-1 font-normal">{t('crews:placedOf', 'Placed')}</th>
-              <th scope="col" className="py-1 font-normal"><span className="sr-only">{t('crews:shortfall', 'Shortfall')}</span></th>
+            <thead><tr className="border-b border-border text-muted-foreground">
+              <th scope="col" className="py-2 text-left font-normal">{t('crews:roleName', 'Crew role')}</th>
+              <th scope="col" className="w-24 py-2 text-right font-normal">{t('crews:placedOf', 'Placed')}</th>
+              <th scope="col" className="w-24 py-2 text-right font-normal">{t('crews:shortfall', 'Shortfall')}</th>
             </tr></thead>
             <tbody>
               {crew.roles.map((r) => (
-                <tr key={r.standard_role_id} aria-label={r.name}>
-                  <th scope="row" className="py-1 text-left font-normal text-foreground">{r.name}</th>
-                  <td className="py-1 tabular-nums">{t('crews:placedCount', '{{placed}} of {{headcount}}', { placed: r.placed, headcount: r.headcount })}</td>
-                  <td className="py-1 text-right">{r.shortfall > 0 && <span className="text-warning-foreground">{t('crews:short', '{{count}} short', { count: r.shortfall })}</span>}</td>
+                <tr key={r.standard_role_id} aria-label={r.name} className="border-b border-border last:border-b-0">
+                  <th scope="row" className="py-2 text-left font-normal text-foreground">{r.name}</th>
+                  <td className="py-2 text-right tabular-nums text-foreground">{t('crews:placedCount', '{{placed}} of {{headcount}}', { placed: r.placed, headcount: r.headcount })}</td>
+                  <td className="py-2 text-right tabular-nums">{r.shortfall > 0 && <span className="text-warning-foreground">{t('crews:short', '{{count}} short', { count: r.shortfall })}</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -95,18 +95,26 @@ const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string>;
           </p>
         )}
         {crew.members.length === 0 ? <p className="text-sm text-muted-foreground">{t('crews:noMembersDay', 'Nobody is placed in this crew that day')}</p> : (
-          <ul className="divide-y divide-border">
-            {crew.members.map((m) => (
-              <li key={m.worker_id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-foreground">
-                  {m.display_name}
-                  {onLeave.has(m.worker_id) && <StatusPill variant="neutral" className="ml-2">{t('crews:leave.onLeave', 'On leave')}</StatusPill>}
-                  {releaseHolds?.has(m.worker_id) && <StatusPill variant="warn" className="ml-2">{releaseHolds.get(m.worker_id) === 'deferred' ? t('crews:release.status.deferred', 'Release deferred') : t('crews:release.status.pending', 'Release pending')}</StatusPill>}
-                </span>
-                <span className="text-muted-foreground">{roleName(m.standard_role_id) ?? t('crews:roleNotSet', 'Crew role not set')}</span>
-              </li>
-            ))}
-          </ul>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-border text-muted-foreground">
+              <th scope="col" className="py-2 text-left font-normal">{t('crews:person', 'Person')}</th>
+              <th scope="col" className="py-2 text-left font-normal">{t('crews:roleName', 'Crew role')}</th>
+            </tr></thead>
+            <tbody>
+              {crew.members.map((m) => (
+                <tr key={m.worker_id} aria-label={m.display_name} className="border-b border-border last:border-b-0">
+                  <th scope="row" className="py-2 pr-3 text-left font-normal text-foreground">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      {m.display_name}
+                      {onLeave.has(m.worker_id) && <StatusPill variant="neutral">{t('crews:leave.onLeave', 'On leave')}</StatusPill>}
+                      {releaseHolds?.has(m.worker_id) && <StatusPill variant="warn">{releaseHolds.get(m.worker_id) === 'deferred' ? t('crews:release.status.deferred', 'Release deferred') : t('crews:release.status.pending', 'Release pending')}</StatusPill>}
+                    </span>
+                  </th>
+                  <td className="py-2 text-muted-foreground">{roleName(m.standard_role_id) ?? t('crews:roleNotSet', 'Crew role not set')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </CardPad>
     </Card>
@@ -174,18 +182,16 @@ export const WorkOrderRoster: React.FC = () => {
             {rosterAction}
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2">{(roster.data ?? []).map((c) => <RosterCrewCard key={c.crew_id} crew={c} onLeave={onLeave} releaseHolds={releaseHolds} />)}</div>
+          <div className="grid gap-6 xl:grid-cols-2">{(roster.data ?? []).map((c) => <RosterCrewCard key={c.crew_id} crew={c} onLeave={onLeave} releaseHolds={releaseHolds} />)}</div>
         )
       )}
       {workOrderId && (
-        <Card>
+        <Card seam>
           <CardHead actions={rosterAction}>{t('crews:placements', 'Roster placements')}</CardHead>
-          <CardPad>
-            <DataTable<WorkOrderCrewRow> rows={placements.data ?? []} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
+            <DataTable<WorkOrderCrewRow> embedded rows={placements.data ?? []} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
               rowMenu={(p) => (canManage && (!p.valid_to || p.valid_to >= today) ? [{ label: t('crews:endRoster', 'End roster placement'), onClick: () => setEnding(p) }] : [])}
               state={(placements.data ?? []).length === 0 ? 'empty' : undefined}
               emptyTitle={t('crews:noPlacements', 'No crew has been rostered here')} />
-          </CardPad>
         </Card>
       )}
       {rostering && workOrderId && <RosterCrewModal workOrderId={workOrderId} from={date} onClose={() => setRostering(false)} />}

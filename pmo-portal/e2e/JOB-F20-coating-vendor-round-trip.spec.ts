@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — unique item and locations per run; the posted stock ledger is append-only, so every code carries a per-run suffix.
 /**
- * JOB-F20 — coating vendor round trip (#2523). The material coordinator holds the store, so pipe in the warehouse goes to a
+ * JOB-F20 — coating vendor round trip (#2523). The storekeeper holds the store, so pipe in the warehouse goes to a
  * location standing for the coating vendor and later comes back to site.
  * Goal oracle: the item's ledger shows both transfer legs and the vendor location holds zero at the end.
  * Partly built: the QC signature on pickup and the cargo document are not built, so only the two legs and balances are asserted.
@@ -9,21 +9,22 @@ import { test, expect } from '@playwright/test';
 import { runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
-import { expectOnHand, postTransfer } from './support/stockUi';
+import { expectOnHand, onHandCell, postTransfer } from './support/stockUi';
 
 test.setTimeout(180_000);
 
-test('JOB-F20 the material coordinator sends pipe to the coating vendor and back, leaving two ledger legs and zero at the vendor', async ({ page }) => {
+test('JOB-F20 the storekeeper sends pipe to the coating vendor and back, leaving two ledger legs and zero at the vendor', async ({ page }) => {
   const sfx = runSuffix();
   const admin = await userClient('admin@acme.test');
-  const coordinator = await roleJobUser(serviceClient('JOB-F20'), 'material_coordinator', runId('f20-mc'));
+  // Steps 27-28 (manifest, issue to the vendor yard) are the storekeeper's; an Admin names them keeper below.
+  const coordinator = await roleJobUser(serviceClient('JOB-F20'), 'storekeeper', runId('f20-sk'));
   try {
     const item = await makeItem(admin, sfx, 'PIPE');
     const warehouse = await makeWarehouse(admin, sfx, 'WH', 'central');
     const vendor = await makeWarehouse(admin, sfx, 'COAT', 'site');
     const site = await makeWarehouse(admin, sfx, 'SITE', 'site');
     await postReceive(admin, warehouse.id, item.id, '20');
-    // The coordinator keeps the store, as an Admin assigns keepers.
+    // The storekeeper keeps the store, as an Admin assigns keepers.
     for (const wh of [warehouse, vendor, site]) await keeperOf(admin, wh.id, coordinator.id);
 
     await coordinator.signIn(page);
@@ -48,7 +49,7 @@ test('JOB-F20 the material coordinator sends pipe to the coating vendor and back
     const showZero = page.getByRole('checkbox', { name: 'Show zero balances' });
     await showZero.click(); // the control settles its state after the click, so assert it rather than let check() judge it at once
     await expect(showZero).toBeChecked();
-    await expect(page.getByRole('row', { name: new RegExp(item.code) }).getByRole('cell', { name: /^0\s+\S+$/ })).toBeVisible({ timeout: 20_000 });
+    await expect(await onHandCell(page, item.code)).toHaveText(/^0\s+\S+$/, { timeout: 20_000 });
   } finally {
     // The keeper rows an Admin assigned point at the coordinator's profile; remove them before it goes.
     // Its two transfers carry the coordinator as author, so they go first (receipt ledger legs stay: the ledger is append-only by design).

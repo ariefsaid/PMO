@@ -82,6 +82,7 @@ describe('CloseoutSection', () => {
 
   it('AC-WCO-011 Finance marks the current item done with its document and the chosen date', async () => {
     const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Update Item two' }));
     await user.click(screen.getByRole('button', { name: 'Mark Item two done' }));
     expect(h.complete).toHaveBeenCalledWith({ itemId: 'i2', doneOn: '2026-03-11' });
   });
@@ -90,6 +91,7 @@ describe('CloseoutSection', () => {
     h.items = [item({ id: 'i1', position: 1, name: 'Item one', startedOn: '2026-03-01' })];
     const user = renderIt();
     expect(screen.queryByRole('button', { name: /Mark Item one done/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Update Item one' }));
     const select = screen.getByRole('combobox', { name: 'Document for Item one' });
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Choose a project document', 'Certificate A', 'Letter B']);
     await user.selectOptions(select, 'd2');
@@ -100,6 +102,7 @@ describe('CloseoutSection', () => {
   it('AC-WCO-004 a refusal from the database is explained in words', async () => {
     h.complete.mockRejectedValue(new AppError('x', 'item-out-of-order'));
     const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Update Item two' }));
     await user.click(screen.getByRole('button', { name: 'Mark Item two done' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Complete the earlier items first.');
   });
@@ -182,8 +185,8 @@ describe('CloseoutSection', () => {
 it('AC-SITE-012 Admin can name the owner on an already issued checklist item', async () => {
  h.role='Admin';
  const user=renderIt();
- const row=screen.getByRole('listitem',{name:'Item two'});
- await user.selectOptions(within(row).getByRole('combobox',{name:'Owner job role'}),'construction_manager');
+ await user.click(screen.getByRole('button',{name:'Update Item two'}));
+ await user.selectOptions(within(screen.getByRole('dialog',{name:'Item two'})).getByRole('combobox',{name:'Owner job role'}),'construction_manager');
  expect(h.assignOwner).toHaveBeenCalledWith({itemId:'i2',ownerRole:'construction_manager'});
 });
 
