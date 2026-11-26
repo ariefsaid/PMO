@@ -2104,7 +2104,6 @@
     "amount": "Amount",
     "status": "Status",
     "file": "File",
-    "ledgerNote": "Every record appears once, chronological. Empty record types show nothing.",
     "types": {
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",

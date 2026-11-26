@@ -387,6 +387,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/timesheets/review': '/timesheets',
   // M8: Work in hand under Projects highlights Projects in the rail.
   '/projects/work-in-hand': '/projects',
+  // #2584: progress certificates are reached from Procurement and belong to it.
+  '/subcontract-certificates': '/procurement',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -394,6 +396,7 @@ export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
   // A work order's page, and a safety day (which belongs to its work order), light Work orders only (#2518, #2596).
   if (/^\/(work-orders|safety-days)\/[^/]+$/.test(pathname)) return '/work-orders';
+  if (/^\/subcontract-certificates\/[^/]+$/.test(pathname)) return '/procurement';
   if (/^\/stock\/transfers\/[^/]+(\/print)?$/.test(pathname)) return '/stock';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
@@ -425,6 +428,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
   '/timesheets/review': { label: 'Timesheet review', i18nKey: 'timesheets:review.title' }, // i18n-exempt: translated at render
   '/projects/work-in-hand': { label: 'Work in hand', i18nKey: 'workInHand:title' }, // i18n-exempt: translated at render
+  '/subcontract-certificates': { label: 'Progress certificates', i18nKey: 'subcontractCertificates:title' }, // i18n-exempt: translated at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -592,6 +596,15 @@ export function breadcrumbForPath(
     ];
   }
 
+  // A certificate reads as Procurement > Progress certificates; the record header names the certificate itself.
+  if (/^\/subcontract-certificates\/[^/]+$/.test(pathname)) {
+    const list = '/subcontract-certificates';
+    const parent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[list]);
+    if (parent) return [
+      { label: parent.label, ...(parent.labelKey ? { i18nKey: parent.labelKey } : {}), href: parent.path, onClick: () => navigate?.(parent.path) },
+      { ...CHILD_PAGE_CRUMB[list], href: list, onClick: () => navigate?.(list) },
+    ];
+  }
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
   if (childCrumb && childParent) {

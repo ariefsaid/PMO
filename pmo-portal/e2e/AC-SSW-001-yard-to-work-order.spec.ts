@@ -161,7 +161,7 @@ test('AC-SSW-001 a keeper moves client stock through a yard and staging to a wor
 
   await page.goto(`/projects/${SEED_PROJECT_ID}/contract?wo=${workOrderId}`);
   const card = page.getByTestId(`customer-order-${workOrderId}`);
-  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card).toBeVisible();
   await card.getByRole('button', { name: 'Stock for this work order' }).click();
   const row = card.getByRole('row').filter({ hasText: staging.code });
   await expect(row).toContainText(tagName);

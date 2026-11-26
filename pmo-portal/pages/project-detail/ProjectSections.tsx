@@ -1,4 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { preloadProjectOrders } from '@/src/lib/routeData';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, tabPanelId, WhenNearViewport, type TabItem } from '@/src/components/ui';
@@ -211,6 +214,9 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
 const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header, overviewPending = false }) => {
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
+  const client = useContext(QueryClientContext);
+  const viewer = useContext(AuthContext)?.currentUser;
+  const may = usePermission();
   const sectionsLabel = t('projectDetail.tabs.ariaLabel', 'Project sections');
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
   const [loadedCounts, setLoadedCounts] = useState<{ projectId: string; values: ProjectTabCounts }>(() => ({ projectId: project.id, values: {} }));
@@ -244,11 +250,15 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   // intent-driven preload the rail nav links use — instead of only after the
   // click, where it lands behind the Suspense boundary as one more serial
   // step. preloadProjectTab is memoized per chunk, so repeats are free.
-  const preloadTabChunk = (event: React.PointerEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
+  const preloadTab = (event: React.PointerEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {
     const prefix = `${tabId('project-detail', '')}`;
     const tab = (event.target as HTMLElement).closest('[role="tab"]');
     if (!tab || !tab.id.startsWith(prefix)) return;
-    preloadProjectTab(tab.id.slice(prefix.length) as Area);
+    const next = tab.id.slice(prefix.length) as Area;
+    preloadProjectTab(next);
+    if (next === 'orders' && client && viewer?.org_id) {
+      preloadProjectOrders(client, viewer.org_id, project.id, may('view', 'workOrderPlan'), viewer);
+    }
   };
   return (
     <>
@@ -266,9 +276,9 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
       <div
         data-testid="project-section-tabs"
         className="hidden md:block"
-        onPointerOver={preloadTabChunk}
-        onPointerDown={preloadTabChunk}
-        onFocusCapture={preloadTabChunk}
+        onPointerOver={preloadTab}
+        onPointerDown={preloadTab}
+        onFocusCapture={preloadTab}
       >
         <Tabs<Area>
           items={items}
