@@ -50,6 +50,9 @@ const SafetySummary: React.FC = () => {
   const label = (f: SafetyFigure) => t(`summary.figure.${f.key}`, FIGURE_LABEL[f.key]);
   const value = (f: SafetyFigure) => (f.value === null ? '—' : f.unit === 'minutes' ? formatSafetyMinutes(f.value) : String(f.value));
   const hidden = figures.filter((f) => f.hidden);
+  const order: SafetyFigureKey[] = ['lostTimeIncidents', 'recordableIncidents', 'nearMisses', 'toolboxTalks', 'completeDays', 'daysWithoutRecord', 'workedMinutes', 'safeMinutes'];
+  const displayed = client && summary.data ? deriveSafetySummaryView({ ...summary.data, ...toClientExport(summary.data), timezone: '', projectId: null, hidden: summary.data.hidden }) : figures;
+  const ordered = [...displayed].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 
   return (
     <div className="space-y-6">
@@ -57,7 +60,6 @@ const SafetySummary: React.FC = () => {
         action={client
           ? <Button variant="outline" onClick={() => window.print()}>{t('summary.print', 'Print')}</Button>
           : <Button variant="outline" onClick={() => setParams({ view: 'client' })} data-testid="safety-client-view">{t('summary.clientView', 'Client view')}</Button>} />
-      <p className="-mt-3 text-control text-muted-foreground">{client ? t('summary.clientSubtitle', 'Figures for the month') : t('summary.subtitle', 'Hours, incidents and safety records for a month.')}</p>
       <div className="flex flex-wrap items-end gap-3 print:hidden">
         <TextField label={t('summary.month', 'Month')} type="month" value={month} onChange={(v) => { setMonth(v); setOpen(null); }} />
         {!client && (
@@ -71,26 +73,28 @@ const SafetySummary: React.FC = () => {
         : summary.isError ? <ListState variant="error" title={t('summary.error', "Couldn't load the summary")} onRetry={() => void summary.refetch()} />
         : (
           <>
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="safety-figures">
-              {(client ? deriveSafetySummaryView({ ...summary.data, ...toClientExport(summary.data), timezone: '', projectId: null, hidden: summary.data.hidden }) : figures).map((f) => {
-                const kind = DETAIL_KIND[f.key];
-                const drill = !client && kind && f.value !== null && f.value > 0;
-                return (
-                  <li key={f.key}>
-                    <Card>
-                      <div className="p-4">
-                        <div className="text-control text-muted-foreground">{label(f)}</div>
-                        <div className="mt-1 text-xl font-semibold tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</div>
-                        {drill && (
-                          <button type="button" className="mt-2 text-control text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
-                            onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
-                        )}
-                      </div>
-                    </Card>
-                  </li>
-                );
-              })}
-            </ul>
+            <Card>
+              <table className="w-full text-control" data-testid="safety-figures">
+                <tbody className="divide-y divide-border">
+                  {ordered.map((f) => {
+                    const kind = DETAIL_KIND[f.key];
+                    const drill = !client && kind && f.value !== null && f.value > 0;
+                    return (
+                      <tr key={f.key}>
+                        <th scope="row" className="px-4 py-4 text-left font-normal">{label(f)}</th>
+                        <td className="px-4 py-4 text-right tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</td>
+                        <td className="px-4 py-1 text-right">
+                          {drill && (
+                            <button type="button" className="min-h-11 whitespace-nowrap text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
+                              onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
             {hidden.length > 0 && (
               <p className="text-control text-muted-foreground" data-testid="safety-hidden">
                 {hidden.map((f) => `${label(f)}: ${f.reason ?? t('summary.hiddenDefault', 'cannot be computed for this period')}`).join(' · ')}
