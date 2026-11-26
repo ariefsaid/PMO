@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, ListState, PageHeader, StatusPill, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
@@ -22,6 +22,7 @@ const groupOf = (r: StockTransfer): (typeof GROUPS)[number] =>
  */
 const StockTransfers: React.FC = () => {
   const { t } = useTranslation('stock');
+  const navigate = useNavigate();
   const twoStep = useIsTwoStep();
   const transfers = useStockTransfers(undefined, twoStep);
   const proof = useProofStatus('outstanding');
@@ -58,6 +59,7 @@ const StockTransfers: React.FC = () => {
           rows={rows}
           columns={columns}
           rowKey={(r) => r.id}
+          onActivate={(r) => navigate(`/stock/transfers/${r.id}`)}
           rowHref={(r) => `/stock/transfers/${r.id}`}
           rowLabel={(r) => r.number}
           tableId="stock-transfers"
