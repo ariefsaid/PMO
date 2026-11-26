@@ -96,5 +96,12 @@
     "projects": "Projects",
     "hours": "Hours",
     "status": "Status"
+  },
+  "weekHours": {
+    "project": "Project",
+    "total": "Total",
+    "dailyTotal": "Daily total",
+    "weekTotal": "Week total",
+    "noHours": "No hours"
   }
 }
