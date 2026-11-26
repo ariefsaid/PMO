@@ -33,7 +33,9 @@
       "finance": "Keuangan",
       "platform": "Platform"
     },
-    "navLabel": "Paket Anda"
+    "navLabel": "Paket Anda",
+    "crmDirectory": "CRM (Perusahaan, Kontak)",
+    "revenueDetails": "Pendapatan (Penerimaan pembayaran, Pendapatan per proyek)"
   },
   "console": {
     "organisationHeading": "Organisasi dan paket",
@@ -138,7 +140,7 @@
     "approvals": "Persetujuan",
     "administration": "Administrasi",
     "expense_claims": "Klaim biaya",
-    "roles": "Role",
+    "roles": "Peran",
     "budgets": "Anggaran",
     "tasks": "Tugas",
     "revenue": "Pendapatan (Invoice penjualan, Pembayaran masuk, Pendapatan per proyek)"

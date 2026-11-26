@@ -33,7 +33,9 @@
       "finance": "Finance",
       "platform": "Platform"
     },
-    "navLabel": "Your plan"
+    "navLabel": "Your plan",
+    "crmDirectory": "CRM (Companies, Contacts)",
+    "revenueDetails": "Revenue (Incoming payments, Revenue by Project)"
   },
   "console": {
     "organisationHeading": "Organisation and plan",
