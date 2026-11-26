@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, FieldError, ListState, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { claimOverCapRepository } from '@/src/lib/repositories/claimOverCap';
 import { CLAIM_OVER_CAP_KEY, useClaimOverCap } from '@/src/hooks/useClaimOverCap';
@@ -16,8 +15,6 @@ const OrgClaimOverCap: React.FC = () => {
   const { t } = useTranslation('administration');
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id as string;
   const { toast } = useToast();
   const qc = useQueryClient();
   const query = useClaimOverCap();
@@ -25,7 +22,7 @@ const OrgClaimOverCap: React.FC = () => {
   const blocking = query.data === 'block';
 
   const mutation = useMutation({
-    mutationFn: (next: 'warn' | 'block') => claimOverCapRepository.set(orgId, next),
+    mutationFn: (next: 'warn' | 'block') => claimOverCapRepository.set(next),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: [CLAIM_OVER_CAP_KEY] });
       toast(t('admin.claimOverCap.saved', 'Claim quantity setting saved'), undefined, 'success');
