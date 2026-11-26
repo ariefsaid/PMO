@@ -13,7 +13,7 @@
       "degradedNext": "Belum tersedia: {{missing}}. Pasang di Odoo, lalu Cek ulang.",
       "expiringNext": "Buat kunci baru di Odoo dan sambungkan ulang sebelum kedaluwarsa.",
       "notActivatedNext": "Sinkronisasi dimulai setelah perusahaan dipilih.",
-      "disconnectedNext": "Administrator dapat menyambungkannya di Administrasi, Integrasi."
+      "disconnectedNext": "Administrator dapat menghubungkannya di Administrasi → Integrasi organisasi."
     },
     "state": {
       "unverified": "Belum dicek baru-baru ini",
@@ -946,8 +946,8 @@
   "usage": {
     "errorTitle": "Penggunaan tidak dapat dimuat",
     "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
-    "emptyTitle": "Belum ada penggunaan",
-    "emptySub": "Penggunaan agen muncul di sini setelah ruang kerja Anda mulai memakai asisten.",
+    "emptyTitle": "Belum ada pemakaian",
+    "emptySub": "Pemakaian agen tampil di sini setelah ruang kerja mulai menggunakan asisten.",
     "month": "Bulan",
     "action": "Aksi",
     "runs": "Eksekusi",
@@ -960,7 +960,8 @@
     "marginUnavailable": "Harga tidak tersedia",
     "cost": "Biaya (USD)",
     "margin": "Margin",
-    "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan."
+    "pricingNote": "Harga belum diatur — margin muncul di sini setelah tarif USD per kredit ditetapkan.",
+    "openAssistant": "Buka asisten"
   },
   "integrationStatus": {
     "connectedDateMissing": "Tanggal belum dicatat",
@@ -1417,5 +1418,9 @@
     "none": "Belum ada peran dipilih",
     "done": "Selesai",
     "choose": "Pilih peran"
+  },
+  "connections": {
+    "viewLabel": "Tampilan pengaturan organisasi",
+    "settings": "Pengaturan organisasi"
   }
 }

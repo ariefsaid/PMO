@@ -78,8 +78,8 @@
     "sendEvery": "Kirim laporan ini setiap …",
     "sendEveryTitle": "Kirim laporan ini lewat email sesuai jadwal",
     "savedFromReport": "Selesai. Laporan ini akan dikirim lewat email sesuai jadwal.",
-    "pcmSwitchLabel": "Project Control Manager dapat menjadwalkan laporan",
-    "pcmSwitchHelper": "Mengizinkan Project Control Manager membuat dan mengelola laporan terjadwal yang dapat mereka baca, untuk penerima yang juga dapat membacanya.",
+    "pcmSwitchLabel": "{{role}} dapat menjadwalkan laporan",
+    "pcmSwitchHelper": "Mengizinkan {{role}} mengelola laporan yang dapat dibaca oleh perannya, untuk penerima yang juga dapat membacanya.",
     "pcmSettingName": "Project Control Manager menjadwalkan laporan",
     "pcmSettingSummary": "Mengizinkan Project Control Manager membuat dan mengelola laporan terjadwal yang dapat mereka baca.",
     "denied": "Laporan terjadwal dikelola oleh Admin atau Project Control Manager yang diaktifkan."

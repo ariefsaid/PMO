@@ -1,3 +1,4 @@
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -27,13 +28,15 @@ export const FeedbackSurveysSetting: React.FC = () => {
       toast(headline, detail, 'warning');
     },
   });
+  const [draft, setDraft] = React.useState<boolean | null>(null);
+  const pageSave = useSettingsSaveEntry(canAct('manage', 'orgFeedback') ? { dirty: draft !== null && draft !== on, busy: mutation.isPending, save: async () => { if (draft !== null) { await mutation.mutateAsync(draft); setDraft(null); } } } : null);
   const label = t('feedbackSurveys.title', 'Feedback and surveys');
   return (
     <div className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <span className="text-control font-medium">{label}</span>
         {canAct('manage', 'orgFeedback') ? (
-          <Switch checked={on} onChange={() => mutation.mutate(!on)} label={label} disabled={mutation.isPending} />
+          <Switch checked={draft ?? on} onChange={(next) => pageSave ? setDraft(next) : mutation.mutate(next)} label={label} disabled={mutation.isPending} />
         ) : (
           <StatusPill variant={on ? 'won' : 'neutral'}>{on ? t('feedbackSurveys.on', 'On') : t('feedbackSurveys.off', 'Off')}</StatusPill>
         )}

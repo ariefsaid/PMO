@@ -78,8 +78,8 @@
     "sendEvery": "Send this report every …",
     "sendEveryTitle": "Email this report on a schedule",
     "savedFromReport": "Done. This report will be emailed on schedule.",
-    "pcmSwitchLabel": "Project Control Managers can schedule reports",
-    "pcmSwitchHelper": "Lets Project Control Managers create and manage scheduled reports they can read, for recipients who can also read them.",
+    "pcmSwitchLabel": "{{role}} can schedule reports",
+    "pcmSwitchHelper": "Lets {{role}} create and manage scheduled reports they can read, for recipients who can also read them.",
     "pcmSettingName": "Project Control Manager schedules reports",
     "pcmSettingSummary": "Lets the Project Control Manager create and manage scheduled reports they can read.",
     "denied": "Scheduled reports are managed by an Admin or an enabled Project Control Manager."

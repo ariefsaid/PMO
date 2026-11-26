@@ -1,3 +1,4 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 /**
  * AC-EML-014 — Administration email settings and the per-user opt-out. An Admin toggles events, picks extra roles and the
  * email language; a non-Admin gets no controls; the labels read in Bahasa Indonesia; the opt-out switch saves.
@@ -119,5 +120,26 @@ describe('AC-EML-014 per-user opt-out', () => {
   it('reads in Bahasa Indonesia', async () => {
     renderUi(<EmailOptOutSetting />, 'Finance', 'id');
     expect(await screen.findByRole('switch', { name: 'Kirim notifikasi email kepada saya' })).toBeInTheDocument();
+  });
+});
+
+describe('Email preferences on a settings page', () => {
+  it('stages notification polarity until the page Save is selected', async () => {
+    renderUi(<SettingsSaveProvider><SettingsSaveAction /><EmailOptOutSetting /></SettingsSaveProvider>);
+    const sw = await screen.findByRole('switch', { name: 'Send me email notifications' });
+    fireEvent.click(sw);
+    expect(sw).toHaveAttribute('aria-checked', 'false');
+    expect(repo.setMyOptOut).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
+    await waitFor(() => expect(repo.setMyOptOut).toHaveBeenCalledWith(true));
+  });
+  it('saves changed organisation events and locale together without writing while editing', async () => {
+    renderUi(<SettingsSaveProvider><SettingsSaveAction /><EmailNotificationsSetting /></SettingsSaveProvider>);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Approval requests' }));
+    fireEvent.change(screen.getByLabelText('Email language'), { target: { value: 'id' } });
+    expect(repo.setEvent).not.toHaveBeenCalled(); expect(repo.setLocale).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
+    await waitFor(() => expect(repo.setLocale).toHaveBeenCalledWith('id'));
+    expect(repo.setEvent).toHaveBeenCalledWith('approval_request', true, []);
   });
 });

@@ -1,3 +1,4 @@
+import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
@@ -40,6 +41,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   onRetry,
 }) => {
   const { t } = useTranslation('administration');
+  const assistant = useAgentRuntimeContext();
   if (isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
@@ -68,6 +70,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
         icon="admin"
         title={t('usage.emptyTitle', 'No usage yet')}
         sub={t('usage.emptySub', 'Agent usage appears here once your workspace starts using the assistant.')}
+        action={assistant.runtime ? { label: t('usage.openAssistant', 'Open assistant'), onClick: () => assistant.openPanel() } : undefined}
       />
     );
   }

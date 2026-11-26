@@ -1,3 +1,4 @@
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -25,6 +26,7 @@ const BLANK: ScheduledReportInput = {
  */
 export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ standalone = false }) => {
   const { t } = useTranslation('emailNotifications');
+  const roleName = useBuiltInRoleName();
   const { toast } = useToast();
   const qc = useQueryClient();
   const auth = React.useContext(AuthContext);
@@ -89,9 +91,9 @@ export const ScheduledReportsSetting: React.FC<{ standalone?: boolean }> = ({ st
       {!standalone && isAdmin && auth?.currentUser?.org_id ? (
         <div className="mt-3">
           <OrgSwitchSetting
-            setting="pcmScheduledReports"
-            label={t('scheduled.pcmSwitchLabel', 'Project Control Managers can schedule reports')}
-            helper={t('scheduled.pcmSwitchHelper', 'Lets Project Control Managers create and manage scheduled reports they can read, for recipients who can also read them.')}
+            setting="pcmScheduledReports" deferSave controlPosition="end"
+            label={t('scheduled.pcmSwitchLabel', '{{role}} can schedule reports', { role: roleName('project_control_manager') })}
+            helper={t('scheduled.pcmSwitchHelper', 'Lets {{role}} create and manage scheduled reports they can read, for recipients who can also read them.', { role: roleName('project_control_manager') })}
           />
         </div>
       ) : null}
