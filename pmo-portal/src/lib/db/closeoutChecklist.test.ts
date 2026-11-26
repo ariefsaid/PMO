@@ -16,8 +16,8 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, getWorkOrderCloser, listOpenCloseoutDue,
-  listWorkOrderCloseoutItems, setCloseoutTemplate,
+  attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, getWaitingCloseoutItems, getWorkOrderCloser,
+  listOpenCloseoutDue, listWorkOrderCloseoutItems, setCloseoutTemplate,
 } from './closeoutChecklist';
 import { AppError } from '@/src/lib/appError';
 
@@ -29,6 +29,18 @@ beforeEach(() => {
 });
 
 describe('close-out checklist DAL', () => {
+  it('#2907 maps the viewer\'s waiting rows for the needs-you pointer', async () => {
+    h.rpc.mockResolvedValue({ data: [{ item_id: 'i1', work_order_id: 'w1', project_id: 'p1', project_name: 'P', work_order_label: 'WO-1', item_name: 'Handover', due_on: '2026-03-01' }], error: null });
+    await expect(getWaitingCloseoutItems()).resolves.toEqual([
+      { itemId: 'i1', workOrderId: 'w1', projectId: 'p1', projectName: 'P', workOrderLabel: 'WO-1', itemName: 'Handover', dueOn: '2026-03-01' },
+    ]);
+  });
+
+  it('#2907 a refusal keeps its sentence and code for the screen', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'permission denied', code: '42501' } });
+    await expect(getWaitingCloseoutItems()).rejects.toMatchObject({ message: 'permission denied', code: '42501' });
+  });
+
   it('AC-WCO-001 the list is sent whole, in order, with each required flag', async () => {
     h.rpc.mockResolvedValue({ data: 2, error: null });
     await expect(setCloseoutTemplate([

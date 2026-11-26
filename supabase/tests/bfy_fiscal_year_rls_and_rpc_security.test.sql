@@ -118,7 +118,7 @@ select is((select p.prosecdef from pg_proc p join pg_namespace n on n.oid=p.pron
 select is((select p.prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace
             where n.nspname='public' and p.proname='activate_budget_version'), true,
   'AC-BFY-017 activate_budget_version is still SECURITY DEFINER (0153 does not touch it)');
-select ok((select 'search_path=public' = any(p.proconfig) from pg_proc p
+select ok((select 'search_path=public, pg_temp' = any(p.proconfig) from pg_proc p
             join pg_namespace n on n.oid=p.pronamespace
            where n.nspname='public' and p.proname='clone_budget_version'),
   'AC-BFY-017 clone_budget_version still pins search_path (a definer function without one is injectable)');

@@ -69,10 +69,11 @@ export function todayCursor(): MonthCursor {
 /**
  * Build a fixed 6×7 month matrix (Sunday-first by default; `weekStartsOn: 1` = Monday-first, the
  * Bahasa Indonesia calendar). Leading/trailing days from the adjacent months are included with
- * `inMonth: false` so the grid never reflows.
+ * `inMonth: false` so the grid never reflows. `today` ('YYYY-MM-DD', the org day — #1126) marks the
+ * `isToday` cell; this helper stays clock-free so the caller decides whose "today" it is.
  */
-export function buildMonthMatrix(year: number, month: number, weekStartsOn: 0 | 1 = 0): DayCell[][] {
-  const todayIso = toIso(new Date());
+export function buildMonthMatrix(year: number, month: number, weekStartsOn: 0 | 1, today: string): DayCell[][] {
+  const todayIso = today;
   const first = new Date(year, month, 1);
   // Back up to the first day of the first week.
   const start = new Date(year, month, 1 - ((first.getDay() - weekStartsOn + 7) % 7));

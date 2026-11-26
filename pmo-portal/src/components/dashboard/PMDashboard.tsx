@@ -149,7 +149,7 @@ export const PMDashboard: React.FC = () => {
       : undefined;
 
   const waitRows: WaitRow[] = needs.items
-    .filter((item) => ['approvals', 'team-timesheets', 'billing-steps-waiting'].includes(item.id))
+    .filter((item) => ['approvals', 'team-timesheets', 'billing-steps-waiting', 'closeout-items-waiting'].includes(item.id))
     .map((item) => ({
       id: item.id,
       count: item.countLabel ?? item.count,

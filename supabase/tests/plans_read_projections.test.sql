@@ -59,7 +59,7 @@ select ok(not has_function_privilege('service_role', 'public.operator_plan_catal
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prosecdef
     and p.proname in ('operator_plan_catalogue', 'operator_org_plan', 'operator_org_overrides', 'resolved_org_plan')
-    and p.proconfig @> array['search_path=public']::text[]),
+    and p.proconfig @> array['search_path=public, pg_temp']::text[]),
   4, 'every read projection pins search_path and is a definer');
 select is((select count(*)::int from information_schema.role_table_grants
   where table_schema = 'public'

@@ -8,6 +8,7 @@ import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { ToastProvider } from '@/src/components/ui';
 import type { CertificateView } from '@/src/lib/db/subcontractCertificates';
 
@@ -138,6 +139,24 @@ describe('subcontract certificate screen', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/The payable is .*466\.70 after backcharges/)).toBeInTheDocument();
   });
+  it('#1126 the bill date starts on the organisation\'s day, not the browser\'s', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // 2026-11-30T18:00:00Z: the organisation's day (Asia/Jakarta) is already 1 Dec; the browser's (UTC) is still 30 Nov.
+    vi.setSystemTime(new Date('2026-11-30T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    try {
+      h.view = make('approved', { submitted_by: 'u-prep', approved_by: 'u-other' });
+      h.userId = 'u-other';
+      renderPage();
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Create bill' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByLabelText('Bill date')).toHaveValue('2026-12-01');
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
+  });
+
   it('AC-SPC-013 approved with a refused bill: the refusal reason is shown', () => {
     h.view = make('approved', { submitted_by: 'u-prep', bill_refusal: 'line A cannot be billed: verified 40, PO 100, billed 30, this bill 40' });
     h.userId = 'u-other';

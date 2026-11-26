@@ -16,6 +16,7 @@ import type { MilestoneDate } from '@/src/lib/db/milestones';
 import { formatWeekdayMonthDay, formatWeekdayShort } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 
 type CalEventKind = 'start' | 'end' | 'milestone';
 
@@ -187,6 +188,8 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   onCursorChange,
 }) => {
   const { t } = useTranslation();
+  // The organisation's day (#1126): the grid's today ring marks it, so it is right whatever the device's clock says.
+  const today = useOrgToday();
   const [localCursor, setLocalCursor] = useState<MonthCursor>(initialCursor ?? todayCursor());
   const controlled = onCursorChange !== undefined;
   const cursor = controlled ? (controlledCursor ?? todayCursor()) : localCursor;
@@ -250,7 +253,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
 
   if (isDesktop) {
     const weekStartsOn = getDateFnsLocale().options?.weekStartsOn === 1 ? 1 : 0;
-    const weeks = buildMonthMatrix(cursor.year, cursor.month, weekStartsOn);
+    const weeks = buildMonthMatrix(cursor.year, cursor.month, weekStartsOn, today);
     return (
       <div>
         {nav}
