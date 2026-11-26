@@ -4,7 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { monthToUtcEpoch } from './agentCostMetrics.utils';
-import { ListState, StatTiles, type StatTile } from '@/src/components/ui';
+import { FigureHiddenLine, FigureScope, ListState, StatTiles, type StatTile } from '@/src/components/ui';
 import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFrame';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
@@ -53,25 +53,23 @@ export interface AgentCostMetricsProps {
   onRetry: () => void;
 }
 
-const DASH = '—';
-
 /** ms → "X.Xs" at/above 1000ms, else "Xms" (rounded). Locale decimal separator (#2089). */
 function formatMs(ms: number): string {
   if (ms >= 1000) return `${formatNumberExact(ms / 1000)}s`;
   return `${Math.round(ms)}ms`;
 }
 
-function pct(numerator: number, denominator: number): string {
-  if (denominator === 0) return DASH;
+function pct(numerator: number, denominator: number): string | null {
+  if (denominator === 0) return null;
   return formatPercent(numerator / denominator, 1);
 }
 
 interface DerivedKpis {
-  cacheHitRate: string;
-  reasoningShare: string;
-  costP50: string;
-  costP95: string;
-  latencyP95: string;
+  cacheHitRate: string | null;
+  reasoningShare: string | null;
+  costP50: string | null;
+  costP95: string | null;
+  latencyP95: string | null;
 }
 
 function deriveKpis(
@@ -91,15 +89,15 @@ function deriveKpis(
   const totalRuns = runStatsRows.reduce((sum, r) => sum + r.runs, 0);
   const costP50 =
     totalRuns === 0
-      ? DASH
+      ? null
       : formatCurrencyFine(runStatsRows.reduce((sum, r) => sum + r.p50_cost * r.runs, 0) / totalRuns, PLATFORM_CURRENCY);
   const costP95 =
     runStatsRows.length === 0
-      ? DASH
+      ? null
       : formatCurrencyFine(Math.max(...runStatsRows.map((r) => r.p95_cost)), PLATFORM_CURRENCY);
   const latencyP95 =
     runStatsRows.length === 0
-      ? DASH
+      ? null
       : formatMs(Math.max(...runStatsRows.map((r) => r.p95_ms)));
 
   return {
@@ -181,12 +179,18 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     );
   }
 
+  const noRuns = t('agentCost.noRunStats', 'Cost per run and latency need recorded run statistics.');
   const tiles: StatTile[] = [
-    { label: t('agentCost.cacheHit', 'Cache hit-rate'), value: kpis.cacheHitRate },
-    { label: t('agentCost.reasoning', 'Reasoning share'), value: kpis.reasoningShare },
-    { label: t('agentCost.costP50', 'Cost / run (p50, weighted by runs)'), value: kpis.costP50 },
-    { label: t('agentCost.costP95', 'Cost / run (p95, max)'), value: kpis.costP95 },
-    { label: t('agentCost.latencyP95', 'Latency (p95, max)'), value: kpis.latencyP95 },
+    { label: t('agentCost.cacheHit', 'Cache hit-rate'), value: kpis.cacheHitRate,
+      unavailableReason: kpis.cacheHitRate === null ? t('agentCost.noPromptTokens', 'Cache hit-rate needs recorded prompt tokens.') : undefined },
+    { label: t('agentCost.reasoning', 'Reasoning share'), value: kpis.reasoningShare,
+      unavailableReason: kpis.reasoningShare === null ? t('agentCost.noCompletionTokens', 'Reasoning share needs recorded completion tokens.') : undefined },
+    { label: t('agentCost.costP50', 'Cost / run (p50, weighted by runs)'), value: kpis.costP50,
+      unavailableReason: kpis.costP50 === null ? noRuns : undefined },
+    { label: t('agentCost.costP95', 'Cost / run (p95, max)'), value: kpis.costP95,
+      unavailableReason: kpis.costP95 === null ? noRuns : undefined },
+    { label: t('agentCost.latencyP95', 'Latency (p95, max)'), value: kpis.latencyP95,
+      unavailableReason: kpis.latencyP95 === null ? noRuns : undefined },
   ];
 
   const chartState: Exclude<ChartState, 'error'> = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
@@ -200,7 +204,10 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
             unscoped Operator path, all orgs) — so the numbers read as a portfolio overview, not a
             single-cohort statistic. */}
         <p className="mb-3 text-control text-muted-foreground">{t('agentCost.across', 'Across all actions and months.')}</p>
-        <StatTiles tiles={tiles} columns={5} />
+        <FigureScope>
+          <StatTiles tiles={tiles} columns={5} />
+          <FigureHiddenLine className="mt-3 text-control text-muted-foreground" />
+        </FigureScope>
       </div>
 
       <div>

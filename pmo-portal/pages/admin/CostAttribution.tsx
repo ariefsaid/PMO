@@ -66,18 +66,20 @@ const CostAttribution: React.FC = () => {
   const hasEnded = (r: CostAttributionRule) => !!r.effective_to && r.effective_to < todayIso();
 
   const columns: Column<CostAttributionRule>[] = [
-    { key: 'name', header: t('costAttribution:list.name', 'Rule'), kind: 'primary', rowHeader: true, cell: (r) => r.name },
-    { key: 'match', header: t('costAttribution:list.match', 'Match'), kind: 'text', cell: matchText },
+    { key: 'name', header: t('costAttribution:list.name', 'Rule'), kind: 'primary', size: 180, rowHeader: true, cell: (r) => r.name },
+    { key: 'match', header: t('costAttribution:list.match', 'Match'), kind: 'text', size: 150, cell: matchText },
     {
       key: 'targets',
       header: t('costAttribution:list.targets', 'Goes to'),
       kind: 'text',
+      size: 140,
       cell: (r) => r.targets.map((x) => `${x.project_name} ${x.percent}%`).join(' · '),
     },
     {
       key: 'dates',
       header: t('costAttribution:list.dates', 'Posting dates'),
       kind: 'text',
+      size: 140,
       cell: (r) => {
         const from = formatDay(r.effective_from);
         if (!r.effective_to) return t('costAttribution:list.fromOpen', 'From {{from}}', { from });
@@ -85,11 +87,12 @@ const CostAttribution: React.FC = () => {
         return hasEnded(r) ? `${range} · ${t('costAttribution:list.ended', 'ended')}` : range;
       },
     },
-    { key: 'version', header: t('costAttribution:list.version', 'Version'), kind: 'number', cell: (r) => `v${r.version}` },
+    { key: 'version', header: t('costAttribution:list.version', 'Version'), kind: 'number', size: 80, cell: (r) => `v${r.version}` },
     ...(canManage ? [{
       key: 'actions',
       header: <span className="sr-only">{t('costAttribution:list.actions', 'Actions')}</span>,
       kind: 'actions' as const,
+      size: 104,
       cell: (r: CostAttributionRule) => (
         <div className="flex flex-wrap justify-end gap-1">
           <Button variant="ghost" size="sm" aria-label={t('costAttribution:list.edit', 'Edit {{name}}', { name: r.name })}
@@ -116,6 +119,7 @@ const CostAttribution: React.FC = () => {
       <div>
         <DataTable
           tableId="cost-attribution-rules"
+          cardBelow={794}
           rows={data}
           columns={columns}
           rowKey={(r) => r.rule_key}

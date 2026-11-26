@@ -678,6 +678,7 @@
       "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
+      "managerUnavailable": "Manager name unavailable",
       "builtIn": {
         "tier": {
           "manager": "Managers",
@@ -864,8 +865,7 @@
       "save": "Save fiscal year",
       "saved": "Fiscal year saved",
       "loadError": "Couldn't load the fiscal year",
-      "accountingSystem": "Your accounting system sets the fiscal year.",
-      "adminOnly": "Only an Admin can change this."
+      "accountingSystem": "Your accounting system sets the fiscal year."
     },
     "attendanceTarget": {
       "helper": "The attendance rate each crew is measured against, as a percentage. Leave it empty to keep the attendance-rate view off.",
@@ -882,7 +882,7 @@
     },
     "dsrValidateRoles": {
       "title": "Validate daily site reports",
-      "intro": "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Tick job roles whose active holders may also validate reports across your organisation.",
+      "intro": "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Choose job roles whose active holders may also validate reports across your organisation.",
       "legend": "Job roles that validate daily site reports",
       "loadError": "Couldn't load site report validator roles",
       "adminOnly": "Only an Admin can change this.",
@@ -952,11 +952,21 @@
     "runs": "Runs",
     "tokens": "Tokens",
     "providerCost": "Provider cost",
+    "monthUnavailable": "Month unavailable",
+    "providerPricingUnavailable": "Provider pricing unavailable",
+    "marginUnavailable": "Pricing unavailable",
     "cost": "Cost (USD)",
     "margin": "Margin",
     "pricingNote": "Pricing not yet configured — margin will appear here once a per-credit USD rate is set."
   },
+  "integrationStatus": {
+    "connectedDateMissing": "Date not recorded",
+    "noListLink": "No list linked"
+  },
   "agentCost": {
+    "noPromptTokens": "Cache hit-rate needs recorded prompt tokens.",
+    "noCompletionTokens": "Reasoning share needs recorded completion tokens.",
+    "noRunStats": "Cost per run and latency need recorded run statistics.",
     "errorTitle": "Couldn't load agent cost metrics",
     "emptyTitle": "No agent cost data yet",
     "emptySub": "Agent cost telemetry appears here once your workspace starts using the assistant.",
@@ -1041,7 +1051,8 @@
     "intro": "Rename the built-in roles to match your organisation. Only the displayed name changes; what each role can do stays the same.",
     "name": "Name",
     "saved": "Role name saved",
-    "resetDone": "Back to the default name"
+    "resetDone": "Back to the default name",
+    "role": "Role"
   },
   "terminology": {
     "default": "Default",
@@ -1052,7 +1063,9 @@
     "save": "Save",
     "saved": "Terminology saved",
     "singular": "Singular",
-    "nav": "Terminology"
+    "nav": "Terminology",
+    "term": "Term",
+    "language": "Language"
   },
   "documentCategories": {
     "nav": "Document categories",
@@ -1089,7 +1102,13 @@
     "archivedDone": "Category archived",
     "archiveTitle": "Archive this category?",
     "archiveBody": "No new document can be filed in it. Documents already in it stay visible to the same roles.",
-    "denied": "Document categories are managed by an Admin."
+    "denied": "Document categories are managed by an Admin.",
+    "categoryColumn": "Category",
+    "hiddenNoneShort": "None",
+    "saveShort": "Save",
+    "moreActions": "More actions for {{name}}",
+    "listLabel": "Document categories",
+    "hiddenFromShort": "Hidden from"
   },
   "documentTypes": {
     "title": "Document types",
@@ -1368,5 +1387,29 @@
     "migration": "Migrate existing stock costs before enabling this setting.",
     "erp": "This setting is available for organisations using PMO-paid costs."
   },
-  "documentTypesNav": "Document types"
+  "documentTypesNav": "Document types",
+  "adminShell": {
+    "navGroups": {
+      "access": "People and access",
+      "setup": "Setup",
+      "connections": "Connections",
+      "plan": "Plan"
+    },
+    "settingsGroups": {
+      "accountingTax": "Tax and fiscal year",
+      "accountingApprovals": "Approvals and checks",
+      "accountingOrders": "Purchase orders",
+      "accountingPosting": "Costs and account mapping",
+      "projectsNumbering": "Numbering and project lists",
+      "projectsSite": "Daily site reports",
+      "projectsWorkOrders": "Work orders",
+      "projectsIssues": "Issues",
+      "peopleSettings": "Settings"
+    }
+  },
+  "roleChecklist": {
+    "none": "No role chosen",
+    "done": "Done",
+    "choose": "Choose roles"
+  }
 }
