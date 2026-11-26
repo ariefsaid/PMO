@@ -579,16 +579,27 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </Drawer>;
   })();
 
+  const invoiceStart = canViewMoney && canStartInvoice && (
+    <ProjectBillingStart
+      projectId={projectId}
+      clientId={clientId}
+      buttonLabel={t('projectDetail.billing.summary.raiseInvoice', 'Raise invoice')}
+      onWorkOrder={() => navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`)}
+      onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
+    />
+  );
+
   const claimsCard = (
     <Card>
       <CardHead
         level={2}
         className="text-base"
-        actions={(may('edit', 'billingStage') || (canBill && !canStartInvoice)) && (
+        actions={(may('edit', 'billingStage') || invoiceStart || (canBill && !canStartInvoice)) && (
           <div className="flex flex-wrap items-center gap-2">
             {may('edit', 'billingStage') && (
               <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>{t('projectDetail.billing.terms.title', 'Billing terms')}</Button>
             )}
+            {invoiceStart}
             {/* #2895: the card's own loading lines and the claim form's per-source states carry the waits — the
                 primary action does not hide behind the five source reads (the form submits only once they land). */}
             {canBill && !canStartInvoice && (
@@ -782,19 +793,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <CardHead
           level={2}
           className="text-base"
-          actions={
-            canStartInvoice && (
-              <ProjectBillingStart
-                projectId={projectId}
-                clientId={clientId}
-                buttonLabel={t('projectDetail.billing.summary.raiseInvoice', 'Raise invoice')}
-                onWorkOrder={() => {
-                  navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
-                }}
-                onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
-              />
-            )
-          }
+          actions={!canReadClaims && invoiceStart}
         >
           {t('projectDetail.billing.summary.title', 'Billing summary')}
           <span className="ml-2 text-sm font-normal text-muted-foreground">{currency} · {excl}</span>

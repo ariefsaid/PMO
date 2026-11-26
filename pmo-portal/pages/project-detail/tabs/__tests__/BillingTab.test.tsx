@@ -734,8 +734,7 @@ describe('BillingTab', () => {
     h.connected = false;
     const user = renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
-    const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
-    await user.click(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
     expect(await screen.findByRole('button', { name: /Quantity or progress claim/ })).toBeInTheDocument();
   });
 
@@ -832,16 +831,14 @@ describe('BillingTab', () => {
 
     it('M18 "New claim" is hidden while "Raise invoice" is offered, and shown when it is not', () => {
       renderTab();
-      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
-      expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     });
 
     it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
       h.routeReady = false;
       renderTab();
-      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
-      expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
   });
