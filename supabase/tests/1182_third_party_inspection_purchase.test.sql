@@ -138,6 +138,8 @@ reset role;
 
 -- ── AC-TPI-018 the trigger ───────────────────────────────────────────────────────────────────────────
 -- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+-- the as_user steps above leave a signed-in claim on the session; clear it so the owner-written suppliers keep the organisation they name (a signed-in insert is stamped into the caller's organisation)
+select set_config('request.jwt.claims', '{}', true);
 insert into companies (id, org_id, name, type)
   select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
   on conflict (id) do nothing;
