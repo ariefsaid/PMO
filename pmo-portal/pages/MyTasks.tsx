@@ -301,6 +301,7 @@ const MyTasks: React.FC = () => {
           {/* DESIGN.md `seg`: the shared inline segmented control, `toggle` semantics — a queue
               filter with no tabpanels, so aria-pressed beats role="tab" (ViewToggle doc). */}
           <ViewToggle
+            className="max-sm:flex max-sm:w-full max-sm:[&>button]:flex-1"
             semantics="toggle"
             ariaLabel={t('myTasks.queueLabel', 'Task status')}
             value={queue}
