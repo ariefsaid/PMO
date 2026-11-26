@@ -1,3 +1,4 @@
+import { tableCell } from './tableCell';
 import { expect, type Page } from '@playwright/test';
 
 export const whLabel = (w: { code: string; name: string }) => `${w.code} - ${w.name}`;
@@ -23,5 +24,7 @@ export async function postTransfer(page: Page, from: { code: string; name: strin
 export async function expectOnHand(page: Page, wh: { code: string; name: string }, itemCode: string, qty: string) {
   await page.goto('/stock');
   await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: whLabel(wh) });
-  await expect(page.getByRole('row', { name: new RegExp(itemCode) }).getByRole('cell', { name: new RegExp(`^${qty}\\s+\\S+$`) })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('row', { name: new RegExp(itemCode) }).first()).toBeVisible({ timeout: 20_000 });
+  // The On hand column (the stock page also shows Free and Reserved while reservations are on).
+  await expect(await tableCell(page, itemCode, 'On hand', page.getByRole('table', { name: 'Stock', exact: true }))).toHaveText(new RegExp(`^${qty}\\s+\\S+$`), { timeout: 20_000 });
 }
