@@ -128,11 +128,11 @@ const SiteReports: React.FC = () => {
                 onActivate={(r) => navigate(`/site-reports/${r.id}`)}
                 rowLabel={(r) => r.work_order_label}
                 columns={[
-                  { key: 'workOrder', header: t('new.workOrder', 'Work order'), kind: 'primary', cell: (r) => r.work_order_label },
+                  { key: 'workOrder', header: t('new.workOrder', 'Work order'), kind: 'primary', size: 240, cell: (r) => r.work_order_label },
                   { key: 'date', header: t('new.date', 'Work date'), kind: 'date', cell: (r) => formatDay(r.work_date) },
                   { key: 'crew', header: t('list.crewPerson', 'Crew / person'), cell: (r) => <>{r.crew_name && <span data-testid="dsr-crew">{t('list.crewLabel', { defaultValue: 'Crew {{name}}', name: r.crew_name })}</span>}{r.person_name && <span data-testid="dsr-person">{t('list.personLabel', { defaultValue: 'Person {{name}}', name: r.person_name })}</span>}</> },
                   { key: 'author', header: t('list.author', 'Author'), cell: (r) => r.author_name ?? '—' },
-                  { key: 'status', header: t('list.status', 'Status'), kind: 'status', size: 200, minSize: 180, cell: (r) => <div className="flex flex-wrap gap-2">{stockFlags?.has(r.id) && <StatusPill variant="warn" data-testid="dsr-stock-flag">{t('stock.flag', 'Stock flagged')}</StatusPill>}<StatusPill record="siteReport" state={r.status} /></div> },
+                  { key: 'status', header: t('list.status', 'Status'), kind: 'status', size: 180, minSize: 180, cell: (r) => <div className="flex flex-wrap gap-2">{stockFlags?.has(r.id) && <StatusPill variant="warn" data-testid="dsr-stock-flag">{t('stock.flag', 'Stock flagged')}</StatusPill>}<StatusPill record="siteReport" state={r.status} /></div> },
                 ]}
               />
             </div>
