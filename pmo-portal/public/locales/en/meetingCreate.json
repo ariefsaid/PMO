@@ -6,5 +6,6 @@
   "minutesFailed": "Minutes could not be saved.",
   "partialSaveFailed": "Meeting saved, but some details were not saved. Save again to retry.",
   "duplicateGuest": "This guest is already on the list.",
-  "save": "Save"
+  "save": "Save",
+  "time": "Time"
 }

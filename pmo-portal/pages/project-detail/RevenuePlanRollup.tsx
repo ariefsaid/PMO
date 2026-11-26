@@ -6,8 +6,7 @@ import { Link } from 'react-router';
 import { Card, CardHead, CardPad, ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectRevenuePlan, useRevenuePlanSettings } from '@/src/hooks/useWorkOrderRevenuePlan';
-import { formatExactMoney } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatTableMoney } from '@/src/lib/format';
 import { revenueGap } from '@/src/lib/revenuePlan';
 
 interface Props { projectId: string }
@@ -41,7 +40,7 @@ const RollupInner: React.FC<Props> = ({ projectId }) => {
   if (q.isError) return <Card data-testid="project-revenue-plan">{head}<CardPad><ListState variant="error" title={t('loadError', "Couldn't load the revenue plan")} retryLabel={t('retry', 'Try again')} onRetry={() => void q.refetch()} /></CardPad></Card>;
   const data = q.data;
   if (!data) return null;
-  const money = (v: string, currency: string) => formatExactMoney(v, currency, getNumberLocale()) ?? v;
+  const money = (v: string, currency: string) => formatTableMoney(v, currency) ?? v;
   const gapText = (gap: string, currency: string, hasPlan: boolean) => {
     if (!hasPlan) return t('noPlan', 'No plan entered');
     const g = revenueGap(gap);

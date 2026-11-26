@@ -37,11 +37,12 @@ function useDealFigures(d: DealActions): Fig[] {
     return (
       <form onSubmit={(e) => void d.saveProbability(e, kind)} className="flex flex-wrap items-center gap-2">
         <label className="sr-only" htmlFor={`opt-${kind}-${p.id}`}>{label}</label>
-        <input id={`opt-${kind}-${p.id}`} type="number" min={0} max={100} step={1} value={input} onChange={(e) => set(e.target.value)} disabled={d.saving !== null}
+        <input id={`opt-${kind}-${p.id}`} type="number" min={0} max={100} step={1} value={input} onChange={(e) => set(e.target.value)} onBlur={(e) => {
+          const saved = kind === 'go' ? (d.cached?.go_probability ?? 0.1) : (d.cached?.get_probability ?? 0.25);
+          if (Number(input) !== Math.round(saved * 100)) e.currentTarget.form?.requestSubmit();
+        }} disabled={d.saving !== null}
           className="h-9 w-20 rounded-[var(--radius-control)] border border-input bg-background px-2 text-sm tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50" />
-        <Button type="submit" variant="outline" size="sm" disabled={d.saving !== null}>
-          {d.saving === kind ? t('projectDetail.pipeline.statLoading', 'Loading…') : t('projectDetail.pipeline.saveProbability', 'Save')}
-        </Button>
+        <span className="text-control font-normal text-muted-foreground">{d.saving === kind ? t('projectDetail.pipeline.statLoading', 'Loading…') : t('autoSave', 'Auto-save')}</span>
         {err && <span role="alert" className="w-full text-control text-destructive-text">{err}</span>}
       </form>
     );
@@ -80,7 +81,7 @@ export const DealFigures: React.FC<{ d: DealActions; className?: string }> = ({ 
     <>
       <dl className={className ?? 'grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4'}>
         {figs.map((f) => (
-          <div key={f.key} className="min-w-0 border-b border-border pb-2">
+          <div key={f.key} className="min-w-0">
             <dt className="text-control text-muted-foreground">{f.label}</dt>
             <dd className={`${FIGURE_LINE_CLASS} mt-1 text-base font-semibold text-foreground`}>{f.value}</dd>
             {f.sub && <dd className="mt-1 text-control text-muted-foreground">{f.sub}</dd>}

@@ -133,10 +133,10 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     expect(within(card).queryByText(/Incomplete source coverage/)).not.toBeInTheDocument();
   });
 
-  it('the tax basis is plain "excl. PPN": no rate, no DPP, no Show tax details toggle', () => {
+  it('the tax basis is plain "excl. tax": no rate, no DPP, no Show tax details toggle', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} projectMoney={money()} />);
     const card = screen.getByTestId('project-card');
-    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
+    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. tax$/);
     expect(within(card).queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
     expect(card).not.toHaveTextContent(/DPP|11%/);
   });
@@ -154,10 +154,10 @@ describe('AC-RD-SUB-PL-B: Projects board card shows values only, on one line', (
     expect(card).toHaveAttribute('aria-label', expect.stringContaining('PMO Project Number: PMO-26-7711'));
   });
 
-  it('the board tax basis is plain "excl. PPN" with no rate or DPP', () => {
+  it('the board tax basis is plain "excl. tax" with no rate or DPP', () => {
     render(<ProjectKanbanBoard projects={[project]} onOpen={vi.fn()} />);
     const card = screen.getByTestId('project-card');
-    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
+    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. tax$/);
     expect(card).not.toHaveTextContent(/DPP|11%/);
   });
 });

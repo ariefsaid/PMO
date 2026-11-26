@@ -122,8 +122,8 @@ test.describe('AC-AS-022: AI compose → populate builder → save', () => {
 
     // Both panels should appear in the PanelList (AC-AS-014)
     // Each panel renders with the panel's primitive name visible
-    await expect(page.getByText('DataTable')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('KPITile')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('list', { name: 'Panel list' }).getByText('Table', { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('list', { name: 'Panel list' }).getByText('Key figure', { exact: true })).toBeVisible({ timeout: 10_000 });
 
     // ── 7. "AI-composed draft" indicator is visible (AC-AS-015, NFR-AS-A11Y-004) ──
     await expect(page.getByText(/ai-composed draft/i)).toBeVisible({ timeout: 5_000 });

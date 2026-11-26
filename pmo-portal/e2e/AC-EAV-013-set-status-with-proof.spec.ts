@@ -55,7 +55,7 @@ test('AC-EAV-013 a field controller saves several statuses and a photo remains p
   await page.getByRole('button', { name: 'Save statuses' }).click();
   await expect(page.getByRole('button', { name: `Upload file for ${codes[0]}` })).toBeVisible({ timeout: 20_000 });
   await page.getByLabel(`Attach proof for ${codes[0]}`).setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: pixel });
-  const broken = page.getByRole('listitem').filter({ hasText: codes[0] });
+  const broken = page.getByRole('row').filter({ hasText: codes[0] });
   await expect(broken.getByText('Proven', { exact: true })).toBeVisible({ timeout: 20_000 });
   await page.reload();
   await expect(page.getByLabel(`Status of ${codes[0]}`)).toHaveValue('broken');

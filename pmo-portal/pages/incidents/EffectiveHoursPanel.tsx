@@ -38,18 +38,18 @@ export const EffectiveHoursPanel: React.FC<{ from?: string; to?: string }> = ({ 
   const rangeOk = Boolean(from && to && to >= from && rangeDays(from, to) <= MAX_RANGE_DAYS);
   const query = useWorkOrderEffectiveHours(workOrderId ?? undefined, rangeOk ? from : undefined, rangeOk ? to : undefined);
   const rows = useMemo(() => query.data ?? [], [query.data]);
-  const totals = useMemo(() => rows.reduce((a, r) => ({
+  const totals = useMemo(() => rows.reduce((a, r) => r.has_times ? ({
     worked: a.worked + (r.worked_minutes ?? 0),
     stopped: a.stopped + r.stopped_minutes,
     effective: a.effective + (r.effective_minutes ?? 0),
-  }), { worked: 0, stopped: 0, effective: 0 }), [rows]);
+  }) : a, { worked: 0, stopped: 0, effective: 0 }), [rows]);
 
   return (
     <Card>
       <CardPad className="space-y-4" data-testid="effective-hours-panel">
         <div>
           <h2 className="text-group font-semibold tracking-[-0.01em]">{t('effectiveHours.title', 'Effective working hours')}</h2>
-          <p className="mt-1 max-w-prose text-control text-muted-foreground">
+          <p className="mt-3 max-w-prose text-control text-muted-foreground">
             {t('effectiveHours.basis', 'Per day for one work order: the site day from the validated daily report, minus the stopped time recorded on it.')}
           </p>
         </div>

@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
-  Card,
-  CardPad,
   FieldError,
   Icon,
   ListState,
@@ -105,7 +103,7 @@ export const IssueClosingReportSettings: React.FC = () => {
   const settings = settingsQuery.data;
 
   return (
-    <section id="issue-closing-report-settings" tabIndex={-1} className="scroll-mt-4 space-y-6" aria-labelledby="issue-closing-report-heading">
+    <section id="issue-closing-report-settings" tabIndex={-1} className="scroll-mt-4 space-y-4" aria-labelledby="issue-closing-report-heading">
       <div>
         <h2 id="issue-closing-report-heading" className="text-group font-semibold tracking-[-0.01em]">
           {t('issueClosingReport.title', 'Issue closing-time report')}
@@ -115,24 +113,19 @@ export const IssueClosingReportSettings: React.FC = () => {
         </p>
       </div>
 
-      <Card>
-        <CardPad className="space-y-6 p-6">
-          {/* Grouping Mode */}
-          <div>
-            <SelectField
-              id="admin-report-grouping-mode"
-              label={t('issueClosingReport.groupingMode', 'Default grouping')}
-              value={settings?.grouping_mode ?? 'type'}
-              onChange={(val) => onGroupingModeChange(val as 'type' | 'department_groups')}
-              options={[
-                { value: 'type', label: t('issueClosingReport.modeType', 'By issue type') },
-                { value: 'department_groups', label: t('issueClosingReport.modeDepartmentGroups', 'By custom department groups') },
-              ]}
-              disabled={updateSettings.isPending}
-            />
-          </div>
-        </CardPad>
-      </Card>
+      <div className="max-w-sm">
+        <SelectField
+          id="admin-report-grouping-mode"
+          label={t('issueClosingReport.groupingMode', 'Default grouping')}
+          value={settings?.grouping_mode ?? 'type'}
+          onChange={(val) => onGroupingModeChange(val as 'type' | 'department_groups')}
+          options={[
+            { value: 'type', label: t('issueClosingReport.modeType', 'By issue type') },
+            { value: 'department_groups', label: t('issueClosingReport.modeDepartmentGroups', 'By custom department groups') },
+          ]}
+          disabled={updateSettings.isPending}
+        />
+      </div>
 
       {/* Department Groups Editor */}
       <div className="space-y-4">
@@ -224,33 +217,31 @@ export const IssueClosingReportSettings: React.FC = () => {
         )}
 
         {/* Add Group Form */}
-        <Card>
-          <CardPad className="p-4">
-            <h4 className="text-sm font-semibold mb-3">
+        <div className="border-t border-border pt-4">
+          <h4 className="text-sm font-semibold mb-3">
+            {t('issueClosingReport.addGroup', 'Add department group')}
+          </h4>
+          <form onSubmit={handleAddGroup} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <TextField
+                label={t('issueClosingReport.groupName', 'Department name')}
+                placeholder={t('issueClosingReport.groupNamePlaceholder', 'e.g. Civil & Earthworks')}
+                value={newName}
+                onChange={setNewName}
+              />
+              <TextField
+                label={t('issueClosingReport.issueTypes', 'Issue types (comma-separated)')}
+                placeholder={t('issueClosingReport.issueTypesPlaceholder', 'e.g. Civil, Excavation, Concrete')}
+                value={newTypes}
+                onChange={setNewTypes}
+              />
+            </div>
+            <Button type="submit" variant="primary" size="sm" disabled={!newName.trim() || saveGroup.isPending}>
+              <Icon name="plus" />
               {t('issueClosingReport.addGroup', 'Add department group')}
-            </h4>
-            <form onSubmit={handleAddGroup} className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TextField
-                  label={t('issueClosingReport.groupName', 'Department name')}
-                  placeholder={t('issueClosingReport.groupNamePlaceholder', 'e.g. Civil & Earthworks')}
-                  value={newName}
-                  onChange={setNewName}
-                />
-                <TextField
-                  label={t('issueClosingReport.issueTypes', 'Issue types (comma-separated)')}
-                  placeholder={t('issueClosingReport.issueTypesPlaceholder', 'e.g. Civil, Excavation, Concrete')}
-                  value={newTypes}
-                  onChange={setNewTypes}
-                />
-              </div>
-              <Button type="submit" variant="primary" size="sm" disabled={!newName.trim() || saveGroup.isPending}>
-                <Icon name="plus" />
-                {t('issueClosingReport.addGroup', 'Add department group')}
-              </Button>
-            </form>
-          </CardPad>
-        </Card>
+            </Button>
+          </form>
+        </div>
       </div>
     </section>
   );

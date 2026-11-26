@@ -114,7 +114,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     expect(screen.getAllByText('Keuangan').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Aktif').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Nonaktif').length).toBeGreaterThan(0);
-    expect(screen.getAllByLabelText('Tanpa manajer').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Tanpa manajer', { exact: true }).length).toBeGreaterThan(0);
     expect(screen.queryByText('No manager')).toBeNull();
     expect(screen.queryByText('Invite user')).toBeNull();
   });

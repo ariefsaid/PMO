@@ -1,13 +1,15 @@
+import { useAreaHelp } from './useAreaHelp';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, RecordSection } from '@/src/components/ui';
 import WorkOrderPlanModal from '../project-detail/WorkOrderPlanModal';
-import { formatExactMoney } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatTableMoney } from '@/src/lib/format';
+import { PvaTable, type PvaCell, type PvaRow } from '../project-detail/PvaTable';
 import { planVariance } from '@/src/lib/workOrderPlanVsActual';
 import type { Margin } from '@/src/lib/projectFinances';
 import type { ProjectPlanVsActual } from '@/src/lib/repositories/workOrderFinance';
 import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
+import { OtherCurrencyNote } from './AreaHelp';
 import { LabourByClass } from './LabourByClass';
 import { IdleCostBlock } from './IdleCostBlock';
 
@@ -30,6 +32,7 @@ interface Props {
  */
 export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId, canPlan = false }) => {
   const { t } = useTranslation('workOrderPva');
+  useAreaHelp('cost-basis', t('title', 'Plan vs actual'), t('actualBasis', 'Actual follows project financial actuals; the costs below include other records.'));
   const [planning, setPlanning] = useState(false);
   const title = t('title', 'Plan vs actual');
   if (query.isPending) return <RecordSection title={title} data-testid="wo-page-pva"><ListState variant="loading" rows={3} /></RecordSection>;
@@ -64,69 +67,65 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
   }
   const cur = w.currency;
   const money = (value: string | null, currency = cur) =>
-    value === null ? t('unknown', 'Unknown') : formatExactMoney(value, currency, getNumberLocale()) ?? t('unknown', 'Unknown');
-  const planText = (value: string | null) => (value === null ? t('noPlan', 'No plan') : money(value));
+    value === null ? t('unknown', 'Unknown') : formatTableMoney(value, currency) ?? t('unknown', 'Unknown');
   const marginText = (m: Margin) => {
     if (m.amount !== null) return money(m.amount);
     switch (m.reason) {
       case 'restricted-rows': return t('restricted', 'Restricted');
-      case 'different-currencies': return t('notComparable', 'Not comparable (other currency)');
+      // Said once for the area (OtherCurrencyNote), not in each figure.
+      case 'different-currencies': return '—';
       case 'work-unavailable': return t('revenueUnknown', 'Revenue unknown');
       default: return t('costUnknown', 'Cost unknown');
     }
   };
-  const variantText = (plan: string | null, actual: string | null) => {
-    const v = planVariance(plan, actual);
-    if (v.state === 'over') return t('overPlan', 'Over plan by {{amount}}', { amount: money(v.by) });
-    if (v.state === 'within') return t('underPlan', '{{amount}} left', { amount: money(v.by) });
-    if (v.state === 'unknown') return t('unknown', 'Unknown');
-    return t('noPlan', 'No plan');
-  };
-  const nameOf = (id: string | null) => (id === null ? t('noDiscipline', 'No discipline') : disciplines.find((d) => d.id === id)?.name ?? t('unknownDiscipline', 'Archived discipline'));
   const revenue = w.revenue === null || !w.revenueComplete ? t('revenueUnknown', 'Revenue unknown') : money(w.revenue);
-
-  const figure = (testId: string, label: string, value: React.ReactNode, note?: React.ReactNode) => (
-    <div key={testId}>
+  const nameOf = (id: string | null) => (id === null ? t('noDiscipline', 'No discipline') : disciplines.find((d) => d.id === id)?.name ?? t('unknownDiscipline', 'Archived discipline'));
+  // The project tab's table family (PvaTable): Plan · Actual · Left or over, the overspend in danger text and words.
+  const planCell = (plan: string | null, testId?: string): PvaCell => plan === null ? { text: t('noPlan', 'No plan'), tone: 'words', testId } : { text: money(plan), testId };
+  const diffCell = (plan: string | null, actual: string | null): PvaCell => {
+    const v = planVariance(plan, actual);
+    if (v.state === 'no-plan') return { text: '—', tone: 'words' };
+    if (v.state === 'unknown') return { text: t('unknown', 'Unknown'), tone: 'words' };
+    return v.state === 'over'
+      ? { text: t('overPlan', 'Over plan by {{amount}}', { amount: money(v.by) }), tone: 'over' }
+      : { text: t('underPlan', '{{amount}} left', { amount: money(v.by) }), tone: 'words' };
+  };
+  const legRow = (key: string, head: React.ReactNode, plan: string | null, actual: string | null, planId?: string, actualId?: string): PvaRow =>
+    ({ key, head, testId: key.startsWith('d:') ? `wo-page-pva-discipline-${key.slice(2)}` : undefined,
+      cells: [planCell(plan, planId), { text: money(actual), testId: actualId }, diffCell(plan, actual)] });
+  const columns = [{ key: 'plan', label: t('col.planShort', 'Plan') }, { key: 'actual', label: t('col.actualShort', 'Actual') }, { key: 'diff', label: t('col.difference', 'Left or over') }];
+  const tone = (m: Margin) => m.amount === null ? 'font-normal text-muted-foreground' : m.amount.startsWith('-') && !/^-0(\.0+)?$/.test(m.amount) ? 'text-destructive' : '';
+  const figure = (testId: string, label: string, value: React.ReactNode, className = '') => (
+    <div key={testId} className="min-w-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="tabular-nums" data-testid={testId}>{value}{note ? <div className="text-muted-foreground">{note}</div> : null}</dd>
+      <dd className={`mt-1 text-metric font-semibold tabular-nums ${className}`} data-testid={testId}>{value}</dd>
     </div>
   );
   return (
     <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-control sm:grid-cols-3">
-        {figure('wo-page-pva-plan-direct', t('col.plan', 'Planned direct'), planText(f.plan.direct_budget))}
-        {figure('wo-page-pva-direct', t('col.direct', 'Direct cost'), money(f.direct), variantText(f.plan.direct_budget, f.direct))}
-        {figure('wo-page-pva-plan-indirect', t('col.planIndirect', 'Planned indirect'), planText(f.plan.indirect_budget))}
-        {figure('wo-page-pva-allocated', t('col.shared', 'Shared cost'), money(f.allocated), variantText(f.plan.indirect_budget, f.allocated))}
-        {figure('wo-page-pva-revenue', t('col.revenue', 'Billed revenue'), revenue)}
-        {figure('wo-page-pva-direct-margin', t('col.directMargin', 'Direct margin'), marginText(f.directMargin))}
-        {figure('wo-page-pva-result', t('col.result', 'After shared cost'), marginText(f.result))}
+      {(f.directMargin.reason === 'different-currencies' || f.result.reason === 'different-currencies') && <OtherCurrencyNote />}
+      <PvaTable dense testId="wo-page-pva-cost" caption={title} firstColumn={<span className="sr-only">{t('col.cost', 'Cost')}</span>} columns={columns} rows={[
+        legRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct'),
+        legRow('shared', t('col.shared', 'Shared cost'), f.plan.indirect_budget, f.allocated, 'wo-page-pva-plan-indirect', 'wo-page-pva-allocated'),
+      ]} />
+      <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-4 text-control sm:grid-cols-3">
+        {figure('wo-page-pva-revenue', t('col.revenue', 'Billed revenue'), w.revenue === null || !w.revenueComplete ? '—' : revenue, w.revenue === null || !w.revenueComplete ? 'font-normal text-muted-foreground' : '')}
+        {figure('wo-page-pva-direct-margin', t('col.directMargin', 'Direct margin'), f.directMargin.amount === null ? '—' : marginText(f.directMargin), tone(f.directMargin))}
+        {figure('wo-page-pva-result', t('col.result', 'After shared cost'), f.result.amount === null ? '—' : marginText(f.result), tone(f.result))}
         {f.otherCurrency.map((o) => figure(`wo-page-pva-other-${o.currency}`, t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency }), money(o.amount, o.currency)))}
       </dl>
+      {(w.revenue === null || !w.revenueComplete || f.directMargin.amount === null || f.result.amount === null) && <p className="mt-3 text-control text-muted-foreground">{[...new Set([w.revenue === null || !w.revenueComplete ? t('revenueUnknown', 'Revenue unknown') : null, f.directMargin.amount === null ? marginText(f.directMargin) : null, f.result.amount === null ? marginText(f.result) : null].filter(Boolean))].join(' · ')}</p>}
       {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={cur} testId="wo-page-pva-labour" />}
       <IdleCostBlock projectId={projectId} workOrderId={workOrderId} testId="wo-page-pva-idle" />
       {f.disciplines.length > 0 && (
-        <div className="mt-4 overflow-x-auto" data-testid="wo-page-pva-disciplines">
-          <table className="w-full text-control">
-            <caption className="py-1 text-left font-medium">{t('byDiscipline', 'By discipline')}</caption>
-            <thead><tr className="text-right text-muted-foreground">
-              <th scope="col" className="py-1 pr-4 text-left font-normal">{t('col.discipline', 'Discipline')}</th>
-              <th scope="col" className="py-1 pr-4 font-normal">{t('col.plan', 'Planned direct')}</th>
-              <th scope="col" className="py-1 pr-4 font-normal">{t('col.direct', 'Direct cost')}</th>
-              <th scope="col" className="py-1 pr-4 font-normal">{t('col.planIndirect', 'Planned indirect')}</th>
-              <th scope="col" className="py-1 font-normal">{t('col.shared', 'Shared cost')}</th>
-            </tr></thead>
-            <tbody>{f.disciplines.map((d) => (
-              <tr key={d.disciplineId ?? 'none'} className="border-t border-border" data-testid={`wo-page-pva-discipline-${d.disciplineId ?? 'none'}`}>
-                <th scope="row" className="py-1 pr-4 text-left font-normal">{nameOf(d.disciplineId)}</th>
-                <td className="py-1 pr-4 text-right tabular-nums">{planText(d.planDirect)}</td>
-                <td className="py-1 pr-4 text-right tabular-nums">{money(d.direct)}{d.planDirect !== null && <div className="text-muted-foreground">{variantText(d.planDirect, d.direct)}</div>}</td>
-                <td className="py-1 pr-4 text-right tabular-nums">{planText(d.planIndirect)}</td>
-                <td className="py-1 text-right tabular-nums">{money(d.allocated)}{d.planIndirect !== null && <div className="text-muted-foreground">{variantText(d.planIndirect, d.allocated)}</div>}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
+        <section className="mt-4 border-t border-border pt-4" data-testid="wo-page-pva-disciplines">
+          <h3 className="mb-1 text-control font-semibold">{t('byDiscipline', 'By discipline')}</h3>
+          <PvaTable dense caption={t('byDiscipline', 'By discipline')} firstColumn={t('col.discipline', 'Discipline')} columns={columns}
+            rows={f.disciplines.flatMap((d) => [
+              legRow(`d:${d.disciplineId ?? 'none'}`, <>{nameOf(d.disciplineId)} <span className="text-muted-foreground">· {t('directShort', 'direct')}</span></>, d.planDirect, d.direct),
+              legRow(`s:${d.disciplineId ?? 'none'}`, <>{nameOf(d.disciplineId)} <span className="text-muted-foreground">· {t('sharedShort', 'shared')}</span></>, d.planIndirect, d.allocated),
+            ])} />
+        </section>
       )}
       {planModal}
     </RecordSection>

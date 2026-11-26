@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 // Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
@@ -26,19 +26,20 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn((media: string) => ({ matches: true, media, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 
-it('keeps the pipeline summary and attention before the sales board with their key actions present', () => {
-  page();
+it('shows the pipeline figures and filters the sales table from Needs attention', async () => {
+  page('/sales?view=table');
 
-  const summary = screen.getByRole('region', { name: 'Pipeline summary' });
-  const attention = screen.getByRole('region', { name: 'Needs attention' });
-  const firstDeal = screen.getByText(state.data.projects[0].name);
+  const summary = within(screen.getByRole('region', { name: 'Pipeline summary' }));
+  const attention = within(screen.getByRole('region', { name: 'Needs attention' }));
+  const deal = state.data.projects[0].name;
 
-  expect(screen.getByText('Weighted forecast')).toBeInTheDocument();
-  expect(screen.getByText('Open value')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Won 0 all time' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Lost 0 all time' })).toBeInTheDocument();
-  expect(summary.compareDocumentPosition(attention) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(attention.compareDocumentPosition(firstDeal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(summary.getByText('Weighted forecast')).toBeInTheDocument();
+  expect(summary.getByText('Open value')).toBeInTheDocument();
+  expect(screen.getByText(deal)).toBeInTheDocument();
+  expect(attention.getByRole('button', { name: 'Lost 0 all time' })).toBeInTheDocument();
+
+  await userEvent.click(attention.getByRole('button', { name: 'Won 0 all time' }));
+  expect(screen.queryByText(deal)).not.toBeInTheDocument();
 });
 
 it.each(['kanban', 'table'])('UIP-004 Pipeline %s starts with Classification collapsed, narrows the real rows and clears without changing search/view', async (view) => {
@@ -78,7 +79,7 @@ it.each(['kanban', 'table'])('UIP-004 phone %s keeps a single search/core scope,
   // honoured and no Board/Table switcher or Export is offered; the core scope control stays.
   expect(screen.queryByRole('tablist', { name: 'Pipeline view' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
-  expect(screen.getAllByRole('tablist', { name: 'Project scope' })).toHaveLength(1);
+  expect(screen.getAllByRole('combobox', { name: 'Project scope' })).toHaveLength(1);
   const stageList = screen.getByTestId('sales-phone-stage-list');
   expect(stageList).toBeInTheDocument();
   expect(stageList.firstElementChild).toBeInTheDocument();

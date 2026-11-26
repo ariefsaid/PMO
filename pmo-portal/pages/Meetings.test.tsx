@@ -247,7 +247,7 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(within(toolbar).queryByText(/^Showing /)).not.toBeInTheDocument();
     expect(within(screen.getByTestId('list-page-search-group')).getByRole('searchbox', { name: 'Search meetings' })).toBeInTheDocument();
     expect(within(screen.getByTestId('list-page-filter-group')).getByRole('combobox', { name: /Filter by project/ })).toBeInTheDocument();
-    expect(within(screen.getByTestId('list-page-filter-group')).getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-filter-group')).getByRole('button', { name: /Clear all|Clear filters/i })).toBeInTheDocument();
   });
 
   it('renders the seeded meetings with title, project, and location', () => {
@@ -338,7 +338,7 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
   it('the search box drives the SERVER query (DD-MTG-5 — notes are the find mechanism)', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search meetings/i), 'pipeline');
-    expect(useMeetingsSpy).toHaveBeenLastCalledWith(
+    expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1,
       expect.objectContaining({ search: 'pipeline' }),
     );
   });
@@ -388,7 +388,7 @@ describe('Meetings — row menu gating', () => {
     renderPage('Engineer');
     await userEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
 
-    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ includeArchived: true }));
+    expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1, expect.objectContaining({ includeArchived: true }));
     expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?archived=1');
     expect(screen.getByText('Kickoff with Acme')).toBeInTheDocument();
     const title = screen.getAllByText('Archived planning session').find((element) => element.closest('tr'))!;
@@ -489,8 +489,8 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
   it('prefills "When" with the current wall time in the profile timezone (not the device zone)', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New meeting/ }));
-    const when = screen.getByLabelText(/When/i) as HTMLInputElement;
-    expect(when.value).toBe('2026-06-14T21:15');
+    expect(screen.getByLabelText(/When/i)).toHaveValue('14 Jun 2026');
+    expect(screen.getByLabelText(/^Time$/i)).toHaveValue('21:15');
   });
 
   it('submitting the unedited default keeps the same instant', async () => {
@@ -530,7 +530,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
   it('AC-LRC-001: a direct URL with ?project= restores the selected filter and queries the server for it', () => {
     renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
     expect(screen.getByRole('combobox', { name: /Filter by project/i })).toHaveTextContent('North Terminal');
-    expect(useMeetingsSpy).toHaveBeenLastCalledWith(
+    expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1,
       expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
     );
   });
@@ -538,7 +538,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
   it('keeps the count in the toolbar while a project filter is active and the total is unavailable', () => {
     listState.total = undefined;
     renderPage('Admin', '/meetings?project=33333333-3333-4333-8333-333333333333');
-    expect(useMeetingsSpy).toHaveBeenLastCalledWith(
+    expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1,
       expect.objectContaining({ projectId: '33333333-3333-4333-8333-333333333333' }),
     );
     expect(within(screen.getByTestId('list-page-header')).getByText('Showing 0 of …')).toBeInTheDocument();
@@ -579,7 +579,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
   it('AC-LRC-001: a direct URL with ?q= fills the search box and sends that term to the SERVER query', () => {
     renderPage('Admin', '/meetings?q=pipeline');
     expect(screen.getByLabelText(/Search meetings/i)).toHaveValue('pipeline');
-    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'pipeline' }));
+    expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1, expect.objectContaining({ search: 'pipeline' }));
   });
 
   it('FR-LRC-007: after Clear filters, the kept-previous empty result reads as loading — never "No meetings yet"', async () => {
@@ -611,7 +611,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
       expect(search).toContain('project=33333333-3333-4333-8333-333333333333');
       expect(search).toContain('q=kickoff');
     });
-    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Clear all|Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
   });
 
@@ -620,7 +620,7 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
     renderPage('Admin', `/meetings?project=${GONE}`);
     const projectPicker = screen.getByRole('combobox', { name: /Filter by project/i });
     expect(projectPicker).toHaveTextContent('Unavailable project');
-    expect(useMeetingsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: GONE }));
+    expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1, expect.objectContaining({ projectId: GONE }));
     expect(screen.getByText(/No meetings match/i)).toBeInTheDocument();
 
     await userEvent.click(projectPicker);
@@ -633,27 +633,27 @@ describe('Meetings index — list working set + return context (AC-LRC-008)', ()
 
   it('shows Clear all only while a project, search, or archived filter is active', async () => {
     renderPage('Admin');
-    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Clear all|Clear filters/i })).not.toBeInTheDocument();
 
     await chooseProject('North Terminal');
-    expect(screen.getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    expect(screen.getByRole('button', { name: /Clear all|Clear filters/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear all|Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
-    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Clear all|Clear filters/i })).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText(/Search meetings/i), 'pipeline');
-    expect(screen.getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    expect(screen.getByRole('button', { name: /Clear all|Clear filters/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear all|Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
     expect(screen.getByLabelText(/Search meetings/i)).toHaveValue('');
-    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Clear all|Clear filters/i })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('switch', { name: 'Show archived' }));
-    expect(screen.getByRole('button', { name: /Clear all/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Clear all/i }));
+    expect(screen.getByRole('button', { name: /Clear all|Clear filters/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear all|Clear filters/i }));
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toBe(''));
     expect(screen.getByRole('switch', { name: 'Show archived' })).not.toBeChecked();
-    expect(screen.queryByRole('button', { name: /Clear all/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Clear all|Clear filters/i })).not.toBeInTheDocument();
   });
 
   it('AC-LRC-008: a meeting created from a filtered list opens with that list as its return context', async () => {

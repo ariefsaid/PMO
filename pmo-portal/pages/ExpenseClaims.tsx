@@ -80,12 +80,12 @@ const ExpenseClaims: React.FC = () => {
   // Memoised (#2102): the table's row memo keys on this array's identity, so a toast, a menu or
   // any unrelated re-render must not rebuild it. Only a language change can.
   const columns = useMemo<Column<ExpenseClaimListRow>[]>(() => [
-    { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
+    { key: 'claim_number', header: t('expenses.columns.number', 'Number'), colClassName: 'hidden xl:table-cell',
       cell: (r) => <span className="whitespace-nowrap">{r.claim_number ?? '—'}</span>,
       exportValue: (r) => r.claim_number ?? '' },
-    { key: 'kind', header: t('expenses.columns.kind', 'Type'), cell: (r) => expenseKindLabel(r.kind, t), exportValue: (r) => r.kind },
+    { key: 'kind', header: t('expenses.columns.kind', 'Type'), colClassName: 'hidden xl:table-cell', cell: (r) => expenseKindLabel(r.kind, t), exportValue: (r) => r.kind },
     { key: 'title', header: t('expenses.columns.title', 'Title'),
-      cell: (r) => <span className="truncate font-semibold" title={r.title}>{r.title}</span>, exportValue: (r) => r.title },
+      cell: (r) => <span className="block min-w-0 break-words"><span className="block font-semibold" title={r.title}>{r.title}</span><span className="block text-muted-foreground xl:hidden">{[r.claim_number, expenseKindLabel(r.kind, t)].filter(Boolean).join(' · ')}</span></span>, exportValue: (r) => r.title },
     { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
       cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
@@ -116,10 +116,10 @@ const ExpenseClaims: React.FC = () => {
         )
       }
       filters={
-        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:flex-wrap">
           <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
           <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
-          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} wrapperClassName="col-span-2 w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
         </div>
       }
     >

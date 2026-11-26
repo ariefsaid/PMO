@@ -265,7 +265,7 @@
           "title": "Create this claim's invoice?"
         },
         "confirmRaise": {
-          "netExclTax": "Net (excl. PPN)",
+          "netExclTax": "Net (excl. tax)",
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
           "title": "Raise this claim's invoice?"
@@ -290,7 +290,7 @@
         "contract": "Contract value",
         "notSubmitted": "Claims raised, not yet submitted",
         "remaining": "Contract not yet billed",
-        "exclTax": "excl. PPN",
+        "exclTax": "excl. tax",
         "error": "Couldn't load billing",
         "dpHeld": "Down payment held",
         "title": "Billing summary",
@@ -323,7 +323,7 @@
         }
       },
       "claimForm": {
-        "dpAmount": "Down payment amount (excl. PPN)",
+        "dpAmount": "Down payment amount (excl. tax)",
         "noLines": "No bill of quantities lines in this scope.",
         "errors": {
           "quantity": "Each quantity must be above 0 with at most 3 decimal places",
@@ -344,7 +344,7 @@
         "scopeContract": "Lines with no work order",
         "title": "New billing claim",
         "prefill": "Start from the {{month}} assessment",
-        "kindProgress": "Progress: quantities against the bill of quantities"
+        "kindProgress": "Progress: contract quantities"
       },
       "areaRates": {
         "title": "Rates by area",
@@ -360,7 +360,7 @@
         "quantity": "Quantity",
         "subtitle": "Rates exclude tax. Work orders take quantities from a line when you allocate it.",
         "save": "Save line",
-        "rate": "Rate (excl. PPN)",
+        "rate": "Rate (excl. tax)",
         "unit": "Unit",
         "errors": {
           "required": "Required",
@@ -1239,7 +1239,7 @@
       },
       "openTask": "Open task {{name}}",
       "daysOverdueCount": "{{count}}d overdue",
-      "daysLateCount": "{{count}}d late",
+      "daysLateCount": "{{count}} days late",
       "listAriaLabel": "Project tasks",
       "phaseDatesTooltip": "Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.",
       "phaseTargetTooltip": "Target date from the project phase record.",
@@ -1352,13 +1352,13 @@
       },
       "action": {
         "recordDelivery": "Record delivery",
-        "addCustomerOrder": "Add customer order",
         "openDetails": "View details for {{order}}",
         "editOrder": "Edit order",
         "orderMenuLabel": "Actions for {{order}}",
         "viewPo": "View customer PO",
         "cancelGeneric": "Cancel",
-        "import": "Import work orders"
+        "import": "Import work orders",
+        "openWorkOrders": "Work orders"
       },
       "filter": {
         "orders": "Order",
@@ -1371,7 +1371,7 @@
         "source": "Computed as net contract value less the net value of issued and closed work orders."
       },
       "drafts": "Draft orders",
-      "emptyRegister": "No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.",
+      "emptyRegister": "No work orders yet. Create one on the Work orders tab; it draws down the project contract ceiling once issued.",
       "orderDate": "Order date",
       "billing": {
         "orderRemainingSource": "Source: work-order billing balance after invoices and pending drafts.",
@@ -1469,9 +1469,15 @@
     "projectIncidents": "Project incidents",
     "workOrderForm": {
       "area": "Area",
+      "errors": {
+        "projectRequired": "Choose the project this work order belongs to"
+      },
       "group": "Group",
       "noArea": "No area",
-      "noGroup": "No group"
+      "noGroup": "No group",
+      "noProjects": "There is no project to add a work order to yet.",
+      "project": "Project",
+      "projectPlaceholder": "Choose a project"
     }
   },
   "common": {
@@ -1577,5 +1583,7 @@
     "unpriced": "Unpriced",
     "sourceUnavailable": "Location unavailable",
     "noLocations": "No locations yet. Add a location."
-  }
+  },
+  "autoSave": "Auto-save",
+  "executionPlan": "Execution plan"
 }

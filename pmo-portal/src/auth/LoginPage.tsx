@@ -189,7 +189,7 @@ const LoginPage: React.FC = () => {
     <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
         <main>
-        <LanguageSwitch className="mb-2" />
+        <div className="mb-2 flex justify-center"><LanguageSwitch /></div>
         <AuthHeader className="mb-4" />
         <div className="mb-6 text-center">
           <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">
@@ -311,13 +311,13 @@ const LoginPage: React.FC = () => {
                 onClick={onMagicLink}
                 disabled={magicLinkDisabled}
                 aria-describedby={magicLinkDisabled ? 'magic-link-disabled-reason' : undefined}
-                className="touch-target inline-flex min-h-[var(--control-height)] items-center font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                className="touch-target inline-flex min-h-[var(--control-height)] items-center font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground"
               >
                 {t('login.magicLink', 'Email me a magic link')}
               </button>
             </p>
             {magicLinkDisabled && (
-              <p id="magic-link-disabled-reason" className="text-center text-control text-muted-foreground">
+              <p id="magic-link-disabled-reason" className="sr-only">
                 {busy
                   ? t('login.magicLinkBusy', 'Wait for the current sign-in attempt to finish before requesting a link.')
                   : t('login.magicLinkEmailRequired', 'Enter an email above to request a sign-in link.')}
@@ -347,7 +347,7 @@ const LoginPage: React.FC = () => {
                         setError(null);
                       }}
                       disabled={busy}
-                      className="touch-target inline-flex min-h-[var(--control-height)] items-center py-2 text-control font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                      className="touch-target inline-flex min-h-[var(--control-height)] items-center py-2 text-control font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground"
                     >
                       {t(labelKey, label)}
                     </button>

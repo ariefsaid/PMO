@@ -163,7 +163,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
         {isPending && <ListState variant="loading" shape="table" rows={2} />}
         {!isPending && (isError || !detail) && <ListState variant="error" title={t('journals:detail.error', "Couldn't load this journal")}
           sub={t('journals:list.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void refetch()} />}
-        {detail && <DataTable<JournalLineRow> rows={detail.lines} columns={lineColumns} rowKey={(l) => l.id} tableId="journal-lines-table"
+        {detail && <DataTable<JournalLineRow> rows={detail.lines} columns={lineColumns} rowKey={(l) => l.id} cardBelow={760} cardValuesEnd tableId="journal-lines-table"
           state={detail.lines.length === 0 ? 'empty' : undefined} emptyTitle={t('journals:detail.noLines', 'No lines yet')} />}
       </div>}
 

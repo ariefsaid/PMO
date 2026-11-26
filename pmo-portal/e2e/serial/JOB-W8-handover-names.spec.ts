@@ -58,7 +58,7 @@ test('JOB-W8 the material coordinator reads the sender and the receiver, each wi
     // 2. The second storekeeper counts what arrived and receives it.
     await receiver.signIn(page);
     await page.goto(`/stock/transfers/${transferId}`);
-    await page.getByLabel('Counted').fill('3');
+    await page.getByRole('textbox', { name: 'Counted' }).fill('3');
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 

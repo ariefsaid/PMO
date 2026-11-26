@@ -15,6 +15,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
 import type { SafetyWorkOrderDay } from '@/src/lib/db/safetyDays';
+import { useAreaHelp } from './useAreaHelp';
 
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
@@ -62,12 +63,15 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
     return <StatusPill variant="warn">{t('day.missing', { defaultValue: 'Missing: {{parts}}', parts: r.missing.map(partLabel).join(', ') })}</StatusPill>;
   };
 
+  const title = t('section.title', 'Daily safety records');
+  useAreaHelp('safety', title, t('section.subline', 'Fitness check, toolbox talk, pre-work checklist, permit to work and the safety officer’s report, per day.'));
+
   return (
     <RecordSection
-      title={t('section.title', 'Daily safety records')}
-      subline={t('section.subline', 'Fitness check, toolbox talk, pre-work checklist, permit to work and the safety officer’s report, per day.')}
+      title={title}
+      className="[&>div:first-child]:flex-nowrap"
       data-testid="safety-section"
-      actions={<Link to="/safety" className="text-control text-primary-text hover:underline">{t('section.summary', 'Monthly summary')}</Link>}
+      actions={<Link to="/safety" className="shrink-0 whitespace-nowrap text-control text-primary-text hover:underline">{t('section.summary', 'Monthly summary')}</Link>}
     >
       {mayEnter && status === 'Issued' && (
         <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void open({ work_date: date, day_id: days.data?.find((d) => d.work_date === date)?.day_id ?? null }); }}>
@@ -133,12 +137,14 @@ const SafetyTodayBody: React.FC<{ workOrderId: string; projectId: string; status
     catch (err) { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); }
   };
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3 rounded-control border border-border px-3 py-2" data-testid="safety-today">
-      <span className="text-control font-medium">{t('today.title', "Today's safety record")}</span>
-      <span className="text-control text-muted-foreground">
-        {!row?.day_id ? t('today.none', 'Not started') : row.status === 'locked' ? t('day.locked', 'Locked') : t('day.draft', 'Draft')}
-      </span>
-      <Button variant="outline" size="sm" onClick={() => void go()} data-testid="safety-today-open">
+    <div className="mt-3 flex items-center justify-between gap-3 rounded-control border border-border px-3 py-2 sm:justify-start" data-testid="safety-today">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="text-control font-medium">{t('today.title', "Today's safety record")}</span>
+        <span className="text-control text-muted-foreground">
+          {!row?.day_id ? t('today.none', 'Not started') : row.status === 'locked' ? t('day.locked', 'Locked') : t('day.draft', 'Draft')}
+        </span>
+      </div>
+      <Button variant="outline" size="sm" className="shrink-0" onClick={() => void go()} data-testid="safety-today-open">
         {row?.day_id ? t('day.open', 'Open') : t('day.recordShort', 'Record')}
       </Button>
     </div>

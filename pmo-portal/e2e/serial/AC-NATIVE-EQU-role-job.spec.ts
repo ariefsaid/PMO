@@ -5,6 +5,7 @@ import { serviceClient, projectWithWorkOrders, runId, need, ok, ORG_ID } from '.
 import { inDays } from '../support/jobJourney';
 import { userClient } from '../support/stockFixture';
 import { signIn, pickComboboxOption } from '../helpers';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 let previouslyEnabled: boolean;
@@ -55,6 +56,7 @@ test('AC-NATIVE-EQU project control records crane hours and sees their native co
     await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
     await role.login(page);
     await page.goto(`/work-orders/${setup.workOrders[0].id}`);
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByTestId('cost-group-equipment_usage').getByText('$150', { exact: true }).first()).toBeVisible();
   } finally {
     // Restore valid rate/category state before reconnecting: connection validates every saved hire category.

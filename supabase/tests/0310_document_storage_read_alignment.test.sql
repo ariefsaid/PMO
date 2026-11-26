@@ -238,7 +238,7 @@ select is((select roles::text from pg_policies where schemaname='storage' and ta
 select is((select permissive from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_project_doc_read'), 'PERMISSIVE', 'AC-DSR-006 project read policy retains permissive mode');
 select is((select with_check from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_project_doc_read'), null::text, 'AC-DSR-006 project read policy retains its null check expression');
 select is((select cmd from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_read'), 'SELECT', 'AC-DSR-006 procurement read policy remains SELECT');
-select is((select roles::text from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_read'), '{public}', 'AC-DSR-006 procurement read policy retains its role set');
+select is((select roles::text from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_read'), '{authenticated}', 'AC-DSR-006 procurement read policy is scoped to authenticated users');
 select is((select permissive from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_read'), 'PERMISSIVE', 'AC-DSR-006 procurement read policy retains permissive mode');
 select is((select with_check from pg_policies where schemaname='storage' and tablename='objects' and policyname='storage_objects_proc_file_read'), null::text, 'AC-DSR-006 procurement read policy retains its null check expression');
 select is(

@@ -1,7 +1,7 @@
 /** AC-ICM-012 — the effective-hours panel beside the closing report: hint, per-day table, total, "times not entered". */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const h = vi.hoisted(() => ({ rows: [] as unknown[], isPending: false, isError: false }));
@@ -43,7 +43,8 @@ describe('AC-ICM-012 effective working hours panel', () => {
     expect(table).toHaveTextContent('2.0');
     expect(table).toHaveTextContent('6.5');
     expect(table).toHaveTextContent('Times not entered');
-    expect(table).toHaveTextContent('Total');
+    const total = within(table).getByRole('row', { name: /Total/ });
+    expect(within(total).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['8.5', '2.0', '6.5']);
   });
   it('says what is missing when the range is open or the work order has no validated report', async () => {
     const { rerender } = render(<EffectiveHoursPanel />);

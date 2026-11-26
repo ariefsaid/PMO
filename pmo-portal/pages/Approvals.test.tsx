@@ -421,7 +421,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
   it('AC-912: Select items reveals labelled desktop checkboxes while preserving the selected preview', async () => {
     queryState.data = desktopSheets;
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^select timesheets$/i }));
     expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of 8 Jun/i })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByText('Dave Engineer')).toBeInTheDocument();
@@ -431,7 +431,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     queryState.data = desktopSheets;
     approveMutation.mutateAsync = vi.fn(() => Promise.resolve());
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^select timesheets$/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i }));
     await userEvent.click(screen.getByRole('checkbox', { name: /Erin Analyst.*Week of 8 Jun/i }));
     await userEvent.click(screen.getByRole('button', { name: /Approve 2/i }));
@@ -446,7 +446,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     queryState.data = desktopSheets;
     procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
     renderPage('all');
-    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^select timesheets$/i }));
     expect(screen.getAllByRole('checkbox')).toHaveLength(4);
     expect(screen.getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select all approvable weeks' }));
@@ -456,12 +456,12 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
   it('AC-912: empty and procurement-only desktop queues hide Select items', () => {
     queryState.data = [];
     renderPage();
-    expect(screen.queryByRole('button', { name: /^select items$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^select timesheets$/i })).not.toBeInTheDocument();
 
     queryState.data = desktopSheets;
     procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
     renderPage('procurement');
-    expect(screen.queryByRole('button', { name: /^select items$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^select timesheets$/i })).not.toBeInTheDocument();
   });
 
   // ── S-18 / UX-061 — the bulk trigger names what it selects, and selection mode opens with the
@@ -470,7 +470,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     it('entering selection mode announces how many of the queued sheets can be bulk-approved', async () => {
       queryState.data = desktopSheets; // 3 Submitted sheets, all approvable
       renderPage();
-      await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^select timesheets$/i }));
       expect(screen.getByText(/all 3 timesheets in this queue can be approved together/i)).toBeInTheDocument();
     });
 
@@ -481,7 +481,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
         { ...desktopSheets[1], status: 'Approved' },
       ];
       renderPage();
-      await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^select timesheets$/i }));
       expect(screen.getByText(/1 of 2 timesheets in this queue can be approved together/i)).toBeInTheDocument();
       expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
       expect(screen.queryByRole('checkbox', { name: /Erin Analyst/i })).not.toBeInTheDocument();
@@ -623,20 +623,20 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
   it('the shared bulk Select grammar works at phone width too', async () => {
     queryState.data = desktopSheets;
     renderPage('timesheets', false);
-    await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^select timesheets$/i }));
     expect(screen.getByRole('checkbox', { name: /Dave Engineer.*Week of 1 Jun/i })).toBeInTheDocument();
     expect(screen.getByText(/all 3 timesheets in this queue can be approved together/i)).toBeInTheDocument();
   });
 });
 
-describe('screen rules: approvals waiting hierarchy', () => {
-  it('puts the queue count on the waiting surface as a key figure', () => {
+describe('approval queue summary', () => {
+  it('names and counts the timesheets awaiting my decision', () => {
     queryState.data = submittedSheets;
     renderPage('timesheets');
 
     const waiting = screen.getByTestId('approvals-waiting-summary');
-    expect(waiting).toHaveClass('bg-waiting-surface');
-    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveClass('text-metric');
+    expect(within(waiting).getByRole('heading', { name: /waiting on your decision/i })).toBeInTheDocument();
+    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveTextContent(String(submittedSheets.length));
   });
 });
 

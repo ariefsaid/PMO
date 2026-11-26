@@ -17,7 +17,7 @@ import {
   Combobox,
   FormSection,
   FormGrid,
-  FormActions,
+  FormFooter,
   PageHeader,
   useEntityForm,
   type ComboboxOption,
@@ -721,15 +721,14 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           )}
           {fields}
         </div>
-        <div className="sticky bottom-0 mt-3 border-t border-border bg-background py-3">
-          <FormActions
-            submitLabel={submitLabel}
-            cancelLabel={t('entityForm.cancel', 'Cancel')}
-            onCancel={onClose}
-            disabled={submitDisabled}
-            loading={form.isSubmitting}
-          />
-        </div>
+        <FormFooter
+          className="mt-3"
+          submitLabel={submitLabel}
+          cancelLabel={t('entityForm.cancel', 'Cancel')}
+          onCancel={onClose}
+          disabled={submitDisabled}
+          loading={form.isSubmitting}
+        />
       </form>
     );
   }

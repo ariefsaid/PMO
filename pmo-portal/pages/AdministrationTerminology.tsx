@@ -1,8 +1,10 @@
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useEffect, useState } from 'react';
 import { usePermission } from '@/src/auth/usePermission';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, ListState, TextField, ViewToggle, useToast } from '@/src/components/ui';
+import { Button, ListState, TextField, ViewToggle, useToast } from '@/src/components/ui';
+import { RenameList } from './admin/RenameRows';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { resetOrgTerm, saveOrgTerm, validateOverride } from '@/src/lib/db/orgTerminology';
 import { ORG_TERMINOLOGY_KEY, useOrgTerminology } from '@/src/hooks/useOrgTerminology';
@@ -28,7 +30,7 @@ const isDirty = (draft: Draft, current?: TermForms) => draft.singular !== (curre
 /** One term, both languages, ONE save: the card saves whichever languages were changed (a blanked language goes back to its
  *  default wording) and Reset returns both. */
 const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale, TermForms>> }> = ({ termKey, current }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const canEdit = usePermission()('edit', 'user');
   const qc = useQueryClient();
@@ -51,53 +53,74 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
     },
     onSuccess: () => {
       toast(t('administration:terminology.saved', 'Terminology saved'), undefined, 'success');
-      return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
+    onError: (e) => {
+      setDrafts({ en: draftOf(current?.en), id: draftOf(current?.id) });
+      toast(classifyMutationError(e).headline, undefined, 'error');
+    },
+    onSettled: refresh,
   });
   const reset = useMutation({
     mutationFn: async () => { for (const locale of TERM_LOCALES) if (current?.[locale]) await resetOrgTerm(termKey, locale); },
     onSuccess: () => {
       toast(t('administration:terminology.resetDone', 'Back to the default wording'), undefined, 'success');
-      return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
+    onError: (e) => {
+      setDrafts({ en: draftOf(current?.en), id: draftOf(current?.id) });
+      toast(classifyMutationError(e).headline, undefined, 'error');
+    },
+    onSettled: refresh,
   });
 
+  const busy = save.isPending || reset.isPending;
   const dirty = TERM_LOCALES.some((l) => isDirty(drafts[l], current?.[l]));
   const invalid = TERM_LOCALES.some((l) => drafts[l].singular.trim() !== '' && validateOverride({ key: termKey, locale: l, singular: drafts[l].singular, plural: drafts[l].plural || drafts[l].singular }) !== null);
   const hasOverride = TERM_LOCALES.some((l) => Boolean(current?.[l]));
+  const pageSave = useSettingsSaveEntry(canEdit ? { dirty, invalid, busy, save: () => save.mutateAsync() } : null);
+  const wide = false;
+  const shippedEn = shippedTerm('en', termKey);
+  const shippedId = shippedTerm('id', termKey);
   return (
-    <Card className="space-y-3 p-4" data-testid={`term-card-${termKey}`}>
-      <h3 className="text-base font-semibold">{shippedTerm('en', termKey).singular}</h3>
+    <div role="listitem" className="space-y-3 border-b border-border p-4 last:border-b-0" data-testid={`term-card-${termKey}`}>
+      <div className="min-w-0 xl:pt-2">
+        <h3 className="text-control font-semibold">{i18n.resolvedLanguage?.startsWith('id') ? shippedId.singular : shippedEn.singular}</h3>
+        {hasOverride && (
+          <p className="text-control text-muted-foreground">
+            {t('administration:terminology.default', 'Default')}: {shippedEn.singular} / {shippedEn.plural} · {shippedId.singular} / {shippedId.plural}
+          </p>
+        )}
+      </div>
+      <div className="min-w-0 space-y-3 xl:space-y-2">
       {TERM_LOCALES.map((locale) => {
         const shipped = shippedTerm(locale, termKey);
         return (
-          <div key={locale} className="space-y-2" data-testid={`term-row-${termKey}-${locale}`}>
-            <div className="text-sm font-medium">{LOCALE_NAME[locale]}</div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_1fr_1fr] sm:items-end">
-              <div className="text-sm text-text-secondary">
-                {t('administration:terminology.default', 'Default')}: {shipped.singular} / {shipped.plural}
+          <div key={locale} className="min-w-0 space-y-2" data-testid={`term-row-${termKey}-${locale}`}>
+            <p className="mb-1 text-control font-medium xl:mb-0 xl:font-normal xl:text-muted-foreground">{LOCALE_NAME[locale]}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
+                <TextField label={t('administration:terminology.singular', 'Singular')} hideLabel={wide} disabled={!canEdit || busy} value={drafts[locale].singular}
+                  placeholder={shipped.singular} maxLength={60} onChange={(v) => edit(locale, 'singular', v)} fullWidth />
               </div>
-              <TextField label={t('administration:terminology.singular', 'Singular')} disabled={!canEdit} value={drafts[locale].singular}
-                placeholder={shipped.singular} maxLength={60} onChange={(v) => edit(locale, 'singular', v)} fullWidth />
-              <TextField label={t('administration:terminology.plural', 'Plural')} disabled={!canEdit} value={drafts[locale].plural}
-                placeholder={shipped.plural} maxLength={60} onChange={(v) => edit(locale, 'plural', v)} fullWidth />
+              <div className="min-w-0">
+                <TextField label={t('administration:terminology.plural', 'Plural')} hideLabel={wide} disabled={!canEdit || busy} value={drafts[locale].plural}
+                  placeholder={shipped.plural} maxLength={60} onChange={(v) => edit(locale, 'plural', v)} fullWidth />
+              </div>
             </div>
           </div>
         );
       })}
-      {canEdit && (
-        <div className="flex gap-2">
-          <Button variant="primary" disabled={!dirty || invalid || save.isPending} onClick={() => save.mutate()}>
+      </div>
+      {canEdit ? (
+        <div className="flex gap-2 xl:w-[12.5rem] xl:justify-end">
+          {!pageSave && <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
-          </Button>
-          <Button variant="outline" disabled={!hasOverride || reset.isPending} onClick={() => reset.mutate()}>
+          </Button>}
+          <Button variant="ghost" size="sm" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>
-      )}
-    </Card>
+      ) : <span className="hidden" />}
+    </div>
   );
 };
 
@@ -116,14 +139,18 @@ const AdministrationTerminology: React.FC = () => {
         ]} />
       {view === 'roles' ? <AdministrationRoleNames /> : (
         <>
-          <p className="text-sm text-text-secondary">
+          <p className="text-control text-muted-foreground">
             {t('administration:terminology.intro', 'Rename these terms to match how your organisation talks. The new wording replaces the default everywhere it is shown, in each language, and is used exactly as you type it.')}
           </p>
           {isLoading ? <ListState variant="loading" /> : null}
           {isError ? <ListState variant="error" onRetry={() => void refetch()} /> : null}
-          {!isLoading && !isError ? TERM_KEYS.map((key) => (
-            <TermCard key={key} termKey={key} current={{ en: data?.en?.[key], id: data?.id?.[key] }} />
-          )) : null}
+          {!isLoading && !isError ? (
+            <RenameList label={t('administration:terminology.viewTerms', 'Terms')}>
+              {TERM_KEYS.map((key) => (
+                <TermCard key={key} termKey={key} current={{ en: data?.en?.[key], id: data?.id?.[key] }} />
+              ))}
+            </RenameList>
+          ) : null}
         </>
       )}
     </div>

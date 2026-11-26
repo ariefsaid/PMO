@@ -11,7 +11,7 @@ vi.mock('@/src/hooks/useWorkOrderRevenuePlan', () => ({ useRevenuePlanSettings: 
 vi.mock('./DailyTargetView', () => ({ DailyTargetView: () => <div data-testid="view" /> }));
 
 const renderIt = () => render(
-  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{} as AuthContextValue}><DailyTargetGate workOrderId="w" /></AuthContext.Provider></QueryClientProvider>,
+  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{} as AuthContextValue}><DailyTargetGate workOrderId="w" woLabel="WO-1" frozen={false} /></AuthContext.Provider></QueryClientProvider>,
 );
 beforeEach(() => { s.enabled = false; s.canView = true; });
 
@@ -30,6 +30,6 @@ describe('DailyTargetGate (#2672)', () => {
     renderIt();
     expect(screen.queryByTestId('view')).toBeNull();
     s.canView = true;
-    expect(render(<DailyTargetGate workOrderId="w" />).container.firstChild).toBeNull();
+    expect(render(<DailyTargetGate workOrderId="w" woLabel="WO-1" frozen={false} />).container.firstChild).toBeNull();
   });
 });

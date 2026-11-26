@@ -13,8 +13,7 @@ import {
 import { READINESS_VALUES, type Readiness, type SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
 import { quantitiesByUnit, readinessRollup } from '@/src/lib/workOrderSections';
 import { useSectionRefusal } from './useSectionRefusal';
-import { formatExactMoney } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatTableMoney } from '@/src/lib/format';
 import { SectionFormModal } from './SectionFormModal';
 import { SectionReadinessModal } from './SectionReadinessModal';
 import { SectionPlanModal } from './SectionPlanModal';
@@ -93,7 +92,7 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
     );
   }
 
-  const money = (v: string | null) => (v === null ? '—' : formatExactMoney(v, workOrder.currency, getNumberLocale(), { wholeUnits: true }) ?? '—');
+  const money = (v: string | null) => (v === null ? '—' : formatTableMoney(v, workOrder.currency) ?? '—');
   const stateLabel = (r: Readiness) => t(`readiness.${r}`, r === 'ready' ? 'Ready' : r === 'blocked' ? 'Blocked' : 'Not ready');
   const summaryText = summary.state === 'none' ? null
     : summary.state === 'all_ready' ? t('summaryAll', 'All {{live}} ready', { live: summary.live })
@@ -129,12 +128,13 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   };
 
   return (
-    <RecordSection title={title} data-testid="wo-page-sections" subline={summaryText}
+    <RecordSection title={title} data-testid="wo-page-sections"
       actions={<>
         {hasArchived && <Button variant="ghost" size="sm" onClick={() => setShowArchived((v) => !v)}>{showArchived ? t('hideArchived', 'Hide archived') : t('showArchived', 'Show archived')}</Button>}
         {canAdd && <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('add', 'Add {{section}}', vars)}</Button>}
       </>}>
       {problem && <p role="alert" className="mb-3 text-control text-destructive" data-testid="wo-sections-problem">{problem}</p>}
+      {summaryText && <p className="mb-2 text-control text-muted-foreground">{summaryText}</p>}
       {visible.length === 0 ? (
         <p className="text-control text-muted-foreground" data-testid="wo-sections-empty">{t('empty', 'No {{sections}} yet.', vars)}</p>
       ) : (
@@ -153,7 +153,7 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
             ].filter((x): x is { label: string; onClick: () => void; danger?: boolean } => x !== null);
             const canSetReadiness = may('set_readiness', 'workOrderSection', rowCtx) && r.archivedAt === null;
             return (
-              <li key={r.sectionId as string} data-testid={`wo-section-${r.code}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+              <li key={r.sectionId as string} data-testid={`wo-section-${r.code}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_8.5rem_2.25rem] sm:items-center">
                 <div className="min-w-0 flex-[1_1_14rem]">
                   <div className="font-medium">
                     <span className="tabular-nums">{r.code}</span> · {r.name}
@@ -164,11 +164,11 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
                   </div>
                   {figures(r).length > 0 && <div className="text-control text-muted-foreground flex flex-wrap gap-x-3">{figures(r)}</div>}
                 </div>
-                {showPlan && (
-                  <div className="tabular-nums text-control" data-testid={`wo-section-plan-${r.code}`}>
+                {showPlan ? (
+                  <div className="tabular-nums text-control sm:text-right" data-testid={`wo-section-plan-${r.code}`}>
                     <span className="text-muted-foreground">{t('planned', 'Planned')} </span>{money(r.directBudget)}
                   </div>
-                )}
+                ) : <div className="hidden sm:block" aria-hidden="true" />}
                 <div>
                   {canSetReadiness && r.readiness
                     ? <SelectField compact inline hideLabel label={t('readiness.label', 'Readiness of {{code}}', { code: r.code })} value={r.readiness}
@@ -176,17 +176,17 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
                         options={READINESS_VALUES.map((v) => ({ value: v, label: stateLabel(v) }))} />
                     : r.readiness && <StatusPill variant={TONE[r.readiness]}>{stateLabel(r.readiness)}</StatusPill>}
                 </div>
-                <RowMenu ariaLabel={t('menu.row', 'Actions for {{code}}', { code: r.code })} items={items} />
+                <div className="sm:justify-self-end"><RowMenu ariaLabel={t('menu.row', 'Actions for {{code}}', { code: r.code })} items={items} /></div>
               </li>
             );
           })}
           {remainder && (
-            <li data-testid="wo-section-remainder" className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-muted-foreground">
+            <li data-testid="wo-section-remainder" className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_auto_8.5rem_2.25rem] sm:items-center">
               <div className="min-w-0 flex-[1_1_14rem]">
                 <div>{t('remainder', 'Not in a {{section}}', vars)}</div>
                 {figures(remainder).length > 0 && <div className="text-control flex flex-wrap gap-x-3">{figures(remainder)}</div>}
               </div>
-              {showPlan && <div className="tabular-nums text-control" data-testid="wo-section-plan-remainder"><span>{t('planned', 'Planned')} </span>{money(remainder.directBudget)}</div>}
+              {showPlan && <div className="tabular-nums text-control sm:text-right" data-testid="wo-section-plan-remainder"><span>{t('planned', 'Planned')} </span>{money(remainder.directBudget)}</div>}
             </li>
           )}
         </ul>

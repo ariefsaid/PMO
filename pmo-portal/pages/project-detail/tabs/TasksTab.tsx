@@ -76,6 +76,8 @@ const TasksTab: React.FC<TasksTabProps> = (props) => {
  */
 const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', onCountChange }) => {
   const { t } = useTranslation('project');
+  // Load the refusal catalogue before a task write can need it.
+  useTranslation('refusals');
   const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -544,7 +546,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   }, [all, canStructure, t, toast, update]);
 
   return (
-    <div>
+    <div className="min-w-0 space-y-[var(--space-section)]">
       <Card variant={view === 'board' ? 'bare' : undefined} className="min-w-0 overflow-hidden">
       <TasksToolbar
         heading={t('projectDetail.tasks.heading', 'Tasks')}

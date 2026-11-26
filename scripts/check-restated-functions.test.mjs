@@ -49,7 +49,7 @@ test('a dropped line without a marker fails, naming the line and the definition 
   assert.match(problems[0], /drops 4 line/);
   assert.match(problems[0], /when 'project' then return true/);
   assert.match(problems[0], /1490_demo\.sql/);
-  assert.match(problems[0], /-- drops: <reason>/);
+  assert.match(problems[0], /-- drops: demo_fn/);
 });
 
 test('the same drop WITH a `-- drops: <reason>` marker is an accepted, reported exemption', () => {
@@ -57,11 +57,25 @@ test('the same drop WITH a `-- drops: <reason>` marker is an accepted, reported 
   const after = 'begin\n  return public.lookup(p_id);\nend;';
   const { problems, exemptions } = analyze(files([
     [1490, migration(before)],
-    [1491, migration(after, { marker: 'the table now comes from the registry' })],
+    [1491, migration(after, { marker: 'demo_fn(uuid) | "return exists(select 1 from public.projects where id=p_id);" | the table now comes from the registry' })],
   ]));
   assert.deepEqual([...problems], []);
   assert.equal(exemptions.length, 1);
   assert.match(exemptions[0], /1491_demo\.sql.*demo_fn.*1490_demo\.sql/);
+});
+
+test('a drops note only allows the listed line of the named signature', () => {
+  const before = 'begin\n  perform 1;\n  return true;\nend;';
+  const after = 'begin\n  return false;\nend;';
+  const note = 'demo_fn(uuid) | "perform 1;" | moved to the caller';
+  const { problems, exemptions } = analyze(files([
+    [1490, migration(before)],
+    [1491, migration(after, { marker: note })],
+  ]));
+  assert.equal(exemptions.length, 1);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /return true/);
+  assert.doesNotMatch(problems[0], /perform 1/);
 });
 
 test('an empty `-- drops:` reason is not a marker', () => {

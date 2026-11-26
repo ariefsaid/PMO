@@ -13,6 +13,7 @@ import { need, inDays, ORG_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { runId } from './support/jobFixtures';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 const must = need('JOB-E1');
@@ -62,11 +63,14 @@ test('JOB-E1 a crane registered as rented from a vendor shows its terms and is o
   await page.goto(`/equipment/assets?q=${code}`);
   await page.getByRole('link', { name: 'Open Mobile crane' }).first().click();
   await expect(page).toHaveURL(/\/equipment\/assets\/[0-9a-f-]{36}$/);
-  await page.getByLabel('Vendor', { exact: true }).selectOption({ label: vendorName });
-  await page.getByLabel('Rate', { exact: true }).fill('1500000');
-  await page.getByLabel('Rental start').fill('2026-09-01');
-  await page.getByRole('button', { name: 'Save rental terms' }).click();
-  await expect(visibleToast(page, 'Saved')).toBeVisible({ timeout: 15_000 });
+  // The terms are entered in their own dialog from the Rental terms section.
+  await page.getByRole('button', { name: 'Add rental terms' }).click();
+  const terms = page.getByRole('dialog');
+  await terms.getByLabel('Vendor', { exact: true }).selectOption({ label: vendorName });
+  await terms.getByLabel('Rate', { exact: true }).fill('1500000');
+  await terms.getByLabel('Rental start').fill('2026-09-01');
+  await terms.getByRole('button', { name: 'Save rental terms' }).click();
+  await expect(visibleToast(page, 'Rental terms saved')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(new RegExp(`${vendorName}`)).first()).toBeVisible();
 
   await page.goto('/equipment/availability');
@@ -118,7 +122,10 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   // Goal: the work order lists the crane, with the day it was used and its hours.
   await officer.signIn(page);
   await page.goto(`/work-orders/${wo.workOrderId}`);
+  await openWorkOrderArea(page, 'cost');
   const equipment = page.getByTestId('cost-group-equipment_usage');
   await expect(equipment).toContainText(pmCode, { timeout: 20_000 });
-  await expect(equipment).toContainText(new RegExp(`(?<!\\d)${workDayLabel}( \\d{4})? · 8 hours`));
+  const crane = equipment.locator('tr', { hasText: pmCode });
+  await expect(crane).toContainText(new RegExp(`(?<!\\d)${workDayLabel}( \\d{4})?`));
+  await expect(crane).toContainText('8 hours');
 });

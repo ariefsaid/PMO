@@ -7,14 +7,15 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { inDays } from './support/jobJourney';
+import { jobRoleUser } from './support/jobRole';
 import { removeJobOrganization } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
 test('JOB-PC14 an administrator reads the loaded opening balances of a running work order and a stock location against the totals', async ({ page }) => {
   const svc = serviceClient('JOB-PC14');
   const run = runId('JOBPC14');
-  const password = `${crypto.randomUUID()}-Aa1!`;
 
   const org = need('organisation', await svc.from('organizations').insert({ name: `${run} client`, built_in_roles_enabled: true }).select('id, default_currency').single()) as { id: string; default_currency: string | null };
   const currency = org.default_currency ?? 'IDR';
@@ -24,13 +25,9 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
     ok('setup workflows on', await svc.from('org_setup_workflow_settings').insert({ org_id: org.id, enabled: true }));
 
     // The Administrator of this organisation, with a known password so both the API and the browser can be that person.
-    const created = await svc.auth.admin.createUser({ email: `opening-${run}@example.test`, password, email_confirm: true });
-    if (created.error || !created.data.user) throw created.error ?? new Error('no administrator user');
-    adminId = created.data.user.id;
-    ok('administrator profile', await svc.from('profiles').insert({
-      id: adminId, org_id: org.id, email: `opening-${run}@example.test`, full_name: `${run} administrator`,
-      role: 'Admin', status: 'active', built_in_role: 'administrator', locale: 'en', number_locale: 'en-US',
-    }));
+    const actor = await jobRoleUser({ jobRole: 'administrator', role: 'Admin', org: org.id, service: svc, run: `opening-${run}`, displayName: `${run} administrator` });
+    adminId = actor.id;
+    const { password } = actor;
 
     const project = need('project', await svc.from('projects').insert({ org_id: org.id, name: `${run} project`, status: 'Ongoing Project', currency }).select('id').single()) as { id: string };
     const wo = need('work order', await svc.from('work_orders').insert({
@@ -99,6 +96,7 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
     await page.goto(`/work-orders/${wo.id}`);
     await expect(page.getByRole('main')).toContainText(`${run} running scope`, { timeout: 30_000 });
     await expect(page.getByTestId(`scope-line-${line.id}`)).toContainText('40 of 100 m3', { timeout: 30_000 });
+    await openWorkOrderArea(page, 'billing');
     await expect(page.getByTestId('billing-invoiced')).toContainText(amount('750'), { timeout: 30_000 });
 
     // Stock → Balances: the counted quantity of the item in the warehouse.

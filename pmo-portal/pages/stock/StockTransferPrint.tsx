@@ -6,7 +6,9 @@ import { useDeliveryNoteSettings } from '@/src/hooks/useMaterialRequests';
 import { useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { useStockTransfer } from '@/src/hooks/useStockTransfers';
 import { useOrgName } from '@/src/hooks/useOrgName';
-import { formatDay } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { PrintDocument, PrintActionBar, PrintHeader, PrintTable, PrintSignatureBlocks, type PrintTableColumn } from '@/src/components/print';
 import type { StockTransferLine } from '@/src/lib/repositories/stockTransfers';
 
@@ -37,27 +39,28 @@ const StockTransferPrint: React.FC = () => {
   const wh = (id: string) => { const w = (warehouses.data ?? []).find((x) => x.id === id); return w ? `${w.code} · ${w.name}` : '—'; };
   const item = (l: StockTransferLine) => (items.data ?? []).find((i) => i.id === l.itemId);
   const title = t('transfers.print.title');
-  const blocks = settings.data.signatureBlocks?.length ? settings.data.signatureBlocks : ['Dispatched by', 'Delivered by', 'Received by'];
+  const defaults: Record<string, string> = { 'Dispatched by': t('transfers.print.dispatchedBy'), 'Delivered by': t('transfers.print.deliveredBy'), 'Received by': t('transfers.print.receivedBy') };
+  const blocks = (settings.data.signatureBlocks?.length ? settings.data.signatureBlocks : Object.keys(defaults)).map((block) => defaults[block] ?? block);
   const columns: PrintTableColumn<StockTransferLine>[] = [
-    { key: 'no', header: '#', width: '40px', render: (_, i) => <span className="text-muted-foreground">{i + 1}</span> },
-    { key: 'code', header: t('transfers.print.code'), width: '120px', render: (l) => <span className="font-mono font-medium">{item(l)?.code ?? '—'}</span> },
+    { key: 'no', header: '#', render: (_, i) => <span className="text-muted-foreground">{i + 1}</span> },
+    { key: 'code', header: t('transfers.print.code'), render: (l) => <span className="font-mono font-medium">{item(l)?.code ?? '—'}</span> },
     { key: 'name', header: t('transfers.print.description'), render: (l) => <span>{item(l)?.name ?? '—'}</span> },
-    { key: 'qty', header: t('transfers.print.quantity'), align: 'right', width: '100px', render: (l) => <span className="font-semibold tabular-nums">{String(l.qtySent)}</span> },
-    { key: 'unit', header: t('transfers.print.unit'), width: '80px', render: (l) => <span className="text-muted-foreground">{(units.data ?? []).find((u) => u.id === item(l)?.unit_id)?.code ?? '—'}</span> },
+    { key: 'qty', header: t('transfers.print.quantity'), align: 'right', render: (l) => <span className="font-semibold tabular-nums">{formatQuantity(String(l.qtySent), getNumberLocale())}</span> },
+    { key: 'unit', header: t('transfers.print.unit'), render: (l) => <span className="text-muted-foreground">{(units.data ?? []).find((u) => u.id === item(l)?.unit_id)?.code ?? '—'}</span> },
   ];
   return (
     <div className="min-h-screen bg-surface-canvas print:bg-transparent" data-testid="delivery-note-page">
-      <PrintActionBar title={`${title} ${transfer.number}`} onBack={back} printLabel={t('transfers.print.print')} backLabel={t('transfers.print.back')} />
+      <PrintActionBar title={`${title} ${transfer.number}`} onBack={back} printLabel={t('transfers.print.print')} backLabel={t('transfers.print.back')} shortBackLabel={t('transfers.print.backShort')} />
       <main className="p-4 sm:p-6 print:p-0">
-        <PrintDocument>
-          <PrintHeader orgName={orgName} documentTitle={title} documentNumber={transfer.number} metaItems={[
-            { label: t('transfers.print.date'), value: formatDay(transfer.sentAt) },
+        <PrintDocument className="p-2 sm:p-10">
+          <PrintHeader orgName={orgName} documentTitle={title} documentNumber={transfer.number} numberLabel={t('transfers.print.number')} metaItems={[
+            { label: t('transfers.print.date'), value: formatDayYear(transfer.sentAt) },
             { label: t('transfers.print.from'), value: wh(transfer.fromWarehouseId) },
             { label: t('transfers.print.to'), value: wh(transfer.toWarehouseId) },
             ...(transfer.note ? [{ label: t('form.note'), value: transfer.note }] : []),
           ]} />
           <PrintTable<StockTransferLine> columns={columns} data={transfer.lines} keyExtractor={(l) => l.id} />
-          <PrintSignatureBlocks blocks={blocks} nameLabel={t('transfers.print.name')} dateLabel={t('transfers.print.signatureDate')} />
+          <PrintSignatureBlocks blocks={blocks} nameLabel={t('transfers.print.name')} dateLabel={t('transfers.print.signatureDate')} signLabel={t('transfers.print.signature')} />
         </PrintDocument>
       </main>
     </div>

@@ -5,9 +5,9 @@ import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(120_000);
 
-test('AC-EQM-001 equipment manager ends an open rental and the invoice check stops billing after the last day', async ({ page }) => {
-  const db = serviceClient('AC-EQM-001');
-  const run = runId('EQM001');
+test('AC-EQM-002 equipment manager ends an open rental and the invoice check stops billing after the last day', async ({ page }) => {
+  const db = serviceClient('AC-EQM-002');
+  const run = runId('EQM002');
   const manager = await roleJobUser(db, 'equipment_manager', run);
   const code = `000-${run}`;
   let vendorId = '';
@@ -34,8 +34,8 @@ test('AC-EQM-001 equipment manager ends an open rental and the invoice check sto
     await page.goto(`/equipment/assets/${assetId}`);
     const terms = page.getByRole('region', { name: 'Rental terms' });
     await terms.getByRole('button', { name: 'End rental period' }).click();
-    await terms.getByLabel('Last rental day').fill('2026-09-03');
-    await terms.getByRole('button', { name: 'Confirm end date' }).click();
+    await page.getByRole('dialog').getByLabel('Last rental day').fill('2026-09-03');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm end date' }).click();
     await expect(terms.getByText(/3 Sep 2026/)).toBeVisible();
     await expect(terms.getByRole('button', { name: 'End rental period' })).toHaveCount(0);
 

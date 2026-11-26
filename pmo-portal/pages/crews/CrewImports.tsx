@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ImportButton } from '@/src/components/import';
+import { ImportWizard } from '@/src/components/import';
+import { RecordMenu } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useUsers } from '@/src/hooks/useUsers';
@@ -19,6 +20,7 @@ import { crewRepository } from '@/src/lib/repositories/crews';
 export const CrewImports: React.FC = () => {
   const { t } = useTranslation(['import', 'crews']);
   const may = usePermission();
+  const [importing, setImporting] = useState<'crew' | 'members' | null>(null);
   const allowed = may('create', 'crew');
   const orgId = useAuth().currentUser?.org_id;
   const qc = useQueryClient();
@@ -47,8 +49,12 @@ export const CrewImports: React.FC = () => {
   const refresh = () => { void Promise.all([...CREW_QUERY_ROOTS, 'crew-import-workers', 'crew-import-roles'].map((r) => qc.invalidateQueries({ queryKey: [r] }))); };
   return (
     <>
-      <ImportButton entity="crew" descriptor={crewDescriptor} onImported={refresh} label={t('crews:importCrews', 'Import crews')} />
-      <ImportButton entity="crew" descriptor={memberDescriptor} onImported={refresh} label={t('crews:importMembers', 'Import crew members')} />
+      <RecordMenu label={t('import:import', 'Import')} ariaLabel={t('import:import', 'Import')} items={[
+        { key: 'crew', label: t('crews:importCrews', 'Import crews'), onSelect: () => setImporting('crew') },
+        { key: 'members', label: t('crews:importMembers', 'Import crew members'), onSelect: () => setImporting('members') },
+      ]} />
+      {importing === 'crew' && <ImportWizard descriptor={crewDescriptor} onClose={(changed) => { setImporting(null); if (changed) refresh(); }} />}
+      {importing === 'members' && <ImportWizard descriptor={memberDescriptor} onClose={(changed) => { setImporting(null); if (changed) refresh(); }} />}
     </>
   );
 };

@@ -62,5 +62,8 @@
     "menuAria": "Aksi bukti: {{name}}",
     "previewShort": "Lihat",
     "removeShort": "Hapus"
+  },
+  "approvals": {
+    "reviewDecision": "Tinjau dan putuskan"
   }
 }

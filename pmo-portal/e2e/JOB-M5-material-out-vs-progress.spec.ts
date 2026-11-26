@@ -78,8 +78,11 @@ test('JOB-M5 the Project Manager sees the issued share against the progress shar
     // Open its material (the work order's stock section): the warning names the item.
     await card.getByRole('button', { name: 'Stock for this work order', exact: true }).click();
     await expect(card.getByText('Items issued ahead of progress: 1')).toBeVisible();
-    await expect(card.getByText(new RegExp(`${item.name}: issued 80% of planned, progress 40%, 40 points ahead`))).toBeVisible();
-    await expect(card.getByRole('row').filter({ hasText: item.name })).toBeVisible();
+    // The warning names the item with its issued share and its lead over progress (40%, stated once above the rows).
+    const warned = card.getByRole('row').filter({ hasText: item.name }).filter({ hasText: '40 points' });
+    await expect(warned).toContainText('80%');
+    await expect(card.getByText(/progress \(40%\)/)).toBeVisible();
+    await expect(card.getByRole('table', { name: 'Stock for this work order' }).getByRole('row').filter({ hasText: item.name })).toBeVisible();
   } finally {
     try { await stock.rpc('set_work_order_issue_threshold', { p_threshold_pct: null }); } catch { /* the database is gone mid-run */ }
     const ids = { projectId, woId, boqId, acceptanceId, receiptId, issueId, itemId, siteId };

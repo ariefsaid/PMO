@@ -55,7 +55,7 @@ export const WorkInHandSummary: React.FC<WorkInHandSummaryProps> = ({
   const actions = showLink ? (
     <Link
       to="/projects/work-in-hand"
-      className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline sm:min-h-0"
+      className="touch-target touch-target-overlay inline-flex items-center text-control font-medium text-primary-text underline-offset-4 hover:underline"
       data-testid={`${testId}-link`}
     >
       {t('summary.openLink', 'Open work in hand')}
@@ -97,10 +97,10 @@ export const WorkInHandSummary: React.FC<WorkInHandSummaryProps> = ({
   return (
     <Card role="region" aria-label={title} data-testid={testId} className={className}>
       {showHeader && <CardHead level={2} actions={actions}>{title}</CardHead>}
-      <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+      <div className={`grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${showHeader ? '[&>:first-child]:pt-0 sm:[&>*]:pt-0' : ''}`}>
         <div className="flex min-w-0 flex-col gap-1.5 px-[var(--panel-inset)] py-4" data-testid={`${testId}-value`}>
           <div className="text-control font-medium text-foreground">
-            {t('summary.value', 'Value of work in hand')}
+            {t('sort.leftToBill', 'Left to bill')}
           </div>
           <div className="text-metric font-semibold tracking-[-0.02em] tabular text-foreground">
             {money(summary.orgLeftToBillCents, summary.orgCurrency)}

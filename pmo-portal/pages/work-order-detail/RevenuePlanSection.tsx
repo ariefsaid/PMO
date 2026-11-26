@@ -6,10 +6,10 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { axisTickStyle, tooltipContentStyle, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePermission } from '@/src/auth/usePermission';
 import { useWorkOrderRevenuePlan } from '@/src/hooks/useWorkOrderRevenuePlan';
-import { formatExactMoney, formatNumberMax2, formatShortAmount } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatDay, formatIsoDay, formatNumberMax2, formatShortAmount, formatTableMoney } from '@/src/lib/format';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { RevenuePlanModal } from './RevenuePlanModal';
+import { useAreaHelp } from './useAreaHelp';
 
 interface Props { workOrderId: string; woLabel: string; frozen: boolean }
 
@@ -26,6 +26,7 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
   const q = useWorkOrderRevenuePlan(workOrderId);
   const [open, setOpen] = useState(false);
   const title = t('title', 'Revenue plan');
+  useAreaHelp('revenue-plan', title, t('actualBasis', 'Actual is validated daily revenue.'));
   const data = q.data;
   const series = useMemo(() => (data?.series ?? []).map((p) => ({ date: p.date, plan: Number(p.cumPlan), actual: Number(p.cumActual) })), [data]);
 
@@ -38,7 +39,7 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
   }
   if (!data) return null;
 
-  const money = (v: string) => formatExactMoney(v, data.currency, getNumberLocale()) ?? v;
+  const money = (v: string) => formatTableMoney(v, data.currency) ?? v;
   const gap = revenueGap(data.gap);
   const gapText = !data.hasPlan
     ? t('noPlan', 'No plan entered')
@@ -46,38 +47,52 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
     : gap.state === 'ahead' ? t('ahead', '{{amount}} ahead of plan', { amount: money(gap.by) })
     : t('onPlan', 'On plan');
   const figure = (testId: string, label: string, value: React.ReactNode) => (
-    <div key={testId}><dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums" data-testid={testId}>{value}</dd></div>
+    <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
+      <dt className="self-end text-muted-foreground">{label}</dt>
+      <dd className="self-start text-metric font-semibold tabular-nums" data-testid={testId}>{value}</dd>
+    </div>
   );
-  const summary = t('chartSummary', 'Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.', { plan: money(data.planToDate), actual: money(data.actualToDate), date: data.asOf });
+  const summary = t('chartSummary', 'Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.', { plan: money(data.planToDate), actual: money(data.actualToDate), date: formatIsoDay(data.asOf) });
 
   return (
     <RecordSection title={title} data-testid="wo-page-revenue-plan"
       actions={canManage ? <Button variant="outline" size="sm" onClick={() => setOpen(true)}>{t('enter', 'Enter plan')}</Button> : undefined}>
+      <p className="mb-3 text-control text-muted-foreground" data-testid="wo-revenue-plan-asof">{t('asOfDate', 'As of {{date}}', { date: formatIsoDay(data.asOf) })}</p>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-control sm:grid-cols-4">
-        {figure('wo-revenue-plan-plan', t('planToDate', 'Plan to date'), data.hasPlan ? money(data.planToDate) : t('noPlan', 'No plan entered'))}
+        {figure('wo-revenue-plan-plan', t('planToDate', 'Plan to date'), data.hasPlan ? money(data.planToDate) : '—')}
         {figure('wo-revenue-plan-actual', t('actualToDate', 'Actual to date'), money(data.actualToDate))}
-        {figure('wo-revenue-plan-gap', t('gap', 'Gap'), gapText)}
+        {figure('wo-revenue-plan-gap', t('gap', 'Gap'), data.hasPlan ? money(data.gap) : '—')}
         {figure('wo-revenue-plan-total', t('planTotal', 'Whole plan'), data.hasPlan ? money(data.planTotal) : '—')}
       </dl>
+      {data.hasPlan && <p className="mt-3 text-control text-muted-foreground">{gapText}</p>}
+      {!data.hasPlan && <p className="mt-3 text-control text-muted-foreground">{t('noPlan', 'No plan entered')}</p>}
       {data.pendingReports > 0 && (
         <p className="mt-2 text-control text-muted-foreground" data-testid="wo-revenue-plan-pending">
           {t('pending', '{{count}} daily report(s) not yet validated are not counted as actual.', { count: data.pendingReports })}
         </p>
       )}
-      <p className="mt-1 text-control text-muted-foreground">{t('asOf', 'As of {{date}}. Actual is validated daily revenue.', { date: data.asOf })}</p>
       {data.hasPlan && series.length > 1 && (
         <figure role="img" aria-label={summary} className="m-0 mt-4" data-testid="wo-revenue-plan-chart">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-support text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: chartTheme.series.primary }} />
+              {t('seriesPlan', 'Plan')}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="inline-block w-4 border-t-2" style={{ borderColor: chartTheme.series.success }} />
+              {t('seriesActual', 'Actual')}
+            </span>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={series} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-              <XAxis dataKey="date" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} minTickGap={32} />
+              <XAxis dataKey="date" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} minTickGap={32} tickFormatter={(d: string) => formatDay(d)} />
               <YAxis tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} width={56} tickFormatter={(v: number) => formatShortAmount(v)} />
-              <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(v) => formatNumberMax2(Number(v))} />
+              <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} labelFormatter={(d) => formatDay(String(d))} formatter={(v) => formatNumberMax2(Number(v))} />
               <Line type="monotone" dataKey="plan" name={t('seriesPlan', 'Plan')} stroke={chartTheme.series.primary} strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
               <Line type="monotone" dataKey="actual" name={t('seriesActual', 'Actual')} stroke={chartTheme.series.success} strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
-          <figcaption className="mt-1 text-control text-muted-foreground">{t('legend', 'Dashed: plan. Solid: actual (cumulative).')}</figcaption>
         </figure>
       )}
       {open && <RevenuePlanModal workOrderId={workOrderId} woLabel={woLabel} currency={data.currency} onClose={() => setOpen(false)} />}

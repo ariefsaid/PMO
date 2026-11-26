@@ -5,7 +5,7 @@ import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import idRp from '../../public/locales/id/workOrderRevenuePlan.json';
 import enRp from '../../public/locales/en/workOrderRevenuePlan.json';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { RevenuePlanFigures } from '@/src/lib/revenuePlan';
 import { RevenuePlanSection } from './RevenuePlanSection';
@@ -34,9 +34,10 @@ describe('RevenuePlanSection (#2671)', () => {
   it('AC-WRP-008 shows plan to date, actual and the gap in words', () => {
     state.query = ok(figures());
     renderIt();
-    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe(formatExactMoney('800.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-revenue-plan-actual').textContent).toBe(formatExactMoney('300.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe(`${formatExactMoney('500.00', 'IDR', 'en-US')} behind plan`);
+    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe(formatTableMoney('800.00', 'IDR'));
+    expect(screen.getByTestId('wo-revenue-plan-actual').textContent).toBe(formatTableMoney('300.00', 'IDR'));
+    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe(formatTableMoney('-500.00', 'IDR'));
+    expect(screen.getByText(/500\s+behind plan$/).textContent).toBe(`${formatTableMoney('500.00', 'IDR')} behind plan`);
     expect(screen.getByRole('button', { name: 'Enter plan' })).toBeTruthy();
   });
   it('AC-WRP-007 names submitted-not-validated reports apart from actual', () => {
@@ -47,8 +48,9 @@ describe('RevenuePlanSection (#2671)', () => {
   it('AC-WRP-011 a work order with no plan says "No plan entered", not a zero gap', () => {
     state.query = ok(figures({ hasPlan: false, planToDate: '0.00', gap: '300.00', planTotal: '0.00', series: [] }));
     renderIt();
-    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe('No plan entered');
-    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe('No plan entered');
+    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe('—');
+    expect(screen.getByText('No plan entered')).toBeTruthy();
+    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe('—');
   });
   it('AC-WRP-009 a refused caller sees "restricted", never a zero', () => {
     state.query = { data: undefined, isPending: false, isError: true, error: { code: '42501' }, refetch: vi.fn() };
@@ -79,7 +81,8 @@ describe('RevenuePlanSection (#2671)', () => {
     state.query = ok(figures({ planToDate: '1500000.00', gap: '-1200000.00' }));
     render(<I18nextProvider i18n={i18n}><RevenuePlanSection workOrderId="w" woLabel="WO-A" frozen={false} /></I18nextProvider>);
     expect(screen.getAllByText('Rencana sampai hari ini').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toMatch(/di bawah rencana/);
+    expect(screen.getByText(/di bawah rencana/)).toBeTruthy();
+    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toMatch(/1\.200\.000/);
     expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toMatch(/1\.500\.000/);
   });
   it('AC-WRP-014 every English key has an Indonesian translation', () => {

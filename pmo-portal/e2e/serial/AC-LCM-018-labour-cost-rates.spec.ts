@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { signIn, requireServiceRoleKey } from '../helpers';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 // AC-LCM-018 (labour cost in money, #2670): an Admin turns labour cost on, adds a cost rate for a role from a future date,
 // sees it listed, and ends it. The rate starts in 2031 so it never touches an hour already priced (the lock rule).
@@ -76,6 +77,7 @@ test('AC-LCM-019 the work-order page shows priced labour by class', async ({ pag
 
     await signIn(page, 'admin@acme.test');
     await page.goto(`/work-orders/${ids.wo}`);
+    await openWorkOrderArea(page, 'cost');
     const block = page.getByTestId('wo-page-pva-labour');
     await expect(block).toBeVisible();
     // 8 h at 50000 + 2 h overtime at 50000 x 1.5 = 550000.

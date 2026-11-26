@@ -51,9 +51,13 @@ test('JOB-A7 an approver is told by email about a request waiting for approval',
   // 1. The admin switches approval emails on.
   await administrator.signIn(page);
   await page.goto('/administration/integrations');
+  await page.getByRole('button', { name: 'Organization settings', exact: true }).click();
   const toggle = page.getByRole('switch', { name: 'Approval requests' });
   await expect(toggle).toBeVisible({ timeout: 20_000 });
-  if (!(await toggle.isChecked())) await toggle.click();
+  if (!(await toggle.isChecked())) {
+    await toggle.click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+  }
   await expect(toggle).toBeChecked();
   await expect.poll(async () => (await admin.from('email_event_settings').select('enabled').eq('org_id', ORG_ID).eq('event_key', 'approval_request').single()).data?.enabled).toBe(true);
 

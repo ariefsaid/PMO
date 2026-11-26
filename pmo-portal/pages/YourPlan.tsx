@@ -64,7 +64,7 @@ const PlanFeature: React.FC<{ feature: OrgFeatureKey; on: boolean }> = ({ featur
   const { t } = useTranslation('plans');
   return (
     <span className={on ? 'text-control' : 'inline-flex items-center gap-1.5 text-control text-muted-foreground'}>
-      {featureLabel(t, feature)}
+      {feature === 'crm' ? t('yourPlan.crmDirectory', 'CRM (Companies, Contacts)') : feature === 'revenue' ? t('yourPlan.revenueDetails', 'Revenue (Incoming payments, Revenue by Project)') : featureLabel(t, feature)}
       {on ? <span className="sr-only">: {t('yourPlan.on', 'On')}</span> : <StatusPill variant="neutral"><PlanOnOff on={false} /></StatusPill>}
     </span>
   );
@@ -176,9 +176,9 @@ export const YourPlan: React.FC = () => {
             {grouped.map((group) => (
               <li key={group.id} className="grid gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[8rem_1fr]">
                 <span className="text-control font-semibold text-muted-foreground">{planGroupLabel(t, group.id)}</span>
-                <span className="flex flex-wrap gap-x-4 gap-y-1.5">
-                  {group.keys.map((feature) => (
-                    <PlanFeature key={feature} feature={feature} on={Boolean(states?.[feature]?.displayEnabled)} />
+                <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
+                  {group.keys.map((feature, index) => (
+                    <React.Fragment key={feature}>{index > 0 && <span aria-hidden>·</span>}<PlanFeature feature={feature} on={Boolean(states?.[feature]?.displayEnabled)} /></React.Fragment>
                   ))}
                 </span>
               </li>

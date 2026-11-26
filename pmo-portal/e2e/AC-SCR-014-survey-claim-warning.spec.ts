@@ -8,6 +8,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { execFileSync } from 'node:child_process';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -64,7 +65,8 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
     // Finance records the survey on the work order page: 8 km surveyed, 5 km quality-ready, a customer representative typed by name.
     await signIn(page, 'finance@acme.test');
     await page.goto('/work-orders/' + workOrderId);
-    await expect(page.getByTestId('survey-empty')).toContainText('records a survey here');
+    await openWorkOrderArea(page, 'billing');
+    await expect(page.getByTestId('survey-empty')).toContainText('No surveys recorded yet');
     await page.getByRole('button', { name: 'Record a survey' }).click();
     const form = page.getByRole('dialog');
     await form.getByLabel(/Contract line/).selectOption(boqId);
@@ -88,6 +90,7 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
     try {
       await signIn(adminPage, 'admin@acme.test');
       await adminPage.goto('/work-orders/' + workOrderId);
+      await openWorkOrderArea(adminPage, 'billing');
       await adminPage.getByRole('button', { name: /Confirm SVY/ }).click();
       await adminPage.getByRole('dialog').getByRole('button', { name: 'Confirm survey' }).click();
       await expect(adminPage.getByTestId('survey-certified')).toContainText('certified 8 km, quality-ready 5 km', { timeout: 15_000 });

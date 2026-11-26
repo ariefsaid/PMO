@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../components/ui/Button';
+import { buttonClasses } from '../components/ui/buttonClasses';
 import { Card, CardPad } from '../components/ui/Card';
 import { AuthHeader, ErrorBanner } from './authFormPrimitives';
 import { decideConsent, getConsentDetails, type ConsentRequest } from './oauthConsent';
@@ -106,8 +107,8 @@ const OAuthConsentPage: React.FC = () => {
     case 'invalid':
       body = (
         <div className="space-y-3">
-          <ErrorBanner message={t('oauthConsent.missingRequest', 'This sign-in request is incomplete.')} />
           {restartHint}
+          <Link to="/login" className={buttonClasses('primary')}>{t('login.backToSignIn', 'Back to sign in')}</Link>
         </div>
       );
       break;

@@ -21,25 +21,25 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
     {
       name: 'exclusive',
       props: { treatment: 'exclusive', taxRate: 12, taxBaseNumerator: 11, taxBaseDenominator: 12 },
-      basis: 'excl. PPN',
+      basis: 'excl. tax',
       facts: '12% · DPP 11/12',
     },
     {
       name: 'inclusive',
       props: { treatment: 'inclusive', taxRate: 5, taxBaseNumerator: 1, taxBaseDenominator: 2 },
-      basis: 'incl. PPN',
+      basis: 'incl. tax',
       facts: '5% · DPP 1/2',
     },
     {
       name: 'unknown rate and base',
       props: { treatment: 'exclusive', taxRate: null, taxBaseUnknown: true },
-      basis: 'excl. PPN',
+      basis: 'excl. tax',
       facts: 'rate not recorded · DPP not recorded',
     },
     {
       name: 'known zero rate',
       props: { treatment: 'exclusive', taxRate: 0, taxBaseNumerator: 1, taxBaseDenominator: 1 },
-      basis: 'excl. PPN',
+      basis: 'excl. tax',
       facts: '0% · DPP 1/1',
     },
   ])('AC-V24P-014: $name hides the detail separator while collapsed', async ({ props, basis, facts }) => {
@@ -148,7 +148,7 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
     expect(exclusiveTrigger).toHaveClass('-my-2');
     expect(exclusiveTrigger).toHaveClass('text-primary-text');
     expect(exclusiveTrigger).not.toHaveClass('text-primary');
-    expect(exclusive).toHaveTextContent('excl. PPN');
+    expect(exclusive).toHaveTextContent('excl. tax');
     expect(exclusiveTrigger).toHaveAttribute('aria-expanded', 'false');
     const panelId = exclusiveTrigger.getAttribute('aria-controls');
     expect(panelId).toBeTruthy();
@@ -172,7 +172,7 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
 
     const inclusive = screen.getByTestId('inclusive-basis');
     const inclusiveTrigger = within(inclusive).getByRole('button', { name: 'Show tax details' });
-    expect(inclusive).toHaveTextContent('incl. PPN');
+    expect(inclusive).toHaveTextContent('incl. tax');
     inclusiveTrigger.focus();
     await user.keyboard(' ');
     const inclusiveDetails = document.getElementById(inclusiveTrigger.getAttribute('aria-controls')!);
@@ -199,19 +199,19 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
     expect(unknownDetails).not.toHaveTextContent('DPP 1/1');
 
     const basisOnly = screen.getByTestId('basis-only');
-    expect(basisOnly).toHaveTextContent('excl. PPN');
+    expect(basisOnly).toHaveTextContent('excl. tax');
     expect(within(basisOnly).queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('unknown-treatment')).not.toBeInTheDocument();
   });
 
   it('AC-DPP-002: shows the nominal rate and the exact authored DPP fraction', () => {
     render(<TaxBasisLabel treatment="exclusive" taxRate={12} taxBaseNumerator={11} taxBaseDenominator={12} />);
-    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN 12% · DPP 11/12');
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. tax 12% · DPP 11/12');
   });
 
   it('AC-DPP-002: states an unknown historical rate without inventing an effective or nominal rate', () => {
     render(<TaxBasisLabel treatment="inclusive" taxRate={null} taxBaseNumerator={1} taxBaseDenominator={1} />);
-    expect(screen.getByTestId('tax-basis')).toHaveTextContent('incl. PPN · rate not recorded · DPP 1/1');
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('incl. tax · rate not recorded · DPP 1/1');
     expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('0%');
   });
   it('AC-DPP-002: an ERP mirror without base facts qualifies DPP as unknown', () => {
@@ -219,19 +219,19 @@ describe('TaxBasisLabel — the basis that travels with a money figure (OD-TAX-1
     expect(screen.getByTestId('tax-basis')).toHaveTextContent('DPP not recorded');
     expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('DPP 1/1');
   });
-  it('renders "incl. PPN" for an inclusive row', () => {
+  it('renders "incl. tax" for an inclusive row', () => {
     render(<TaxBasisLabel treatment="inclusive" />);
-    expect(screen.getByTestId('tax-basis')).toHaveTextContent('incl. PPN');
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('incl. tax');
   });
 
-  it('renders "excl. PPN" for an exclusive row — a different row reads differently', () => {
+  it('renders "excl. tax" for an exclusive row — a different row reads differently', () => {
     render(<TaxBasisLabel treatment="exclusive" />);
-    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. tax');
   });
 
   it('AC-UNB-001: states only the comparison basis for a normalized aggregate', () => {
     render(<TaxBasisLabel treatment="exclusive" showDetails={false} />);
-    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. tax');
     expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('rate not recorded');
     expect(screen.getByTestId('tax-basis')).not.toHaveTextContent('DPP');
   });

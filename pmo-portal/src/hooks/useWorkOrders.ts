@@ -6,6 +6,7 @@ import {
   type WorkOrderStatus,
   type SetWorkOrderValueInput,
 } from '@/src/lib/repositories';
+import type { Profile } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -14,14 +15,16 @@ import { useAuth } from '@/src/auth/useAuth';
  */
 
 /** Every work order on a project, newest first. */
+export const projectWorkOrdersQuery = (user: ProjectOrdersViewer | null | undefined, projectId: string) => ({
+  queryKey: ['work-orders', user?.org_id, projectId, user?.id, user?.role, user?.manager_id],
+  queryFn: () => repositories.workOrder.list(projectId),
+  enabled: Boolean(user?.org_id) && Boolean(projectId),
+});
+
+export type ProjectOrdersViewer = Pick<Profile, 'org_id' | 'id' | 'role' | 'manager_id'>;
+
 export function useProjectWorkOrders(projectId: string) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-orders', orgId, projectId, currentUser?.id, currentUser?.role, currentUser?.manager_id],
-    queryFn: () => repositories.workOrder.list(projectId),
-    enabled: Boolean(orgId) && Boolean(projectId),
-  });
+  return useQuery(projectWorkOrdersQuery(useAuth().currentUser, projectId));
 }
 
 /**
@@ -40,6 +43,8 @@ export function useProjectDrawdown(projectId: string) {
 
 interface CreateArgs {
   input: WorkOrderInput;
+  /** The Work orders page chooses the project at submit; a project's own tab uses the hook's. */
+  projectId?: string;
 }
 interface UpdateArgs {
   id: string;
@@ -84,8 +89,13 @@ export function useWorkOrderMutations(projectId: string) {
   };
 
   const create = useMutation({
-    mutationFn: ({ input }: CreateArgs) => repositories.workOrder.create(projectId, input),
-    onSuccess: invalidate,
+    mutationFn: ({ input, projectId: chosen }: CreateArgs) => repositories.workOrder.create(chosen ?? projectId, input),
+    onSuccess: (_created, { projectId: chosen }) => {
+      invalidateWorkOrderQueries(qc, orgId, chosen ?? projectId);
+      // The org-wide list and its figures (the Work orders page) read other keys than one project's.
+      void qc.invalidateQueries({ queryKey: ['work-orders', orgId, 'all'] });
+      void qc.invalidateQueries({ queryKey: ['work-order-dashboard', orgId] });
+    },
   });
 
   const update = useMutation({

@@ -23,6 +23,7 @@ vi.mock('@/src/hooks/useWorkOrderPerformance', () => ({
 }));
 
 import { PerformanceIndices } from './PerformanceIndices';
+import { AreaHelpProvider } from './AreaHelp';
 import { ProjectPerformance } from '../project-detail/ProjectPerformance';
 
 const row = (extra: Partial<PerformanceRow> = {}): PerformanceRow => ({
@@ -41,7 +42,7 @@ const i18n = (lng: 'en' | 'id') => {
   return i;
 };
 const wrap = (ui: React.ReactElement, lng: 'en' | 'id' = 'en') => render(
-  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><MemoryRouter><I18nextProvider i18n={i18n(lng)}>{ui}</I18nextProvider></MemoryRouter></AuthContext.Provider></QueryClientProvider>,
+  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><MemoryRouter><I18nextProvider i18n={i18n(lng)}><AreaHelpProvider>{(help, notes) => <>{ui}<output data-testid="page-help">{help.map((e) => e.body).join(' ')}</output><output data-testid="page-notes">{notes.join(' ')}</output></>}</AreaHelpProvider></I18nextProvider></MemoryRouter></AuthContext.Provider></QueryClientProvider>,
 );
 
 beforeEach(() => {
@@ -87,6 +88,18 @@ describe('AC-CSP-018 the panels are off until the organisation turns them on', (
 });
 
 describe('work-order panel', () => {
+  it('does not judge performance before cost or progress is recorded', () => {
+    h.project.mockReturnValue(read([row({ ev: '0.00', ac: '0.00', pv: null, startDate: null })]));
+    wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
+    expect(screen.queryByText('Earned value equals actual cost')).toBeNull();
+    expect(screen.getByText('Record progress or costs to see performance.')).toBeTruthy();
+  });
+  it('names missing costs and plan when accepted progress is already recorded', () => {
+    h.project.mockReturnValue(read([row({ ev: '0.00', ac: '0.00', pv: null, startDate: null })]));
+    wrap(<PerformanceIndices projectId="p" workOrderId="w1" recordedProgress={60} />);
+    expect(screen.getByText('Record actual costs or enter a cost plan to see performance.')).toBeTruthy();
+    expect(screen.queryByText('Record progress or costs to see performance.')).toBeNull();
+  });
   it('shows both indices, readings in words, as-of date and the basis', () => {
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
     expect(screen.getByTestId('wo-page-performance-spi-value').textContent).toBe('0.75');
@@ -96,13 +109,16 @@ describe('work-order panel', () => {
     expect(screen.getByTestId('wo-page-performance-asof').textContent).toContain('4 Jan 2026');
     expect(screen.getByTestId('wo-page-performance-schedule-variance').textContent).toMatch(/^Behind plan by /);
     expect(screen.getByTestId('wo-page-performance-cost-variance').textContent).toMatch(/^Earned value exceeds actual cost by /);
-    expect(screen.getByTestId('wo-page-performance-band').textContent).toBe('Within range is 0.90 to 1.10.');
+    // The definitions sit behind the page's one help control, not under the figures.
+    expect(screen.queryByTestId('wo-page-performance-band')).toBeNull();
+    expect(screen.getByTestId('page-help').textContent).toContain('Earned value is validated daily-report progress');
+    expect(screen.getByTestId('page-help').textContent).toContain('Within range is 0.90 to 1.10.');
   });
   it('uses the organisation bands for the reading', () => {
     h.project.mockReturnValue(read([row({ ev: '85.00', ac: '100.00', pv: '100.00' })], { bands: { low: '0.80', high: '1.25' } }));
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
     expect(screen.getByTestId('wo-page-performance-cpi-reading').textContent).toBe('Within range');
-    expect(screen.getByTestId('wo-page-performance-band').textContent).toContain('0.80 to 1.25');
+    expect(screen.getByTestId('page-help').textContent).toContain('0.80 to 1.25');
   });
   it('hides an uncomputable index with its reason, never as 0', () => {
     h.project.mockReturnValue(read([row({ ac: '0.00', pv: null, startDate: null })]));
@@ -119,7 +135,9 @@ describe('work-order panel', () => {
   it('says when cost is in another currency or undated', () => {
     h.project.mockReturnValue(read([row({ acStatus: 'not_comparable', ac: null })]));
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
-    expect(screen.getByTestId('wo-page-performance-cpi-hidden').textContent).toMatch(/^Not comparable/);
+    // Said once for the area, not in the figure.
+    expect(screen.getByTestId('wo-page-performance-cpi-hidden').textContent).toBe('—');
+    expect(screen.getByTestId('page-notes').textContent).toContain('Some cost is in another currency');
     cleanup();
     h.project.mockReturnValue(read([row({ acStatus: 'incomplete', ac: null, undatedCostLines: 1 })]));
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);

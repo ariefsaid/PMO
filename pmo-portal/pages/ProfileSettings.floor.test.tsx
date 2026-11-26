@@ -69,10 +69,11 @@ function renderPage() {
 }
 
 describe('Profile settings floor controls', () => {
-  it('floor: Home layout selection applies Focused and saves it on this device', () => {
+  it('floor: Save applies Focused and saves it on this device', async () => {
     renderPage();
     const layout = screen.getByLabelText(/home layout/i);
     fireEvent.change(layout, { target: { value: 'focused' } });
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     expect(layout).toHaveValue('focused');
     expect(localStorage.getItem('home-layout')).toBe('focused');

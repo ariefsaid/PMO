@@ -128,6 +128,7 @@ const PayablesPage: React.FC = () => {
     ...(channelsOn ? [{
       key: 'paymentChannel',
       header: t('procurement:paymentChannel.columnHeader', 'Payment channel'),
+      keepWhenBlank: true,
       kind: 'text' as const,
       size: 150,
       cell: (row: PayableRow) => <span className="min-w-0 truncate text-muted-foreground">{channelNames.data?.[row.procurement.id] ?? '—'}</span>,
@@ -194,6 +195,8 @@ const PayablesPage: React.FC = () => {
       total={isPending || isError ? undefined : payablesPosition.payables.length}
     >
       <div className="mb-3"><FigureHiddenLine /></div>
+      <div className="flex min-w-0 flex-col">
+      <div className="order-2 sm:order-1">
       <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 grid-cols-2">
         <KPITile
           icon="grid" tone="blue" label={t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}
@@ -224,7 +227,8 @@ const PayablesPage: React.FC = () => {
         className="mb-5"
       />}
       {!ageingPending && !ageingError && <div className={AGEING_PANEL}><AgeingStrip kind="payables" flush payablesStatusColors heading={t('financeHub:hub.invoiceAge', 'Invoice age')} ariaLabel={t('finance:area.payablesAgeingBasis', 'Invoice age, by days')} values={payablesPosition.payablesAgeing} unknownCounts={payablesPosition.payablesUnknownAgeing} /></div>}
-      <div className="min-w-0" data-testid="finance-payables-table-card">
+      </div>
+      <div className="order-1 mb-5 min-w-0 sm:order-2 sm:mb-0" data-testid="finance-payables-table-card">
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
         <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={visibleRows.length} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -267,6 +271,7 @@ const PayablesPage: React.FC = () => {
         className="rounded-t-none border-t-0"
       />
       {!isPending && !isError && payablesPosition.payablesUnknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('financeHub:hub.fix.payables.unknownNote', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} invoice has no amount and is left out of the total' : '{{count}} invoices have no amount and are left out of the total', count: payablesPosition.payablesUnknownCount })}</p>}
+      </div>
       </div>
       {newBillOpen && <NewVendorBillDialog onClose={() => setNewBillOpen(false)} />}
     </ListPage>

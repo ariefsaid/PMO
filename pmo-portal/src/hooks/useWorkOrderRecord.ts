@@ -3,23 +3,25 @@ import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /** One work order by id for its record page (#2518); null = absent / another org / unreadable (RLS). */
+export const workOrderQuery = (orgId: string | undefined, id: string | undefined) => ({
+  queryKey: ['work-order', orgId, id],
+  queryFn: () => repositories.workOrder.get(id as string),
+  enabled: Boolean(orgId) && Boolean(id),
+});
+
 export function useWorkOrder(id: string | undefined) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order', orgId, id],
-    queryFn: () => repositories.workOrder.get(id as string),
-    enabled: Boolean(orgId) && Boolean(id),
-  });
+  return useQuery(workOrderQuery(useAuth().currentUser?.org_id, id));
 }
 
 /** This work order's BoQ allocations. */
+export const workOrderAllocationsQuery = (orgId: string | undefined, id: string | undefined) => ({
+  queryKey: ['work-order-lines', orgId, 'wo', id],
+  queryFn: () => repositories.workOrderAcceptance.listLines(id as string),
+  enabled: Boolean(orgId) && Boolean(id),
+});
+
 export function useWorkOrderAllocations(id: string | undefined) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-lines', orgId, 'wo', id],
-    queryFn: () => repositories.workOrderAcceptance.listLines(id as string),
-    enabled: Boolean(orgId) && Boolean(id),
-  });
+  return useQuery(workOrderAllocationsQuery(useAuth().currentUser?.org_id, id));
 }
 
 /** Visible T&M sign-off documents linked to this work order. */

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 const h = vi.hoisted(() => ({ data: [] as unknown[], isLoading: false, isError: false, ownership: 'pmo', synced: true, wo: false }));
@@ -61,6 +61,13 @@ describe('WorkOrderStockBalance', () => {
     expect(screen.getByText('Owner supplied')).toBeTruthy();
   });
 
+  it('shows the stock unit once beside the item in the table', () => {
+    h.data = [row({ unitCode: 'LONG-UNIT' })];
+    render(<WorkOrderStockBalance workOrderId="wo1" currency="IDR" />);
+    const table = screen.getByRole('table');
+    expect(table.textContent?.match(/LONG-UNIT/g)).toHaveLength(1);
+  });
+
   it('retains exact value for large ledger amounts', () => {
     h.data = [row({ onSiteValue: '9007199254740993.00' })];
     render(<WorkOrderStockBalance workOrderId="wo1" currency="USD" />);
@@ -81,10 +88,12 @@ describe('WorkOrderStockBalance', () => {
     expect(screen.queryByText('$0.00')).toBeNull();
   });
 
-  it('shows the on-site quantity next to the unit, and one panel heading only', () => {
+  it('shows the on-site quantity and its unit in the same row, and one panel heading only', () => {
     h.data = [row({ onSiteQty: '3', unitCode: 'pc' })];
     render(<WorkOrderStockBalance workOrderId="wo1" currency="IDR" />);
-    expect(screen.getAllByText((_, el) => el?.textContent === '3 pc' && el.tagName === 'SPAN').length).toBeGreaterThan(0);
+    const stockRow = screen.getByRole('row', { name: /Valve/ });
+    expect(within(stockRow).getByText('pc')).toBeTruthy();
+    expect(within(stockRow).getByText('3')).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'siteWork.balance.title' })).toBeNull();
   });
 

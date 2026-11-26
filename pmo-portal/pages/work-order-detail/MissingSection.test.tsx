@@ -22,6 +22,11 @@ beforeEach(() => {
 });
 
 describe('MissingSection', () => {
+  it('does not claim close-out readiness before any work is reported', () => {
+    render(<MissingSection {...props} />);
+    expect(screen.getByTestId('missing-empty')).toHaveTextContent('No work quantities have been reported yet.');
+    expect(screen.queryByText(/Nothing is missing/)).toBeNull();
+  });
   it('AC-WML-006 lists steps passed through the seam, their missing attachments and who adds them', () => {
     render(<MissingSection {...props} steps={[step]} />);
     expect(screen.getByTestId('missing-step')).toHaveTextContent('Step one');

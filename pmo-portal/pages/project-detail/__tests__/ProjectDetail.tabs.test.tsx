@@ -195,8 +195,12 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
     // Model horizontal scrolling because jsdom has no layout. Both selected tabs
     // start beyond the visible strip, at different positions.
     let stripScroll = 0;
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(1200);
+    const scrollLeftSpy = vi.spyOn(HTMLElement.prototype, 'scrollLeft', 'get').mockImplementation(() => stripScroll);
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const isTab = this.getAttribute('role') === 'tab';
+      if (this.getAttribute('role') === 'tablist') this.style.scrollPaddingInlineStart = '28px';
       const start = this.textContent?.includes('Documents') ? 800 : 400;
       return { left: isTab ? start - stripScroll : 0, right: isTab ? start + 80 - stripScroll : 300, top: 0, bottom: 32, width: isTab ? 80 : 300, height: 32, x: 0, y: 0, toJSON() {} } as DOMRect;
     });
@@ -225,6 +229,9 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
     } finally {
       rectSpy.mockRestore();
       pageScroll.mockRestore();
+      clientWidthSpy.mockRestore();
+      scrollWidthSpy.mockRestore();
+      scrollLeftSpy.mockRestore();
       delete (HTMLElement.prototype as Partial<HTMLElement>).scrollBy;
     }
   });
@@ -249,7 +256,7 @@ describe('ProjectDetail — primary action scope', () => {
     },
   );
 
-  it('keeps the primary action on Overview and limits Contract to Chase payment', async () => {
+  it('keeps Chase payment available on Overview without repeating the primary action on Contract', async () => {
     invoiceState.data = [{
       id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20',
       erp_payment_terms_days: 30, erp_outstanding_amount: '500',
@@ -262,7 +269,7 @@ describe('ProjectDetail — primary action scope', () => {
     overview.unmount();
 
     await renderAt('/projects/p1/contract', 'Finance');
-    expect(screen.getAllByRole('button', { name: 'Chase payment' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Chase payment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
   });
 });

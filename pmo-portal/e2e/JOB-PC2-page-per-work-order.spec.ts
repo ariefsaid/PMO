@@ -6,6 +6,7 @@ import { cleanupAll, cleanupEquipment, equipmentCost, need, ok, ORG_ID, projectW
 import { roleJobUser } from './support/roleJobUser';
 import { addIssueType, cleanSiteIssue } from './siteIssueFixture';
 import { ENGINEER_ID, inDays } from './support/jobJourney';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -59,11 +60,14 @@ test('JOB-PC2 a project control manager opens the work order page from the proje
   await expect(page).toHaveURL(new RegExp(`/work-orders/${wo.id}$`));
   await expect(page.getByRole('heading', { level: 1 })).toContainText(wo.number);
   await expect(page.getByTestId(`scope-line-${boqId}`)).toContainText('Spool fabrication');
+  await openWorkOrderArea(page, 'cost');
   await expect(page.getByTestId('cost-group-equipment_usage')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('cost-total-equipment_usage')).toContainText('$300');
   await expect(page.getByTestId('wo-page-pva-plan-direct')).toContainText('1,234', { timeout: 20_000 });
+  await openWorkOrderArea(page, 'billing');
   await expect(page.getByTestId('billing-invoiced')).toContainText('2,500', { timeout: 20_000 });
   await expect(page.getByTestId('wo-billing-contract-link')).toHaveText('Claims and invoices');
+  await openWorkOrderArea(page, 'issues');
   await expect(page.getByTestId('wo-issues')).toContainText(issueType, { timeout: 20_000 });
   await expect(page.getByTestId('wo-open-tasks')).toContainText(taskName, { timeout: 20_000 });
 });

@@ -686,7 +686,7 @@ describe('contract billing block', () => {
     expect(screen.getByRole('heading', { name: 'Contract invoice position · IDR' })).toBeInTheDocument();
     expect(screen.getByText('Invoiced against contract').parentElement).toHaveTextContent('2,900');
     expect(screen.getByText('Remaining to invoice').parentElement).toHaveTextContent('7,100');
-    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('excl. tax');
   });
 
   it('shows the contract-to-paid cascade from BoQ, work-order allocation, and invoice facts', () => {
@@ -963,6 +963,21 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     expect(within(block).getByText('Current phase: Design')).toBeInTheDocument();
     expect(within(block).queryByText(/overdue/)).not.toBeInTheDocument();
     expect(within(block).getByRole('cell', { name: '25%' })).toBeInTheDocument();
+  });
+
+  it('AC-TREE-108: the phase row counts work linked through an active task group once', () => {
+    state.milestones = [
+      { id: 'phase-1', project_id: 'p1', name: 'Design', sort_order: 1, target_date: '2000-01-15', weight: 1, input_pct: null, task_count: 2, calculated_pct: 50, effective_pct: 50 },
+    ];
+    const task_group = { milestone_id: 'phase-1', archived_at: null };
+    state.tasks = [
+      { id: 't1', status: 'Done', milestone_id: null, task_group },
+      { id: 't2', status: 'In Progress', milestone_id: 'phase-1', task_group },
+      { id: 't3', status: 'Done', milestone_id: null, task_group: { ...task_group, archived_at: '2000-01-01' } },
+    ];
+    renderWithQueryClient(<ToastProvider><MemoryRouter><DeliveryBlock projectId="p1" /></MemoryRouter></ToastProvider>);
+    const row = screen.getByRole('row', { name: /Design/ });
+    expect(within(row).getByRole('cell', { name: '1 of 2' })).toBeInTheDocument();
   });
 
   it('withholds budget use when the canonical position read fails', () => {

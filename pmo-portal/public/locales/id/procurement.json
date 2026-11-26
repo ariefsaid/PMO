@@ -110,7 +110,8 @@
     "notSent": "Tidak dikirim",
     "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP",
     "valueFromLines": "Dari baris pesanan",
-    "valueNotRecorded": "Nilai penerimaan ini belum dicatat"
+    "valueNotRecorded": "Nilai penerimaan ini belum dicatat",
+    "withholding": "Pemotongan pajak"
   },
   "gates": {
     "heading": "Aturan pembelian",
@@ -379,7 +380,7 @@
     "projectBudget": "Anggaran proyek",
     "reservedSub": "Disetujui, belum dipesan",
     "reserved": "Dicadangkan",
-    "thisProcurement": "Total pengadaan",
+    "thisProcurement": "Perkiraan pengadaan",
     "notCompared": "Mata uang berbeda: tidak dibandingkan dengan anggaran",
     "budgetUsed": "Anggaran terpakai",
     "budgetUsedBasis": "Pengeluaran tercatat, sebelum pajak",
@@ -770,7 +771,8 @@
     "headingAll": "Pembelian dan $t(common:terms.timesheet)",
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari",
-    "waitingOnYou": "menunggu keputusan Anda"
+    "waitingOnYou": "menunggu keputusan Anda",
+    "selectTimesheets": "Pilih timesheet"
   },
   "threeWayMatch": {
     "title": "Pencocokan tiga arah · {{bill}}",
@@ -954,6 +956,10 @@
     "spendingNotVisible": "kesesuaiannya dengan anggaran {{category}} proyek diperiksa saat diputuskan."
   },
   "purchaseOrderPrint": {
+    "number": "Nomor",
+    "preparedBy": "Disiapkan oleh",
+    "approvedBy": "Disetujui oleh",
+    "vendorAcceptance": "Penerimaan pemasok",
     "printAction": "Cetak pesanan pembelian",
     "title": "Pesanan Pembelian",
     "print": "Cetak",
@@ -1068,17 +1074,13 @@
     "retireConfirm": "Nonaktifkan kategori",
     "loadError": "Perencanaan baris tidak dapat dimuat",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
-    "saving": "Menyimpan…",
     "saved": "Tersimpan",
     "noCategories": "Belum ada kategori.",
     "retired": "Nonaktif",
-    "section": "Kategori dan dibutuhkan pada",
     "category": "Kategori baris",
     "neededBy": "Dibutuhkan pada",
     "none": "Tidak ada",
-    "lineLabel": "Baris {{name}}",
-    "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya.",
-    "columnEmpty": "—"
+    "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya."
   },
   "billHold": {
     "rule": {
@@ -1091,24 +1093,18 @@
     }
   },
   "lineWorkOrders": {
-    "loadError": "Work order proyek ini tidak bisa dimuat.",
-    "section": "Work order per baris",
-    "intro": "Sebutkan work order dan disiplin untuk tiap baris. Jika semua baris menyebut work order yang sama, permintaan memakainya.",
-    "field": "Work order untuk {{line}}",
+    "loadError": "Perintah kerja proyek ini tidak bisa dimuat.",
+    "field": "Perintah kerja untuk {{line}}",
     "disciplineField": "Disiplin untuk {{line}}",
     "noDiscipline": "Tanpa disiplin",
     "unknownDiscipline": "Disiplin yang sudah tidak dipakai",
     "sameAsRequest": "Sama dengan permintaan",
     "sameAsRequestNamed": "Sama dengan permintaan ({{workOrder}})",
-    "unknownWorkOrder": "Work order yang tidak dapat Anda buka",
+    "unknownWorkOrder": "Perintah kerja yang tidak dapat Anda buka",
     "cancelled": "dibatalkan",
-    "noProject": "Pilih proyek dulu: work order milik sebuah proyek, setelah itu tiap baris bisa diberi work order.",
-    "noWorkOrders": "Proyek ini belum punya work order, jadi baris belum bisa diberi work order. Manajer proyek menambahkannya di tab Work order proyek.",
-    "differs": "Permintaan berada di {{workOrder}}; baris ini untuk work order yang berbeda.",
+    "noProject": "Pilih proyek dulu: perintah kerja milik sebuah proyek, setelah itu tiap baris bisa diberi perintah kerja.",
     "save": "Simpan",
-    "saved": "Tersimpan",
-    "nothingToSave": "Ubah work order atau disiplin sebuah baris untuk menyimpan.",
-    "saveFailed": "Permintaan sudah tersimpan, tetapi work order beberapa baris belum terpasang.",
+    "saveFailed": "Permintaan sudah tersimpan, tetapi perintah kerja beberapa baris belum terpasang.",
     "saveFailedNext": "Buka permintaan lalu atur di tab Item."
   },
   "orderRoles": {
@@ -1128,17 +1124,20 @@
     "turnOn": "Aktifkan peran bawaan di Administrasi > Orang > Peran bawaan untuk mencantumkan peran yang dapat memesan."
   },
   "orderNeededBy": {
-    "heading": "Dibutuhkan pada",
-    "help": "Wajib diisi sebelum pesanan dikirim ke pemasok. Tanggal ini mengisi setiap baris; satu baris boleh punya tanggal sendiri.",
     "orderDate": "Pesanan dibutuhkan pada",
-    "lineDate": "Baris dibutuhkan pada",
-    "none": "—",
-    "save": "Simpan",
-    "saved": "Tersimpan",
     "settingHeading": "Tanggal dibutuhkan pada pesanan",
     "settingHelp": "Bila aktif, pesanan tidak dapat dikirim ke pemasok sebelum punya tanggal dibutuhkan. Pesanan yang dibuat sebelum ini diaktifkan tidak diblokir.",
     "settingLabel": "Wajibkan tanggal dibutuhkan sebelum pesanan dikirim",
     "loadError": "Tidak dapat memuat pengaturan ini",
     "valueLoadError": "Tidak dapat memuat tanggal kebutuhan pesanan ini"
+  },
+  "linePlan": {
+    "line": "Baris",
+    "category": "Kategori",
+    "workOrder": "Perintah kerja",
+    "discipline": "Disiplin",
+    "differs": "Bukan {{workOrder}} milik permintaan",
+    "orderDateHelp": "Wajib untuk mengirim pesanan. Mengisi semua baris.",
+    "noWorkOrders": "Proyek ini belum punya perintah kerja, jadi baris tanpa perintah kerja. Manajer proyek menambahkannya di tab perintah kerja proyek."
   }
 }

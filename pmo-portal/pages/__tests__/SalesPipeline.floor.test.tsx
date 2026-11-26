@@ -245,7 +245,8 @@ describe('Sales pipeline floor — phone', () => {
     renderPage();
 
     const selection = screen.getByRole('combobox', { name: 'Pipeline stage' });
-    await userEvent.selectOptions(selection, 'PQ Submitted');
+    await userEvent.click(selection);
+    await userEvent.click(await screen.findByRole('option', { name: /PQ submitted/i }));
 
     await waitFor(() => expect(searchParam('status')).toBe('PQ Submitted'));
     const list = screen.getByTestId('sales-phone-stage-list');

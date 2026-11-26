@@ -3,11 +3,12 @@
 // the Project Control Manager approves it in Approvals; the work order's labour cost rises by the day rate, and the
 // timesheet shows the approved hours with no cost figure. Run with no accounting system connected.
 import { test, expect } from '@playwright/test';
-import { formatExactMoney } from '../../src/lib/format';
+import { formatTableMoney } from '../../src/lib/format';
 import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { inDays, orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -23,7 +24,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
   const dayRate = 800_000;
   const day = orgToday();
   const week = inDays(-((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7));
-  const dayRateText = formatExactMoney(String(dayRate), 'USD', 'en-US')!;
+  const dayRateText = formatTableMoney(String(dayRate), 'USD')!;
   let before: { enabled: boolean } | null = null;
   let projectId = ''; let woId = ''; let classId = ''; let sheetId = ''; let rateId = '';
   try {
@@ -50,6 +51,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
     await pcm.signIn(page);
     // Before approval nothing is costed.
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('table', { name: 'Labour cost by class' })).toHaveCount(0);
 
@@ -58,7 +60,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
     const item = page.getByRole('region', { name: 'Approvals queue' }).getByRole('button').filter({ hasText: `${run}-w` }).filter({ hasText: `${run} piling` });
     await expect(item).toBeVisible({ timeout: 30_000 });
     // The week shows its hours, with no cost figure beside them.
-    await expect(item).toContainText(/8 h$/);
+    await expect(item).toContainText(/8 hours$/);
     await expect(item).not.toContainText(dayRateText);
     await item.click();
     await expect(page.getByRole('region', { name: 'Approval preview' })).not.toContainText(dayRateText);
@@ -69,6 +71,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
 
     // Work orders → [Work order] → Costs: labour cost is the day rate.
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByRole('table', { name: 'Labour cost by class' })).toContainText(dayRateText, { timeout: 30_000 });
 
     // Approvals: the approved week moves to the approved history; the timesheet screen never carried a cost figure (checked above, before approving).

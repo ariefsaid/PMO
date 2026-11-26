@@ -85,7 +85,10 @@ const CalendarPage: React.FC = () => {
 
   return (
     <div>
-      <PageHeader title={t('title', 'Calendar')} />
+      <PageHeader
+        title={t('title', 'Calendar')}
+        help={t('scope', 'Shows tasks and phases that have a date. Meetings are not shown.')}
+      />
       {/* C5 (DS calendar #1/#3): the month must not read as the whole plan. Phases come from two
           further reads (the project list, then the milestone dates), so a failure there silently
           deletes every phase from a complete-looking grid — name it and offer the retry. */}
@@ -102,9 +105,6 @@ const CalendarPage: React.FC = () => {
           </Button>
         </div>
       )}
-      {/* B7 (Director, Part 8): the ONE explanatory line above the grid lives in the toolbar
-          (see `scopeNote` below); the C5 undated-work notice it replaced is gone, because the line
-          already says the grid holds only work that has a date. */}
       {tasks.isError ? (
         <ListState
           variant="error"
@@ -133,7 +133,6 @@ const CalendarPage: React.FC = () => {
           onMoveError={onMoveError}
           onWindowChange={setWindow}
           onOpenItem={onOpenItem}
-          scopeNote={t('scope', 'Shows tasks and phases that have a date. Meetings are not shown.')}
           emptyMonth={phasesUnavailable ? undefined : {
             pending: emptyMonthPending,
             action: (

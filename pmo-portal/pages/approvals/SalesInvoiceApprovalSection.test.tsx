@@ -153,7 +153,7 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(screen.queryByText('Raised by')).not.toBeInTheDocument();
     expect(screen.queryByText('Customer PO')).not.toBeInTheDocument();
     expect(screen.getByText('Line items are kept in the accounting system for this invoice.')).toBeInTheDocument();
-    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent('excl. tax');
     expect(screen.queryByText(/DPP|rate not recorded/i)).not.toBeInTheDocument();
   });
   it('shows loading instead of hiding the section while invoices are pending', () => {
@@ -210,8 +210,8 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(screen.getByText('Total due').closest('div')).toHaveTextContent('$12.50');
   });
   it.each([
-    { treatment: 'exclusive' as const, amount: 1_000_000, basis: 'excl. PPN' },
-    { treatment: 'inclusive' as const, amount: 1_110_000, basis: 'incl. PPN' },
+    { treatment: 'exclusive' as const, amount: 1_000_000, basis: 'excl. tax' },
+    { treatment: 'inclusive' as const, amount: 1_110_000, basis: 'incl. tax' },
   ])('AC-S39-004: keeps $treatment invoice tax details on demand without bypassing review or changing #1049 totals', async ({ treatment, amount, basis }) => {
     const user = userEvent.setup();
     h.data = [draft({

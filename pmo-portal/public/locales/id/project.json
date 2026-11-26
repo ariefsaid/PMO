@@ -324,7 +324,7 @@
       },
       "claimForm": {
         "dpAmount": "Nilai uang muka (belum termasuk PPN)",
-        "noLines": "Tidak ada baris bill of quantities dalam cakupan ini.",
+        "noLines": "Tidak ada baris daftar kuantitas dalam cakupan ini.",
         "errors": {
           "quantity": "Setiap kuantitas harus di atas 0 dengan paling banyak 3 angka desimal",
           "noQuantity": "Isi kuantitas untuk setidaknya satu baris",
@@ -344,7 +344,7 @@
         "scopeContract": "Baris tanpa $t(common:terms.clientWorkOrder)",
         "title": "Tagihan baru",
         "prefill": "Mulai dari penilaian {{month}}",
-        "kindProgress": "Progres: kuantitas terhadap bill of quantities"
+        "kindProgress": "Progres: daftar kuantitas"
       },
       "areaRates": {
         "title": "Tarif per wilayah",
@@ -488,7 +488,7 @@
           "name": "Beri nama langkah.",
           "shape": "Satu klaim paling banyak memiliki 20 langkah."
         },
-        "workOrderOwner": "Pemilik pada surat perintah kerja",
+        "workOrderOwner": "Pemilik pada perintah kerja",
         "hideFrom": "Sembunyikan langkah ini dari suatu peran",
         "hidePick": "Pilih peran",
         "hiddenList": "Disembunyikan dari",
@@ -519,11 +519,11 @@
         "addStep": "Tambah langkah",
         "stepsMissing": "Tambahkan minimal satu langkah dan beri nama setiap langkah.",
         "save": "Simpan templat",
-        "isDefault": "Dipakai untuk surat perintah kerja baru",
+        "isDefault": "Dipakai untuk perintah kerja baru",
         "clearDefault": "Berhenti memakai",
-        "clearDefaultNamed": "Berhenti memakai {{name}} untuk surat perintah kerja baru",
-        "useDefault": "Pakai untuk surat perintah kerja baru",
-        "useDefaultNamed": "Pakai {{name}} untuk surat perintah kerja baru"
+        "clearDefaultNamed": "Berhenti memakai {{name}} untuk perintah kerja baru",
+        "useDefault": "Pakai untuk perintah kerja baru",
+        "useDefaultNamed": "Pakai {{name}} untuk perintah kerja baru"
       },
       "terms": {
         "title": "Ketentuan penagihan",
@@ -953,7 +953,7 @@
       "leftAfterOrders": "Sisa setelah pesanan terbuka",
       "overAfterOrdersAmount": "{{amount}} melebihi anggaran setelah pesanan terbuka",
       "figures": "Angka anggaran",
-      "leftAfterSpending": "Sisa setelah pengeluaran",
+      "leftAfterSpending": "Sisa",
       "overAfterOrders": "Melebihi anggaran setelah pesanan terbuka",
       "canonicalUtilizationFormula": "Anggaran terpakai adalah pengeluaran dibagi anggaran aktif, sebelum pajak.",
       "utilizationFormula": "Pengeluaran dibagi anggaran kategori sebelum pajak.",
@@ -1025,7 +1025,7 @@
       "onTrack": "Sesuai rencana",
       "openForecastCategory": "Buka detail proyeksi {{category}}",
       "openFullPage": "Buka halaman lengkap",
-      "overBudget": "Melebihi anggaran",
+      "overBudget": "Lewat anggaran",
       "projectCommitmentsShort": "Komitmen · seluruh proyek",
       "reasonBudgetedOtherYear": "Dianggarkan pada tahun fiskal lain: {{years}}",
       "reasonNoAccount": "Tidak ada akun buku besar akuntansi yang dipetakan untuk kategori ini.",
@@ -1352,13 +1352,13 @@
       },
       "action": {
         "recordDelivery": "Catat pengiriman",
-        "addCustomerOrder": "Tambah pesanan pelanggan",
         "openDetails": "Lihat detail {{order}}",
         "editOrder": "Ubah pesanan",
         "orderMenuLabel": "Tindakan untuk {{order}}",
         "viewPo": "Lihat PO pelanggan",
         "cancelGeneric": "Batal",
-        "import": "Impor perintah kerja"
+        "import": "Impor perintah kerja",
+        "openWorkOrders": "$t(common:terms.clientWorkOrder)"
       },
       "filter": {
         "orders": "Pesanan",
@@ -1371,7 +1371,7 @@
         "source": "Dihitung dari nilai bersih kontrak dikurangi nilai bersih $t(common:terms.clientWorkOrder) yang diterbitkan dan ditutup."
       },
       "drafts": "Draf pesanan",
-      "emptyRegister": "Belum ada pesanan pelanggan. PO pelanggan dicatat di sini dan mengurangi pagu kontrak proyek saat diterbitkan.",
+      "emptyRegister": "Belum ada $t(common:terms.clientWorkOrder). Buat di tab $t(common:terms.clientWorkOrder); nilainya menyerap pagu kontrak proyek setelah diterbitkan.",
       "orderDate": "Tanggal order",
       "billing": {
         "orderRemainingSource": "Sumber: saldo penagihan $t(common:terms.clientWorkOrder) setelah invoice dan draf tertunda.",
@@ -1469,9 +1469,15 @@
     "projectIncidents": "Insiden proyek",
     "workOrderForm": {
       "area": "Wilayah",
+      "errors": {
+        "projectRequired": "Pilih proyek tempat $t(common:terms.clientWorkOrder) ini berada"
+      },
       "group": "Grup",
       "noArea": "Tanpa wilayah",
-      "noGroup": "Tanpa grup"
+      "noGroup": "Tanpa grup",
+      "noProjects": "Belum ada proyek untuk ditambahi $t(common:terms.clientWorkOrder).",
+      "project": "Proyek",
+      "projectPlaceholder": "Pilih proyek"
     }
   },
   "common": {
@@ -1577,5 +1583,7 @@
     "unpriced": "Belum ada tarif",
     "sourceUnavailable": "Lokasi tidak tersedia",
     "noLocations": "Belum ada lokasi. Tambahkan lokasi."
-  }
+  },
+  "autoSave": "Simpan otomatis",
+  "executionPlan": "Rencana pelaksanaan"
 }
