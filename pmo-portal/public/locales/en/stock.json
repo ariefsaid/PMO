@@ -855,6 +855,12 @@
       "to": "To",
       "name": "Name",
       "signatureDate": "Date"
+    },
+    "columns": {
+      "transfer": "Transfer",
+      "sent": "Sent",
+      "rejected": "Rejected",
+      "note": "Note"
     }
   },
   "handover": {

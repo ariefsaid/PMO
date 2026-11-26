@@ -855,6 +855,12 @@
       "to": "Ke",
       "name": "Nama",
       "signatureDate": "Tanggal"
+    },
+    "columns": {
+      "transfer": "Transfer",
+      "sent": "Dikirim",
+      "rejected": "Ditolak",
+      "note": "Catatan"
     }
   },
   "handover": {
