@@ -250,10 +250,10 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
       const managerLabel = projectManagerNameOf(inv);
       return <span className="flex min-w-0 flex-col gap-0.5">
         <span className="min-w-0 break-words font-medium">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-        <span className="flex min-w-0 flex-wrap items-center gap-1 text-control text-muted-foreground">
-          <span className="min-w-0 break-words">{project ?? '—'}</span>
-          <Avatar name={manager} size="xs" decorative />
-          <span className="min-w-0 break-words">{managerLabel}</span>
+        <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-control text-muted-foreground" title={project ?? undefined}>{project ?? '—'}</span>
+        <span className="flex min-w-0 items-center gap-1 text-control text-muted-foreground">
+          <span className="shrink-0"><Avatar name={manager} size="xs" decorative /></span>
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={managerLabel}>{managerLabel}</span>
         </span>
       </span>;
     },
