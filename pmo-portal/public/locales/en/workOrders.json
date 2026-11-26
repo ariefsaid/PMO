@@ -15,7 +15,12 @@
     "allocate": "Allocate lines on the project",
     "overall": "Overall {{pct}} complete",
     "lump": "{{done}} of {{all}}",
-    "qty": "{{done}} of {{all}} {{unit}}"
+    "qty": "{{done}} of {{all}} {{unit}}",
+    "col": {
+      "line": "Contract line",
+      "accepted": "Accepted",
+      "percent": "Complete"
+    }
   },
   "costs": {
     "title": "Costs",
@@ -45,7 +50,13 @@
       "purchase_order": "Not counted as direct cost yet: an order counts once its supplier bill is recorded.",
       "goods_receipt": "Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded."
     },
-    "attendanceLabel": "Attendance"
+    "attendanceLabel": "Attendance",
+    "col": {
+      "record": "Record",
+      "date": "Date",
+      "quantity": "Quantity",
+      "amount": "Amount"
+    }
   },
   "billing": {
     "title": "Billing and acceptances",

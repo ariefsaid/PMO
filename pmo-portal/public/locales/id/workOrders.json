@@ -15,7 +15,12 @@
     "allocate": "Alokasikan baris di proyek",
     "overall": "Keseluruhan {{pct}} selesai",
     "lump": "{{done}} dari {{all}}",
-    "qty": "{{done}} dari {{all}} {{unit}}"
+    "qty": "{{done}} dari {{all}} {{unit}}",
+    "col": {
+      "line": "Baris kontrak",
+      "accepted": "Diterima",
+      "percent": "Selesai"
+    }
   },
   "costs": {
     "title": "Biaya",
@@ -45,7 +50,13 @@
       "purchase_order": "Belum dihitung sebagai biaya langsung: pesanan dihitung setelah invoice supplier dicatat.",
       "goods_receipt": "Barang sudah diterima, tetapi belum dihitung sebagai biaya langsung: penerimaan dihitung setelah invoice supplier dicatat."
     },
-    "attendanceLabel": "Kehadiran"
+    "attendanceLabel": "Kehadiran",
+    "col": {
+      "record": "Catatan",
+      "date": "Tanggal",
+      "quantity": "Jumlah",
+      "amount": "Nilai"
+    }
   },
   "billing": {
     "title": "Penagihan dan penerimaan",

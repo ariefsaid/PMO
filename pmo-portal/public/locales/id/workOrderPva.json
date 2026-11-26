@@ -18,7 +18,10 @@
     "result": "Setelah biaya bersama",
     "revenue": "Pendapatan ditagih",
     "shared": "Biaya bersama",
-    "workOrder": "$t(common:terms.clientWorkOrder)"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "planShort": "Rencana",
+    "actualShort": "Aktual",
+    "cost": "Biaya"
   },
   "costUnknown": "Biaya tidak diketahui",
   "crewHours": "Jam kru",
