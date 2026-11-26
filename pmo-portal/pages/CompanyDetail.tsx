@@ -204,7 +204,7 @@ const CompanyDetail: React.FC = () => {
 
 
   return (
-    <div>
+    <div className="record-page">
       {/* Mobile escape route — the top-bar breadcrumb owns desktop wayfinding, the rail
           collapses ≤920px so the BackBar is the only in-content escape there. */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
@@ -216,6 +216,12 @@ const CompanyDetail: React.FC = () => {
       {/* The pill reads the one shared type-label map (the directory's filter, form and pills read
           it too) — never the raw stored enum. */}
       <RecordHeader
+        panelInset
+        meta={<dl><PrimaryContactField companyId={company.id} /></dl>}
+        stats={[
+          ...(company.short_name ? [{ label: t('companies.form.shortName.label', 'Short name'), value: company.short_name }] : []),
+          ...(company.client_number_segment ? [{ label: t('companyDetail.field.clientNumberSegment', 'Client number segment'), value: <span className="record-id text-foreground">{company.client_number_segment}</span> }] : []),
+        ]}
         name={companyDisplayName(company)}
         icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
         status={<StatusPill variant={companyTypeVariant(company.type)}>{typeLabels(t)[company.type]}</StatusPill>}
@@ -228,23 +234,6 @@ const CompanyDetail: React.FC = () => {
       />
 
       {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
-      {/* Body — the company's fields (read-only; edit-in-modal). */}
-      <Card variant="bare" className="mb-4">
-        <CardHead>{t('companyDetail.sectionTitle', 'Company detail')}</CardHead>
-        <CardPad>
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            {company.short_name && <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name} />}
-            {company.client_number_segment && (
-              <Field
-                label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
-                value={<span className="record-id text-foreground">{company.client_number_segment}</span>}
-              />
-            )}
-            {/* T18: Primary contact link — rendered in the account card when contacts exist. */}
-            <PrimaryContactField companyId={company.id} />
-          </dl>
-        </CardPad>
-      </Card>
       {/* #876 slice 2 (OD-VWH-1): the vendor's default tax treatment pre-fills its bills. */}
       {company.type === 'Vendor' && <VendorTaxDefaultsCard company={company} />}
       {/* #2583: the supplier's supply-risk status, the payables-age suggestion and the exposed work orders. */}
@@ -360,17 +349,5 @@ const CompanyDetail: React.FC = () => {
     </div>
   );
 };
-
-/** A labelled read-only field (definition-list row) — body field primitive for the record page. */
-const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div className="flex flex-col gap-0.5">
-    <dt className="text-control font-semibold text-muted-foreground">
-      {label}
-    </dt>
-    <dd className="text-control text-foreground">{value}</dd>
-  </div>
-);
-
-// ── T18: Primary contact field ─────────────────────────────────────────────────
 
 export default CompanyDetail;
