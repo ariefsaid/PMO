@@ -382,9 +382,7 @@
   "followUndone": "Follow undone",
   "headCount": {
     "title": "Head count",
-    "named": "{{n}} named people are ticked present on this crew today. Count here only the people not named on the roster.",
     "error": "Couldn't load the head count",
-    "empty": "No head count entered for this day. The crew's Foreman or a crew manager adds it here. A person is either named and ticked above or counted here, never both.",
     "class": "Labour class",
     "people": "People",
     "state": "Status",
@@ -421,7 +419,10 @@
       "category": "Document category",
       "choose": "Choose a photo or document",
       "attached": "File attached"
-    }
+    },
+    "namedPresent": "{{n}} named present above",
+    "onlyUnnamed": "Count only people not named above",
+    "emptyDay": "No head count for this day"
   },
   "savedExcept": "Saved for everyone except: {{people}}",
   "roleNotSet": "Crew role not set",
@@ -441,5 +442,9 @@
   "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster.",
   "reportedAbsent": "Reported absent: {{reason}}",
   "absentSick": "sick",
-  "absentOther": "other reason"
+  "absentOther": "other reason",
+  "workOrders": "Work orders",
+  "week": "Week",
+  "decision": "Decision",
+  "presentOf": "{{present}} of {{total}} present"
 }

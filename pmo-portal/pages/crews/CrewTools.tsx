@@ -221,7 +221,7 @@ const SettingsCard: React.FC = () => {
     })();
   };
   return (
-    <Card className="mb-6">
+    <Card className="mt-6">
       <CardHead>{t('crewTools:settingsTitle', 'Equipment coordinator')}</CardHead>
       <CardPad>
         <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
@@ -332,7 +332,7 @@ export const CrewTools: React.FC = () => {
     { key: 'usable', header: t('crewTools:usable', 'Usable'), align: 'num', cell: (l) => <strong>{l.usable_qty}</strong> },
     { key: 'report', header: t('crewTools:reportColumn', 'Report'),
       cell: (l) => (canReportHere && l.usable_qty > 0
-        ? <Button variant="outline" size="sm" onClick={() => openReport(l)}>{t('crewTools:reportProblem', 'Report a problem')}</Button> : null) },
+        ? <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => openReport(l)}>{t('crewTools:reportProblem', 'Report a problem')}</Button> : null) },
   ];
   const reportColumns: Column<ToolReportRow>[] = [
     { key: 'tool', header: t('crewTools:name', 'Tool'), kind: 'primary', rowHeader: true, cell: (r) => `${r.line_name} x${r.qty}` },
@@ -356,7 +356,6 @@ export const CrewTools: React.FC = () => {
 
   return (
     <>
-      {canConfigure && <SettingsCard />}
       <div className="mb-4 max-w-sm">
         <SelectField label={t('crewTools:crew', 'Crew')} value={crewId ?? ''} onChange={setCrewId}
           options={crewRows.map((c) => ({ value: c.id, label: `${c.code} ${c.name}` }))} />
@@ -389,6 +388,7 @@ export const CrewTools: React.FC = () => {
           )}
         </CardPad>
       </Card>
+      {canConfigure && <SettingsCard />}
       {reporting && (
         <ReportSheet
           line={reporting}

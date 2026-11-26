@@ -382,9 +382,7 @@
   "followUndone": "Ikut kru dibatalkan",
   "headCount": {
     "title": "Jumlah orang",
-    "named": "{{n}} orang bernama sudah ditandai hadir pada kru ini hari ini. Hitung di sini hanya orang yang tidak tercatat namanya di daftar.",
     "error": "Jumlah orang tidak dapat dimuat",
-    "empty": "Belum ada jumlah orang untuk hari ini. Mandor kru atau pengelola kru mengisinya di sini. Seseorang tercatat dengan nama dan ditandai di atas, atau dihitung di sini, tidak keduanya.",
     "class": "Kelas tenaga kerja",
     "people": "Orang",
     "state": "Status",
@@ -421,7 +419,10 @@
       "category": "Kategori dokumen",
       "choose": "Pilih foto atau dokumen",
       "attached": "Berkas terlampir"
-    }
+    },
+    "namedPresent": "{{n}} orang bernama hadir di atas",
+    "onlyUnnamed": "Hitung hanya orang yang tidak disebut di atas",
+    "emptyDay": "Belum ada jumlah orang untuk hari ini"
   },
   "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}",
   "roleNotSet": "Posisi kru belum diisi",
@@ -441,5 +442,9 @@
   "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
   "reportedAbsent": "Melaporkan tidak masuk: {{reason}}",
   "absentSick": "sakit",
-  "absentOther": "alasan lain"
+  "absentOther": "alasan lain",
+  "workOrders": "Perintah kerja",
+  "week": "Minggu",
+  "decision": "Keputusan",
+  "presentOf": "{{present}} dari {{total}} hadir"
 }
