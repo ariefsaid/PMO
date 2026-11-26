@@ -72,6 +72,13 @@ select is((select array_agg(project_id order by project_id) from get_projects_mo
 select is((select array_agg(project_id order by project_id) from project_pmo_positions(null) where project_id in ('27500000-0000-0000-0000-0000000000d1','27500000-0000-0000-0000-0000000000d2')),
           array['27500000-0000-0000-0000-0000000000d1']::uuid[], 'PS1 positions of all projects return only the Project Manager''s own project');
 
+select lives_ok($$select * from get_project_finances('27500000-0000-0000-0000-0000000000d1')$$, 'PS1 own project: get_project_finances returns');
+select throws_ok($$select * from get_project_finances('27500000-0000-0000-0000-0000000000d2')$$, 'P0002', 'project not found', 'PS1 other project: get_project_finances reads as not found');
+select is((select count(*) from project_pmo_spent_position('27500000-0000-0000-0000-0000000000d2')), 0::bigint, 'PS1 other project: project_pmo_spent_position returns no rows');
+select is((select count(*) from project_pmo_commitment_position('27500000-0000-0000-0000-0000000000d2')), 0::bigint, 'PS1 other project: project_pmo_commitment_position returns no rows');
+select is((select count(*) from project_pmo_paid_by_category('27500000-0000-0000-0000-0000000000d2', null, null)), 0::bigint, 'PS1 other project: project_pmo_paid_by_category returns no rows');
+select is((select count(*) from project_pmo_spent_position('27500000-0000-0000-0000-0000000000d1')), 1::bigint, 'PS1 own project: project_pmo_spent_position returns its row');
+
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000401')), 777::numeric, 'PS1 own work order: tpi_costs shows the estimate');
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000402')), null::numeric, 'PS1 other work order: tpi_costs withholds the money');
 
@@ -93,6 +100,7 @@ select lives_ok($$select * from stock_issue_cost_lines('27500000-0000-0000-0000-
 select lives_ok($$select * from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d2')$$, 'PS1 Finance: work_order_cost_amounts unchanged');
 select is((select count(*) from get_projects_money_collection(array['27500000-0000-0000-0000-0000000000d1','27500000-0000-0000-0000-0000000000d2']::uuid[])), 2::bigint, 'PS1 Finance: money collection returns both projects');
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000402')), 888::numeric, 'PS1 Finance: tpi_costs unchanged');
+select lives_ok($$select * from get_project_finances('27500000-0000-0000-0000-0000000000d2')$$, 'PS1 Finance: get_project_finances unchanged');
 select lives_ok($$select * from get_bill_match('27500000-0000-0000-0000-000000000622')$$, 'PS1 Finance: get_bill_match unchanged');
 
 select pg_temp.act_as('27500000-0000-0000-0000-0000000000a1');
