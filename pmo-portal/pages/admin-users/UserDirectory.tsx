@@ -234,7 +234,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
           <button
             type="button"
             onClick={() => onJumpToUser(u.manager_id as string, name)}
-            className="truncate text-left text-control underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            className="touch-target-overlay inline-flex items-baseline truncate p-0 text-left text-control underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
             {name}
           </button>
