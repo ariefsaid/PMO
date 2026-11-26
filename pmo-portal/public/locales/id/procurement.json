@@ -955,6 +955,10 @@
     "spendingNotVisible": "kesesuaiannya dengan anggaran {{category}} proyek diperiksa saat diputuskan."
   },
   "purchaseOrderPrint": {
+    "number": "Nomor",
+    "preparedBy": "Disiapkan oleh",
+    "approvedBy": "Disetujui oleh",
+    "vendorAcceptance": "Penerimaan pemasok",
     "printAction": "Cetak pesanan pembelian",
     "title": "Pesanan Pembelian",
     "print": "Cetak",

@@ -22,9 +22,6 @@ import {
 } from '@/src/components/print';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 
-/** Fallback used only when the client has configured no signature blocks at all (FR-POP-007). */
-const FALLBACK_SIGNATURE_BLOCKS = ['Prepared by', 'Approved by', 'Vendor acceptance'];
-
 /**
  * Printable purchase order view with the authorised-to-collect line (#2688).
  * Reuses the shared print components added by the delivery note (#2687): same header, table,
@@ -97,7 +94,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
 
   const signatureBlocks = settingsQuery.data.signatureBlocks?.length
     ? settingsQuery.data.signatureBlocks
-    : FALLBACK_SIGNATURE_BLOCKS;
+    : [t('purchaseOrderPrint.preparedBy', 'Prepared by'), t('purchaseOrderPrint.approvedBy', 'Approved by'), t('purchaseOrderPrint.vendorAcceptance', 'Vendor acceptance')];
   const collectorsList = settingsQuery.data.authorisedCollectors ?? [];
 
   const metaItems: PrintHeaderMetaItem[] = [
@@ -241,6 +238,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
             orgName={orgName}
             documentTitle={documentTitle}
             documentNumber={docNumber}
+            numberLabel={t('purchaseOrderPrint.number', 'Number')}
             metaItems={metaItems}
           />
 

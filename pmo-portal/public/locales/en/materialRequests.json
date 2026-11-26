@@ -47,6 +47,10 @@
     "requested": "Requested"
   },
   "deliveryNote": {
+    "number": "Number",
+    "dispatchedBy": "Dispatched by",
+    "deliveredBy": "Delivered by",
+    "receivedBy": "Received by",
     "back": "Back to request",
     "date": "Date",
     "deliveredTo": "Deliver to",
