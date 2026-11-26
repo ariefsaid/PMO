@@ -208,7 +208,17 @@
     "noTerms": "Belum ada ketentuan sewa",
     "rateFrom": "Tarif baru mulai",
     "markOwnedTitle": "Tandai alat ini milik sendiri?",
-    "markOwnedBody": "Alat keluar dari pemeriksaan tagihan sewa."
+    "markOwnedBody": "Alat keluar dari pemeriksaan tagihan sewa.",
+    "machine": "Alat",
+    "recorded": "Tercatat",
+    "proof": "Bukti",
+    "downLong": "Eskalasi",
+    "setStatus": "Atur status",
+    "targetShort": "target {{target}}%",
+    "daysAvailable": "Hari tersedia",
+    "awaitingApproval": "Menunggu persetujuan",
+    "settings": "Target dan jam kerja",
+    "metricAssetsCount": "Alat: {{count}}"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",

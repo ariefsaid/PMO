@@ -4,8 +4,9 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { FileCell } from '@/src/components/FileCell';
-import { Button, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
-import { CanWrite, usePermission } from '@/src/auth/usePermission';
+import { Button, DataTable, RecordSection, SelectField, StatusPill, TextField, useToast, type Column } from '@/src/components/ui';
+import { formatDay } from '@/src/lib/format';
+import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
   useAttachProof, useDowntimeFlags, useEquipmentProofs, useLatestStatusDays, useSetStatusBulk, useStatusDays,
@@ -129,57 +130,69 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
 
   if (status.isError) return <p role="alert">{t('equipment:availability.statusError', 'Could not load statuses')}</p>;
   const canSet = may('create', 'equipmentAvailability', writeCtx);
+  const proven = (a: EquipmentAssetRow) => uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id));
+  const columns: Column<EquipmentAssetRow>[] = [
+    { key: 'machine', header: t('equipment:availability.machine', 'Machine'), kind: 'primary', rowHeader: true,
+      cell: (a) => <Link to={`/equipment/assets/${a.id}`} className="touch-target inline-flex items-center font-medium text-primary-text hover:underline">{a.code}</Link>,
+      secondaryCell: (a) => a.name },
+    // What is on record for the day: the saved status, else the last one before it, else nothing yet.
+    { key: 'recorded', header: t('equipment:availability.recorded', 'Recorded'), keepWhenBlank: true,
+      cell: (a) => {
+        const saved = todays.get(a.id);
+        if (saved) return <span data-testid={`today-status-${a.code}`}>{statusLabel(t, saved)}</span>;
+        const prev = lastStatus.get(a.id);
+        return <span className="text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>;
+      } },
+    { key: 'proof', header: t('equipment:availability.proof', 'Proof'),
+      cell: (a) => {
+        const saved = todays.get(a.id);
+        if (!saved || !isDownStatus(saved) || draft[a.id]) return null;
+        if (proven(a)) return <StatusPill variant="won">{t('equipment:availability.proven', 'Proven')}</StatusPill>;
+        return <span className="inline-flex items-center gap-2">
+          {proofStates.data && !proofStates.isFetching && !proofStates.isError && <StatusPill variant="warn">{t('equipment:availability.noProof', 'No proof')}</StatusPill>}
+          {canSet && <ProofUpload code={a.code} onFile={(file) => void attach(a.id, file)} />}
+        </span>;
+      } },
+    { key: 'flag', header: t('equipment:availability.downLong', 'Escalation'),
+      cell: (a) => flagged.has(a.id) ? <span role="status" className="text-destructive-text">{t('equipment:availability.flagged', 'Down more than {{n}} days', { n: escalationLimit })}</span> : null },
+    ...(canSet ? [{ key: 'set', header: t('equipment:availability.setStatus', 'Set status'),
+      cell: (a: EquipmentAssetRow) => {
+        const current = draft[a.id] ?? todays.get(a.id);
+        return <div className="flex min-w-56 flex-col gap-2">
+          <SelectField hideLabel label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
+            onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v as EquipmentStatus }))}
+            options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...STATUSES.map((st) => ({ value: st, label: statusLabel(t, st) }))]} />
+          {draft[a.id] && <>
+            <p className="text-muted-foreground">{statusEffect(t, draft[a.id])}</p>
+            <TextField label={t('equipment:availability.noteFor', 'Note for {{code}}', { code: a.code })} value={notes[a.id] ?? ''} onChange={(v) => setNotes((n) => ({ ...n, [a.id]: v }))} />
+            {isDownStatus(draft[a.id]) && <label className="flex flex-col gap-1">
+              <span>{t('equipment:availability.photoFor', 'Photo or document for {{code}} (optional)', { code: a.code })}</span>
+              <FileInput accept="image/*,application/pdf" capture="environment" aria-label={t('equipment:availability.photoInputFor', 'Photo for {{code}}', { code: a.code })}
+                onChange={(e) => { const file = e.target.files?.[0]; setFiles((prior) => ({ ...prior, [a.id]: file })); }} />
+              {files[a.id] && <span className="text-muted-foreground">{files[a.id]!.name}</span>}
+            </label>}
+          </>}
+        </div>;
+      } }] : []),
+  ];
   return (
-    <section aria-labelledby="eav-status-h" className="mb-6">
-      <h2 id="eav-status-h" className="text-base font-semibold mb-2">{t('equipment:availability.statusHeading', 'Equipment status')}</h2>
-      {latest.isError && <p role="alert">{t('equipment:availability.latestError', 'Could not load last statuses')}</p>}
-      {proofStates.isError && <p role="alert">{t('equipment:availability.proofsError', 'Could not load evidence status')}</p>}
-      {allowDate
-        ? <div className="mb-3 max-w-xs"><DateField label={t('equipment:availability.statusDate', 'Status date')} value={statusDate} onChange={(v) => { setStatusDate(v); reset(); }} /></div>
-        : <p className="mb-3 text-sm text-muted-foreground">{t('equipment:availability.statusToday', 'Status for today. Pick a different day under Availability.')}</p>}
-      {justBroken.length > 0 && <p role="status" className="mb-3 rounded-card border border-border p-3 text-sm">
-        {t('equipment:availability.notifiedBroken', 'Marked broken: {{codes}}. Nobody is messaged right away. Admin and Project Manager users are told if it stays down more than {{n}} days; the machine shows as down on this page now.', { codes: justBroken.join(', '), n: escalationLimit })}
-      </p>}
-      <ul className="divide-y divide-border rounded-md border border-border">
-        {rows.map((a) => {
-          const current = draft[a.id] ?? todays.get(a.id);
-          const prev = lastStatus.get(a.id);
-          const down = current ? isDownStatus(current) : false;
-          return (
-            <li key={a.id} className="flex flex-wrap items-center gap-3 p-3">
-              <span className="min-w-40 flex-1">
-                <Link to={`/equipment/assets/${a.id}`} className="touch-target inline-flex items-center font-medium text-primary-text hover:underline">{a.code}</Link> <span className="text-muted-foreground">{a.name}</span>
-                {current && <span className="ml-2" data-testid={`today-status-${a.code}`}>{statusLabel(t, current)}</span>}
-                {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <StatusPill variant="won" className="ml-2">{t('equipment:availability.proven', 'Proven')}</StatusPill>}
-                {down && todays.has(a.id) && !draft[a.id] && proofStates.data && !proofStates.isFetching && !proofStates.isError && !uploadedProofs.has(`${a.id}:${statusDate}`) && !provenAssets.has(a.id) && <StatusPill variant="warn" className="ml-2">{t('equipment:availability.noProof', 'No proof')}</StatusPill>}
-                {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than {{n}} days', { n: escalationLimit })}</span>}
-                {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
-              </span>
-              <CanWrite entity="equipmentAvailability" action="create" ctx={writeCtx}>
-                <SelectField hideLabel label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
-                  onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v as EquipmentStatus }))}
-                  options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...STATUSES.map((s) => ({ value: s, label: statusLabel(t, s) }))]} />
-                {draft[a.id] && <TextField label={t('equipment:availability.noteFor', 'Note for {{code}}', { code: a.code })} value={notes[a.id] ?? ''} onChange={(v) => setNotes((n) => ({ ...n, [a.id]: v }))} />}
-                {draft[a.id] && <p className="basis-full text-sm text-muted-foreground">{statusEffect(t, draft[a.id])}</p>}
-                {draft[a.id] && isDownStatus(draft[a.id]) && (
-                  <label className="basis-full text-sm">
-                    <span className="mr-2">{t('equipment:availability.photoFor', 'Photo or document for {{code}} (optional)', { code: a.code })}</span>
-                    <FileInput accept="image/*,application/pdf" capture="environment" aria-label={t('equipment:availability.photoInputFor', 'Photo for {{code}}', { code: a.code })}
-                      onChange={(e) => { const file = e.target.files?.[0]; setFiles((prior) => ({ ...prior, [a.id]: file })); }} />
-                    {files[a.id] && <span className="ml-2 text-muted-foreground">{files[a.id]!.name}</span>}
-                  </label>
-                )}
-                {down && todays.has(a.id) && !draft[a.id] && (
-                  <ProofUpload code={a.code} onFile={(file) => void attach(a.id, file)} />
-                )}
-              </CanWrite>
-            </li>
-          );
-        })}
-      </ul>
-      {canSet && <Button variant="primary" className="mt-3" disabled={!statusDate || !dirty || bulk.isPending || proof.isPending} onClick={() => void save()}>
-        {t('equipment:availability.saveStatuses', 'Save statuses')}
-      </Button>}
-    </section>
+    <RecordSection headingId="eav-status-h" title={t('equipment:availability.statusHeading', 'Equipment status')} flush
+      subline={allowDate ? undefined : formatDay(statusDate)}
+      actions={<>
+        {canSet && <Button variant="primary" disabled={!statusDate || !dirty || bulk.isPending || proof.isPending} onClick={() => void save()}>
+          {t('equipment:availability.saveStatuses', 'Save statuses')}
+        </Button>}
+      </>}>
+      {allowDate && <div className="px-[var(--panel-inset)] pb-4"><div className="w-44"><DateField label={t('equipment:availability.statusDate', 'Status date')} value={statusDate} onChange={(v) => { setStatusDate(v); reset(); }} /></div></div>}
+      {(latest.isError || proofStates.isError || justBroken.length > 0) && <div className="flex flex-col gap-2 px-[var(--panel-inset)] pb-3">
+        {latest.isError && <p role="alert">{t('equipment:availability.latestError', 'Could not load last statuses')}</p>}
+        {proofStates.isError && <p role="alert">{t('equipment:availability.proofsError', 'Could not load evidence status')}</p>}
+        {justBroken.length > 0 && <p role="status" className="rounded-card bg-waiting-surface p-3">
+          {t('equipment:availability.notifiedBroken', 'Marked broken: {{codes}}. Nobody is messaged right away. Admin and Project Manager users are told if it stays down more than {{n}} days; the machine shows as down on this page now.', { codes: justBroken.join(', '), n: escalationLimit })}
+        </p>}
+      </div>}
+      <DataTable<EquipmentAssetRow> embedded rows={rows} columns={columns} rowKey={(a) => a.id} tableId="equipment-status"
+        accessibleName={t('equipment:availability.statusHeading', 'Equipment status')} />
+    </RecordSection>
   );
 };

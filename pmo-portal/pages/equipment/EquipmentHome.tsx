@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListPage, ListState } from '@/src/components/ui';
+import { Button, Icon, ListPage, ListState, buttonClasses } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFeature } from '@/src/auth/useFeature';
@@ -35,19 +35,21 @@ const MachinesView: React.FC = () => {
     <ListPage
       title={t('equipment:usage.title', 'Equipment')}
       count={assets.total}
+      filters={<>
+      <nav aria-label={t('equipment:home.links', 'Equipment pages')} className="flex flex-wrap gap-2">
+        <Link className={buttonClasses('outline', 'sm')} to="/equipment?view=hours">{t('equipment:home.hoursLog', 'Hours log')}</Link>
+        <Link className={buttonClasses('outline', 'sm')} to="/equipment/availability">{t('equipment:availability.title', 'Availability')}</Link>
+        {planFeature && planOn && <Link className={buttonClasses('outline', 'sm')} to="/equipment-plans">{t('equipment:home.monthlyPlan', 'Monthly equipment plan')}</Link>}
+        {planFeature && !planOn && plan.data && canManagePlan && <Link className={buttonClasses('outline', 'sm')} to="/equipment-plans/settings">{t('equipment:home.turnOnPlan', 'Turn on the monthly equipment plan')}</Link>}
+        <Link className={buttonClasses('outline', 'sm')} to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
+        <Link className={buttonClasses('outline', 'sm')} to="/equipment/assets">{t('equipment:home.register', 'All equipment and rental terms')}</Link>
+      </nav>
+      </>}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:home.newEquipment', 'New equipment')}</Button>
       </CanWrite>}
     >
-      <nav aria-label={t('equipment:home.links', 'Equipment pages')} className="mb-4 flex flex-wrap gap-x-4 gap-y-1">
-        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment?view=hours">{t('equipment:home.hoursLog', 'Hours log')}</Link>
-        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment/availability">{t('equipment:availability.title', 'Availability')}</Link>
-        {planFeature && planOn && <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment-plans">{t('equipment:home.monthlyPlan', 'Monthly equipment plan')}</Link>}
-        {planFeature && !planOn && plan.data && canManagePlan && <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment-plans/settings">{t('equipment:home.turnOnPlan', 'Turn on the monthly equipment plan')}</Link>}
-        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
-        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment/assets">{t('equipment:home.register', 'All equipment and rental terms')}</Link>
-      </nav>
-      {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
+      {problem && <p role="alert" className="mb-3 text-destructive-text">{problem}</p>}
       {assets.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {assets.isError && <ListState variant="error" title={t('equipment:availability.assetsError', "Couldn't load equipment")} onRetry={() => void assets.refetch()} />}
       {!assets.isPending && !assets.isError && rows.length === 0 && (

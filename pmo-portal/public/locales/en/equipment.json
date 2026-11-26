@@ -208,7 +208,17 @@
     "noTerms": "No rental terms",
     "rateFrom": "New rate from",
     "markOwnedTitle": "Mark this machine owned?",
-    "markOwnedBody": "It leaves the rental invoice check."
+    "markOwnedBody": "It leaves the rental invoice check.",
+    "machine": "Machine",
+    "recorded": "Recorded",
+    "proof": "Proof",
+    "downLong": "Escalation",
+    "setStatus": "Set status",
+    "targetShort": "target {{target}}%",
+    "daysAvailable": "Days available",
+    "awaitingApproval": "Awaiting approval",
+    "settings": "Targets and hours",
+    "metricAssetsCount": "Machines: {{count}}"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",

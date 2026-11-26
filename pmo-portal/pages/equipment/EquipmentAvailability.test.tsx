@@ -188,6 +188,7 @@ describe('Equipment availability screen', () => {
 
   it('lets an admin set the hours used by utilisation', async () => {
     h.role = 'Admin'; renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Targets and hours' }));
     await userEvent.type(screen.getByLabelText('Working hours per day'), '10');
     await userEvent.click(screen.getByRole('button', { name: 'Save working hours' }));
     expect(h.workingHours).toHaveBeenCalledWith('10');
