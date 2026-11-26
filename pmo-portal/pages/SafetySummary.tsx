@@ -105,7 +105,7 @@ const SafetySummary: React.FC = () => {
                   {detail.isPending ? <ListState variant="loading" rows={2} />
                     : detail.isError ? <ListState variant="error" title={t('summary.detailError', "Couldn't load the rows")} onRetry={() => void detail.refetch()} />
                     : (
-                      <div className="mt-4 overflow-x-auto">
+                      <div className="relative mt-4 overflow-x-auto" role="region" aria-label={t(`summary.figure.${open}`, FIGURE_LABEL[open])} tabIndex={0}>
                         <table className="w-full text-control">
                           <thead className="text-left text-muted-foreground">
                             <tr>
