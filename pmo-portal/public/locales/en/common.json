@@ -460,8 +460,8 @@
   "fx": {
     "saveRate": "Save rate",
     "saveRates": "Save rates",
-    "upload": "Upload rates",
-    "newRate": "New rate",
+    "upload": "Upload file",
+    "newRate": "Add one rate",
     "editRate": "Edit rate",
     "date": "Publication date",
     "rate": "IDR per USD",

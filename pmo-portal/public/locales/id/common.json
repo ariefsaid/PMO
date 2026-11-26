@@ -460,8 +460,8 @@
   "fx": {
     "saveRate": "Simpan kurs",
     "saveRates": "Simpan kurs",
-    "upload": "Unggah kurs",
-    "newRate": "Kurs baru",
+    "upload": "Unggah berkas",
+    "newRate": "Tambah satu kurs",
     "editRate": "Ubah kurs",
     "date": "Tanggal publikasi",
     "rate": "IDR per USD",
