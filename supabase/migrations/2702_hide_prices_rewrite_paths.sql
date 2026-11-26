@@ -15,6 +15,7 @@ create or replace function public.save_equipment_plan(p_id uuid, p_project uuid,
 declare v_org uuid := public.equipment_plan_gate(); v_plan public.equipment_plans%rowtype; v_line jsonb; v_kept jsonb;
   v_shown boolean := public.actor_shown_prices();
 begin
+  perform public.assert_not_light(); -- retained from 1480's apply-time field-account guard
   perform public.assert_is_active_member();
   if p_id is null or p_project is null or p_month is null or p_month <> date_trunc('month', p_month::timestamp)::date
      or jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) > 200 then
