@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
+  Button,
   CardHead,
   CardPad,
   ConfirmDialog,
@@ -40,7 +41,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
  * focused meeting components; the minutes editor remains lazy-loaded by MeetingMinutes.
  */
 const MeetingDetail: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'meetings']);
   const { t: tMeetings } = useTranslation('meetings');
   const { meetingId } = useParams<{ meetingId: string }>();
   const may = usePermission();
@@ -178,7 +179,7 @@ const MeetingDetail: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="record-page">
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
         <BackBar label={backLabel} onBack={goBack} />
       </div>
@@ -207,7 +208,7 @@ const MeetingDetail: React.FC = () => {
       />
 
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('meetingDetail.actionItems.title', 'Action items')}</CardHead>
+        <CardHead actions={canEdit && !tasksExternal ? <Button variant="outline" size="sm" onClick={() => setActionLine('')}>{t('meetings:addActionItem', 'Add action item')}</Button> : undefined}>{t('meetingDetail.actionItems.title', 'Action items')}</CardHead>
         <CardPad>
           {actionItemsQuery.isPending ? (
             <div data-testid="meeting-action-items-loading"><ListState variant="loading" rows={2} /></div>

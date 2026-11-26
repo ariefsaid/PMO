@@ -508,6 +508,14 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
     expect(insertActionItem).not.toHaveBeenCalled();
   });
 
+  it('the author opens a blank action-item form from the visible section control without creating a task', async () => {
+    renderPage('Engineer');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add action item' }));
+    const dialog = await screen.findByRole('dialog', { name: /New action item/ });
+    expect(within(dialog).getByLabelText(/Task name/)).toHaveValue('');
+    expect(mutations.createActionItem.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it('submitting the modal creates the task with the text the author EDITED and inserts a block referencing ONLY its id (DD-MTG-2)', async () => {
     mutations.createActionItem.mutateAsync.mockResolvedValue({ id: 'task-new' });
     renderPage('Engineer');

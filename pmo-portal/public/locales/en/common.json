@@ -1872,7 +1872,7 @@
       "contactTag": "Contact",
       "empty": "No attendees recorded. Attendees can read this meeting’s minutes.",
       "guestLabel": "External guest",
-      "guestPlaceholder": "e.g. Ir. Sari (Acme)",
+      "guestPlaceholder": "e.g. Guest from a partner organisation",
       "guestTag": "Guest",
       "memberNoun": "member",
       "remove": "Remove attendee",
