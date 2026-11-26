@@ -10,9 +10,9 @@ export const VendorResponseSummaryTable: React.FC<{ rows: VendorResponseSummary[
   const { t } = useTranslation();
   const name = useVendorNames();
   const num = (key: string, header: string, cell: (r: VendorResponseSummary) => React.ReactNode): Column<VendorResponseSummary> =>
-    ({ key, header, align: 'num', cell: (r) => <span className="whitespace-nowrap tabular-nums">{cell(r)}</span> });
+    ({ key, header, align: 'num', size: 112, cell: (r) => <span className="whitespace-nowrap tabular-nums">{cell(r)}</span> });
   const columns: Column<VendorResponseSummary>[] = [
-    { key: 'vendor', header: t('equipment:vendorResponse.vendor', 'Vendor'), kind: 'primary', rowHeader: true, cell: (r) => name(r.vendorId) },
+    { key: 'vendor', header: t('equipment:vendorResponse.vendor', 'Vendor'), kind: 'primary', rowHeader: true, size: 220, cell: (r) => name(r.vendorId) },
     num('breakdowns', t('equipment:vendorResponse.breakdowns', 'Breakdowns'), (r) => r.breakdowns),
     num('responded', t('equipment:vendorResponse.responded', 'Responded'), (r) => r.responded),
     num('awaiting', t('equipment:vendorResponse.awaitingCount', 'Awaiting'), (r) => r.awaiting),
@@ -33,7 +33,7 @@ const Card_: React.FC<{ assetIds: string[] }> = ({ assetIds }) => {
   // An organisation that never had a rented breakdown sees nothing new.
   if (q.isPending || q.isError || rows.length === 0) return null;
   return (
-    <RecordSection title={t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')} flush>
+    <RecordSection className="mt-6" title={t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')} flush>
       <VendorResponseSummaryTable rows={rows} />
     </RecordSection>
   );

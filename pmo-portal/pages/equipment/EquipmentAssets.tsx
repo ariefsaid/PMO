@@ -66,11 +66,9 @@ const EquipmentAssetsPage: React.FC = () => {
     <ListPage
       title={t('equipment:assets.title', 'Assets')}
       count={total}
-      importAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
-        <EquipmentAssetImport onImported={() => void refetch()} />
-      </CanWrite>}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
-        <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
+        <span className="flex flex-wrap items-center gap-2"><EquipmentAssetImport onImported={() => void refetch()} />
+        <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button></span>
       </CanWrite>}
     >
       {problem && <p role="alert" className="mb-3 text-destructive-text">{problem}</p>}
