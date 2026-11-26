@@ -28,8 +28,8 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
    const claimSection=page.locator(`[aria-labelledby="billing-stages-${claim.id}"]`);
    await expect(claimSection).toBeVisible();
    const doorway=claimSection.getByTestId('claim-wo-steps').getByRole('link',{name:"Open the work order's billing steps"});
-   await expect(doorway).toHaveAttribute('href',`/work-orders/${fixture.wo}`);
-   await doorway.click();await expect(page).toHaveURL(new RegExp(`/work-orders/${fixture.wo}$`));await openWorkOrderArea(page,'billing');
+   await expect(doorway).toHaveAttribute('href',`/work-orders/${fixture.wo}#wo-billing`);
+   await doorway.click();await expect(page).toHaveURL(new RegExp(`/work-orders/${fixture.wo}#wo-billing$`));await expect(page.getByRole('tab',{name:'Billing'})).toHaveAttribute('aria-selected','true');
    await expect(page.getByRole('link',{name:`Quality proof ${fixture.run}`})).toHaveAttribute('href',`/projects/${fixture.project}/documents?open=${document}`);
   }
 
