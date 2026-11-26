@@ -110,7 +110,8 @@
     "notSent": "Not sent",
     "notSentReason": "Not sent: this purchase started before the ERP connection",
     "valueFromLines": "From the order lines",
-    "valueNotRecorded": "Value not recorded for this receipt"
+    "valueNotRecorded": "Value not recorded for this receipt",
+    "withholding": "Withholding"
   },
   "gates": {
     "heading": "Purchase rules",

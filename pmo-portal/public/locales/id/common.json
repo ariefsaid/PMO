@@ -2113,8 +2113,7 @@
     "capture": {
       "action": "Catat {{record}}",
       "next": "+ Catat {{record}}: dokumen berikutnya untuk tahap ini."
-    },
-    "withholding": "Pemotongan pajak"
+    }
   },
   "procurementDetail": {
     "accessDenied": {

@@ -487,7 +487,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   // A bill's withholding answers its own question (what is withheld, what the supplier nets, is the slip on file) in its
   // own column, so the amount cell carries one figure. Only bills fill it; with no bill the column is not drawn.
   const withholdingColumn = useMemo<Column<LedgerRow>>(() => ({
-    key: 'withholding', size: 196, header: t('procurementLedger.withholding', 'Withholding'), align: 'num',
+    key: 'withholding', size: 196, header: t('procurement:ledger.withholding', 'Withholding'), align: 'num',
     cell: (row) => {
       if (row.type !== 'Invoice' || row.amount == null) return null;
       const figures = withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment);
