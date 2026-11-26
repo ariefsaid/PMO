@@ -147,7 +147,7 @@ const CertificateList: React.FC<{ onNew: () => void; canPrepare: boolean }> = ({
           action={{ label: t('subcontractCertificates:clearFilter', 'Show all'), onClick: () => { setOffset(0); setFilter('status', ''); } }} />
       ) : rows.length === 0 ? (
         <ListState variant="empty" icon="reports" title={t('subcontractCertificates:empty', 'No certificates yet')}
-          action={canPrepare ? { label: t('subcontractCertificates:new', 'New certificate'), onClick: onNew } : undefined} />
+          action={canPrepare ? { label: t('subcontractCertificates:new', 'New certificate'), onClick: onNew } : { label: t('subcontractCertificates:openProcurement', 'Open subcontract purchase orders'), onClick: () => { window.location.assign('/procurement'); } }} sub={!canPrepare ? t('subcontractCertificates:prepareRemedy', 'Certificates are prepared from subcontract purchase orders by Finance or the project manager.') : undefined} />
       ) : (
         <DataTable accessibleName={t('subcontractCertificates:title', 'Progress certificates')} columns={columns} rows={rows} rowKey={(r) => r.id} tableId="subcontract-certificates-table" />
       )}
