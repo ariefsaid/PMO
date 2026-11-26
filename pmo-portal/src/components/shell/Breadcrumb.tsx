@@ -98,7 +98,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
     <nav
       aria-label={t('shell.breadcrumb.label', 'Breadcrumb')}
       // One line in the 56px top bar: a long record name truncates (full name in its title) instead of wrapping out of the bar.
-      className={cn('flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-control', className)}
+      className={cn('flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-control', typeof window !== 'undefined' && window.location.pathname === '/my-tasks' && pageHasTitle && 'invisible', className)}
     >
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;

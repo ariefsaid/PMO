@@ -130,12 +130,13 @@ export function Tabs<V extends string = string>({
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
     <div className="relative flex min-w-0 items-center">
-    {overflow.left && (
+    {(overflow.left || overflow.right) && (
       <button
         type="button"
         aria-label={t('ui:tabs.scrollLeft', 'Scroll tabs left')}
+        disabled={!overflow.left}
         onClick={() => nudge(-1)}
-        className="mb-4 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+        className="mb-4 flex size-8 shrink-0 disabled:invisible items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >
         <span className="rotate-180"><Icon name="chev" /></span>
       </button>
@@ -204,12 +205,13 @@ export function Tabs<V extends string = string>({
         );
       })}
     </BaseTabs.List>
-    {overflow.right && (
+    {(overflow.left || overflow.right) && (
       <button
         type="button"
         aria-label={t('ui:tabs.scrollRight', 'Scroll tabs right')}
+        disabled={!overflow.right}
         onClick={() => nudge(1)}
-        className="mb-4 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+        className="mb-4 flex size-8 shrink-0 disabled:invisible items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >
         <Icon name="chev" />
       </button>
