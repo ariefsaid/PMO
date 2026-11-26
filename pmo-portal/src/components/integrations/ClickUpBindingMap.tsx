@@ -66,7 +66,7 @@ export const ClickUpBindingMap: React.FC<ClickUpBindingMapProps> = ({
   onLinkConfirm,
   onCloseReview,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'administration']);
 
   const activeProjectIds = useMemo(
     () => new Set(projects.filter((project) => !project.archived_at).map((project) => project.id)),

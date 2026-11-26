@@ -57,7 +57,7 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
   onSelectCompany,
   onRetryStatus,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'administration']);
   const may = usePermission();
   const canManageIntegrations = may('manage', 'integration');
 
