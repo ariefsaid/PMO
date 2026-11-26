@@ -411,7 +411,7 @@ const MyTasks: React.FC = () => {
                 {group.items.map((task) => (
                   <div
                     key={task.id}
-                    className="grid min-w-0 gap-2 px-4 py-3 xl:grid-cols-[minmax(0,1fr)_9rem_auto] xl:items-baseline xl:gap-4"
+                    className="grid min-w-0 gap-2 px-4 py-3 xl:grid-cols-[minmax(0,1fr)_9rem_minmax(0,23rem)] xl:items-baseline xl:gap-4"
                   >
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -423,14 +423,14 @@ const MyTasks: React.FC = () => {
                         {task.project_id || task.meeting_id ? (
                           <Link
                             to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                            className="block min-w-0 flex-1 break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                            className="block min-w-0 basis-full break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                             title={task.name}
                           >
                             {task.name}
                           </Link>
                         ) : (
                           <span
-                            className="block min-w-0 flex-1 break-words text-control font-medium"
+                            className="block min-w-0 basis-full break-words text-control font-medium"
                             title={task.name}
                           >
                             {task.name}
@@ -478,17 +478,17 @@ const MyTasks: React.FC = () => {
                       {task.start_date && (
                         <span>{t('myTasks.start', 'Start {{date}}', { date: formatDay(task.start_date) })}</span>
                       )}
-                      {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
-                          Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
-                          everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
-                      {isOverdueTask(task, today) && (
-                        <LateText
-                          data-testid={`my-task-late-status-${task.id}`}
-                          emphasis={isMostUrgentLateRow(lateTasks, task)}
-                        >
-                          {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
-                        </LateText>
-                      )}
+                    {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
+                        Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
+                        everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
+                    {isOverdueTask(task, today) && (
+                      <LateText
+                        data-testid={`my-task-late-status-${task.id}`}
+                        emphasis={isMostUrgentLateRow(lateTasks, task)}
+                      >
+                        {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
+                      </LateText>
+                    )}
                     </div>
                     {/* Action cluster: Log time + status control. */}
                     <div className="flex flex-wrap items-center gap-2 xl:justify-end">
