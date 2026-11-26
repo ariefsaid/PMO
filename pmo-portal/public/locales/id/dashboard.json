@@ -781,7 +781,7 @@
       "openTimesheet": "Buka $t(common:terms.timesheet)",
       "returnedLine": "Dikembalikan untuk diperbaiki.",
       "returnedToMe": "Dikembalikan ke saya",
-      "submitWeek": "Kirim minggu ini",
+      "submitWeek": "Ajukan minggu ini",
       "thisWeek": "$t(common:terms.timesheet) minggu ini",
       "weekStrip": "Jam per hari minggu ini",
       "otherProjects": "Lainnya",

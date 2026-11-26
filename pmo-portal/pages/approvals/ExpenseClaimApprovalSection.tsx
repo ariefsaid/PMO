@@ -74,10 +74,11 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
             <li key={claim.id} className="px-4 py-2.5 text-sm">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
-                <span className="min-w-0 flex-1 truncate">{claim.title}</span>
+                <span className="order-first w-full break-words font-medium sm:order-none sm:w-auto sm:min-w-0 sm:flex-1">{claim.title}</span>
                 {route?.isException && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                 <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
                 <span className="tabular-nums">{formatCurrency(Number(claim.amount), claim.float?.currency ?? claim.currency)}</span>
+                <Link to={`/expenses/${claim.id}`} className="touch-target inline-flex items-center rounded-lg bg-primary px-3 py-1.5 text-control font-medium text-primary-foreground hover:bg-primary/90">{t('expenses.approvals.reviewDecision', 'Review and decide')}</Link>
                 <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
                   {t('expenses.approvals.previewEvidence', 'Preview claim evidence')}
                 </Button>

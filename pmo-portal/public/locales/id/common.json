@@ -1670,6 +1670,7 @@
       "heading": "Klaim biaya menunggu Anda ({{count}})",
       "label": "Klaim biaya menunggu Anda",
       "noReceipts": "Tidak ada bukti terlampir.",
+      "reviewDecision": "Tinjau dan putuskan",
       "previewEvidence": "Pratinjau bukti klaim",
       "receiptsError": "Gagal memuat bukti.",
       "receiptsLoading": "Memuat bukti…"
@@ -3224,7 +3225,7 @@
       "quotationSubmitted": "Penawaran diajukan",
       "tenderSubmitted": "Tender diajukan",
       "negotiation": "Negosiasi",
-      "wonPendingKom": "Menang, menunggu rapat awal",
+      "wonPendingKom": "Menang",
       "ongoingProject": "Proyek berjalan",
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
@@ -3526,6 +3527,7 @@
     }
   },
   "timesheets": {
+    "hoursTotal": "{{formatted}} jam",
     "accessDenied": {
       "sub": "$t(common:terms.timesheet) dan persetujuan adalah bagian dari area SDM. Pekerjaan keuangan ada di dashboard, proyek, dan pengadaan Anda.",
       "title": "Anda tidak memiliki akses ke $t(common:terms.timesheet)"
