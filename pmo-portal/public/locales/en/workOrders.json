@@ -55,7 +55,8 @@
       "date": "Date",
       "quantity": "Quantity",
       "amount": "Amount"
-    }
+    },
+    "open": "Open expenses"
   },
   "billing": {
     "error": "Couldn't load the billing figures",

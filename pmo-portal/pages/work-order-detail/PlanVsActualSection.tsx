@@ -1,3 +1,4 @@
+import { useAreaHelp } from './useAreaHelp';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, RecordSection } from '@/src/components/ui';
@@ -31,6 +32,7 @@ interface Props {
  */
 export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId, canPlan = false }) => {
   const { t } = useTranslation('workOrderPva');
+  useAreaHelp('cost-basis', t('title', 'Plan vs actual'), t('actualBasis', 'Actual follows project financial actuals; the costs below include other records.'));
   const [planning, setPlanning] = useState(false);
   const title = t('title', 'Plan vs actual');
   if (query.isPending) return <RecordSection title={title} data-testid="wo-page-pva"><ListState variant="loading" rows={3} /></RecordSection>;
@@ -96,11 +98,11 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
   const figure = (testId: string, label: string, value: React.ReactNode, className = '') => (
     <div key={testId} className="min-w-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className={`mt-1 font-medium tabular-nums ${className}`} data-testid={testId}>{value}</dd>
+      <dd className={`mt-1 text-metric font-semibold tabular-nums ${className}`} data-testid={testId}>{value}</dd>
     </div>
   );
   return (
-    <RecordSection title={title} subline={t('actualBasis', 'Actual follows project financial actuals; the costs below include other records.')} actions={planAction} data-testid="wo-page-pva">
+    <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
       {(f.directMargin.reason === 'different-currencies' || f.result.reason === 'different-currencies') && <OtherCurrencyNote />}
       <PvaTable dense testId="wo-page-pva-cost" caption={title} firstColumn={<span className="sr-only">{t('col.cost', 'Cost')}</span>} columns={columns} rows={[
         legRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct'),

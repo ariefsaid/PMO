@@ -55,7 +55,8 @@
       "date": "Tanggal",
       "quantity": "Jumlah",
       "amount": "Nilai"
-    }
+    },
+    "open": "Buka biaya"
   },
   "billing": {
     "error": "Angka penagihan tidak dapat dimuat",

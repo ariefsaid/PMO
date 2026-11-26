@@ -52,7 +52,7 @@ export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, grou
     return <RecordSection title={title}><ListState variant="error" title={t('costs.error', "Couldn't load the costs")} onRetry={onRetry} /></RecordSection>;
   }
   if (groups.length === 0) {
-    return <RecordSection title={title}><p className="text-control text-muted-foreground">{t('costs.empty', 'No costs are visible to you for this work order.')}</p></RecordSection>;
+    return <RecordSection title={title} actions={<Link to="/expenses" className="text-control text-primary-text hover:underline">{t('costs.open', 'Open expenses')}</Link>}><p className="text-control text-muted-foreground">{t('costs.empty', 'No costs are visible to you for this work order.')}</p></RecordSection>;
   }
   const nameOf = (id: string) => (id === NO_DISCIPLINE ? t('costs.noDiscipline', 'No discipline') : disciplines.find((d) => d.id === id)?.name ?? t('costs.unknownDiscipline', 'Discipline'));
   const money = (m: CostMoney) => formatTableMoney(m.amount, m.currency) ?? '—';

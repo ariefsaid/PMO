@@ -49,7 +49,7 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
   const figure = (testId: string, label: string, value: React.ReactNode) => (
     <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
       <dt className="self-end text-muted-foreground">{label}</dt>
-      <dd className="self-start tabular-nums" data-testid={testId}>{value}</dd>
+      <dd className="self-start text-metric font-semibold tabular-nums" data-testid={testId}>{value}</dd>
     </div>
   );
   const summary = t('chartSummary', 'Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.', { plan: money(data.planToDate), actual: money(data.actualToDate), date: formatIsoDay(data.asOf) });

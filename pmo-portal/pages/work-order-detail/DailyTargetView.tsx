@@ -106,10 +106,9 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   // Nothing to compare yet: no target, nothing earned, nothing waiting and no cost in the month. Say so once and offer the one fix.
   if (!data.hasTarget && rows.length === 0 && undated === null) {
     return (
-      <RecordSection title={title} data-testid="wo-page-daily-target" actions={nav}>
+      <RecordSection title={title} data-testid="wo-page-daily-target" actions={<>{nav}{plan && <Button variant="outline" size="sm" onClick={() => setEntering(true)}>{t('enter', 'Enter plan')}</Button>}</>}>
         <div className="flex flex-wrap items-center justify-between gap-3" data-testid="wo-daily-empty">
           <p className="text-control text-muted-foreground">{t('daily.nothing', 'No target and no actual in {{month}}.', { month: monthLabel })}</p>
-          {plan && <Button variant="outline" size="sm" onClick={() => setEntering(true)}>{t('enter', 'Enter plan')}</Button>}
         </div>
         {entering && plan && <RevenuePlanModal workOrderId={workOrderId} woLabel={plan.woLabel} currency={data.currency} onClose={() => setEntering(false)} />}
       </RecordSection>
