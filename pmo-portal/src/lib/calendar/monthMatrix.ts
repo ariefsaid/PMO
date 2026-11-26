@@ -61,8 +61,8 @@ export function addMonths(c: MonthCursor, delta: number): MonthCursor {
 }
 
 /** The cursor for the month containing today. */
-export function todayCursor(): MonthCursor {
-  const n = new Date();
+export function todayCursor(today: string): MonthCursor {
+  const n = parseLocalDate(today);
   return { year: n.getFullYear(), month: n.getMonth() };
 }
 

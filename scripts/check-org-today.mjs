@@ -5,7 +5,7 @@
  * of every day — a form starts on the wrong date, a week grid opens the wrong week. The one source is
  * `useOrgToday()` (`src/hooks/useOrgToday.ts`); pure helpers take the day as a parameter.
  *
- * Scope: pmo-portal/pages and pmo-portal/src/components, tests excluded. Two literal shapes are the
+ * Scope: pmo-portal/pages, components and src/components, tests excluded. These literal shapes are the
  * tell of the pattern:
  *   `toIso(new Date())`                    — the local-date helper fed the device clock;
  *   `new Date().toISOString().slice(0, 10)` — the UTC day, wrong even on a device in the org's zone.
@@ -26,9 +26,10 @@ import { dirname, resolve, join, relative } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, '../pmo-portal');
 const ALLOWLIST = join(HERE, 'org-today-allowlist.json');
-const ROOTS = ['pages', 'src/components'];
+const ROOTS = ['pages', 'components', 'src/components'];
 
 export const RULES = {
+  'todayCursor-no-day': (code) => (code.match(/\btodayCursor\s*\(\s*\)/g) ?? []).length,
   'toIso-new-date': (code) => (code.match(/(?<![\w.$])toIso\s*\(\s*new\s+Date\s*\(\s*\)\s*\)/g) ?? []).length,
   'iso-slice-0-10': (code) => (code.match(/new\s+Date\s*\(\s*\)\s*\.toISOString\(\)\s*\.slice\(\s*0\s*,\s*10\s*\)/g) ?? []).length,
 };
@@ -91,6 +92,8 @@ function selfTest() {
     ['a slice on another Date is not flagged (the rule is the default-day literal)', Object.keys(bad('const d = d2.toISOString().slice(0, 10);')).length === 0],
     ['a comment mention is not flagged', Object.keys(bad('// was toIso(new Date())\n/* new Date().toISOString().slice(0, 10) */')).length === 0],
     ['a test file is skipped', Object.keys(scan({ 'pages/X.test.tsx': 'toIso(new Date())' })).length === 0],
+    ['a calendar cursor needs the organisation day', bad('const cursor = todayCursor();')['todayCursor-no-day'] === 1],
+    ['a calendar cursor taking the supplied day passes', Object.keys(bad('const cursor = todayCursor(today);')).length === 0],
     ['useOrgToday passes', Object.keys(bad("const today = useOrgToday();")).length === 0],
     ['an unlisted offender fails', compare({ 'pages/X.tsx': { 'toIso-new-date': 1 } }, {}).length === 1],
     ['a listed offender passes', compare({ 'pages/X.tsx': { 'toIso-new-date': 1 } }, allow({ rule: 'toIso-new-date', count: 1, reason: 'this widget shows the viewer\'s own device day by design', verified: '2026-11-26' })).length === 0],

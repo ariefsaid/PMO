@@ -7,6 +7,8 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 
 import ProjectCalendarView from '../ProjectCalendarView';
+import { formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { monthLabel, todayCursor } from '@/src/lib/calendar/monthMatrix';
 
 beforeEach(() => vi.clearAllMocks());
@@ -23,9 +25,9 @@ describe('ProjectCalendarView — month navigation', () => {
           projects={[]}
           milestoneDates={[]}
           onOpenProject={() => {}}
-          initialCursor={{ year: 2026, month: 11 }}
         />,
       );
+      expect(screen.getByText('Desember 2026')).toBeInTheDocument();
       expect(screen.getByTestId('calendar-cell-2026-12-01')).toHaveClass('ring-1');
       expect(screen.getByTestId('calendar-cell-2026-11-30')).not.toHaveClass('ring-1');
     } finally {
@@ -53,7 +55,7 @@ describe('ProjectCalendarView — month navigation', () => {
     expect(screen.getByText('June 2026')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /today/i }));
-    const t = todayCursor();
+    const t = todayCursor(formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone));
     expect(screen.getByText(monthLabel(t.year, t.month))).toBeInTheDocument();
   });
 });

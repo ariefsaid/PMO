@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { formatCalendarDayInTimeZone } from '@/src/lib/format';
 import { buildMonthMatrix, parseLocalDate, monthLabel, addMonths, todayCursor } from './monthMatrix';
 
 describe('monthMatrix', () => {
@@ -44,8 +45,15 @@ describe('monthMatrix', () => {
     expect(other.flat().find((d) => d.iso === '2026-11-26')?.isToday).toBe(false);
   });
 
-  it('todayCursor returns the current year/month', () => {
-    const now = new Date();
-    expect(todayCursor()).toEqual({ year: now.getFullYear(), month: now.getMonth() });
+  it('AC-2911-007: the cursor follows the organisation across month-end midnight', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-11-30T16:59:59Z'));
+      expect(todayCursor(formatCalendarDayInTimeZone(new Date(), 'Asia/Jakarta'))).toEqual({ year: 2026, month: 10 });
+      vi.setSystemTime(new Date('2026-11-30T17:00:00Z'));
+      expect(todayCursor(formatCalendarDayInTimeZone(new Date(), 'Asia/Jakarta'))).toEqual({ year: 2026, month: 11 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

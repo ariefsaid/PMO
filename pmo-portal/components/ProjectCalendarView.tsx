@@ -40,7 +40,7 @@ interface ProjectCalendarViewPropsBase {
   milestoneDates: MilestoneDate[] | undefined;
   isPending?: boolean;
   onOpenProject: (id: string) => void;
-  /** Test seam: force the initial displayed month (defaults to todayCursor()). */
+  /** Test seam: force the initial displayed month (defaults to the organisation’s current month). */
   initialCursor?: MonthCursor;
   /**
    * Controlled month (#716): when `onCursorChange` is supplied the caller owns the displayed month
@@ -190,9 +190,9 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   const { t } = useTranslation();
   // The organisation's day (#1126): the grid's today ring marks it, so it is right whatever the device's clock says.
   const today = useOrgToday();
-  const [localCursor, setLocalCursor] = useState<MonthCursor>(initialCursor ?? todayCursor());
+  const [localCursor, setLocalCursor] = useState<MonthCursor>(() => initialCursor ?? todayCursor(today));
   const controlled = onCursorChange !== undefined;
-  const cursor = controlled ? (controlledCursor ?? todayCursor()) : localCursor;
+  const cursor = controlled ? (controlledCursor ?? todayCursor(today)) : localCursor;
   const moveTo = (next: MonthCursor) => (controlled ? onCursorChange(next) : setLocalCursor(next));
   const isDesktop = useIsDesktop();
 
@@ -222,7 +222,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
 
   const goPrev = () => moveTo(addMonths(cursor, -1));
   const goNext = () => moveTo(addMonths(cursor, 1));
-  const goToday = () => moveTo(todayCursor());
+  const goToday = () => moveTo(todayCursor(today));
 
   const nav = (
     <div className="mb-3 flex items-center gap-2">
