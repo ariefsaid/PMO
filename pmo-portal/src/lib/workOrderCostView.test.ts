@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCostView, NO_DISCIPLINE } from './workOrderCostView';
+import { buildCostView, buildDailyCost, NO_DISCIPLINE } from './workOrderCostView';
 import type { WorkOrderCostLine, CostSource } from '@/src/lib/db/workOrderCosts';
 
 const ln = (source: CostSource, id: string, disciplineId: string | null, q: number | null = null): WorkOrderCostLine => ({
@@ -38,5 +38,48 @@ describe('AC-WORP-006 buildCostView', () => {
   it('a source with no money read in this version shows no total and is not flagged restricted', () => {
     const v = buildCostView([ln('timesheet_entry', 't', null, 2)], {});
     expect(v[0]).toMatchObject({ total: null, restricted: false });
+  });
+});
+
+describe('#1126 buildDailyCost: one source, grouped by each record\'s own day', () => {
+  const at = (source: CostSource, id: string, day: string | null): WorkOrderCostLine => ({ ...ln(source, id, null), occurredOn: day });
+  const idr = (amount: number) => ({ amount, currency: 'IDR' });
+  const lines = [
+    at('vendor_bill', 'b1', '2026-11-10'), at('stock_document', 's1', '2026-11-10'), at('stock_document', 's2', '2026-11-12'),
+    at('equipment_usage', 'e1', '2026-11-10'), at('expense_claim', 'c1', '2026-11-12'), at('timesheet_entry', 't1', '2026-11-10'),
+    at('equipment_usage', 'e2', null), at('purchase_order', 'po1', '2026-11-10'),
+  ];
+  const money = {
+    vendor_bill: { b1: idr(100.25) }, stock_document: { s1: idr(40), s2: idr(10.1) }, equipment_usage: { e1: idr(300), e2: idr(55.55) },
+    expense_claim: { c1: idr(7) }, timesheet_entry: { t1: idr(80.2) }, purchase_order: { po1: idr(9999) },
+  };
+  const groups = buildCostView(lines, money);
+  const daily = buildDailyCost(groups, 'IDR');
+
+  it('the days plus the undated line add up to the cost list total of every counted source (a commitment is not counted)', () => {
+    const listTotal = groups.filter((g) => g.source !== 'purchase_order').reduce((s, g) => s + g.total!.amount, 0);
+    const days = Object.values(daily.days).reduce((s, d) => s + d.total!, 0);
+    expect(Math.round((days + daily.undated!.total!) * 100) / 100).toBe(Math.round(listTotal * 100) / 100);
+  });
+  it('puts each cost on its own day under labour, equipment, material or other; no cost is spread', () => {
+    expect(daily.days['2026-11-10']).toMatchObject({ labour: 80.2, equipment: 300, material: 140.25, other: undefined, total: 520.45 });
+    expect(daily.days['2026-11-12']).toMatchObject({ labour: undefined, equipment: undefined, material: 10.1, other: 7, total: 17.1 });
+    expect(Object.keys(daily.days)).toEqual(['2026-11-10', '2026-11-12']);
+  });
+  it('a cost with no day sits on the undated line, not on any day', () => {
+    expect(daily.undated).toMatchObject({ equipment: 55.55, total: 55.55 });
+  });
+  it('a day whose cost cannot be read says so (null), never zero, and so is its total', () => {
+    const d = buildDailyCost(buildCostView(lines, { ...money, timesheet_entry: undefined }), 'IDR');
+    expect(d.days['2026-11-10'].labour).toBeNull();
+    expect(d.days['2026-11-10'].total).toBeNull();
+    expect(d.days['2026-11-12'].total).toBe(17.1);
+  });
+  it('a cost in another currency is unknown for this work order, never added', () => {
+    const d = buildDailyCost(buildCostView(lines, { ...money, expense_claim: { c1: { amount: 7, currency: 'USD' } } }), 'IDR');
+    expect(d.days['2026-11-12'].other).toBeNull();
+  });
+  it('no counted cost lines at all: nothing to show', () => {
+    expect(buildDailyCost([], 'IDR')).toEqual({ days: {}, undated: null });
   });
 });

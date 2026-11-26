@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import { openWorkOrderArea } from './support/workOrderArea';
 
@@ -71,7 +72,7 @@ test('AC-TPI-015 request, purchase, invitation, execution and report show the in
     if (inspection.error || !inspection.data.procurement_id) throw new Error('AC-TPI-015 purchase link missing: ' + inspection.error?.message);
     const po = await admin.from('purchase_orders').insert({
       org_id: orgId, procurement_id: inspection.data.procurement_id, po_number: 'PO-' + suffix, status: 'Issued',
-      date: new Date().toISOString().slice(0, 10), amount: 1000, currency: 'USD',
+      date: orgToday(), amount: 1000, currency: 'USD',
     });
     if (po.error) throw new Error('AC-TPI-015 fixture order: ' + po.error.message);
 

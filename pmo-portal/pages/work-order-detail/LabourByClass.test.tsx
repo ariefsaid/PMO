@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder } from '@/src/lib/workOrderPlanVsActual';
 
@@ -34,9 +34,9 @@ describe('labour cost by class on the work-order page', () => {
     const direct = within(block).getByTestId('wo-page-pva-labour-direct');
     expect(within(direct).getByText('Direct')).toBeVisible();
     expect(direct.textContent).toContain('14');
-    expect(direct.textContent).toContain(formatExactMoney('700000.00', 'IDR', 'en-US'));
-    expect(within(block).getByTestId('wo-page-pva-labour-guard').textContent).toContain(formatExactMoney('100000.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-page-pva-direct').textContent).toContain(formatExactMoney('800000.00', 'IDR', 'en-US'));
+    expect(direct.textContent).toContain(formatTableMoney('700000.00', 'IDR'));
+    expect(within(block).getByTestId('wo-page-pva-labour-guard').textContent).toContain(formatTableMoney('100000.00', 'IDR'));
+    expect(screen.getByTestId('wo-page-pva-direct').textContent).toContain(formatTableMoney('800000.00', 'IDR'));
   });
 
   it('AC-LCM-001 shows no labour block when no line is priced (existing organisations)', () => {
@@ -55,7 +55,7 @@ describe('labour cost by class on the work-order page', () => {
     const all = within(block).getByTestId('wo-page-pva-labour-all');
     expect(within(all).getByText('Crew and head count, all classes')).toBeVisible();
     expect(all.textContent).toContain('—');
-    expect(all.textContent).toContain(formatExactMoney('1400000.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-page-pva-direct').textContent).toContain(formatExactMoney('2100000.00', 'IDR', 'en-US'));
+    expect(all.textContent).toContain(formatTableMoney('1400000.00', 'IDR'));
+    expect(screen.getByTestId('wo-page-pva-direct').textContent).toContain(formatTableMoney('2100000.00', 'IDR'));
   });
 });

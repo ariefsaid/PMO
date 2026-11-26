@@ -14,6 +14,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, SEED_PASSWORD } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -107,7 +108,7 @@ test.beforeEach(async () => {
   const claim = need('claim', await engineer.from('expense_claims')
     .insert({ kind: 'claim', title: `${tag} diesel`, project_id: projectId, budget_category: 'Vehicle', imprest_float_id: floatId }).select('id').single());
   ok('claim line', await engineer.from('expense_claim_lines')
-    .insert({ claim_id: claim.id, expense_date: new Date().toISOString().slice(0, 10), expense_type: 'Travel', description: 'Diesel', amount: 500_000 }));
+    .insert({ claim_id: claim.id, expense_date: orgToday(), expense_type: 'Travel', description: 'Diesel', amount: 500_000 }));
   ok('claim receipt', await engineer.from('expense_claim_files').insert({ claim_id: claim.id, title: 'receipt', file_path: `${ORG_ID}/${claim.id}/${crypto.randomUUID()}/receipt.png` }));
   await rpc(engineer, 'submit claim', 'transition_expense_claim', { p_id: claim.id, p_to: 'Submitted', p_notes: null, p_payment_reference: null });
   await rpc(exec, 'approve claim', 'transition_expense_claim', { p_id: claim.id, p_to: 'Approved', p_notes: null, p_payment_reference: null });
@@ -188,7 +189,7 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
   await page.getByLabel('Project').selectOption({ label: tag });
   await page.getByLabel('Budget category').selectOption({ label: 'Vehicle' });
   await page.getByLabel('Charge to site cash').selectOption({ index: 1 });
-  await page.getByLabel(/^Date/).fill(new Date().toISOString().slice(0, 10));
+  await page.getByLabel(/^Date/).fill(orgToday());
   await page.getByLabel(/^Type/).selectOption('Travel');
   await page.getByLabel(/^Description/).fill('Truck hire');
   await page.getByRole('textbox', { name: 'Amount' }).fill('1700000');

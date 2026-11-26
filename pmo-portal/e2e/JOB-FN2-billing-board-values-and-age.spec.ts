@@ -33,7 +33,7 @@ test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('JOB-FN2-BOARD needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
-  financeManager = await roleJobUser(serviceClient('JOB-FN2-BOARD'), 'finance_manager', runId('fn2b-fm'));
+  financeManager = await roleJobUser(serviceClient('JOB-FN2-BOARD'), 'finance_officer', runId('fn2b-fm'));
   const actor = await admin.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single();
   if (actor.error) throw actor.error;
 
@@ -80,7 +80,7 @@ test.afterEach(async () => {
   await financeManager.cleanup();
 });
 
-test('JOB-FN2 a Finance Manager reads each billing step with its value and its claims age', async ({ page }) => {
+test('JOB-FN2 a Finance Officer reads each billing step with its value and its claims age', async ({ page }) => {
   // 1. The Finance Manager opens Billing -> Board.
   await financeManager.signIn(page);
   await page.goto('/finance/billing-board');

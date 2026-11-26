@@ -2906,7 +2906,7 @@
         "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
         "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
-      "newSubtitle": "Catat $t(common:terms.clientWorkOrder) klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
+      "newSubtitle": "Catat $t(common:terms.clientWorkOrder) klien terhadap kontrak proyek. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
       "newTitle": "$t(common:terms.clientWorkOrder) baru",
       "orderDate": "Tanggal order",
       "orderValue": "Nilai order",

@@ -1,3 +1,4 @@
+import { orgStageName } from '@/src/lib/status/orgStageNames';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import type { StatusVariant } from '@/src/components/ui';
 import type { LifecycleStep } from '@/src/components/ui';
@@ -305,7 +306,7 @@ export function formatIsoDayMonth(iso: string): string {
 /** The card's one line for the latest stage entry: "Quoted 12 Oct · 20 d" (FR-PSH-013). */
 export function stageLine(status: string, enteredOn: string, todayIso: string, t: Translate): string {
   const [key, fallback] = STAGE_KEY_DATE_LABEL[status] ?? ['', status];
-  const label = key ? t(key, fallback) : fallback;
+  const label = orgStageName(status) ?? (key ? t(key, fallback) : fallback);
   const day = enteredOn.slice(0, 10);
   return `${label} ${formatIsoDayMonth(day)} · ${daysBetweenDates(day, todayIso)} ${t('sales:stageDate.daysShort', 'd')}`;
 }

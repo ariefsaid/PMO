@@ -3,6 +3,7 @@
 import { expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, SEED_PASSWORD } from './helpers';
+import { inDays } from './support/jobJourney';
 import { bindCall, createPacer, type OdooCall } from '../src/lib/adapterSeam/odoo/client';
 import { discoverCapabilities } from '../src/lib/adapterSeam/odoo/discovery';
 import type { Database } from '../src/lib/supabase/database.types';
@@ -108,7 +109,7 @@ export async function provisionOdooOrg(admin: Admin, stamp: string): Promise<Sce
     await must('stage', rpc(admin, 'stage_vault_secret_for_org', { p_org_id: orgId, p_external_tier: 'odoo', p_secret_value: BED_KEY, p_secret_name: secretRef, p_actor_id: actor.id }));
     await must('finalize', rpc(admin, 'finalize_odoo_connect', {
       p_org_id: orgId, p_secret_ref: secretRef, p_site_url: new URL(BED_URL).origin, p_database: BED_DB,
-      p_key_expires_on: new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10), p_discard: false, p_kill_switch_enabled: true, p_actor_id: actor.id,
+      p_key_expires_on: inDays(90), p_discard: false, p_kill_switch_enabled: true, p_actor_id: actor.id,
     }));
     connected = true;
     const capabilities = await discoverCapabilities(call, { versionMajor: 20, now: new Date() });

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatQuantityUnit } from '@/src/lib/format';
 import { NO_DISCIPLINE, type CostMoney, type SourceGroup } from '@/src/lib/workOrderCostView';
 import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
 
@@ -28,6 +28,13 @@ const COMMITMENT_DEFAULTS: Record<string, string> = {
 const COMMITMENT_SOURCES: readonly string[] = ['purchase_request', 'purchase_order', 'goods_receipt'];
 /** Sources whose money this section never reads: their lines carry hours or quantities only. */
 const HOURS_ONLY: readonly string[] = ['timesheet_entry', 'attendance_day', 'stock_document', 'equipment_usage'];
+
+/** A reference is "code · name"; a record whose name is its code reads once ("CR-1", not "CR-1 · CR-1"). */
+const oneName = (reference: string | null): string | null => {
+  if (!reference) return reference;
+  const parts = reference.split(' · ');
+  return parts.length === 2 && parts[0].trim() === parts[1].trim() ? parts[0].trim() : reference;
+};
 
 /** Costs (FR-WORP-021/022): lines grouped by source then discipline; a total only where the money is readable. */
 export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
@@ -92,7 +99,7 @@ export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, grou
                       const label = l.source === 'timesheet_entry'
                         ? sheet ? t('costs.timesheetLabel', '{{person}}, week of {{week}}', { person: sheet.person, week: formatDay(sheet.weekStart) }) : t('costs.timesheetFallback', 'Timesheet')
                         : l.source === 'attendance_day' ? t('costs.attendanceLabel', 'Attendance')
-                        : l.reference ?? l.recordId.slice(0, 8);
+                        : oneName(l.reference) ?? l.recordId.slice(0, 8);
                       const lineMoney = g.moneyByRecord?.[l.recordId];
                       const notShown = !lineMoney && (l.source === 'timesheet_entry' || l.source === 'attendance_day' || l.source === 'stock_document'
                         || (l.source === 'equipment_usage' && !g.restricted));
@@ -104,7 +111,7 @@ export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, grou
                             {state && <div className="text-muted-foreground">{state}</div>}
                           </td>
                           <td className={`${num} pr-4 whitespace-nowrap max-sm:py-0.5 max-sm:pl-8 max-sm:text-muted-foreground`}>{l.occurredOn ? formatDay(l.occurredOn) : '—'}</td>
-                          <td className={`${num} pr-4 whitespace-nowrap max-sm:py-0.5 max-sm:text-muted-foreground`}>{l.quantity != null ? `${formatNumberExact(l.quantity)} ${l.quantityUnit ?? ''}`.trim() : '—'}</td>
+                          <td className={`${num} pr-4 whitespace-nowrap max-sm:py-0.5 max-sm:text-muted-foreground`}>{l.quantity != null ? formatQuantityUnit(l.quantity, l.quantityUnit) : '—'}</td>
                           <td className={`${num} whitespace-nowrap max-sm:ml-auto max-sm:py-0.5`}>
                             {lineMoney ? <span>{money(lineMoney)}</span> : notShown ? <span className="text-muted-foreground">{t('costs.amountNotShown', 'Line amount not shown')}</span> : '—'}
                           </td>

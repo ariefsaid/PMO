@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
 
@@ -44,7 +45,7 @@ test('JOB-M5 the Project Manager sees the issued share against the progress shar
     acceptanceId = randomUUID();
     const me = (await stock.auth.getUser()).data.user!.id;
     ok('acceptance', await svc.from('work_order_acceptances').insert({
-      id: acceptanceId, org_id: ORG_ID, project_id: projectId, work_order_id: woId, acceptance_date: new Date().toISOString().slice(0, 10),
+      id: acceptanceId, org_id: ORG_ID, project_id: projectId, work_order_id: woId, acceptance_date: orgToday(),
       is_final: false, status: 'Confirmed', prepared_by: me, confirmed_by: me, confirmed_at: new Date().toISOString(), confirm_basis: 'sole_operator',
     }));
     ok('accepted 40%', await svc.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: boqId, quantity: 40 }));

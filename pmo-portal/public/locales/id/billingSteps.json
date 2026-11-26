@@ -77,5 +77,7 @@
   },
   "claimEvidence": "Dokumen di langkah ini dihitung sebagai bukti tagihan",
   "extraDocument": "Dokumen tambahan",
-  "attachExtra": "Lampirkan dokumen tambahan"
+  "attachExtra": "Lampirkan dokumen tambahan",
+  "update": "Perbarui",
+  "updateNamed": "Perbarui {{item}}"
 }
