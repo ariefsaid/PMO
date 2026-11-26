@@ -161,7 +161,7 @@ const StockOnHand: React.FC = () => {
       });
     }
     return cols;
-  }, [t, loc, currency, showCost, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf, mayReserveAt]);
+  }, [t, loc, currency, showCost, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
