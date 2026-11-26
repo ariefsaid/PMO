@@ -1069,6 +1069,7 @@
         "title": "Procurement cases"
       },
       "timesheets": {
+    "hoursTotal": "{{formatted}} hours",
         "emptyTitle": "No timesheets awaiting your decision",
         "title": "Timesheets"
       }
@@ -1672,6 +1673,7 @@
       "heading": "Expense claims awaiting you ({{count}})",
       "label": "Expense claims awaiting you",
       "noReceipts": "No receipts attached.",
+      "reviewDecision": "Review and decide",
       "previewEvidence": "Preview claim evidence",
       "receiptsError": "Couldn't load receipts.",
       "receiptsLoading": "Loading receipts…"

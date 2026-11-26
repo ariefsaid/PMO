@@ -89,6 +89,7 @@ const CalendarPage: React.FC = () => {
         title={t('title', 'Calendar')}
         help={t('scope', 'Shows tasks and phases that have a date. Meetings are not shown.')}
       />
+      <p className="mb-4 text-control text-muted-foreground">{t('scope', 'Shows tasks and phases that have a date. Meetings are not shown.')}</p>
       {/* C5 (DS calendar #1/#3): the month must not read as the whole plan. Phases come from two
           further reads (the project list, then the milestone dates), so a failure there silently
           deletes every phase from a complete-looking grid — name it and offer the retry. */}

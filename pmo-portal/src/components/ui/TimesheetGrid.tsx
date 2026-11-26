@@ -176,15 +176,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               onNoteChange={onNoteChange}
             />
           </div>
-          <Button
-            className="touch-target shrink-0"
-            variant="ghost"
-            size="icon"
-            aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
-            onClick={() => onDeleteRow?.(r.id)}
-          >
-            <Icon name="x" />
-          </Button>
+
         </div>
       ) : (
         // Read-only branch — project name links to /projects/:id when projectId present
@@ -290,13 +282,20 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     },
   ];
 
+  if (editable) columns.push({
+    key: 'delete', header: '', size: 48, minSize: 48,
+    cell: (r) => <Button className="touch-target opacity-0 focus:opacity-100 group-hover:opacity-100 hover:opacity-100 [tr:hover_&]:opacity-100" variant="ghost" size="icon"
+      aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
+      onClick={() => onDeleteRow?.(r.id)}><Icon name="x" /></Button>,
+  });
+
   const totals = [{
     key: 'daily',
     label: <span className="text-control font-semibold text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
     values: {
       ...Object.fromEntries(dailyTotals.map((total, i) => [
         `day-${i}`,
-        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? formatNumberExact(total) : '·'}</span>,
+        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? formatNumberExact(total) : '—'}</span>,
       ])),
       total: <span data-testid="tsgrid-grand-total" className="text-sm font-bold tabular">{formatNumberExact(grandTotal)}</span>,
     } as Record<string, React.ReactNode>,
