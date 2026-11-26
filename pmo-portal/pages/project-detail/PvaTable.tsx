@@ -40,7 +40,9 @@ export const PvaTable: React.FC<{
             <tr>
               <td className="sticky left-0 z-[1] bg-card" />
               {groups.map(([label, span], i) => (
-                <th key={i} scope="colgroup" colSpan={span} className="pb-0 pl-6 pt-1 text-right font-medium text-foreground">{label}</th>
+                <th key={i} scope="colgroup" colSpan={span} className="pl-6 pt-1 font-medium text-foreground">
+                  <span className="block border-b border-border pb-1.5 text-center">{label}</span>
+                </th>
               ))}
               {hasActions && <td />}
             </tr>
@@ -55,7 +57,7 @@ export const PvaTable: React.FC<{
           {rows.map((r) => (
             <tr key={r.key} data-testid={r.testId}
               className={cn('border-b border-border last:border-b-0', r.total && 'border-t border-t-foreground/30 font-semibold')}>
-              <th scope="row" className={cn(head, 'min-w-[12rem] max-w-[22rem]', r.total ? 'font-semibold' : 'font-normal')}>{r.head}</th>
+              <th scope="row" className={cn(head, 'min-w-[13rem] max-w-[24rem]', r.total ? 'font-semibold' : 'font-normal')}>{r.head}</th>
               {r.cells.map((c, i) => (
                 <td key={columns[i]?.key ?? i} data-testid={c?.testId}
                   className={cn(cell, 'whitespace-nowrap text-right tabular-nums',
@@ -64,7 +66,7 @@ export const PvaTable: React.FC<{
                   {c?.text ?? null}
                 </td>
               ))}
-              {hasActions && <td className={cn(cell, 'whitespace-nowrap py-1.5 text-right align-middle')}>{r.action ?? null}</td>}
+              {hasActions && <td className={cn(cell, 'whitespace-nowrap py-1.5 text-right align-baseline')}>{r.action ?? null}</td>}
             </tr>
           ))}
         </tbody>

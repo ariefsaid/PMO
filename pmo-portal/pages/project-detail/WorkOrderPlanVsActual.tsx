@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ListState } from '@/src/components/ui';
+import { Link } from 'react-router';
+import { Button, Card, CardHead, CardPad, Drawer, Icon, ListState } from '@/src/components/ui';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
+import { RowOpenControl } from '@/src/components/ui/RowOpenControl';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatExactMoney, formatNumberExact } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import {
@@ -16,6 +18,7 @@ import {
 import type { Margin } from '@/src/lib/projectFinances';
 import WorkOrderPlanModal from './WorkOrderPlanModal';
 import SharedCostSplitModal from './SharedCostSplitModal';
+import { PvaTable, type PvaCell, type PvaRow } from './PvaTable';
 import { LabourByClass } from '../work-order-detail/LabourByClass';
 import { IdleCostBlock } from '../work-order-detail/IdleCostBlock';
 
@@ -49,7 +52,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
   if (!canView) return null;
 
   const money = (value: string | null, currency: string) =>
-    value === null ? t('unknown', 'Unknown') : formatExactMoney(value, currency, getNumberLocale()) ?? t('unknown', 'Unknown');
+    value === null ? t('unknown', 'Unknown') : formatTableMoney(value, currency) ?? t('unknown', 'Unknown');
 
   const marginText = (m: Margin, currency: string) => {
     if (m.amount !== null) return money(m.amount, currency);
@@ -174,162 +177,224 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
     </div>
   );
 
-  const row = (w: PvaWorkOrder, f: WorkOrderFigures) => {
-    const basisId = `wo-pva-basis-${w.id}`;
-    const open = openBasis === w.id;
-    return (
-      <React.Fragment key={w.id}>
-        <tr className="border-t border-border align-top" data-testid={`wo-pva-row-${w.id}`}>
-          <th scope="row" className="py-2 pr-4 text-left font-medium">
-            {w.woNumber ?? t('draftNumber', 'Draft')} <span className="font-normal text-muted-foreground">{w.title}</span>
-          </th>
-          <td className="py-2 pr-4 text-right tabular-nums">{f.plan.direct_budget === null ? t('noPlan', 'No plan') : money(f.plan.direct_budget, w.currency)}</td>
-          <td className="py-2 pr-4 text-right tabular-nums" data-testid="wo-pva-direct">{money(f.direct, w.currency)}
-            <div className="text-muted-foreground">{variantText(f.plan.direct_budget, f.direct, w.currency)}</div>
-          </td>
-          <td className="py-2 pr-4 text-right tabular-nums" data-testid="wo-pva-allocated">{money(f.allocated, w.currency)}</td>
-          <td className="py-2 pr-4 text-right tabular-nums">{w.revenue === null || !w.revenueComplete ? t('revenueUnknown', 'Revenue unknown') : money(w.revenue, w.currency)}
-            {w.orderValue != null && <div className="text-muted-foreground">{t('orderValue', 'Order value (ceiling)')}: {money(w.orderValue, w.currency)}</div>}
-          </td>
-          <td className="py-2 pr-4 text-right tabular-nums" data-testid="wo-pva-direct-margin">{marginText(f.directMargin, w.currency)}</td>
-          <td className="py-2 pr-4 text-right tabular-nums" data-testid="wo-pva-result">{marginText(f.result, w.currency)}</td>
-          <td className="py-2 text-right">
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" aria-expanded={open} aria-controls={basisId} onClick={() => setOpenBasis(open ? null : w.id)}>
-                {t('basis', 'Basis')}
-              </Button>
-              {canPlan && w.status !== 'Cancelled' && <Button variant="outline" size="sm" onClick={() => setPlanFor(w)}>{t('editPlan', 'Plan')}</Button>}
-            </div>
-          </td>
-        </tr>
-        {open && (
-          <tr><td colSpan={8} className="pb-3">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 py-2 text-sm sm:grid-cols-4">
-              <div><dt className="text-muted-foreground">{t('equipmentHours', 'Equipment hours')}</dt><dd className="tabular-nums">{formatNumberExact(f.equipmentHours)} · {hoursText(f.plan.equipment_hours, f.equipmentHours)}</dd></div>
-              {f.equipmentDays > 0 && <div><dt className="text-muted-foreground">{t('equipmentDays', 'Equipment days (kept apart)')}</dt><dd className="tabular-nums">{formatNumberExact(f.equipmentDays)}</dd></div>}
-              <div><dt className="text-muted-foreground">{t('crewHours', 'Crew hours')}</dt><dd className="tabular-nums">{formatNumberExact(f.crewHours)} · {hoursText(f.plan.crew_hours, f.crewHours)}</dd></div>
-              <div><dt className="text-muted-foreground">{t('crewSize', 'People with hours')}</dt><dd className="tabular-nums">{formatNumberExact(f.crewSize)}</dd></div>
-              <div><dt className="text-muted-foreground">{t('indirectPlan', 'Indirect budget')}</dt><dd className="tabular-nums">{f.plan.indirect_budget === null ? t('noPlan', 'No plan') : `${money(f.plan.indirect_budget, w.currency)} · ${variantText(f.plan.indirect_budget, f.allocated, w.currency)}`}</dd></div>
-              {f.otherCurrency.map((o) => (
-                <div key={o.currency}><dt className="text-muted-foreground">{t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency })}</dt><dd className="tabular-nums">{money(o.amount, o.currency)}</dd></div>
-              ))}
-            </dl>
-            {f.disciplines.length > 0 && (
-              <ul className="py-1 text-sm">{f.disciplines.map((d) => (
-                <li key={d.disciplineId ?? 'none'}>{disciplineName(d.disciplineId)}: {t('col.plan', 'Planned direct')} {d.planDirect === null ? t('noPlan', 'No plan') : money(d.planDirect, w.currency)} · {money(d.direct, w.currency)} {t('directShort', 'direct')}{d.planDirect !== null && ` · ${variantText(d.planDirect, d.direct, w.currency)}`} · {t('col.planIndirect', 'Planned indirect')} {d.planIndirect === null ? t('noPlan', 'No plan') : money(d.planIndirect, w.currency)} · {money(d.allocated, w.currency)} {t('sharedShort', 'shared')}{d.planIndirect !== null && ` · ${variantText(d.planIndirect, d.allocated, w.currency)}`}</li>
-              ))}</ul>
-            )}
-            {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={w.currency} testId={`wo-pva-labour-${w.id}`} />}
-            <IdleCostBlock projectId={projectId} workOrderId={w.id} testId={`wo-pva-idle-${w.id}`} />
-            {f.pendingCrewHours > 0 && <p className="text-sm text-muted-foreground">{pendingText(f.pendingCrewHours)}</p>}
-            {f.uncostedHours > 0 && <p className="text-sm text-muted-foreground">{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
-            {basisTable(f.lines, basisId)}
-          </td></tr>
-        )}
-      </React.Fragment>
-    );
+  // The row's drawer (triage): what is behind this work order's figures; the full page stays the depth.
+  const drawerBody = (w: PvaWorkOrder, f: WorkOrderFigures) => (
+    <div className="space-y-6 text-control" data-testid={`wo-pva-drawer-${w.id}`}>
+      {f.disciplines.length > 0 && (
+        <section>
+          <h3 className="mb-2 font-semibold">{t('byDiscipline', 'By discipline')}</h3>
+          <PvaTable caption={t('byDiscipline', 'By discipline')} firstColumn={t('col.discipline', 'Discipline')} groups={legGroups}
+            columns={[...legColumns('direct'), ...legColumns('shared')]}
+            rows={f.disciplines.map((d) => ({ key: d.disciplineId ?? 'none', head: disciplineName(d.disciplineId),
+              cells: [planCell(d.planDirect, w.currency), cell(money(d.direct, w.currency)), diffCell(d.planDirect, d.direct, w.currency),
+                planCell(d.planIndirect, w.currency), cell(money(d.allocated, w.currency)), diffCell(d.planIndirect, d.allocated, w.currency)] }))} />
+        </section>
+      )}
+      {f.otherCurrency.length > 0 && (
+        <dl className="space-y-1">{f.otherCurrency.map((o) => (
+          <div key={o.currency} className="flex justify-between gap-6"><dt className="text-muted-foreground">{t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency })}</dt><dd className="tabular-nums">{money(o.amount, o.currency)}</dd></div>
+        ))}</dl>
+      )}
+      {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={w.currency} testId={`wo-pva-labour-${w.id}`} />}
+      <IdleCostBlock projectId={projectId} workOrderId={w.id} testId={`wo-pva-idle-${w.id}`} />
+      <section>
+        <h3 className="mb-1 font-semibold">{t('basisCaption', 'Cost records behind these figures')}</h3>
+        {f.pendingCrewHours > 0 && <p className="text-muted-foreground">{pendingText(f.pendingCrewHours)}</p>}
+        {f.uncostedHours > 0 && <p className="text-muted-foreground">{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
+        {basisTable(f.lines, `wo-pva-basis-${w.id}`)}
+      </section>
+    </div>
+  );
+
+  // Same family as the work order page's own section: Plan · Actual per leg, and what is left or over in its own column.
+  const cell = (text: string, words = false, testId?: string): PvaCell => ({ text, tone: words ? 'words' : undefined, testId });
+  const planCell = (plan: string | null, currency: string, testId?: string) => plan === null ? cell(t('noPlan', 'No plan'), true, testId) : cell(money(plan, currency), false, testId);
+  const diffCell = (plan: string | null, actual: string | null, currency: string, testId?: string): PvaCell => {
+    const v = planVariance(plan, actual);
+    if (v.state === 'over') return { text: variantText(plan, actual, currency), tone: 'over', testId };
+    if (v.state === 'no-plan') return { text: '—', tone: 'words', testId };
+    return cell(variantText(plan, actual, currency), true, testId);
   };
+  const hoursDiff = (plan: number | null, actual: number): PvaCell => {
+    const v = hoursVariance(plan, actual);
+    if (v.state === 'no-plan') return { text: '—', tone: 'words' };
+    return { text: hoursText(plan, actual), tone: v.state === 'over' ? 'over' : 'words' };
+  };
+  const hoursPlan = (plan: number | null): PvaCell => plan === null ? cell(t('noPlan', 'No plan'), true) : cell(formatNumberExact(plan));
+  const marginCell = (m: Margin, currency: string, testId: string): PvaCell =>
+    ({ text: marginText(m, currency), testId, tone: m.amount === null ? 'words' : m.amount.startsWith('-') && !/^-0(\.0+)?$/.test(m.amount) ? 'over' : undefined });
+  const planShort = t('col.planShort', 'Plan');
+  const actualShort = t('col.actualShort', 'Actual');
+  const diffShort = t('col.difference', 'Left or over');
+  const legColumns = (leg: string) => [
+    { key: `${leg}-plan`, label: planShort }, { key: `${leg}-actual`, label: actualShort }, { key: `${leg}-diff`, label: diffShort },
+  ];
+  const multiCurrency = rollup.totals.length > 1;
+  const totalLabel = (currency: string) => multiCurrency ? `${t('projectTotal', 'Project and contract total')} (${currency})` : t('projectTotal', 'Project and contract total');
+  const live = workOrders.filter((w) => figures.has(w.id));
+  const zero = (v: string | null) => v === null || /^-?0(\.0+)?$/.test(v);
+  // Nothing planned and nothing spent: one line and the Plan action, never a wall of zeros.
+  const nothingYet = live.length > 0 && rollup.totals.every((tot) => tot.planDirect === null && tot.planIndirect === null && zero(tot.total) && zero(tot.notAssigned) && zero(tot.revenue) && !tot.hasOtherRevenue)
+    && live.every((w) => { const f = figures.get(w.id)!; return f.plan.equipment_hours === null && f.plan.crew_hours === null && f.equipmentHours === 0 && f.equipmentDays === 0 && f.crewHours === 0 && f.otherCurrency.length === 0; });
+
+  const woHead = (w: PvaWorkOrder) => (
+    <RowOpenControl href={`/work-orders/${w.id}`} label={t('openDetails', '{{number}} {{title}}, details', { number: w.woNumber ?? t('draftNumber', 'Draft'), title: w.title })} onActivate={() => setOpenBasis(w.id)}>
+      <span className="font-medium text-foreground underline-offset-2 hover:underline">{w.woNumber ?? t('draftNumber', 'Draft')}</span>
+      <span className="block text-muted-foreground">{w.title}</span>
+    </RowOpenControl>
+  );
+  const planAction = (w: PvaWorkOrder) => canPlan && w.status !== 'Cancelled'
+    ? <Button variant="outline" size="sm" onClick={() => setPlanFor(w)}>{t('editPlan', 'Plan')}</Button> : undefined;
+
+  const costRows: PvaRow[] = [
+    ...live.map((w): PvaRow => {
+      const f = figures.get(w.id)!;
+      return {
+        key: w.id, testId: `wo-pva-row-${w.id}`, head: woHead(w), action: planAction(w),
+        cells: [
+          planCell(f.plan.direct_budget, w.currency, 'wo-pva-plan-direct'), cell(money(f.direct, w.currency), false, 'wo-pva-direct'), diffCell(f.plan.direct_budget, f.direct, w.currency, 'wo-pva-difference'),
+          planCell(f.plan.indirect_budget, w.currency, 'wo-pva-plan-indirect'), cell(money(f.allocated, w.currency), false, 'wo-pva-allocated'), diffCell(f.plan.indirect_budget, f.allocated, w.currency, 'wo-pva-shared-difference'),
+        ],
+      };
+    }),
+    ...rollup.totals.flatMap((tot): PvaRow[] => [
+      ...(zero(tot.notAssigned) ? [] : [{ key: `na-${tot.currency}`, testId: `wo-pva-not-assigned-${tot.currency}`, head: t('notAssigned', 'Not assigned'),
+        cells: [null, null, null, null, cell(money(tot.notAssigned, tot.currency)), null] }]),
+      { key: `tot-${tot.currency}`, testId: `wo-pva-total-${tot.currency}`, head: totalLabel(tot.currency), total: true,
+        cells: [planCell(tot.planDirect, tot.currency), cell(money(tot.direct, tot.currency)), diffCell(tot.planDirect, tot.direct, tot.currency),
+          planCell(tot.planIndirect, tot.currency), null, null] },
+    ]),
+  ];
+
+  const billedRows: PvaRow[] = [
+    ...live.map((w): PvaRow => {
+      const f = figures.get(w.id)!;
+      return {
+        key: w.id, testId: `wo-pva-margin-row-${w.id}`, head: woHead(w),
+        cells: [
+          w.orderValue == null ? cell('—', true) : cell(money(w.orderValue, w.currency), false, 'wo-pva-order-value'),
+          w.revenue === null || !w.revenueComplete ? cell(t('revenueUnknown', 'Revenue unknown'), true, 'wo-pva-revenue') : cell(money(w.revenue, w.currency), false, 'wo-pva-revenue'),
+          marginCell(f.directMargin, w.currency, 'wo-pva-direct-margin'), marginCell(f.result, w.currency, 'wo-pva-result'),
+        ],
+      };
+    }),
+    ...rollup.totals.flatMap((tot): PvaRow[] => [
+      ...(tot.hasOtherRevenue ? [{ key: `or-${tot.currency}`, head: t('source.other_revenue', 'Other revenue'), cells: [null, cell(money(tot.otherRevenue, tot.currency)), null, null] }] : []),
+      { key: `tot-${tot.currency}`, testId: `wo-pva-margin-total-${tot.currency}`, head: totalLabel(tot.currency), total: true,
+        cells: [null, cell(money(tot.revenue, tot.currency)), marginCell(tot.directMargin, tot.currency, 'wo-pva-total-direct-margin'), marginCell(tot.result, tot.currency, 'wo-pva-total-result')] },
+    ]),
+  ];
+
+  const hours = rollup.hours;
+  const showDays = (hours?.equipmentDays ?? 0) > 0 || live.some((w) => (figures.get(w.id)?.equipmentDays ?? 0) > 0);
+  const hoursColumns = [...legColumns('eq'), ...legColumns('crew'), { key: 'people', label: t('crewSize', 'People with hours') },
+    ...(showDays ? [{ key: 'days', label: t('equipmentDays', 'Equipment days (kept apart)') }] : [])];
+  const hoursRows: PvaRow[] = [
+    ...live.map((w): PvaRow => {
+      const f = figures.get(w.id)!;
+      return {
+        key: w.id, testId: `wo-pva-hours-row-${w.id}`, head: woHead(w),
+        cells: [hoursPlan(f.plan.equipment_hours), cell(formatNumberExact(f.equipmentHours)), hoursDiff(f.plan.equipment_hours, f.equipmentHours),
+          hoursPlan(f.plan.crew_hours), cell(formatNumberExact(f.crewHours)), hoursDiff(f.plan.crew_hours, f.crewHours), cell(formatNumberExact(f.crewSize)),
+          ...(showDays ? [cell(formatNumberExact(f.equipmentDays))] : [])],
+      };
+    }),
+    ...(hours ? [{ key: 'tot', testId: 'wo-pva-hours-total', head: t('projectTotal', 'Project and contract total'), total: true,
+      cells: [{ ...hoursPlan(hours.planEquipmentHours), testId: 'wo-pva-hours-plan-equipment' }, cell(formatNumberExact(hours.equipmentHours), false, 'wo-pva-hours-equipment'), hoursDiff(hours.planEquipmentHours, hours.equipmentHours),
+        { ...hoursPlan(hours.planCrewHours), testId: 'wo-pva-hours-plan-crew' }, cell(formatNumberExact(hours.crewHours), false, 'wo-pva-hours-crew'), hoursDiff(hours.planCrewHours, hours.crewHours), cell(formatNumberExact(hours.crewSize)),
+        ...(showDays ? [cell(formatNumberExact(hours.equipmentDays))] : [])] }] : []),
+  ];
+  const showHours = hours !== null && (live.length > 0 || hours.equipmentHours > 0 || hours.equipmentDays > 0 || hours.crewHours > 0);
+  const pendingNote = hours && hours.pendingCrewHours > 0 ? <p className="mt-3 text-control text-muted-foreground">{pendingText(hours.pendingCrewHours)}</p> : null;
+
+  const disciplineRows: PvaRow[] = rollup.disciplines.map((d) => ({
+    key: `${d.currency}:${d.disciplineId ?? ''}`, head: disciplineName(d.disciplineId),
+    cells: [planCell(d.planDirect, d.currency), cell(money(d.direct, d.currency)), diffCell(d.planDirect, d.direct, d.currency),
+      planCell(d.planIndirect, d.currency), cell(money(d.allocated, d.currency)), diffCell(d.planIndirect, d.allocated, d.currency)],
+  }));
+  const legGroups: Array<[React.ReactNode, number]> = [[t('col.direct', 'Direct cost'), 3], [t('col.shared', 'Shared cost'), 3]];
+  const opened = live.find((w) => w.id === openBasis) ?? null;
+  const openedFigures = opened ? figures.get(opened.id) ?? null : null;
 
   return (
+    <>
     <Card className="min-w-0" data-testid="wo-plan-vs-actual">
-      <CardHead level={2} className="text-base" actions={canSplit && workOrders.some((w) => w.status !== 'Cancelled')
+      <CardHead level={2} actions={canSplit && workOrders.some((w) => w.status !== 'Cancelled')
         ? <Button variant="outline" size="sm" onClick={() => setSplitOpen(true)}>{t('editSplit', 'Shared-cost split')}</Button> : undefined}>
         {title}
       </CardHead>
       <CardPad className="pt-0">
-        {basisNote.map((n) => <p key={n} className="text-sm text-muted-foreground" data-testid="wo-pva-basis-note">{n}</p>)}
-        {workOrders.length === 0 && <p className="text-sm text-muted-foreground">{t('empty', 'No work orders on this project yet.')}</p>}
-        {(workOrders.length > 0 || rollup.totals.length > 0) && <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <caption className="sr-only">{title}</caption>
-              <thead><tr className="text-right text-muted-foreground">
-                <th scope="col" className="py-2 pr-4 text-left font-normal">{t('col.workOrder', 'Work order')}</th>
-                <th scope="col" className="py-2 pr-4 font-normal">{t('col.plan', 'Planned direct')}</th>
-                <th scope="col" className="py-2 pr-4 font-normal">{t('col.direct', 'Direct cost')}</th>
-                <th scope="col" className="py-2 pr-4 font-normal">{t('col.shared', 'Shared cost')}</th>
-                <th scope="col" className="py-2 pr-4 font-normal">{t('col.revenue', 'Billed revenue')}</th>
-                <th scope="col" className="py-2 pr-4 font-normal">{t('col.directMargin', 'Direct margin')}</th>
-                <th scope="col" className="py-2 pr-4 font-normal">{t('col.result', 'After shared cost')}</th>
-                <th scope="col" className="py-2 font-normal"><span className="sr-only">{t('col.actions', 'Actions')}</span></th>
-              </tr></thead>
-              <tbody>
-                {workOrders.map((w) => { const f = figures.get(w.id); return f ? row(w, f) : null; })}
-                {rollup.totals.map((tot) => (
-                  <React.Fragment key={tot.currency}>
-                    {tot.notAssigned !== '0.00' && (
-                      <tr className="border-t border-border" data-testid={`wo-pva-not-assigned-${tot.currency}`}>
-                        <th scope="row" className="py-2 pr-4 text-left font-normal">{t('notAssigned', 'Not assigned')}</th>
-                        <td colSpan={2} />
-                        <td className="py-2 pr-4 text-right tabular-nums">{money(tot.notAssigned, tot.currency)}</td>
-                        <td colSpan={4} />
-                      </tr>
-                    )}
-                    <tr className="border-t-2 border-border font-medium" data-testid={`wo-pva-total-${tot.currency}`}>
-                      <th scope="row" className="py-2 pr-4 text-left">{t('projectTotal', 'Project and contract total')} ({tot.currency})</th>
-                      <td className="py-2 pr-4 text-right tabular-nums">
-                        {tot.planDirect === null ? t('noPlan', 'No plan') : money(tot.planDirect, tot.currency)}
-                        {tot.planDirect !== null && <div className="font-normal text-muted-foreground">{variantText(tot.planDirect, tot.direct, tot.currency)}</div>}
-                        <div className="font-normal text-muted-foreground">{t('col.planIndirect', 'Planned indirect')}: {tot.planIndirect === null ? t('noPlan', 'No plan') : money(tot.planIndirect, tot.currency)}</div>
-                      </td>
-                      <td colSpan={2} className="py-2 pr-4 text-right tabular-nums">{money(tot.total, tot.currency)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{money(tot.revenue, tot.currency)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{marginText(tot.directMargin, tot.currency)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{marginText(tot.result, tot.currency)}</td>
-                      <td />
-                    </tr>
-                    {tot.hasOtherRevenue && <tr className="border-t border-border">
-                      <th scope="row" className="py-2 pr-4 text-left font-normal">{t('source.other_revenue', 'Other revenue')}</th>
-                      <td colSpan={3} />
-                      <td className="py-2 pr-4 text-right tabular-nums">{money(tot.otherRevenue, tot.currency)}</td>
-                      <td colSpan={3} />
-                    </tr>}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>}
-        {rollup.hours && (workOrders.length > 0 || rollup.hours.equipmentHours > 0 || rollup.hours.equipmentDays > 0 || rollup.hours.crewHours > 0) && (
-          <section className="mt-4 text-sm" data-testid="wo-pva-project-hours">
-            <h3 className="font-medium">{t('projectHours', 'Project and contract hours')}</h3>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 py-2 sm:grid-cols-4">
-              <div><dt className="text-muted-foreground">{t('equipmentHours', 'Equipment hours')}</dt><dd>{formatNumberExact(rollup.hours.equipmentHours)} · {t('planLabel', 'Plan')}: {rollup.hours.planEquipmentHours === null ? t('noPlan', 'No plan') : formatNumberExact(rollup.hours.planEquipmentHours)}</dd></div>
-              {rollup.hours.equipmentDays > 0 && <div><dt className="text-muted-foreground">{t('equipmentDays', 'Equipment days (kept apart)')}</dt><dd>{formatNumberExact(rollup.hours.equipmentDays)}</dd></div>}
-              <div><dt className="text-muted-foreground">{t('crewHours', 'Crew hours')}</dt><dd>{formatNumberExact(rollup.hours.crewHours)} · {t('planLabel', 'Plan')}: {rollup.hours.planCrewHours === null ? t('noPlan', 'No plan') : formatNumberExact(rollup.hours.planCrewHours)}</dd></div>
-              <div><dt className="text-muted-foreground">{t('crewSize', 'People with hours')}</dt><dd>{formatNumberExact(rollup.hours.crewSize)}</dd></div>
-            </dl>
-            {rollup.hours.pendingCrewHours > 0 && <p className="text-muted-foreground">{pendingText(rollup.hours.pendingCrewHours)}</p>}
-          </section>
-        )}
-        {rollup.disciplines.length > 0 && (
-          <div className="mt-4 overflow-x-auto" data-testid="wo-pva-disciplines">
-            <table className="w-full text-sm">
-              <caption className="py-1 text-left font-medium">{t('byDiscipline', 'By discipline')}</caption>
-              <thead><tr className="text-right text-muted-foreground">
-                <th scope="col" className="py-1 pr-4 text-left font-normal">{t('col.discipline', 'Discipline')}</th>
-                <th scope="col" className="py-1 pr-4 font-normal">{t('col.plan', 'Planned direct')}</th>
-                <th scope="col" className="py-1 pr-4 font-normal">{t('col.direct', 'Direct cost')}</th>
-                <th scope="col" className="py-1 pr-4 font-normal">{t('col.planIndirect', 'Planned indirect')}</th>
-                <th scope="col" className="py-1 font-normal">{t('col.shared', 'Shared cost')}</th>
-              </tr></thead>
-              <tbody>{rollup.disciplines.map((d) => (
-                <tr key={`${d.currency}:${d.disciplineId ?? ''}`} className="border-t border-border">
-                  <th scope="row" className="py-1 pr-4 text-left font-normal">{disciplineName(d.disciplineId)}</th>
-                  <td className="py-1 pr-4 text-right tabular-nums">{d.planDirect === null ? t('noPlan', 'No plan') : money(d.planDirect, d.currency)}</td>
-                  <td className="py-1 pr-4 text-right tabular-nums">{money(d.direct, d.currency)}{d.planDirect !== null && <div className="text-muted-foreground">{variantText(d.planDirect, d.direct, d.currency)}</div>}</td>
-                  <td className="py-1 pr-4 text-right tabular-nums">{d.planIndirect === null ? t('noPlan', 'No plan') : money(d.planIndirect, d.currency)}</td>
-                  <td className="py-1 text-right tabular-nums">{money(d.allocated, d.currency)}{d.planIndirect !== null && <div className="text-muted-foreground">{variantText(d.planIndirect, d.allocated, d.currency)}</div>}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-        {rollup.sharedLines.length > 0 && (
-          <details className="mt-3 text-sm">
-            <summary className="cursor-pointer">{t('sharedBasis', 'Shared cost records')}</summary>
-            {basisTable(rollup.sharedLines, 'wo-pva-shared-basis')}
-          </details>
-        )}
+        {workOrders.length === 0 && rollup.totals.length === 0 && <p className="text-control text-muted-foreground">{t('empty', 'No work orders on this project yet.')}</p>}
+        {nothingYet
+          ? <>
+              <p className="text-control text-muted-foreground" data-testid="wo-pva-nothing-yet">{t('nothingYet', 'Nothing planned or spent yet. Plan a work order to compare its cost with the plan.')}</p>
+              <div className="mt-3">
+                <PvaTable caption={title} firstColumn={t('col.workOrder', 'Work order')} actionsLabel={t('col.actions', 'Actions')}
+                  columns={[{ key: 'ov', label: t('orderValue', 'Order value (ceiling)') }]}
+                  rows={live.map((w) => ({ key: w.id, testId: `wo-pva-row-${w.id}`, head: woHead(w), action: planAction(w),
+                    cells: [w.orderValue == null ? cell('—', true) : cell(money(w.orderValue, w.currency), false, 'wo-pva-order-value')] }))} />
+              </div>
+              {pendingNote}
+            </>
+          : (workOrders.length > 0 || rollup.totals.length > 0) && <>
+              <PvaTable caption={title} firstColumn={t('col.workOrder', 'Work order')} groups={legGroups} columns={[...legColumns('direct'), ...legColumns('shared')]}
+                actionsLabel={t('col.actions', 'Actions')} rows={costRows} />
+              {rollup.totals.filter((tot) => tot.total !== null).map((tot) => (
+                <p key={tot.currency} className="mt-3 flex flex-wrap justify-between gap-x-6 border-t border-border pt-3 text-control font-semibold" data-testid={`wo-pva-total-cost-${tot.currency}`}>
+                  <span>{multiCurrency ? `${t('totalCost', 'Total cost, direct and shared')} (${tot.currency})` : t('totalCost', 'Total cost, direct and shared')}</span>
+                  <span className="tabular-nums">{money(tot.total, tot.currency)}</span>
+                </p>
+              ))}
+              {basisNote.map((n) => <p key={n} className="mt-3 text-control text-muted-foreground" data-testid="wo-pva-basis-note">{n}</p>)}
+              {rollup.sharedLines.length > 0 && (
+                <details className="mt-3 text-control">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t('sharedBasis', 'Shared cost records')}</summary>
+                  {basisTable(rollup.sharedLines, 'wo-pva-shared-basis')}
+                </details>
+              )}
+            </>}
       </CardPad>
+    </Card>
+    {!nothingYet && live.length > 0 && (
+      <Card className="min-w-0" data-testid="wo-pva-billed">
+        <CardHead level={2}>{t('billedTitle', 'Billed and margin')}</CardHead>
+        <CardPad className="pt-0">
+          <PvaTable caption={t('billedTitle', 'Billed and margin')} firstColumn={t('col.workOrder', 'Work order')}
+            columns={[{ key: 'ov', label: t('orderValue', 'Order value (ceiling)') }, { key: 'rev', label: t('col.revenue', 'Billed revenue') },
+              { key: 'dm', label: t('col.directMargin', 'Direct margin') }, { key: 'res', label: t('col.result', 'After shared cost') }]}
+            rows={billedRows} />
+        </CardPad>
+      </Card>
+    )}
+    {!nothingYet && showHours && (
+      <Card className="min-w-0" data-testid="wo-pva-project-hours">
+        <CardHead level={2}>{t('projectHours', 'Project and contract hours')}</CardHead>
+        <CardPad className="pt-0">
+          <PvaTable caption={t('projectHours', 'Project and contract hours')} firstColumn={t('col.workOrder', 'Work order')}
+            groups={[[t('equipmentHours', 'Equipment hours'), 3], [t('crewHours', 'Crew hours'), 3]]} columns={hoursColumns} rows={hoursRows} />
+          {pendingNote}
+        </CardPad>
+      </Card>
+    )}
+    {!nothingYet && rollup.disciplines.length > 0 && (
+      <Card className="min-w-0" data-testid="wo-pva-disciplines">
+        <CardHead level={2}>{t('byDisciplineTitle', 'Cost by discipline')}</CardHead>
+        <CardPad className="pt-0">
+          <PvaTable caption={t('byDiscipline', 'By discipline')} firstColumn={t('col.discipline', 'Discipline')} groups={legGroups}
+            columns={[...legColumns('direct'), ...legColumns('shared')]} rows={disciplineRows} />
+        </CardPad>
+      </Card>
+    )}
+    <Drawer open={opened !== null} onClose={() => setOpenBasis(null)} width="lg" icon={<Icon name="chev" />}
+      title={opened ? opened.woNumber ?? t('draftNumber', 'Draft') : ''}
+      subtitle={opened?.title}
+      nestedOpen={planFor !== null}
+      headerActions={opened ? <>
+        {planAction(opened)}
+        <Link to={`/work-orders/${opened.id}`} className={buttonClasses('outline', 'sm')} data-testid="wo-pva-open-page">{t('openPage', 'Open full page')}</Link>
+      </> : undefined}>
+      {opened && openedFigures && drawerBody(opened, openedFigures)}
+    </Drawer>
       {planFor && (
         <WorkOrderPlanModal
           projectId={projectId}
@@ -346,7 +411,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
           onClose={() => setSplitOpen(false)}
         />
       )}
-    </Card>
+    </>
   );
 };
 
