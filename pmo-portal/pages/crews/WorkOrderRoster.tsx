@@ -186,14 +186,12 @@ export const WorkOrderRoster: React.FC = () => {
         )
       )}
       {workOrderId && (
-        <Card>
+        <Card seam>
           <CardHead actions={rosterAction}>{t('crews:placements', 'Roster placements')}</CardHead>
-          <CardPad>
-            <DataTable<WorkOrderCrewRow> rows={placements.data ?? []} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
+            <DataTable<WorkOrderCrewRow> embedded rows={placements.data ?? []} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
               rowMenu={(p) => (canManage && (!p.valid_to || p.valid_to >= today) ? [{ label: t('crews:endRoster', 'End roster placement'), onClick: () => setEnding(p) }] : [])}
               state={(placements.data ?? []).length === 0 ? 'empty' : undefined}
               emptyTitle={t('crews:noPlacements', 'No crew has been rostered here')} />
-          </CardPad>
         </Card>
       )}
       {rostering && workOrderId && <RosterCrewModal workOrderId={workOrderId} from={date} onClose={() => setRostering(false)} />}
