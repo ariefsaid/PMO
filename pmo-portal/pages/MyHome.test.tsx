@@ -46,11 +46,13 @@ beforeEach(() => {
 });
 
 describe('AC-LA-011 phone home screen', () => {
-  it('JOB-NAV-WO: lists the work orders I am on today under the dictionary name, with project and crew', async () => {
+  it('JOB-NAV-WO: shows my assigned job once in clock in, with project and crew', async () => {
     mount();
-    const section = within(await screen.findByRole('region', { name: 'Work order' }));
+    const section = within(await screen.findByRole('region', { name: 'Clock in' }));
     expect(section.getByText('Slab works')).toBeInTheDocument();
-    expect(section.getByText('Site A · Crew 1')).toBeInTheDocument();
+    expect(section.getByText('Site A')).toBeInTheDocument();
+    expect(section.getByText('Crew: Crew 1')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Work order' })).not.toBeInTheDocument();
   });
   it('shows my tasks, clock in and issues, and hides deliveries while there are none', async () => {
     mount();
