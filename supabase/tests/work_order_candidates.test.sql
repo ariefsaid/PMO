@@ -2,7 +2,7 @@
 -- The records stay: candidates, items and proofs read for their own organisation only; the check template still reads.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(21);
 
 select hasnt_function('public', 'create_work_order_candidate', array['uuid','text','text','text','date','uuid'], '#2915 create function is gone');
 select hasnt_function('public', 'decide_work_order_candidate', array['uuid','text','text'], '#2915 decide function is gone');
@@ -53,7 +53,7 @@ select is((select count(*)::int from work_order_candidate_items), 1, '#2915 a me
 select is((select count(*)::int from work_order_checklist_items), 1, '#2915 a member reads the check template');
 select throws_ok($$ insert into work_order_candidates (project_id, title, offered_on) values ('29150000-0000-0000-0000-0000000000d1', 'new', '2026-11-26') $$,
   '42501', null, '#2915 a member can no longer create a candidate');
-select is_empty($$ update work_order_candidate_items set status = 'passed' returning id $$, '#2915 a member can no longer change an item');
+select throws_ok($$ update work_order_candidate_items set status = 'passed' $$, '42501', null, '#2915 a member can no longer change an item');
 
 select pg_temp.act_as('29150000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from work_order_candidates), 0, '#2915 another organisation reads no candidate');
