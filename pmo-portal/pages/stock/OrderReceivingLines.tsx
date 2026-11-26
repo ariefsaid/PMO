@@ -49,13 +49,13 @@ export function OrderReceivingLines({ lines, quantities, onChange, checks, onChe
     {
       key: 'counted', header: t('receiving.countedColumn'), align: 'num', keepWhenBlank: true, size: 168,
       cell: (line) => line.stock_item_id
-        ? <div className="flex items-center justify-end gap-2">
+        ? <span className="inline-flex flex-nowrap items-center justify-end gap-2 align-middle">
           <TextField id={`count-${line.id}`} hideLabel label={`${t('receiving.counted')} · ${line.stock_name ?? line.name} (${line.unit ?? ''})`}
             value={quantities[line.id] ?? ''} onChange={(value) => onChange(line.id, value)} inputMode="decimal" disabled={disabled}
             wrapperClassName="w-24" className="text-right tabular-nums" />
-          <span className="w-8 text-left text-control text-muted-foreground">{line.unit}</span>
-        </div>
-        : <div className="flex items-center justify-end gap-2"><span className="w-24 text-right text-muted-foreground">—</span><span className="w-8" aria-hidden="true" /></div>,
+          <span className="w-8 shrink-0 text-left text-control text-muted-foreground">{line.unit}</span>
+        </span>
+        : <span className="inline-flex items-center justify-end gap-2"><span className="w-24 text-right text-muted-foreground">—</span><span className="w-8" aria-hidden="true" /></span>,
     },
   ];
   const checked = lines.filter((line) => line.stock_item_id && line.needs_quality_check && isPositiveDecimal(normalizeDecimal(quantities[line.id] ?? '')));
