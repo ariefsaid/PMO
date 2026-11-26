@@ -500,7 +500,8 @@
       "held": "Perhatian Operator diperlukan karena PMO tidak dapat mengonfirmasi tahun fiskal berikutnya.",
       "refused": "Perhatian Operator diperlukan karena PMO tidak dapat membuat tahun fiskal berikutnya.",
       "refusedNoReason": "Perhatian Operator diperlukan karena PMO tidak dapat membuat tahun fiskal berikutnya.",
-      "ambiguousOverlap": "Minta Admin memperbaiki rentang tanggal dan penetapan perusahaan Fiscal Year di ERPNext agar hanya satu tahun aktif yang berlaku. PMO memeriksa kembali pada sinkronisasi berikutnya."
+      "ambiguousOverlap": "Minta Admin memperbaiki rentang tanggal dan penetapan perusahaan Fiscal Year di ERPNext agar hanya satu tahun aktif yang berlaku. PMO memeriksa kembali pada sinkronisasi berikutnya.",
+      "reviewSettings": "Minta Admin meninjau pengaturan Fiscal Year di ERPNext untuk perusahaan yang terhubung. PMO memeriksa kembali pada sinkronisasi berikutnya."
     },
     "m365App": {
       "heading": "Aplikasi Microsoft 365",
@@ -864,8 +865,7 @@
       "save": "Simpan tahun fiskal",
       "saved": "Tahun fiskal disimpan",
       "loadError": "Tidak dapat memuat tahun fiskal",
-      "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal.",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+      "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal."
     },
     "attendanceTarget": {
       "helper": "Tingkat kehadiran yang menjadi ukuran setiap kru, dalam persen. Kosongkan agar tampilan tingkat kehadiran tidak ditawarkan.",

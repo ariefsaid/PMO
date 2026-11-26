@@ -500,7 +500,8 @@
       "held": "Operator attention is needed because PMO could not confirm the next fiscal year.",
       "refused": "Operator attention is needed because PMO could not create the next fiscal year.",
       "refusedNoReason": "Operator attention is needed because PMO could not create the next fiscal year.",
-      "ambiguousOverlap": "Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync."
+      "ambiguousOverlap": "Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync.",
+      "reviewSettings": "Ask your Admin to review Fiscal Year settings in ERPNext for the linked company. PMO checks again on the next sync."
     },
     "m365App": {
       "heading": "Microsoft 365 app",
@@ -864,8 +865,7 @@
       "save": "Save fiscal year",
       "saved": "Fiscal year saved",
       "loadError": "Couldn't load the fiscal year",
-      "accountingSystem": "Your accounting system sets the fiscal year.",
-      "adminOnly": "Only an Admin can change this."
+      "accountingSystem": "Your accounting system sets the fiscal year."
     },
     "attendanceTarget": {
       "helper": "The attendance rate each crew is measured against, as a percentage. Leave it empty to keep the attendance-rate view off.",
