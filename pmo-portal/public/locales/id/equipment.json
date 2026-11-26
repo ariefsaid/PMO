@@ -331,7 +331,11 @@
     "renewLabel": "Perpanjang {{type}} milik {{name}}",
     "expiredPill": "Kedaluwarsa",
     "dueSoon": "Segera habis",
-    "state": "Status masa berlaku"
+    "state": "Status masa berlaku",
+    "kindPerson": "Orang",
+    "kindEquipment": "Peralatan",
+    "groupExpired": "Kedaluwarsa",
+    "groupDue": "Habis dalam 30 hari"
   },
   "nav": {
     "assets": "Aset",

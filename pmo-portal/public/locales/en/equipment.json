@@ -331,7 +331,11 @@
     "renewLabel": "Renew {{type}} of {{name}}",
     "expiredPill": "Expired",
     "dueSoon": "Due soon",
-    "state": "Expiry state"
+    "state": "Expiry state",
+    "kindPerson": "Person",
+    "kindEquipment": "Equipment",
+    "groupExpired": "Expired",
+    "groupDue": "Due in 30 days"
   },
   "nav": {
     "assets": "Assets",
