@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Toolbar,
   SearchMini,
+  SelectField,
   Button,
   Icon,
   ViewToggle,
@@ -25,9 +26,6 @@ export interface DocumentAddOption {
   onSelect: () => void;
   disabled?: boolean;
 }
-
-const selectClass =
-  'h-11 min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-base text-foreground sm:h-[var(--control-height-sm)] sm:text-control';
 
 /**
  * The register toolbar, one row: finding (search and filters) on the left; the view switch and the
@@ -126,42 +124,9 @@ const DocumentsToolbar: React.FC<{
         {narrow && addOptions.length > 0 && <AddDocumentControl options={addOptions} label={addLabel} content={addContent} compact />}
         {finding && (!narrow || filtersOpen) && (
           <div id="documents-filters" className={narrow ? 'flex w-full min-w-0 flex-col gap-2' : 'contents'}>
-          <label className="sr-only" htmlFor="documents-category-filter">{t('projectDetail.documents.filter.category', 'Filter by category')}</label>
-          <select
-            id="documents-category-filter"
-            aria-label={t('projectDetail.documents.filter.category', 'Filter by category')}
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-            className={selectClass}
-          >
-            <option value="">{t('projectDetail.documents.filter.allCategories', 'All categories')}</option>
-            {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-          </select>
-          <label className="sr-only" htmlFor="documents-status-filter">{t('projectDetail.documents.filter.status', 'Filter by status')}</label>
-          <select
-            id="documents-status-filter"
-            aria-label={t('projectDetail.documents.filter.status', 'Filter by status')}
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as DocStatus | '')}
-            className={selectClass}
-          >
-            <option value="">{t('projectDetail.documents.filter.allStatuses', 'All statuses')}</option>
-            {(['Draft', 'Issued', 'Approved', 'Rejected', 'Closed', 'Superseded'] as DocStatus[]).map((status) => (
-              <option key={status} value={status}>{statusLabel('document', status, t)}</option>
-            ))}
-          </select>
-          <label className="sr-only" htmlFor="documents-source-filter">{t('projectDetail.documents.filter.source', 'Filter by source')}</label>
-          <select
-            id="documents-source-filter"
-            aria-label={t('projectDetail.documents.filter.source', 'Filter by source')}
-            value={sourceFilter}
-            onChange={(event) => setSourceFilter(event.target.value as 'upload' | 'onedrive' | '')}
-            className={selectClass}
-          >
-            <option value="">{t('projectDetail.documents.filter.allSources', 'All sources')}</option>
-            <option value="upload">{t('projectDetail.documents.source.upload', 'Upload')}</option>
-            <option value="onedrive">{t('projectDetail.documents.source.sharePoint', 'SharePoint')}</option>
-          </select>
+          <SelectField id="documents-category-filter" hideLabel label={t('projectDetail.documents.filter.category', 'Filter by category')} value={categoryFilter} onChange={setCategoryFilter} options={[{ value: '', label: t('projectDetail.documents.filter.allCategories', 'All categories') }, ...categories.map((category) => ({ value: category, label: category }))]} />
+          <SelectField id="documents-status-filter" hideLabel label={t('projectDetail.documents.filter.status', 'Filter by status')} value={statusFilter} onChange={(value) => setStatusFilter(value as DocStatus | '')} options={[{ value: '', label: t('projectDetail.documents.filter.allStatuses', 'All statuses') }, ...(['Draft', 'Issued', 'Approved', 'Rejected', 'Closed', 'Superseded'] as DocStatus[]).map((status) => ({ value: status, label: statusLabel('document', status, t) }))]} />
+          <SelectField id="documents-source-filter" hideLabel label={t('projectDetail.documents.filter.source', 'Filter by source')} value={sourceFilter} onChange={(value) => setSourceFilter(value as 'upload' | 'onedrive' | '')} options={[{ value: '', label: t('projectDetail.documents.filter.allSources', 'All sources') }, { value: 'upload', label: t('projectDetail.documents.source.upload', 'Upload') }, { value: 'onedrive', label: t('projectDetail.documents.source.sharePoint', 'SharePoint') }]} />
             {narrow && viewToggle}
           </div>
         )}
