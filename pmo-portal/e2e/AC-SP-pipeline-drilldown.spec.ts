@@ -45,9 +45,12 @@ test('AC-SP-207: opens a deal from the Kanban board into its canonical detail pa
   // clicking "Projects" navigates to /projects (the on-hand list).
   const breadcrumb = page.getByRole('navigation', { name: /breadcrumb/i });
   await expect(breadcrumb).toBeVisible();
-  const projectsLink = breadcrumb.getByRole('link', { name: /^Projects$/i });
-  await expect(projectsLink).toBeVisible({ timeout: 10_000 });
-  await projectsLink.click();
+  const pipelineLink = breadcrumb.getByRole('link', { name: /^Sales Pipeline$/i });
+  await expect(pipelineLink).toBeVisible({ timeout: 10_000 });
+  await pipelineLink.click();
+  await page.waitForURL('**/sales');
+  await expect(page.getByLabel('Sales pipeline board')).toBeVisible();
+  await page.getByRole('link', { name: 'Projects', exact: true }).click();
   await page.waitForURL('**/projects');
 
   // Navigated back to the Projects list — the list is visible.

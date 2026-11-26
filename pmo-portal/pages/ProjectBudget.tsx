@@ -719,7 +719,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const usedPercentShown = totalSpent === null ? null : budgetUsed.percent;
   const usedApproximate = usedPercentShown !== null && budgetUsed.approximate;
   const usedValue = usedPercentShown === null ? null : budgetUsed.value;
-  const usedCaption = usedPercentShown === null ? unknownCaption : usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
+  const usedCaption = usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
   const leftApproximate = !sameCurrencies && hasForeign && idr.left !== null;
   const leftTile = sameCurrencies || !hasForeign
     ? tileAmount(totalLeft)

@@ -302,7 +302,7 @@ describe('ContactDetail', () => {
     renderPage();
     const bar = screen.getByRole('button', { name: /back to contacts/i }).parentElement!;
     expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(bar.className).toContain('max-[1100px]:flex');
   });
 
   it('CW-4b: Back returns to the Contacts list', async () => {

@@ -10,7 +10,6 @@ import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useLeaveEnabled } from '@/src/hooks/useLeave';
 import { useSafetyMenuOn } from '@/src/hooks/useSafetyDays';
 import { useTerms } from '@/src/lib/i18n/terms';
-import { Badge } from '@/src/components/ui/StatusPill';
 import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
 import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
@@ -205,7 +204,7 @@ const FinanceOverdueCountValue: React.FC<{ enabled: boolean }> = ({ enabled }) =
   if (isPending || isError || count === undefined || count <= 0) return null;
   return (
     <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-      <Badge aria-hidden="true" className="sr-only">{count}</Badge>
+      <span aria-hidden="true" className="sr-only">{count}</span>
       {/* Same shape as the Approvals count: the link reads "Finance, 3 overdue invoices". */}
       <span className="sr-only">
         , {t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}

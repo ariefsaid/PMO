@@ -837,7 +837,7 @@ describe('MeetingDetail — states', () => {
     renderPage('Engineer');
     const bar = screen.getByRole('button', { name: /^back to /i }).parentElement!;
     expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(bar.className).toContain('max-[1100px]:flex');
   });
 
   it('Admin header menu carries Archive + Delete', async () => {

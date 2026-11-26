@@ -60,7 +60,8 @@ test('AC-WOD-008 the work-order level is one click from the project header and f
     await page.getByTestId('project-section-tabs').getByRole('tab', { name: 'Work order' }).click();
     await expect(page).toHaveURL((url) => url.pathname === '/projects/' + projectId + '/orders');
     const projectRow = page.getByRole('row', { name: new RegExp(number) });
-    await expect(projectRow.getByTestId('wo-billed-' + workOrderId)).toContainText('500,000');
+    await expect(projectRow.getByRole('cell', { name: '€500,000', exact: true })).toBeVisible();
+    await expect(projectRow.getByTestId('wo-billed-' + workOrderId)).toHaveText('€0');
     await expect(projectRow.getByTestId('wo-missing-' + workOrderId)).toContainText('1 late');
 
     // From the dashboard: every work order, narrowed to what is late, then to this one.

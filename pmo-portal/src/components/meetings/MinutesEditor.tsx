@@ -126,7 +126,7 @@ const MinutesEditor = forwardRef<MinutesEditorHandle, MinutesEditorProps>(functi
   );
 
   return (
-    <div className="minutes-editor rounded-md border border-input bg-card py-3 [&_.bn-editor]:px-4!" data-testid="minutes-blocknote">
+    <div className="minutes-editor rounded-md border border-input bg-card py-3" data-testid="minutes-blocknote">
       <BlockNoteView
         editor={editor}
         theme={theme}

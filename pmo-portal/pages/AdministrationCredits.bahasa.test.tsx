@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
@@ -20,13 +21,13 @@ import AdministrationCredits from './AdministrationCredits';
 
 const renderPanel = (isOperator = true) =>
   render(
-    <BahasaProvider>
+    <MemoryRouter><BahasaProvider>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ToastProvider>
           <AdministrationCredits isOperator={isOperator} orgId="org-1" />
         </ToastProvider>
       </QueryClientProvider>
-    </BahasaProvider>,
+    </BahasaProvider></MemoryRouter>,
   );
 
 beforeEach(() => {

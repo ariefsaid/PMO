@@ -103,7 +103,8 @@ test('JOB-PC4 project control manager reads plan to date, actual to date, and re
     await openWorkOrderArea(page, 'cost');
     const pmSection = page.getByTestId('wo-page-revenue-plan');
     await expect(pmSection).toBeVisible({ timeout: 30_000 });
-    await expect(pmSection.getByTestId('wo-revenue-plan-gap')).toHaveText('No plan entered');
+    await expect(pmSection.getByTestId('wo-revenue-plan-gap')).toHaveText('—');
+    await expect(pmSection.getByText('No plan entered', { exact: true })).toBeVisible();
     await pmSection.getByRole('button', { name: 'Enter plan', exact: true }).click();
     await page.locator('#wrp-month').selectOption({ index: 5 });
     await page.locator('#wrp-amount').fill('1000.00');
