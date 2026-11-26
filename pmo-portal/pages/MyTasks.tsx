@@ -260,7 +260,7 @@ const MyTasks: React.FC = () => {
       <PageHeader title={t('shell.nav.myTasks', 'My Tasks')} />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
-        <div className={`mb-4 flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
+        <div className={`mb-4 flex min-w-0 flex-wrap items-center gap-4 ${queue === 'open' ? 'rounded-lg border border-border bg-waiting-surface p-4' : 'border-b border-border pb-4'}`} data-testid={queue === 'open' ? 'my-tasks-waiting-summary' : undefined}>
           {queue === 'open' && openTaskCount !== null && (
             // Judging my-tasks #1 (Emphasis): one bare "17" and one bare red "15" made the reader
             // guess what was counted. Each figure now carries its word — "17 Open · 15 Overdue" —
@@ -311,10 +311,10 @@ const MyTasks: React.FC = () => {
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
-          <div className="max-w-xs"><SelectField id="my-task-work-order-filter" hideLabel
+          <div className="w-full min-w-0 sm:w-auto sm:max-w-xs"><SelectField id="my-task-work-order-filter" hideLabel
             label={tasksT('workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={setWorkOrderFilter}
             options={[{ value: 'all', label: tasksT('workOrderFilter.all', 'All work orders') }, { value: 'none', label: tasksT('workOrderFilter.none', 'No work order') }, ...Array.from(new Map((tasks ?? []).filter((task) => task.work_order_id && task.work_order_name).map((task) => [task.work_order_id!, task.work_order_name!])).entries()).map(([value, label]) => ({ value, label }))]} /></div>
-          <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:max-w-md">
             {/* #1461: a due=week drill names the active window and can clear it. */}
             {dueBy && (
               <StatusPill variant="warn" className="shrink-0">
@@ -389,7 +389,7 @@ const MyTasks: React.FC = () => {
         <div className="space-y-6">
           {grouped.map((group) => (
             <section key={group.projectId} aria-label={group.projectName}>
-              <h2 className="mb-2 text-control font-semibold text-muted-foreground">
+              <h2 className="mb-4 break-words text-group font-semibold text-foreground">
                 {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
                     explicitly (/projects/:id/tasks) — the project URL default is role-invariant
                     Overview, so this link carries the intent rather than mutating the default. */}
@@ -411,10 +411,10 @@ const MyTasks: React.FC = () => {
                 {group.items.map((task) => (
                   <div
                     key={task.id}
-                    className="flex flex-col gap-2 px-4 py-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between"
+                    className="flex flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-col items-start gap-1 min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2">
+                      <div className="flex min-w-0 flex-col items-start gap-1 lg:flex-row lg:items-center lg:gap-2">
                         {/* Fix #6 (AC-FIX6-NAV-01): task name opens the project's Tasks tab.
                             No /tasks/:id route exists; navigating to /projects/:id/tasks is the
                             lower-risk option — the tab is already deep-linkable (App.tsx). */}
@@ -423,14 +423,14 @@ const MyTasks: React.FC = () => {
                         {task.project_id || task.meeting_id ? (
                           <Link
                             to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                            className="block min-w-0 flex-1 break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
+                            className="block min-w-0 flex-1 break-words text-control font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                             title={task.name}
                           >
                             {task.name}
                           </Link>
                         ) : (
                           <span
-                            className="block min-w-0 flex-1 break-words text-control font-medium sm:truncate"
+                            className="block min-w-0 flex-1 break-words text-control font-medium"
                             title={task.name}
                           >
                             {task.name}
@@ -502,7 +502,7 @@ const MyTasks: React.FC = () => {
                       )}
                     </div>
                     {/* Action cluster: Log time + status control. */}
-                    <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
                       {/* #790: comments for ANY task of mine — also the only surface for a project-less task.
                           Director B6: the word "Comments" is painted beside the icon at both widths;
                           its accessible name still names the row it opens. */}
@@ -552,7 +552,7 @@ const MyTasks: React.FC = () => {
                           )
                         }
                         options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabels[s] }))}
-                        className="w-auto min-w-[120px]"
+                        className="w-full min-w-[120px] sm:w-auto"
                       />
                     </div>
                   </div>
