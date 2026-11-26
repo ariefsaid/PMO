@@ -63,10 +63,11 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean; t
           </button>
         ))}
       </div>
-      {(filter === 'all' || filter === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
       {filter !== 'comments' && (
         <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters kind={kind} />
       )}
+      {(filter === 'all' || filter === 'comments') && <CommentsSection entityType="project" entityId={projectId} hideTitle />}
+
     </>
   );
   const compactBody = (

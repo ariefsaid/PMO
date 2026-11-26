@@ -217,7 +217,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
             // relative: the exact amount's screen-reader copy (sr-only, absolutely placed) stays inside its tile.
             <div key={step.key} data-testid={step.key === 'received' ? 'money-lead-cash' : undefined} className="relative min-w-0">
               <dt className="text-control font-medium text-foreground">{explain(step.source, step.label, 'text-foreground')}</dt>
-              <dd className={cn('mt-1 whitespace-nowrap text-metric font-semibold leading-tight tabular-nums', step.value === 0 && step.key !== 'contract' ? 'text-muted-foreground' : 'text-foreground')} data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
+              <dd className={cn('mt-1 whitespace-nowrap font-semibold leading-tight tabular-nums', (step.key === 'contract' || step.key === 'spent') ? 'text-metric' : 'text-lg', step.value === 0 && step.key !== 'contract' ? 'text-muted-foreground' : 'text-foreground')} data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
                 <FigureContent value={tile(step.value)} exactValue={whole(step.value)} />
               </dd>
               {pct !== null && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.shareOfContract', '{{percent}}% of contract', { percent: pct })}</dd>}
