@@ -315,10 +315,14 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                   {billabilityReason}
                 </p>
               )}
-              <ol aria-label={t('projectDetail.cascade.billingSteps', 'Billing steps')} className="mt-3 space-y-2">
+              <ol aria-label={t('projectDetail.cascade.billingSteps', 'Billing steps')} className="mt-4 divide-y divide-border">
                 {billabilitySteps.map((step) => (
-                  <li key={step.id} aria-label={step.label} data-testid={`billability-step-${step.id}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control">
-                    {!step.action && <span className="min-w-0 font-medium text-foreground">{step.label}</span>}
+                  <li key={step.id} aria-label={step.label} data-testid={`billability-step-${step.id}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-2 text-control">
+                    {step.action ? (
+                      <Link className="touch-target inline-flex min-h-11 items-center rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" to={step.action.to}>
+                        {step.action.label}
+                      </Link>
+                    ) : <span className="min-w-0 break-words font-medium text-foreground">{step.label}</span>}
                     {(() => {
                       const { icon: StateIcon, className } = BILLABILITY_STATE_ICONS[step.state];
                       const stateLabel = step.state === 'done'
@@ -333,11 +337,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                         </span>
                       );
                     })()}
-                    {step.action && (
-                      <Link className="touch-target inline-flex min-h-11 items-center rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" to={step.action.to}>
-                        {step.action.label}
-                      </Link>
-                    )}
                   </li>
                 ))}
               </ol>
