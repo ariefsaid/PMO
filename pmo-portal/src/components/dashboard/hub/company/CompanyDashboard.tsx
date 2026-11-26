@@ -179,7 +179,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     id: item.id,
     count: item.countLabel ?? item.count,
     label: item.id === 'approvals' ? t('home.approvalsCompact', 'Approvals') : item.label,
-    amount: item.amount,
+    amount: finance && ['payables', 'overdue-invoices'].includes(item.id) ? undefined : item.amount,
     detail: item.detail,
     href: item.href,
     tone: item.tone,
