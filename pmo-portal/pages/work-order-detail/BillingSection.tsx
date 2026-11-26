@@ -1,3 +1,4 @@
+import { useAreaHelp } from './useAreaHelp';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -24,13 +25,14 @@ interface Props {
 /** Billing and acceptances (FR-WORP-023): the shipped `work_order_billing` figures and the BAST list — no second formula. */
 export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, perMonth = null, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances, confirm }) => {
   const { t } = useTranslation('workOrders');
+  useAreaHelp('invoice-basis', t('billing.invoicesTitle', 'Invoices'), t('billing.perMonth.basis', 'Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.'));
   const title = t('billing.invoicesTitle', 'Invoices');
   const row = billing?.row ?? null;
   const pm = perMonth?.months;
   const monthsNewestFirst = pm ? [...pm.months].reverse() : [];
   const fig = (k: string, label: string, v: number) => (
     <div key={k} data-testid={`billing-${k}`}><dt className="text-control text-muted-foreground">{label}</dt>
-      <dd className="tabular-nums font-medium">{formatTableMoney(v, row!.currency) ?? '—'}</dd></div>
+      <dd className="text-metric tabular-nums font-semibold">{formatTableMoney(v, row!.currency) ?? '—'}</dd></div>
   );
   const link = contractHref
     ? <Link to={contractHref} className="text-control font-medium text-primary-text hover:underline" data-testid="wo-billing-contract-link">{t('billing.openContract', 'Claims and invoices')}</Link>
@@ -102,7 +104,6 @@ export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, 
                   <span className="tabular-nums">{formatTableMoney(pm.total, pm.currency) ?? '—'}</span>
                 </div>
               )}
-              <p className="mt-3 text-control text-muted-foreground">{t('billing.perMonth.basis', 'Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.')}</p>
             </>
           )}
         </RecordSection>

@@ -79,5 +79,7 @@
   "extraDocument": "Additional document",
   "attachExtra": "Attach additional document",
   "update": "Update",
-  "updateNamed": "Update {{item}}"
+  "updateNamed": "Update {{item}}",
+  "emptyShort": "No billing steps to show.",
+  "openTemplates": "Open billing templates"
 }
