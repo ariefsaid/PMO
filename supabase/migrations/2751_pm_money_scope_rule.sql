@@ -965,12 +965,12 @@ create policy progress_claim_evidence_money_scope on public.progress_claim_evide
 -- ── Who names a project's managers (Director ruling, 26 Nov) ─────────────────────────────────────────────────────────────
 -- A limited Project Manager or deputy: may name the deputy only on a project they manage, never changes the manager after
 -- the project is created, and so cannot bring another manager's project into their own money scope. Naming themselves
--- manager of a project they create stays allowed. Everyone else is unchanged. Decided on the signed-in person, so a
--- definer path acting for them is held to the same rule.
+-- manager of a project they create stays allowed. Everyone else is unchanged. It holds the signed-in person's own write
+-- (the only path that sets these fields); the table owner and service jobs are not a person and pass.
 create function public.guard_project_people_fields() returns trigger
   language plpgsql set search_path = public, pg_temp as $$
 begin
-  if not public.actor_money_scoped() then return new; end if;                                     -- mut:people_who
+  if public.money_read_is_internal() or not public.actor_money_scoped() then return new; end if;  -- mut:people_who
   if tg_op = 'INSERT' then
     if new.deputy_manager_id is not null and new.project_manager_id is distinct from auth.uid() then
       raise exception 'only the project''s manager names its deputy' using errcode = '42501';

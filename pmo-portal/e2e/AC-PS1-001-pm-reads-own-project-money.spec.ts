@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { roleJobUser } from './support/roleJobUser';
 import { need, ORG_ID, PM_ID, serviceClient, orgToday, inDays } from './support/jobJourney';
 import { pinEnglishLocale } from './helpers';
-import { readFileSync } from 'node:fs';
+import ExcelJS from 'exceljs';
 
 // AC-PS1-001 — a Project Manager reads money for their own projects only (owner rulings DD-R1125-14/15).
 // AC-004 (PS3) — a job role at the same access level that works across projects (Procurement Manager) keeps those reads.
@@ -54,6 +54,7 @@ async function invoicedOnOverview(page: Page, projectId: string, name: string) {
 }
 
 test('AC-PS1-001 a Project Manager sees the money of their own project and none of another project, with no error', async ({ page }) => {
+  test.setTimeout(90_000);   // five screens in one journey
   const pm = await roleJobUser(serviceClient('AC-PS1-001'), 'project_manager', `ps1-${crypto.randomUUID()}`);
   try {
     await withProjects('AC-PS1-001', async () => pm.id, async ({ nameA, nameB, own, other }) => {
@@ -76,8 +77,8 @@ test('AC-PS1-001 a Project Manager sees the money of their own project and none 
       await expect(page).toHaveURL(new RegExp(`/projects/${own}/budget`));
       await expect(errors).toHaveCount(0);
       await page.goto(`/projects/${own}/orders`);
-      await expect(page.getByText(`${nameA} order`)).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByRole('columnheader', { name: 'Billed' })).toBeVisible();
+      await expect(page.getByText(`${nameA} order`).first()).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('columnheader', { name: 'Billed' }).first()).toBeVisible();
 
       // Another project by typed URL: it opens with its delivery areas; no money area, no money figure, nothing errors.
       await page.goto(`/projects/${other}`);
@@ -89,14 +90,17 @@ test('AC-PS1-001 a Project Manager sees the money of their own project and none 
       await expect(errors).toHaveCount(0);
       // Its Orders tab lists the work order with no billing money, and the export carries none either.
       await page.goto(`/projects/${other}/orders`);
-      await expect(page.getByText(`${nameB} order`)).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(`${nameB} order`).first()).toBeVisible({ timeout: 20_000 });
       await expect(page.getByRole('columnheader', { name: 'Billed' })).toHaveCount(0);
       await expect(page.getByText('Left to bill')).toHaveCount(0);
       const download = page.waitForEvent('download');
       await page.getByRole('button', { name: 'Export' }).click();
-      const csv = readFileSync(await (await download).path(), 'utf-8');
-      expect(csv).toContain(`${nameB} order`);
-      expect(csv).not.toMatch(/Billed|Order value|,"?900|,"?300/);
+      const book = new ExcelJS.Workbook();
+      await book.xlsx.readFile(await (await download).path());
+      const cells: string[] = [];
+      book.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => { cells.push(String(cell.value)); })));
+      expect(cells).toContain(`WO-PS1-${nameB.split(" ").pop()}-200`);   // the work order is exported, its money is not
+      expect(cells.filter((v) => /Billed|Order value/.test(v) || v === '900' || v === '300')).toEqual([]);
       await expect(errors).toHaveCount(0);
       // A deep link to its budget lands on the Overview, as for a role with no money.
       await page.goto(`/projects/${other}/budget`);

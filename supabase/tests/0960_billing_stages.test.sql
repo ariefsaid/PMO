@@ -28,6 +28,8 @@ insert into projects (id, org_id, name, status, currency, contract_value, tax_tr
                       tax_base_numerator, tax_base_denominator, subject_to_vat, client_id) values
   ('09600000-0000-0000-0000-0000000000c1', '09600000-0000-0000-0000-0000000000a1', 'BST staged', 'Ongoing Project', 'IDR', 90000000, 'exclusive', 0, null, 1, 1, false, '09600000-0000-0000-0000-0000000000cc'),
   ('09600000-0000-0000-0000-0000000000c2', '09600000-0000-0000-0000-0000000000a1', 'BST other', 'Ongoing Project', 'IDR', 90000000, 'exclusive', 0, null, 1, 1, false, '09600000-0000-0000-0000-0000000000cc');
+-- The Project Manager manages them: a Project Manager reads money for their own projects (DD-R1125-14).
+update projects set project_manager_id = '09600000-0000-0000-0000-0000000000b4' where id in ('09600000-0000-0000-0000-0000000000c1', '09600000-0000-0000-0000-0000000000c2');
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('09600000-0000-0000-0000-000000000e01', '09600000-0000-0000-0000-0000000000a1', '09600000-0000-0000-0000-0000000000c1', 'TRENCH', 'Trench', 'm', 100, 10000),
   ('09600000-0000-0000-0000-000000000e02', '09600000-0000-0000-0000-0000000000a1', '09600000-0000-0000-0000-0000000000c2', 'TRENCH', 'Trench', 'm', 100, 10000);
