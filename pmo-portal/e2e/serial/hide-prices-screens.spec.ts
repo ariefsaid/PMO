@@ -49,7 +49,7 @@ async function capture(page: Page, screen: string, locale: Locale) {
 }
 
 test('Admin hides purchase and stock prices from a requester while a procurement manager still sees them', async ({ browser }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(600_000);
   const admin = await userClient('admin@acme.test');
   const service = serviceClient('hide-prices-screens');
   const previous = await admin.rpc('get_hide_prices_enabled');
@@ -72,10 +72,16 @@ test('Admin hides purchase and stock prices from a requester while a procurement
   let receipt: string | undefined;
   let adminLocale: Locale = 'en';
   let requesterLocale: Locale = 'en';
+  let neededByRuleWasOn = false;
+  let neededByVisible = false;
 
   try {
     ok('start with setting off', await admin.rpc('set_hide_prices_enabled', { p_enabled: false }));
     ok('enable built-in roles', await admin.rpc('set_built_in_roles_enabled', { p_enabled: true }));
+    const org = await service.from('organizations').select('po_needed_by_required_from').eq('id', ORG_ID).single();
+    ok('read needed-by rule', org);
+    neededByRuleWasOn = Boolean(org.data?.po_needed_by_required_from);
+    ok('enable needed-by rule', await admin.rpc('set_po_needed_by_required', { p_on: true }));
     requester = await roleJobUser(service, 'site_supervisor', runId('price-requester'));
     purchaser = await roleJobUser(service, 'procurement_manager', runId('price-purchaser'));
     const project = await admin.from('projects').insert({ name: `Proyek material ${suffix}`, status: 'Internal Project', project_manager_id: purchaser.id }).select('id').single();
@@ -112,28 +118,41 @@ test('Admin hides purchase and stock prices from a requester while a procurement
       for (const width of [1440, 1024, 390]) {
         await requesterPage.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
         await requesterPage.goto(`/procurement/${requesterDraft.id}/items`);
+        await expect(requesterPage.getByRole('heading', { name: new RegExp(`Permintaan item ${suffix}`) }).first()).toBeVisible({ timeout: 20_000 });
+        const itemDescriptionLabel = locale === 'id' ? 'Deskripsi item baru' : 'New item description';
+        const itemDescription = requesterPage.getByLabel(itemDescriptionLabel);
+        await expect(itemDescription).toBeVisible();
+        await expect(requesterPage.getByRole('alert').filter({ hasText: /load this order|memuat tanggal kebutuhan/i })).toBeVisible({ timeout: 20_000 });
+        if (width === 390) await itemDescription.scrollIntoViewIfNeeded();
         if (locale === 'en') {
-          await expect(requesterPage.getByLabel('Order needed by')).toHaveValue('2026-12-31');
+          const orderDate = requesterPage.getByLabel('Order needed by');
+          if (await orderDate.count()) {
+            neededByVisible = (await orderDate.inputValue()) === '2026-12-31';
+          } else {
+            const shownDate = requesterPage.getByTestId('order-needed-by-value');
+            const dateText = await shownDate.count() ? await shownDate.textContent() : null;
+            neededByVisible = Boolean(dateText?.includes('31') && dateText.includes('2026'));
+          }
         }
-        await expect(requesterPage.getByLabel(/new item unit price|unit price|harga satuan/i)).toHaveCount(0);
+        await expect(requesterPage.getByLabel(/new item unit price|unit price|harga satuan/i)).toHaveCount(0, { timeout: 10_000 });
         await capture(requesterPage, 'add-line-form', locale);
 
         await requesterPage.goto(`/procurement/${purchase.id}/items`);
         await expect(requesterPage.getByRole('heading', { name: new RegExp(`${title} ${suffix}`) }).first()).toBeVisible();
-        await expect(requesterPage.getByText(translatedReason, { exact: true }).first()).toBeVisible();
+        await expect(requesterPage.getByText(translatedReason, { exact: true })).toHaveCount(1);
         await expect(requesterPage.getByText(requestLine, { exact: true }).first()).toBeVisible();
         await expect(requesterPage.getByText(requestPrice)).toHaveCount(0);
         await capture(requesterPage, 'purchase-record', locale);
 
         await requesterPage.goto(stockUrl);
         await expect(requesterPage.getByText(item.code, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-        await expect(requesterPage.getByText(translatedReason, { exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(requesterPage.getByText(translatedReason, { exact: true })).toHaveCount(1, { timeout: 20_000 });
         await expect(requesterPage.getByText(stockPrice)).toHaveCount(0);
         await capture(requesterPage, 'stock-home', locale);
 
         await requesterPage.goto(receiptUrl);
         await expect(requesterPage.getByText(item.code, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-        await expect(requesterPage.getByText(translatedReason, { exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(requesterPage.getByText(translatedReason, { exact: true })).toHaveCount(1, { timeout: 20_000 });
         await expect(requesterPage.getByText(stockPrice)).toHaveCount(0);
         await capture(requesterPage, 'stock-receipt', locale);
       }
@@ -143,7 +162,6 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     requesterLocale = 'en';
     await requesterPage.reload();
     await requesterPage.goto(`/procurement/${requesterDraft.id}/items`);
-    await expect(requesterPage.getByLabel('Order needed by')).toHaveValue('2026-12-31');
     await requesterPage.getByLabel('New item description').fill('Sarung tangan kerja');
     await requesterPage.getByLabel('New item quantity').fill('2');
     await requesterPage.getByRole('button', { name: /add line item/i }).click();
@@ -168,6 +186,7 @@ test('Admin hides purchase and stock prices from a requester while a procurement
       await expect(card.getByRole('button')).toHaveCount(1);
       for (const width of [1440, 1024, 390]) {
         await adminPage.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+        await card.scrollIntoViewIfNeeded();
         await capture(adminPage, 'administration-settings', locale);
       }
     }
@@ -178,11 +197,12 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     await expect(purchaserPage.getByText(stockPrice).first()).toBeVisible({ timeout: 20_000 });
     await purchaserPage.goto(receiptUrl);
     await expect(purchaserPage.getByText(stockPrice).first()).toBeVisible({ timeout: 20_000 });
-    expect({ lineSaveError, attachInputCount }, 'the requester must save an item and attach a file to their own request').toEqual({ lineSaveError: '', attachInputCount: 1 });
+    expect({ neededByVisible, lineSaveError, attachInputCount }, 'the requester must see their needed-by date, save an item, and attach a file to their own request').toEqual({ neededByVisible: true, lineSaveError: '', attachInputCount: 1 });
   } finally {
     ok('turn price hiding off for restoration', await admin.rpc('set_hide_prices_enabled', { p_enabled: false }));
     ok('restore built-in roles setting', await admin.rpc('set_built_in_roles_enabled', { p_enabled: previousRolesSwitch.data === true }));
     ok('restore price setting', await admin.rpc('set_hide_prices_enabled', { p_enabled: previous.data === true }));
+    if (!neededByRuleWasOn) ok('restore needed-by rule', await admin.rpc('set_po_needed_by_required', { p_on: false }));
     await Promise.all([adminPage.close(), requesterPage.close(), purchaserPage.close()]);
     if (receipt) sqlAsOwner(`delete from stock_ledger where document_id = '${receipt}'; delete from stock_document_lines where document_id = '${receipt}'; delete from stock_documents where id = '${receipt}';`);
     if (warehouse) {

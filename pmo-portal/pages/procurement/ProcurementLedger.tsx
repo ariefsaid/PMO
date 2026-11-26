@@ -491,7 +491,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       // The amount answers "how much": the figure, with its tax basis under it on the same right edge.
       return <span className="inline-flex flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
     },
-  }), [t]);
+  }), [t, maySeePrices]);
 
   // A bill's withholding answers its own question (what is withheld, what the supplier nets, is the slip on file) in its
   // own column, so the amount cell carries one figure. Only bills fill it; with no bill the column is not drawn.
@@ -504,7 +504,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       const slipCell = <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} />;
       return <div className="flex w-full flex-col items-start gap-1 text-left">{figures && <WithholdingBreakdown figures={figures} currency={row.currency} />}{slipCell}</div>;
     },
-  }), [t, maySeePrices, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
+  }), [t, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
 
   const columns = useMemo<Column<LedgerRow>[]>(
     () => [...STATIC_COLUMNS.slice(0, 6).map((column) => column.key === 'efaktur' && !rows.some((row) => row.efakturNumber || row.efakturDate) ? { ...column, colClassName: 'hidden' } : column), amountColumn, withholdingColumn, ...STATIC_COLUMNS.slice(6), fileColumn],

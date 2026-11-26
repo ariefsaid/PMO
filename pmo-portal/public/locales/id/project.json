@@ -1221,6 +1221,7 @@
         "all": "Semua"
       },
       "scopeAriaLabel": "Cakupan tugas",
+      "filters": "Filter",
       "filter": {
         "status": "Filter berdasarkan status",
         "allStatuses": "Semua status",

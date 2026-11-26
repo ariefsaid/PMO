@@ -768,6 +768,7 @@
   },
   "approvalQueue": {
     "pickItem": "Pick an item above to see it and decide.",
+    "back": "Back",
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting",

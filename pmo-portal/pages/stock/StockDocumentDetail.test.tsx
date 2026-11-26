@@ -88,7 +88,7 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     reports.ledgerAll.mockResolvedValue([{ ...entry, kind: 'receive', qtyDelta: '30' }]);
     renderPage();
     expect(await screen.findByText('RCV-1')).toBeVisible();
-    expect(screen.getByText('—')).toBeVisible();
+    expect(screen.queryByText('—')).toBeNull();
     expect(screen.getByText('Prices are hidden from requesters.')).toBeVisible();
     expect(await screen.findByText('+30 bag')).toBeVisible();
     expect(screen.queryByRole('columnheader', { name: /^Value$/ })).toBeNull();

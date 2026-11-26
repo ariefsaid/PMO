@@ -247,6 +247,23 @@ const BASE_PROPS = {
   invoices: [] as Parameters<typeof ProcurementLedger>[0]['invoices'],
 };
 
+it('updates an amount cell when price visibility changes while the ledger stays mounted', () => {
+  act(() => setPricesHidden(false));
+  const view = wrap(<ProcurementLedger {...BASE_PROPS} rows={[SAMPLE_ROWS[0]]} />);
+  const table = screen.getByRole('table');
+  const amountColumnIndex = Array.from(table.querySelectorAll('thead th')).findIndex((header) => header.getAttribute('data-col-key') === 'amount');
+  const row = within(table).getByRole('row', { name: /PAY-2026-0033/ });
+  expect(row.children[amountColumnIndex]?.textContent).not.toBe('—');
+
+  try {
+    act(() => setPricesHidden(true));
+    expect(row.children[amountColumnIndex]?.textContent).toBe('—');
+  } finally {
+    view.unmount();
+    act(() => setPricesHidden(false));
+  }
+});
+
 it('shows only the shared empty marker in each withheld amount cell', () => {
   act(() => setPricesHidden(true));
   try {

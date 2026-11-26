@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
-const access = vi.hoisted(() => ({ canManageAccounting: true }));
+const access = vi.hoisted(() => ({ canManageAccounting: true, clearanceEnabled: false }));
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, subject: string) => action === 'manage' && subject === 'orgAccounting' ? access.canManageAccounting : true,
 }));
@@ -19,7 +19,7 @@ vi.mock('@/src/auth/useIsOperator', () => ({
   useOperatorMembership: () => ({ isOperator: false, isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({
-  useOrgSwitch: () => ({ data: false }),
+  useOrgSwitch: (key: string) => ({ data: key === 'clearance' ? access.clearanceEnabled : false }),
   useModuleOn: () => true,
   useSetOrgSwitch: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null }),
 }));
@@ -34,6 +34,7 @@ import Administration from '../Administration';
 afterEach(() => {
   cleanup();
   access.canManageAccounting = true;
+  access.clearanceEnabled = false;
 });
 
 function renderAdministration(role: 'Admin' | 'Executive') {
@@ -51,7 +52,8 @@ function renderAdministration(role: 'Admin' | 'Executive') {
 }
 
 describe('Administration — hide prices setting release (#2790)', () => {
-  it('shows the hide-prices card to an Admin in the always-listed Accounting section when Clearance is off', async () => {
+  it.each([false, true])('shows the hide-prices card to an Admin in Accounting when Clearance is %s', async (clearanceEnabled) => {
+    access.clearanceEnabled = clearanceEnabled;
     renderAdministration('Admin');
 
     expect(screen.getAllByRole('heading', { name: 'Accounting setup' }).length).toBeGreaterThan(0);
@@ -60,7 +62,8 @@ describe('Administration — hide prices setting release (#2790)', () => {
     expect(card?.closest('[data-testid="administration-panel-accounting"]')).toBeInTheDocument();
     expect(await within(card as HTMLElement).findByRole('button', { name: 'Hide prices from requesters' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Accounting setup' })).toHaveAttribute('href', '/administration/accounting');
-    expect(screen.queryByRole('link', { name: 'Clearance' })).toBeNull();
+    if (clearanceEnabled) expect(screen.getByRole('link', { name: 'Clearance' })).toBeInTheDocument();
+    else expect(screen.queryByRole('link', { name: 'Clearance' })).toBeNull();
   });
 
   it('shows the card to an Executive but keeps the setting toggle Admin-only', async () => {

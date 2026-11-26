@@ -768,6 +768,7 @@
   },
   "approvalQueue": {
     "pickItem": "Pilih item di atas untuk melihat dan memutuskannya.",
+    "back": "Kembali",
     "headingAll": "Pembelian dan $t(common:terms.timesheet)",
     "waitingDays_one": "Menunggu {{count}} hari",
     "waitingDays_other": "Menunggu {{count}} hari",
