@@ -364,14 +364,16 @@
     "reopened": "Kebutuhan dibuka lagi",
     "error": "Kebutuhan tenaga kerja tidak dapat dimuat",
     "empty": "Belum ada kebutuhan tenaga kerja",
-    "emptyWriter": "Catat posisi yang dibutuhkan sebuah lokasi dan batas waktunya.",
     "emptyReader": "Manajer proyek atau tim SDM mencatat posisi yang dibutuhkan sebuah lokasi.",
     "status": {
       "open": "Terbuka",
       "met": "Terpenuhi",
       "cancelled": "Dibatalkan"
     },
-    "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan."
+    "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan.",
+    "progressTitle": "Kemajuan",
+    "nobodyLinked": "Belum ada yang ditautkan",
+    "openRow": "Buka kebutuhan {{position}}"
   },
   "undoFollow": "Batalkan ikut kru",
   "undoFollowFor": "Batalkan ikut kru untuk {{name}}",
