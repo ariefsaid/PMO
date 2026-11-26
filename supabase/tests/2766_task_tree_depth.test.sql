@@ -31,9 +31,6 @@ select throws_ok($$
 $$, '23514', 'TASK_TREE_DEPTH: A task can sit at most 32 levels down',
    'AC-TREE-111: adding a task at depth 33 is refused');
 
-delete from public.tasks
-where org_id = '27660000-0000-0000-0000-000000000001' and name = 'Depth 33';
-
 insert into public.tasks (org_id, name)
 values ('27660000-0000-0000-0000-000000000001', 'Other root');
 
@@ -44,10 +41,6 @@ select throws_ok($$
     and t.name = 'Depth 1' and p.name = 'Other root'
 $$, '23514', 'TASK_TREE_DEPTH: A task can sit at most 32 levels down',
    'AC-TREE-112: reparenting a subtree cannot put its deepest task at depth 33');
-
-update public.tasks set parent_task_id = null
-where org_id = '27660000-0000-0000-0000-000000000001' and name = 'Depth 1'
-  and parent_task_id is not null;
 
 update public.tasks set project_id = '27660000-0000-0000-0000-000000000002'
 where org_id = '27660000-0000-0000-0000-000000000001' and name = 'Depth 1';

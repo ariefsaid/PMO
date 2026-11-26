@@ -269,8 +269,7 @@ begin
   -- 0732 (#1418): the attention ranking. "Today" is the org-local day (0441's inline rule), so an item is overdue
   -- on the same calendar day every screen calls it overdue.
   org_day as materialized (
-    select coalesce((select (now() at time zone coalesce(o.default_timezone, 'UTC'))::date
-                       from public.organizations o where o.id = public.auth_org_id()), current_date) as today
+    select public.org_today(public.auth_org_id()) as today
   ),
   -- Overdue tasks: the whats_overdue rule (agent-chat/overdue.ts) — open status, end_date before today, live row,
   -- and a leaf (#2807): a parent's own status and due date feed no figure.
