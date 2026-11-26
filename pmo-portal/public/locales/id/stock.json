@@ -855,7 +855,28 @@
       "to": "Ke",
       "name": "Nama",
       "signatureDate": "Tanggal"
-    }
+    },
+    "facts": {
+      "sent": "Dikirim",
+      "receiver": "Penerima",
+      "received": "Diterima",
+      "recalled": "Alasan penarikan",
+      "proof": "Bukti"
+    },
+    "col": {
+      "item": "Barang",
+      "sent": "Dikirim",
+      "short": "Kurang",
+      "rejected": "Ditolak",
+      "outcome": "Kekurangan",
+      "decide": "Putuskan",
+      "signer": "Ditandatangani oleh",
+      "stage": "Tahap",
+      "proof": "Bukti",
+      "when": "Waktu",
+      "recordedBy": "Dicatat oleh"
+    },
+    "lineChecks": "Pemeriksaan baris"
   },
   "handover": {
     "title": "Konfirmasi serah terima",

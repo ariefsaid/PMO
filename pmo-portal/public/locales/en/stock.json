@@ -855,7 +855,28 @@
       "to": "To",
       "name": "Name",
       "signatureDate": "Date"
-    }
+    },
+    "facts": {
+      "sent": "Sent",
+      "receiver": "Receiver",
+      "received": "Received",
+      "recalled": "Recall reason",
+      "proof": "Proof"
+    },
+    "col": {
+      "item": "Item",
+      "sent": "Sent",
+      "short": "Short",
+      "rejected": "Rejected",
+      "outcome": "Shortfall",
+      "decide": "Decide",
+      "signer": "Signed by",
+      "stage": "Step",
+      "proof": "Proof",
+      "when": "When",
+      "recordedBy": "Recorded by"
+    },
+    "lineChecks": "Line checks"
   },
   "handover": {
     "title": "Handover confirmation",

@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, ListState, PageHeader, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, Checkbox, ConfirmDialog, DataTable, ListState, MobileActionBar, RecordHeader, SelectField, StatusPill, TextField, useToast, type Column } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { HandoverCapture } from '@/src/components/stock/HandoverCapture';
 import { HandoverPhotos } from '@/src/components/stock/HandoverPhotos';
 import { buildConfirmation, emptyHandover, isHandoverComplete, type HandoverValue } from '@/src/components/stock/handoverValue';
@@ -16,7 +17,8 @@ import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useProofStatus, useStockTransfer, useTransferConfirmations, useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { useOperationalWaitingRoute, operationalWaitingForText } from '@/src/hooks/useOperationalWaitingRoute';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
-import { formatDateTime } from '@/src/lib/format';
+import { formatCalendarDayInTimeZone, formatDay, formatInstantTime } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { stockTransfersRepository as repo, type ProofRule, type QualityResult, type ShortResolution, type StockTransfer, type StockTransferLine } from '@/src/lib/repositories/stockTransfers';
@@ -57,6 +59,8 @@ const StockTransferDetail: React.FC = () => {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [recalling, setRecalling] = useState(false);
+  const wide = useIsDesktop();
   const transfer = q.data ? stringQuantities(q.data) : q.data;   // a numeric column can arrive as a JSON number; the formatters take strings
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   const tagById = useMemo(() => new Map((tags.data ?? []).map((g) => [g.id, g])), [tags.data]);
@@ -107,103 +111,145 @@ const StockTransferDetail: React.FC = () => {
   const valid = transfer.lines.every((l) => { const c = countOf(l); return c.counted !== '' && c.accepted !== '' && (!(l.needsQualityCheck ?? flagged(itemById.get(l.itemId))) || c.quality !== ''); });
   const canSubmit = valid && !busy && (!withHandover || isHandoverComplete(handover)) && (!blocking || (withHandover && isHandoverComplete(handover)));
 
+  const when = (iso: string) => `${formatDay(formatCalendarDayInTimeZone(new Date(iso), getActiveLocale().timezone))} ${formatInstantTime(iso)}`;
+  const qty = (v: string | null, _l: StockTransferLine) => v === null ? null : <span className="whitespace-nowrap tabular-nums">{formatQuantity(v, loc)}</span>;
+  const shortOf = (sent: string, counted: string | null) => counted === null ? 0 : Number(sent) - Number(normalizeDecimal(counted) || 0);
+  const receiving = transfer.status === 'Sent' && !viewOnly && canCount;
+  const canRecall = transfer.status === 'Sent' && !viewOnly && (mine || isAdmin);
+  const facts: { key: string; label: string; value: React.ReactNode }[] = [
+    { key: 'from', label: t('form.fromWarehouse'), value: wh(transfer.fromWarehouseId) },
+    { key: 'to', label: t('form.toWarehouse'), value: wh(transfer.toWarehouseId) },
+    { key: 'sent', label: t('transfers.facts.sent'), value: <>{person(transfer.sentBy)} <span className="text-muted-foreground">· {when(transfer.sentAt)}</span></> },
+    ...(transfer.toUserId ? [{ key: 'receiver', label: t('transfers.facts.receiver'), value: person(transfer.toUserId) }] : []),
+    ...(transfer.receivedAt ? [{ key: 'received', label: t('transfers.facts.received'), value: <>{person(transfer.receivedBy)} <span className="text-muted-foreground">· {when(transfer.receivedAt)}</span></> }] : []),
+    ...(transfer.cancelReason ? [{ key: 'recalled', label: t('transfers.facts.recalled'), value: transfer.cancelReason }] : []),
+    ...(proofRow ? [{ key: 'proof', label: t('transfers.facts.proof'), value: proofRow.proofStatus === 'complete' ? t('proof.complete') : t('proof.outstandingMissing', { missing: proofRow.missing?.split(',').map((m) => t(`proof.rule.${m}`)).join(', ') }) }] : []),
+  ];
+  const lineColumns: Column<StockTransferLine>[] = [
+    { key: 'item', header: t('transfers.col.item'), rowHeader: true, size: 280, cell: (l) => <span className="font-semibold text-foreground">{item(l)}</span> },
+    { key: 'sent', header: t('transfers.col.sent'), align: 'num', size: 120, cell: (l) => qty(l.qtySent, l) },
+    ...(receiving ? [
+      { key: 'counted', header: t('transfers.counted'), align: 'num' as const, size: 136, cell: (l: StockTransferLine) => { const c = countOf(l); return <TextField id={`counted-${l.id}`} hideLabel label={t('transfers.counted')} inputMode="decimal" value={c.counted} onChange={(v) => setCount(l, { counted: v, accepted: c.accepted === c.counted ? v : c.accepted })} required wrapperClassName="ml-auto w-28" className="text-right tabular-nums" />; } },
+      { key: 'accepted', header: t('transfers.accepted'), align: 'num' as const, size: 136, cell: (l: StockTransferLine) => { const c = countOf(l); return <TextField id={`accepted-${l.id}`} hideLabel label={t('transfers.accepted')} inputMode="decimal" value={c.accepted} onChange={(v) => setCount(l, { accepted: v })} required wrapperClassName="ml-auto w-28" className="text-right tabular-nums" />; } },
+      { key: 'short', header: t('transfers.col.short'), align: 'num' as const, size: 112, cell: (l: StockTransferLine) => { const s = shortOf(l.qtySent, countOf(l).counted); return s > 0 ? qty(String(s), l) : null; } },
+    ] : [
+      { key: 'counted', header: t('transfers.counted'), align: 'num' as const, size: 120, cell: (l: StockTransferLine) => qty(l.qtyCounted, l) },
+      { key: 'accepted', header: t('transfers.accepted'), align: 'num' as const, size: 120, cell: (l: StockTransferLine) => qty(l.qtyCounted === null ? null : l.qtyAccepted ?? '0', l) },
+      { key: 'rejected', header: t('transfers.col.rejected'), align: 'num' as const, size: 160, cell: (l: StockTransferLine) => l.qtyRejected !== null && Number(l.qtyRejected) > 0 ? <span>{qty(l.qtyRejected, l)}{l.rejectReason && <span className="block text-control text-muted-foreground">{l.rejectReason}</span>}</span> : null },
+      { key: 'outcome', header: t('transfers.col.outcome'), size: 220, cell: (l: StockTransferLine) => l.shortResolution ? <span>{t(`transfers.resolution.${l.shortResolution}`)}{l.shortReason && <span className="block text-control text-muted-foreground">{l.shortReason}</span>}</span> : null },
+    ]),
+  ];
+  // Per-line fields that only some lines need (a rejection reason, a quality result, a shortfall's consequence) sit under the table, once per line that needs them.
+  const checks = receiving ? transfer.lines.map((l) => { const c = countOf(l); const rejected = Number(normalizeDecimal(c.counted) || 0) - Number(normalizeDecimal(c.accepted) || 0); const f = l.needsQualityCheck ?? flagged(itemById.get(l.itemId)); const short = shortOf(l.qtySent, c.counted); return { l, c, rejected, f, short }; }).filter((x) => x.rejected > 0 || x.f || x.short > 0) : [];
+  const shortColumns: Column<StockTransferLine>[] = [
+    { key: 'item', header: t('transfers.col.item'), rowHeader: true, size: 280, cell: (l) => <span className="font-semibold text-foreground">{item(l)}</span> },
+    { key: 'short', header: t('transfers.col.short'), align: 'num', size: 136, cell: (l) => <span className="tabular-nums">{t('transfers.shortQty', { qty: formatQuantity(String(Number(l.qtySent) - Number(l.qtyCounted)), loc) })}</span> },
+    { key: 'decide', header: <span className="block text-right">{t('transfers.col.decide')}</span>, kind: 'actions', size: 320, cell: (l) => <div className="flex flex-wrap justify-end gap-2">{(['delivered', 'returned', ...(isAdmin ? ['written_off'] : [])] as ShortResolution[]).map((r) => (
+      <Button key={r} size="sm" variant={r === 'written_off' ? 'ghost' : 'outline'} disabled={busy || (r === 'written_off' && !reason.trim())} onClick={() => void run(() => repo.resolveShortfall(l.id, r, reason), t('transfers.resolvedToast'))}>{t(`transfers.resolveAs.${r}`)}</Button>))}</div> },
+  ];
+  type Confirmation = NonNullable<typeof confirmations.data>[number];
+  const handoverColumns: Column<Confirmation>[] = [
+    { key: 'signer', header: t('transfers.col.signer'), rowHeader: true, size: 220, cell: (c) => <span className="font-semibold text-foreground">{c.signerName}{c.signerKind === 'guest' ? ` (${t('handover.guestBadge')})` : ''}</span> },
+    { key: 'stage', header: t('transfers.col.stage'), size: 120, cell: (c) => t(`handover.stage.${c.stage}`) },
+    { key: 'proof', header: t('transfers.col.proof'), size: 200, cell: (c) => <span>{t(c.proofType === 'paper' ? 'handover.proofPaper' : 'handover.proofInApp')}<HandoverPhotos confirmation={c} /></span> },
+    { key: 'when', header: t('transfers.col.when'), size: 160, cell: (c) => <span className="whitespace-nowrap tabular-nums">{when(c.confirmedAt)}</span> },
+    { key: 'by', header: t('transfers.col.recordedBy'), size: 180, cell: (c) => person(c.recordedBy) },
+  ];
+  const statusVariant = transfer.status === 'Closed' ? 'won' : transfer.status === 'Received' ? 'warn' : 'neutral';
+
   return (
-    <div className="max-w-3xl space-y-4 pb-24 md:pb-0">
-      <PageHeader title={`${t('transfers.detailTitle')} ${transfer.number}`} />
-      <p className="flex flex-wrap items-center gap-x-4 text-sm text-muted-foreground">
-        <Link to="/stock/transfers">{t('transfers.back')}</Link>
-        {deliveryNotes.data?.enabled && <Link to={`/stock/transfers/${transfer.id}/print`} className="font-medium text-foreground underline">{t('transfers.print.action')}</Link>}
-      </p>
-      <section className="space-y-1 rounded-lg border border-border p-4" aria-label={t('transfers.summary')}>
-        <div>{wh(transfer.fromWarehouseId)} → {wh(transfer.toWarehouseId)}</div>
-        <div className="text-sm text-muted-foreground">{t(`transfers.status.${transfer.status}`)} · {t('transfers.sentBy', { name: person(transfer.sentBy), at: formatDateTime(new Date(transfer.sentAt)) })}</div>
-        {transfer.toUserId && <div className="text-sm text-muted-foreground">{t('transfers.addressedTo', { name: person(transfer.toUserId) })}</div>}
-        {transfer.status === 'Sent' && waitingFailed && (
-          <div data-testid="transfer-waiting" className="text-sm text-muted-foreground">
-            <button type="button" onClick={() => void waitingRoute.refetch()} className="font-medium text-primary-text hover:underline">{t('actions.retry')}</button>
-          </div>
-        )}
-        {transfer.status === 'Sent' && waitingText && (
-          <div data-testid="transfer-waiting" className="text-sm text-muted-foreground">{waitingText}</div>
-        )}
-        {transfer.receivedAt && <div className="text-sm text-muted-foreground">{t('transfers.receivedBy', { name: person(transfer.receivedBy), at: formatDateTime(new Date(transfer.receivedAt)) })}</div>}
-        {transfer.cancelReason && <div className="text-sm">{t('transfers.recalled', { reason: transfer.cancelReason })}</div>}
-        {proofRow && <div className="text-sm font-medium">{proofRow.proofStatus === 'complete' ? t('proof.complete') : t('proof.outstandingMissing', { missing: proofRow.missing?.split(',').map((m) => t(`proof.rule.${m}`)).join(', ') })}</div>}
-      </section>
+    <div className="space-y-6 pb-24 md:pb-0">
+      <RecordHeader
+        name={`${t('transfers.detailTitle')} ${transfer.number}`}
+        status={<StatusPill variant={statusVariant}>{t(`transfers.status.${transfer.status}`)}</StatusPill>}
+        meta={<Link to="/stock/transfers" className="text-primary-text underline underline-offset-4">{t('transfers.back')}</Link>}
+        actions={deliveryNotes.data?.enabled ? <Link to={`/stock/transfers/${transfer.id}/print`} className="inline-flex min-h-9 items-center rounded-md border border-input px-3 text-control font-medium text-foreground hover:bg-muted">{t('transfers.print.action')}</Link> : undefined}
+        menuItems={canRecall ? [{ key: 'recall', label: t('transfers.recallAction'), danger: true, onSelect: () => { setReason(''); setRecalling(true); } }] : undefined}
+      />
+      <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={t('transfers.summary')}>
+        {facts.map((f) => <div key={f.key} className="min-w-0"><dt className="text-control text-muted-foreground">{f.label}</dt><dd className="break-words text-control text-foreground">{f.value}</dd></div>)}
+      </dl>
+      {transfer.status === 'Sent' && waitingFailed && (
+        <div data-testid="transfer-waiting" className="text-control text-muted-foreground">
+          <button type="button" onClick={() => void waitingRoute.refetch()} className="font-medium text-primary-text hover:underline">{t('actions.retry')}</button>
+        </div>
+      )}
+      {transfer.status === 'Sent' && waitingText && <div data-testid="transfer-waiting" className="text-control text-muted-foreground">{waitingText}</div>}
+      {transfer.status === 'Sent' && !viewOnly && !canCount && <p className="rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control" role="status">{t('transfers.senderWaits')}</p>}
       <FormErrorStrip>{error || undefined}</FormErrorStrip>
 
-      {transfer.status === 'Sent' && !viewOnly && canCount ? (
+      {receiving ? (
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (canSubmit) void receive(); }} noValidate>
           <h2 className="text-base font-semibold">{t('transfers.receiveTitle')}</h2>
-          <ul className="space-y-3">{transfer.lines.map((l) => { const c = countOf(l); const rejected = Number(normalizeDecimal(c.counted) || 0) - Number(normalizeDecimal(c.accepted) || 0); const f = l.needsQualityCheck ?? flagged(itemById.get(l.itemId)); return (
-            <li key={l.id} className="space-y-2 rounded-lg border border-border p-3">
-              <div className="font-medium">{item(l)}</div>
-              <div className="text-sm text-muted-foreground">{t('transfers.sentQty', { qty: formatQuantity(l.qtySent, loc) })}</div>
+          {/* A plain table: its header cells are not field labels, so "Counted" and "Accepted" name only the inputs. */}
+          {!wide ? <ul className="divide-y divide-border border-y border-border" aria-label={t('transfers.receiveTitle')}>{transfer.lines.map((l) => { const c = countOf(l); const short = shortOf(l.qtySent, c.counted); return (
+            <li key={l.id} className="space-y-2 py-3">
+              <div className="flex items-baseline justify-between gap-3"><span className="font-semibold">{item(l)}</span><span className="whitespace-nowrap text-control text-muted-foreground">{t('transfers.col.sent')} <span className="tabular-nums text-foreground">{formatQuantity(l.qtySent, loc)}</span></span></div>
               <div className="grid grid-cols-2 gap-3">
-                <TextField id={`counted-${l.id}`} label={t('transfers.counted')} inputMode="decimal" value={c.counted} onChange={(v) => setCount(l, { counted: v, accepted: c.accepted === c.counted ? v : c.accepted })} required />
-                <TextField id={`accepted-${l.id}`} label={t('transfers.accepted')} inputMode="decimal" value={c.accepted} onChange={(v) => setCount(l, { accepted: v })} required />
+                <TextField id={`counted-${l.id}`} label={t('transfers.counted')} inputMode="decimal" value={c.counted} onChange={(v) => setCount(l, { counted: v, accepted: c.accepted === c.counted ? v : c.accepted })} required className="text-right tabular-nums" />
+                <TextField id={`accepted-${l.id}`} label={t('transfers.accepted')} inputMode="decimal" value={c.accepted} onChange={(v) => setCount(l, { accepted: v })} required className="text-right tabular-nums" />
               </div>
-              {rejected > 0 && <TextField id={`reason-${l.id}`} label={t('transfers.rejectReason')} value={c.reason} onChange={(v) => setCount(l, { reason: v })} required />}
-              {f && <SelectField label={t('transfers.quality')} required value={c.quality} onChange={(v) => setCount(l, { quality: v as QualityResult, accepted: v === 'fail' ? '0' : c.accepted })} options={[{ value: 'pass', label: t('transfers.qualityPass') }, { value: 'fail', label: t('transfers.qualityFail') }]} placeholder={t('transfers.qualityChoose')} />}
-              {Number(normalizeDecimal(c.counted) || 0) < Number(l.qtySent) && <p className="text-sm">{t('transfers.shortNote', { qty: formatQuantity(String(Number(l.qtySent) - Number(normalizeDecimal(c.counted) || 0)), loc) })}</p>}
-            </li>); })}</ul>
-          {needsProof && <p className="text-sm">{blocking ? t('proof.requiredNow', { rules: [...rules].map((r) => t(`proof.rule.${r}`)).join(', ') }) : t('proof.mayFollow')}</p>}
+              {short > 0 && <p className="text-right text-control"><span className="text-muted-foreground">{t('transfers.col.short')}</span> <span className="tabular-nums">{formatQuantity(String(short), loc)}</span></p>}
+            </li>); })}</ul> : <div className="overflow-x-auto">
+            <table className="w-full text-control" aria-label={t('transfers.receiveTitle')}>
+              <thead><tr className="border-b border-border text-left">
+                {lineColumns.map((col) => <th key={col.key} scope="col" className={`px-[var(--table-cell-inset)] py-3 font-semibold text-foreground ${col.align === 'num' ? 'text-right' : ''}`}>{col.header}</th>)}
+              </tr></thead>
+              <tbody>{transfer.lines.map((l) => (
+                <tr key={l.id} className="border-b border-border/70">
+                  {lineColumns.map((col, i) => i === 0
+                    ? <th key={col.key} scope="row" className="px-[var(--table-cell-inset)] py-2 text-left font-normal">{col.cell(l)}</th>
+                    : <td key={col.key} className={`px-[var(--table-cell-inset)] py-2 ${col.align === 'num' ? 'text-right' : ''}`}>{col.cell(l)}</td>)}
+                </tr>))}</tbody>
+            </table>
+          </div>}
+          {checks.length > 0 && <ul className="space-y-4" aria-label={t('transfers.lineChecks')}>{checks.map(({ l, c, rejected, f, short }) => (
+            <li key={l.id} className="space-y-2">
+              <h3 className="text-control font-semibold">{item(l)}</h3>
+              {short > 0 && <p className="text-control">{t('transfers.shortNote', { qty: formatQuantity(String(short), loc) })}</p>}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {rejected > 0 && <TextField id={`reason-${l.id}`} label={t('transfers.rejectReason')} value={c.reason} onChange={(v) => setCount(l, { reason: v })} required />}
+                {f && <SelectField label={t('transfers.quality')} required value={c.quality} onChange={(v) => setCount(l, { quality: v as QualityResult, accepted: v === 'fail' ? '0' : c.accepted })} options={[{ value: 'pass', label: t('transfers.qualityPass') }, { value: 'fail', label: t('transfers.qualityFail') }]} placeholder={t('transfers.qualityChoose')} />}
+              </div>
+            </li>))}</ul>}
+          {needsProof && <p className="text-control">{blocking ? t('proof.requiredNow', { rules: [...rules].map((r) => t(`proof.rule.${r}`)).join(', ') }) : t('proof.mayFollow')}</p>}
           <Checkbox label={t('handover.confirmNow')} checked={withHandover || blocking} disabled={blocking} onChange={(c) => setWithHandover(c === true)}>{t('handover.confirmNow')}</Checkbox>
           {(withHandover || blocking) && <HandoverCapture idPrefix="receive" value={handover} onChange={(v) => { setHandover(v); setWithHandover(true); }} signerName={me?.full_name ?? ''} proofs={['in_app', 'paper']} />}
-          <div className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
-            <Button variant="primary" type="submit" disabled={!canSubmit} loading={busy}>{t('transfers.receiveAction')}</Button>
-          </div>
+          <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 flex justify-end border-t border-border bg-card p-3 md:static md:z-auto md:border-0 md:bg-transparent md:p-0">
+            <Button variant="primary" type="submit" className="w-full md:w-auto" disabled={!canSubmit} loading={busy}>{t('transfers.receiveAction')}</Button>
+          </MobileActionBar>
         </form>
       ) : (
-        <section aria-label={t('transfers.lines')} className="space-y-2">
-          {transfer.status === 'Sent' && !viewOnly && !canCount && <p className="rounded-lg border border-border p-3 text-sm" role="status">{t('transfers.senderWaits')}</p>}
+        <section aria-label={t('transfers.lines')} className="space-y-3">
           <h2 className="text-base font-semibold">{t('transfers.lines')}</h2>
-          <ul className="space-y-2">{transfer.lines.map((l) => (
-            <li key={l.id} className="rounded-lg border border-border p-3 text-sm">
-              <div className="font-medium">{item(l)}</div>
-              <div>{t('transfers.sentQty', { qty: formatQuantity(l.qtySent, loc) })}{l.qtyCounted !== null && ` · ${t('transfers.countedQty', { qty: formatQuantity(l.qtyCounted, loc) })} · ${t('transfers.acceptedQty', { qty: formatQuantity(l.qtyAccepted ?? '0', loc) })}`}</div>
-              {l.qtyRejected !== null && Number(l.qtyRejected) > 0 && <div>{t('transfers.rejectedQty', { qty: formatQuantity(l.qtyRejected, loc), reason: l.rejectReason ?? '' })}</div>}
-              {l.shortResolution && <div>{t(`transfers.resolution.${l.shortResolution}`)}{l.shortReason ? ` · ${l.shortReason}` : ''}</div>}
-            </li>))}</ul>
+          <DataTable<StockTransferLine> rows={transfer.lines} columns={lineColumns} rowKey={(l) => l.id} tableId="transfer-lines" accessibleName={t('transfers.lines')} embedded cardValuesEnd />
         </section>
       )}
 
       {transfer.status === 'Received' && openShort.length > 0 && !viewOnly && (
-        <section aria-label={t('transfers.shortfalls')} className="space-y-3 rounded-lg border border-border p-4">
+        <section aria-label={t('transfers.shortfalls')} className="space-y-3">
           <h2 className="text-base font-semibold">{t('transfers.shortfalls')}</h2>
-          <TextField id="short-reason" label={t('transfers.shortReason')} value={reason} onChange={setReason} />
-          <ul className="space-y-3">{openShort.map((l) => (
-            <li key={l.id} className="space-y-2">
-              <div>{item(l)}: {t('transfers.shortQty', { qty: formatQuantity(String(Number(l.qtySent) - Number(l.qtyCounted)), loc) })}</div>
-              <div className="flex flex-wrap gap-2">{(['delivered', 'returned', ...(isAdmin ? ['written_off'] : [])] as ShortResolution[]).map((r) => (
-                <Button key={r} variant={r === 'written_off' ? 'ghost' : 'outline'} disabled={busy || (r === 'written_off' && !reason.trim())} onClick={() => void run(() => repo.resolveShortfall(l.id, r, reason), t('transfers.resolvedToast'))}>{t(`transfers.resolveAs.${r}`)}</Button>))}</div>
-            </li>))}</ul>
+          <div className="max-w-md"><TextField id="short-reason" label={t('transfers.shortReason')} value={reason} onChange={setReason} /></div>
+          <DataTable<StockTransferLine> rows={openShort} columns={shortColumns} rowKey={(l) => l.id} tableId="transfer-shortfalls" accessibleName={t('transfers.shortfalls')} embedded cardValuesEnd />
         </section>
       )}
 
-      {transfer.status === 'Sent' && !viewOnly && (mine || isAdmin) && (
-        <section aria-label={t('transfers.recallTitle')} className="space-y-2 rounded-lg border border-border p-4">
-          <TextField id="recall-reason" label={t('transfers.recallReason')} value={reason} onChange={setReason} />
-          <Button variant="outline" disabled={busy || !reason.trim()} onClick={() => void run(() => repo.recall(transfer.id, reason), t('transfers.recalledToast'))}>{t('transfers.recallAction')}</Button>
-        </section>
-      )}
-
-      <section aria-label={t('handover.recorded')} className="space-y-2">
+      <section aria-label={t('handover.recorded')} className="space-y-3">
         <h2 className="text-base font-semibold">{t('handover.recorded')}</h2>
-        {(confirmations.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">{t('handover.none')}</p> : (
-          <ul className="space-y-2">{(confirmations.data ?? []).map((c) => (
-            <li key={c.id} className="rounded-lg border border-border p-3 text-sm">
-              <div className="font-medium">{c.signerName}{c.signerKind === 'guest' ? ` (${t('handover.guestBadge')})` : ''}</div>
-              <div className="text-muted-foreground">{t(`handover.stage.${c.stage}`)} · {t(c.proofType === 'paper' ? 'handover.proofPaper' : 'handover.proofInApp')} · {formatDateTime(new Date(c.confirmedAt))} · {t('handover.recordedBy', { name: person(c.recordedBy) })}</div>
-              <HandoverPhotos confirmation={c} />
-            </li>))}</ul>)}
+        {(confirmations.data ?? []).length === 0 ? <p className="text-control text-muted-foreground">{t('handover.none')}</p>
+          : <DataTable<Confirmation> rows={confirmations.data ?? []} columns={handoverColumns} rowKey={(c) => c.id} tableId="transfer-handovers" accessibleName={t('handover.recorded')} embedded />}
         {proofRow?.proofStatus === 'outstanding' && transfer.status !== 'Cancelled' && !viewOnly && (
-          <div className="space-y-3 rounded-lg border border-border p-4">
-            <h3 className="text-sm font-semibold">{t('proof.addTitle')}</h3>
+          <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+            <h3 className="text-base font-semibold">{t('proof.addTitle')}</h3>
             <HandoverCapture idPrefix="late" value={late} onChange={setLate} signerName={me?.full_name ?? ''} />
             <Button variant="primary" disabled={busy || !isHandoverComplete(late)} onClick={() => void addProof()}>{t('proof.addAction')}</Button>
           </div>)}
       </section>
+
+      <ConfirmDialog open={recalling} title={t('transfers.recallTitle')}
+        description={<TextField id="recall-reason" label={t('transfers.recallReason')} value={reason} onChange={setReason} required />}
+        confirmLabel={t('transfers.recallAction')} cancelLabel={t('actions.cancel')} confirmDisabled={!reason.trim() || busy} loading={busy}
+        onCancel={() => setRecalling(false)} onConfirm={() => { setRecalling(false); void run(() => repo.recall(transfer.id, reason), t('transfers.recalledToast')); }} />
     </div>
   );
 };

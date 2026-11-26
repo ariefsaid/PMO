@@ -232,7 +232,9 @@ describe('StockTransferDetail who it is assigned to (#1122 Waiting 3, AC-WAIT-07
     h.transfer = transfer({ sentBy: 'someone', toUserId: 'me' });
     h.waiting.data = { approvers: [{ id: 'me', name: 'Dest Keeper', role: 'Engineer' }], routeKind: 'transfer_receipt' };
     renderPage();
-    expect(await screen.findByText(/Addressed to Dest Keeper/)).toBeInTheDocument();
+    // The receiver fact names them once.
+    expect(await screen.findByText('Receiver')).toBeInTheDocument();
+    expect(screen.getAllByText('Dest Keeper')).toHaveLength(1);
     expect(screen.queryByTestId('transfer-waiting')).toBeNull();
   });
 
@@ -272,7 +274,7 @@ it('AC-SITE-009 an addressed receiver supplies quality even when master items ar
  h.items=[];
  h.transfer=transfer({toUserId:'me',fromWarehouseName:'Bound origin',toWarehouseName:'Bound site',lines:[line({itemName:'QC - Delivery goods',needsQualityCheck:true})]});
  renderPage();
- expect(screen.getByText('QC - Delivery goods')).toBeVisible();
+ expect(screen.getByRole('rowheader',{name:'QC - Delivery goods'})).toBeVisible();
  expect(screen.getByText(/Bound origin/)).toBeVisible();
  expect(screen.getByText(/Bound site/)).toBeVisible();
  expect(screen.getByRole('button',{name:'Confirm receipt'})).toBeDisabled();
