@@ -206,7 +206,7 @@ const WorkOrderDetail: React.FC = () => {
         primaryAction={decision.primaryAction}
         menuItems={decision.menuItems.length > 0 ? decision.menuItems : undefined}
         stats={[
-          { label: t('project', 'Project'), value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
+          { label: t('project', 'Project'), title: project.data?.name, value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
           // How far it has got, value-weighted over its contract lines (the scope area lists each line).
@@ -236,8 +236,10 @@ const WorkOrderDetail: React.FC = () => {
       {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
       <AreaHelpProvider>{(help) => (<>
       <div data-testid="wo-area-select" className="mt-6 mb-4 flex items-center gap-2 md:hidden">
-        <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
-          options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full min-w-0 flex-1" />
+        <div className="min-w-0 flex-1">
+          <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
+            options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full" />
+        </div>
         <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
       <div data-testid="wo-area-tabs" className="mt-6 hidden items-center border-b border-border md:flex">
