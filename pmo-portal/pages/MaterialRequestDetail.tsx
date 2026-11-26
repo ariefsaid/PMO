@@ -57,8 +57,8 @@ const MaterialRequestDetailPage: React.FC = () => {
   if (q.isError || !req) return (
     <div>
       <ListState variant="error" title={q.isError ? t('detail.error', "Couldn't load this request") : t('detail.notFound', 'Request not found')}
-        retryLabel={t('detail.retryLoad', 'Try again')} onRetry={() => void q.refetch()}
-        action={{ label: t('detail.backToList', 'Back to material requests'), onClick: () => navigate('/material-requests') }} />
+        retryLabel={t('detail.retryLoad', 'Try again')} onRetry={() => void q.refetch()} />
+      <Link to="/material-requests" className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('detail.backToList', 'Back to material requests')}</Link>
     </div>
   );
 

@@ -85,7 +85,7 @@ describe('material request detail', () => {
     expect(screen.getByText('Request not found')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(h.req.refetch).toHaveBeenCalledOnce();
-    expect(screen.getByRole('button', { name: 'Back to material requests' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to material requests' })).toBeInTheDocument();
   });
 
   it.each([
