@@ -184,6 +184,21 @@ describe('AC-QCR detail and derived reads (#2578)', () => {
     await expect(dal.listVersions('b1')).resolves.toEqual([{ version_no: 2, quantity: 9, source: 'change_request', request_id: 'q1', created_by: 'u1', created_at: 't', reason: 'Rock found below the design level' }]);
   });
 
+  it('#2883 associates each reason with its own revision, including when reasons arrive out of order', async () => {
+    const initial = { version_no: 1, quantity: 7, source: 'progress', request_id: null, created_by: 'u1', created_at: 't' };
+    const first = { ...initial, version_no: 2, quantity: 9, source: 'change_request', request_id: 'q2' };
+    const second = { ...first, version_no: 3, quantity: 10, request_id: 'q1' };
+    h.result.queue = [
+      { data: [initial, first, second], error: null },
+      { data: [{ request_id: 'q1', reason: 'Revised survey' }, { request_id: 'q2', reason: 'Additional drainage' }], error: null },
+    ];
+    await expect(dal.listVersions('b1')).resolves.toEqual([
+      initial,
+      { ...first, reason: 'Additional drainage' },
+      { ...second, reason: 'Revised survey' },
+    ]);
+  });
+
   it('listVersions numbers every quantity; updateDraft sends null lines only when clearing', async () => {
     h.result.queue = [{ data: [{ version_no: 1, quantity: '7', source: 'progress', request_id: null, created_by: 'u1', created_at: 't' }], error: null }];
     await expect(dal.listVersions('b1')).resolves.toEqual([{ version_no: 1, quantity: 7, source: 'progress', request_id: null, created_by: 'u1', created_at: 't' }]);
