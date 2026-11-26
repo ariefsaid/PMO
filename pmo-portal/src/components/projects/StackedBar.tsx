@@ -24,8 +24,8 @@ const NEUTRAL = [
 const MIN_LABELLED_SHARE = 25;
 
 /**
- * Parts of a whole as one stacked bar, labelled on the bar itself (no legend to decode). Segments too thin
- * to carry a label fold into "Other" so every visible segment names itself.
+ * Parts of a whole as one stacked bar. Narrow segments retain their names and values
+ * in a wrapping list so no category disappears when there is little room.
  */
 export const StackedBar: React.FC<{
   ariaLabel: string;
