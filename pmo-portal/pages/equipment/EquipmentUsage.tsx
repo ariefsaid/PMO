@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import {
   Button, Combobox, ConfirmDialog, DataTable, Icon, ListPage, ListState, ReasonDialog, SelectField, StatusPill, Tabs, TextField, tabId, tabPanelId, useToast, useUrlFilters,
-  type Column,
+  buttonClasses, type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -24,7 +24,8 @@ import { type EquipmentAssetRow, type EquipmentUsageWithRejecter as EquipmentUsa
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
+import { addDays, fromIso, mondayOf, weekDays } from './equipmentWeek';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
 import { NO_ATTRIBUTION, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
@@ -106,7 +107,7 @@ const EquipmentUsagePage: React.FC = () => {
   const canLog = may('create', 'equipmentUsage', writeCtx);
   const canCreateAsset = may('create', 'equipmentAsset', writeCtx);
   const userId = useAuth().currentUser?.id ?? null;
-  const today = toIso(new Date());
+  const today = useOrgToday();
   // R2: week/tab/asset are URL-owned (`?week=YYYY-MM-DD`, the same deep-link contract) so
   // Back/refresh return to them; defaults (this week, My usage, all assets) stay out of the URL.
   const { values, setFilter } = useUrlFilters(['week', 'tab', 'asset']);
@@ -411,21 +412,21 @@ const EquipmentUsagePage: React.FC = () => {
       <div className="w-64">
         <Combobox label={t('equipment:usage.assetFilter', 'Show equipment')} noun={t('equipment:usage.assetNoun', 'equipment')} value={assetFilter}
           selectedOption={assetOptions.find((o) => o.value === assetFilter) ?? null} loadOptions={() => Promise.resolve(assetOptions)}
-          onChange={(v) => setAssetFilter(v)} clearable onClear={() => setAssetFilter(null)} placeholder={t('equipment:usage.allAssets', 'All equipment')} compact />
+          onChange={(v) => setAssetFilter(v)} clearable onClear={() => setAssetFilter(null)} placeholder={t('equipment:usage.allAssets', 'All equipment')} compact hideLabel />
       </div>
     </div>
   );
 
   return (
     <ListPage
-      title={t('equipment:usage.title', 'Equipment')}
+      title={t('equipment:home.hoursLog', 'Hours log')}
       count={tab === 'log' && !usageQ.isPending && !usageQ.isError && usageQ.data ? rowCount : undefined}
       filters={header}
     >
-      <nav aria-label={t('equipment:home.links', 'Equipment pages')} className="mb-3 flex flex-wrap gap-x-4 gap-y-1">
-        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment">{t('equipment:home.machines', 'Machines and today\'s status')}</Link>
-        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment/availability">{t('equipment:availability.title', 'Availability')}</Link>
-        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
+      <nav aria-label={t('equipment:home.links', 'Equipment pages')} className="mb-4 flex flex-wrap gap-2">
+        <Link className={buttonClasses('outline', 'sm')} to="/equipment">{t('equipment:home.machines', 'Machines and today\'s status')}</Link>
+        <Link className={buttonClasses('outline', 'sm')} to="/equipment/availability">{t('equipment:availability.title', 'Availability')}</Link>
+        <Link className={buttonClasses('outline', 'sm')} to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
       </nav>
       {canApproveTab && <Tabs items={tabs} value={tab} onChange={setTab} ariaLabel={t('equipment:usage.tabsLabel', 'Equipment usage views')} idBase="equipment-usage" className="mb-3" />}
       {/* The machine reads (picker, row names) page through the register: say how many are loaded so
@@ -481,16 +482,14 @@ const EquipmentUsagePage: React.FC = () => {
             <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
             <ReturnedBanner record="equipmentUsage" reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
           </div>)}
-          <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
-            accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
-            state={gridRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={noMachines
+          {gridRows.length === 0 ? <ListState variant="empty" title={noMachines
               ? t('equipment:usage.noMachines', 'No machines registered')
               : t('equipment:usage.empty', 'No hours logged this week')}
-            emptySub={noMachines && !canCreateAsset ? t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.') : undefined}
-            emptyAction={noMachines && canCreateAsset
+            sub={noMachines && !canCreateAsset ? t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.') : undefined}
+            action={noMachines && canCreateAsset
               ? { label: t('equipment:assets.new', 'New asset'), onClick: () => navigate('/equipment/assets') }
-              : undefined} />
+              : undefined} /> : <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
+            accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')} />}
           {submittable && <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
             <section aria-label={t('equipment:usage.submitSection', 'Submit the week')} className="mt-4 rounded-card border border-border p-3">
               <p className="mb-2 text-sm">{t('equipment:usage.submitWhat', 'Submitting sends {{count}} draft {{entries}} for approval. You cannot change them until they are approved or returned. Approver: {{approver}}.', {

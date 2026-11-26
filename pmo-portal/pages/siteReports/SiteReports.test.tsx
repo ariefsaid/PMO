@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -35,6 +35,17 @@ const renderAt = (url = '/site-reports') => render(<MemoryRouter initialEntries=
 beforeEach(() => { h.realRole = 'Finance'; h.builtInRole = null; h.validateRoles = []; h.rows = []; h.hasMore = false; h.queue = []; h.calls.length = 0; h.crews = [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }]; });
 
 describe('site reports list', () => {
+  it('lets a reviewer identify and open each report from its row', () => {
+    h.rows = [row('a', 'submitted', 'Pipe crew'), row('b', 'draft', null, 'Roster person')];
+    renderAt();
+    expect(screen.getByRole('link', { name: /WO a/ })).toHaveAttribute('href', '/site-reports/a');
+    expect(screen.getByRole('link', { name: /WO b/ })).toHaveAttribute('href', '/site-reports/b');
+    expect(screen.getByText('Person Roster person')).toBeInTheDocument();
+    const reportRow = screen.getByRole('link', { name: /WO b/ }).closest('tr');
+    expect(reportRow).not.toBeNull();
+    expect(within(reportRow as HTMLElement).getByText('Person Roster person')).toBeInTheDocument();
+  });
+
   it('AC-SRC-006 the list shows each report\'s crew and filters by crew in the address', async () => {
     h.rows = [row('a', 'submitted', 'Pipe crew'), row('b', 'draft')];
     renderAt('/site-reports?crew=c1');

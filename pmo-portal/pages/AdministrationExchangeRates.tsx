@@ -327,6 +327,7 @@ const AdministrationExchangeRates: React.FC = () => {
                 : undefined
             }
             tableId="administrationexchangerates-table"
+            cardBelow={810}
             accessibleName={t('admin.nav.exchangeRates', 'Exchange rates')} />
           {users.isError && (
             <div className="mt-2">

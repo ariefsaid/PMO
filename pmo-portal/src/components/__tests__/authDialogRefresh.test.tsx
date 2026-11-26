@@ -45,6 +45,9 @@ import { RequireAuth } from '@/src/auth/RequireAuth';
 import { EntityFormModal } from '@/src/components/ui/EntityFormModal';
 import { TextField } from '@/src/components/ui/FormFields';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
+// The shell's organisation-defaults wait is proved in RequireAuth.orgDay.test.tsx; here the organisation is taken as known.
+vi.mock('@/src/hooks/useResolvedLocale', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useResolvedLocale')>()), useOrgDefaultsReady: () => true }));
+
 
 function RateForm() {
   const [open, setOpen] = useState(false);

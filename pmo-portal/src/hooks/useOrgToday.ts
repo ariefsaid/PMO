@@ -1,13 +1,25 @@
-import { useEffect, useState } from 'react';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { getActiveOrgTimezone, subscribeActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { firstInstantOfZonedCalendarDay, formatCalendarDayInTimeZone } from '@/src/lib/format';
 
+/** The organisation's day now, for non-hook callers (default args, pure helpers). Never the browser's or the person's own day. */
+export function orgDayNow(): string {
+  return formatCalendarDayInTimeZone(new Date(), getActiveOrgTimezone());
+}
+
+/** The organisation's day now as a local-midnight Date, for code that cuts a month or week out of a Date. */
+export function orgDayDate(): Date {
+  const [y, m, d] = orgDayNow().split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 /**
- * Today as 'YYYY-MM-DD' in an explicitly chosen organization or profile business timezone.
- * Refreshes reactively when midnight rolls over without requiring a page refresh.
+ * Today as 'YYYY-MM-DD' in the organisation's business timezone (UTC when unset, as the server's
+ * `native_org_today`). Refreshes when the organisation's midnight rolls over.
  */
 export function useOrgToday(explicitTimezone?: string): string {
-  const timezone = explicitTimezone ?? getActiveLocale().timezone;
+  const orgTimezone = useSyncExternalStore(subscribeActiveOrgTimezone, getActiveOrgTimezone);
+  const timezone = explicitTimezone ?? orgTimezone;
   const [today, setToday] = useState(() => formatCalendarDayInTimeZone(new Date(), timezone));
 
   useEffect(() => {

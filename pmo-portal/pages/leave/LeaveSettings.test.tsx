@@ -60,20 +60,10 @@ describe('LeaveSettings', () => {
     expect(screen.getAllByText(/HR Manager memutuskan, lalu Admin/).length).toBeGreaterThan(0);
   });
 
-  it('saving sends the whole settings record, with leave on', async () => {
-    const user = userEvent.setup();
+  it('fixed routing has no save action because it has no editable settings', () => {
     view();
-    await user.click(screen.getByRole('button', { name: 'Save settings' }));
-    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith({ enabled: true, approver_role: null }));
-    expect((await screen.findAllByText('Settings saved')).length).toBeGreaterThan(0);
-  });
-
-  it('a refused save surfaces the LV_ mapper sentence, not a generic failure', async () => {
-    h.save.mutateAsync.mockRejectedValue({ code: 'P0001', message: 'LV_SOD: not yours' });
-    const user = userEvent.setup();
-    view();
-    await user.click(screen.getByRole('button', { name: 'Save settings' }));
-    expect(await screen.findByText('You cannot decide your own request, or one you entered. Someone else must.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save settings' })).not.toBeInTheDocument();
+    expect(h.save.mutateAsync).not.toHaveBeenCalled();
   });
 
   it('lists the live leave types with archive actions, and archives one', async () => {

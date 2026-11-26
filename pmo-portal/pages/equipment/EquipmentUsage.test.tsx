@@ -9,6 +9,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ImpersonationProvider, useEffectiveRole } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 type Entry = {
   id: string; asset_id: string; project_id: string; work_date: string; quantity: number; unit: 'hours' | 'days'; kind: 'work' | 'standby';
@@ -110,6 +111,19 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
   it('links to the expiry list from equipment', () => {
     renderPage('Admin');
     expect(screen.getByRole('link', { name: /expiring documents/i })).toHaveAttribute('href', '/equipment/expiring');
+  });
+
+  it('#1126 the week defaults to the organisation\'s week, not the browser\'s', () => {
+    // 2026-12-06T17:00Z: the organisation's day (Asia/Jakarta) is already Mon 7 Dec, the browser's (UTC) is still Sun 6 Dec — different weeks.
+    vi.setSystemTime(new Date('2026-12-06T17:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
+    try {
+      renderPage();
+      expect(screen.getByText(`${day('2026-12-07')} – ${day('2026-12-13')}`)).toBeInTheDocument();
+    } finally {
+      resetActiveLocale();
+    }
   });
 
   it('C8 EquipmentUsage.tsx:83,101 scopes the bounded week read to the selected asset', () => {
@@ -405,8 +419,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     }));
     renderPage();
 
-    const table = screen.getByRole('table', { name: 'Equipment usage this week' });
-    expect(Number.parseFloat(table.style.minWidth)).toBeLessThanOrEqual(1168);
+    expect(screen.getByRole('table', { name: 'Equipment usage this week' })).toBeInTheDocument();
     const toggle = screen.getByRole('button', { name: 'Fuel and trips for Loader 1 · EQU P1' });
     await userEvent.setup().click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');

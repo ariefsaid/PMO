@@ -46,7 +46,7 @@
     "roleApprovalRank": "Manajer Proyek, Keuangan, Eksekutif, atau Admin",
     "roleFinanceAdmin": "Keuangan atau Admin",
     "roleFinanceExecAdmin": "Keuangan, Eksekutif, atau Admin",
-    "roleFlat": "manajer proyek atau Finance",
+    "roleFlat": "manajer proyek atau Keuangan",
     "roleManager": "atasan langsung",
     "roleOrg": "penyetuju senior",
     "roleProject": "penyetuju proyek",

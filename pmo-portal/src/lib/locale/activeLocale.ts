@@ -84,6 +84,30 @@ export function setActiveLocale(resolved: ResolvedLocale): void {
 /** Test/teardown helper — restore the boot default. */
 export function resetActiveLocale(): void {
   active = FALLBACK;
+  setActiveOrgTimezone('UTC');
+}
+
+/**
+ * The ORGANISATION's business timezone: which calendar day a record belongs to. Never the person's own
+ * timezone (that only renders instants). UTC until the provider sets it, as the server's
+ * `coalesce(default_timezone, 'UTC')` does (#2914).
+ */
+let activeOrgTimezone = 'UTC';
+const orgTimezoneListeners = new Set<() => void>();
+export function setActiveOrgTimezone(tz: string): void {
+  const next = isUsableTimeZone(tz) ? tz : 'UTC';
+  if (next === activeOrgTimezone) return;
+  activeOrgTimezone = next;
+  // Set during a provider's render, so listeners (other components) are told after it, never inside it.
+  queueMicrotask(() => orgTimezoneListeners.forEach((l) => l()));
+}
+export function getActiveOrgTimezone(): string {
+  return activeOrgTimezone;
+}
+/** For useSyncExternalStore. */
+export function subscribeActiveOrgTimezone(listener: () => void): () => void {
+  orgTimezoneListeners.add(listener);
+  return () => { orgTimezoneListeners.delete(listener); };
 }
 
 export function getActiveLocale(): ResolvedLocale {

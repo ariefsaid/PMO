@@ -74,7 +74,7 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
       'operator_set_org_plan', 'operator_set_global_feature', 'operator_clear_feature_override',
       'operator_set_plan_feature', 'operator_set_plan_limits', 'operator_toggle_feature',
       'audit_org_feature_change')
-    and p.proconfig @> array['search_path=public']::text[]),
+    and p.proconfig @> array['search_path=public, pg_temp']::text[]),
   13, 'every feature resolver and writer definer pins search_path');
 select ok((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and not p.prosecdef

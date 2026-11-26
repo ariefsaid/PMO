@@ -26,6 +26,7 @@ import { settlementFromFinanceBuckets, settlementIn } from '@/src/lib/invoiceSet
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { countedTasks } from '@/src/lib/tasks/taskTree';
+import { taskMilestoneIds } from '@/src/lib/delivery/milestoneRollup';
 
 /** Full whole-unit amount with its currency, right-aligned and tabular where it sits in a column (screen rules, Numbers). */
 const moneyIn = (currency: string) => (value: number) => formatTableMoney(value, currency) ?? String(value);
@@ -534,7 +535,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
             <span role="columnheader">{t('projectDetail.delivery.colProgress', 'Progress')}</span>
           </div>
           {all.map((milestone) => {
-            const phaseTasks = countedProjectTasks.filter((task) => task.milestone_id === milestone.id);
+            const phaseTasks = countedProjectTasks.filter((task) => taskMilestoneIds(task).includes(milestone.id));
             const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;
             const blockingTasks = phaseTasks.filter((task) => task.status === 'Blocked');
             const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : 0;

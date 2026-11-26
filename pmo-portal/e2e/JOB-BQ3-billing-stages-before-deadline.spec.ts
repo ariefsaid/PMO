@@ -29,7 +29,7 @@ test('JOB-BQ3 a claim shows its current stage and the deadline warning, and fini
   const day = today + 3 <= 28 ? today + 3 : today;
   const daysLeft = day - today;
   await admin.from('projects').update({ invoice_deadline_day: day, invoice_deadline_warn_days: 5 }).eq('id', fx.projectId).throwOnError();
-  billing = await createJobRoleUser(admin, ORG_ID, 'billing_officer');
+  billing = await createJobRoleUser(admin, ORG_ID, 'finance_officer');
 
   {
     await billing.signIn(page);

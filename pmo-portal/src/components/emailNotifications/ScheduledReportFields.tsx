@@ -82,9 +82,6 @@ export const ScheduledReportFields: React.FC<{
           {draft.recipientUserIds.length + draft.recipientRoles.length === 0 ? (
             <p className="text-control text-muted-foreground">{t('scheduled.recipientsHint', 'Pick at least one role or person.')}</p>
           ) : null}
-      {draft.recipientUserIds.length + draft.recipientRoles.length === 0 ? (
-        <p className="text-control text-muted-foreground">{t('scheduled.recipientsHint', 'Pick at least one role or person.')}</p>
-      ) : null}
     </>
   );
 };

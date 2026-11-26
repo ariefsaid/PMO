@@ -118,7 +118,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
   const revenue = useDailySiteReportRevenue(report.id, seeRevenue);
   const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeWorkOrderRevenue);
-  const m = useDailySiteReportMutations();
+  const m = useDailySiteReportMutations(report.project_id);
   const stockOn = useDsrStockSettings().data?.enabled === true;
 
   const [form, setForm] = useState<SiteReportForm>(() => siteReportFormFromDetail(detail));
@@ -307,7 +307,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
 
         <SiteReportWho form={form} editable={editable} onChange={update} />
 
-        <RecordSection title={t('hours.title', 'Hours and weather')}>
+        <RecordSection title={t('hours.workTime', 'Work time')}>
           <div className="grid gap-3 sm:grid-cols-3">
             <TextField label={t('hours.start', 'Start')} type="time" value={form.startTime} disabled={!editable} onChange={(v) => update({ startTime: v })} />
             <TextField label={t('hours.end', 'End')} type="time" value={form.endTime} disabled={!editable} onChange={(v) => update({ endTime: v })} />
@@ -328,7 +328,10 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           {editable && (
             <Button variant="outline" className="mt-3" onClick={() => update({ idle: [...form.idle, { minutes: '', reasonId: '' }] })}>{t('hours.addIdle', 'Add idle time')}</Button>
           )}
-          <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        </RecordSection>
+
+        <RecordSection title={t('hours.weather', 'Weather')}>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
             <SelectField label={t('hours.weather', 'Weather')} value={form.weatherId} disabled={!editable} onChange={(v) => update({ weatherId: v })}
               options={[{ value: '', label: t('hours.pickWeather', 'Not recorded') }, ...(lookups.weather.data ?? []).map((o) => ({ value: o.id, label: o.label }))]} />
             <TextField label={t('hours.weatherNote', 'Weather note')} value={form.weatherNote} disabled={!editable} onChange={(v) => update({ weatherNote: v })} />

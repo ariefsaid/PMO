@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { pickComboboxOption, signIn } from '../helpers';
 import { cleanSiteIssue } from '../siteIssueFixture';
-import { ENGINEER_ID, ORG_ID, PM_ID, need, serviceClient } from '../support/jobJourney';
+import { ENGINEER_ID, ORG_ID, PM_ID, inDays, need, serviceClient } from '../support/jobJourney';
 import { seedWorkOrder } from '../support/crewJourney';
 
 /**
@@ -18,7 +18,7 @@ const run = `ICM-${Date.now()}`;
 const type = `${run} type`;
 let wo = { projectId: '', workOrderId: '', title: '' };
 let priorSetting: { enabled: boolean; grouping_mode: string } | null = null;
-const workDate = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+const workDate = inDays(-2); // the report's day is dated by the organisation's calendar
 
 test.beforeEach(async () => {
   wo = await seedWorkOrder(db, 'AC-ICM-013', run, 'plant');

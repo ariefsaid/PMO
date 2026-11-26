@@ -179,10 +179,12 @@ describe('HR Officer timesheet review list (AC-HTR-001..006)', () => {
     const list = within(await screen.findByTestId('timesheet-review-list'));
     expect(list.getByText('Sari Putri')).toBeInTheDocument();
     expect(list.getByText('Budi Santoso')).toBeInTheDocument();
-    expect(list.getByText('15.5 h')).toBeInTheDocument();
+    // The week's hours sit in the Hours column.
+    expect(list.getByRole('cell', { name: '15.5' })).toBeInTheDocument();
 
     await user.click(list.getByRole('button', { name: /Show entries for Sari Putri/i }));
-    expect(list.getAllByText(/Alpha Jetty/).length).toBeGreaterThan(0);
+    // The entries open read-only in the side drawer.
+    expect(within(await screen.findByRole('dialog')).getAllByText(/Alpha Jetty/).length).toBeGreaterThan(0);
 
     expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /return/i })).toBeNull();
@@ -228,8 +230,9 @@ describe('HR Officer timesheet review list (AC-HTR-001..006)', () => {
     mountReview();
     const list = within(await screen.findByTestId('timesheet-review-list'));
     await user.click(list.getByRole('button', { name: /Show entries for Sari Putri/i }));
-    expect(list.getByText('WO-001 · Structural erection')).toBeInTheDocument();
-    expect(list.getByText('WO-002 · Piping tie-in')).toBeInTheDocument();
+    const drawer = within(await screen.findByRole('dialog'));
+    expect(drawer.getByText('WO-001 · Structural erection')).toBeInTheDocument();
+    expect(drawer.getByText('WO-002 · Piping tie-in')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /return/i })).toBeNull();
   });
@@ -241,13 +244,13 @@ describe('HR Officer timesheet review list (AC-HTR-001..006)', () => {
     expect(list.getByText('Sari Putri')).toBeInTheDocument();
 
     // Filter by person
-    await user.selectOptions(screen.getByLabelText('Person'), 'u-sari');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Person' }), 'u-sari');
     expect(list.getByText('Sari Putri')).toBeInTheDocument();
     expect(list.queryByText('Budi Santoso')).toBeNull();
     expect(screen.getByTestId('url-search').textContent).toContain('person=u-sari');
 
     // Clear person, filter by project
-    await user.selectOptions(screen.getByLabelText('Person'), '');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Person' }), '');
     await user.selectOptions(screen.getByLabelText('Project'), 'p-beta');
     expect(list.getByText('Budi Santoso')).toBeInTheDocument();
     expect(list.queryByText('Sari Putri')).toBeNull();

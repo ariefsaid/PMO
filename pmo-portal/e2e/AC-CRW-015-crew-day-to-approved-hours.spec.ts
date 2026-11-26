@@ -13,6 +13,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, visibleToast } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import { markEveryonePresent } from './support/crewJourney';
 
@@ -26,9 +27,6 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 );
 
 test.setTimeout(180_000);
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 let admin: SupabaseClient | undefined;
 let run = '';
@@ -47,7 +45,7 @@ test.beforeEach(async () => {
   if (!key) throw new Error('AC-CRW-015 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   run = `E2E-CRW-${Date.now()}`;
-  const from = new Date(); from.setDate(from.getDate() - 7);
+  const from = inDays(-7); // rostered a week back by the organisation's clock
 
   const projectId = need('project', await admin.from('projects')
     .insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
@@ -61,18 +59,17 @@ test.beforeEach(async () => {
   for (const name of [`${run} Ana`, `${run} Budi`]) {
     const id = need(name, await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', name }).select('id').single()).id;
     need(`${name} placement`, await admin.from('crew_members')
-      .insert({ org_id: ORG_ID, crew_id: crewId, worker_id: id, valid_from: iso(from) }).select('id').single());
+      .insert({ org_id: ORG_ID, crew_id: crewId, worker_id: id, valid_from: from }).select('id').single());
     people.push({ id, name });
   }
   need('roster', await admin.from('work_order_crews')
-    .insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: iso(from) }).select('id').single());
+    .insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from }).select('id').single());
 });
 
 test.afterEach(async () => {
   if (!admin || !crewId) return;
-  // Ends yesterday: valid_to is inclusive, so ending today would leave the crew rostered for the rest of today (the Engineer's phone home would list this work order).
-  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-  const today = iso(yesterday);
+  // Ends yesterday BY THE ORGANISATION'S CLOCK: valid_to is inclusive, so ending today would leave the crew rostered for the rest of today (the Engineer's phone home would list this work order).
+  const today = inDays(-1);
   const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`AC-CRW-015 cleanup ${step}: ${e.message}`); };
   fail('roster', (await admin.from('work_order_crews').update({ valid_to: today }).eq('crew_id', crewId)).error);
   fail('placements', (await admin.from('crew_members').update({ valid_to: today }).eq('crew_id', crewId)).error);
@@ -97,9 +94,10 @@ test('AC-CRW-015 a crew\'s day is ticked, the week sent, a supervisor approves, 
   // 2. The Project Manager, who recorded none of it, approves each person's week from the same page.
   await signIn(page, 'pm@acme.test');
   await page.goto('/crews?view=attendance');
-  for (const [person, hours] of [[ana, '8 hours'], [budi, '6 hours']] as const) {
+  for (const [person, hours] of [[ana, '8'], [budi, '6']] as const) {
     const row = page.getByRole('row', { name: person.name });
-    await expect(row.getByText(hours)).toBeVisible({ timeout: 20_000 });
+    // The week's hours sit in the waiting table's Hours column.
+    await expect(row.getByRole('cell', { name: hours, exact: true })).toBeVisible({ timeout: 20_000 });
     await row.getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByRole('row', { name: person.name })).toHaveCount(0, { timeout: 15_000 });
   }

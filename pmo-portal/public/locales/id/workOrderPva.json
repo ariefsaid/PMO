@@ -1,4 +1,5 @@
 {
+  "actualBasis": "Aktual mengikuti realisasi keuangan proyek; biaya di bawah mencakup catatan lainnya.",
   "basis": "Dasar",
   "basisCaption": "Catatan biaya di balik angka ini",
   "basisCustom": "Biaya bersama memakai pembagian yang disimpan.",
@@ -18,7 +19,11 @@
     "result": "Setelah biaya bersama",
     "revenue": "Pendapatan ditagih",
     "shared": "Biaya bersama",
-    "workOrder": "$t(common:terms.clientWorkOrder)"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "planShort": "Rencana",
+    "actualShort": "Aktual",
+    "cost": "Biaya",
+    "difference": "Sisa atau lebih"
   },
   "costUnknown": "Biaya tidak diketahui",
   "crewHours": "Jam kru",
@@ -242,5 +247,12 @@
     "people": "Tenaga kerja",
     "equipment": "Peralatan",
     "noteFull": "Ditampilkan terpisah: jam tenaga kerja sudah termasuk dalam biaya tenaga kerja dan biaya siaga sudah termasuk dalam biaya peralatan, sehingga tidak ditambahkan lagi. Tenaga kerja dihitung dari kru yang hadir setiap hari dengan biaya per jam rata-rata perintah kerja."
-  }
+  },
+  "openDetails": "{{number}} {{title}}, rincian",
+  "nothingYet": "Belum ada rencana atau biaya. Buat rencana $t(common:terms.clientWorkOrder) untuk membandingkan biayanya dengan rencana.",
+  "totalCost": "Total biaya, langsung dan bersama",
+  "billedTitle": "Tagihan dan margin",
+  "byDisciplineTitle": "Biaya per disiplin",
+  "openPage": "Buka halaman penuh",
+  "otherCurrencyNote": "Sebagian biaya dalam mata uang lain: angka yang akan mencampur mata uang tidak ditampilkan, dan biaya itu dicatat terpisah."
 }

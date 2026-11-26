@@ -26,12 +26,13 @@ const PositionFigure: React.FC<{ floatId: string; currency: string; figure: Figu
   if (isPending) return <span className="text-muted-foreground">…</span>;
   if (isError || !data) return <span className="text-muted-foreground" title={t('imprest:list.positionUnavailable', 'Unavailable')}>—</span>;
   if (figure === 'count') {
-    if (data.last_count_variance == null) return <span className="text-muted-foreground">—</span>;
-    return toCents(data.last_count_variance) !== 0
+    if (data.last_count_variance == null) return null;
+    const result = toCents(data.last_count_variance) !== 0
       ? <span className="whitespace-nowrap text-destructive-text" role="status">
         {t('imprest:position.varianceFlag', 'Count differs')} <span className="tabular-nums">({formatCurrency(Number(data.last_count_variance), currency)})</span>
       </span>
       : <span className="text-muted-foreground">{t('imprest:list.countOk', 'Matched')}</span>;
+    return <span className="block text-muted-foreground">{t('imprest:position.lastCountColumn', 'Last count')}: {result}</span>;
   }
   if (figure === 'gap') {
     // Measured against funded cash: an unfunded or enlarged float is waiting for funding, not out of balance.
@@ -136,9 +137,9 @@ const ImprestFloatsPage: React.FC = () => {
   const may = usePermission();
   const rows = data?.rows ?? [];
   const columns: Column<FloatListRow>[] = [
-    { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <span className="font-semibold">{r.project?.name ?? '—'}</span>,
+    { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <div className="min-w-0"><span className="font-semibold">{r.project?.name ?? '—'}</span><span className="block text-muted-foreground">{r.custodian?.full_name ?? '—'}</span><PositionFigure floatId={r.id} currency={r.currency} figure="count" /></div>,
       exportValue: (r) => r.project?.name ?? '' },
-    { key: 'custodian', header: t('imprest:list.columns.custodian', 'Custodian'), cell: (r) => r.custodian?.full_name ?? '—',
+    { key: 'custodian', header: t('imprest:list.columns.custodian', 'Custodian'), cell: (r) => r.custodian?.full_name ?? '—', exportOnly: true,
       exportValue: (r) => r.custodian?.full_name ?? '' },
     { key: 'float', header: t('imprest:position.float', 'Limit'), align: 'num',
       cell: (r) => <span className="tabular-nums">{formatCurrency(Number(r.float_amount), r.currency)}</span>, exportValue: (r) => Number(r.float_amount) },
@@ -146,7 +147,6 @@ const ImprestFloatsPage: React.FC = () => {
     { key: 'advances', header: t('imprest:position.advancesOut', 'Advances given'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="advances_out" /> },
     { key: 'receipts', header: t('imprest:position.receiptsWaiting', 'Receipts waiting'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="receipts_waiting" /> },
     { key: 'gap', header: t('imprest:position.gap', 'Still needed'), align: 'num', cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="gap" /> },
-    { key: 'count', header: t('imprest:position.lastCountColumn', 'Last count'), cell: (r) => <PositionFigure floatId={r.id} currency={r.currency} figure="count" /> },
   ];
   return (
     <ListPage

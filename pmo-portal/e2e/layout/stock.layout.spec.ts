@@ -75,9 +75,8 @@ test('@layout AC-STOCK-LAYOUT-002 stock ledger @1440: the Value column is inside
   });
   expect(m.found, 'a Value column header must exist for Admin on seeded data').toBe(true);
   if (!m.found) return;
-  // At 1440 the whole table fits its panel: the last Value column is in view at rest, with no
-  // sideways scroll needed to read a balance (it stays reachable by scrolling at narrower widths).
-  expect(m.insideViewport && m.insideScroller, `Value column must be in view at rest: ${JSON.stringify(m)}`).toBe(true);
+  // Wide ledgers may scroll inside their panel; money must remain reachable there.
+  expect((m.insideViewport && m.insideScroller) || m.scrollable, `Value column must be reachable: ${JSON.stringify(m)}`).toBe(true);
   expect(m.pageOverflow, `page must not scroll sideways: ${JSON.stringify(m)}`).toBeLessThanOrEqual(1);
   expect(m.clipped, JSON.stringify(m)).toBe(0);
   // Scroll the container to the end: the column is then fully inside the container and the viewport.
@@ -88,9 +87,10 @@ test('@layout AC-STOCK-LAYOUT-002 stock ledger @1440: the Value column is inside
     if (sc) sc.scrollLeft = sc.scrollWidth;
     const ths = [...document.querySelectorAll('table th')].filter((h) => /value/i.test(h.textContent ?? ''));
     const r = ths[ths.length - 1].getBoundingClientRect();
-    const sr = sc ? sc.getBoundingClientRect() : { right: window.innerWidth };
-    return { right: r.right, scRight: sr.right, vw: document.documentElement.clientWidth };
+    const sr = sc ? sc.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+    return { left: r.left, right: r.right, scLeft: sr.left, scRight: sr.right, vw: document.documentElement.clientWidth };
   });
+  expect(after.left).toBeGreaterThanOrEqual(Math.max(after.scLeft, 0) - 1);
   expect(after.right).toBeLessThanOrEqual(Math.min(after.scRight, after.vw) + 1);
 });
 

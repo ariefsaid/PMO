@@ -26,8 +26,8 @@ import { WorkOrderRoster } from './WorkOrderRoster';
 describe('AC-MR-008 the roster shows a worker whose medical release is not approved', () => {
   it('marks that worker as release pending and nobody else', () => {
     render(<MemoryRouter initialEntries={['/crews?view=roster&wo=wo1&date=2026-11-05']}><ToastProvider><WorkOrderRoster /></ToastProvider></MemoryRouter>);
-    const ana = screen.getByText('Ana').closest('li') as HTMLElement;
+    const ana = screen.getByText('Ana').closest('tr') as HTMLElement;
     expect(within(ana).getByText('Release pending')).toBeInTheDocument();
-    expect(within(screen.getByText('Budi').closest('li') as HTMLElement).queryByText('Release pending')).toBeNull();
+    expect(within(screen.getByText('Budi').closest('tr') as HTMLElement).queryByText('Release pending')).toBeNull();
   });
 });

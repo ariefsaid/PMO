@@ -65,7 +65,7 @@ test('JOB-F21 the project administrator enters consumables on the daily report a
     await page.goto('/site-reports');
     await page.getByRole('button', { name: 'New report' }).first().click();
     await page.getByLabel('Project').selectOption({ label: `${run} project` });
-    await page.getByLabel('Work order').selectOption({ label: `${run} pipe run` });
+    await page.getByRole('combobox', { name: 'Work order', exact: true }).selectOption({ label: `${run} pipe run` });
     await page.getByRole('button', { name: 'Start report' }).click();
     await expect(page).toHaveURL(/\/site-reports\/[0-9a-f-]{36}$/, { timeout: 15_000 });
     const reportUrl = new URL(page.url()).pathname;

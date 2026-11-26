@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { signIn, requireServiceRoleKey } from './helpers';
 import { roleJobUser } from './support/roleJobUser';
 import { SEED_PROJECT_ID, SEED_PROJECT_NAME, makeItem, runSuffix, userClient } from './support/stockFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -69,6 +70,7 @@ test('AC-CUS-015: a planner adds a standard, generates the work order\'s consuma
 
     // Planner: generate the plan on the work order: (160 x 0.05 x 1.10) = 8.8.
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'material');
     const plan = page.getByTestId('consumable-plan');
     await plan.getByRole('button', { name: 'Generate plan' }).click();
     await expect(plan.getByTestId(`consumable-row-${rod.id}`)).toContainText('Plan 8.8', { timeout: 15_000 });
@@ -86,6 +88,7 @@ test('AC-CUS-015: a planner adds a standard, generates the work order\'s consuma
     // Project Control Manager approves the consumable plan so material requests check against it.
     await pcm.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'material');
     const pcmPlan = page.getByTestId('consumable-plan');
     await expect(pcmPlan.getByTestId('consumable-approval')).toContainText('Approval required', { timeout: 15_000 });
     await pcmPlan.getByRole('button', { name: 'Approve plan' }).click();
@@ -99,7 +102,7 @@ test('AC-CUS-015: a planner adds a standard, generates the work order\'s consuma
     await page.getByLabel('Deliver to').selectOption({ label: `${site.code} · ${site.name}` });
     await page.getByLabel(/^item/i).selectOption({ label: `${rod.code} · ${rod.name}` });
     await page.getByLabel(/^quantity/i).fill('9');
-    await expect(page.getByTestId('mrq-plan')).toContainText('Plan 8.8');
+    await expect(page.getByTestId('mrq-plan-qty')).toHaveText(/^8\.8\b/);
     await expect(page.getByTestId('mrq-plan-source')).toContainText('From usage standards');
     await expect(page.getByTestId('mrq-plan')).toContainText('Over plan');
     await page.getByRole('button', { name: 'Send for approval' }).click();

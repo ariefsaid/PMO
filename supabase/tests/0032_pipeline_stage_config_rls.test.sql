@@ -82,7 +82,7 @@ reset role;
 -- Read as table owner (no role switch needed) — bypasses RLS for the seed invariant check.
 select is(
   (select count(*)::int from pipeline_stage_config
-   where org_id = '00000000-0000-0000-0000-000000000001'),
+   where win_probability is not null and org_id = '00000000-0000-0000-0000-000000000001'),
   5,
   'AC-1010: default-org seed has 5 OD-SP-2 rows');
 

@@ -1,3 +1,4 @@
+import { shippedTerm } from '@/src/lib/i18n/orgTerms';
 import { matchPath } from 'react-router';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
@@ -362,6 +363,7 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/reorder': '/stock',
   '/stock/at-risk': '/stock',
   '/stock/opening': '/stock',
+  '/stock/usage-standards': '/stock',
   '/stock/setup': '/stock',
   '/stock/transfers': '/stock',
   '/stock/transfers/new': '/stock',
@@ -376,6 +378,9 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/equipment/assets': '/equipment',
   '/equipment/expiring': '/equipment',
   '/equipment/availability': '/equipment',
+  // #2700: the monthly equipment plan is reached from Procurement (its Back bar names it).
+  '/equipment-plans': '/procurement',
+  '/equipment-plans/settings': '/procurement',
   // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
   '/finance/billing-board': '/finance/receivables',
   '/finance/billing-plan': '/finance/receivables',
@@ -383,6 +388,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/timesheets/review': '/timesheets',
   // M8: Work in hand under Projects highlights Projects in the rail.
   '/projects/work-in-hand': '/projects',
+  // #2584: progress certificates are reached from Procurement and belong to it.
+  '/subcontract-certificates': '/procurement',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -390,6 +397,8 @@ export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
   // A work order's page, and a safety day (which belongs to its work order), light Work orders only (#2518, #2596).
   if (/^\/(work-orders|safety-days)\/[^/]+$/.test(pathname)) return '/work-orders';
+  if (/^\/subcontract-certificates\/[^/]+$/.test(pathname)) return '/procurement';
+  if (/^\/stock\/transfers\/[^/]+(\/print)?$/.test(pathname)) return '/stock';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -399,6 +408,9 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/reorder': { label: 'Reorder', i18nKey: 'stock:tabs.reorder' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/setup': { label: 'Setup', i18nKey: 'stock:tabs.setup' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/at-risk': { label: 'At risk', i18nKey: 'stock:tabs.atRisk' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/opening': { label: 'Opening stock', i18nKey: 'stock:opening.title' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/usage-standards': { label: 'Usage standards', i18nKey: 'stock:tabs.usageStandards' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/transfers': { label: 'Transfers', i18nKey: 'stock:tabs.transfers' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/transfers/new': { label: 'Send transfer', i18nKey: 'stock:transfers.sendTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/work-order-transfer': { label: 'Move leftover', i18nKey: 'stock:workOrderTransfer.title' }, // i18n-exempt: fallback label is replaced from i18nKey at render
@@ -411,10 +423,13 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/equipment/availability': { label: 'Availability', i18nKey: 'equipment:availability.title' }, // i18n-exempt: translated at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/equipment-plans': { label: 'Monthly equipment plan', i18nKey: 'equipmentPlans:title' }, // i18n-exempt: translated at render
+  '/equipment-plans/settings': { label: 'Monthly plan settings', i18nKey: 'equipmentPlans:settings.title' }, // i18n-exempt: translated at render
   '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
   '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
   '/timesheets/review': { label: 'Timesheet review', i18nKey: 'timesheets:review.title' }, // i18n-exempt: translated at render
   '/projects/work-in-hand': { label: 'Work in hand', i18nKey: 'workInHand:title' }, // i18n-exempt: translated at render
+  '/subcontract-certificates': { label: 'Progress certificates', i18nKey: 'subcontractCertificates:title' }, // i18n-exempt: translated at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -432,6 +447,11 @@ export const ADMINISTRATION_SECTION_LABELS = {
   terminology: 'Terminology',
   'cost-attribution': 'Cost attribution',
   'scheduled-reports': 'Scheduled reports',
+  modules: 'Modules',
+  'document-types': 'Document types',
+  'document-categories': 'Document categories',
+  clearance: 'Clearance',
+  'all-settings': 'All settings',
 } as const;
 
 /**
@@ -457,6 +477,11 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   terminology: 'administration:terminology.nav',
   'cost-attribution': 'costAttribution:title',
   'scheduled-reports': 'emailNotifications:scheduled.title',
+  modules: 'administration:admin.modulesNav',
+  'document-types': 'administration:documentTypesNav',
+  'document-categories': 'administration:documentCategories.nav',
+  clearance: 'administration:clearance.navLabel',
+  'all-settings': 'allSettings.title',
 };
 
 const administrationBreadcrumbForPath = (
@@ -582,6 +607,15 @@ export function breadcrumbForPath(
     ];
   }
 
+  // A certificate reads as Procurement > Progress certificates; the record header names the certificate itself.
+  if (/^\/subcontract-certificates\/[^/]+$/.test(pathname)) {
+    const list = '/subcontract-certificates';
+    const parent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[list]);
+    if (parent) return [
+      { label: parent.label, ...(parent.labelKey ? { i18nKey: parent.labelKey } : {}), href: parent.path, onClick: () => navigate?.(parent.path) },
+      { ...CHILD_PAGE_CRUMB[list], href: list, onClick: () => navigate?.(list) },
+    ];
+  }
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
   if (childCrumb && childParent) {
@@ -594,6 +628,18 @@ export function breadcrumbForPath(
       },
       childCrumb,
     ];
+  }
+
+  // A stock transfer's page reads Stock > Transfers (the page title carries its number), never a stuck "Loading…".
+  if (/^\/stock\/transfers\/[^/]+(\/print)?$/.test(pathname)) {
+    const stock = MODULES.find((m) => m.path === '/stock');
+    const transfers = CHILD_PAGE_CRUMB['/stock/transfers'];
+    if (stock) {
+      return [
+        { label: stock.label, ...(stock.labelKey ? { i18nKey: stock.labelKey } : {}), href: stock.path, onClick: () => navigate?.(stock.path) },
+        { ...transfers, href: '/stock/transfers', onClick: () => navigate?.('/stock/transfers') },
+      ];
+    }
   }
 
   // Placeholder routes win first — they are not tracked modules, so they would
@@ -689,7 +735,7 @@ export function breadcrumbForPath(
         const recordCrumb = recordLabel
           ? { label: recordLabel }
           : pathname === '/projects/new'
-            ? { label: 'New project', i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
+            ? { label: `New ${shippedTerm('en', 'project').singular.toLowerCase()}`, i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
             // Create routes render their working forms, never a record — the crumb names the
             // form instead of a stuck "Loading…" (tidy audit TA-015/018/019).
             : pathname === '/procurement/new'
@@ -698,9 +744,13 @@ export function breadcrumbForPath(
                 ? { label: 'New meeting', i18nKey: 'meetings.form.newTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
                 : pathname === '/expenses/new'
                   ? { label: 'New expense claim', i18nKey: 'expenses.form.claimTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
-                  : recordResolved
-                    ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
-                    : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
+                  : pathname === '/material-requests/new'
+                    ? { label: 'New material request', i18nKey: 'materialRequests:form.title' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                    : pathname === '/material-requests/settings'
+                      ? { label: 'Approval settings', i18nKey: 'materialRequests:list.settings' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                      : recordResolved
+                        ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                        : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
         // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
         // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
         // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,
@@ -754,10 +804,14 @@ export interface RecordLists {
   imprestFloats?: { id: string; name: string }[];
   /** #1519: equipment assets resolve from the cached asset list; the label is the asset name. */
   equipmentAssets?: { id: string; name: string }[];
+  /** A person's record (`/equipment/people/:id`) resolves from the page's own by-id read; the label is the name. */
+  people?: { id: string; name: string }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
   /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
   stockDocuments?: { id: string; number: string }[];
+  /** #2524: material requests resolve from the detail query cache; the label is the request number. */
+  materialRequests?: { id: string; number: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -885,6 +939,9 @@ export function recordLabelForPath(
   const equipmentAssetId = idFrom('/equipment/assets');
   if (equipmentAssetId) return lists.equipmentAssets?.find((a) => a.id === equipmentAssetId)?.name;
 
+  const personId = idFrom('/equipment/people');
+  if (personId) return lists.people?.find((p) => p.id === personId)?.name;
+
   const imprestFloatId = idFrom('/imprest');
   if (imprestFloatId) return lists.imprestFloats?.find((f) => f.id === imprestFloatId)?.name;
 
@@ -894,6 +951,9 @@ export function recordLabelForPath(
 
   const stockDocumentId = idFrom('/stock/documents');
   if (stockDocumentId) return lists.stockDocuments?.find((d) => d.id === stockDocumentId)?.number;
+
+  const materialRequestId = idFrom('/material-requests');
+  if (materialRequestId) return lists.materialRequests?.find((r) => r.id === materialRequestId)?.number;
 
   return undefined;
 }

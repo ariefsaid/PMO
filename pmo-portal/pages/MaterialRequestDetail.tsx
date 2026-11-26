@@ -4,19 +4,22 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
-import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack, SelectField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, MobileActionBar, ReasonDialog, RecordHeader, RecordMenu, RecordSection, RecordStack, SelectField, cn, useToast, type Column } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useDeliveryNoteSettings, useMaterialRequest, useMaterialRequestMutations, useStepPins, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
-import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
+import { useStockItems, useStockKeepers, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
+import { formatQuantity } from '@/src/lib/stockFormat';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 import { UsageWarning } from './materialRequests/UsageWarning';
 import { useUsageThresholds } from '@/src/hooks/useUsageThresholds';
+import type { MaterialRequestLine as RequestLine } from '@/src/lib/repositories/materialRequests';
 
 type Dialog = null | { kind: 'return' | 'reject' } | { kind: 'approve' } | { kind: 'withdraw' } | { kind: 'retry' };
 
@@ -40,6 +43,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const waiting = useWaitingForMe();
   const { data: dnSettings } = useDeliveryNoteSettings();
   const { data: items } = useStockItems(true);
+  const { data: units } = useStockUnits(true);
   const { data: warehouses } = useStockWarehouses();
   const { data: keepers } = useStockKeepers();
   const m = useMaterialRequestMutations();
@@ -63,6 +67,24 @@ const MaterialRequestDetailPage: React.FC = () => {
   const canWithdraw = may('withdraw', 'materialRequest', ctx);
   const needsSource = open?.position === last;
   const itemName = (id: string) => { const i = items?.find((x) => x.id === id); return i ? `${i.code} · ${i.name}` : '—'; };
+  const unitOf = (itemId: string) => { const unitId = items?.find((x) => x.id === itemId)?.unit_id; return units?.find((u) => u.id === unitId)?.code ?? ''; };
+  const qty = (n: number | null | undefined, itemId: string, over = false) => n === null || n === undefined
+    ? <span className="text-muted-foreground">—</span>
+    : <span className={cn('whitespace-nowrap tabular-nums', over && 'font-medium text-warning-foreground')}>{formatQuantity(String(n), getNumberLocale())}{unitOf(itemId) && <span className="font-normal text-muted-foreground"> {unitOf(itemId)}</span>}</span>;
+  // One row per item: the requested quantity, then the plan it is judged against, what was requested before and the new
+  // total, each in its own right-aligned column. Where the plan comes from, the over-plan reason and a usage warning sit under the item.
+  const lineColumns: Column<RequestLine>[] = [
+    { key: 'item', header: t('form.item', 'Item'), rowHeader: true, cell: (l) => <div className="min-w-0 space-y-1" data-testid="mrq-detail-line">
+      <span className="block break-words font-medium text-foreground">{itemName(l.itemId)}</span>
+      {l.planQty !== null && l.planSource && <span className="block text-control font-normal text-muted-foreground" data-testid="mrq-detail-plan-source">{t(`form.planSource.${l.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[l.planSource])}</span>}
+      {l.overPlanReason && <span className="block break-words text-control font-normal text-foreground">{t('detail.overPlanReason', 'Over plan: {{reason}}', { reason: l.overPlanReason })}</span>}
+      {l.planQty !== null && <span className="block font-normal"><UsageWarning line={{ planQty: l.planQty, priorQty: l.priorQty ?? 0, quantity: l.quantity }} thresholds={usage.thresholds} /></span>}
+    </div> },
+    { key: 'quantity', header: t('detail.requested', 'Requested'), align: 'num', size: 136, cell: (l) => qty(l.quantity, l.itemId) },
+    { key: 'plan', header: t('form.figures.plan', 'Plan'), align: 'num', size: 136, cell: (l) => qty(l.planQty, l.itemId) },
+    { key: 'prior', header: t('form.figures.prior', 'Requested before'), align: 'num', size: 152, cell: (l) => (l.planQty === null ? null : qty(l.priorQty ?? 0, l.itemId)) },
+    { key: 'total', header: t('form.figures.total', 'New total'), align: 'num', size: 136, cell: (l) => (l.planQty === null ? null : qty((l.priorQty ?? 0) + l.quantity, l.itemId, (l.priorQty ?? 0) + l.quantity > l.planQty)) },
+  ];
   const sourceWarehouses = (warehouses ?? []).filter((w) => w.kind === 'central' && !w.archived_at);
   const retrySourceOptions = sourceWarehouses
     .filter((w) => may('create', 'stockDocument', { record: { isKeeper: keepers?.some((k) => k.warehouse_id === w.id && k.user_id === currentUser?.id) ?? false } }))
@@ -93,22 +115,24 @@ const MaterialRequestDetailPage: React.FC = () => {
     () => m.decide.mutateAsync({ id: req.id, position: open!.position, decision, reason, sourceWarehouseId: decision === 'approve' && needsSource && source ? source : null }),
     decision === 'approve' ? t('detail.approved', 'Step approved') : decision === 'return' ? t('detail.returned', 'Sent back to the requester') : t('detail.rejected', 'Request rejected'));
 
+  const menuItems = [
+    ...(canDecide ? [
+      { key: 'return', label: t('detail.return', 'Send back'), onSelect: () => setDialog({ kind: 'return' } as const) },
+      { key: 'reject', label: t('detail.reject', 'Reject'), onSelect: () => setDialog({ kind: 'reject' } as const) }] : []),
+    ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' } as const) }] : []),
+    ...(canPrintDeliveryNote ? [{ key: 'printDeliveryNote', label: t('detail.printDeliveryNote', 'Print delivery note'), onSelect: () => navigate(`/material-requests/${req.id}/delivery-note`) }] : []),
+  ];
+
   return (
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={t('form.back', 'Material requests')} onBack={() => navigate('/material-requests')} /></div>
       <RecordHeader panelInset name={req.number} status={<RequestStatusPill status={req.status} />}
         meta={<span>{t('detail.meta', 'Raised by {{name}} · needed by {{date}}', { name: name(req.createdBy), date: formatDay(req.neededBy) })}</span>}
-        primaryAction={canDecide ? <Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button>
+        primaryAction={canDecide ? <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 flex gap-2 border-t border-border bg-card p-3 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button><RecordMenu items={menuItems} ariaLabel={t('detail.moreActions', 'More actions')} /></MobileActionBar>
           : canEdit ? <Button variant="primary" onClick={() => navigate(`/material-requests/${req.id}/edit`)}>{t('detail.edit', 'Edit and send')}</Button>
           : canPrintDeliveryNote ? <Button variant="outline" onClick={() => navigate(`/material-requests/${req.id}/delivery-note`)}>{t('detail.printDeliveryNote', 'Print delivery note')}</Button>
           : undefined}
-        menuItems={[
-          ...(canDecide ? [
-            { key: 'return', label: t('detail.return', 'Send back'), onSelect: () => setDialog({ kind: 'return' }) },
-            { key: 'reject', label: t('detail.reject', 'Reject'), onSelect: () => setDialog({ kind: 'reject' }) }] : []),
-          ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' }) }] : []),
-          ...(canPrintDeliveryNote ? [{ key: 'printDeliveryNote', label: t('detail.printDeliveryNote', 'Print delivery note'), onSelect: () => navigate(`/material-requests/${req.id}/delivery-note`) }] : []),
-        ]} menuLabel={t('detail.moreActions', 'More actions')}>
+        menuItems={canDecide ? [] : menuItems} menuLabel={t('detail.moreActions', 'More actions')}>
         <p><span className="text-muted-foreground">{t('list.columns.workOrder', 'Work order')}: </span><RequestWorkOrder workOrderId={req.workOrderId} projectId={req.projectId} /></p>
         {req.note && <p>{req.note}</p>}
         <div><FollowUpTaskButton type="material_request" recordId={req.id} projectId={req.projectId} defaultName={req.number} finished={['fulfilled', 'rejected', 'cancelled'].includes(req.status)} /></div>
@@ -152,17 +176,8 @@ const MaterialRequestDetailPage: React.FC = () => {
           )}
         </RecordSection>
 
-        <RecordSection title={t('detail.lines', 'Items')}>
-          <ul className="divide-y divide-border">
-            {req.lines.map((l) => (
-              <li key={l.id} className="py-2" data-testid="mrq-detail-line">
-                <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{itemName(l.itemId)}</span><span className="tabular-nums">{l.quantity}</span></div>
-                {l.planQty !== null && <div className="text-control text-muted-foreground">{t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: l.planQty, prior: l.priorQty ?? 0, total: (l.priorQty ?? 0) + l.quantity })}{l.planSource && <span className="ml-2" data-testid="mrq-detail-plan-source">{t(`form.planSource.${l.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[l.planSource])}</span>}</div>}
-                {l.planQty !== null && <UsageWarning line={{ planQty: l.planQty, priorQty: l.priorQty ?? 0, quantity: l.quantity }} thresholds={usage.thresholds} />}
-                {l.overPlanReason && <div className="text-control">{t('detail.overPlanReason', 'Over plan: {{reason}}', { reason: l.overPlanReason })}</div>}
-              </li>
-            ))}
-          </ul>
+        <RecordSection title={t('detail.lines', 'Items')} flush>
+          <DataTable<RequestLine> rows={req.lines} columns={lineColumns} rowKey={(l) => l.id} tableId="material-request-lines" accessibleName={t('detail.lines', 'Items')} embedded cardValuesEnd />
         </RecordSection>
 
         <RecordSection title={t('detail.history', 'History')}>

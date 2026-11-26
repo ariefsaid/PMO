@@ -11,7 +11,7 @@ import { useBillingStageMutations, useClaimBillingTrace } from '@/src/hooks/useB
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { currentStageIndex, nextInvoiceDeadline, stageAgeDays, stageDaysPastTargetDate, stageOverdue } from '@/src/lib/billingStages';
 import { formatIsoDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { RetentionReleases } from './RetentionReleases';
 import { ClaimStepsPanel } from './ClaimStepsPanel';
 import { ClaimWorkOrderSteps } from './ClaimWorkOrderSteps';
@@ -75,7 +75,7 @@ const SkipStageDialog: React.FC<{ claimId: string; projectId: string; stage: Cla
     onConfirm={(reason) => void confirm(reason)} onCancel={onClose} />;
 };
 
-export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId, projectId, currency, invoiced, withdrawn, workOrderId, today = localToday() }) => {
+export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId, projectId, currency, invoiced, withdrawn, workOrderId, today = orgDayNow() }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const roles = useRoleOptions();
@@ -134,56 +134,56 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
     } catch (err) { explain(err); }
   };
 
-  return <section aria-labelledby={`billing-stages-${claimId}`} className="border-t border-border p-4">
+  return <section aria-labelledby={`billing-stages-${claimId}`} className="min-w-0 space-y-4 border-t border-border p-4">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <h3 id={`billing-stages-${claimId}`} className="text-group font-semibold">{trace.stages.length > 0 ? t('projectDetail.billing.stages.title', 'Billing stages') : t('projectDetail.billing.terms.title', 'Billing terms')}</h3>
       {trace.stages.length > 0 && <span className="text-sm tabular-nums text-muted-foreground">
         {t('projectDetail.billing.stages.progress', '{{done}} of {{total}} complete', { done: formatNumberExact(done), total: formatNumberExact(trace.stages.length) })}
       </span>}
     </div>
-    {deadline && <p className="mt-1 text-sm">
-      <StatusPill variant={deadline.warn ? 'warn' : 'neutral'} wrap={false}>
+    {deadline && <p className="text-sm">
+      <StatusPill variant={deadline.warn ? 'warn' : 'neutral'}>
         {t('projectDetail.billing.stages.deadline', 'Invoice deadline {{date}} · {{count}} days left', { date: formatIsoDay(deadline.date), count: deadline.daysLeft })}
       </StatusPill>
     </p>}
-    {trace.retention && hasRetention && <p className="mt-1 text-sm text-muted-foreground">
+    {trace.retention && hasRetention && <p className="text-sm text-muted-foreground">
       {t('projectDetail.billing.stages.retentionHeld', 'Retention held: {{amount}} ({{pct}}%)', {
         amount: formatTableMoney(trace.retention.held, currency) ?? '', pct: formatNumberExact(trace.retention.pct),
       })}
     </p>}
-    {trace.retention && hasRetention && <p className="mt-1 text-sm text-muted-foreground">
+    {trace.retention && hasRetention && <p className="text-sm text-muted-foreground">
       {t('projectDetail.billing.releases.totals', 'Scheduled total (including released): {{scheduled}} · Released: {{released}}', {
         scheduled: formatTableMoney(trace.retention.scheduled, currency) ?? '', released: formatTableMoney(trace.retention.released, currency) ?? '',
       })}
     </p>}
     {trace.retention && trace.retention.amount > 0 && <RetentionReleases claimId={claimId} projectId={projectId} currency={currency} today={today} withdrawn={withdrawn} />}
-    {open && current !== null && <p className="mt-1 text-sm text-muted-foreground">
+    {open && current !== null && <p className="text-sm text-muted-foreground">
       {t('projectDetail.billing.stages.gate', 'Complete every stage before raising the invoice.')}
     </p>}
     {refusal && <p role="alert" className="mt-2 text-sm text-destructive">{refusal}</p>}
 
-    {trace.stages.length > 0 && <ol aria-label={t('projectDetail.billing.stages.title', 'Billing stages')} className="mt-3 divide-y divide-border">
+    {trace.stages.length > 0 && <ol aria-label={t('projectDetail.billing.stages.title', 'Billing stages')} className="divide-y divide-border">
       {trace.stages.map((stage, index) => {
         const age = stageAgeDays(stage, today);
         const isCurrent = index === current;
         const overdue = open ? stageOverdue({ ...stage, targetDays: stage.targetOn ? null : stage.targetDays }, today) : null;
         const pastDate = open ? stageDaysPastTargetDate(stage, today) : null;
         const skipped = Boolean(stage.skippedOn);
-        return <li key={stage.id} aria-label={stage.name} className="py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-medium">
+        return <li key={stage.id} aria-label={stage.name} className="py-4 first:pt-0">
+          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+            <span className="min-w-0 break-words font-medium">
               <span className="mr-2 tabular-nums text-muted-foreground">{formatNumberExact(stage.position)}</span>{stage.name}
               {stage.clientSide && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('projectDetail.billing.stages.clientSide', "In the client's system")}</span>}
             </span>
-            <span className="flex items-center gap-2 text-sm">
+            <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
               {age !== null && !skipped && !overdue && pastDate === null && <span className="tabular-nums text-muted-foreground">{t('projectDetail.billing.stages.age', '{{count}} days', { count: age })}</span>}
-              {overdue && <StatusPill variant="overdue" wrap={false}>
+              {overdue && <StatusPill variant="overdue">
                 {t('projectDetail.billing.stages.overdue', 'Overdue')} · {t('projectDetail.billing.stages.overdueDetail', '{{age}} days, target {{target}}', { age: overdue.age, target: overdue.target })}
               </StatusPill>}
-              {pastDate !== null && <StatusPill variant="overdue" wrap={false}>
+              {pastDate !== null && <StatusPill variant="overdue">
                 {t('projectDetail.billing.stages.overdue', 'Overdue')} · {t('projectDetail.billing.steps.pastTargetDate', '{{count}} days past the target date', { count: pastDate })}
               </StatusPill>}
-              <StatusPill variant={stage.completedOn ? 'won' : isCurrent ? 'progress' : 'neutral'} wrap={false}>
+              <StatusPill variant={stage.completedOn ? 'won' : isCurrent ? 'progress' : 'neutral'}>
                 {stage.completedOn
                   ? t('projectDetail.billing.stages.completed', 'Completed {{date}}', { date: formatIsoDay(stage.completedOn) })
                   : skipped ? t('projectDetail.billing.stages.skipped', 'Not needed {{date}}', { date: formatIsoDay(stage.skippedOn as string) })
@@ -191,20 +191,20 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
               </StatusPill>
             </span>
           </div>
-          {(stage.ownerRole || stage.targetOn) && <p className="mt-1 text-sm text-muted-foreground">
+          {(stage.ownerRole || stage.targetOn) && <p className="text-sm text-muted-foreground">
             {[
               stage.ownerRole ? t('projectDetail.billing.steps.ownerLine', 'Owner: {{role}}', { role: roles.label(stage.ownerRole) }) : null,
               stage.targetOn ? t('projectDetail.billing.steps.targetLine', 'Target date {{date}}', { date: formatIsoDay(stage.targetOn) }) : null,
             ].filter(Boolean).join(' · ')}
           </p>}
-          {skipped && stage.skippedReason && <p className="mt-1 text-sm text-muted-foreground">
+          {skipped && stage.skippedReason && <p className="text-sm text-muted-foreground">
             {t('projectDetail.billing.stages.skippedReason', 'Reason: {{reason}}', { reason: stage.skippedReason })}
           </p>}
-          {stage.clientReference && <p className="mt-1 text-sm text-muted-foreground">
+          {stage.clientReference && <p className="text-sm text-muted-foreground">
             {t('projectDetail.billing.stages.reference', "Client's document {{reference}}", { reference: stage.clientReference })}
           </p>}
           {stage.documents.length > 0 && <ul className="mt-2 space-y-2 text-sm">
-            {stage.documents.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2">
+            {stage.documents.map((item) => <li key={item.id} className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
               <span>
                 {item.name}
                 <span className="ml-1.5 text-muted-foreground">{item.required

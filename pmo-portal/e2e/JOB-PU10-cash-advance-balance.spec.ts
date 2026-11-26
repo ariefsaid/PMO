@@ -10,6 +10,7 @@ import { loadEnv } from 'vite';
 import { requireServiceRoleKey, SEED_PASSWORD } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import { roleJobUser } from './support/roleJobUser';
+import { orgToday } from './support/jobJourney';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const PM_ID = '00000000-0000-0000-0000-0000000000a2'; // project manager and float custodian
@@ -128,7 +129,7 @@ test('JOB-PU10 the finance officer records two purchases against the advance and
     await page.getByLabel('Project').selectOption({ label: tag });
     await page.getByLabel('Budget category').selectOption({ label: 'Vehicle' });
     await page.getByLabel('Charge to site cash').selectOption({ index: 1 });
-    await page.getByLabel(/^Date/).fill(new Date().toISOString().slice(0, 10));
+    await page.getByLabel(/^Date/).fill(orgToday());
     await page.getByLabel(/^Type/).selectOption('Travel');
     await page.getByLabel(/^Description/).fill(what);
     await page.getByRole('textbox', { name: 'Amount' }).fill(amount);

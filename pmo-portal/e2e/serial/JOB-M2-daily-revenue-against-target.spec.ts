@@ -6,12 +6,14 @@ import { test, expect } from '@playwright/test';
 import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
-import { formatExactMoney } from '../../src/lib/format';
+import { formatTableMoney } from '../../src/lib/format';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
 type Actor = Awaited<ReturnType<typeof roleJobUser>>;
-const money = (value: string) => formatExactMoney(value, 'USD', 'en-US')!;
+// Read-only money reads in whole units (screen rules), through the app's own table formatter.
+const money = (value: string) => formatTableMoney(value, 'USD')!;
 
 test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, and the month to date', async ({ page }) => {
   const svc = serviceClient('JOB-M2');
@@ -63,6 +65,7 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
 
     await actor.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     const daily = page.getByTestId('wo-page-daily-target');
     await expect(daily).toBeVisible({ timeout: 30_000 });
     await expect(daily).not.toContainText('restricted for your role');
@@ -73,11 +76,12 @@ test('JOB-M2 the Executive sees the day\'s revenue against its target, the gap, 
     await expect(todayRow.locator('td').nth(0)).toHaveText(money('120.00'));
     await expect(todayRow.locator('td').nth(1)).toHaveText(money('50.00'));
     await expect(todayRow.locator('td').nth(2)).toHaveText(`${money('70.00')} behind target`);
-    // The month to date: the target so far, the actual, and the gap said in words.
-    await expect(daily.getByTestId('wo-daily-mtd-target')).toHaveText(money(mtdTarget.toFixed(2)));
-    await expect(daily.getByTestId('wo-daily-mtd-actual')).toHaveText(money('50.00'));
-    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(/behind target|ahead of target|On target/);
-    await expect(daily.getByTestId('wo-daily-mtd-gap')).toContainText(`${money((mtdTarget - 50).toFixed(2))} behind target`);
+    // Revenue plan carries the to-date summary after recomposition.
+    const summary = page.getByTestId('wo-page-revenue-plan');
+    await expect(summary.getByTestId('wo-revenue-plan-plan')).toHaveText(money(mtdTarget.toFixed(2)));
+    await expect(summary.getByTestId('wo-revenue-plan-actual')).toHaveText(money('50.00'));
+    await expect(summary.getByTestId('wo-revenue-plan-gap')).toContainText(/behind plan|ahead of plan|On plan/);
+    await expect(summary.getByTestId('wo-revenue-plan-gap')).toContainText(`${money((mtdTarget - 50).toFixed(2))} behind plan`);
     await expect(daily.getByTestId('wo-daily-projection')).not.toHaveText('Not enough working days yet');
   } finally {
     if (reportId) sqlAsOwner(`delete from public.dsr_progress_lines where report_id = '${reportId}'; delete from public.daily_site_reports where id = '${reportId}';`);

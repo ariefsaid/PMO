@@ -21,8 +21,10 @@ def reference(path, name, alias, args):
 
 refs = reference('supabase/migrations/0858_record_only_journal.sql', 'undo_captured_purchase',
                  'p0_proof_undo_reference', 'uuid,text,boolean')
+# 2690 appends pg_temp to the path of the function 0866 renames to unlink_erp_purchase_document_unchecked, and its down
+# renames that function back, so the restored function carries the 0372 body with that one trailing token added.
 refs += reference('supabase/migrations/0372_procurement_link_integrity.sql', 'unlink_erp_purchase_document',
-                  'p0_proof_unlink_reference', 'uuid')
+                  'p0_proof_unlink_reference', 'uuid').replace('set search_path = public, pg_catalog as', 'set search_path = public, pg_catalog, pg_temp as', 1)
 # The forward state is 0866 plus the migrations stacked on it; the down state undoes them newest first. 1209 later
 # guards three of the catalog's read RPCs and 1530 guards unlink_erp_purchase_document; neither rollback strips a body,
 # so the proof asserts those guards at the peeled head and compares those four entries against their own level body

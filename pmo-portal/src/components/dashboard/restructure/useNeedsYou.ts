@@ -31,14 +31,17 @@ import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procu
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { selectOverdueTaskCount } from './overdueTasks';
 import { useWaitingSteps, useWaitingWorkOrderSteps } from '@/src/hooks/useBillingSteps';
+import { useWaitingCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
 import { useWaitingMaterialAlerts } from '@/src/hooks/useWorkOrderMaterialAlerts';
 import { summariseWaitingMaterialAlerts } from '@/src/lib/materialAlertSteps';
 import type { WaitingMaterialAlertsFact } from '@/src/lib/materialAlertSteps';
 import { useCheckInRequests } from '@/src/hooks/usePhoneCheckIn';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
+import { summariseWaitingCloseoutItems } from '@/src/lib/closeoutWaiting';
+import type { WaitingCloseoutItemsFact } from '@/src/lib/closeoutWaiting';
 import { summariseWaitingWorkOrderSteps } from '@/src/lib/workOrderBillingSteps';
 import type { WaitingWorkOrderStepsFact } from '@/src/lib/workOrderBillingSteps';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import type { WaitingStepsFact } from '@/src/lib/waitingSteps';
 import { useManpowerToFill } from '@/src/hooks/useManpowerNeeds';
 import { summariseManpowerToFill } from '@/src/lib/waitingManpower';
@@ -101,6 +104,8 @@ export interface NeedsYouFacts {
   waitingManpower?: WaitingManpowerFact;
   /** Work-order billing steps waiting for the viewer (named person, else their built-in role): derived on read, cleared when the step is done. */
   waitingWorkOrderSteps?: WaitingWorkOrderStepsFact;
+  /** Close-out items waiting on the viewer's job role (#2907): derived on read, absent when none, unread or the read failed. */
+  waitingCloseoutItems?: WaitingCloseoutItemsFact;
   /** Work orders whose material issued is ahead of progress, for the people who control them (material-vs-progress): absent when none, unread or the read failed. */
   waitingMaterialAlerts?: WaitingMaterialAlertsFact;
   /** Phone check-ins waiting for this person's decision (#2705): the database lists only the ones they may decide, so most people read zero. */
@@ -256,6 +261,16 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       href: w.href, tone: w.overdue > 0 ? 'lost' : 'warn',
     });
   }
+  // A close-out item whose owner job role the viewer holds waits on them too (#2907); the database answers only for holders.
+  if (facts.waitingCloseoutItems) {
+    const c = facts.waitingCloseoutItems;
+    add({
+      id: 'closeout-items-waiting', count: c.count,
+      label: counted(t, 'needs.closeoutItems', 'close-out item waiting on your role', 'close-out items waiting on your role', c.count),
+      detail: c.overdue > 0 ? t('needs.closeoutItemsOverdue', '{{count}} past target', { count: c.overdue }) : undefined,
+      href: c.href, tone: c.overdue > 0 ? 'lost' : 'warn',
+    });
+  }
   if (facts.waitingMaterialAlerts) {
     const m = facts.waitingMaterialAlerts;
     add({
@@ -406,6 +421,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const manpowerToFillQuery = useManpowerToFill(Boolean(orgId && role));
   // Work-order billing steps waiting for the viewer (any role: the database returns only what they may see and act on).
   const waitingWoStepsQuery = useWaitingWorkOrderSteps(Boolean(orgId && role));
+  // Close-out items waiting on the viewer's job role (#2907): additive like the billing steps; a light (field) account
+  // cannot open the item, so none is asked (the database skips them too).
+  const waitingCloseoutQuery = useWaitingCloseoutItems(Boolean(orgId && role) && !isLightAccount(currentUser));
   // material-vs-progress: open alerts on work orders the viewer controls. The responsible person can hold any role; the database returns none to everyone else and refuses a light account, so none is asked.
   const waitingAlertsQuery = useWaitingMaterialAlerts(Boolean(orgId && role) && !isLightAccount(currentUser));
   // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
@@ -466,7 +484,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     waitingManpower: manpowerToFillQuery.isSuccess ? summariseManpowerToFill(manpowerToFillQuery.data ?? []) ?? undefined : undefined,
     checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
-    waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? localToday()) ?? undefined : undefined,
+    waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? orgDayNow()) ?? undefined : undefined,
+    waitingCloseoutItems: waitingCloseoutQuery.isSuccess ? summariseWaitingCloseoutItems(waitingCloseoutQuery.data ?? [], organizationDay.day ?? orgDayNow()) ?? undefined : undefined,
     waitingMaterialAlerts: waitingAlertsQuery.isSuccess ? summariseWaitingMaterialAlerts(waitingAlertsQuery.data ?? []) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };
@@ -511,6 +530,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     void myTasksQuery.refetch();
     void expenseClaimsQuery.refetch();
     waiting.refetch();
+    void waitingCloseoutQuery.refetch();
     void checkInsQuery.refetch();
     organizationDay.retry();
   };

@@ -8,10 +8,11 @@
  */
 import { test, expect } from '@playwright/test';
 import { signIn, pickComboboxOption } from './helpers';
-import { iso, need, ORG_ID, PM_ID, serviceClient } from './support/jobJourney';
+import { inDays, need, ORG_ID, PM_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { runId } from './support/jobFixtures';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(240_000);
 const must = need('JOB-E6');
@@ -19,8 +20,8 @@ const db = serviceClient('JOB-E6');
 const run = `E2E-E6-${Date.now()}`;
 let a = { projectId: '', workOrderId: '', title: '' }; let b = a; let assetId = '';
 let officer: Awaited<ReturnType<typeof roleJobUser>>;
-const workDay = new Date(); workDay.setDate(workDay.getDate() - 7);
-const weekdayIndex = (workDay.getDay() + 6) % 7;
+const workDay = inDays(-7); // a week back by the organisation's clock, which is the week the equipment grid is asked for
+const weekdayIndex = (new Date(`${workDay}T00:00:00Z`).getUTCDay() + 6) % 7;
 
 test.beforeEach(async () => {
   officer = await roleJobUser(db, 'equipment_officer', runId('e6-eo'));
@@ -38,7 +39,7 @@ test.afterEach(async () => {
 test('JOB-E6 a crane used on two work orders in a day carries 5 hours on one and 3 on the other', async ({ page }) => {
   await officer.signIn(page);
   for (const [x, hours] of [[a, '5'], [b, '3']] as const) {
-    await page.goto(`/equipment?week=${iso(workDay)}`);
+    await page.goto(`/equipment?week=${workDay}`);
     await page.getByRole('button', { name: 'Add row' }).click();
     const dialog = page.getByRole('dialog');
     await pickComboboxOption(page, page, /^Equipment/, new RegExp(run));
@@ -56,7 +57,7 @@ test('JOB-E6 a crane used on two work orders in a day carries 5 hours on one and
   await expect(page.getByText('Submitted', { exact: true })).toHaveCount(2, { timeout: 15_000 });
 
   await signIn(page, 'pm@acme.test');
-  await page.goto(`/equipment?week=${iso(workDay)}`);
+  await page.goto(`/equipment?week=${workDay}`);
   await page.getByRole('tab', { name: 'Approvals' }).click();
   await page.getByRole('button', { name: 'Approve week' }).click();
   await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
@@ -65,6 +66,7 @@ test('JOB-E6 a crane used on two work orders in a day carries 5 hours on one and
   // Goal: each work order's own page shows its own hours of the crane.
   for (const [x, hours] of [[a, 5], [b, 3]] as const) {
     await page.goto(`/work-orders/${x.workOrderId}`);
+    await openWorkOrderArea(page, 'cost');
     const equipment = page.getByTestId('cost-group-equipment_usage');
     await expect(equipment).toContainText(run, { timeout: 20_000 });
     await expect(equipment).toContainText(new RegExp(`(?:^|\\D)${hours} hours`));

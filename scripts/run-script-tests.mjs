@@ -37,6 +37,8 @@ export const EXCLUDED = [
   'fiscal-year-ensure-mutation.test.mjs',
   // needs the database: pgtap job, fiscal-year-ensure two-session race under scripts/with-db-lock.sh
   'fiscal-year-ensure-race.test.mjs',
+  // needs the database: pgtap job, schema registration scratch proof
+  'check-schema-registrations.test.mjs',
 ];
 
 // Pure: from a directory listing of scripts/ (file names), the ordered test list this runner

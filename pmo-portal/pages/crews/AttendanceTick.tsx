@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, DateField, FieldError, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast, useUrlFilters,
+  Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, DataTable, DateField, FieldError, ListState, MobileActionBar, ReasonDialog, SelectField, StatusPill, TextField,
+  useToast, useUrlFilters, type Column,
 } from '@/src/components/ui';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { usePermission } from '@/src/auth/usePermission';
@@ -25,7 +26,7 @@ const STATUSES: TickStatus[] = ['unmarked', 'present', 'absent', 'leave', 'off_r
 const NO_HOLDS: ReadonlyMap<string, ReleaseState> = new Map();
 
 /** The tick form for one crew on one day (FR-CRW-009/010). Keyed by crew, date and held records, so it starts fresh. */
-export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; canMarkRow?: (workerId: string) => boolean; canManage?: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState> }> = ({
+export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; canMarkRow?: (workerId: string) => boolean; canManage?: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState>}> = ({
   crew, workOrderId, date, held, canRecord, canMarkRow = () => false, canManage = false, releaseHolds = NO_HOLDS,
 }) => {
   const { t } = useTranslation('crews');
@@ -67,6 +68,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     ...state.followers.map((id) => ({ worker_id: id, display_name: names.get(id) ?? '—', standard_role_id: null })),
   ], [crew.members, state.followers, names]);
   // Active people placed in a crew that day, other than this crew's own members and anyone already listed or recorded today.
+  const showOvertime = rows.some((member) => state.people[member.worker_id]?.status === 'present');
   const addable = useMemo(() => {
     const placed = new Set((placements.data ?? [])
       .filter((m) => m.valid_from <= date && (m.valid_to === null || m.valid_to >= date)).map((m) => m.worker_id));
@@ -147,22 +149,25 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     else toast(t('crews:weekSent', 'Week sent for approval'), undefined, 'success');
   };
 
+  const presentCount = rows.filter((m) => state.people[m.worker_id]?.status === 'present').length;
+  const mayRecordAny = canRecord || rows.some((m) => canMarkRow(m.worker_id));
+  const actions = mayRecordAny ? (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {canRecord && dirty && <span id="attendance-send-why" className="text-sm text-muted-foreground max-sm:sr-only">{t('crews:saveBeforeSending', 'Save attendance before sending the week.')}</span>}
+      {canRecord && <Button variant="outline" className="max-sm:min-h-11 max-sm:flex-1" onClick={() => void sendWeek()} disabled={busy || dirty}
+        aria-describedby={dirty ? 'attendance-send-why' : undefined}>{t('crews:sendWeek', 'Send the week for approval')}</Button>}
+      <Button variant="primary" className="max-sm:min-h-11 max-sm:flex-1" onClick={() => void save()} disabled={busy}>{t('crews:save', 'Save attendance')}</Button>
+    </div>
+  ) : null;
   return (
     <Card>
-      <CardHead>{crew.crew_code} · {crew.crew_name}</CardHead>
+      <CardHead actions={<span className="text-sm text-muted-foreground" data-testid="attendance-present-count">
+        {t('crews:presentOf', '{{present}} of {{total}} present', { present: presentCount, total: rows.length })}</span>}>
+        {crew.crew_code} · {crew.crew_name}
+      </CardHead>
       <CardPad>
         {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
         {!canRecord && <p className="mb-3 text-control text-foreground">{t('crews:tickReadOnly', "Only this crew's Foreman or a crew manager ticks this roster.")}</p>}
-        <div className="mb-4 grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
-          <TextField label={t('crews:crewHours', 'Hours for the crew')} value={state.defaultHours} inputMode="decimal"
-            onChange={(v) => { setDirty(true); setState((s) => ({ ...s, defaultHours: v })); }} disabled={!canRecord || busy} />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="attendance-photo" className="text-control font-semibold text-foreground">{t('crews:photo', 'Group photo')}</label>
-            <FileInput id="attendance-photo" accept="image/png,image/jpeg,image/webp" disabled={!canRecord || busy}
-              onChange={(e) => { setDirty(true); setPhoto(e.currentTarget.files?.[0] ?? null); }}
-              className="block min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1 file:text-sm file:font-medium" />
-          </div>
-        </div>
         {/* On a phone each person is one block: name, then the status word at full width, hours and overtime side by side, reason below.
             Roles are explicit so the table reads the same to a screen reader when the layout is not a grid. */}
         <table role="table" className="w-full text-sm max-sm:block">
@@ -170,7 +175,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
             <th role="columnheader" scope="col" className="py-2 font-normal">{t('crews:person', 'Person')}</th>
             <th role="columnheader" scope="col" className="py-2 font-normal">{t('crews:statusHeader', 'Status')}</th>
             <th role="columnheader" scope="col" className="w-24 py-2 font-normal">{t('crews:hours', 'Hours')}</th>
-            <th role="columnheader" scope="col" className="w-24 py-2 font-normal">{t('crews:overtime', 'Overtime')}</th>
+            {showOvertime && <th role="columnheader" scope="col" className="w-24 py-2 font-normal">{t('crews:overtime', 'Overtime')}</th>}
             <th role="columnheader" scope="col" className="py-2 font-normal">{t('crews:reason', 'Reason')}</th>
           </tr></thead>
           <tbody role="rowgroup" className="max-sm:block">
@@ -183,7 +188,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
               const locked = !rowMay || busy || hold !== undefined;
               const phoneControl = 'max-sm:min-h-11 max-sm:h-11';
               return (
-                <tr role="row" key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-2 max-sm:py-3">
+                <tr role="row" key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top sm:align-middle max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-2 max-sm:py-3">
                   <th role="rowheader" scope="row" className="py-2 pr-2 text-left font-normal text-foreground max-sm:col-span-2 max-sm:p-0 max-sm:font-semibold">
                     {m.display_name}
                     {hold && (
@@ -210,25 +215,26 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                     {/* Nobody is present or absent by default: an un-recorded member reads "Not yet present" for every reader. */}
                     {!rowMay && p.status === 'unmarked'
                       ? <span className="text-control text-muted-foreground">{t('crews:status.notYetPresent', 'Not yet present')}</span>
-                      : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
-                      className={phoneControl}
+                      : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel
+                      className={`${phoneControl} min-w-40`}
                       value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as TickStatus })} disabled={locked}
                       options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />}
                   </td>
-                  <td role="cell" className="py-2 pr-2 max-sm:p-0">
+                  <td role="cell" className={`py-2 pr-2 max-sm:p-0 ${showOvertime ? '' : 'max-sm:col-span-2'}`}>
+                    <span className="sm:hidden text-sm text-muted-foreground">{t('crews:hours', 'Hours')}</span>
                     <TextField label={t('crews:hoursFor', 'Hours for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                       className={phoneControl}
                       value={p.hours} placeholder={state.defaultHours} onChange={(v) => setPerson(m.worker_id, { hours: v })}
                       disabled={locked || p.status !== 'present'} />
                   </td>
-                  <td role="cell" className="py-2 pr-2 max-sm:p-0">
+                  {showOvertime && <td role="cell" className="py-2 pr-2 max-sm:p-0">
                     {p.status === 'present' && (
                       <TextField label={t('crews:overtimeFor', 'Overtime for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                         className={phoneControl}
                         value={p.overtime} placeholder={t('crews:overtime', 'Overtime')} onChange={(v) => setPerson(m.worker_id, { overtime: v })}
                         disabled={locked} />
                     )}
-                  </td>
+                  </td>}
                   <td role="cell" className="py-2 max-sm:col-span-2 max-sm:p-0">
                     <TextField label={t('crews:reasonFor', 'Reason for {{name}}', { name: m.display_name })} hideLabel
                       className={phoneControl}
@@ -240,21 +246,33 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
             })}
           </tbody>
         </table>
-        {canRecord && (
-          <div className="mt-4 max-w-sm">
-            <Combobox key={addable.length} id="attendance-add-follower" label={t('crews:addFollower', 'Add someone from another crew')} value={null}
-              loadOptions={async () => addable} onChange={(v) => follow(v)} disabled={busy}
-              statusOverride={workers.isPending || placements.isPending ? 'loading' : undefined}
-              placeholder={t('crews:addFollowerPlaceholder', 'Choose a person')}
-              helper={addable.length === 0 ? t('crews:addFollowerNone', 'Nobody else is placed in a crew today.') : t('crews:addFollowerHint', 'For someone who joined this crew today without a loan. Their hours are recorded here.')}
-              noun={t('crews:personNoun', 'person')} nounPlural={t('crews:personNounPlural', 'people')} />
+        <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-[160px_minmax(0,1fr)]">
+          <TextField label={t('crews:crewHours', 'Hours for the crew')} value={state.defaultHours} inputMode="decimal"
+            onChange={(v) => { setDirty(true); setState((s) => ({ ...s, defaultHours: v })); }} disabled={!canRecord || busy} />
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="attendance-photo" className="text-control font-semibold text-foreground">{t('crews:photo', 'Group photo')}</label>
+            <FileInput id="attendance-photo" accept="image/png,image/jpeg,image/webp" disabled={!canRecord || busy}
+              onChange={(e) => { setDirty(true); setPhoto(e.currentTarget.files?.[0] ?? null); }}
+              className="block min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1 file:text-sm file:font-medium" />
           </div>
-        )}
-        {canRecord && dirty && <p className="mb-3 text-sm text-muted-foreground">{t('crews:saveBeforeSending', 'Save attendance before sending the week.')}</p>}
-        {(canRecord || rows.some((m) => canMarkRow(m.worker_id))) && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="primary" onClick={() => void save()} disabled={busy}>{t('crews:save', 'Save attendance')}</Button>
-            {canRecord && <Button variant="outline" onClick={() => void sendWeek()} disabled={busy || dirty}>{t('crews:sendWeek', 'Send the week for approval')}</Button>}
+        </div>
+        {(canRecord || actions) && (
+          <div className="mt-4 flex flex-col gap-4 border-t border-border pt-4 sm:flex-row sm:items-end sm:justify-between">
+            {canRecord ? (
+              <div className="w-full sm:max-w-sm">
+                <Combobox key={addable.length} id="attendance-add-follower" label={t('crews:addFollower', 'Add someone from another crew')} value={null}
+                  loadOptions={async () => addable} onChange={(v) => follow(v)} disabled={busy}
+                  statusOverride={workers.isPending || placements.isPending ? 'loading' : undefined}
+                  placeholder={t('crews:addFollowerPlaceholder', 'Choose a person')}
+                  helper={addable.length === 0 ? t('crews:addFollowerNone', 'Nobody else is placed in a crew today.') : t('crews:addFollowerHint', 'For someone who joined this crew today without a loan. Their hours are recorded here.')}
+                  noun={t('crews:personNoun', 'person')} nounPlural={t('crews:personNounPlural', 'people')} />
+              </div>
+            ) : <span />}
+            {actions && (
+              <MobileActionBar className="max-sm:fixed max-sm:inset-x-0 max-sm:bottom-[var(--phone-nav-height)] max-sm:z-20 max-sm:border-t max-sm:border-border max-sm:bg-background max-sm:px-4 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] max-sm:pt-3">
+                {actions}
+              </MobileActionBar>
+            )}
           </div>
         )}
       </CardPad>
@@ -301,35 +319,26 @@ const AwaitingApproval: React.FC = () => {
     } catch (err) { setProblem(writeError(err)); }
   };
   if (weeks.length === 0) return null;
+  const columns: Column<AwaitingWeek>[] = [
+    { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (w) => nameOf(w.workerId) },
+    { key: 'orders', header: t('crews:workOrders', 'Work orders'), cell: (w) => w.orders.join(', ') },
+    { key: 'week', header: t('crews:week', 'Week'), kind: 'date', cell: (w) => formatDay(w.weekStart) },
+    { key: 'hours', header: t('crews:hours', 'Hours'), kind: 'number', cell: (w) => formatNumberMax2(w.hours) },
+    { key: 'decide', header: <span className="sr-only">{t('crews:decision', 'Decision')}</span>, kind: 'actions', cell: (w) => (
+      <span className="inline-flex gap-2">
+        <Button variant="outline" size="sm" disabled={w.recordedByViewer} aria-describedby={w.recordedByViewer ? `sod-${w.workerId}-${w.weekStart}` : undefined}
+          onClick={() => setReturning(w)}>{t('crews:return', 'Return')}</Button>
+        <Button variant="primary" size="sm" disabled={w.recordedByViewer} aria-describedby={w.recordedByViewer ? `sod-${w.workerId}-${w.weekStart}` : undefined}
+          onClick={() => void decide(w, 'approve', null)}>{t('crews:approve', 'Approve')}</Button>
+        {w.recordedByViewer && <span id={`sod-${w.workerId}-${w.weekStart}`} className="sr-only">{t('crews:errors.sod', 'You recorded these hours, so someone else approves them.')}</span>}
+      </span>
+    ) },
+  ];
   return (
-    <Card className="bg-waiting-surface">
-      <CardHead>{t('crews:awaitingTitle', 'Weeks waiting for your approval')}</CardHead>
-      <CardPad>
-        {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
-        <table className="w-full text-sm">
-          <tbody>
-            {weeks.map((w) => (
-              <tr key={`${w.workerId}:${w.weekStart}`} aria-label={nameOf(w.workerId)} className="border-t border-border first:border-t-0">
-                <th scope="row" className="py-2 text-left font-normal text-foreground">{nameOf(w.workerId)}</th>
-                <td className="py-2">
-                  <ul className="m-0 list-none p-0">{w.orders.map((title) => <li key={title}>{title}</li>)}</ul>
-                </td>
-                <td className="py-2 text-muted-foreground">{t('crews:weekOf', 'Week of {{date}}', { date: formatDay(w.weekStart) })}</td>
-                <td className="py-2 tabular-nums">{t('crews:hoursTotal', '{{hours}} hours', { hours: formatNumberMax2(w.hours) })}</td>
-                <td className="py-2 text-right">
-                  <div className="inline-flex gap-2">
-                    <Button variant="outline" size="sm" disabled={w.recordedByViewer} aria-describedby={w.recordedByViewer ? `sod-${w.workerId}-${w.weekStart}` : undefined}
-                      onClick={() => setReturning(w)}>{t('crews:return', 'Return')}</Button>
-                    <Button variant="primary" size="sm" disabled={w.recordedByViewer} aria-describedby={w.recordedByViewer ? `sod-${w.workerId}-${w.weekStart}` : undefined}
-                      onClick={() => void decide(w, 'approve', null)}>{t('crews:approve', 'Approve')}</Button>
-                    {w.recordedByViewer && <span id={`sod-${w.workerId}-${w.weekStart}`} className="sr-only">{t('crews:errors.sod', 'You recorded these hours, so someone else approves them.')}</span>}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardPad>
+    <Card seam className="bg-waiting-surface" role="region" aria-labelledby="attendance-awaiting-title">
+      <CardHead id="attendance-awaiting-title">{t('crews:awaitingTitle', 'Weeks waiting for your approval')}</CardHead>
+      {problem && <p role="alert" className="px-4 py-2 text-sm text-destructive-text">{problem}</p>}
+      <DataTable<AwaitingWeek> embedded rows={weeks} columns={columns} rowKey={(w) => `${w.workerId}:${w.weekStart}`} tableId="attendance-awaiting-table" />
       <ReasonDialog open={returning !== null} kind="return" subject={returning ? nameOf(returning.workerId) : undefined}
         onCancel={() => setReturning(null)}
         onConfirm={(reason: string) => { const w = returning; setReturning(null); if (w) void decide(w, 'reject', reason); }} />
@@ -362,16 +371,16 @@ export const AttendanceTick: React.FC = () => {
   const holds = useReleaseHolds(workOrderId ? date : null);
   const heldKey = (day.data ?? []).map((d) => `${d.id}:${d.status}:${d.hours}`).join('|');
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:pb-24">
       {canApprove && <AwaitingApproval />}
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className={`grid grid-cols-[minmax(0,1fr)_9.5rem] gap-4 ${crews.length > 1 ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)]' : 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'}`}>
         <WorkOrderPicker id="attendance-work-order" remember value={workOrderId} onChange={(v) => setFilters({ wo: v ?? '', crew: '' })} />
-        <DateField label={t('crews:date', 'Date')} value={date} max={today} onChange={(v) => setFilter('date', v === today ? '' : v)} />
+        <DateField className="max-sm:[&_input]:h-11" label={t('crews:date', 'Date')} value={date} max={today} onChange={(v) => setFilter('date', v === today ? '' : v)} />
+        {crews.length > 1 && (
+          <SelectField wrapperClassName="max-lg:col-span-2" label={t('crews:crew', 'Crew')} value={crew?.crew_id ?? ''} onChange={(v) => setFilter('crew', v)}
+            options={crews.map((c) => ({ value: c.crew_id, label: `${c.crew_code} · ${c.crew_name}` }))} />
+        )}
       </div>
-      {crews.length > 1 && (
-        <SelectField label={t('crews:crew', 'Crew')} value={crew?.crew_id ?? ''} onChange={(v) => setFilter('crew', v)}
-          options={crews.map((c) => ({ value: c.crew_id, label: `${c.crew_code} · ${c.crew_name}` }))} />
-      )}
       {!workOrderId && <p className="text-sm text-muted-foreground">{t('crews:pickWorkOrderTick', 'Choose a work order to record its crew\'s day')}</p>}
       {workOrderId && (roster.isPending || day.isPending) && <ListState variant="loading" shape="table" rows={4} />}
       {workOrderId && !roster.isPending && (roster.isError || day.isError) && (

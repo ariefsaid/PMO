@@ -4206,3 +4206,36 @@ the owner may revisit it after the client's tests.
   rule on; it stays optional on the request.
 - **OD-R1125-6 (for now) A field account does not raise material requests.** A full role such as the Site Supervisor raises them.
 - **DD-R1125-2 A Project Control Manager may create and manage scheduled reports for reports they can already read in their own organisation.** Each schedule records at creation who manages it (`admin` or the Project Control Manager role). That role lists and manages only the schedules it manages; Admin-managed schedules are not listed to it and its writes on them are refused. An Admin can switch the right off in Administration; the default is on. Recipients are checked at save, at re-enable and at queue time, and a schedule managed by the role never queues to a field account. Admin-managed schedules behave as before and the delivery step is unchanged (`docs/specs/scheduled-email-reports.spec.md`, migration 2580).
+
+## Director decisions of the 25 November round, released in v0.45.0 (2026-11-26)
+
+- **DD-R1125-5 The Equipment Officer may enter rental terms when registering a rented asset.** Terms on an owned asset are refused.
+  Revisitable by the owner.
+- **DD-R1125-6 A quality check on receipt is an item flag, off by default.** On a flagged item the receiver records passed and rejected
+  quantities; only the passed quantity goes on hand, and an order counts only the passed quantity as received, so the rejected part
+  stays outstanding.
+- **DD-R1125-7 Material-use warnings go to the work order's responsible person and the project's manager,** never to a field account
+  that cannot open the work order. Once per work order and item per level.
+- **DD-R1125-8 "Direct supervisor" for attendance means the crew's recorder and the manager named on the person's record.** Either may
+  mark that person present or absent.
+- **DD-R1125-9 A client's order is captured as a Draft work order; there is no separate candidate assessment** (#2898). What several
+  people must answer before issue is a check: a task with one owner and a due date, closed by its owner with a note and proof. An
+  organisation keeps a standard list of checks, each naming a job role and a number of days; field-account roles are refused. A check
+  never blocks Issue; the Issue confirm names the checks still open. Cancelling a work order requires a reason of 3 to 500 characters,
+  kept in its history. Earlier candidate records stay readable.
+- **DD-R1125-10 Skipping a work-order billing step requires a reason of 3 to 500 characters** (#2880).
+- **DD-R1125-11 A screen's default day is the organisation's day, never the browser's** (#2910, #2912; remaining screens #2911). A
+  person whose device is on another timezone sees the organisation's "today".
+- **DD-R1125-12 A debounced write to a list's URL is dropped once the list's route has changed** (#2909): a search typed just before
+  leaving a list is not written to the page left behind.
+- **DD-R1125-13 Cost journeys for an organisation with no accounting connection run with the connection off.** They prove the native
+  cost path, not the mirror.
+- **DD-R1125-14 A Project Manager reads money for their own projects only** (owner ruling, 26 November 2026). One shared rule decides
+  "own project" for every project-bound money read; roles that read organisation-wide money are unchanged. Money that is not
+  bound to a project is outside this rule.
+- **DD-R1125-15 A Deputy Project Manager reads money for their own projects only** (owner ruling, 26 November 2026). A deputy ranks
+  below the Project Manager, so the deputy's money reads are never wider than the manager's. "Own project" for a deputy is a
+  project that names them as its deputy; a project carries that link for this rule.
+- **DD-R1125-16 A requester for whom prices are hidden enters item and quantity only** (owner ruling, 26 November 2026). The price
+  on a purchase request line is an estimate and is optional for every requester; purchasing sets the price. With this settled, the
+  hide-prices settings card may be released once its screens pass review (#2789, #2790).

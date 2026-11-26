@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { WinRateCard } from './WinRateCard';
 import i18next from 'i18next';
 import idDashboard from '../../../public/locales/id/dashboard.json';
@@ -48,6 +49,27 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   beforeEach(() => { lastRange = null; oracle = populatedOracle; pending = false; });
   afterEach(async () => {
     await act(async () => { await i18next.changeLanguage('en'); });
+  });
+
+  it('#1126 the window re-keys on the organisation\'s midnight, not the browser\'s', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
+    vi.useFakeTimers();
+    // 2026-11-25T16:59:30Z: the organisation's midnight (Asia/Jakarta) is 30 s away; the browser's (UTC) is ~7 h.
+    vi.setSystemTime(new Date('2026-11-25T16:59:30Z'));
+    try {
+      render(<WinRateCard currency="USD" />);
+      fireEvent.click(screen.getByTestId('win-rate-period-q'));
+      const before = lastRange;
+      expect(before).toMatchObject({ key: expect.stringMatching(/^q:/) });
+      act(() => {
+        vi.advanceTimersByTime(30_100);
+      });
+      expect(lastRange).not.toBe(before);
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
 
   it('AC-1117: defaults to count basis and uses the RPC currency row for value basis', () => {
@@ -235,10 +257,13 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 
-  it('moves the trailing window forward when the local date rolls over while open', () => {
+  it('moves the trailing window forward when the organisation\'s day rolls over while open (#1126)', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(new Date(2026, 5, 10, 23, 59, 0));
+      // 2026-06-10T16:59:00Z: the organisation's midnight (Asia/Jakarta) is one minute away.
+      vi.setSystemTime(new Date('2026-06-10T16:59:00Z'));
       render(<WinRateCard currency="USD" />);
       fireEvent.click(screen.getByTestId('win-rate-period-t12'));
       const before = lastRange?.key;
@@ -247,6 +272,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
       expect(lastRange?.key).toContain('2026-06-11');
       expect(lastRange?.key).not.toBe(before);
     } finally {
+      resetActiveLocale();
       vi.useRealTimers();
     }
   });

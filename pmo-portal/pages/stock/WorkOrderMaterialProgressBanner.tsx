@@ -22,13 +22,19 @@ const Inner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
     <div role="status" className="rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control text-warning-foreground">
       <p className="font-semibold">{t('siteWork.materialProgress.banner.title', { count: warned.length })}</p>
       <p className="mt-1">{t('siteWork.materialProgress.banner.body', { threshold: fmt(data.thresholdPct), progress: fmt(data.progressPct) })}</p>
-      <ul className="mt-2 space-y-1">
-        {warned.map((i) => (
-          <li key={i.itemId}>
-            {t('siteWork.materialProgress.banner.row', { name: i.itemName, issued: fmt(i.issuedPct ?? 0), progress: fmt(data.progressPct ?? 0), gap: fmt(i.gapPp ?? 0) })}
-          </li>
-        ))}
-      </ul>
+      <table className="mt-2 w-full max-w-xl text-control" aria-label={t('siteWork.materialProgress.banner.title', { count: warned.length })}>
+        <thead><tr className="text-left text-muted-foreground">
+          <th scope="col" className="py-1 pr-4 font-normal">{t('siteWork.materialProgress.banner.item')}</th>
+          <th scope="col" className="py-1 pl-4 text-right font-normal">{t('siteWork.materialProgress.banner.issued')}</th>
+          <th scope="col" className="py-1 pl-4 text-right font-normal">{t('siteWork.materialProgress.banner.ahead')}</th>
+        </tr></thead>
+        <tbody>{warned.map((i) => (
+          <tr key={i.itemId} className="border-t border-warning/30">
+            <th scope="row" className="py-1 pr-4 text-left font-medium">{i.itemName}</th>
+            <td className="py-1 pl-4 text-right tabular-nums">{fmt(i.issuedPct ?? 0)}%</td>
+            <td className="py-1 pl-4 text-right tabular-nums">{t('siteWork.materialProgress.banner.points', { gap: fmt(i.gapPp ?? 0) })}</td>
+          </tr>))}</tbody>
+      </table>
     </div>
   );
 };

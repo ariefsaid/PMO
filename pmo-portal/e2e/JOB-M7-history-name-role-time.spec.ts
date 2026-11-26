@@ -49,19 +49,19 @@ test('JOB-M7 the Executive sees who created and who changed the record, each wit
   // A second person changes it.
   await exec.signIn(page);
   await page.goto(`/projects/${projectId}`);
+  // Read History before saving so the edit has to refresh an already-open read.
+  const activity = page.getByRole('region', { name: /Notes and activity|^Activity$/ });
+  await expect(activity).toBeVisible({ timeout: 20_000 });
+  await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
+  const events = activity.getByTestId('history-event');
+  await expect(events.first().getByTestId('history-actor-role')).toHaveText('Project Manager', { timeout: 20_000 });
+
   await page.getByRole('button', { name: /^Edit$/i }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   await dialog.getByLabel(/expected end/i).fill('2027-01-15');
   await dialog.getByRole('button', { name: /save project/i }).click();
   await expect(dialog).not.toBeVisible({ timeout: 20_000 });
-
-  // The Executive reads the record's History in place, with no reload: each event names the person, their role, date and time.
-  const activity = page.getByRole('region', { name: /Notes and activity|^Activity$/ });
-  await expect(activity).toBeVisible({ timeout: 20_000 });
-  await activity.getByRole('tab', { name: 'Changes', exact: true }).click();
-  const events = activity.getByTestId('history-event');
-  await expect(events.first()).toBeVisible({ timeout: 20_000 });
 
   // Newest first: the Executive's change on top, each event carrying the person, their role and the exact time.
   await expect(events.first().getByTestId('history-actor-role')).toHaveText('Executive');

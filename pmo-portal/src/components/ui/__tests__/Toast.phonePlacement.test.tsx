@@ -21,7 +21,7 @@ describe('Toast phone placement', () => {
   beforeEach(() => setPhone(true));
   afterEach(() => { window.matchMedia = original; });
 
-  it('on a phone an error toast is placed top-center and its close button sits inside the toast, top-right', async () => {
+  it('on a phone an error toast is placed top-center and its close button sits inside the toast, on its leading edge', async () => {
     render(<ToastProvider><Trigger /></ToastProvider>);
     await act(async () => { screen.getByText('Fail').click(); });
     const toaster = await waitFor(() => {
@@ -35,9 +35,9 @@ describe('Toast phone placement', () => {
     const toastEl = document.querySelector<HTMLElement>('[data-sonner-toast]')!;
     const close = toastEl.querySelector<HTMLElement>('[data-close-button]')!;
     expect(toastEl.contains(close)).toBe(true);
-    // Inside the toast's box: anchored right, no outward shift (no negative translate, no left anchor).
-    expect(close.className).toMatch(/!right-2/);
-    expect(close.className).toMatch(/!left-auto/);
+    // Inside the toast's box: anchored left, no outward shift and clear of trailing page actions.
+    expect(close.className).toMatch(/!left-2/);
+    expect(close.className).toMatch(/!right-auto/);
     expect(close.className).toMatch(/!translate-x-0/);
     expect(close.className).not.toMatch(/-translate-[xy]-1\/3/);
   });

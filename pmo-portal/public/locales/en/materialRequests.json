@@ -43,7 +43,8 @@
     "withdraw": "Withdraw request",
     "withdrawBody": "The request is cancelled and its approvers are no longer asked.",
     "withdrawTitle": "Withdraw this request",
-    "withdrawn": "Request withdrawn"
+    "withdrawn": "Request withdrawn",
+    "requested": "Requested"
   },
   "deliveryNote": {
     "back": "Back to request",
@@ -127,7 +128,14 @@
     "title": "New material request",
     "wholeOnly": "This item is counted in whole units. Enter a whole number.",
     "workOrder": "Work order",
-    "workOrderNoun": "work order"
+    "workOrderNoun": "work order",
+    "figures": {
+      "plan": "Plan",
+      "prior": "Requested before",
+      "total": "New total",
+      "sectionPlan": "{{section}} plan"
+    },
+    "savedReason": "Saved reason"
   },
   "inbox": {
     "scope": "Material requests",
@@ -304,6 +312,9 @@
     "installedSave": "Save source",
     "installedSaved": "Source saved",
     "cardTitle": "Installed material past the usage warning",
-    "cardLine": "{{item}}: {{installed}} of {{plan}} {{unit}} planned installed, past the {{threshold}}% warning."
+    "cardItem": "Item",
+    "cardInstalled": "Installed",
+    "cardPlan": "Planned",
+    "cardThreshold": "Warning at"
   }
 }

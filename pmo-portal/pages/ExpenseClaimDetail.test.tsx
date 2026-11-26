@@ -166,6 +166,13 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.getByTestId('expense-amount')).toHaveTextContent('$12.50');
   });
 
+  it('shows the claim total in the header for an approver', () => {
+    h.claim = { ...base, kind: 'claim', status: 'Submitted', amount: 244.5, currency: 'USD' };
+    as('pm', 'Project Manager');
+    renderAt();
+    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$244.50');
+  });
+
   it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
     h.claim = { ...base, project_id: 'project-1', project: { name: 'Contractual Project one', short_name: 'North Terminal' } };
     as('eng', 'Engineer');

@@ -9,7 +9,7 @@ import { useDailySiteReportMutations } from '@/src/hooks/useDailySiteReports';
 import { useCrews } from '@/src/hooks/useCrews';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { localToday as todayIso } from '@/src/lib/efaktur';
+import { orgDayNow as todayIso } from '@/src/hooks/useOrgToday';
 
 /**
  * Start a report: project, work order, work date (FR-DSR-001). The create carries one client request id for the
@@ -22,7 +22,6 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
   const orgId = currentUser?.org_id;
   const crews = useCrews();
   const projects = useProjects();
-  const { save } = useDailySiteReportMutations();
   const requestId = useRef(crypto.randomUUID());
   const [projectId, setProjectId] = useState('');
   const [workOrderId, setWorkOrderId] = useState('');
@@ -30,6 +29,7 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
   const [pickedCrew, setPickedCrew] = useState<string | null>(null);
   const [pickedPerson, setPickedPerson] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { save } = useDailySiteReportMutations(projectId);
   const workOrders = useQuery({
     queryKey: ['daily-site-reports', orgId, 'new', 'work-orders', projectId],
     queryFn: () => repositories.workOrder.list(projectId),

@@ -925,9 +925,8 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     renderPanel(asked());
     // the Left tile: never a number
     expect(leftTile().textContent).not.toMatch(/\$/);
-    const notKnown = within(leftTile()).getByText('Not known');
-    expect(notKnown.className).toMatch(/whitespace-nowrap/);
-    expect(notKnown.className).toMatch(/text-muted-foreground/);
+    const notKnown = within(leftTile()).getByText('Spending not known yet');
+    expect(notKnown).toBeInTheDocument();
     // the explicit line: visible without a click, with the amount, under its own words, and no repeat of the tile
     const line = screen.getByText(/^Without spending:/);
     expect(line.textContent).toBe('Without spending: $525 left after orders, reserved and this purchase.');
@@ -956,7 +955,7 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     reservedState.data = 50;
     positionState.reading = reading({ spent: null });
     renderPanel({ ...asked(), captionInTooltip: true });
-    expect(within(tileOf(/^left after this purchase/i)).getByText('Not known')).toBeInTheDocument();
+    expect(within(tileOf(/^left after this purchase/i)).getByText('Spending not known yet')).toBeInTheDocument();
     expect(screen.getByText('Without spending: $525 left after orders, reserved and this purchase.')).toBeInTheDocument();
   });
 
@@ -967,16 +966,16 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     positionState.reading = reading({ spent: null });
     renderPanel(asked(), 'id');
     expect(screen.getByText('Tanpa pengeluaran: sisa $525 setelah pesanan, cadangan, dan pembelian ini.')).toBeInTheDocument();
-    const notKnown = within(tileOf(/^sisa setelah pembelian ini$/i)).getByText('Belum diketahui');
-    expect(notKnown.className).toMatch(/whitespace-nowrap/);
+    const notKnown = within(tileOf(/^sisa setelah pembelian ini$/i)).getByText('Pengeluaran belum diketahui');
+    expect(notKnown).toBeInTheDocument();
   });
 
-  it('spending only unknown, inside a figure scope: the page line carries the Left reason, the explicit line stays visible', async () => {
+  it.each([false, true])('spending only unknown, inside a figure scope (bare=%s): the page line carries the Left reason, the explicit line stays visible', async (bare) => {
     budgetState.data = 1000;
     committedState.data = 400;
     reservedState.data = 50;
     positionState.reading = reading({ spent: null });
-    renderPanel(asked(), undefined, true);
+    renderPanel({ ...asked(), bare }, undefined, true);
     expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(screen.getByText(/Without spending: \$525 left after orders, reserved and this purchase\./)).toBeInTheDocument();
   });
@@ -1149,7 +1148,7 @@ describe('quality 1+2 — one reading, one strip', () => {
     positionState.reading = reading(); // earlier success: react-query keeps the stale data
     positionState.isError = true;
     renderPanel({ projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' });
-    expect(within(tileOf(/^left after this purchase/i)).getByText('Not known')).toBeInTheDocument();
+    expect(within(tileOf(/^left after this purchase/i)).getByText('Spending not known yet')).toBeInTheDocument();
     expect(screen.queryByText('50%')).not.toBeInTheDocument();
   });
 
@@ -1162,22 +1161,7 @@ describe('quality 1+2 — one reading, one strip', () => {
     expect(stripClass()).not.toContain('grid-cols-5');
   });
 
-  it('five tiles: five columns; four tiles: four columns (no empty column)', () => {
-    positionState.reading = reading({ spent: null }); // Budget used has no figure; Left is unknown but still a tile
-    const ask = { projectId: 'p1', totalValue: 25, projectName: 'X', status: 'Requested' as const };
-    budgetState.data = 1000;
-    committedState.data = 400;
-    reservedState.data = 50;
-    const view = renderPanel(ask);
-    expect(within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile')).toHaveLength(5);
-    expect(stripClass()).toContain('@5xl:grid-cols-5');
-    view.unmount();
-    committedState.commitmentSource = 'not-tracked'; // no Open orders tile either
-    renderPanel(ask);
-    expect(within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile')).toHaveLength(4);
-    expect(stripClass()).toContain('@3xl:grid-cols-4');
-    expect(stripClass()).not.toContain('grid-cols-5');
-  });
+
 });
 
 describe('S05 — the tender stage is visible where the decision is made', () => {

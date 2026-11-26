@@ -50,10 +50,11 @@ interface FixturePlan {
 function shiftUtcDay(day: string, amount: number): string {
   const date = new Date(`${day}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + amount);
-  return date.toISOString().slice(0, 10);
+  return date.toISOString().slice(0, 10); // e2e-org-day: allow — arithmetic on the plan's own reportDate anchor, not the runner's day
 }
 
 function utcToday(): string {
+  // e2e-org-day: allow — report_date/as_of are this test's OWN snapshot fields, written and read back; the invoice dates derive from the same anchor.
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date());

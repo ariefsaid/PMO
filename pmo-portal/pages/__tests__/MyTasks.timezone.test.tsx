@@ -35,6 +35,7 @@ vi.mock('@/src/lib/locale/activeLocale', async (importOriginal) => {
       ...actual.getActiveLocale(),
       timezone: mockActiveTimezone,
     }),
+    getActiveOrgTimezone: () => mockActiveTimezone,
   };
 });
 
@@ -63,7 +64,7 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     vi.useRealTimers();
   });
 
-  it('PGA03-008: determines overdue using resolved user timezone rather than UTC', () => {
+  it('PGA03-008: determines overdue using the organisation timezone rather than UTC', () => {
     // 2026-10-28 18:00:00 UTC == 2026-10-29 01:00:00 in Asia/Jakarta (UTC+7)
     vi.setSystemTime(new Date('2026-10-28T18:00:00Z'));
 
@@ -88,7 +89,7 @@ describe('MyTasks timezone day rollover and overdue determination (PGA03-008)', 
     expect(screen.getByTestId('my-task-late-status-t-due-28')).toHaveTextContent(/^1 day overdue$/i);
   });
 
-  it('PGA03-008: updates overdue badges and sort order when midnight rolls over in user timezone', () => {
+  it('PGA03-008: updates overdue badges and sort order when midnight rolls over in the organisation timezone', () => {
     // 2026-10-28 16:59:00 UTC == 2026-10-28 23:59:00 in Asia/Jakarta (1 minute before midnight)
     vi.setSystemTime(new Date('2026-10-28T16:59:00Z'));
 

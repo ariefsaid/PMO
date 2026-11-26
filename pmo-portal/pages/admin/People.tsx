@@ -181,12 +181,12 @@ const People: React.FC = () => {
       {!q.isPending && q.isError && <ListState variant="error" title={t('administration:people.error', "Couldn't load people")}
         sub={t('administration:people.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('administration:people.retry', 'Retry')} />}
       {!q.isPending && !q.isError && (rows.length === 0
-        ? <ListState variant="empty"
+        ? <ListState variant="empty" quiet className="mt-3"
             title={staffView === 'former'
               ? t('administration:people.formerEmpty', 'No former staff. People you mark as left appear here.')
               : t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
             action={staffView === 'active' && canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
-        : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" />)}
+        : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" cardBelow={760} />)}
       {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} managerMode={managerMode} onClose={() => setEditing(null)} />}
       <MarkLeftDialog person={leaving} onClose={() => setLeaving(null)} />
     </div>

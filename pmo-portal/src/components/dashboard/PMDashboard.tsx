@@ -149,7 +149,7 @@ export const PMDashboard: React.FC = () => {
       : undefined;
 
   const waitRows: WaitRow[] = needs.items
-    .filter((item) => ['approvals', 'team-timesheets', 'billing-steps-waiting'].includes(item.id))
+    .filter((item) => ['approvals', 'team-timesheets', 'billing-steps-waiting', 'closeout-items-waiting'].includes(item.id))
     .map((item) => ({
       id: item.id,
       count: item.countLabel ?? item.count,
@@ -226,9 +226,9 @@ export const PMDashboard: React.FC = () => {
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           {header}
           <div className="grid items-stretch gap-[var(--space-panel-gap)] min-[900px]:grid-cols-12">
-            <div className={cn('min-w-0 min-[900px]:row-start-1 [&>div]:h-full', contractShown ? 'min-[900px]:col-span-9' : 'min-[900px]:col-span-12')}>
+            <div className={cn('min-w-0 min-[900px]:row-start-1', contractShown ? 'min-[900px]:col-span-9' : 'min-[900px]:col-span-12')}>
               {/* Exception colour once per group: a neutral panel where only overdue counts are coloured. */}
-              <DashboardWaitsOnYou band plain overdueOnly rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
+              <DashboardWaitsOnYou className="h-full" band overdueOnly rows={waitRows} pending={needs.isPending} error={needs.isError} onRetry={refresh} />
             </div>
             <div className="min-w-0 min-[900px]:col-span-12 min-[900px]:row-start-2">{projectsEl}</div>
             {/* Read after My projects (and drawn there on a phone); on a wide screen it sits beside Waits on you. */}

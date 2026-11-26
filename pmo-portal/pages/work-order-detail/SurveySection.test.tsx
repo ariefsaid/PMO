@@ -6,16 +6,17 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { AppError } from '@/src/lib/appError';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import type { SurveyRecord } from '@/src/lib/db/surveyRecords';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
+import { attachSurveyDocuments, recordSurvey, type SurveyRecord } from '@/src/lib/db/surveyRecords';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
   userId: 'u-fin',
   records: [] as unknown[],
   state: { isError: false, refetch: vi.fn() },
-  record: vi.fn(), confirm: vi.fn(), discard: vi.fn(),
+  rpc: vi.fn(), attachDocuments: vi.fn(), record: vi.fn(), confirm: vi.fn(), discard: vi.fn(),
 }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
@@ -24,10 +25,11 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.us
 vi.mock('@/src/hooks/useSurveyRecords', () => ({
   useSurveyRecords: () => ({ data: h.records, ...h.state }),
   useSurveyMutations: () => ({
-    record: { mutateAsync: h.record, isPending: false }, confirm: { mutateAsync: h.confirm, isPending: false }, discard: { mutateAsync: h.discard, isPending: false },
+    attachDocuments: { mutateAsync: h.attachDocuments }, record: { mutateAsync: h.record, isPending: false }, confirm: { mutateAsync: h.confirm, isPending: false }, discard: { mutateAsync: h.discard, isPending: false },
   }),
 }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [{ id: 'd1', title: 'Quality certificate', status: 'Issued', file_path: 'o/p/d1.pdf' }, { id: 'd2', title: 'Draft note', status: 'Draft', file_path: 'o/p/d2.pdf' }], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [{ id: 'd1', title: 'Quality certificate', status: 'Issued', file_path: 'o/p/d1.pdf' }, { id: 'd3', title: 'Survey sheet', status: 'Issued', file_path: 'o/p/d3.pdf' }, { id: 'd2', title: 'Draft note', status: 'Draft', file_path: 'o/p/d2.pdf' }], isPending: false, isError: false }) }));
+import { AreaHelpProvider } from './AreaHelp';
 import { SurveySection } from './SurveySection';
 
 const LINES = [{ id: 'b1', label: 'CODE1 · Route survey', unit: 'km' }];
@@ -38,7 +40,7 @@ const rec = (p: Partial<SurveyRecord> & Pick<SurveyRecord, 'id'>): SurveyRecord 
 
 function renderIt(props: Partial<React.ComponentProps<typeof SurveySection>> = {}) {
   render(<QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{} as AuthContextValue}><MemoryRouter>
-    <SurveySection workOrderId="w1" projectId="p1" status="Issued" projectManagerId="u-pm" lines={LINES} today="2026-11-20" {...props} />
+    <AreaHelpProvider>{(help) => <><SurveySection workOrderId="w1" projectId="p1" status="Issued" projectManagerId="u-pm" lines={LINES} today="2026-11-20" {...props} /><output data-testid="page-help">{help.map((e) => e.body).join(' ')}</output></>}</AreaHelpProvider>
   </MemoryRouter></AuthContext.Provider></QueryClientProvider>);
   return userEvent.setup();
 }
@@ -46,7 +48,8 @@ function renderIt(props: Partial<React.ComponentProps<typeof SurveySection>> = {
 beforeEach(() => {
   h.role = 'Finance'; h.userId = 'u-fin'; h.records = [];
   h.state = { isError: false, refetch: vi.fn() };
-  h.record.mockReset().mockResolvedValue('new'); h.confirm.mockReset().mockResolvedValue(undefined); h.discard.mockReset().mockResolvedValue(undefined);
+  h.rpc.mockReset(); h.attachDocuments.mockReset();
+  h.record.mockReset().mockResolvedValue({ id: 'new', failures: [] }); h.confirm.mockReset().mockResolvedValue(undefined); h.discard.mockReset().mockResolvedValue(undefined);
 });
 
 describe('AC-SCR-013 SurveySection', () => {
@@ -54,6 +57,7 @@ describe('AC-SCR-013 SurveySection', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       const user = renderIt({ today: undefined });
       await user.click(screen.getByRole('button', { name: 'Record a survey' }));
@@ -61,15 +65,16 @@ describe('AC-SCR-013 SurveySection', () => {
     } finally { resetActiveLocale(); vi.useRealTimers(); }
   });
 
-  it('the empty state says who records and who confirms', () => {
+  it('the empty state says none is recorded beside the one action; who records and who confirms is in the page help', () => {
     renderIt();
-    expect(screen.getByTestId('survey-empty')).toHaveTextContent('The project manager, Finance or an Admin records a survey here');
+    expect(screen.getByTestId('survey-empty')).toHaveTextContent('No surveys recorded yet.');
+    expect(screen.getByTestId('page-help')).toHaveTextContent('The project manager, Finance or an Admin records a survey here');
     expect(screen.getByRole('button', { name: 'Record a survey' })).toBeInTheDocument();
   });
 
   it('AC-SCR-018 says plainly that each confirmed survey adds and a mistake is changed with Correct', () => {
     renderIt();
-    expect(screen.getByText(/Each confirmed survey ADDS to the line's certified quantity/)).toHaveTextContent('not a running total; to change a mistaken survey use Correct');
+    expect(screen.getByTestId('page-help')).toHaveTextContent(/Each confirmed survey ADDS to the line's certified quantity.*not a running total; to change a mistaken survey use Correct/);
   });
 
   it('lists the surveys with participants, documents and status, and sums the certified quantity of confirmed ones only', () => {
@@ -147,6 +152,31 @@ describe('AC-SCR-013 SurveySection', () => {
     expect(h.record).toHaveBeenCalledWith(expect.objectContaining({
       workOrderId: 'w1', boqItemId: 'b1', surveyedQuantity: 4, qualityReadyQuantity: 2, participants: [{ name: 'Typed Person', company: undefined, role: undefined }], documentIds: ['d1'],
     }));
+  });
+
+  it('#2817 retries a failed second attachment on the same saved survey', async () => {
+    h.record.mockImplementation(recordSurvey);
+    h.attachDocuments.mockImplementation(({ id, documentIds }: { id: string; documentIds: string[] }) => attachSurveyDocuments(id, documentIds));
+    h.rpc.mockResolvedValueOnce({ data: 'saved-draft', error: null })
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: { message: 'Failed to fetch' } })
+      .mockResolvedValueOnce({ error: null });
+    const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Record a survey' }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.selectOptions(dialog.getByLabelText(/Contract line/), 'b1');
+    await user.type(dialog.getByLabelText(/Surveyed quantity/), '4');
+    await user.type(dialog.getByLabelText('Name'), 'Survey participant');
+    await user.click(dialog.getByLabelText('Quality certificate'));
+    await user.click(dialog.getByLabelText('Survey sheet'));
+    await user.click(dialog.getByRole('button', { name: 'Save draft' }));
+    expect(await dialog.findByText('Survey saved, but some documents could not be attached.')).toBeVisible();
+    await user.click(dialog.getByRole('button', { name: 'Retry attachments' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(h.rpc.mock.calls.map(([fn]) => fn)).toEqual([
+      'record_survey', 'attach_survey_document', 'attach_survey_document', 'attach_survey_document',
+    ]);
+    expect(h.rpc).toHaveBeenLastCalledWith('attach_survey_document', { p_id: 'saved-draft', p_document: 'd3' });
   });
 
   it('a person is required', async () => {

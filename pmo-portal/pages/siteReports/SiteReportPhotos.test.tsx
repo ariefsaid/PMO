@@ -45,13 +45,16 @@ const report = (status: DsrReport['status']): DsrReport => ({
 
 function renderPhotos(report: DsrReport) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const i18n = makeI18n('en');
+  const tree = (value: DsrReport) => (
     <QueryClientProvider client={qc}>
-      <I18nextProvider i18n={makeI18n('en')}>
-        <SiteReportPhotos report={report} photos={[]} canWrite />
+      <I18nextProvider i18n={i18n}>
+        <SiteReportPhotos report={value} photos={[]} canWrite />
       </I18nextProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const view = render(tree(report));
+  return { updateReport: (next: DsrReport) => view.rerender(tree(next)) };
 }
 
 beforeEach(() => {
@@ -67,6 +70,18 @@ describe('#2897 photos on a submitted site report', () => {
     // The hidden file input carries an aria-label, so it stays reachable while the buttons are
     // hidden — the upload path itself must go with the buttons.
     expect(document.querySelector('[data-testid="dsr-photo-input"]')).toBeNull();
+  });
+
+  it('closes the retry path when the report is submitted after an upload failed', async () => {
+    h.m.uploadPhoto.mutateAsync.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { updateReport } = renderPhotos(report('draft'));
+    await userEvent.upload(screen.getByTestId('dsr-photo-input'), new File(['x'], 'photo.png', { type: 'image/png' }));
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeVisible();
+
+    updateReport(report('submitted'));
+
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Photos can be added only before the report is submitted.');
   });
 
   it('a draft report still offers both upload controls', () => {

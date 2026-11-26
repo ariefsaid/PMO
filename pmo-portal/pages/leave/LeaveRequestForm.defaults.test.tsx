@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { ToastProvider } from '@/src/components/ui';
 
 /** fix/walk-people item 5: "request leave or report sick" never starts on someone; with a choice to make, the person is picked. */
@@ -56,6 +57,24 @@ describe('LeaveRequestForm person default', () => {
     mount();
     expect(screen.queryByText(/You can file leave only/)).toBeNull();
     h.pending = false;
+  });
+
+  it('#1126 the start date starts on the organisation\'s day, not the browser\'s', async () => {
+    const user = userEvent.setup();
+    h.people = [{ id: 'p9', name: 'Own', is_self: true }];
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-30T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
+    try {
+      mount();
+      await user.selectOptions(screen.getByLabelText(/^Type/), 't1');
+      await user.click(screen.getByRole('button', { name: 'Send request' }));
+      expect(h.submit).toHaveBeenCalledWith(expect.objectContaining({ person_id: 'p9', start_date: '2026-12-01', end_date: '2026-12-01' }));
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
   });
 
   it('a person who can request only for themselves needs no pick', async () => {

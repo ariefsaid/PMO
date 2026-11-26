@@ -33,14 +33,14 @@ const NOTICE_PASS_THROUGH: React.CSSProperties = { pointerEvents: 'none' };
 /** Emit + style come from the library surface; every class is a DESIGN.md token. */
 
 const TOAST_CLASSNAMES: ToastClassnames = {
-  toast: 'flex w-[min(360px,calc(100vw-2.5rem))] items-start gap-2 rounded-overlay border border-border bg-card py-3 pl-3 pr-11 max-[639px]:w-full text-control text-foreground shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
+  toast: 'flex w-[min(360px,calc(100vw-2.5rem))] items-start gap-2 rounded-overlay border border-border bg-card py-3 pl-11 pr-3 max-[639px]:w-full text-control text-foreground shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
   content: 'min-w-0 flex-1',
   title: 'font-semibold',
   description: 'text-muted-foreground',
-  // Inside the toast, top-right, on every width. Sonner's own stylesheet places the button on the
-  // top-left corner and half outside; `!` wins over that library rule. No positioning code.
+  // Keep dismissal inside the leading edge, clear of the page's trailing row-menu controls.
+  // Sonner places it half outside; `!` keeps the whole target inside the reserved padding.
   closeButton:
-    '!pointer-events-auto !absolute !left-auto !right-2 !top-2 z-10 flex size-[var(--control-height-sm)] !translate-x-0 !translate-y-0 items-center justify-center rounded-md !border-0 !bg-transparent text-muted-foreground hover:!bg-surface-hover hover:text-foreground active:!bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    '!pointer-events-auto !absolute !left-2 !right-auto !top-2 z-10 flex size-[var(--control-height-sm)] !translate-x-0 !translate-y-0 items-center justify-center rounded-md !border-0 !bg-transparent text-muted-foreground hover:!bg-surface-hover hover:text-foreground active:!bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
   success: 'save-pulse',
 };
 

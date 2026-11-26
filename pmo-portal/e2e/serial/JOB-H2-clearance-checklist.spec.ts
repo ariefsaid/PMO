@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { need, ORG_ID, runId, serviceClient } from '../support/jobFixtures';
+import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 
 test.setTimeout(120_000);
@@ -38,7 +39,7 @@ test('JOB-H2 the HR Officer records papers and medical for a person: two items D
     for (const name of [names.papers, names.medical]) {
       await page.getByRole('button', { name: `Record ${name}` }).click();
       const dialog = page.getByRole('dialog');
-      await dialog.getByRole('textbox', { name: /Date done/ }).fill(new Date().toISOString().slice(0, 10));
+      await dialog.getByRole('textbox', { name: /Date done/ }).fill(orgToday());
       await page.keyboard.press('Tab');
       await dialog.getByRole('button', { name: 'Save' }).click();
       await expect(dialog).toHaveCount(0);

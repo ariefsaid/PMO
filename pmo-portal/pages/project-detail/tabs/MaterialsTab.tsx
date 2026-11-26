@@ -21,21 +21,18 @@ const MaterialsTab: React.FC<{ projectId: string }> = ({ projectId }) => {
   return (
     <section aria-label={t('materials.title')} className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-group font-semibold">{t('materials.title')}</h2>
-          <p className="text-sm text-muted-foreground">{t('materials.description')}</p>
-        </div>
+        <h2 className="text-group font-semibold">{t('materials.title')}</h2>
         {canIssue && (
           <Link to={`/stock/new/issue?project=${projectId}`} className={buttonClasses('primary', 'sm')}>
             <Icon name="plus" />{t('materials.issue')}
           </Link>
         )}
       </div>
-      <section aria-labelledby="materials-consumption" className="flex min-w-0 flex-col gap-2">
+      <section aria-labelledby="materials-consumption" className="panel-card flex min-w-0 flex-col gap-4 p-[var(--panel-inset)]">
         <h3 id="materials-consumption" className="text-base font-semibold">{t('materials.consumption')}</h3>
         <ConsumptionReport projectId={projectId} />
       </section>
-      <section aria-labelledby="materials-movements" className="flex min-w-0 flex-col gap-2">
+      <section aria-labelledby="materials-movements" className="panel-card flex min-w-0 flex-col gap-4 p-[var(--panel-inset)]">
         <h3 id="materials-movements" className="text-base font-semibold">{t('materials.movements')}</h3>
         <StockLedger projectId={projectId} embedded />
       </section>

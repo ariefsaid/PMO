@@ -8,6 +8,7 @@ import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
 import en from '@/public/locales/en/stock.json';
 import type { ReceiptCount } from '@/src/lib/db/orderReceiving';
+import { tableCell } from '@/src/test/tableCell';
 
 const h = vi.hoisted(() => ({
   purchaser: false, pending: false, failed: false, flagged: false, requests: [] as ReceiptCount[],
@@ -76,7 +77,8 @@ describe('receive against order workflow', () => {
   it('D4 a receipt on record shows what was rejected and why', async () => {
     h.requests = [{ id: 'r', receiver_id: 'me', warehouse_id: 'wh', date: '2026-11-24', lines: [{ item_id: 'line', quantity: '6', rejected: '1', reject_note: 'wet' }], approved: false, document_id: 'doc', reversed: false }];
     await mount();
-    expect(screen.getByText(/rejected 1: wet/)).toBeInTheDocument();
+    expect(tableCell('Receipts', 'Goods', 'Received')).toHaveTextContent('6 pc');
+    expect(tableCell('Receipts', 'Goods', 'Rejected')).toHaveTextContent('1wet');
   });
   it('shows a pending excess outcome instead of claiming stock posted', async () => {
     h.requests = [{ id: 'r', receiver_id: 'me', warehouse_id: 'wh', date: '2026-11-24', lines: [{ item_id: 'line', quantity: '7' }], approved: true, document_id: null, reversed: false }];
@@ -95,7 +97,9 @@ describe('receive against order workflow', () => {
   });
   it('gives purchasing progress and the stock mapping control', async () => {
     h.purchaser = true; const user = await mount();
-    expect(screen.getByText('Ordered 10 · Received 4 · Outstanding 6')).toBeInTheDocument();
+    expect(tableCell('Order lines', 'Goods', 'Ordered')).toHaveTextContent('10 pc');
+    expect(tableCell('Order lines', 'Goods', 'Received')).toHaveTextContent('4 pc');
+    expect(tableCell('Order lines', 'Goods', 'Outstanding')).toHaveTextContent('6 pc');
     await user.click(screen.getByText('Map stock'));
     expect(h.map).toHaveBeenCalledWith('line', 'stock-new');
   });

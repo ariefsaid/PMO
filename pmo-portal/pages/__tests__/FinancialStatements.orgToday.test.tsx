@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /**
  * #2088 (WIG, Locale & i18n) — the statements page's default period is the latest period that has
@@ -107,6 +107,7 @@ describe('#2088 Financial statements — the default period follows the organiza
     // 2026-06-01 20:00 UTC == 2026-06-02 03:00 in Asia/Jakarta: org day Jun 2, UTC day Jun 1.
     vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     renderPage();
 
     // The June period (starting on the org's today, Jun 2) has begun, so it outranks May as the

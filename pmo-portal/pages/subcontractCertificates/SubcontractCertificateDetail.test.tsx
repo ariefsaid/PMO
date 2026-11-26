@@ -8,6 +8,7 @@ import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { ToastProvider } from '@/src/components/ui';
 import type { CertificateView } from '@/src/lib/db/subcontractCertificates';
 
@@ -91,7 +92,7 @@ const renderPage = (lng: 'en' | 'id' = 'en') => render(
 beforeEach(() => { h.isError = false; h.userId = 'u-prep'; h.realRole = 'Finance'; h.pm = 'pm1'; Object.keys(h.m).forEach((k) => delete h.m[k]); });
 
 describe('subcontract certificate screen', () => {
-  it('AC-SPC-019 draft: every figure, the cap picture and every exclusion reason render, with the preparer\'s actions', () => {
+  it('AC-SPC-019 draft: every figure, the cap picture and every exclusion reason render, with the preparer\'s actions', async () => {
     h.view = make('draft');
     renderPage();
     expect(screen.getByTestId('spc-status')).toHaveAttribute('data-status', 'draft');
@@ -105,10 +106,13 @@ describe('subcontract certificate screen', () => {
     }
     expect(screen.getByRole('link', { name: 'Feb 2026' })).toHaveAttribute('href', '/subcontract-certificates/other');
     expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Prepare acceptance' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Set aside' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
     expect(screen.getByText(/redo slab/)).toBeInTheDocument();
+    // The other actions sit in the record menu, beside the one filled action.
+    await userEvent.click(screen.getByRole('button', { name: 'More certificate actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Prepare acceptance' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Cancel certificate' })).toBeInTheDocument();
   });
   it('AC-SPC-006 submitted: the preparer cannot approve and is told why; a different Finance user can approve or return', () => {
     h.view = make('submitted', { submitted_by: 'u-prep' });
@@ -138,6 +142,25 @@ describe('subcontract certificate screen', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/The payable is .*466\.70 after backcharges/)).toBeInTheDocument();
   });
+  it('#1126 the bill date starts on the organisation\'s day, not the browser\'s', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // 2026-11-30T18:00:00Z: the organisation's day (Asia/Jakarta) is already 1 Dec; the browser's (UTC) is still 30 Nov.
+    vi.setSystemTime(new Date('2026-11-30T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
+    try {
+      h.view = make('approved', { submitted_by: 'u-prep', approved_by: 'u-other' });
+      h.userId = 'u-other';
+      renderPage();
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Create bill' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByLabelText('Bill date')).toHaveValue('1 Des 2026');
+    } finally {
+      resetActiveLocale();
+      vi.useRealTimers();
+    }
+  });
+
   it('AC-SPC-013 approved with a refused bill: the refusal reason is shown', () => {
     h.view = make('approved', { submitted_by: 'u-prep', bill_refusal: 'line A cannot be billed: verified 40, PO 100, billed 30, this bill 40' });
     h.userId = 'u-other';
@@ -149,7 +172,7 @@ describe('subcontract certificate screen', () => {
     h.view = make('billed', { invoice_id: 'inv1', submitted_by: 'u-prep', approved_by: 'u-other' }, derived({ tuples: undefined }));
     h.userId = 'u-other';
     renderPage();
-    expect(screen.getByRole('link', { name: 'Open bill' })).toHaveAttribute('href', '/procurement/pr1/ledger');
+    expect(screen.getByRole('link', { name: 'Open bill' })).toHaveAttribute('href', '/procurement/pr1/files');
     expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel certificate' })).not.toBeInTheDocument();
   });
@@ -180,7 +203,7 @@ describe('subcontract certificate screen', () => {
     expect(screen.queryByRole('button', { name: 'Create bill' })).not.toBeInTheDocument();
     expect(screen.getByTestId('spc-gross')).toBeInTheDocument();
   });
-  it('AC-SPC-019 Bahasa Indonesia: figures, reasons, actions and the refusal read in Bahasa', () => {
+  it('AC-SPC-019 Bahasa Indonesia: figures, reasons, actions and the refusal read in Bahasa', async () => {
     h.view = make('draft', { bill_refusal: 'baris A ditolak' });
     renderPage('id');
     expect(screen.getByText('Pekerjaan terukur dengan tarif yang disepakati')).toBeInTheDocument();
@@ -189,7 +212,8 @@ describe('subcontract certificate screen', () => {
     expect(screen.getByText(/Bukan kru subkontraktor ini/)).toBeInTheDocument();
     expect(screen.getByText('Tagihan ditolak')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ajukan' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Siapkan berita acara' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Tindakan sertifikat lainnya' }));
+    expect(screen.getByRole('menuitem', { name: 'Siapkan berita acara' })).toBeInTheDocument();
     expect(screen.queryByText('Left out')).not.toBeInTheDocument();
   });
 

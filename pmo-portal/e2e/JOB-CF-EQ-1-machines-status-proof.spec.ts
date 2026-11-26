@@ -32,7 +32,7 @@ test('JOB-CF-EQ-1 Equipment opens on the machines; broken with note and photo is
   await page.goto('/equipment');
   // The landing screen is the machine list with today's status, not the weekly hours grid.
   await expect(page.getByRole('heading', { name: 'Equipment status' })).toBeVisible({ timeout: 20_000 });
-  const row = page.getByRole('listitem').filter({ has: page.getByRole('link', { name: code, exact: true }) });
+  const row = page.getByRole('row').filter({ has: page.getByRole('link', { name: code, exact: true }) });
   await expect(row).toBeVisible();
   await expect(row.getByText('Not recorded')).toBeVisible();
   await expect(page.getByRole('table', { name: 'Equipment usage this week' })).toHaveCount(0);

@@ -1,15 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   STATUS_MAP,
   STATUS_RECORDS,
   statusLabel,
+  shippedStatusLabel,
   statusTone,
   statusVariantOf,
   toneVariant,
   type StatusRecord,
   type StatusTone,
 } from './statusMap';
+import { setOrgStageNames } from './orgStageNames';
 
 const TONES: StatusTone[] = ['neutral', 'waiting', 'exception', 'done'];
 const echo = (_key: string, fallback: string) => fallback;
@@ -142,5 +144,21 @@ describe('status catalogues (en + id)', () => {
         expect(en[group]?.[name], seenKey).toBe(seenDefault);
       }
     }
+  });
+});
+
+describe('organisation stage names (#2906)', () => {
+  const t = (_k: string, d: string) => d;
+  afterEach(() => setOrgStageNames([], 'en'));
+
+  it('AC-STG-007: a named stage reads its organisation name; every other stage and record is unchanged', () => {
+    setOrgStageNames([{ status: 'Tender Submitted', label_en: 'Bid sent', label_id: null }], 'en');
+    expect(statusLabel('project', 'Tender Submitted', t)).toBe('Bid sent');
+    expect(statusLabel('project', 'Negotiation', t)).toBe('Negotiation');
+    expect(shippedStatusLabel('project', 'Tender Submitted', t)).toBe('Tender submitted');
+  });
+
+  it('AC-STG-007: with no names the shipped wording is exactly as before', () => {
+    expect(statusLabel('project', 'Tender Submitted', t)).toBe('Tender submitted');
   });
 });

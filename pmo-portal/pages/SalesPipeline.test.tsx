@@ -246,12 +246,13 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
 
     const phoneList = screen.getByTestId('sales-phone-stage-list');
     const selection = screen.getByRole('combobox', { name: 'Pipeline stage' });
-    expect(selection).toHaveValue('Tender Submitted');
+    expect(selection).toHaveTextContent('Tender submitted');
     expect(within(phoneList).getByText('Northwind ERP Rollout')).toBeInTheDocument();
     expect(within(phoneList).queryByText('Regional Services')).toBeNull();
     expect(screen.getAllByRole('combobox', { name: 'Pipeline stage' })).toHaveLength(1);
 
-    await user.selectOptions(selection, 'PQ Submitted');
+    await user.click(selection);
+    await user.click(await screen.findByRole('option', { name: /PQ submitted/i }));
     await waitFor(() => {
       const location = screen.getByTestId('location-probe');
       expect(new URLSearchParams(location.getAttribute('data-search') ?? '').get('status')).toBe('PQ Submitted');
@@ -325,7 +326,8 @@ describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipelin
     const list = () => screen.getByTestId('sales-phone-stage-list');
     expect(within(list()).getAllByRole('listitem')).toHaveLength(open.length);
 
-    await user.selectOptions(selector, 'Negotiation');
+    await user.click(selector);
+    await user.click(await screen.findByRole('option', { name: /Negotiation|Negosiasi/i }));
     await waitFor(() => expect(search()).toMatch(/[?&]status=Negotiation/));
     expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
     expect(within(list()).getByText('Negotiation for Network Maintenance')).toBeInTheDocument();
@@ -930,7 +932,7 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
   it('AC-RD-SALES-002 a stage holding two currencies shows one line per currency, the org currency first, never a sum', () => {
     renderPage(); // Tender holds USD (1,200,000 + 9,000) and IDR (1,234) deals
     const tender = stageCell('Tender submitted');
-    const lines = Array.from(tender.querySelectorAll('[data-funnel-stage-amount] > div')).map((n) => n.textContent?.replace(/\u00a0/g, ' '));
+    const lines = Array.from(tender.querySelectorAll('[data-funnel-stage-amount] > div')).map((n) => n.getAttribute('title')?.replace(/\u00a0/g, ' '));
     expect(lines).toEqual(['$1,209,000', '+ IDR 1,234']);
     expect(tender.querySelector('[data-funnel-stage-amount]')?.textContent).not.toContain('1,210,234');
   });
@@ -938,7 +940,7 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
   it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', () => {
     renderPage();
     const preQual = stageCell('PQ submitted');
-    expect(within(preQual).getByText(formatCurrency(800000, 'USD'))).toBeInTheDocument();
+    expect(within(preQual).getByTitle(formatCurrency(800000, 'USD'))).toBeInTheDocument();
   });
 
   it('AC-RD-SALES-002 the headline figures keep the org currency first and a second line per other currency', () => {

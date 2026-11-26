@@ -4,6 +4,7 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { createJobRoleUser } from './support/jobRoleUser';
 import { cleanupBilling, createBillingFixture, type BillingFixture } from './support/billingFixture';
 
@@ -39,7 +40,7 @@ test('JOB-BQ5 a claim of 90 against an accepted 80 warns, is kept at 90, and acc
   // The contract line and its work-order allocation are created large enough to hold the client's accepted 80 (a line with progress cannot be resized).
   const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
   acceptanceId = need('acceptance', await db.from('work_order_acceptances').insert({
-    org_id: ORG_ID, project_id: fx.projectId, work_order_id: fx.workOrderId, acceptance_date: new Date().toISOString().slice(0, 10),
+    org_id: ORG_ID, project_id: fx.projectId, work_order_id: fx.workOrderId, acceptance_date: orgToday(),
     is_final: false, status: 'Confirmed', prepared_by: finance.id, confirmed_by: finance.id, confirmed_at: new Date().toISOString(), confirm_basis: 'standard',
   }).select('id').single()).id as string;
   ok('acceptance line', await db.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: fx.boqId, quantity: 80 }));

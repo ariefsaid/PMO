@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ConfirmDialog, EntityFormModal, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, EntityFormModal, RecordSection, TextField, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { formatDuration, useBreakdowns, useClearVendorResponse, useRecordVendorResponse, useVendorNames, useVendorResponseReady } from '@/src/hooks/useVendorResponse';
@@ -77,27 +77,23 @@ const Panel: React.FC<{ assetId: string; today: string }> = ({ assetId, today })
   // Nothing to show until the machine has broken down at least once: an organisation with none sees no change.
   if (q.isPending || q.isError || rows.length === 0) return null;
   const summary = vendorResponseSummary(rows.flatMap((r) => (r.vendor_id ? [{ vendorId: r.vendor_id, responseMinutes: r.response_minutes }] : [])));
+  const columns: Column<BreakdownRow>[] = [
+    { key: 'from', header: t('equipment:vendorResponse.breakdownFrom', 'Breakdown from'), kind: 'primary', rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{formatDay(r.period_start)}</span> },
+    { key: 'vendor', header: t('equipment:vendorResponse.vendor', 'Vendor'), cell: (r) => (r.vendor_id ? vendorName(r.vendor_id) : t('equipment:vendorResponse.noVendor', 'No rental vendor')) },
+    { key: 'response', header: t('equipment:vendorResponse.responseTime', 'Response time'), align: 'num',
+      cell: (r) => <span className="whitespace-nowrap tabular-nums">{r.response_minutes == null ? t('equipment:vendorResponse.awaiting', 'Awaiting response') : duration(r.response_minutes)}</span> },
+    ...(canRecord ? [{ key: 'actions', header: <span className="sr-only">{t('equipment:expiryEdit.actions', 'Actions')}</span>, kind: 'actions' as const,
+      cell: (r: BreakdownRow) => <span className="flex justify-end gap-2">
+        {r.vendor_id && <Button variant="outline" size="sm" onClick={() => setEditing(r)}>
+          {r.responded_at ? t('equipment:vendorResponse.edit', 'Edit') : t('equipment:vendorResponse.record', 'Record response')}</Button>}
+        {r.responded_at && <Button variant="outline" size="sm" onClick={() => setRemoving(r)}>{t('equipment:vendorResponse.remove', 'Remove')}</Button>}
+      </span> }] : []),
+  ];
   return (
-    <Card className="mb-6">
-      <CardHead>{t('equipment:vendorResponse.title', 'Vendor response to breakdowns')}</CardHead>
-      <CardPad>
-        <ul className="grid gap-2">
-          {rows.map((r) => (
-            <li key={r.period_start} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span>
-                {formatDay(r.period_start)} · {r.vendor_id ? vendorName(r.vendor_id) : t('equipment:vendorResponse.noVendor', 'No rental vendor')}
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="tabular-nums">{r.response_minutes == null ? t('equipment:vendorResponse.awaiting', 'Awaiting response') : duration(r.response_minutes)}</span>
-                {canRecord && r.vendor_id && <Button variant="outline" size="sm" onClick={() => setEditing(r)}>
-                  {r.responded_at ? t('equipment:vendorResponse.edit', 'Edit') : t('equipment:vendorResponse.record', 'Record response')}</Button>}
-                {canRecord && r.responded_at && <Button variant="outline" size="sm" onClick={() => setRemoving(r)}>{t('equipment:vendorResponse.remove', 'Remove')}</Button>}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {summary.length > 0 && <div className="mt-4"><VendorResponseSummaryTable rows={summary} /></div>}
-      </CardPad>
+    <RecordSection title={t('equipment:vendorResponse.title', 'Vendor response to breakdowns')} flush>
+      <DataTable<BreakdownRow> embedded rows={rows} columns={columns} rowKey={(r) => r.period_start} tableId="equipment-breakdowns"
+        accessibleName={t('equipment:vendorResponse.title', 'Vendor response to breakdowns')} />
+      {summary.length > 0 && <div className="border-t border-border"><VendorResponseSummaryTable rows={summary} /></div>}
       {editing && <RecordDialog assetId={assetId} row={editing} onClose={() => setEditing(null)} />}
       <ConfirmDialog open={removing !== null} title={t('equipment:vendorResponse.removeTitle', 'Remove this response?')}
         description={t('equipment:vendorResponse.removeBody', 'The breakdown goes back to awaiting a response.')}
@@ -106,7 +102,7 @@ const Panel: React.FC<{ assetId: string; today: string }> = ({ assetId, today })
         onConfirm={() => { if (!removing) return; void clear.mutateAsync({ assetId, periodStart: removing.period_start })
           .then(() => { toast(t('equipment:vendorResponse.removed', 'Response removed'), undefined, 'success'); setRemoving(null); })
           .catch(() => setRemoving(null)); }} />
-    </Card>
+    </RecordSection>
   );
 };
 

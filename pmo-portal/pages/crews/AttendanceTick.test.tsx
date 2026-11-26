@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
   role: 'Engineer' as string,
@@ -81,6 +81,7 @@ describe('attendance tick screen (#2528)', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       renderAt('/crews?view=attendance&wo=wo1');
       expect(screen.getByLabelText('Date')).toHaveValue('26 Nov 2026');
@@ -256,7 +257,7 @@ describe('attendance tick screen (#2528)', () => {
     (h.day.data as unknown[]) = [{ id: 'd1', worker_id: 'w1', status: 'present', hours: 8, overtime_hours: null }, { id: 'd2', worker_id: 'w2', status: 'absent', hours: null, overtime_hours: null }];
     renderAt();
     expect(screen.getByRole('heading', { name: 'Head count' })).toBeInTheDocument();
-    expect(screen.getByText(/^1 named people are ticked present on this crew today/)).toBeInTheDocument();
+    expect(screen.getByTestId('headcount-named')).toHaveTextContent('1 named present above');
   });
 
   it('AC-WCI-050 the crew\'s Foreman gets no such sentence and can tick', () => {
@@ -316,7 +317,7 @@ describe('attendance tick screen (#2528)', () => {
     const user = userEvent.setup();
     renderAt();
     const row = screen.getByRole('row', { name: /Vendor One/ });
-    expect(within(row).getByText('17 hours')).toBeInTheDocument();
+    expect(within(row).getByText('17')).toBeInTheDocument();
     expect(within(row).getByText('Bridge repair')).toBeInTheDocument();
     await user.click(within(row).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.decide).toHaveBeenCalledWith({ workerId: 'v1', weekStart: '2026-11-16', decision: 'approve', reason: null }));

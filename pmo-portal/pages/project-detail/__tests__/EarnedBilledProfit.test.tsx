@@ -11,14 +11,15 @@ vi.unmock('@/pages/project-detail/EarnedBilledProfit'); // test/setup.ts stubs i
 const h = vi.hoisted(() => ({
   setting: { data: true } as Record<string, unknown>, pva: {} as Record<string, unknown>, eb: {} as Record<string, unknown>,
   revenue: {} as Record<string, unknown>, role: 'Finance' as string, asked: [] as boolean[],
+  askedPva: [] as boolean[], askedRevenue: [] as boolean[], askedDisciplines: [] as boolean[],
 }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => h.setting }));
 vi.mock('@/src/hooks/useDisciplineProfit', () => ({
-  useDisciplineRevenue: () => h.revenue,
+  useDisciplineRevenue: (_p: string, enabled: boolean) => { h.askedRevenue.push(enabled); return h.revenue; },
 }));
 vi.mock('@/src/hooks/useEarnedBilled', () => ({ useWorkOrderEarnedBilled: (_p: string, enabled: boolean) => { h.asked.push(enabled); return h.eb; } }));
-vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
-vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'civ', code: 'CIV', name: 'Civil' }] }) }));
+vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: (_p: string, enabled: boolean) => { h.askedPva.push(enabled); return h.pva; } }));
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: (enabled: boolean = true) => { h.askedDisciplines.push(enabled); return { data: [{ id: 'civ', code: 'CIV', name: 'Civil' }] }; } }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await import('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never) => can(action, entity, { realRole: h.role as never }) };
@@ -46,7 +47,17 @@ function setData(eb: unknown, revenue: unknown = []) {
   h.revenue = { isPending: false, isError: false, refetch: vi.fn(), data: revenue };
 }
 
-beforeEach(() => { h.role = 'Finance'; h.setting = { data: true }; h.asked = []; });
+beforeEach(() => {
+  h.role = 'Finance'; h.setting = { data: true }; h.asked = []; h.askedPva = []; h.askedRevenue = []; h.askedDisciplines = [];
+});
+
+// All four rollup reads together: what the panel asks for under each gate.
+const expectAsked = (expected: boolean[]) => {
+  expect(h.askedPva).toEqual(expected);
+  expect(h.asked).toEqual(expected);
+  expect(h.askedRevenue).toEqual(expected);
+  expect(h.askedDisciplines).toEqual(expected);
+};
 
 describe('EarnedBilledProfit', () => {
   it('AC-EBR-011 shows earned beside billed, the gap and the margin on each basis, with a project total', () => {
@@ -127,17 +138,19 @@ describe('EarnedBilledProfit', () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it('AC-EBR-001/002 renders nothing, and asks for no revenue, while the setting is off or the role cannot read work-order money', () => {
+  it('AC-EBR-001/002 renders nothing, and none of the rollup reads is asked, while the setting is off or the role cannot read work-order money', () => {
     setData([ebRow()]);
     h.setting = { data: false };
     const off = render(<EarnedBilledProfit projectId="p1" />);
     expect(off.container.textContent).toBe('');
-    expect(h.asked.every((a) => a === false)).toBe(true);
+    // review LOW on #2895: an organisation with the switch off pays no rollup reads — the switch read
+    // itself is session-cached, so warm mounts of an on-organisation still start the reads at once.
+    expectAsked([false]);
     off.unmount();
-    h.setting = { data: true }; h.role = 'Engineer'; h.asked = [];
+    h.setting = { data: true }; h.role = 'Engineer'; h.askedPva = []; h.asked = []; h.askedRevenue = []; h.askedDisciplines = [];
     const eng = render(<EarnedBilledProfit projectId="p1" />);
     expect(eng.container.textContent).toBe('');
-    expect(h.asked.every((a) => a === false)).toBe(true);
+    expectAsked([false]);
   });
 });
 

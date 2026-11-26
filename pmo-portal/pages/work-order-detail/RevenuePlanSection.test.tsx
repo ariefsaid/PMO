@@ -5,7 +5,7 @@ import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import idRp from '../../public/locales/id/workOrderRevenuePlan.json';
 import enRp from '../../public/locales/en/workOrderRevenuePlan.json';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { RevenuePlanFigures } from '@/src/lib/revenuePlan';
 import { RevenuePlanSection } from './RevenuePlanSection';
@@ -34,9 +34,9 @@ describe('RevenuePlanSection (#2671)', () => {
   it('AC-WRP-008 shows plan to date, actual and the gap in words', () => {
     state.query = ok(figures());
     renderIt();
-    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe(formatExactMoney('800.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-revenue-plan-actual').textContent).toBe(formatExactMoney('300.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe(`${formatExactMoney('500.00', 'IDR', 'en-US')} behind plan`);
+    expect(screen.getByTestId('wo-revenue-plan-plan').textContent).toBe(formatTableMoney('800.00', 'IDR'));
+    expect(screen.getByTestId('wo-revenue-plan-actual').textContent).toBe(formatTableMoney('300.00', 'IDR'));
+    expect(screen.getByTestId('wo-revenue-plan-gap').textContent).toBe(`${formatTableMoney('500.00', 'IDR')} behind plan`);
     expect(screen.getByRole('button', { name: 'Enter plan' })).toBeTruthy();
   });
   it('AC-WRP-007 names submitted-not-validated reports apart from actual', () => {

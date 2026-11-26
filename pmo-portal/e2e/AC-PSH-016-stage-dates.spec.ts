@@ -3,11 +3,11 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { signIn, requireServiceRoleKey, openPipelineCard } from './helpers';
+import { inDays } from './support/jobJourney';
 
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 // The seed org keeps the column default timezone (0198_locale_preference_columns.sql:24). Every date below is a
-// calendar day in that zone, the same one the server's native_org_today uses — never a UTC day.
-const ORG_TZ = 'Asia/Jakarta';
+// calendar day in that zone — orgToday()/inDays() from the shared helper — never a runner-UTC day.
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const svcKey = requireServiceRoleKey();
 if (!svcKey) throw new Error('AC-PSH-016: SUPABASE_SERVICE_ROLE_KEY is required for this owning journey.');
@@ -15,11 +15,12 @@ const admin = createClient(SUPABASE_URL, svcKey, { auth: { persistSession: false
 
 const ID = randomUUID();
 const NAME = `PSH journey ${ID.slice(0, 8)}`;
-const orgDay = (daysAgo: number) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: ORG_TZ }).format(new Date(Date.now() - daysAgo * 86_400_000));
-const orgDayMonth = (daysAgo: number) =>
-  new Intl.DateTimeFormat('en-GB', { timeZone: ORG_TZ, day: '2-digit', month: 'short' })
-    .format(new Date(Date.now() - daysAgo * 86_400_000));
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const orgDay = (daysAgo: number) => inDays(-daysAgo);
+const orgDayMonth = (daysAgo: number) => {
+  const day = orgDay(daysAgo);
+  return `${day.slice(8, 10)} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
+};
 
 test.beforeAll(async () => {
   const { error } = await admin.from('projects').insert({

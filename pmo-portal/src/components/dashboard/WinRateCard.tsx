@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatPercent } from '@/src/lib/format';
-import { toIso } from '@/src/lib/calendar/monthMatrix';
+import { toIso, parseLocalDate } from '@/src/lib/calendar/monthMatrix';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { Tooltip } from '@/src/components/ui/Tooltip';
 import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { Icon } from '@/src/components/ui/icons';
@@ -32,9 +33,11 @@ function toDateKey(d?: Date): string {
  * Build a WinRateRange whose `key` encodes both the period label and the resolved
  * from/to ISO dates. This prevents stale cache entries when the window rolls over
  * across a day/quarter/year boundary in a long-lived session (FIX-WIN-CACHE-KEY).
+ * `today` is the organisation's day (#1126): the window's own dates follow it, so
+ * the RPC range ends on the org's day whatever the device's clock says.
  */
-function buildWinRateRange(period: PeriodKey): WinRateRange {
-  const now = new Date();
+function buildWinRateRange(period: PeriodKey, today: string): WinRateRange {
+  const now = parseLocalDate(today);
   switch (period) {
     case 'ytd': {
       const from = new Date(now.getFullYear(), 0, 1);
@@ -149,16 +152,9 @@ export interface WinRateCardProps {
 export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false, helpInPage = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
-  // Re-derive the window when the local date rolls over in a long-lived session.
-  const [today, setToday] = useState(() => toIso(new Date()));
-  useEffect(() => {
-    const now = new Date();
-    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const id = setTimeout(() => setToday(toIso(new Date())), nextMidnight.getTime() - now.getTime() + 1000);
-    return () => clearTimeout(id);
-  }, [today]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `today` re-keys the window at date rollover
-  const range = useMemo(() => buildWinRateRange(period), [period, today]);
+  // The organisation's day: the window re-keys — and moves — when IT rolls over, not the browser's.
+  const today = useOrgToday();
+  const range = useMemo(() => buildWinRateRange(period, today), [period, today]);
   const activeRange = externalRange ?? range;
   const { data: wr, isPending, isError, refetch } = useWinRate(activeRange);
   const { t } = useTranslation();

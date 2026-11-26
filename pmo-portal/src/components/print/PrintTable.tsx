@@ -15,6 +15,8 @@ export interface PrintTableProps<T> {
   keyExtractor: (row: T, index: number) => string;
   className?: string;
   emptyText?: string;
+  /** Footer rows (totals) drawn under the same columns, so each total sits under the figures it sums. */
+  footer?: React.ReactNode;
 }
 
 /**
@@ -27,6 +29,7 @@ export function PrintTable<T>({
   keyExtractor,
   className,
   emptyText = 'No items',
+  footer,
 }: PrintTableProps<T>): React.ReactElement {
   return (
     <div className={cn('overflow-x-auto my-6', className)} data-testid="print-table">
@@ -46,7 +49,7 @@ export function PrintTable<T>({
                   scope="col"
                   style={col.width ? { width: col.width } : undefined}
                   className={cn(
-                    'py-2 px-3 text-xs font-semibold text-foreground',
+                    'py-2 px-2 sm:px-3 text-xs font-semibold text-foreground',
                     alignClass,
                   )}
                 >
@@ -83,7 +86,7 @@ export function PrintTable<T>({
                   return (
                     <td
                       key={col.key}
-                      className={cn('py-2.5 px-3 text-sm text-foreground align-top', alignClass)}
+                      className={cn('py-2.5 px-2 sm:px-3 text-sm text-foreground align-top', alignClass)}
                     >
                       {col.render(row, index)}
                     </td>
@@ -93,6 +96,7 @@ export function PrintTable<T>({
             ))
           )}
         </tbody>
+        {footer && <tfoot className="border-t-2 border-foreground">{footer}</tfoot>}
       </table>
     </div>
   );

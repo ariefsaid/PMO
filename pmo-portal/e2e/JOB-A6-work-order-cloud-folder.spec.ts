@@ -2,6 +2,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { ORG_ID, cleanupAll, need, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -106,6 +107,7 @@ test('JOB-A6 TC-PA-13 Project Administrator creates and uploads work-order docum
     await pa.signIn(page);
 
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'documents');
     await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible({ timeout: 20_000 });
 
     await page.getByRole('button', { name: 'Add document' }).click();

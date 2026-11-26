@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import type { EquipmentAssetRow, EquipmentCostingRow } from '@/src/lib/db/equipment';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 
@@ -49,6 +50,22 @@ describe('#2544 EquipmentCostingForm payloads', () => {
       work_rate: 150.5, standby_rate: 60, rate_unit: 'days',
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('#1126 the effective-from month starts on the organisation\'s month, not the browser\'s', async () => {
+    vi.setSystemTime(new Date('2026-11-30T18:00:00Z'));
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
+    const user = userEvent.setup({ advanceTimers: () => {} });
+    try {
+      mount();
+      await user.click(screen.getByRole('radio', { name: 'Hire rate' }));
+      await user.type(screen.getByLabelText(/Work rate per unit/), '100');
+      await user.click(screen.getByRole('button', { name: 'Save costing' }));
+      expect(h.save.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ effective_from: '2026-12-01' }));
+    } finally {
+      resetActiveLocale();
+    }
   });
 
   it('#2544 save stays disabled until a hire rate above zero is entered', async () => {

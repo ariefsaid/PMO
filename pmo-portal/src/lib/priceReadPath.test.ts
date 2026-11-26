@@ -34,3 +34,12 @@ describe('AC-003 (#2699) setting on: the request screens read the masked views',
     expect(priceEmbed('payments', 'amount')).toBe('payments:payments_masked(amount)');
   });
 });
+
+describe('#2788 planned equipment rates follow the read path', () => {
+  it('rewrites the plan-line embed to its masked view only while the setting is on', () => {
+    const sel = 'id, status, equipment_plan_lines(id, rate, vendor_id)';
+    expect(maskSelection(sel)).toBe(sel);
+    setHidePricesActive(true);
+    expect(maskSelection(sel)).toBe('id, status, equipment_plan_lines:equipment_plan_lines_masked(id, rate, vendor_id)');
+  });
+});

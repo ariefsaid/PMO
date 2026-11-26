@@ -272,7 +272,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(within(header).queryByText('PO CPO-2026-001')).not.toBeInTheDocument();
   });
 
-  it('2057: Edit is the primary action; when the state has its own verb that is primary and Edit stays one click away', async () => {
+  it('2057: Edit invokes its action directly and stays one click away when a state action is shown', async () => {
     const onEditProject = vi.fn();
     const { unmount } = render(
       <MemoryRouter>
@@ -282,7 +282,6 @@ describe('ProjectDetailHeader — content', () => {
       </MemoryRouter>,
     );
     const edit = within(screen.getByTestId('record-header')).getByRole('button', { name: /^Edit$/i });
-    expect(edit).toHaveClass('bg-primary');
     await userEvent.click(edit);
     expect(onEditProject).toHaveBeenCalledOnce();
     unmount();

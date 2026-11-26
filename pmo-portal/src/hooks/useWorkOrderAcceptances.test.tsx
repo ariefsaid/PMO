@@ -13,12 +13,14 @@ const h = vi.hoisted(() => ({
   prepare: vi.fn(async () => 'acc-1'),
   withdraw: vi.fn(async () => undefined),
   confirm: vi.fn(async () => ({ closingValue: 1, dpHeld: 0 })),
+  reconciliation: vi.fn(async () => [{ progressQty: 1 }]),
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrderAcceptance: h } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrderAcceptance: h, billingStages: { reconciliation: h.reconciliation } } }));
 const auth = vi.hoisted(() => ({ orgId: 'org-1' as string | undefined }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { id: 'u-1', org_id: auth.orgId } : null }) }));
 
 import { useWorkOrderAcceptances, useWorkOrderAcceptanceMutations, useProjectWorkOrderLines, useAcceptancesAwaitingConfirmation } from './useWorkOrderAcceptances';
+import { useBillingReconciliation } from './useBillingStages';
 
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -85,6 +87,24 @@ describe('contract-quantity read hooks', () => {
 });
 
 describe('useWorkOrderAcceptanceMutations (cache design, ADR-0091)', () => {
+  it('reopens a fresh work-order reconciliation after confirming a hand-over certificate', async () => {
+    h.reconciliation.mockReset()
+      .mockResolvedValueOnce([{ progressQty: 1 }])
+      .mockResolvedValueOnce([{ progressQty: 2 }]);
+    const { client, wrapper } = setup();
+    const firstRead = renderHook(() => useBillingReconciliation('p1', 'wo-1'), { wrapper });
+    await waitFor(() => expect(firstRead.result.current.data).toEqual([{ progressQty: 1 }]));
+    firstRead.unmount();
+
+    const { result } = renderHook(() => useWorkOrderAcceptanceMutations('p1'), { wrapper });
+    await act(async () => { await result.current.confirm.mutateAsync('acc-1'); });
+
+    const reopened = renderHook(() => useBillingReconciliation('p1', 'wo-1'), { wrapper });
+    await waitFor(() => expect(reopened.result.current.data).toEqual([{ progressQty: 2 }]));
+    expect(h.reconciliation).toHaveBeenCalledTimes(2);
+    expect(client.getQueryState(['billing-reconciliation', 'org-1', 'p1', 'wo-1'])?.isInvalidated).toBe(false);
+  });
+
   it('AC-CQ-015 allocation writes refresh the allocation lists and the billing facts, nothing money-moving', async () => {
     const { spy, wrapper } = setup();
     const { result } = renderHook(() => useWorkOrderAcceptanceMutations('p1'), { wrapper });
@@ -132,6 +152,7 @@ describe('useWorkOrderAcceptanceMutations (cache design, ADR-0091)', () => {
     expect(keys(spy)).toEqual(expect.arrayContaining([
       ['work-order-acceptances', 'org-1', 'p1'], ['work-order-acceptances', 'org-1', 'u-1', 'awaiting-confirmation'],
       ['project-billing', 'org-1', 'p1'], ['work-orders', 'org-1', 'p1'],
+      ['billing-reconciliation', 'org-1', 'p1'],
       ['project-drawdown', 'org-1', 'p1'], ['work-order-billing', 'org-1', 'p1'], ['unbilled-work-orders', 'org-1'],
     ]));
   });

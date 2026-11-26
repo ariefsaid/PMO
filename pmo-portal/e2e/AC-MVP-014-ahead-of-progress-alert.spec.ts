@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import { makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, SEED_PROJECT_ID, userClient } from './support/stockFixture';
+import { orgToday } from './support/jobJourney';
 
 test.setTimeout(180_000);
 
@@ -37,7 +38,7 @@ test('AC-MVP-014 material issued ahead of progress tells the project manager, wh
   const acceptanceId = randomUUID();
   const who = (await admin.auth.getUser()).data.user?.id;
   const acceptance = await service.from('work_order_acceptances').insert({ id: acceptanceId, org_id: project.data.org_id, project_id: SEED_PROJECT_ID, work_order_id: workOrderId,
-    acceptance_date: new Date().toISOString().slice(0, 10), is_final: false, status: 'Confirmed', prepared_by: who, confirmed_by: who, confirmed_at: new Date().toISOString(), confirm_basis: 'sole_operator' });
+    acceptance_date: orgToday(), is_final: false, status: 'Confirmed', prepared_by: who, confirmed_by: who, confirmed_at: new Date().toISOString(), confirm_basis: 'sole_operator' });
   if (acceptance.error) throw acceptance.error;
   const accepted = await service.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: work.id, quantity: Number(line.data.quantity) / 10 });
   if (accepted.error) throw accepted.error;
@@ -68,7 +69,11 @@ test('AC-MVP-014 material issued ahead of progress tells the project manager, wh
     const card = page.getByTestId(`customer-order-${workOrderId}`);
     await expect(card.getByRole('button', { name: /1 item ahead of progress/ })).toBeVisible();
     await card.getByRole('button', { name: /1 item ahead of progress/ }).click();
-    await expect(card.getByText(new RegExp(`${item.name}: issued 60% of planned, progress 10%, 50 points ahead`))).toBeVisible();
+    const alert = card.getByRole('status');
+    await expect(alert.getByText(/work order.s progress \(10%\)/)).toBeVisible();
+    const aheadRow = alert.getByRole('row').filter({ has: page.getByRole('rowheader', { name: item.name, exact: true }) });
+    await expect(aheadRow.getByRole('cell', { name: '60%', exact: true })).toBeVisible();
+    await expect(aheadRow.getByRole('cell', { name: '50 points', exact: true })).toBeVisible();
 
     // The alert blocked nothing: another issue still posts.
     const another = await admin.rpc('create_stock_document', { p_header: { kind: 'issue', warehouse_id: central.id, project_id: SEED_PROJECT_ID },

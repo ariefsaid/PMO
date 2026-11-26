@@ -31,9 +31,15 @@ import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
  *     closes the seam.
  *  3. An OUTSET box-shadow on a sticky table cell is not painted at all (clipped to the cell's
  *     box), so the left-cast separation shadow is a positioned gradient strip (ROW_MENU_SEAM_CLASS)
- *     rendered inside the cell — see DESIGN.md §6 Row actions. */
+ *     rendered inside the cell — see DESIGN.md §6 Row actions.
+ *  4. While every column fits (the scroller carries no `data-dt-overflowing`), nothing runs under the
+ *     cell, so it paints NO surface and NO divider of its own: it takes the row's surface (an embedded
+ *     table on the grey page stays grey) and the column reads as part of the row. The opaque surface and
+ *     the hairline turn on only while content is hidden under it. */
 const ROW_MENU_STICKY_CLASS =
-  'sticky -right-px shadow-[inset_1px_0_0_hsl(var(--border))]';
+  'sticky -right-px [[data-dt-overflowing]_&]:shadow-[inset_1px_0_0_hsl(var(--border))]';
+/** The sticky actions cell's opaque surface, only while content scrolls under it (see 4 above). */
+const ROW_MENU_COVER = '[[data-dt-overflowing]_&]:bg-card';
 /** Left-cast separation gradient for the sticky actions column: from the `foreground` token
  *  (near-black in light, near-light in dark — the token flips the cast with the mode) fading out
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
@@ -246,6 +252,13 @@ function DataTableRowInner<Row>({
     : onActivate
       ? 'bg-card group-hover:bg-surface-hover'
       : 'bg-card';
+  // The actions cell covers scrolled content only while there is any (ROW_MENU_STICKY_CLASS note 4); otherwise it is
+  // transparent and the row's own surface (hover, selected, an embedded table's page) shows through.
+  const stickyMenuSurface = selected
+    ? '[[data-dt-overflowing]_&]:bg-surface-selected'
+    : onActivate
+      ? cn(ROW_MENU_COVER, '[[data-dt-overflowing]_&]:group-hover:bg-surface-hover')
+      : ROW_MENU_COVER;
   return (
     // The <tr> keeps its IMPLICIT role="row" (never role="link",
     // which breaks table-row semantics and hides body rows from
@@ -306,7 +319,7 @@ function DataTableRowInner<Row>({
               ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}),
             }}
             className={cn(
-              'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+              'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
               compactRows ? 'py-0.5' : 'py-2',
               col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
               columnAlignmentClass(col),
@@ -327,7 +340,7 @@ function DataTableRowInner<Row>({
         );
       })}
       {rowMenu && (
-        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
+        <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyMenuSurface)}>
           <RowMenuSeam store={seamStore} />
           {(() => {
             const items = rowMenu(row) ?? [];
@@ -655,6 +668,9 @@ export function DataTableDesktop<Row>({
     .filter((column) => /(^|\s)hidden($|\s)/.test(column.colClassName ?? ''))
     .reduce((sum, column) => sum + (column.size ?? 0), 0);
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
+  // Default sizes are preferences: let the browser fit columns to the available panel.
+  // Once a person resizes a column, keep the fixed-width layout and its scrollport.
+  const hasUserColumnSizing = Object.keys(columnSizing).length > 0;
 
   return (
     /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
@@ -671,7 +687,7 @@ export function DataTableDesktop<Row>({
         aria-label={accessibleName}
         style={{
           ...columnSizeVars,
-          ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+          ...(hasUserColumnSizing ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
         }}
         className="w-full border-collapse text-control"
       >
@@ -699,7 +715,7 @@ export function DataTableDesktop<Row>({
                     ? { width: columnWidthVar(col.key), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                     : undefined}
                   className={cn(
-                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground break-words select-none',
+                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] text-control font-semibold text-foreground break-words select-none',
                     col.stickyLeft && 'left-0 z-[3]',
                     columnAlignmentClass(col),
                     numericColumnClass(col),
@@ -710,14 +726,14 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex max-w-full items-center gap-1 hover:text-foreground [&_svg]:size-3 [&_svg]:shrink-0"
+                      className="inline-flex max-w-full items-center gap-1 text-inherit hover:text-foreground [&_svg]:size-3 [&_svg]:shrink-0"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{col.header}</span>
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{col.header}</span>
                       {col.caveat && <span aria-hidden="true" className="ml-0.5 shrink-0 text-warning-foreground">*</span>}
                       {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="shrink-0 opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                    <span className="inline-flex max-w-full items-baseline gap-0.5"><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{col.header}</span>{col.caveat && <span aria-hidden="true" className="shrink-0 text-warning-foreground">*</span>}</span>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;

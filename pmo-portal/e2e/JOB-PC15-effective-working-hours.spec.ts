@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — owns its project-administrator and project-manager logins, project, work order, crew, checkpoints and daily site report; reads an active org idle reason without mutating any org-wide list; removes all owned rows and uploaded photo in finally.
-// JOB-PC15 (project control): effective working hours. The project administrator records timed checkpoints (work start past target
+// JOB-PC15 (project control): effective working hours. The safety officer (step 99) records timed checkpoints (work start past target
 // with a required photo, plus mid-shift and close on time) on the work order, files a daily site report with idle time under a named cause,
 // the project manager validates it, and the crews punctuality screen shows both the late start and the lost time by cause.
 import { test, expect } from '@playwright/test';
@@ -11,10 +11,10 @@ test.setTimeout(180_000);
 // 1x1 PNG for the required checkpoint photo.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 
-test('JOB-PC15 project administrator records timed checkpoints and idle time on a site report, and the crews view shows the late start and lost time by cause', async ({ page }) => {
+test('JOB-PC15 safety officer records timed checkpoints and idle time on a site report, and the crews view shows the late start and lost time by cause', async ({ page }) => {
   const svc = serviceClient('JOB-PC15');
   const run = runId('JOBPC15');
-  const fieldAdmin = await roleJobUser(svc, 'project_administrator', `${run}-fa`);
+  const fieldAdmin = await roleJobUser(svc, 'safety_officer', `${run}-fa`);
   const pm = await roleJobUser(svc, 'project_manager', `${run}-pm`);
 
   let projectId = '';
@@ -116,7 +116,7 @@ test('JOB-PC15 project administrator records timed checkpoints and idle time on 
       },
     ]));
 
-    // 1. Project administrator records all three checkpoints on the work order (work start records late with a photo).
+    // 1. Safety officer records all three checkpoints on the work order (work start records late with a photo).
     await fieldAdmin.signIn(page);
     await page.goto(`/work-orders/${woId}`);
 
@@ -141,11 +141,11 @@ test('JOB-PC15 project administrator records timed checkpoints and idle time on 
       await expect(cpRow).toContainText('Recorded');
     }
 
-    // 2. Project administrator files a daily site report with 10 minutes of idle time under the named cause and submits it.
+    // 2. Safety officer files a daily site report with 10 minutes of idle time under the named cause and submits it.
     await page.goto('/site-reports');
     await page.getByRole('button', { name: 'New report' }).first().click();
     await page.getByLabel('Project').selectOption(projectId);
-    await page.getByLabel('Work order').selectOption(woId);
+    await page.getByRole('combobox', { name: 'Work order' }).selectOption(woId);
     await page.getByRole('button', { name: 'Start report' }).click();
     await expect(page).toHaveURL(/\/site-reports\/[0-9a-f-]{36}$/, { timeout: 20_000 });
     reportId = page.url().split('/').pop()!;
@@ -171,7 +171,7 @@ test('JOB-PC15 project administrator records timed checkpoints and idle time on 
     await page.getByRole('button', { name: 'Validate' }).click();
     await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'validated', { timeout: 20_000 });
 
-    // 4. Project administrator opens the crews punctuality screen and confirms both the late start and lost time by cause.
+    // 4. Safety officer opens the crews punctuality screen and confirms both the late start and lost time by cause.
     await fieldAdmin.signIn(page);
     await page.goto('/site-reports/crews');
     const crewCard = page.getByTestId(`crew-${crewId}`);

@@ -3,26 +3,26 @@ import { useAuth } from '@/src/auth/useAuth';
 import { workOrderCostRepository } from '@/src/lib/repositories/workOrderCosts';
 
 /** The org's live discipline list (#2517) — the cost forms' discipline picker. */
+export const costDisciplinesQuery = (orgId: string | undefined, enabled = true) => ({
+  queryKey: ['cost-disciplines', orgId],
+  queryFn: () => workOrderCostRepository.disciplines(),
+  enabled: enabled && Boolean(orgId),
+  staleTime: 5 * 60 * 1000,
+});
+
 export function useCostDisciplines(enabled = true) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['cost-disciplines', orgId],
-    queryFn: () => workOrderCostRepository.disciplines(),
-    enabled: enabled && Boolean(orgId),
-    staleTime: 5 * 60 * 1000,
-  });
+  return useQuery(costDisciplinesQuery(useAuth().currentUser?.org_id, enabled));
 }
 
 /** One work order's cost lines grouped by source (#2517 read seam; #2518/#2519/#2523 build on it). */
+export const workOrderCostLinesQuery = (orgId: string | undefined, workOrderId: string | null) => ({
+  queryKey: ['work-order-cost-lines', orgId, workOrderId],
+  queryFn: () => workOrderCostRepository.costLinesBySource(workOrderId as string),
+  enabled: Boolean(orgId) && Boolean(workOrderId),
+});
+
 export function useWorkOrderCostLines(workOrderId: string | null) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-cost-lines', orgId, workOrderId],
-    queryFn: () => workOrderCostRepository.costLinesBySource(workOrderId as string),
-    enabled: Boolean(orgId) && Boolean(workOrderId),
-  });
+  return useQuery(workOrderCostLinesQuery(useAuth().currentUser?.org_id, workOrderId));
 }
 
 /** Per-source money behind a work order's cost lines (#2518); runs after the lines are read. */

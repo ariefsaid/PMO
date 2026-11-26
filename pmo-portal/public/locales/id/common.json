@@ -1,4 +1,5 @@
 {
+  "tabs": {},
   "allSettings": {
     "alwaysOn": "Aktif untuk semua",
     "title": "Semua pengaturan",
@@ -351,7 +352,6 @@
     "loadingAccounts": "Memuat bagan akun…",
     "noAssetAccounts": "Tidak ada akun Aset aktif di bagan ERP.",
     "notConfigured": "Belum dikonfigurasi",
-    "onlyAdmin": "Hanya Admin yang dapat mengubahnya.",
     "pph23Label": "Akun Utang PPh 23",
     "pph42Label": "Akun Utang PPh 4(2)",
     "reloadSaved": "Muat ulang nilai tersimpan",
@@ -1004,7 +1004,6 @@
       "groupLabel": "Setujui massal",
       "hoursUnit": "jam",
       "rowSelect": "Pilih {{week}} milik {{owner}}",
-      "select": "Pilih item",
       "selectAll": "Pilih semua minggu yang dapat disetujui",
       "selectedCount": "{{count}} dipilih",
       "toast": {
@@ -2104,7 +2103,6 @@
     "amount": "Jumlah",
     "status": "Status",
     "file": "Berkas",
-    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak menampilkan apa pun.",
     "types": {
       "purchaseRequest": "Permintaan Pembelian",
       "purchaseOrder": "Pesanan Pembelian",
@@ -2457,7 +2455,6 @@
         "titleFallback": "Hapus dokumen ini?"
       },
       "dismiss": "Tutup",
-      "emptySub": "Tambahkan gambar, spesifikasi, atau transmittal untuk memulai register dokumen proyek ini.",
       "emptyTitle": "Belum ada dokumen",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat dokumen",
@@ -2906,7 +2903,7 @@
         "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
         "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
-      "newSubtitle": "Catat $t(common:terms.clientWorkOrder) klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
+      "newSubtitle": "Catat $t(common:terms.clientWorkOrder) klien terhadap kontrak proyek. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
       "newTitle": "$t(common:terms.clientWorkOrder) baru",
       "orderDate": "Tanggal order",
       "orderValue": "Nilai order",
@@ -4826,7 +4823,6 @@
     "latestFailed": "Microsoft tidak dapat memuat file ini. Periksa akses dan ketersediaan SharePoint dengan admin Microsoft Anda, atau coba lagi.",
     "procurement": {
       "heading": "Tautan SharePoint untuk kasus ini",
-      "intro": "File dan folder SharePoint dan OneDrive yang ditautkan ke kasus ini. PMO menyimpan tautannya, bukan filenya.",
       "link": "Tautkan dari Microsoft 365",
       "emptyTitle": "Belum ada tautan",
       "emptySub": "Tautkan file atau folder SharePoint atau OneDrive ke kasus ini.",

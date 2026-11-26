@@ -10,10 +10,12 @@
  * showed the light screen on the shared Engineer's procurement journey (AC-PFR-001) and a full Engineer shell here. A disposable
  * profile carries the same real role with a real JWT, and no other journey can read or clear it.
  */
+import { jobRoleUser } from './support/jobRole';
 import { test, expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { requireServiceRoleKey } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -107,14 +109,10 @@ test.beforeEach(async () => {
   try {
     // A disposable Foreman: its own login, profile (the role lives on the profile row, as it does for every person) and
     // workforce person. The seeded Engineer keeps its own role, so no journey running beside this one can read this run's role.
-    const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
-    if (created.error || !created.data.user) {
-      throw new Error(`AC-LA-E2E login: ${created.error?.message ?? 'no user returned'}`);
-    }
-    foremanId = created.data.user.id;
-    need('profile', await admin.from('profiles').insert({
-      id: foremanId, org_id: ORG_ID, email, full_name: `${run} foreman`, role: 'Engineer', built_in_role: 'foreman',
-    }).select('id').single());
+    const actor = await jobRoleUser({ jobRole: 'foreman', role: 'Engineer', org: ORG_ID, service: admin, run: `e2e-la-${suffix}`, displayName: `${run} foreman` });
+    foremanId = actor.id;
+    email = actor.email;
+    password = actor.password;
     personId = need('person', await admin.from('people').insert({
       org_id: ORG_ID, kind: 'own', code: `LA-${suffix.slice(0, 8)}`, name: `${run} foreman`, profile_id: foremanId,
     }).select('id').single()).id;
@@ -125,9 +123,9 @@ test.beforeEach(async () => {
     crewId = need('crew', await admin.from('crews').insert({
       org_id: ORG_ID, code: `LA-${suffix.slice(0, 8)}`, name: `${run} crew`, kind: 'own', field_controller_id: foremanId,
     }).select('id').single()).id;
-    const from = new Date(); from.setDate(from.getDate() - 2);
+    const from = inDays(-2); // rostered two days back by the organisation's clock
     need('roster', await admin.from('work_order_crews').insert({
-      org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from.toISOString().slice(0, 10),
+      org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from,
     }).select('id').single());
   } catch (error) {
     try {

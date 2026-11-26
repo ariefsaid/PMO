@@ -5,7 +5,9 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -45,7 +47,7 @@ test('AC-WML-007 open steps and a missing attachment are listed, exported, and l
       issued_at: new Date().toISOString(), order_value: 500_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'EUR',
     });
     if (wo.error) throw new Error('AC-WML-007 fixture work order: ' + wo.error.message);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = orgToday();
     const steps = await admin.from('work_order_billing_steps').insert([
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 1, name: 'First ' + suffix, owner_role_key: 'billing_officer', target_days: 5, started_on: today },
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 2, name: 'Second ' + suffix, owner_role_key: 'finance_officer' },
@@ -65,7 +67,7 @@ test('AC-WML-007 open steps and a missing attachment are listed, exported, and l
     await page.route('**/api/resource/**', (route) => route.abort());
 
     await page.goto('/work-orders/' + workOrderId);
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Close-out', exact: true }).click();
+    await openWorkOrderArea(page, 'checks');
     const list = page.getByTestId('missing-list');
     await expect(list).toContainText('First ' + suffix);
     await expect(list).toContainText('Second ' + suffix);
@@ -80,11 +82,12 @@ test('AC-WML-007 open steps and a missing attachment are listed, exported, and l
     expect(csv).toContain('Evidence slot ' + suffix);
 
     // Attach the document and finish the first step: its step row and attachment row leave the list; the second step stays.
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Billing', exact: true }).click();
+    await openWorkOrderArea(page, 'billing');
+    await openRowUpdate(page, 'First ' + suffix);
     await page.getByRole('combobox', { name: 'Document for Evidence slot ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Evidence slot ' + suffix }).click();
     await page.getByRole('button', { name: 'Mark First ' + suffix + ' done' }).click();
-    await page.getByRole('navigation', { name: 'Sections of this Work order' }).getByRole('link', { name: 'Close-out', exact: true }).click();
+    await openWorkOrderArea(page, 'checks');
     await expect(list).not.toContainText('First ' + suffix);
     await expect(list).not.toContainText('Evidence slot ' + suffix);
     await expect(list).toContainText('Second ' + suffix);

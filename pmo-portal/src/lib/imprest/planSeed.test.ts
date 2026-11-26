@@ -15,4 +15,8 @@ describe('AC-CAE-003 plan seed from open requests', () => {
       row({ procurement_id: 'c', currency: 'USD' }), row({ procurement_id: 'd', budget_category: null }), row({ procurement_id: 'e', request_total: null })]);
     expect(seedFromRequests(reqs, 'IDR')).toEqual({ lines: [{ category: 'Materials', amount: 30.3 }], skipped: 3 });
   });
+  it('AC-CAE-003 rounds the exact purpose total to cents', () => {
+    const reqs = foldRequests([row({ procurement_id: 'a', request_total: 1.005 }), row({ procurement_id: 'b', request_total: 0.005 })]);
+    expect(seedFromRequests(reqs, 'IDR').lines).toEqual([{ category: 'Materials', amount: 1.01 }]);
+  });
 });

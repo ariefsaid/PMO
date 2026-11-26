@@ -125,7 +125,7 @@ describe('Equipment home', () => {
   it('AC-EQM-009 each status shows one line saying what it does to planning while it is being chosen', async () => {
     renderAt();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status of CR-2' }), 'waiting_parts');
-    const row = screen.getByRole('combobox', { name: 'Status of CR-2' }).closest('li') as HTMLElement;
+    const row = screen.getByRole('combobox', { name: 'Status of CR-2' }).closest('tr') as HTMLElement;
     expect(within(row).getByText('Not available until the parts arrive. Counts as downtime.')).toBeInTheDocument();
   });
 

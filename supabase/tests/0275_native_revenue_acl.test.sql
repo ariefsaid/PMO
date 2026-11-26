@@ -25,11 +25,11 @@ select ok(not exists (
                         ('public.record_native_receipt(uuid,numeric,numeric,numeric,text,date)'),
                         ('public.cancel_native_receipt(uuid)')) f(sig)
    join pg_proc p on p.oid = f.sig::regprocedure
-   where not p.prosecdef or p.proconfig is distinct from array['search_path=public']),
+   where not p.prosecdef or p.proconfig is distinct from array['search_path=public, pg_temp']),
   'NFR-NAR-001 all four are SECURITY DEFINER with search_path pinned to public');
 select ok(not has_function_privilege('anon', 'public.create_native_tm_invoice(uuid)', 'execute')
       and has_function_privilege('authenticated', 'public.create_native_tm_invoice(uuid)', 'execute')
-      and (select p.prosecdef and p.proconfig = array['search_path=public'] from pg_proc p where p.oid = 'public.create_native_tm_invoice(uuid)'::regprocedure),
+      and (select p.prosecdef and p.proconfig = array['search_path=public, pg_temp'] from pg_proc p where p.oid = 'public.create_native_tm_invoice(uuid)'::regprocedure),
   'NFR-NAR-001 #1817 the T&M claim invoice creator is a SECURITY DEFINER with search_path public, never anon, callable by a member');
 select ok(not exists (
   select 1 from (values ('public.native_invoice_gross(numeric,numeric,text)'), ('public.native_invoice_settled(uuid,uuid)'),

@@ -5,6 +5,7 @@ import { loadEnv } from 'vite';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(180_000);
@@ -26,7 +27,7 @@ test.beforeEach(async () => {
   ids = codes.map((code) => { const row = assets.find((a) => a.code === code); if (!row) throw new Error(`missing ${code}`); return row.id as string; });
   const statuses = ['ready', 'standby', 'broken', 'at_vendor', 'waiting_parts', 'ready', 'ready', 'ready'];
   const rows = ids.flatMap((asset_id, i) => Array.from({ length: 12 }, (_, day) => ({
-    org_id: org, asset_id, status_date: new Date(Date.now() - (day + 1) * 86_400_000).toISOString().slice(0, 10),
+    org_id: org, asset_id, status_date: inDays(-(day + 1)),
     status: day < 3 ? statuses[i] : 'ready',
   })));
   need('seed statuses', await db.from('equipment_status_days').insert(rows).select('id'));
@@ -34,7 +35,7 @@ test.beforeEach(async () => {
   const people = need('read roles', await db.from('profiles').select('id,role').eq('org_id', org).eq('status', 'active').in('role', ['Engineer', 'Project Manager']));
   const engineer = people.find((p) => p.role === 'Engineer'); const manager = people.find((p) => p.role === 'Project Manager');
   if (!engineer || !manager) throw new Error('rich seed needs an active engineer and project manager');
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const yesterday = inDays(-1);
   need('seed approved usage', await db.from('equipment_usage_entries').insert(ids.map((asset_id, i) => ({ org_id: org, asset_id, project_id: project.id, work_date: yesterday, quantity: i + 1, unit: 'hours', kind: 'work', status: 'Approved', author_id: engineer.id, approver_id: manager.id, approved_at: new Date().toISOString() }))).select('id'));
 });
 test.afterEach(async () => {
@@ -54,7 +55,7 @@ test('AC-EAV-013 a field controller saves several statuses and a photo remains p
   await page.getByRole('button', { name: 'Save statuses' }).click();
   await expect(page.getByRole('button', { name: `Upload file for ${codes[0]}` })).toBeVisible({ timeout: 20_000 });
   await page.getByLabel(`Attach proof for ${codes[0]}`).setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: pixel });
-  const broken = page.getByRole('listitem').filter({ hasText: codes[0] });
+  const broken = page.getByRole('row').filter({ hasText: codes[0] });
   await expect(broken.getByText('Proven', { exact: true })).toBeVisible({ timeout: 20_000 });
   await page.reload();
   await expect(page.getByLabel(`Status of ${codes[0]}`)).toHaveValue('broken');
@@ -66,7 +67,7 @@ test('AC-EAV-013 a field controller saves several statuses and a photo remains p
   if (dir) {
     mkdirSync(dir, { recursive: true }); await signIn(page, 'admin@acme.test'); await page.goto('/equipment/availability');
     await expect(page.getByRole('heading', { name: 'Equipment status' })).toBeVisible({ timeout: 20_000 });
-    await page.getByLabel('Metric period from').fill(new Date(Date.now() - 12 * 86_400_000).toISOString().slice(0, 10));
+    await page.getByLabel('Metric period from').fill(inDays(-12));
     await expect(page.locator('tbody tr').filter({ hasText: codes[0] }).first()).toBeVisible({ timeout: 20_000 });
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 900 }); await page.evaluate(() => document.fonts.ready);

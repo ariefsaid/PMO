@@ -13,7 +13,7 @@ import { Checkbox } from '@/src/components/ui/Checkbox';
 import { DateField } from '@/src/components/ui/DateField';
 import { SelectField, TextField } from '@/src/components/ui/FormFields';
 import { EntityFormModal, type SubmitError } from '@/src/components/ui/EntityFormModal';
-import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
+import { Drawer, ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useUsers } from '@/src/hooks/useUsers';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
@@ -73,9 +73,16 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
   const age = stepAgeDays(step, today);
   const over = stepDaysOver(step, today);
   const missingRequired = step.documents.some((d) => d.required && !d.documentId);
-  const run = async (fn: () => Promise<unknown>) => { onError(null); try { await fn(); } catch (err) { onError(line(err)); } };
+  const [stepError, setStepError] = useState<string | null>(null);
+  const run = async (fn: () => Promise<unknown>) => { onError(null); setStepError(null); try { await fn(); } catch (err) { setStepError(line(err)); } };
   const index = steps.findIndex((s) => s.id === step.id);
 
+  const canEvidence = !viewOnly && may('manage', 'orgAccounting');
+  const hasControls = canAct || canAttach || canEvidence;
+  const [open, setOpen] = useState(false);
+  const docLink = (documentId: string) => <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(documentId)}`} className="font-medium text-primary-text hover:underline">{titleOf(documentId)}</Link>;
+
+  // The row is for scanning: which step, whose, how late, which documents. Everything that changes it opens on the right.
   return <li aria-label={step.name} className="py-3" data-testid="wo-billing-step">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="font-medium">
@@ -89,6 +96,8 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
             : status === 'skipped' ? t('skipped', 'Skipped {{date}}', { date: formatIsoDay(step.skippedOn ?? '') })
             : status === 'current' ? t('current', 'Current') : t('waiting', 'Not yet open')}
         </StatusPill>
+        {hasControls && <Button variant="outline" size="sm" aria-label={t('updateNamed', 'Update {{item}}', { item: step.name })}
+          aria-haspopup="dialog" onClick={() => setOpen(true)}>{t('update', 'Update')}</Button>}
       </span>
     </div>
     {status === 'skipped' && step.skippedReason && <p className="mt-1 text-control text-muted-foreground">{t('skipReason', 'Reason: {{reason}}', { reason: step.skippedReason })}</p>}
@@ -100,52 +109,66 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
       {due && status === 'current' && ` · ${t('due', 'Due {{date}}', { date: formatIsoDay(due) })}`}
       {age !== null && status === 'current' && ` · ${t('age', '{{count}} days on this step', { count: age })}`}
     </p>
-    {!viewOnly && may('manage', 'orgAccounting') && <Checkbox checked={step.claimEvidenceEnabled === true} disabled={markEvidence.isPending}
-      label={t('claimEvidence', 'Documents here count as claim evidence')}
-      onChange={(enabled) => void run(() => markEvidence.mutateAsync({ stepId: step.id, enabled }))}>
-      {t('claimEvidence', 'Documents here count as claim evidence')}
-    </Checkbox>}
-    {canAttach && <div className="mt-2 flex flex-wrap items-end gap-2">
-      <SelectField label={t('extraDocument', 'Additional document')} placeholder={t('pick', 'Choose a document')}
-        value={picked.extra ?? ''} onChange={(v) => setPicked((p) => ({ ...p, extra: v }))}
-        options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} />
-      <Button variant="outline" size="sm" disabled={!picked.extra || attach.isPending}
-        onClick={() => void run(() => attach.mutateAsync({ stepId: step.id, slotId: null, documentId: picked.extra }))}>
-        {t('attachExtra', 'Attach additional document')}
-      </Button>
-    </div>}
-    {step.documents.length > 0 && <ul className="mt-2 space-y-2 text-control" aria-label={t('documents', 'Documents for {{step}}', { step: step.name })}>
+    {step.documents.length > 0 && <ul className="mt-2 space-y-1 text-control" aria-label={t('documents', 'Documents for {{step}}', { step: step.name })}>
       {step.documents.map((d) => <li key={d.id} className="flex flex-wrap items-center justify-between gap-2">
         <span>{d.name}<span className="ml-2 text-muted-foreground">{d.required ? t('required', 'required') : t('optional', 'optional')}</span></span>
-        {d.documentId
-          ? <Link to={`/projects/${encodeURIComponent(projectId)}/documents?open=${encodeURIComponent(d.documentId)}`} className="font-medium text-primary-text hover:underline">{titleOf(d.documentId)}</Link>
-          : canAttach
-            ? <span className="flex items-center gap-2">
-                <SelectField compact inline hideLabel label={t('pickFor', 'Document for {{item}}', { item: d.name })} placeholder={t('pick', 'Choose a document')}
-                  value={picked[d.id] ?? ''} onChange={(v) => setPicked((p) => ({ ...p, [d.id]: v }))}
-                  options={eligible.map((e) => ({ value: e.id, label: e.title ?? e.id }))} />
-                <Button variant="outline" size="sm" disabled={!picked[d.id] || attach.isPending} aria-label={t('attachTo', 'Attach to {{item}}', { item: d.name })}
-                  onClick={() => void run(() => attach.mutateAsync({ stepId: step.id, slotId: d.id, documentId: picked[d.id] }))}>{t('attach', 'Attach')}</Button>
-              </span>
-            : <span className="text-muted-foreground">{t('notAttached', 'No document attached')}</span>}
+        {d.documentId ? docLink(d.documentId) : <span className="text-muted-foreground">{t('notAttached', 'No document attached')}</span>}
       </li>)}
     </ul>}
-    {canAct && <div className="mt-3 flex flex-wrap items-end gap-3">
-      <SelectField compact label={t('person', 'Person on this step')} placeholder={t('personNone', 'No one named')} value={step.assigneeId ?? ''}
-        onChange={(v) => void run(() => assign.mutateAsync({ stepId: step.id, personId: v || null }))}
-        options={people.map((u) => ({ value: u.id, label: u.full_name ?? u.id }))} />
-      <DateField compact label={t('doneOn', 'Done on')} value={doneOn} max={today} onChange={setDoneOn} />
-      <Button variant="primary" size="sm" disabled={complete.isPending || missingRequired} aria-label={t('markDoneNamed', 'Mark {{item}} done', { item: step.name })}
-        onClick={() => void run(() => complete.mutateAsync({ stepId: step.id, doneOn }))}>{t('markDone', 'Mark done')}</Button>
-      {step.optional && <Button variant="outline" size="sm" disabled={skip.isPending} aria-label={t('skipNamed', 'Skip {{item}}', { item: step.name })}
-        onClick={() => { setSkipError(null); setSkipping(true); }}>{t('skip', 'Skip')}</Button>}
-      {skipping && <ReasonDialog open kind="return" maxLength={500} loading={skip.isPending} error={skipError}
-        title={t('skipTitle', 'Skip {{item}}', { item: step.name })} label={t('skipLabel', 'Reason for skipping')}
-        helper={t('skipHelp', 'Kept beside the step and in its history.')} confirmLabel={t('skipConfirm', 'Skip step')}
-        onConfirm={(reason) => { setSkipError(null); skip.mutateAsync({ stepId: step.id, reason }).then(() => setSkipping(false), (err) => setSkipError(line(err))); }}
-        onCancel={() => setSkipping(false)} />}
-      {missingRequired && <p className="basis-full text-control text-muted-foreground">{t('needDocs', 'Attach every required document before marking this step done.')}</p>}
-    </div>}
+    {open && <Drawer open title={step.name} subtitle={step.ownerRoleKey ? roleName(step.ownerRoleKey) : undefined} onClose={() => setOpen(false)}>
+      <div className="flex flex-col gap-5">
+        <p className="text-control text-muted-foreground">{status === 'done' ? t('done', 'Done {{date}}', { date: formatIsoDay(step.doneOn ?? '') }) : status === 'current' ? t('current', 'Current') : status === 'skipped' ? t('skipped', 'Skipped {{date}}', { date: formatIsoDay(step.skippedOn ?? '') }) : t('waiting', 'Not yet open')}</p>
+        {canEvidence && <Checkbox checked={step.claimEvidenceEnabled === true} disabled={markEvidence.isPending}
+          label={t('claimEvidence', 'Documents here count as claim evidence')}
+          onChange={(enabled) => void run(() => markEvidence.mutateAsync({ stepId: step.id, enabled }))}>
+          {t('claimEvidence', 'Documents here count as claim evidence')}
+        </Checkbox>}
+        {step.documents.length === 0 && <p className="text-control text-muted-foreground">{t('notAttached', 'No document attached')}</p>}
+        {step.documents.length > 0 && <ul className="flex flex-col gap-3 text-control" aria-label={t('documents', 'Documents for {{step}}', { step: step.name })}>
+          {step.documents.map((d) => <li key={d.id} className="flex flex-col gap-1">
+            <span className="font-medium">{d.name}<span className="ml-2 font-normal text-muted-foreground">{d.required ? t('required', 'required') : t('optional', 'optional')}</span></span>
+            {d.documentId ? docLink(d.documentId)
+              : canAttach
+                ? <span className="flex items-center gap-2">
+                    <SelectField compact inline hideLabel label={t('pickFor', 'Document for {{item}}', { item: d.name })} placeholder={t('pick', 'Choose a document')}
+                      value={picked[d.id] ?? ''} onChange={(v) => setPicked((p) => ({ ...p, [d.id]: v }))}
+                      options={eligible.map((e) => ({ value: e.id, label: e.title ?? e.id }))} className="min-w-0 flex-1" />
+                    <Button variant="outline" size="sm" disabled={!picked[d.id] || attach.isPending} aria-label={t('attachTo', 'Attach to {{item}}', { item: d.name })}
+                      onClick={() => void run(() => attach.mutateAsync({ stepId: step.id, slotId: d.id, documentId: picked[d.id] }))}>{t('attach', 'Attach')}</Button>
+                  </span>
+                : <span className="text-muted-foreground">{t('notAttached', 'No document attached')}</span>}
+          </li>)}
+        </ul>}
+        {canAttach && <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
+          <SelectField label={t('extraDocument', 'Additional document')} placeholder={t('pick', 'Choose a document')}
+            value={picked.extra ?? ''} onChange={(v) => setPicked((p) => ({ ...p, extra: v }))}
+            options={eligible.map((d) => ({ value: d.id, label: d.title ?? d.id }))} className="min-w-0 flex-1" />
+          <Button variant="outline" size="sm" disabled={!picked.extra || attach.isPending}
+            onClick={() => void run(() => attach.mutateAsync({ stepId: step.id, slotId: null, documentId: picked.extra }))}>
+            {t('attachExtra', 'Attach additional document')}
+          </Button>
+        </div>}
+        {canAct && <div className="flex flex-col gap-3 border-t border-border pt-4">
+          <SelectField label={t('person', 'Person on this step')} placeholder={t('personNone', 'No one named')} value={step.assigneeId ?? ''}
+            onChange={(v) => void run(() => assign.mutateAsync({ stepId: step.id, personId: v || null }))}
+            options={people.map((u) => ({ value: u.id, label: u.full_name ?? u.id }))} />
+          <DateField label={t('doneOn', 'Done on')} value={doneOn} max={today} onChange={setDoneOn} />
+          {missingRequired && <p className="text-control text-muted-foreground">{t('needDocs', 'Attach every required document before marking this step done.')}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" size="sm" disabled={complete.isPending || missingRequired} aria-label={t('markDoneNamed', 'Mark {{item}} done', { item: step.name })}
+              onClick={() => void run(async () => { await complete.mutateAsync({ stepId: step.id, doneOn }); setOpen(false); })}>{t('markDone', 'Mark done')}</Button>
+            {step.optional && <Button variant="outline" size="sm" disabled={skip.isPending} aria-label={t('skipNamed', 'Skip {{item}}', { item: step.name })}
+              onClick={() => { setSkipError(null); setSkipping(true); }}>{t('skip', 'Skip')}</Button>}
+          </div>
+        </div>}
+        {stepError && <p role="alert" className="text-control text-destructive">{stepError}</p>}
+      </div>
+    </Drawer>}
+    {skipping && <ReasonDialog open kind="return" maxLength={500} loading={skip.isPending} error={skipError}
+      title={t('skipTitle', 'Skip {{item}}', { item: step.name })} label={t('skipLabel', 'Reason for skipping')}
+      helper={t('skipHelp', 'Kept beside the step and in its history.')} confirmLabel={t('skipConfirm', 'Skip step')}
+      onConfirm={(reason) => { setSkipError(null); skip.mutateAsync({ stepId: step.id, reason }).then(() => { setSkipping(false); setOpen(false); }, (err) => setSkipError(line(err))); }}
+      onCancel={() => setSkipping(false)} />}
   </li>;
 };
 
