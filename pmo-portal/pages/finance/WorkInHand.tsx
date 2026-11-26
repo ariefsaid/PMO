@@ -259,9 +259,9 @@ const WorkInHand: React.FC = () => {
                 <CardHead id="wih-attention">{t('attention.title', 'Needs a look')}</CardHead>
                 <CardPad>
                   <ul className="divide-y divide-border" data-testid="wih-attention-list">
-                    {attention.slice(0, ATTENTION_ROWS).map((r) => (
+                    {attention.slice(0, ATTENTION_ROWS).map((r, index) => (
                       <li key={r.id} className="text-sm">
-                        <Link to={linkFor(r)} aria-label={labelFor(r)} className="grid min-h-11 gap-1 py-2 underline-offset-4 hover:underline sm:grid-cols-2 sm:gap-4">
+                        <Link to={linkFor(r)} aria-label={labelFor(r)} className={`grid min-h-11 gap-1 py-2 underline-offset-4 hover:underline sm:grid-cols-2 sm:gap-4 ${index === 0 ? 'pt-0' : ''}`}>
                           <span className="text-primary-text">{labelFor(r)}</span>
                           <span className={r.overBilled ? 'text-destructive-text' : 'text-warning-text'}>
                             {r.overBilled ? t('attention.over', 'Billed over value') : `${t('attention.noRate', 'No billing rate')}: ${noRateCause(r)}`}
