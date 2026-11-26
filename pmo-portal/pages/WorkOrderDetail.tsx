@@ -231,7 +231,7 @@ const WorkOrderDetail: React.FC = () => {
         <p data-testid="wo-cancel-reason" className="text-control text-foreground">{t('decision.cancelledBecause', 'Cancelled because: {{reason}}', { reason: row.cancel_reason })}</p>
       )}
       {decision.dialogs}
-      <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
+      {area !== 'documents' && <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />}
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
       <AreaHelpProvider>{(help, notes) => (<>

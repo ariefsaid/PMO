@@ -69,6 +69,7 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
   return (
     <RecordSection
       title={title}
+      className="[&>div:first-child]:flex-nowrap"
       data-testid="safety-section"
       actions={<Link to="/safety" className="text-control text-primary-text hover:underline">{t('section.summary', 'Monthly summary')}</Link>}
     >
