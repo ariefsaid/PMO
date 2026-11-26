@@ -260,8 +260,8 @@ const WorkInHand: React.FC = () => {
                 <CardPad>
                   <ul className="divide-y divide-border" data-testid="wih-attention-list">
                     {attention.slice(0, ATTENTION_ROWS).map((r) => (
-                      <li key={r.id} className="grid gap-1 py-2 text-sm sm:grid-cols-2 sm:items-center sm:gap-4">
-                        <Link to={linkFor(r)} className="inline-flex min-h-11 items-center text-primary-text underline-offset-4 hover:underline">{labelFor(r)}</Link>
+                      <li key={r.id} className="grid gap-1 py-2 text-sm first:pt-0 sm:grid-cols-2 sm:items-start sm:gap-4">
+                        <Link to={linkFor(r)} className="inline-flex min-h-11 items-start text-primary-text underline-offset-4 hover:underline">{labelFor(r)}</Link>
                         <span className={r.overBilled ? 'text-destructive-text' : 'text-warning-text'}>
                           {r.overBilled ? t('attention.over', 'Billed over value') : `${t('attention.noRate', 'No billing rate')}: ${noRateCause(r)}`}
                         </span>
