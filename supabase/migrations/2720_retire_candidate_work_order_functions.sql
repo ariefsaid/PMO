@@ -3,7 +3,7 @@
 -- tables, the assess/edit helpers with the write policies and column grants that used them, and the proof bucket's
 -- policies. Kept: the candidate, item and proof tables with their read policies (earlier records stay readable),
 -- work_order_checklist_items (the check template), and audit_work_order_candidate_row (the checklist audit trigger
--- still calls it). Storage objects are never deleted: the bucket row goes only when it holds no object.
+-- still calls it). No storage object or bucket row is touched.
 -- Rollback: supabase/migrations/rollback/2720_retire_candidate_work_order_functions_down.sql.
 
 drop function public.create_work_order_candidate(uuid, text, text, text, date, uuid);
@@ -37,6 +37,5 @@ revoke update (archived_at) on public.work_order_candidate_proofs from authentic
 drop function public.wo_candidate_item_can_edit(uuid);
 drop function public.wo_candidate_can_assess(uuid);
 
--- The bucket row goes only when no object is stored in it; a bucket holding files stays, with no policy.
-delete from storage.buckets where id = 'work-order-candidate-proofs'
-  and not exists (select 1 from storage.objects o where o.bucket_id = 'work-order-candidate-proofs');
+-- The bucket row stays: Supabase refuses a direct delete from storage.buckets (use the Storage API), and a bucket
+-- with no policy is unreachable for clients. Remove it through the Storage API once confirmed empty in each environment.
