@@ -373,7 +373,10 @@
     "progressTitle": "Kemajuan",
     "nobodyLinked": "Belum ada yang ditautkan",
     "openRow": "Buka kebutuhan {{position}}",
-    "toFill": "Belum terisi"
+    "toFill": "Belum terisi",
+    "positionGone": "Posisi tidak lagi tersedia",
+    "projectGone": "Proyek tidak lagi tersedia",
+    "neededByColumn": "Tenggat"
   },
   "undoFollow": "Batalkan ikut kru",
   "undoFollowFor": "Batalkan ikut kru untuk {{name}}",

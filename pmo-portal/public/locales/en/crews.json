@@ -373,7 +373,10 @@
     "progressTitle": "Progress",
     "nobodyLinked": "Nobody linked yet",
     "openRow": "Open the need for {{position}}",
-    "toFill": "To fill"
+    "toFill": "To fill",
+    "positionGone": "Position no longer listed",
+    "projectGone": "Project no longer listed",
+    "neededByColumn": "Needed by"
   },
   "undoFollow": "Undo follow",
   "undoFollowFor": "Undo follow for {{name}}",

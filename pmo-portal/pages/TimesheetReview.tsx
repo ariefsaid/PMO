@@ -6,7 +6,9 @@ import {
   AccessDenied,
   Button,
   Card,
+  DataTable,
   DateField,
+  Drawer,
   ListPage,
   ListState,
   SelectField,
@@ -15,6 +17,7 @@ import {
   parsePageParam,
   useClampPage,
   useUrlFilters,
+  type Column,
 } from '@/src/components/ui';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
@@ -64,7 +67,7 @@ const TimesheetReviewPage: React.FC = () => {
 
   const query = useTimesheetsForReview(undefined, canReview);
   const projectsQuery = useProjectPickerOptions();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const allSheets = useMemo(() => query.data ?? [], [query.data]);
 
@@ -108,15 +111,6 @@ const TimesheetReviewPage: React.FC = () => {
     [filtered, startIndex],
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / REVIEW_PAGE_SIZE));
-
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   if (!canReview) {
     return (
@@ -221,18 +215,8 @@ const TimesheetReviewPage: React.FC = () => {
         </Card>
       ) : (
         <div className="space-y-3">
-          <Card clip>
-            <ul className="divide-y divide-border" data-testid="timesheet-review-list">
-              {pagedRows.map((sheet) => (
-                <ReviewSheetItem
-                  key={sheet.id}
-                  sheet={sheet}
-                  projectFilterId={projectId}
-                  expanded={expandedIds.has(sheet.id)}
-                  onToggle={() => toggleExpanded(sheet.id)}
-                />
-              ))}
-            </ul>
+          <Card clip data-testid="timesheet-review-list">
+            <ReviewTable rows={pagedRows} projectFilterId={projectId} openId={openId} onOpen={setOpenId} />
           </Card>
           {pageCount > 1 && (
             <nav
@@ -262,92 +246,63 @@ const TimesheetReviewPage: React.FC = () => {
   );
 };
 
-const ReviewSheetItem: React.FC<{
-  sheet: TimesheetForReview;
-  projectFilterId: string;
-  expanded: boolean;
-  onToggle: () => void;
-}> = ({ sheet, projectFilterId, expanded, onToggle }) => {
-  const { t } = useTranslation(['common', 'timesheets']);
-  const personName = sheet.owner?.full_name ?? t('timesheets:review.unknownPerson', 'Team member');
-  const weekEnd = shiftIsoDays(sheet.week_start_date, 6);
-  const visibleEntries = useMemo(
-    () => (projectFilterId ? sheet.entries.filter((e) => e.project_id === projectFilterId) : sheet.entries),
-    [sheet.entries, projectFilterId],
-  );
-  const totalHours = useMemo(
-    () => visibleEntries.reduce((sum, e) => sum + e.hours, 0),
-    [visibleEntries],
-  );
-  const projectNames = useMemo(() => {
-    const names = new Set<string>();
-    for (const e of visibleEntries) {
-      if (e.project) names.add(projectDisplayName(e.project));
-    }
-    return [...names];
-  }, [visibleEntries]);
+/** One sheet's figures for the current project filter: the hours and project names it shows. */
+function sheetView(sheet: TimesheetForReview, projectFilterId: string) {
+  const entries = projectFilterId ? sheet.entries.filter((e) => e.project_id === projectFilterId) : sheet.entries;
+  const names = new Set<string>();
+  for (const e of entries) if (e.project) names.add(projectDisplayName(e.project));
+  return { entries, hours: entries.reduce((sum, e) => sum + e.hours, 0), projects: [...names] };
+}
 
+/**
+ * The review list as one table: a row scans person, week, projects, hours and status; the row opens the week's
+ * entries in the side drawer (the list stays behind).
+ */
+const ReviewTable: React.FC<{
+  rows: TimesheetForReview[];
+  projectFilterId: string;
+  openId: string | null;
+  onOpen: (id: string | null) => void;
+}> = ({ rows, projectFilterId, openId, onOpen }) => {
+  const { t } = useTranslation(['common', 'timesheets']);
+  const personName = (sheet: TimesheetForReview) => sheet.owner?.full_name ?? t('timesheets:review.unknownPerson', 'Team member');
+  const week = (sheet: TimesheetForReview) => `${formatDay(sheet.week_start_date)} – ${formatDay(shiftIsoDays(sheet.week_start_date, 6))}`;
+  const columns: Column<TimesheetForReview>[] = [
+    { key: 'person', header: t('timesheets:review.person', 'Person'), kind: 'primary', rowHeader: true, cell: personName },
+    { key: 'week', header: t('timesheets:review.week', 'Week'), kind: 'date', size: 168, cell: week },
+    { key: 'projects', header: t('timesheets:review.projects', 'Projects'), kind: 'meta', cell: (s) => sheetView(s, projectFilterId).projects.join(', ') },
+    { key: 'hours', header: t('timesheets:review.hours', 'Hours'), kind: 'number', size: 104, cell: (s) => formatNumberMax2(sheetView(s, projectFilterId).hours) },
+    { key: 'status', header: t('timesheets:review.status', 'Status'), kind: 'status', size: 128, cell: (s) => <StatusPill record="timesheet" state={s.status} /> },
+  ];
+  const open = rows.find((s) => s.id === openId) ?? null;
+  return (
+    <>
+      <DataTable<TimesheetForReview> embedded rows={rows} columns={columns} rowKey={(s) => s.id} tableId="timesheet-review-table"
+        onActivate={(s) => onOpen(s.id)} selectedKey={open?.id}
+        rowLabel={(s) => t('timesheets:review.showEntriesFor', 'Show entries for {{name}}', { name: personName(s) })} />
+      {open && <ReviewDrawer sheet={open} projectFilterId={projectFilterId} title={`${personName(open)} · ${week(open)}`} onClose={() => onOpen(null)} />}
+    </>
+  );
+};
+
+const ReviewDrawer: React.FC<{ sheet: TimesheetForReview; projectFilterId: string; title: string; onClose: () => void }> = ({
+  sheet, projectFilterId, title, onClose,
+}) => {
+  const { t } = useTranslation(['common', 'timesheets']);
+  const view = useMemo(() => sheetView(sheet, projectFilterId), [sheet, projectFilterId]);
   const weekDates = useMemo(() => datesInWeek(localDayFromIso(sheet.week_start_date)), [sheet.week_start_date]);
   const gridDays = useMemo(() => gridDaysForWeek(weekDates), [weekDates]);
   const gridRows = useMemo(
-    () =>
-      entriesToGridRows(
-        visibleEntries,
-        weekDates,
-        t('timesheets:approvalQueue.unknownProject', 'Unknown Project'),
-        { groupByWorkOrder: true },
-      ),
-    [visibleEntries, weekDates, t],
+    () => entriesToGridRows(view.entries, weekDates, t('timesheets:approvalQueue.unknownProject', 'Unknown Project'), { groupByWorkOrder: true }),
+    [view.entries, weekDates, t],
   );
-
   return (
-    <li className="px-3.5 py-2.5">
-      <div className="flex min-h-11 flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-foreground">{personName}</span>
-            <StatusPill record="timesheet" state={sheet.status} />
-          </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-control text-muted-foreground">
-            <span className="tabular-nums">
-              {formatDay(sheet.week_start_date)} – {formatDay(weekEnd)}
-            </span>
-            {projectNames.length > 0 && <span className="truncate">{projectNames.join(', ')}</span>}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="font-medium tabular-nums text-foreground">
-            {t('timesheets:review.hoursTotal', '{{hours}} h', { hours: formatNumberMax2(totalHours) })}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-expanded={expanded}
-            aria-label={
-              expanded
-                ? t('timesheets:review.hideEntriesFor', 'Hide entries for {{name}}', { name: personName })
-                : t('timesheets:review.showEntriesFor', 'Show entries for {{name}}', { name: personName })
-            }
-            onClick={onToggle}
-          >
-            {expanded
-              ? t('timesheets:review.hideEntries', 'Hide entries')
-              : t('timesheets:review.showEntries', 'Show entries')}
-          </Button>
-        </div>
-      </div>
-      {expanded && (
-        <div className="mt-2 border-t border-border pt-2">
-          {gridRows.length === 0 ? (
-            <p className="py-2 text-control text-muted-foreground">
-              {t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}
-            </p>
-          ) : (
-            <TimesheetGrid days={gridDays} rows={gridRows} />
-          )}
-        </div>
-      )}
-    </li>
+    <Drawer open onClose={onClose} width="lg" title={title} status={<StatusPill record="timesheet" state={sheet.status} />}
+      subtitle={t('timesheets:review.hoursTotal', '{{hours}} h', { hours: formatNumberMax2(view.hours) })}>
+      {gridRows.length === 0
+        ? <p className="text-control text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
+        : <TimesheetGrid days={gridDays} rows={gridRows} />}
+    </Drawer>
   );
 };
 

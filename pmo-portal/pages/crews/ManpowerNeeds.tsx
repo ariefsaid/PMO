@@ -173,8 +173,9 @@ export const ManpowerNeeds: React.FC = () => {
     for (const l of linksQ.data ?? []) m.set(l.need_id, [...(m.get(l.need_id) ?? []), { id: l.id, personId: l.person_id, name: peopleById.get(l.person_id) ?? '—' }]);
     return m;
   }, [linksQ.data, peopleById]);
-  const positionName = (id: string) => positions.data?.find((d) => d.id === id)?.name ?? '—';
-  const projectName = (id: string) => projects.data?.find((p) => p.id === id)?.name ?? '—';
+  // A need can point at a position or project that is no longer listed (archived): say so, never a bare dash.
+  const positionName = (id: string) => positions.data?.find((d) => d.id === id)?.name ?? t('crews:manpower.positionGone', 'Position no longer listed');
+  const projectName = (id: string) => projects.data?.find((p) => p.id === id)?.name ?? t('crews:manpower.projectGone', 'Project no longer listed');
   const rows = needs.data ?? [];
   const readFailed = progress.isError || linksQ.isError;
   const retryReads = () => { if (progress.isError) void progress.refetch(); if (linksQ.isError) void linksQ.refetch(); };
@@ -184,7 +185,7 @@ export const ManpowerNeeds: React.FC = () => {
   const columns: Column<ManpowerNeedRow>[] = [
     { key: 'position', header: t('crews:manpower.position', 'Position'), kind: 'primary', rowHeader: true, cell: (n) => positionName(n.discipline_id),
       secondaryCell: (n) => projectName(n.project_id) },
-    { key: 'needed', header: t('crews:manpower.neededBy', 'Needed by'), kind: 'date', size: 168, cell: (n) => formatDay(n.needed_by) },
+    { key: 'needed', header: t('crews:manpower.neededByColumn', 'Needed by'), kind: 'date', size: 168, cell: (n) => formatDay(n.needed_by) },
     { key: 'asked', size: 120, header: t('crews:manpower.asked', 'Asked'), kind: 'number', cell: (n) => fig(n).asked },
     { key: 'filled', size: 120, header: t('crews:manpower.filled', 'Filled'), kind: 'number', cell: (n) => fig(n).filled },
     { key: 'inProgress', size: 120, header: t('crews:manpower.inProgress', 'In progress'), kind: 'number', cell: (n) => fig(n).inProgress },
