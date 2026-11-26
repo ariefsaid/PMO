@@ -624,7 +624,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
             {share && (
               <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
                 <span tabIndex={0} title={`${formatCurrency(share.paid, row.currency)} / ${formatCurrency(share.invoiced, row.currency)}`} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm text-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                  <span aria-hidden="true" className="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${share.percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${share.percent}%` }} /></span>
+                  {share.percent > 0 && <span aria-hidden="true" className="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${share.percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${share.percent}%` }} /></span>}
                   {/* #2089: the share is a locale-formatted percent, never a raw float. */}
                   {t('procurement.paidShare', '{{percent}} paid', { percent: formatPercent(share.percent / 100, 0) })}
                 </span>
