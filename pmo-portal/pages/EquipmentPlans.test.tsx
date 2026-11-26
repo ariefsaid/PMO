@@ -117,6 +117,7 @@ describe('monthly equipment plan page (#2700)', () => {
     renderPage();
     await pickProject();
     const line = screen.getByTestId('plan-line');
+    await userEvent.click(within(line).getByRole('button', { name: 'Edit line 1' }));
     expect(within(line).getByLabelText('Rate')).toHaveValue('');
     await userEvent.type(within(line).getByLabelText('What is needed'), ' 25t');
     await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));

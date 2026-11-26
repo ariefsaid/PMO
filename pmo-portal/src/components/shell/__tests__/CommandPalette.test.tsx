@@ -84,9 +84,11 @@ describe('CommandPalette', () => {
     render(<CommandPalette open items={withCodeLikeView} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), 'site-12');
     await waitFor(() => expect(screen.getByRole('option', { name: /HV cabling kit/ })).toBeInTheDocument());
-    const options = screen.getAllByRole('option').map((option) => option.textContent ?? '');
-    expect(options[0]).toContain('HV cabling kit');
-    expect(options.some((text) => text.includes('Site-12 weekly view'))).toBe(true);
+    await waitFor(() => {
+      const options = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+      expect(options[0]).toContain('HV cabling kit');
+      expect(options.some((text) => text.includes('Site-12 weekly view'))).toBe(true);
+    });
   });
 
   it('renders a modal dialog when open', () => {

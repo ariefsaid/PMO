@@ -1,5 +1,5 @@
 {
-  "tabs": { "scrollLeft": "Gulir tab ke kiri", "scrollRight": "Gulir tab ke kanan", "showDetails": "Tampilkan detail", "hideDetails": "Sembunyikan detail" },
+  "tabs": {},
   "allSettings": {
     "alwaysOn": "Aktif untuk semua",
     "title": "Semua pengaturan",
@@ -1004,7 +1004,6 @@
       "groupLabel": "Setujui massal",
       "hoursUnit": "jam",
       "rowSelect": "Pilih {{week}} milik {{owner}}",
-      "select": "Pilih item",
       "selectAll": "Pilih semua minggu yang dapat disetujui",
       "selectedCount": "{{count}} dipilih",
       "toast": {
@@ -1020,8 +1019,7 @@
           "detail": "{{ok}} disetujui, {{failed}} gagal (pemisahan tugas atau data usang)",
           "headline": "Disetujui sebagian"
         }
-      },
-      "selectTimesheets": "Pilih timesheet"
+      }
     },
     "accessDenied": {
       "sub": "Persetujuan ditujukan untuk role yang menyetujui pengadaan atau $t(common:terms.timesheet). Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
@@ -4825,7 +4823,6 @@
     "latestFailed": "Microsoft tidak dapat memuat file ini. Periksa akses dan ketersediaan SharePoint dengan admin Microsoft Anda, atau coba lagi.",
     "procurement": {
       "heading": "Tautan SharePoint untuk kasus ini",
-      "intro": "File dan folder SharePoint dan OneDrive yang ditautkan ke kasus ini. PMO menyimpan tautannya, bukan filenya.",
       "link": "Tautkan dari Microsoft 365",
       "emptyTitle": "Belum ada tautan",
       "emptySub": "Tautkan file atau folder SharePoint atau OneDrive ke kasus ini.",

@@ -1,0 +1,10 @@
+{
+  "back": "Kembali",
+  "filters": "Filter",
+  "tabs": {
+    "hideDetails": "Sembunyikan detail",
+    "showDetails": "Tampilkan detail",
+    "scrollLeft": "Gulir tab ke kiri",
+    "scrollRight": "Gulir tab ke kanan"
+  }
+}

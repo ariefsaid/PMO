@@ -60,7 +60,7 @@ describe('AdministrationUsage — a null provider cost renders as unknown, not z
     render(<AdministrationUsage rows={[nullCost]} isPending={false} isError={false} onRetry={vi.fn()} />);
     expect(screen.getByRole('columnheader', { name: /provider cost/i })).toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getByText('Provider pricing unavailable')).toBeInTheDocument();
   });
 });
 

@@ -734,7 +734,7 @@ export function breadcrumbForPath(
         const recordCrumb = recordLabel
           ? { label: recordLabel }
           : pathname === '/projects/new'
-            ? { label: 'New project', i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
+            ? { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
             // Create routes render their working forms, never a record — the crumb names the
             // form instead of a stuck "Loading…" (tidy audit TA-015/018/019).
             : pathname === '/procurement/new'

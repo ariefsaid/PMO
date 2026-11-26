@@ -108,7 +108,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   // Bail out — no project linked (takes precedence over the status gate, FR-RB-020),
   // or a viewer whose purchasing read is limited to their own requests.
-  if (!scopedProjectId) return null;
+  if (!scopedProjectId) return <>{aside}</>;
 
   // Bail out — post-Ordered / terminal: the panel is a pre-decision tool only, and
   // hiding it here makes the legacy double-count path structurally impossible.
@@ -397,7 +397,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {bare ? (
           // Record page: the decision figure and its bar, the parts it is made of, then the decision itself.
           <>
-            {leftTile && leftTile.value !== null && <StatTiles tiles={[leftTile]} columns={1} variant="bare" />}
+            {leftTile && <StatTiles tiles={[leftTile]} columns={1} variant="bare" />}
             {bar}
             {overBudget}
             <div className={leftTile ? 'mt-6' : undefined}>{partsList}</div>
@@ -407,7 +407,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             {bar}
             {/* Six tiles go 3 across (3 rows of 2 on a phone): six abreast crowd to 3-4px gaps in Bahasa at 1440.
                 Fewer take as many columns as they have, so no column is left empty. */}
-            <StatTiles tiles={tiles.filter((tile) => tile.value !== null)} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures alignRows />
+            <StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures alignRows />
           </>
         )}
 

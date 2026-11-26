@@ -1,5 +1,5 @@
 {
-  "tabs": { "scrollLeft": "Scroll tabs left", "scrollRight": "Scroll tabs right", "showDetails": "Show details", "hideDetails": "Hide details" },
+  "tabs": {},
   "allSettings": {
     "alwaysOn": "On for everyone",
     "title": "All settings",
@@ -1004,7 +1004,6 @@
       "groupLabel": "Bulk approve",
       "hoursUnit": "h",
       "rowSelect": "Select {{owner}}'s {{week}}",
-      "select": "Select items",
       "selectAll": "Select all approvable weeks",
       "selectedCount": "{{count}} selected",
       "toast": {
@@ -1020,8 +1019,7 @@
           "detail": "{{ok}} approved, {{failed}} failed (separation of duties or stale)",
           "headline": "Partially approved"
         }
-      },
-      "selectTimesheets": "Select timesheets"
+      }
     },
     "accessDenied": {
       "sub": "Approvals are for the roles that sign off procurement or timesheets. Your work lives on your dashboard, projects, and tasks.",
@@ -4825,7 +4823,6 @@
     "latestFailed": "Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.",
     "procurement": {
       "heading": "SharePoint links for this case",
-      "intro": "SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.",
       "link": "Link from Microsoft 365",
       "emptyTitle": "No links yet",
       "emptySub": "Link a SharePoint or OneDrive file or folder to this case.",

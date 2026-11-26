@@ -112,7 +112,7 @@ export function TimesheetBulkSelect({ controller }: { controller: BulkController
   return (
     <Button variant="outline" size="sm" onClick={() => controller.setSelecting(true)}>
       <Icon name="check" />
-      {t('approvals.bulk.selectTimesheets', 'Select timesheets')}
+      {t('procurement:approvalQueue.selectTimesheets', 'Select timesheets')}
     </Button>
   );
 }
