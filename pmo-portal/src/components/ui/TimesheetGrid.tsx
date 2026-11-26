@@ -152,10 +152,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
       size: 200,
       minSize: 140,
       cell: (r) => editable ? (
-        // Editable: name/code/note on the left, delete on the RIGHT of the same sticky
-        // (always-visible) cell — so the delete stays reachable at 375px without the
-        // horizontal scroll that pushes a trailing column off-screen on a phone.
-        // One delete control, one accessible name.
+        // Desktop keeps identity and notes together; deletion has a trailing action column.
+        // The phone card retains its always-visible delete control in the header.
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="break-words text-control font-medium" title={r.projectLegalName ?? r.project}>

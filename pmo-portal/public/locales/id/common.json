@@ -1069,7 +1069,6 @@
         "title": "Kasus pengadaan"
       },
       "timesheets": {
-    "hoursTotal": "{{formatted}} jam",
         "emptyTitle": "Tidak ada $t(common:terms.timesheet) yang menunggu keputusan Anda",
         "title": "$t(common:terms.timesheet)"
       }
@@ -3530,6 +3529,7 @@
     }
   },
   "timesheets": {
+    "hoursTotal": "{{formatted}} jam",
     "accessDenied": {
       "sub": "$t(common:terms.timesheet) dan persetujuan adalah bagian dari area SDM. Pekerjaan keuangan ada di dashboard, proyek, dan pengadaan Anda.",
       "title": "Anda tidak memiliki akses ke $t(common:terms.timesheet)"
