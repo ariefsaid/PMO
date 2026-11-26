@@ -80,11 +80,13 @@ const SafetySummary: React.FC = () => {
                     <Card className="flex-1">
                       <div className="p-4">
                         <div className="text-control text-muted-foreground">{label(f)}</div>
-                        <div className="mt-1 text-xl font-semibold tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</div>
-                        {drill && (
-                          <button type="button" className="mt-2 text-control text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
-                            onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
-                        )}
+                        <div className="mt-1 flex min-h-11 items-center justify-between gap-2">
+                          <div className="text-xl font-semibold tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</div>
+                          {drill && (
+                            <button type="button" className="min-h-11 text-right text-control text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
+                              onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
+                          )}
+                        </div>
                       </div>
                     </Card>
                   </li>
