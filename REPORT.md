@@ -74,6 +74,7 @@ found (the count notice states a consequence and stays; usage standards is alrea
    the item name under the code is secondary (it was as heavy as the code).
 8. **Receive:** column widths so "Outstanding" fits at 1024; on a phone the unit sits beside the count (it fell under it).
 9. **Opening stock:** "Back to set-up" link removed (the breadcrumb and the Setup tab lead there); tabs line up.
+10. **Stock tag chip** 6px → 8px side padding (impeccable floor); a long unit wraps under its number so Free/Reserved keep one right edge.
 
 ## Measured edges, before → after (1440×900 unless stated, same data, measured in the browser)
 
@@ -84,7 +85,7 @@ found (the count notice states a consequence and stays; usage standards is alrea
 | Receive @1024 | headers truncated | "Outstanding" | none |
 | Receive | Outstanding figures right x | 912 | 912 (unchanged) |
 | Transfers list | tables / transfer rows | 0 / 5 cards | 1 / 5 rows |
-| Transfers list | left x of transfer numbers | 248 (cards) | one column, rows share the cell inset |
+| Transfers list | rows that open the transfer | 5 (cards) | 5 (row link + whole row) |
 | Transfers list | date format | `Nov 26, 2026, 04:09 PM` | `26 Nov, 16:09` |
 | Transfer (receive) | tables | 0 | 1 |
 | Transfer (receive) | Counted inputs right x / Accepted right x | 626 / 1003 (two half-width inputs per card) | 1199 / 1367, every row equal |
@@ -130,8 +131,13 @@ The owner's crop for item 1: `before/receive-purchaser-en-1440.png` vs `after/re
 - `npm run check:guards` pass · `npm run typecheck` pass · `npx eslint --max-warnings=0` on all 37 touched files pass.
 - Touched unit tests pass (transfer detail 23, send 5, list 3 new, receiving 14, request form/usage 57, request page 33,
   on-hand 55, opening 8, route map 98, DataTable 184 incl. the pre-existing failure below).
-- `npx vitest related --run` on the 15 changed source files: **1,179 files, 11,994 tests passed** (run before the list-link
-  fix; the list file and its new test pass on their own, see above).
+- `npx vitest related --run` on the 17 changed source files, after the final merge of `origin/batch/1126-ui`:
+  **1,182 files, 12,000 tests passed**; the run exits 1 on one *unhandled* error ("window is not defined" from a query
+  timer firing after teardown) attributed to `pages/project-detail/__tests__/ContractQuantitiesTabs.test.tsx`, another
+  area's file. That file passes alone 3 of 3 times on this branch; it is a load-dependent late timer, not one of my
+  changes. (An earlier run before the final merge: 1,179 files / 11,994 tests, exit 0.)
+- Final merge of `origin/batch/1126-ui` (it changed `RecordHeader`): guards, typecheck and eslint on all 43 changed
+  files re-run and pass; AFTER screenshots retaken on the merged code.
 - Journeys (40 chosen; `affected-e2e.mjs` lists 460+ because DataTable and the route map are app-wide), fresh database.
   **Run 1: 48 passed / 6 failed** (54 incl. setup). Both causes were mine and are fixed:
   (a) four journeys found the on-hand figure as "the cell reading 70 bag"; the new Free column shows the same figure
