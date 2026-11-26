@@ -24,6 +24,17 @@ const indexCss = readFileSync(resolve(process.cwd(), 'index.css'), 'utf8');
 
 afterEach(() => resetActiveLocale());
 
+it('shows month names in the app language while retaining the native month value and editing', () => {
+  setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+  const onChange = vi.fn();
+  render(<TextField label="Month" type="month" value="2026-01" onChange={onChange} />);
+  expect(screen.getByText('Januari 2026')).toBeInTheDocument();
+  const input = screen.getByLabelText('Month');
+  expect(input).toHaveValue('2026-01');
+  fireEvent.change(input, { target: { value: '2026-02' } });
+  expect(onChange).toHaveBeenCalledWith('2026-02');
+});
+
 describe('phone form typography', () => {
   it('keeps text inputs, selects, comboboxes, and textareas at 16px through 640px', () => {
     render(
