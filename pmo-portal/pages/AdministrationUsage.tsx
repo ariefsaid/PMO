@@ -82,11 +82,12 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     // The RPC's month bucket is a UTC month-start DATE; a raw `2026-07-01` is an ISO string on
     // screen (ux/1110 rule 1), so it goes through the shared UTC-pinned month formatter — the same
     // UTC pin the sibling agent-cost dashboard uses for its month buckets.
-    { key: 'month', header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) ?? t('usage.monthUnavailable', 'Month unavailable') },
-    { key: 'action', header: t('usage.action', 'Action'), cell: (r) => r.action },
-    { key: 'runs', header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
+    { key: 'month', size: 125, header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) ?? t('usage.monthUnavailable', 'Month unavailable') },
+    { key: 'action', size: 140, header: t('usage.action', 'Action'), cell: (r) => r.action },
+    { key: 'runs', size: 75, header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
     {
       key: 'tokens',
+      size: 125,
       header: t('usage.tokens', 'Tokens'),
       cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
     },
@@ -94,6 +95,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       ? [
           {
             key: 'providerCost',
+            size: 135,
             header: t('usage.providerCost', 'Provider cost'),
             keepWhenBlank: true,
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
@@ -106,15 +108,15 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', size: 105, header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? t('usage.marginUnavailable', 'Pricing unavailable') : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', size: 105, header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? t('usage.marginUnavailable', 'Pricing unavailable') : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 
   return (
     <div>
-      <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" />
+      <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" cardBelow={810} />
       {!hasMargin && (
         <p className="mt-2 text-control text-muted-foreground">
           {t('usage.pricingNote', 'Pricing not yet configured — margin will appear here once a per-credit USD rate is set.')}
