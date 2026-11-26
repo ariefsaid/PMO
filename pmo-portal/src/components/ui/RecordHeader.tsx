@@ -168,6 +168,8 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
       {stats && stats.length > 0 && (
         <div
           className="mt-4 grid gap-x-4 gap-y-4 border-t border-border pt-4"
+          // Deliberate exception to "columns end level" (owner ruling): a long name wraps whole, so its fact ends lower.
+          data-layout-ignore
           // Wraps to as many columns as fit (two on a phone) instead of squeezing five facts into 390px.
           style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(8rem, 1fr))' }}
         >
