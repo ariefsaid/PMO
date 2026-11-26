@@ -167,8 +167,8 @@ const AddDocumentControl: React.FC<{
         {!compact && <Icon name="chev" aria-hidden className="size-3.5 rotate-90" />}
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-50">
-          <Menu.Popup aria-label={label} className={cn(menuPopupClass, 'min-w-56')} style={menuPopupOrigin}>
+        <Menu.Positioner side="bottom" align="end" sideOffset={4} collisionPadding={12} className="z-[var(--z-overlay)]">
+          <Menu.Popup aria-label={label} className={cn(menuPopupClass, 'min-w-56 max-w-[calc(100vw-24px)]')} style={menuPopupOrigin}>
             {options.map((option) => (
               <Menu.Item
                 key={option.key}
