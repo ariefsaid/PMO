@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { tableCell } from '@/src/test/tableCell';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -51,10 +52,12 @@ beforeEach(() => {
   h.reorder.worklist.mockResolvedValue([]);
 });
 
-describe('AC-RSV-017 stock reads x free + y reserved', () => {
+describe('AC-RSV-017 stock reads free and reserved', () => {
   it('AC-RSV-017 shows free and reserved, with the reserving work order one tap away', async () => {
     renderPage('Engineer');
-    expect((await screen.findAllByText('50 free + 20 reserved')).length).toBeGreaterThan(0);
+    await screen.findByRole('table');
+    expect(tableCell('Stock', /./, 'Free')).toHaveTextContent('50');
+    expect(tableCell('Stock', /./, 'Reserved')).toHaveTextContent('20');
     expect(screen.queryByRole('link', { name: /Slab pour/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getAllByRole('button', { name: 'Show work order' })[0]);
     expect(screen.getAllByRole('link', { name: 'WO-0001 - Slab pour' })[0]).toHaveAttribute('href', '/work-orders/wo1');
@@ -70,7 +73,9 @@ describe('AC-RSV-017 stock reads x free + y reserved', () => {
   it('AC-RSV-003 says so when on hand is below what is reserved, never a negative figure', async () => {
     h.state.figs = [{ ...figure, qtyOnHand: '10', reservedQty: '20', freeQty: '0', shortBy: '10' }];
     renderPage('Engineer');
-    expect((await screen.findAllByText('0 free + 20 reserved')).length).toBeGreaterThan(0);
+    await screen.findByRole('table');
+    expect(tableCell('Stock', /./, 'Free')).toHaveTextContent(/^0/);
+    expect(tableCell('Stock', /./, 'Reserved')).toHaveTextContent(/^20/);
     expect(screen.getAllByText('Reserved, short by 10').length).toBeGreaterThan(0);
   });
 
@@ -87,7 +92,7 @@ describe('AC-RSV-017 stock reads x free + y reserved', () => {
     expect((await screen.findAllByRole('button', { name: 'Reserve' })).length).toBeGreaterThan(0);
     planner.unmount();
     renderPage('Engineer');
-    await screen.findAllByText('50 free + 20 reserved');
+    await screen.findAllByRole('columnheader', { name: 'Free' });
     expect(screen.queryByRole('button', { name: 'Reserve' })).not.toBeInTheDocument();
   });
 });

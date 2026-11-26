@@ -3,6 +3,7 @@
  *  the reserved stock goes through a borrowing approval, and afterwards the stock reads the new free and reserved figures. */
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
+import { tableCell } from '../support/tableCell';
 import { signIn } from '../helpers';
 import { mrqSetup } from '../support/mrqJobFixture';
 import { serviceClient } from '../support/jobFixtures';
@@ -42,7 +43,9 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   await form.getByLabel('Quantity').fill('8');
   await form.getByRole('button', { name: 'Reserve', exact: true }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByText('2 free + 8 reserved').first()).toBeVisible();
+  // The row reads 2 free and 8 reserved.
+  await expect(await tableCell(page, item.code, 'Free')).toHaveText(/^2\b/);
+  await expect(await tableCell(page, item.code, 'Reserved')).toHaveText(/^8\b/);
   await page.getByRole('button', { name: 'Show work order' }).first().click();
   await expect(page.getByRole('link', { name: new RegExp(wo.wo_number) }).first()).toBeVisible();
 
@@ -74,5 +77,7 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   await signIn(page, 'engineer@acme.test');
   await page.goto('/stock');
   await page.getByRole('searchbox').fill(item.code);
-  await expect(page.getByText('5 free + 5 reserved').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('row').filter({ hasText: item.code }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(await tableCell(page, item.code, 'Free')).toHaveText(/^5\b/, { timeout: 15_000 });
+  await expect(await tableCell(page, item.code, 'Reserved')).toHaveText(/^5\b/);
 });

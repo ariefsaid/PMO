@@ -15,7 +15,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseRefusal } from '@/src/lib/refusals';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
-import { ReservedCell } from '@/src/components/stock/ReservedCell';
+import { FreeQty, ReservedQty, ReserveButton } from '@/src/components/stock/ReservedCell';
 import { StockItemTag } from '@/src/components/stock/StockItemTag';
 import { ReservationForm } from '@/src/components/stock/ReservationForm';
 import { mayReserve, useFreeReserved, useReservationsEnabled } from '@/src/hooks/useStockReservations';
@@ -139,11 +139,10 @@ const StockOnHand: React.FC = () => {
       },
     ];
     if (rsvOn) {
-      cols.push({
-        key: 'reserved', header: t('reservations.column'),
-        cell: (r) => <ReservedCell figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} />,
-        exportValue: (r) => figureOf.get(`${r.itemId}:${r.warehouseId}`)?.freeQty ?? '',
-      });
+      cols.push(
+        { key: 'free', header: t('reservations.free'), align: 'num', size: 112, cell: (r) => <FreeQty figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} />, exportValue: (r) => figureOf.get(`${r.itemId}:${r.warehouseId}`)?.freeQty ?? '' },
+        { key: 'reserved', header: t('reservations.reservedColumn'), align: 'num', size: 136, cell: (r) => <ReservedQty figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} />, exportValue: (r) => figureOf.get(`${r.itemId}:${r.warehouseId}`)?.reservedQty ?? '' },
+      );
     }
     if (showCost) {
       cols.push(
@@ -151,6 +150,8 @@ const StockOnHand: React.FC = () => {
         { key: 'value', header: t('onHand.columns.value'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueOnHand, currency, loc)}</span>, exportValue: (r) => r.valueOnHand ?? '' },
       );
     }
+    // The Reserve action closes the row, after the figures, so the quantities and money read as one run.
+    if (rsvOn) cols.push({ key: 'reserve', header: <span className="sr-only">{t('reservations.reserve')}</span>, kind: 'actions', size: 128, cell: (r) => <ReserveButton onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} /> });
     // Only in the below-level view: a restock request is for an item at or below its level.
     if (belowOnly && canRequest) {
       cols.push({
@@ -312,8 +313,11 @@ const StockOnHand: React.FC = () => {
               </dd>
               {rsvOn && (
                 <>
-                  <dt className="text-muted-foreground">{t('reservations.column')}</dt>
-                  <dd className="min-w-0"><ReservedCell figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} /></dd>
+                  <dt className="text-muted-foreground">{t('reservations.free')}</dt>
+                  <dd className="min-w-0"><FreeQty figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} /></dd>
+                  <dt className="text-muted-foreground">{t('reservations.reservedColumn')}</dt>
+                  <dd className="min-w-0 [&>div]:items-start [&>div]:text-left"><ReservedQty figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} /></dd>
+                  {mayReserveAt(r) && <dd className="col-span-2 pt-1"><ReserveButton onReserve={() => setReserving(r)} /></dd>}
                 </>
               )}
               {showCost && (

@@ -989,8 +989,6 @@
     }
   },
   "reservations": {
-    "column": "Bebas dan dicadangkan",
-    "freePlusReserved": "{{free}} bebas + {{reserved}} dicadangkan",
     "shortBy": "Dicadangkan, kurang {{n}}",
     "reserve": "Cadangkan",
     "showHolders_one": "Tampilkan $t(common:terms.clientWorkOrder)",
@@ -1029,7 +1027,9 @@
       "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
       "label": "Nama langkah persetujuan",
       "labelDefault": "Persetujuan peminjaman"
-    }
+    },
+    "free": "Bebas",
+    "reservedColumn": "Dicadangkan"
   },
   "dsrIssue": {
     "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",
