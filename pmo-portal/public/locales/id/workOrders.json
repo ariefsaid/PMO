@@ -24,7 +24,7 @@
   "costs": {
     "title": "Biaya",
     "error": "Biaya tidak dapat dimuat",
-    "empty": "Tidak ada biaya yang terlihat untuk Anda pada work order ini.",
+    "empty": "Tidak ada biaya yang terlihat untuk Anda pada perintah kerja ini.",
     "noDiscipline": "Tanpa disiplin",
     "unknownDiscipline": "Disiplin",
     "restricted": "Jumlah dibatasi untuk peran Anda",

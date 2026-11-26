@@ -202,7 +202,7 @@
     "pinForbidden": "Hanya administrator atau manajer proyek yang dapat menetapkan penyetuju langkah.",
     "pinInvalid": "Pilih anggota aktif yang memegang peran langkah ini.",
     "reasonRequired": "Berikan alasan.",
-    "section": "Pilih {{section}} yang masih terbuka pada work order ini.",
+    "section": "Pilih {{section}} yang masih terbuka pada perintah kerja ini.",
     "sectionLocked": "{{section}} hanya dapat diubah selama permintaan masih berupa draf.",
     "sodAuthor": "Anda yang mengajukan permintaan ini, jadi Anda tidak dapat menyetujuinya.",
     "sodTwice": "Anda sudah memutuskan langkah lain pada permintaan ini.",
