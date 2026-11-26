@@ -74,7 +74,7 @@ export const ProcurementKpiRow = React.memo(function ProcurementKpiRow({ rows, r
 
   return (
     <section aria-label={t('summary.label', 'Procurement summary')}>
-      <StatTiles tiles={tiles} columns={2} />
+      <StatTiles tiles={tiles} columns={2} className="grid-cols-1 sm:grid-cols-2" />
     </section>
   );
 });

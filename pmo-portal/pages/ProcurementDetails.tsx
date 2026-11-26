@@ -611,7 +611,10 @@ const ProcurementDetails: React.FC = () => {
 
   // Counts are derived from the loaded records; SharePoint references stay out.
   const ledgerRows = buildLedgerRows(p);
-  const documentsCount = ledgerRows.length + linkedDocs.length + p.statusEvents.length;
+  const visibleLinkedDocsCount = isEngineer
+    ? linkedDocs.filter((doc) => doc.doctype !== 'Purchase Invoice' && doc.doctype !== 'Payment Entry').length
+    : linkedDocs.length;
+  const documentsCount = 1 + ledgerRows.length + visibleLinkedDocsCount + p.statusEvents.length;
   const attachTargets = procurementAttachTargets(ledgerRows, linkedDocs, t);
   const procTabs = procurementTabs(p, t, documentsCount, ledgerRows);
   // AC-IXD-PROC-005: a closed procurement (Paid, Cancelled, Rejected) takes no new documents — same rule as the Files-tab capture row.
@@ -723,6 +726,7 @@ const ProcurementDetails: React.FC = () => {
   </label>;
   const headerNotes = [
     mutationError && <p key="error" role="alert" data-testid="procurement-mutation-error" className="rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">{mutationError}</p>,
+    waitingNote && <p key="waiting" data-testid="procurement-waiting" className="text-control text-muted-foreground">{waitingNote}</p>,
     !decidesHere && approverLimitLine && <p key="limit" className="font-medium">{approverLimitLine}</p>,
     !decidesHere && decisionContextNote && <p key="sod" data-testid="sod-ready-hint">{decisionContextNote}</p>,
     isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p key="gate" data-testid="line-items-gate">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>,
@@ -742,6 +746,12 @@ const ProcurementDetails: React.FC = () => {
         <span>{decisionLine.map((part, i) => <React.Fragment key={i}>{i > 0 && ' · '}<span>{part}</span></React.Fragment>)}</span>
       </p>}
       {approvalNote}
+      {!isNarrow && mainAction && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" size="sm" onClick={clickMainAction}>{mainAction.label}</Button>
+          {returnAction && <Button variant="outline" size="sm" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>}
+        </div>
+      )}
     </div>
   ) : null;
   const budgetImpact = requestStage && p.project_id ? <DecisionSupportPanel
@@ -795,21 +805,11 @@ const ProcurementDetails: React.FC = () => {
         // Each later item carries its dot before it in a fixed 16px slot; the row is shifted left by one slot inside a
         // clipping wrapper, so the dot that starts a wrapped line falls outside it and no line begins with "·".
         meta={meta.length ? <span className="block overflow-hidden"><span data-testid="record-meta" className="flex flex-col gap-y-1 sm:-ml-4 sm:flex-row sm:flex-wrap sm:items-center [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className={i === 0 ? 'sm:whitespace-nowrap sm:pl-4' : 'sm:whitespace-nowrap'}>{i > 0 && <span data-meta-dot aria-hidden="true" className="hidden w-4 text-center text-muted-foreground sm:inline-block">·</span>}{part}</span>)}</span></span> : undefined}
-        // Where no action is offered, the slot says who the purchase waits on (#1404).
-        actions={waitingNote || !isNarrow ? <>
-          {waitingNote && <span data-testid="procurement-waiting" className="min-w-0 text-control text-muted-foreground sm:max-w-80 sm:text-right">{waitingNote}</span>}
-          {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
-        </> : undefined}
+        actions={!isNarrow ? <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} /> : undefined}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.
-        primaryAction={mainAction && !isNarrow ? (
-          returnAction && mainAction.to === 'Approved' ? (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => onActionClick(returnAction)}>{returnAction.label}</Button>
-              <Button variant="primary" size="sm" onClick={clickMainAction}>{mainAction.label}</Button>
-            </div>
-          ) : (
-            <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
-          )
+        // When deciding an approval, Approve + Return sit directly under the approval note in the tinted decision band.
+        primaryAction={mainAction && !isNarrow && !decidesHere ? (
+          <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
         ) : undefined}
         menuItems={mainAction && isNarrow ? undefined : moreMenuItems}
         menuLabel={t('procurementRecord:moreActions', 'More procurement actions')}

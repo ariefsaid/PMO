@@ -16,9 +16,10 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDay, formatPercent, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection, type EmbeddedProcurementFile } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -129,6 +130,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   currency,
 }) => {
   const { t } = useTranslation(['common', 'procurement']);
+  const maySeePrices = useMaySeePrices();
   const today = useOrgToday();
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
@@ -191,6 +193,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   };
 
   const sorted = sortedQuotes(quotations, selectedId);
+  const selected = quotations.find((quote) => isRowSelected(quote, selectedId));
 
   const lowest = lowestPrice(quotations);
 
@@ -224,22 +227,26 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length > 0 && (() => {
         const columns: Column<QuotationRow>[] = [
           {
-            key: 'vendor', header: t('procurement:vendorQuotes.colSupplier', 'Supplier / Quote #'), kind: 'primary', size: 320, minSize: 240,
+            key: 'vendor', header: t('procurement:vendorQuotes.colSupplier', 'Supplier / Quote #'), kind: 'primary', size: 240, minSize: 180,
             primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:vendorQuotes.supplierQuote', 'Supplier quote'),
             cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:vendorQuotes.supplierQuote', 'Supplier quote'),
             secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
-          { key: 'valueStatus', header: t('procurement:vendorQuotes.colValueStatus', 'Value status'), kind: 'status', size: 160, cell: (q) => <div className="flex flex-wrap gap-1">{isRowSelected(q, selectedId) && <StatusPill variant="won">{t('procurement:quoteComparison.selected', 'Selected')}</StatusPill>}{lowest !== null && Number(q.total_amount) === lowest && <StatusPill variant="won">{t('procurement:quoteComparison.lowestPrice', 'Lowest price')}</StatusPill>}</div> },
-          { key: 'amount', header: t('procurement:vendorQuotes.colAmount', 'Amount'), kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span> },
-          { key: 'validUntil', header: t('procurement:vendorQuotes.colValidUntil', 'Valid until'), kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDay(q.valid_until)}</span> },
-          { key: 'attachments', header: t('procurement:vendorQuotes.colAttachments', 'Attachments'), kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 
-          { key: 'select', header: '', kind: 'select', size: 40, minSize: 40, maxSize: 40, cell: (q) => {
-            const selectable = canSelect && !isRowSelected(q, selectedId);
+          { key: 'valueStatus', header: t('procurement:vendorQuotes.colValueStatus', 'Value status'), kind: 'status', size: 120, cell: (q) => <div className="flex flex-wrap gap-1">{isRowSelected(q, selectedId) && <StatusPill variant="won">{t('procurement:quoteComparison.selected', 'Selected')}</StatusPill>}{maySeePrices && lowest !== null && Number(q.total_amount) === lowest && <StatusPill variant="won">{t('procurement:quoteComparison.lowestPrice', 'Lowest price')}</StatusPill>}</div> },
+          ...(maySeePrices ? [{ key: 'amount', header: t('procurement:vendorQuotes.colAmount', 'Amount'), kind: 'money' as const, align: 'num' as const, size: 140, minSize: 120, cell: (q: QuotationRow) => {
+            const baseline = selected ? Number(selected.total_amount) : null;
+            const difference = baseline !== null && q.id !== selected?.id ? Number(q.total_amount) - baseline : null;
+            return <div><span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span>{difference !== null && <span className="block text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, q.currency)}{baseline ? ` · ${difference > 0 ? '+' : ''}${formatPercent(difference / baseline, 1)}` : ''}</span>}</div>;
+          } }] : []),
+          { key: 'validUntil', header: t('procurement:vendorQuotes.colValidUntil', 'Valid until'), kind: 'date', size: 120, cell: (q) => q.valid_until ? <span className="text-muted-foreground">{formatDay(q.valid_until)}</span> : null },
+          { key: 'attachments', header: t('procurement:vendorQuotes.colAttachments', 'Attachments'), kind: 'text', size: 180, minSize: 140, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} hideHeading /> },
+          ...(canSelect ? [{ key: 'select', header: '', kind: 'select' as const, size: 84, minSize: 72, cell: (q: QuotationRow) => {
+            const selectable = !isRowSelected(q, selectedId);
             return selectable ? <Button size="sm" variant="outline" onClick={() => setSelectTarget(q)} aria-label={t('procurement:vendorQuotes.selectQuote', 'Select quote {{name}}', { name: vendorMap[q.vendor_id] ?? q.vq_number ?? '' }).trim()}>{t('procurement:vendorQuotes.select', 'Select')}</Button> : null;
-          } },
+          } }] : []),
         ];
         return <>
-          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:vendorQuotes.tableName', 'Supplier bid comparison')} selectedKey={selectedId ?? undefined} />
+          <DataTable embedded rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:vendorQuotes.tableName', 'Supplier bid comparison')} selectedKey={selectedId ?? undefined} />
         </>;
       })()}
 

@@ -28,6 +28,8 @@ export interface TabsProps<V extends string = string> {
   ariaLabel: string;
   /** Namespace for the generated tab/panel ids so they're unique + stable per surface. */
   idBase: string;
+  /** Keep the first tab visible on arrival, even when another tab is initially selected. */
+  startAtFirst?: boolean;
   className?: string;
 }
 
@@ -57,6 +59,7 @@ export function Tabs<V extends string = string>({
   onChange,
   ariaLabel,
   idBase,
+  startAtFirst = false,
   className,
   insetFirstTab = false,
 }: TabsProps<V>) {
@@ -65,12 +68,16 @@ export function Tabs<V extends string = string>({
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
   const mounted = useRef(false);
+  const initialValue = useRef(value);
+  const selectionChanged = useRef(false);
   // Counts arriving after mount widen the tabs, so the selected one is brought back into view then too.
   const widths = items.map((item) => `${item.count ?? ''}${item.detail ?? ''}`).join('|');
   useEffect(() => {
     // First mount on the first tab: the strip is already at scroll 0, so skip the forced layout.
     const first = !mounted.current;
     mounted.current = true;
+    if (value !== initialValue.current) selectionChanged.current = true;
+    if (startAtFirst && !selectionChanged.current) return;
     if (first && value === items[0]?.value) return;
     const list = listRef.current;
     if (!list) return;
@@ -86,7 +93,7 @@ export function Tabs<V extends string = string>({
     const offset = left < strip.left ? left - strip.left : right > strip.right - 28 ? right - strip.right + 28 : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
-  }, [value, widths]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+  }, [value, widths, startAtFirst]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
