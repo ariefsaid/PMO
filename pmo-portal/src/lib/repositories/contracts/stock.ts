@@ -1,7 +1,7 @@
 /** Stock repository contract (#1512 S1). */
 import type { CostAttribution } from '@/src/lib/db/workOrderCosts';
 import type {
-  StockItemFilters, StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
+  ReadStockItemTags, StockItemTagName, StockItemFilters, StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
 import type {
   IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockErpState, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
@@ -13,6 +13,7 @@ import type { BelowReorderRow, ReorderSuggestion } from '@/src/lib/db/stockReord
 /** Stock master data (#1512 S1): units, items, warehouses and keepers.  */
 export interface StockMasterRepository {
   listUnits(includeArchived?: boolean): Promise<StockUnitRow[]>;
+  listItemTagNames(): Promise<StockItemTagName[]>;
   listItems(filters?: boolean | StockItemFilters): Promise<StockItemRow[]>;
   listWarehouses(includeArchived?: boolean): Promise<StockWarehouseRow[]>;
   listKeepers(): Promise<StockKeeperRow[]>;
@@ -51,8 +52,8 @@ export interface StockDocumentsRepository {
 
 /** Stock reads (#1512 S3): cost keys are absent from the data below Project Manager rank. */
 export interface StockReportsRepository {
-  onHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }): Promise<StockOnHandRow[]>;
-  ledgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage>;
+  onHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }, readTags?: ReadStockItemTags): Promise<StockOnHandRow[]>;
+  ledgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }, readTags?: ReadStockItemTags): Promise<StockLedgerPage>;
   ledgerAll(f: StockLedgerFilters): Promise<StockLedgerRow[]>;
   atRisk(): Promise<StockAtRiskRow[]>;
 }
@@ -72,7 +73,7 @@ export interface StockAllowancesRepository {
 /** Reorder levels (#1512 S6): the suggestion changes nothing; `setLevel` with a null level clears (FR-STK-051/053/054). */
 export interface StockReorderRepository {
   suggestion(warehouseId: string, itemId: string): Promise<ReorderSuggestion>;
-  worklist(): Promise<BelowReorderRow[]>;
+  worklist(readTags?: ReadStockItemTags): Promise<BelowReorderRow[]>;
   setLevel(a: { warehouseId: string; itemId: string; level: string | null; quantity?: string | null }): Promise<void>;
 }
 

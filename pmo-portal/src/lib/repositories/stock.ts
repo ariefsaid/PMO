@@ -2,7 +2,7 @@
 import {
   listStockUnits, listStockItems, listStockWarehouses, listWarehouseKeepers, createStockUnit, updateStockUnit,
   createStockItem, updateStockItem, createStockWarehouse, updateStockWarehouse, setArchived as setStockArchived,
-  setWarehouseKeeper,
+  setWarehouseKeeper, listItemTagNames,
 } from '@/src/lib/db/stockMaster';
 import {
   cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, getStockErpState, releaseStockHold, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
@@ -26,6 +26,7 @@ const dispatchPost = (id: string, revision: number) => dispatchDomainCommand(INV
 export const stockRepository: StockRepository = {
   master: {
     listUnits: (i) => wrap(() => listStockUnits(i)),
+    listItemTagNames: () => wrap(listItemTagNames),
     listItems: (i) => wrap(() => listStockItems(i)),
     listWarehouses: (i) => wrap(() => listStockWarehouses(i)),
     listKeepers: () => wrap(() => listWarehouseKeepers()),
@@ -79,8 +80,8 @@ export const stockRepository: StockRepository = {
     issueLines: (p) => wrap(() => listProjectIssueLines(p)),
   },
   reports: {
-    onHand: (f) => wrap(() => getStockOnHand(f)),
-    ledgerPage: (f) => wrap(() => getStockLedgerPage(f)),
+    onHand: (f, tags) => wrap(() => getStockOnHand(f, tags)),
+    ledgerPage: (f, tags) => wrap(() => getStockLedgerPage(f, tags)),
     ledgerAll: (f) => wrap(() => getStockLedgerAll(f)),
     atRisk: () => wrap(() => getStockAtRisk()),
   },
@@ -94,7 +95,7 @@ export const stockRepository: StockRepository = {
   },
   reorder: {
     suggestion: (w, i) => wrap(() => getReorderSuggestion(w, i)),
-    worklist: () => wrap(() => getBelowReorder()),
+    worklist: (tags) => wrap(() => getBelowReorder(tags)),
     setLevel: (a) => wrap(() => setReorderLevel(a)),
   },
 };
