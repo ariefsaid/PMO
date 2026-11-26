@@ -84,6 +84,7 @@ export const ProjectHealthCard: React.FC<{
                             <span className="min-w-0 break-words text-control font-medium">{name}</span>
                             <StatusPill wrap={false} className="shrink-0" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{statusLabel('project', row.status, ts)}</StatusPill>
                           </span>
+                          {row.status === 'Won, Pending KoM' && <span className="text-control text-muted-foreground">{ts('project.kickoffDetail', 'Waiting for kickoff')}</span>}
                           <span data-testid="health-wrong" className="text-control tabular">
                             {wrong.length === 0
                               ? <span className="text-muted-foreground">{t('home.nothingOverdue', 'Nothing overdue')}</span>
