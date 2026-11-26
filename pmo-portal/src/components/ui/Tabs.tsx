@@ -127,14 +127,6 @@ export function Tabs<V extends string = string>({
     list.scrollBy({ left: dir * Math.max(200, Math.round(list.clientWidth * 0.6)), behavior: scrollBehavior() });
   };
 
-  const maskClass = overflow.left && overflow.right
-    ? '[mask-image:linear-gradient(to_right,transparent_0%,#000_36px,#000_calc(100%-36px),transparent_100%)]'
-    : overflow.right
-      ? '[mask-image:linear-gradient(to_right,#000_calc(100%-36px),transparent_100%)]'
-      : overflow.left
-        ? '[mask-image:linear-gradient(to_right,transparent_0%,#000_36px,#000_100%)]'
-        : '';
-
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
     <div className="relative flex min-w-0 items-center">
@@ -143,7 +135,7 @@ export function Tabs<V extends string = string>({
         type="button"
         aria-label={t('ui:tabs.scrollLeft', 'Scroll tabs left')}
         onClick={() => nudge(-1)}
-        className="absolute left-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+        className="mb-4 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >
         <span className="rotate-180"><Icon name="chev" /></span>
       </button>
@@ -157,10 +149,10 @@ export function Tabs<V extends string = string>({
         'mb-4 flex min-w-0 flex-1 flex-nowrap whitespace-nowrap gap-0.5 border-b border-border',
         // Horizontal scroll-snap strip when tabs exceed container width
         'overflow-x-auto snap-x snap-mandatory',
-        overflow.right && 'pe-9',
+        'mx-1',
         // Scrollbar-free (aesthetic — chromeless thin scrollbar on macOS; no layout impact)
         '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        maskClass,
+
         className,
       )}
     >
@@ -217,7 +209,7 @@ export function Tabs<V extends string = string>({
         type="button"
         aria-label={t('ui:tabs.scrollRight', 'Scroll tabs right')}
         onClick={() => nudge(1)}
-        className="absolute right-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+        className="mb-4 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >
         <Icon name="chev" />
       </button>
