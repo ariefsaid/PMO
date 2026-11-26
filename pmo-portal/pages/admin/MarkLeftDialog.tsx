@@ -43,7 +43,7 @@ export const MarkLeftDialog: React.FC<{ person: { id: string; name: string } | n
           <p>{t('administration:people.leftBody', 'They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.')}</p>
           <DateField
             label={t('administration:people.leftOn', 'First day off crew roster')}
-            helper={t('administration:people.leftOnHelp', 'First day off crew roster')}
+            helper={t('administration:people.leftOnHelp', 'From this date onward, this person will no longer appear on crew rosters.')}
             value={leftOn}
             onChange={setDay}
             required
