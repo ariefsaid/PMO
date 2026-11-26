@@ -18,6 +18,7 @@ import {
 import type { Margin } from '@/src/lib/projectFinances';
 import WorkOrderPlanModal from './WorkOrderPlanModal';
 import SharedCostSplitModal from './SharedCostSplitModal';
+import { cn } from '@/src/components/ui/cn';
 import { PvaTable, type PvaCell, type PvaRow } from './PvaTable';
 import { LabourByClass } from '../work-order-detail/LabourByClass';
 import { IdleCostBlock } from '../work-order-detail/IdleCostBlock';
@@ -178,33 +179,57 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
   );
 
   // The row's drawer (triage): what is behind this work order's figures; the full page stays the depth.
-  const drawerBody = (w: PvaWorkOrder, f: WorkOrderFigures) => (
-    <div className="space-y-6 text-control" data-testid={`wo-pva-drawer-${w.id}`}>
-      {f.disciplines.length > 0 && (
-        <section>
-          <h3 className="mb-2 font-semibold">{t('byDiscipline', 'By discipline')}</h3>
-          <PvaTable caption={t('byDiscipline', 'By discipline')} firstColumn={t('col.discipline', 'Discipline')} groups={legGroups}
-            columns={[...legColumns('direct'), ...legColumns('shared')]}
-            rows={f.disciplines.map((d) => ({ key: d.disciplineId ?? 'none', head: disciplineName(d.disciplineId),
-              cells: [planCell(d.planDirect, w.currency), cell(money(d.direct, w.currency)), diffCell(d.planDirect, d.direct, w.currency),
-                planCell(d.planIndirect, w.currency), cell(money(d.allocated, w.currency)), diffCell(d.planIndirect, d.allocated, w.currency)] }))} />
-        </section>
-      )}
-      {f.otherCurrency.length > 0 && (
-        <dl className="space-y-1">{f.otherCurrency.map((o) => (
-          <div key={o.currency} className="flex justify-between gap-6"><dt className="text-muted-foreground">{t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency })}</dt><dd className="tabular-nums">{money(o.amount, o.currency)}</dd></div>
-        ))}</dl>
-      )}
-      {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={w.currency} testId={`wo-pva-labour-${w.id}`} />}
-      <IdleCostBlock projectId={projectId} workOrderId={w.id} testId={`wo-pva-idle-${w.id}`} />
-      <section>
-        <h3 className="mb-1 font-semibold">{t('basisCaption', 'Cost records behind these figures')}</h3>
-        {f.pendingCrewHours > 0 && <p className="text-muted-foreground">{pendingText(f.pendingCrewHours)}</p>}
-        {f.uncostedHours > 0 && <p className="text-muted-foreground">{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
-        {basisTable(f.lines, `wo-pva-basis-${w.id}`)}
-      </section>
-    </div>
-  );
+  const drawerBody = (w: PvaWorkOrder, f: WorkOrderFigures) => {
+    const legRow = (key: string, head: React.ReactNode, plan: string | null, actual: string | null): PvaRow =>
+      ({ key, head, cells: [planCell(plan, w.currency), cell(money(actual, w.currency)), diffCell(plan, actual, w.currency)] });
+    const hoursRow = (key: string, head: string, plan: number | null, actual: number): PvaRow =>
+      ({ key, head, cells: [hoursPlan(plan), cell(formatNumberExact(actual)), hoursDiff(plan, actual)] });
+    const figure = (label: string, c: PvaCell) => (
+      <div className="min-w-0"><dt className="text-muted-foreground">{label}</dt>
+        <dd className={cn('mt-1 font-medium tabular-nums', c.tone === 'words' && 'font-normal text-muted-foreground', c.tone === 'over' && 'text-destructive')}>{c.text}</dd></div>
+    );
+    return (
+      <div className="space-y-6 text-control" data-testid={`wo-pva-drawer-${w.id}`}>
+        <PvaTable dense caption={title} firstColumn={<span className="sr-only">{t('col.cost', 'Cost')}</span>} columns={legColumns('wo')} rows={[
+          legRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct),
+          legRow('shared', t('col.shared', 'Shared cost'), f.plan.indirect_budget, f.allocated),
+          hoursRow('eq', t('equipmentHours', 'Equipment hours'), f.plan.equipment_hours, f.equipmentHours),
+          hoursRow('crew', t('crewHours', 'Crew hours'), f.plan.crew_hours, f.crewHours),
+        ]} />
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-4">
+          {figure(t('orderValue', 'Order value (ceiling)'), w.orderValue == null ? cell('—', true) : cell(money(w.orderValue, w.currency)))}
+          {figure(t('col.revenue', 'Billed revenue'), w.revenue === null || !w.revenueComplete ? cell(t('revenueUnknown', 'Revenue unknown'), true) : cell(money(w.revenue, w.currency)))}
+          {figure(t('col.directMargin', 'Direct margin'), marginCell(f.directMargin, w.currency))}
+          {figure(t('col.result', 'After shared cost'), marginCell(f.result, w.currency))}
+          {f.otherCurrency.map((o) => <React.Fragment key={o.currency}>{figure(t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency }), cell(money(o.amount, o.currency)))}</React.Fragment>)}
+          {f.equipmentDays > 0 && figure(t('equipmentDays', 'Equipment days (kept apart)'), cell(formatNumberExact(f.equipmentDays)))}
+          {figure(t('crewSize', 'People with hours'), cell(formatNumberExact(f.crewSize)))}
+        </dl>
+        {(f.pendingCrewHours > 0 || f.uncostedHours > 0) && (
+          <div className="space-y-1 text-muted-foreground">
+            {f.pendingCrewHours > 0 && <p>{pendingText(f.pendingCrewHours)}</p>}
+            {f.uncostedHours > 0 && <p>{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
+          </div>
+        )}
+        {f.disciplines.length > 0 && (
+          <section>
+            <h3 className="mb-1 font-semibold">{t('byDiscipline', 'By discipline')}</h3>
+            <PvaTable dense caption={t('byDiscipline', 'By discipline')} firstColumn={t('col.discipline', 'Discipline')} columns={legColumns('wo-d')}
+              rows={f.disciplines.flatMap((d) => [
+                legRow(`${d.disciplineId ?? 'none'}-d`, <>{disciplineName(d.disciplineId)} <span className="text-muted-foreground">· {t('directShort', 'direct')}</span></>, d.planDirect, d.direct),
+                legRow(`${d.disciplineId ?? 'none'}-s`, <>{disciplineName(d.disciplineId)} <span className="text-muted-foreground">· {t('sharedShort', 'shared')}</span></>, d.planIndirect, d.allocated),
+              ])} />
+          </section>
+        )}
+        {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={w.currency} testId={`wo-pva-labour-${w.id}`} />}
+        <IdleCostBlock projectId={projectId} workOrderId={w.id} testId={`wo-pva-idle-${w.id}`} />
+        <details className="border-t border-border pt-4">
+          <summary className="cursor-pointer font-semibold">{t('basisCaption', 'Cost records behind these figures')} <span className="font-normal text-muted-foreground">({formatNumberExact(f.lines.length)})</span></summary>
+          {basisTable(f.lines, `wo-pva-basis-${w.id}`)}
+        </details>
+      </div>
+    );
+  };
 
   // Same family as the work order page's own section: Plan · Actual per leg, and what is left or over in its own column.
   const cell = (text: string, words = false, testId?: string): PvaCell => ({ text, tone: words ? 'words' : undefined, testId });
@@ -221,7 +246,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
     return { text: hoursText(plan, actual), tone: v.state === 'over' ? 'over' : 'words' };
   };
   const hoursPlan = (plan: number | null): PvaCell => plan === null ? cell(t('noPlan', 'No plan'), true) : cell(formatNumberExact(plan));
-  const marginCell = (m: Margin, currency: string, testId: string): PvaCell =>
+  const marginCell = (m: Margin, currency: string, testId?: string): PvaCell =>
     ({ text: marginText(m, currency), testId, tone: m.amount === null ? 'words' : m.amount.startsWith('-') && !/^-0(\.0+)?$/.test(m.amount) ? 'over' : undefined });
   const planShort = t('col.planShort', 'Plan');
   const actualShort = t('col.actualShort', 'Actual');
@@ -312,7 +337,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
     cells: [planCell(d.planDirect, d.currency), cell(money(d.direct, d.currency)), diffCell(d.planDirect, d.direct, d.currency),
       planCell(d.planIndirect, d.currency), cell(money(d.allocated, d.currency)), diffCell(d.planIndirect, d.allocated, d.currency)],
   }));
-  const legGroups: Array<[React.ReactNode, number]> = [[t('col.direct', 'Direct cost'), 3], [t('col.shared', 'Shared cost'), 3]];
+  const legGroups: Array<[string, number]> = [[t('col.direct', 'Direct cost'), 3], [t('col.shared', 'Shared cost'), 3]];
   const opened = live.find((w) => w.id === openBasis) ?? null;
   const openedFigures = opened ? figures.get(opened.id) ?? null : null;
 
