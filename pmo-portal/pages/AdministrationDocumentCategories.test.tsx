@@ -76,12 +76,13 @@ describe('AC-DCV-020 Administration › Document categories', () => {
   it('creates a category with the chosen roles (Admin always included, never an org id)', async () => {
     const user = userEvent.setup();
     wrap();
-    const form = await screen.findByTestId('document-category-new');
+    await screen.findByTestId('document-category-c-inv');
     await user.click(screen.getByRole('button', { name: 'New category', exact: true }));
+    const form = await screen.findByTestId('document-category-new');
     expect(within(form).getByLabelText(/Category name/i)).toHaveFocus();
     await user.type(within(form).getByLabelText(/Category name/i), 'Commercial approval');
     await user.click(within(form).getByRole('checkbox', { name: /Finance/ }));
-    await user.click(within(form).getByRole('button', { name: /Create category/i }));
+    await user.click(screen.getByRole('button', { name: /Create category/i }));
     await waitFor(() => expect(state.create).toHaveBeenCalledWith('Commercial approval', ['Finance', 'Admin']));
   });
 

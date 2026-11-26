@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Button, Card, Checkbox, ConfirmDialog, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Badge, Button, EntityFormModal, Checkbox, ConfirmDialog, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
 import { RowMenu } from '@/src/components/ui/RowMenu';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
@@ -181,13 +181,17 @@ const CategoryCard: React.FC<{
   );
 };
 
-const NewCategory: React.FC<{ busy: boolean; onCreate: (name: string, roles: CategoryRole[]) => Promise<void> }> = ({ busy, onCreate }) => {
+const NewCategory: React.FC<{ busy: boolean; open: boolean; onClose: () => void; onCreate: (name: string, roles: CategoryRole[]) => Promise<void> }> = ({ busy, open, onClose, onCreate }) => {
   const { t } = useTranslation();
   const [name, setName] = useState('');
+  const [error, setError] = useState<ReturnType<typeof classifyMutationError> | null>(null);
   const [roles, setRoles] = useState<Set<CategoryRole>>(() => new Set<CategoryRole>(['Admin']));
   return (
-    <Card className="space-y-3 p-4" data-testid="document-category-new">
-      <h3 className="text-base font-semibold">{t('administration:documentCategories.newTitle', 'New category')}</h3>
+    <EntityFormModal open={open} title={t('administration:documentCategories.newTitle', 'New category')}
+      submitLabel={t('administration:documentCategories.create', 'Create category')} onClose={onClose}
+      submitDisabled={name.trim() === ''} loading={busy} submitError={error}
+      onSubmit={(e) => { e.preventDefault(); setError(null); void onCreate(name, ROLE_ORDER.filter((r) => roles.has(r))).catch((err: unknown) => setError(classifyMutationError(err))); }}>
+      <div className="space-y-3" data-testid="document-category-new">
       <TextField
         label={t('administration:documentCategories.name', 'Category name')}
         value={name}
@@ -206,18 +210,8 @@ const NewCategory: React.FC<{ busy: boolean; onCreate: (name: string, roles: Cat
       <p className="text-sm text-text-secondary">
         {t('administration:documentCategories.newHint', 'Choose the roles on purpose: a new category starts with Admin only, so nobody else sees its documents until you add them.')}
       </p>
-      <Button
-        variant="primary"
-        disabled={busy || name.trim() === ''}
-        onClick={async () => {
-          await onCreate(name, ROLE_ORDER.filter((r) => roles.has(r)));
-          setName('');
-          setRoles(new Set<CategoryRole>(['Admin']));
-        }}
-      >
-        {t('administration:documentCategories.create', 'Create category')}
-      </Button>
-    </Card>
+      </div>
+    </EntityFormModal>
   );
 };
 
@@ -227,6 +221,7 @@ const AdministrationDocumentCategories: React.FC = () => {
   const canManage = usePermission()('manage', 'documentCategory');
   const { data, isPending, isError, refetch } = useDocumentCategories();
   const m = useDocumentCategoryMutations();
+  const [newOpen, setNewOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<DocumentCategory | null>(null);
   const busy = Object.values(m).some((x) => x.isPending);
 
@@ -264,11 +259,7 @@ const AdministrationDocumentCategories: React.FC = () => {
       {!isPending && !isError ? (
         <>
           {canManage && (
-            <Button variant="outline" aria-controls="new-document-category" onClick={() => {
-              const form = document.getElementById('new-document-category');
-              form?.scrollIntoView({ block: 'start' });
-              form?.querySelector('input')?.focus({ preventScroll: true });
-            }}>
+            <Button variant="outline" onClick={() => setNewOpen(true)}>
               {t('administration:documentCategories.newTitle', 'New category')}
             </Button>
           )}
@@ -291,12 +282,12 @@ const AdministrationDocumentCategories: React.FC = () => {
           ))}
           </div>
           {canManage && (
-            <div id="new-document-category" className="scroll-mt-4">
-              <NewCategory
-                busy={busy}
-                onCreate={(name, roles) => run(() => m.create.mutateAsync({ name, roles }), t('administration:documentCategories.created', 'Category created'))}
-              />
-            </div>
+            <NewCategory key={newOpen ? 'open' : 'closed'} open={newOpen} onClose={() => setNewOpen(false)}
+              busy={busy} onCreate={async (name, roles) => {
+                await m.create.mutateAsync({ name, roles });
+                toast(t('administration:documentCategories.created', 'Category created'), 'success');
+                setNewOpen(false);
+              }} />
           )}
           {archived.length > 0 && (
             <>
