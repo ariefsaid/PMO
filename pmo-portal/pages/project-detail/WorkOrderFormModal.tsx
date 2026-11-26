@@ -280,7 +280,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
                 label={t('projectDetail.workOrderForm.project', 'Project')}
                 noun="project"
                 placeholder={t('projectDetail.workOrderForm.projectPlaceholder', 'Choose a project')}
-                required
+                required={!project.lockedId}
                 value={form.values.projectId || null}
                 selectedOption={chosenProject}
                 onChange={(v) => form.setValue('projectId', v)}

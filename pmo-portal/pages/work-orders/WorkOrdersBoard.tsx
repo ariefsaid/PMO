@@ -57,7 +57,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   const [creating, setCreating] = useState(false);
   const projectChoices = useWorkOrderProjectChoices(canCreate);
   const newButton = canCreate ? (
-    <Button id="new-work-order" variant="primary" size={projectId ? 'sm' : undefined} onClick={() => setCreating(true)} disabled={!projectChoices.isSuccess}>
+    <Button id="new-work-order" variant="primary" onClick={() => setCreating(true)} disabled={!projectChoices.isSuccess}>
       <Icon name="plus" />
       {t('new.action', 'New work order')}
     </Button>
@@ -177,7 +177,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
       primaryAction={newButton || workInHand ? <div className="flex flex-wrap items-center gap-2">{workInHand}{newButton}</div> : undefined}
       headingLevel={projectId ? 2 : 1}
       count={all.isPending ? undefined : rows.length}
-      exportAction={<>{projectId && newButton}<ExportButton rows={filtered} columns={columns} entity="WorkOrders" /></>}
+      exportAction={<>{projectId && (all.isPending || rows.length > 0) && newButton}<ExportButton rows={filtered} columns={columns} entity="WorkOrders" /></>}
       banner={rows.length > 0 ? <StatTiles tiles={tiles} columns={tiles.length} frameClassName={cn('mb-4', projectId && '[--space-content-inset:var(--panel-inset)]')} /> : undefined}
       filters={(
         <FilterBar
@@ -209,7 +209,6 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         onRetry={() => all.refetch()}
         errorTitle={t('all.error', "Couldn't load your work orders")}
         emptyAction={rows.length === 0 && canCreate && projectChoices.isSuccess ? { label: t('new.action', 'New work order'), onClick: () => setCreating(true) } : undefined}
-        emptyActionVariant="primary"
         emptyTitle={rows.length > 0 ? t('all.noMatch', 'No work order matches your search') : t('all.empty', 'You have no work orders yet')}
         cardValuesEnd
         filteredEmpty={rows.length > 0 ? { message: t('all.noMatch', 'No work order matches your search'), clearFiltersLabel: ts('ui.filterBar.clear', 'Clear all'), onClearFilters: clear } : undefined}
