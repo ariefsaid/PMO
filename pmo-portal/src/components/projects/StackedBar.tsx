@@ -52,7 +52,7 @@ export const StackedBar: React.FC<{
   let legendX = 0;
   let legendY = 0;
   const legendItems = small.map((segment) => {
-    const textWidth = Math.ceil(segment.label.length * 7.5);
+    const textWidth = Math.ceil(`${segment.label} ${segment.display}`.length * 7.5);
     const itemWidth = 16 + textWidth + 12;
     if (legendX > 0 && legendX + itemWidth > LEGEND_WIDTH) {
       legendX = 0;
@@ -82,7 +82,7 @@ export const StackedBar: React.FC<{
             return (
               <g key={segment.key}>
                 <rect x={x} y={y + 4} width="10" height="10" rx="2" fill={swatch.fill} />
-                <text x={x + 16} y={y + 14} fill="currentColor" fontSize="14" fontFamily="inherit">{segment.label}</text>
+                <text x={x + 16} y={y + 14} fill="currentColor" fontSize="14" fontFamily="inherit">{segment.label} {segment.display}</text>
               </g>
             );
           })}
