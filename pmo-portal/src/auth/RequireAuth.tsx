@@ -7,6 +7,7 @@ import { Card, CardPad } from '../components/ui/Card';
 import { ListState } from '../components/ui/ListState';
 import { Icon } from '../components/ui/icons';
 import { returnToState } from './returnTo';
+import { useOrgDefaultsReady } from '@/src/hooks/useResolvedLocale';
 
 // -----------------------------------------------------------------------
 // RequireAuth — DESIGN.md token-pure reskin (IA-3 / RIS identity)
@@ -114,6 +115,7 @@ const NotProvisionedPage: React.FC = () => {
 export const RequireAuth: React.FC = () => {
   const { session, loading, profileError, profileErrorKind, refreshCurrentUser } = useAuth();
   const location = useLocation();
+  const orgDefaultsReady = useOrgDefaultsReady();
   const [retrying, setRetrying] = useState(false);
   const retryInFlightRef = useRef(false);
 
@@ -135,5 +137,7 @@ export const RequireAuth: React.FC = () => {
   if (profileErrorKind === 'not_provisioned') return <NotProvisionedPage />;
   if (profileError) return <ProfileErrorPage onRetry={() => { void retryProfile(); }} retrying={retrying} />;
 
+  // The organisation's timezone decides every default day: wait for it rather than mount forms on the UTC day (#2914).
+  if (!orgDefaultsReady) return <AuthLoading />;
   return <Outlet />;
 };

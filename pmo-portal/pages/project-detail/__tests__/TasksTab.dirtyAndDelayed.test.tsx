@@ -8,7 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   clearOwnershipCache,
   setProjectBindings,
@@ -347,6 +347,7 @@ describe('#2088 TasksTab — the due-date comparison uses the organization day',
     // viewer device's day (the machine's local zone, UTC+7 here) is still Jun 1.
     vi.setSystemTime(new Date('2026-06-01T12:00:00Z'));
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Pacific/Kiritimati' });
+    setActiveOrgTimezone('Pacific/Kiritimati');
     listState.data = [{ ...seedTasks[0], end_date: '2026-06-01' }];
 
     renderTab();

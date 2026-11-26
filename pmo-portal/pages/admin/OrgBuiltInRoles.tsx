@@ -9,7 +9,7 @@ import { SeatReport } from '@/src/components/my/SeatReport';
  */
 const OrgBuiltInRoles: React.FC = () => {
   const canManage = usePermission()('manage', 'orgAccounting');
-  return canManage ? <section id="org-built-in-roles" tabIndex={-1} className="scroll-mt-4 mt-6"><SeatReport /></section> : null;
+  return canManage ? <section id="org-built-in-roles" tabIndex={-1} className="scroll-mt-4"><SeatReport /></section> : null;
 };
 
 export default OrgBuiltInRoles;

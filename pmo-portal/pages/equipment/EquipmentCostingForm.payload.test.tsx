@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import type { EquipmentAssetRow, EquipmentCostingRow } from '@/src/lib/db/equipment';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 
@@ -55,6 +55,7 @@ describe('#2544 EquipmentCostingForm payloads', () => {
   it('#1126 the effective-from month starts on the organisation\'s month, not the browser\'s', async () => {
     vi.setSystemTime(new Date('2026-11-30T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     const user = userEvent.setup({ advanceTimers: () => {} });
     try {
       mount();

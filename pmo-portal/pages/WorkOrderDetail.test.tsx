@@ -447,7 +447,7 @@ describe('WorkOrderDetail', () => {
     renderPage();
     expect(screen.getByText(/No contract lines are allocated/)).toBeTruthy();
     await openArea(/Cost and plan/);
-    expect(screen.getByText(/No costs are attributed/)).toBeTruthy();
+    expect(screen.getByText(/No costs are visible to you/)).toBeTruthy();
     await openArea(/^Billing/);
     expect(screen.getByText('No acceptances yet.')).toBeTruthy();
     await openArea(/Documents and safety/);

@@ -6,6 +6,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { AllocationFacts } from '@/src/lib/progressBilling';
 import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 
 export type InvoiceWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
@@ -37,8 +38,7 @@ export function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: nu
 
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
 export function thisMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  return `${orgDayNow().slice(0, 7)}-01`;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.

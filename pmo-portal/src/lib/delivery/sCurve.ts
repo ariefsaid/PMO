@@ -2,6 +2,7 @@ import { parseISO } from 'date-fns/parseISO';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { formatUtcDayMonthYear } from '../format';
 import { countedTasks } from '../tasks/taskTree';
+import { taskMilestoneIds, type TaskPhaseLinks } from './milestoneRollup';
 
 /**
  * Pure S-curve math for the project Delivery lens (FR-SC-002/003, FR-SCA-008..011).
@@ -47,9 +48,8 @@ export interface SCurveModel {
  * Narrow task view the builder reads. Structurally assignable from TaskWithRefs.
  * (FR-SCA-007/008: completed_at is the trigger-stamped instant; end_date is the proxy.)
  */
-export interface SCurveTask {
+export interface SCurveTask extends TaskPhaseLinks {
   id: string;
-  milestone_id: string | null;
   /** #2807 counting rule (countedTasks): a task with a live child is a roll-up and never moves the series. */
   parent_task_id: string | null;
   /** Nullable archive timestamp; archived tasks never contribute to delivery. */
@@ -292,13 +292,15 @@ export function buildSCurve(
   // Contributions are accumulated in ascending ts order → monotone series (FR-SCA-009).
   // Final point forced to asOf valued actualToDate anchors endpoint to the gauge (NFR-SCA-001).
   if (tasks !== undefined) {
-    const tasksByMilestone = new Map<string | null, SCurveTask[]>();
+    const tasksByMilestone = new Map<string, SCurveTask[]>();
     // #2807: only counted tasks (live, no live child) enter the per-milestone denominator AND the contribution
     // series, so the gauge (the milestone RPC's effective_pct) and the trajectory agree.
     for (const t of countedTasks(tasks)) {
-      const key = t.milestone_id;
-      if (!tasksByMilestone.has(key)) tasksByMilestone.set(key, []);
-      tasksByMilestone.get(key)!.push(t);
+      for (const phaseId of taskMilestoneIds(t)) {
+        const phaseTasks = tasksByMilestone.get(phaseId);
+        if (phaseTasks) phaseTasks.push(t);
+        else tasksByMilestone.set(phaseId, [t]);
+      }
     }
 
     // Collect (ts, numeratorContribution) pairs from each weighted milestone.

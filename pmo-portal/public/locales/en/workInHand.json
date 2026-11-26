@@ -1,5 +1,6 @@
 {
   "asOf": "As of {{date}}",
+  "table": { "scrollLabel": "{{currency}} contracts and work orders" },
   "attention": {
     "noRate": "No billing rate",
     "over": "Billed over value",

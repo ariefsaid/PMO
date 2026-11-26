@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Funnel, type FunnelStage } from '@/src/components/ui';
-import { formatMoneyLines, formatTableMoney } from '@/src/lib/format';
+import { formatMoneyLines, formatTileMoney } from '@/src/lib/format';
 import { type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
 import type { FunnelProjection } from './pipelineFunnelModel';
 
@@ -20,7 +20,7 @@ export interface PipelineFunnelProps {
 }
 
 // Whole units, but never a non-zero amount drawn as zero (screen-rules "Numbers").
-const money = (amount: number, currency: string) => formatTableMoney(amount, currency) ?? '';
+const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
 
 export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   projection,
@@ -47,7 +47,7 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
     const empty = p.stage?.count === 0;
     // A stage holding two currencies reads one line per currency (the organisation's first), never a sum.
     const perCurrency = formatMoneyLines(
-      p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'table',
+      p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'tile',
     ).lines;
     const value = p.unavailable
       ? unavailableTotal
@@ -70,12 +70,13 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   });
 
   return (
-    <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card p-[var(--panel-inset)]">
+    <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card h-full p-[var(--panel-inset)]">
       {header && <div className="mb-2">{header}</div>}
       <Funnel
         stages={funnelStages}
         presentation="flat"
         compact
+        fit
         selectedIndex={selectedIndex ?? undefined}
         onSelect={(i) => {
           const col = openColumns[i];

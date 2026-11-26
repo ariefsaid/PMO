@@ -69,7 +69,7 @@ test('JOB-F2 the office keys in a paper report with its photo and the project ma
 
     // Goal: the saved report names the person who keyed it in as its author.
     await page.goto('/site-reports');
-    const mine = page.getByTestId('dsr-list').getByRole('listitem').filter({ hasText: `${run} pipe run` });
+    const mine = page.getByTestId('dsr-list').getByRole('row').filter({ hasText: `${run} pipe run` });
     await expect(mine).toContainText(paName, { timeout: 20_000 });
 
     // 4. The assigned project manager sees the paper photo on the report and validates it.

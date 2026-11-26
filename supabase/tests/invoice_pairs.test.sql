@@ -92,7 +92,7 @@ insert into public.sales_invoices (id, org_id, project_id, customer_id, invoice_
    '2026-03-15', 4200, 4200, 'exclusive', 0, 'USD', 'Unpaid', 'PO-X', '[{"description":"n7"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N7');
 insert into public.sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount,
                                    tax_treatment, tax_amount, currency, status, erp_docstatus, reference_number) values
-  ('04840000-0000-0000-0000-0000000005f1', '04840000-0000-0000-0000-000000000002', null, '04840000-0000-0000-0000-0000000000f1',
+  ('04840000-0000-0000-0000-0000000005f1', '04840000-0000-0000-0000-000000000002', null, '04840000-0000-0000-0000-0000000000f2',
    'SI-X1', '2026-03-20', 4200, 4200, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-X');
 
 -- ── 1. the column and the surface ─────────────────────────────────────────────────────────────

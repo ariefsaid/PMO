@@ -24,7 +24,7 @@ import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useAllCrewMembers } from '@/src/hooks/useCrews';
 import { usePeople } from '@/src/hooks/usePeople';
 import { formatCalendarDayInTimeZone } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 /**
  * The Administration › Users directory (CROSS-65 / XG01-002): the body block — toolbar + search,
@@ -106,7 +106,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
   const hasFieldUsers = rows.some((u) => u.built_in_role && fieldRoleKeys.includes(u.built_in_role));
   const peopleForSetup = usePeople('active');
   const placements = useAllCrewMembers(hasFieldUsers);
-  const todayIso = formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
+  const todayIso = formatCalendarDayInTimeZone(new Date(), getActiveOrgTimezone());
   const setupGap = (u: UserDirectoryRow): 'unlinked' | 'noCrew' | null => {
     if (!hasFieldUsers || !u.built_in_role || !fieldRoleKeys.includes(u.built_in_role) || !peopleForSetup.data || !placements.data) return null;
     const person = peopleForSetup.data.find((p) => p.profile_id === u.id);
@@ -221,7 +221,8 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       cell: (u) => {
         const manager = u.manager_id ? byId.get(u.manager_id) : undefined;
         const name = manager?.full_name ?? u.manager?.full_name ?? null;
-        if (!name || !u.manager_id) return <span className="text-muted-foreground" aria-label={t('admin.users.noManager', 'No manager')}>—</span>;
+        if (!u.manager_id) return <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>;
+        if (!name) return <span className="text-muted-foreground">{t('administration:admin.users.managerUnavailable', 'Manager name unavailable')}</span>;
         return (
           <button
             type="button"

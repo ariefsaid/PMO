@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button, Card, Checkbox, ConfirmDialog, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
+import { RowMenu } from '@/src/components/ui/RowMenu';
 import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -19,33 +20,51 @@ import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 
 const ROLE_ORDER: CategoryRole[] = ['Executive', 'Project Manager', 'Finance', 'Engineer', 'Admin'];
 
-/** One checkbox per role; Admin is locked on (the database refuses a set without it). */
+/** One checkbox per role; Admin is locked on (the database refuses a set without it). `cells`: one box per table column on a wide
+ *  screen (the header names the role; each box keeps its full accessible name), wrapping with visible names below that width. */
 const RoleBoxes: React.FC<{
   idPrefix: string;
   legend: string;
   roles: ReadonlySet<CategoryRole>;
   disabled?: boolean;
+  cells?: boolean;
   onToggle: (role: CategoryRole, next: boolean) => void;
-}> = ({ idPrefix, legend, roles, disabled = false, onToggle }) => {
+}> = ({ idPrefix, legend, roles, disabled = false, cells = false, onToggle }) => {
   const { label } = useRoleLabels();
   return (
-    <fieldset className="min-w-0">
-      <legend className="mb-1 text-sm font-medium text-text-secondary">{legend}</legend>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
+    <fieldset className={cells ? 'min-w-0 xl:contents' : 'min-w-0'}>
+      <legend className={cells ? 'mb-1 text-control font-medium text-muted-foreground xl:sr-only' : 'mb-1 text-control font-medium text-muted-foreground'}>{legend}</legend>
+      <div className={cells ? 'flex flex-wrap gap-x-4 gap-y-1 xl:contents' : 'flex flex-wrap gap-x-4 gap-y-1'}>
         {ROLE_ORDER.map((role) => (
-          <span key={role} className="inline-flex items-center gap-2 text-sm" id={`${idPrefix}-${role.replace(/\s/g, '')}-label`}>
+          <span key={role} className={cells ? 'inline-flex min-h-9 items-center gap-2 text-control xl:justify-center' : 'inline-flex items-center gap-2 text-control'} id={`${idPrefix}-${role.replace(/\s/g, '')}-label`}>
             <Checkbox
               checked={roles.has(role)}
               onChange={(next) => onToggle(role, next)}
               label={`${legend}: ${label(role)}`}
               disabled={disabled || !can('toggleRole', 'documentCategory', { realRole: 'Admin', record: { role } })}
             >
-              {label(role)}
+              <span className={cells ? 'xl:sr-only' : undefined}>{label(role)}</span>
             </Checkbox>
           </span>
         ))}
       </div>
     </fieldset>
+  );
+};
+
+/** Wide screens: Category · one column per role · hidden job roles · actions. */
+const CATEGORY_GRID = 'xl:grid xl:grid-cols-[minmax(8rem,1fr)_repeat(5,4.75rem)_minmax(13rem,1.2fr)_6.5rem] xl:items-start xl:gap-x-2';
+
+const CategoryHeader: React.FC = () => {
+  const { t } = useTranslation();
+  const { label } = useRoleLabels();
+  return (
+    <div aria-hidden className={`hidden border-b border-border px-4 py-2 text-control font-medium text-muted-foreground ${CATEGORY_GRID} xl:items-end`}>
+      <span>{t('administration:documentCategories.categoryColumn', 'Category')}</span>
+      {ROLE_ORDER.map((role) => <span key={role} className="text-center leading-tight">{label(role)}</span>)}
+      <span>{t('administration:documentCategories.hiddenFromShort', 'Hidden from')}</span>
+      <span />
+    </div>
   );
 };
 
@@ -79,37 +98,55 @@ const CategoryCard: React.FC<{
   const hiddenDirty = hidden.join() !== (category.hidden_job_roles ?? []).join();
   const dirty = ROLE_ORDER.some((r) => roles.has(r) !== saved.has(r)) || hiddenDirty;
   const archived = category.archived_at !== null;
+  const menuItems = canManage ? [
+    ...(!category.is_system && !renaming ? [{ label: t('administration:documentCategories.rename', 'Rename'), onClick: () => setRenaming(true), disabled: busy }] : []),
+    ...(!category.is_system ? [archived
+      ? { label: t('administration:documentCategories.restore', 'Restore'), onClick: onRestore, disabled: busy }
+      : { label: t('administration:documentCategories.archive', 'Archive'), onClick: onArchive, disabled: busy }] : []),
+    ...(!archived ? [
+      { label: t('administration:documentCategories.moveUp', 'Move up'), onClick: () => onMove(-1), disabled: busy || isFirst },
+      { label: t('administration:documentCategories.moveDown', 'Move down'), onClick: () => onMove(1), disabled: busy || isLast },
+    ] : []),
+  ] : [];
   return (
-    <Card className="space-y-3 p-4" data-testid={`document-category-${category.id}`}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div role="listitem" className={`space-y-3 border-b border-border px-4 py-3 last:border-b-0 xl:space-y-0 ${CATEGORY_GRID}`} data-testid={`document-category-${category.id}`}>
+      <div className="min-w-0 xl:pt-1.5">
         {renaming ? (
-          <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <TextField
               label={t('administration:documentCategories.name', 'Category name')}
+              hideLabel
               value={name}
               maxLength={120}
               onChange={setName}
               fullWidth
             />
-            <Button
-              variant="primary"
-              disabled={busy || name.trim() === '' || name.trim() === category.name}
-              onClick={() => { onRename(name); setRenaming(false); }}
-            >
-              {t('administration:documentCategories.saveName', 'Save name')}
-            </Button>
-            <Button variant="outline" onClick={() => { setName(category.name); setRenaming(false); }}>
-              {t('administration:documentCategories.cancel', 'Cancel')}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                disabled={busy || name.trim() === '' || name.trim() === category.name}
+                onClick={() => { onRename(name); setRenaming(false); }}
+              >
+                {t('administration:documentCategories.saveName', 'Save name')}
+              </Button>
+              <Button variant="outline" onClick={() => { setName(category.name); setRenaming(false); }}>
+                {t('administration:documentCategories.cancel', 'Cancel')}
+              </Button>
+            </div>
           </div>
         ) : (
-          <h3 className="min-w-0 flex-1 break-words text-base font-semibold">{display}</h3>
+          <h3 className="min-w-0 break-words text-control font-semibold">{display}</h3>
         )}
-        {category.is_system && <Badge>{t('administration:documentCategories.system', 'System')}</Badge>}
-        {archived && <Badge>{t('administration:documentCategories.archived', 'Archived')}</Badge>}
+        {(category.is_system || archived) && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {category.is_system && <Badge>{t('administration:documentCategories.system', 'System')}</Badge>}
+            {archived && <Badge>{t('administration:documentCategories.archived', 'Archived')}</Badge>}
+          </div>
+        )}
       </div>
 
       <RoleBoxes
+        cells
         idPrefix={`cat-${category.id}`}
         legend={t('administration:documentCategories.viewers', 'Who can see documents in this category')}
         roles={roles}
@@ -117,42 +154,30 @@ const CategoryCard: React.FC<{
         onToggle={(role, next) => setRoles((prev) => { const s = new Set(prev); if (next) s.add(role); else s.delete(role); return s; })}
       />
 
-      <div className="space-y-2">
-        <p className="text-sm font-semibold">{t('administration:documentCategories.hiddenFrom', 'Hidden from these job roles')}</p>
+      <div className="min-w-0 space-y-2">
+        <p className="text-control font-medium text-muted-foreground xl:sr-only">{t('administration:documentCategories.hiddenFrom', 'Hidden from these job roles')}</p>
         {hidden.length === 0
-          ? <p className="text-sm text-text-secondary">{t('administration:documentCategories.hiddenNone', 'No job role is hidden from it.')}</p>
-          : <ul className="flex flex-wrap gap-2">{hidden.map((key) => (
-            <li key={key}><Badge>{roleName(key)}</Badge>{canManage && (
+          ? (canManage ? null : <p className="text-control text-muted-foreground xl:pt-1.5">{t('administration:documentCategories.hiddenNoneShort', 'None')}</p>)
+          : <ul className="flex flex-wrap gap-1">{hidden.map((key) => (
+            <li key={key} className="inline-flex items-center"><Badge>{roleName(key)}</Badge>{canManage && (
               <Button variant="ghost" size="sm" aria-label={t('administration:documentCategories.unhide', 'Show it to {{role}} again', { role: roleName(key) })}
                 onClick={() => setHidden((h) => h.filter((k) => k !== key))}>{t('administration:documentCategories.unhideShort', 'Remove')}</Button>)}</li>))}</ul>}
         {canManage && (
-          <SelectField label={t('administration:documentCategories.hideFrom', 'Hide from a job role')} value="" options={hideOptions} compact
+          <SelectField label={t('administration:documentCategories.hideFrom', 'Hide from a job role')} hideLabel value="" options={hideOptions} compact
             onChange={(key) => { if (key) setHidden((h) => [...h, key]); }} />
         )}
       </div>
 
-      {canManage && (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)}>
-            {t('administration:documentCategories.saveRoles', 'Save who can see it')}
+      {canManage ? (
+        <div className="flex items-center gap-2 xl:justify-end">
+          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || busy} onClick={() => onSaveRoles(ROLE_ORDER.filter((r) => roles.has(r)), hidden)}
+            aria-label={t('administration:documentCategories.saveRoles', 'Save who can see it')}>
+            {t('administration:documentCategories.saveShort', 'Save')}
           </Button>
-          {!category.is_system && !renaming && (
-            <Button variant="outline" disabled={busy} onClick={() => setRenaming(true)}>
-              {t('administration:documentCategories.rename', 'Rename')}
-            </Button>
-          )}
-          {!category.is_system && (archived
-            ? <Button variant="outline" disabled={busy} onClick={onRestore}>{t('administration:documentCategories.restore', 'Restore')}</Button>
-            : <Button variant="outline" disabled={busy} onClick={onArchive}>{t('administration:documentCategories.archive', 'Archive')}</Button>)}
-          <Button variant="ghost" aria-label={t('administration:documentCategories.moveUp', 'Move up')} disabled={busy || isFirst} onClick={() => onMove(-1)}>
-            {t('administration:documentCategories.moveUp', 'Move up')}
-          </Button>
-          <Button variant="ghost" aria-label={t('administration:documentCategories.moveDown', 'Move down')} disabled={busy || isLast} onClick={() => onMove(1)}>
-            {t('administration:documentCategories.moveDown', 'Move down')}
-          </Button>
+          {menuItems.length > 0 && <RowMenu items={menuItems} ariaLabel={t('administration:documentCategories.moreActions', 'More actions for {{name}}', { name: display })} />}
         </div>
-      )}
-    </Card>
+      ) : <span className="hidden xl:block" />}
+    </div>
   );
 };
 
@@ -169,6 +194,7 @@ const NewCategory: React.FC<{ busy: boolean; onCreate: (name: string, roles: Cat
         maxLength={120}
         onChange={setName}
         placeholder={t('administration:documentCategories.namePlaceholder', 'e.g. Commercial approval')}
+        wrapperClassName="max-w-md"
         fullWidth
       />
       <RoleBoxes
@@ -227,10 +253,10 @@ const AdministrationDocumentCategories: React.FC = () => {
 
   return (
     <div data-testid="administration-panel-document-categories" className="min-w-0 space-y-4">
-      <p className="text-sm text-text-secondary">
+      <p className="max-w-prose text-control text-muted-foreground">
         {t('administration:documentCategories.intro', 'Every document is filed under one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.')}
       </p>
-      <p className="text-sm text-text-secondary">
+      <p className="max-w-prose text-control text-muted-foreground">
         {t('administration:documentCategories.m365Note', 'Files linked from Microsoft 365 keep Microsoft’s own permissions. These settings control only the register entry, preview and open link in PMO.')}
       </p>
       {isPending ? <ListState variant="loading" /> : null}
@@ -243,6 +269,8 @@ const AdministrationDocumentCategories: React.FC = () => {
               onCreate={(name, roles) => run(() => m.create.mutateAsync({ name, roles }), t('administration:documentCategories.created', 'Category created'))}
             />
           )}
+          <div role="list" aria-label={t('administration:documentCategories.listLabel', 'Document categories')} className="min-w-0 rounded-lg border border-border bg-card">
+          <CategoryHeader />
           {live.map((c, i) => (
             <CategoryCard
               key={c.id}
@@ -258,9 +286,12 @@ const AdministrationDocumentCategories: React.FC = () => {
               onMove={(delta) => move(c.id, delta)}
             />
           ))}
+          </div>
           {archived.length > 0 && (
             <>
-              <h3 className="text-sm font-semibold text-text-secondary">{t('administration:documentCategories.archivedHeading', 'Archived categories')}</h3>
+              <h3 className="pt-4 text-group font-semibold">{t('administration:documentCategories.archivedHeading', 'Archived categories')}</h3>
+              <div role="list" aria-label={t('administration:documentCategories.archivedHeading', 'Archived categories')} className="min-w-0 rounded-lg border border-border bg-card">
+              <CategoryHeader />
               {archived.map((c) => (
                 <CategoryCard
                   key={c.id}
@@ -276,6 +307,7 @@ const AdministrationDocumentCategories: React.FC = () => {
                   onMove={() => undefined}
                 />
               ))}
+              </div>
             </>
           )}
         </>

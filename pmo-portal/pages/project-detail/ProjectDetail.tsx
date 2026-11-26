@@ -142,7 +142,7 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
-  const primaryActionAllowed = area === 'overview' || area === 'contract';
+  const primaryActionAllowed = area === 'overview';
   const chaseOnly = area === 'contract';
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
@@ -241,14 +241,13 @@ const ProjectDetail: React.FC = () => {
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
-        facts={<ProjectHeaderFacts project={project} showBudgetFigures />}
+        facts={<><ProjectHeaderFacts project={project} showBudgetFigures />{!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}</>}
         menuContent={(
           <>
             <ProjectDetailRail project={project} detailsOnly />
             {pipelineGroup === 'onHand' && <SalesHistoryDisclosure projectId={project.id} className="px-1 pt-3" />}
           </>
         )} />
-      {!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}
       {isPipelineRecord && <div className="mb-6"><DealBand project={project} /></div>}
     </>
   );

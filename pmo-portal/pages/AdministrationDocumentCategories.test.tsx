@@ -85,9 +85,12 @@ describe('AC-DCV-020 Administration › Document categories', () => {
 
   it('a system category cannot be renamed or archived from the screen', async () => {
     wrap();
+    const user = userEvent.setup();
     const card = await screen.findByTestId('document-category-c-draw');
-    expect(within(card).queryByRole('button', { name: /^Rename$/ })).not.toBeInTheDocument();
-    expect(within(card).queryByRole('button', { name: /^Archive$/ })).not.toBeInTheDocument();
+    // #1126: row actions live in the row's menu.
+    await user.click(within(card).getByRole('button', { name: /More actions/ }));
+    expect(screen.queryByRole('menuitem', { name: /^Rename$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^Archive$/ })).not.toBeInTheDocument();
     expect(within(card).getByText('System')).toBeInTheDocument();
   });
 
@@ -96,7 +99,8 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     state.archive.mockResolvedValue(undefined);
     wrap();
     const card = await screen.findByTestId('document-category-c-inv');
-    await user.click(within(card).getByRole('button', { name: /^Archive$/ }));
+    await user.click(within(card).getByRole('button', { name: /More actions/ }));
+    await user.click(await screen.findByRole('menuitem', { name: /^Archive$/ }));
     expect(state.archive).not.toHaveBeenCalled();
     await user.click(within(await screen.findByRole('alertdialog').catch(() => screen.getByRole('dialog'))).getByRole('button', { name: /^Archive$/ }));
     await waitFor(() => expect(state.archive).toHaveBeenCalledWith('c-inv'));

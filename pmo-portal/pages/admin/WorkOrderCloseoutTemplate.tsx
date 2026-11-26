@@ -49,7 +49,7 @@ export default function WorkOrderCloseoutTemplate() {
 
   const title = t('admin.title', 'Close-out checklist');
   if (query.isError) {
-    return <section aria-label={title} className="max-w-2xl">
+    return <section aria-label={title} >
       <ListState variant="error" title={t('admin.loadError', "Couldn't load the close-out checklist")} retryLabel={t('admin.retry', 'Retry')} onRetry={() => void query.refetch()} />
     </section>;
   }
@@ -78,7 +78,7 @@ export default function WorkOrderCloseoutTemplate() {
     }
   };
 
-  return <section aria-label={title} className="max-w-2xl space-y-4">
+  return <section aria-label={title} className="space-y-4">
     <h3 className="text-group font-semibold">{title}</h3>
     <p className="text-sm text-muted-foreground">{t('admin.help', 'The items every work order must complete, in order, before it can be closed. Each item needs an attached document. Work orders already issued keep the list they were issued with.')}</p>
     {rows.length === 0 && <p className="text-sm text-muted-foreground">{t('admin.empty', 'No items. Work orders issued now close without a checklist.')}</p>}

@@ -1,5 +1,5 @@
 import { orgToday } from '@/src/lib/checklistDue';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { likeAny } from '@/src/lib/postgrestLike';
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
@@ -362,7 +362,7 @@ export async function fieldLoginLink(userId: string): Promise<'ok' | 'no_person'
   const { data: person, error } = await supabase.from('people').select('id').eq('profile_id', userId).limit(1).maybeSingle();
   if (error) throw toAppError(error);
   if (!person) return 'no_person';
-  const today = orgToday(new Date(), getActiveLocale().timezone);   // the organisation's day, not UTC's
+  const today = orgToday(new Date(), getActiveOrgTimezone());   // the organisation's day, not UTC's
   const [lead, member] = await Promise.all([
     supabase.from('crews').select('id', { count: 'exact', head: true }).eq('field_controller_id', userId).is('archived_at', null),
     supabase.from('crew_members').select('id', { count: 'exact', head: true }).eq('worker_id', person.id).lte('valid_from', today)

@@ -1,3 +1,4 @@
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -28,10 +29,7 @@ interface ClientError { row: number; column: string; message: string }
 interface LoadedFile { id: number; name: string; rows: StockMovementRow[]; clientErrors: ClientError[]; problem: string | null }
 interface Closing { key: string; location: string; item: string; qty: number; value: number | null; zeroCost: boolean }
 
-const todayIso = (): string => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const todayIso = orgDayNow;
 
 /** The last accepted row per location and item, in the order the database applied them (date, then file order). */
 function closingBalances(rows: readonly OpeningPreviewRow[]): Closing[] {
@@ -168,7 +166,7 @@ const StockOpeningHistory: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('stock:opening.done.title')} sub={t('stock:opening.done.sub', { count: loaded })}
           action={{ label: t('stock:opening.done.openLedger'), onClick: () => navigate('/stock/ledger') }} />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 pb-24 md:pb-0">
           <section aria-labelledby="osh-template" className="flex flex-col gap-3">
             <h2 id="osh-template" className="m-0 text-group font-semibold text-foreground">{t('stock:opening.template.title')}</h2>
             <DataTable

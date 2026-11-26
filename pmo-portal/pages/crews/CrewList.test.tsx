@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'crew' }), placeNew: vi.fn().mockResolvedValue(undefined), crews: [] as unknown[], role: 'Admin', users: [{ id: 'u1', full_name: 'Field user', email: null, status: 'active' }], members: [] as unknown[], roles: [] as unknown[], workers: [] as unknown[], setRole: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
@@ -54,6 +54,7 @@ describe('crew master', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       render(<ToastProvider><CrewList creating={false} onCloseCreate={vi.fn()} onCreate={vi.fn()} /></ToastProvider>);
       await user.click(screen.getByRole('row', { name: /C1 Crew one/ }));
