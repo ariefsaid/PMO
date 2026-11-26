@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { nullableArg } from './nullableArg';
+import { isHidePricesActive } from '@/src/lib/priceReadPath';
 import { AppError } from '@/src/lib/appError';
 import { formatDecimal, mulRound } from '@/src/lib/exactDecimal';
 import type { UserRole } from './adminUsers';
@@ -22,8 +23,9 @@ export interface PlanLine {
   categoryId: string | null;
   description: string | null;
   quantity: number;
-  rate: number;
-  vendorId: string;
+  /** null while prices are hidden from this person (#2788): unknown, never 0. */
+  rate: number | null;
+  vendorId: string | null;
   dateFrom: string;
   dateTo: string;
   procurementId: string | null;
@@ -44,8 +46,9 @@ export interface PlanLineInput {
   categoryId: string | null;
   description: string;
   quantity: number;
-  rate: number;
-  vendorId: string;
+  /** Left out for a saved line whose price is hidden from this person: the database keeps the stored one (#2788). */
+  rate?: number;
+  vendorId?: string;
   dateFrom: string;
   dateTo: string;
 }
@@ -107,30 +110,33 @@ export async function setPlanCategoryActive(id: string, active: boolean): Promis
 interface PlanDbRow {
   id: string; project_id: string; plan_month: string; status: string; created_by: string; reject_reason: string | null;
   equipment_plan_lines: Array<{ id: string; work_order_id: string | null; category_id: string | null; description: string | null; quantity: number;
-    rate: number; vendor_id: string; date_from: string; date_to: string; procurement_id: string | null }>;
+    rate: number | null; vendor_id: string | null; date_from: string; date_to: string; procurement_id: string | null }>;
 }
 const toPlan = (r: PlanDbRow): EquipmentPlan => ({
   id: r.id, projectId: r.project_id, planMonth: r.plan_month, status: r.status as PlanStatus, createdBy: r.created_by, rejectReason: r.reject_reason,
   lines: [...r.equipment_plan_lines].sort((a, b) => a.date_from.localeCompare(b.date_from) || a.id.localeCompare(b.id)).map((l) => ({
-    id: l.id, workOrderId: l.work_order_id, categoryId: l.category_id, description: l.description, quantity: Number(l.quantity), rate: Number(l.rate),
+    id: l.id, workOrderId: l.work_order_id, categoryId: l.category_id, description: l.description, quantity: Number(l.quantity), rate: l.rate === null ? null : Number(l.rate),
     vendorId: l.vendor_id, dateFrom: l.date_from, dateTo: l.date_to, procurementId: l.procurement_id,
   })),
 });
 
 /** The plans of one month (every project the caller may read), with their lines. */
 export async function listPlansForMonth(month: string): Promise<EquipmentPlan[]> {
-  const { data, error } = await supabase.from('equipment_plans')
-    .select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)')
-    .eq('plan_month', month).order('created_at', { ascending: true }).limit(200);
+  // While prices are hidden the lines come from the price-free view under the same name (#2788).
+  const plans = supabase.from('equipment_plans');
+  const query = isHidePricesActive()
+    ? plans.select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines:equipment_plan_lines_masked(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)')
+    : plans.select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)');
+  const { data, error } = await query.eq('plan_month', month).order('created_at', { ascending: true }).limit(200);
   if (error) fail(error);
-  return (data ?? []).map(toPlan);
+  return ((data ?? []) as PlanDbRow[]).map(toPlan);
 }
 
 export async function savePlan(input: { id: string; projectId: string; month: string; lines: PlanLineInput[] }): Promise<string> {
   const { data, error } = await supabase.rpc('save_equipment_plan', {
     p_id: input.id, p_project: input.projectId, p_month: input.month,
     p_lines: input.lines.map((l) => ({ id: l.id, work_order_id: l.workOrderId, category_id: l.categoryId, description: l.description, quantity: l.quantity,
-      rate: l.rate, vendor_id: l.vendorId, date_from: l.dateFrom, date_to: l.dateTo })),
+      ...(l.rate !== undefined ? { rate: l.rate } : {}), ...(l.vendorId !== undefined ? { vendor_id: l.vendorId } : {}), date_from: l.dateFrom, date_to: l.dateTo })),
   });
   if (error) fail(error);
   return (data as { id: string }).id;

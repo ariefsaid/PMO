@@ -44,13 +44,21 @@ function detailKeyFor(pathname: string, orgId: string | undefined, actorId: stri
     ['/expenses/', 'expense-claim'],
     ['/views/', 'user_view'],
     ['/stock/documents/', 'stock-document'],
+    ['/material-requests/', 'material-requests'],
     ['/imprest/', 'imprest-float'],
     ['/equipment/people/', 'people'],
   ];
   for (const [prefix, key] of routes) {
     if (!pathname.startsWith(prefix)) continue;
     const id = pathname.slice(prefix.length).split('/')[0];
-    if (id) return { prefix, key: key === 'procurement' ? [key, orgId, id, actorId, role] : [key, orgId, id], id };
+    if (id) {
+      const queryKey = key === 'procurement'
+        ? [key, orgId, id, actorId, role]
+        : key === 'material-requests'
+          ? [key, orgId, 'one', id]
+          : [key, orgId, id];
+      return { prefix, key: queryKey, id };
+    }
   }
   return undefined;
 }
@@ -123,6 +131,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
       equipmentAssets: equipmentAssets.data?.pages.flatMap((page) => page.rows).map((a) => ({ id: a.id, name: a.name })),
       userViews: one(userViews.data?.map((v) => ({ id: v.id, name: v.name })), at('/views/')),
       stockDocuments: one(undefined, at('/stock/documents/')) as RecordLists['stockDocuments'],
+      materialRequests: one(undefined, at('/material-requests/')) as RecordLists['materialRequests'],
       people: one(undefined, at('/equipment/people/')) as RecordLists['people'],
     };
     const listSettled =

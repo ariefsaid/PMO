@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { ToastProvider } from '@/src/components/ui';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { formatDay } from '@/src/lib/format';
 import { uncoveredLoanDays } from '@/src/lib/crewLoanCoverage';
 import crewsEn from '@/public/locales/en/crews.json';
@@ -124,6 +124,7 @@ describe('AC-LOAN-010 crew loans card', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       view();
       await user.click(screen.getAllByRole('button', { name: 'Lend worker' })[0]);

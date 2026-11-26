@@ -68,6 +68,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     ...state.followers.map((id) => ({ worker_id: id, display_name: names.get(id) ?? '—', standard_role_id: null })),
   ], [crew.members, state.followers, names]);
   // Active people placed in a crew that day, other than this crew's own members and anyone already listed or recorded today.
+  const showOvertime = rows.some((member) => state.people[member.worker_id]?.status === 'present');
   const addable = useMemo(() => {
     const placed = new Set((placements.data ?? [])
       .filter((m) => m.valid_from <= date && (m.valid_to === null || m.valid_to >= date)).map((m) => m.worker_id));
@@ -174,7 +175,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
             <th role="columnheader" scope="col" className="py-2 font-normal">{t('crews:person', 'Person')}</th>
             <th role="columnheader" scope="col" className="py-2 font-normal">{t('crews:statusHeader', 'Status')}</th>
             <th role="columnheader" scope="col" className="w-24 py-2 font-normal">{t('crews:hours', 'Hours')}</th>
-            <th role="columnheader" scope="col" className="w-24 py-2 font-normal">{t('crews:overtime', 'Overtime')}</th>
+            {showOvertime && <th role="columnheader" scope="col" className="w-24 py-2 font-normal">{t('crews:overtime', 'Overtime')}</th>}
             <th role="columnheader" scope="col" className="py-2 font-normal">{t('crews:reason', 'Reason')}</th>
           </tr></thead>
           <tbody role="rowgroup" className="max-sm:block">
@@ -215,24 +216,25 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                     {!rowMay && p.status === 'unmarked'
                       ? <span className="text-control text-muted-foreground">{t('crews:status.notYetPresent', 'Not yet present')}</span>
                       : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel
-                      className={phoneControl}
+                      className={`${phoneControl} min-w-40`}
                       value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as TickStatus })} disabled={locked}
                       options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />}
                   </td>
-                  <td role="cell" className="py-2 pr-2 max-sm:p-0">
+                  <td role="cell" className={`py-2 pr-2 max-sm:p-0 ${showOvertime ? '' : 'max-sm:col-span-2'}`}>
+                    <span className="sm:hidden text-sm text-muted-foreground">{t('crews:hours', 'Hours')}</span>
                     <TextField label={t('crews:hoursFor', 'Hours for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                       className={phoneControl}
                       value={p.hours} placeholder={state.defaultHours} onChange={(v) => setPerson(m.worker_id, { hours: v })}
                       disabled={locked || p.status !== 'present'} />
                   </td>
-                  <td role="cell" className="py-2 pr-2 max-sm:p-0">
+                  {showOvertime && <td role="cell" className="py-2 pr-2 max-sm:p-0">
                     {p.status === 'present' && (
                       <TextField label={t('crews:overtimeFor', 'Overtime for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                         className={phoneControl}
                         value={p.overtime} placeholder={t('crews:overtime', 'Overtime')} onChange={(v) => setPerson(m.worker_id, { overtime: v })}
                         disabled={locked} />
                     )}
-                  </td>
+                  </td>}
                   <td role="cell" className="py-2 max-sm:col-span-2 max-sm:p-0">
                     <TextField label={t('crews:reasonFor', 'Reason for {{name}}', { name: m.display_name })} hideLabel
                       className={phoneControl}
@@ -373,7 +375,7 @@ export const AttendanceTick: React.FC = () => {
       {canApprove && <AwaitingApproval />}
       <div className={`grid grid-cols-[minmax(0,1fr)_9.5rem] gap-4 ${crews.length > 1 ? 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)]' : 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'}`}>
         <WorkOrderPicker id="attendance-work-order" remember value={workOrderId} onChange={(v) => setFilters({ wo: v ?? '', crew: '' })} />
-        <DateField label={t('crews:date', 'Date')} value={date} max={today} onChange={(v) => setFilter('date', v === today ? '' : v)} />
+        <DateField className="max-sm:[&_input]:h-11" label={t('crews:date', 'Date')} value={date} max={today} onChange={(v) => setFilter('date', v === today ? '' : v)} />
         {crews.length > 1 && (
           <SelectField wrapperClassName="max-lg:col-span-2" label={t('crews:crew', 'Crew')} value={crew?.crew_id ?? ''} onChange={(v) => setFilter('crew', v)}
             options={crews.map((c) => ({ value: c.crew_id, label: `${c.crew_code} · ${c.crew_name}` }))} />

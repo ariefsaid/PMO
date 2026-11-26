@@ -10,7 +10,7 @@
 --
 -- Fixture namespace: 19710000-… (own org, so no seed row reaches the dashboard read).
 begin;
-select plan(6);
+select plan(8);
 
 \set ORG '19710000-0000-0000-0000-000000000001'
 \set EXE '19710000-0000-0000-0000-0000000000a1'
@@ -63,6 +63,13 @@ select is((select body from public.scheduled_report_content('overdue_tasks', :'O
             (now() at time zone 'UTC')::date - 30, (now() at time zone 'UTC')::date, 'en', 'Weekly')) like '%Leaf R: 1 overdue%',
   true, 'AC-TREE-104: the scheduled report counts the late leaf only, never the parent with all subtasks Done');
 
+-- AC-TREE-106
+insert into tasks (org_id, project_id, name, status, end_date, archived_at)
+values (:'ORG', :'R', 'archived late task', 'To Do', (now() at time zone 'UTC')::date - 5, now());
+select is((select split_part(body, E'\n\n', 2) from public.scheduled_report_content('overdue_tasks', :'ORG', :'EXE',
+            (now() at time zone 'UTC')::date - 30, (now() at time zone 'UTC')::date, 'en', 'Weekly')),
+  'Leaf R: 1 overdue', 'AC-TREE-106: the scheduled report excludes archived overdue tasks');
+
 set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', :'EXE', 'role', 'authenticated')::text, true);
 
@@ -78,6 +85,28 @@ select results_eq(format($$ select name, task_count, calculated_pct::numeric(6,2
   'AC-TREE-105: phases count the leaves (inline leaf test), never the parent');
 select is((select delivery_pct::numeric(6,2) from get_projects_delivery(array[:'R'::uuid])), 58.33::numeric(6,2),
   'AC-TREE-105: delivery % is the equal-weight mean of the two phases ((66.67 + 50) / 2)');
+
+-- AC-TREE-107: match the project phase reader for a late phase with one open grouped task.
+reset role;
+update public.project_milestones set target_date = current_date - 10 where id = :'RM';
+insert into public.task_groups (id, org_id, project_id, name, milestone_id)
+values ('19710000-0000-0000-0003-000000000001', :'ORG', :'R', 'Phase group', :'RM');
+update public.tasks
+set task_group_id = '19710000-0000-0000-0003-000000000001',
+    milestone_id = case when name = 'sub done 1' then null else milestone_id end
+where org_id = :'ORG' and name in ('sub done 1', 'sub done 2');
+update public.tasks set status = 'To Do' where org_id = :'ORG' and name = 'sub done 1';
+-- The remaining direct leaves are done. The open group-linked leaf makes the phase late.
+update public.tasks set status = 'Done' where org_id = :'ORG' and name = 'late leaf';
+-- Keep the project in the attention list with an unrelated overdue task.
+insert into public.tasks (org_id, project_id, name, status, end_date)
+values (:'ORG', :'R', 'Other overdue work', 'To Do', current_date - 10);
+set local role authenticated;
+select is(
+  (select array[(select effective_pct::int from get_project_milestones(:'R') where id = :'RM'),
+                (r ->> 'overdue_milestones')::int]
+   from json_array_elements(get_executive_dashboard() -> 'attention_projects') r where r ->> 'id' = :'R'),
+  array[67, 1], 'AC-TREE-107: an open group-linked leaf makes the same phase late on both screens');
 
 select * from finish();
 rollback;

@@ -62,14 +62,14 @@ export const WaitsOnYou: React.FC<{
   band?: boolean;
   /** Rows the loading and failed states hold, so the panel keeps its filled height (default 3). */
   skeletonRows?: number;
-}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain = false, count, linkCount, band = false, skeletonRows = 3 }) => {
+}> = ({ rows, pending = false, error = false, onRetry, title, emptyLabel, testId = 'waits-on-you', lead, actions, className, plain: _plain = false, count, linkCount, band = false, skeletonRows = 3 }) => {
   const badge = count && count !== linkCount ? count : undefined;
   const { t } = useTranslation('dashboard');
   const held = band ? 1 : skeletonRows;
   // A band is one row wide on a desktop; on a phone its items stack, so the held state keeps that stacked height.
   const bandHold = band ? 'max-[899px]:min-h-[140px]' : undefined;
   return (
-    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn('flex flex-col', !plain && 'bg-waiting-surface', className)}>
+    <Card data-testid={testId} aria-label={title ?? t('home.waits', 'Waits on you')} className={cn('flex flex-col', 'bg-waiting-surface', className)}>
       <CardHead level={2} actions={actions}>
         {/* Title and badge never break inside; on a narrow card the badge drops whole under the title. */}
         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -269,10 +269,10 @@ export const ProjectRows: React.FC<{
   ] as const;
   const cols = [
     'minmax(0,1.6fr)',
-    ...(showStructuredNeeds ? ['repeat(4,minmax(2.7rem,0.35fr))'] : showReason ? ['minmax(0,1.3fr)'] : []),
+    ...(showStructuredNeeds ? ['repeat(4,minmax(2.7rem,0.35fr))'] : showReason ? ['minmax(14rem,1.8fr)'] : []),
     showDelivery ? '5rem' : null,
     showBudget ? '7.5rem' : null,
-    '14rem',
+    showStructuredNeeds ? '14rem' : 'minmax(7rem,1fr)',
   ].filter(Boolean).join(' ');
   const sorted = [...rows.filter((row) => row.offTrack || row.reason), ...rows.filter((row) => !row.offTrack && !row.reason)];
   const firstExceptionIndex = sorted.findIndex((row) => row.offTrack);

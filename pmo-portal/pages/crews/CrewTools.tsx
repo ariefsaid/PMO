@@ -15,7 +15,7 @@ import { crewToolRepository } from '@/src/lib/repositories/crewTools';
 import { canReport, summariseLine, type ToolReport, type ToolReportKind, type ToolResolution } from '@/src/lib/crewToolQuantity';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { formatDay } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { useCrewToolErrorText } from './crewErrors';
 
 const asReport = (r: ToolReportRow): ToolReport => ({ id: r.id, kind: r.kind, qty: r.qty, status: r.status, due_on: r.due_on });
@@ -304,7 +304,7 @@ export const CrewTools: React.FC = () => {
   const canConfigure = may('configure', 'crewTool', { record: { viewOnly } });
   const canReportHere = may('report', 'crewTool', { currentUserId: currentUser?.id, record: { field_controller_id: crew?.field_controller_id ?? null, viewOnly, keepsCrewSite } });
   const canCloseReport = (r: ToolReportRow) => may('close', 'crewTool', { currentUserId: currentUser?.id, record: { assignee_id: r.assignee_id, viewOnly } });
-  const today = localToday();
+  const today = orgDayNow();
   const nameOf = (id: string | null) => (id ? users.data?.find((u) => u.id === id)?.full_name ?? '—' : '—');
   const lineRows = useMemo(() => lines.data ?? [], [lines.data]);
   const reportRows = useMemo(() => reports.data ?? [], [reports.data]);

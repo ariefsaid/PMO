@@ -135,7 +135,6 @@ export default function OrgWithholdingAccount() {
           <dl className="space-y-1 text-control">
             {fields.map(({ key, label }, index) => <div key={key}><dt className="inline text-muted-foreground">{label}: </dt><dd className="inline">{readOnlyValues[index] ?? notConfigured}</dd></div>)}
           </dl>
-          <p className="mt-2 text-control text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
         </>}
     </div>
   </section>;

@@ -18,7 +18,7 @@ import { AuthContext } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { SafetySection, SafetyTodayLink } from './SafetySection';
 import { formatCalendarDayInTimeZone } from '@/src/lib/format';
-import { getActiveLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveLocale, resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 const auth = { currentUser: { id: 'u1', org_id: 'o1' } } as never;
 const renderIt = () => render(
@@ -32,6 +32,7 @@ describe('#1126 the day is the organisation\'s, not the browser\'s', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     h.enabled = true;
     try {
       renderIt();

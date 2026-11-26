@@ -237,11 +237,10 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean; onClose: ()
     } catch (err) { setProblem(writeError(err)); }
   };
   const columns: Column<CrewMemberRow>[] = [
-    { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (m) => nameOf(m.worker_id) },
-    { key: 'role', header: t('crews:roleName', 'Crew role'), cell: (m) => roleOf(m.standard_role_id)
+    { key: 'person', size: 160, header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (m) => nameOf(m.worker_id) },
+    { key: 'role', size: 120, header: t('crews:roleName', 'Crew role'), cell: (m) => roleOf(m.standard_role_id)
       ?? <span className="text-warning-foreground">{t('crews:roleNotSet', 'Crew role not set')}</span> },
-    { key: 'from', header: t('crews:from', 'From'), cell: (m) => formatDay(m.valid_from) },
-    { key: 'to', header: t('crews:to', 'To'), cell: (m) => (m.valid_to ? formatDay(m.valid_to) : t('crews:open', 'Open')) },
+    { key: 'dates', size: 150, header: `${t('crews:from', 'From')} – ${t('crews:to', 'To')}`, cell: (m) => <span className="whitespace-normal">{formatDay(m.valid_from)} – {m.valid_to ? formatDay(m.valid_to) : t('crews:open', 'Open')}</span> },
   ];
   return (
     <Drawer open width="lg" onClose={onClose} nestedOpen={placing || settingRole !== null || ending !== null}

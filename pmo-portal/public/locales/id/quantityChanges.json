@@ -128,6 +128,8 @@
     "version": "Versi {{n}}"
   },
   "list": {
+    "date": "Tanggal",
+    "author": "Pembuat",
     "allProjects": "Semua proyek",
     "allStatuses": "Semua status",
     "empty": "Belum ada permintaan perubahan kuantitas",
@@ -144,6 +146,10 @@
   },
   "newRequest": "Permintaan baru",
   "over": {
+    "item": "Item kontrak",
+    "measured": "Progres / perkiraan",
+    "excess": "Melebihi",
+    "actions": "Tindakan",
     "contract": "Kontrak",
     "error": "Baris kontrak tidak dapat dimuat",
     "flag": "Melebihi kontrak",

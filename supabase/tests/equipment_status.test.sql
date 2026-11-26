@@ -164,7 +164,7 @@ select is((select count(*)::int from equipment_downtime_escalations('25260000-00
 
 select is(has_table_privilege('authenticated', 'public.equipment_status_days', 'INSERT'), false, 'AC-EAV-012 no direct status insert grant');
 select is(has_table_privilege('authenticated', 'public.equipment_rental_terms', 'UPDATE'), false, 'AC-EAV-012 no direct rental update grant');
-select is((select count(*)::int from pg_policies where schemaname = 'public' and tablename in ('equipment_status_days','equipment_status_history','equipment_rental_terms','equipment_downtime_proofs') and cmd = 'SELECT'), 4, 'AC-EAV-012 each readable table has an RLS policy');
+select is((select count(*)::int from pg_policies where schemaname = 'public' and tablename in ('equipment_status_days','equipment_status_history','equipment_rental_terms','equipment_downtime_proofs') and cmd = 'SELECT' and permissive = 'PERMISSIVE'), 4, 'AC-EAV-012 each readable table has an RLS policy');
 
 insert into equipment_assets (id, org_id, code, name, default_unit, archived_at) values
   ('25260000-0000-0000-0000-0000000000d8', '25260000-0000-0000-0000-00000000000a', 'EAV-8', 'Zoned', 'hours', '2026-09-01 20:00:00+00');

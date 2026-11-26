@@ -25,5 +25,5 @@ const Inner: React.FC<Props> = ({ workOrderId, woLabel, frozen, costGroups }) =>
   const canView = may('view', 'workOrderRevenuePlan');
   const settings = useRevenuePlanSettings();
   if (!canView || settings.data?.enabled !== true) return null;
-  return <DailyTargetView workOrderId={workOrderId} costGroups={costGroups} plan={may('manage', 'workOrderRevenuePlan') && !frozen ? { woLabel } : null} />;
+  return <DailyTargetView workOrderId={workOrderId} costGroups={costGroups} monthOnly plan={may('manage', 'workOrderRevenuePlan') && !frozen ? { woLabel } : null} />;
 };

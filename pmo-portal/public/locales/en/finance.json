@@ -1158,6 +1158,7 @@
     "empty": "No snapshot available yet"
   },
   "billingBoard": {
+    "claimSteps": "Claim steps",
     "title": "Billing board",
     "filterProject": "Project",
     "allProjects": "All projects",

@@ -17,7 +17,7 @@ import {
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { lineValueCents, validateRequestedQuantity, versionValueChanges } from '@/src/lib/quantityChangeRules';
 import { formatExactCents, sumDecimal } from '@/src/lib/exactDecimal';
 import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
@@ -375,12 +375,12 @@ const FilesSection: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
 
 const SentDialog: React.FC<{ onClose: () => void; onConfirm: (date: string, ref: string) => void; error: string | null; loading: boolean }> = ({ onClose, onConfirm, error, loading }) => {
   const { t } = useTranslation('quantityChanges');
-  const [date, setDate] = useState(localToday());
+  const [date, setDate] = useState(orgDayNow());
   const [ref, setRef] = useState('');
   return (
     <EntityFormModal open title={t('dialog.sentTitle', 'Record sent to the client')} submitLabel={t('actions.confirm', 'Confirm')} onSubmit={(e) => { e.preventDefault(); onConfirm(date, ref.trim()); }}
       onClose={onClose} submitDisabled={!date || ref.trim() === ''} loading={loading} submitError={error ? { headline: error } : null}>
-      <DateField label={t('client.sentDate', 'Date sent')} required value={date} onChange={setDate} max={localToday()} />
+      <DateField label={t('client.sentDate', 'Date sent')} required value={date} onChange={setDate} max={orgDayNow()} />
       <TextField label={t('client.referenceLabel', 'Client reference')} required value={ref} onChange={setRef} />
     </EntityFormModal>
   );
@@ -388,12 +388,12 @@ const SentDialog: React.FC<{ onClose: () => void; onConfirm: (date: string, ref:
 
 const DecisionDialog: React.FC<{ accepted: boolean; min?: string; onClose: () => void; onConfirm: (date: string, note: string | null) => void; error: string | null; loading: boolean }> = ({ accepted, min, onClose, onConfirm, error, loading }) => {
   const { t } = useTranslation('quantityChanges');
-  const [date, setDate] = useState(localToday());
+  const [date, setDate] = useState(orgDayNow());
   const [note, setNote] = useState('');
   return (
     <EntityFormModal open title={accepted ? t('actions.accepted', 'Client accepted') : t('actions.declined', 'Client declined')} submitLabel={t('actions.confirm', 'Confirm')}
       onSubmit={(e) => { e.preventDefault(); onConfirm(date, note.trim() || null); }} onClose={onClose} submitDisabled={!date} loading={loading} submitError={error ? { headline: error } : null}>
-      <DateField label={t('client.decisionDate', 'Decision date')} required value={date} onChange={setDate} min={min} max={localToday()} />
+      <DateField label={t('client.decisionDate', 'Decision date')} required value={date} onChange={setDate} min={min} max={orgDayNow()} />
       <TextArea label={t('client.decisionNote', 'Note')} value={note} maxLength={500} onChange={setNote} />
     </EntityFormModal>
   );
