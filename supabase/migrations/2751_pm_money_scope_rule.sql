@@ -99,6 +99,7 @@ grant execute on function public.stock_issue_cost_lines_scoped(uuid) to authenti
 create function public.stock_issue_cost_lines(p_project uuid) returns TABLE(record_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date, reference text, currency text, amount numeric)
   language plpgsql stable set search_path = public, pg_temp as $$
 begin
+  perform public.assert_not_light();
   if public.money_read_is_internal() then
     return query select * from public.stock_issue_cost_lines_core(p_project);
   else
@@ -122,6 +123,7 @@ grant execute on function public.equipment_charge_project_actuals_scoped(uuid, t
 create function public.equipment_charge_project_actuals(p_project_id uuid, p_fiscal_year text DEFAULT NULL::text) returns TABLE(category budget_category, n bigint, amount numeric, as_of timestamp with time zone)
   language plpgsql stable set search_path = public, pg_temp as $$
 begin
+  perform public.assert_not_light();
   if public.money_read_is_internal() then
     return query select * from public.equipment_charge_project_actuals_core(p_project_id, p_fiscal_year);
   else
@@ -145,6 +147,7 @@ grant execute on function public.equipment_charge_project_actuals_between_scoped
 create function public.equipment_charge_project_actuals_between(p_project_id uuid, p_from date, p_to date) returns TABLE(category budget_category, n bigint, amount numeric, as_of timestamp with time zone)
   language plpgsql stable set search_path = public, pg_temp as $$
 begin
+  perform public.assert_not_light();
   if public.money_read_is_internal() then
     return query select * from public.equipment_charge_project_actuals_between_core(p_project_id, p_from, p_to);
   else
@@ -168,6 +171,7 @@ grant execute on function public.cost_attribution_project_actuals_scoped(uuid, t
 create function public.cost_attribution_project_actuals(p_project_id uuid, p_fiscal_year text DEFAULT NULL::text) returns TABLE(category budget_category, n bigint, amount numeric, source_sum numeric, as_of timestamp with time zone)
   language plpgsql stable set search_path = public, pg_temp as $$
 begin
+  perform public.assert_not_light();
   if public.money_read_is_internal() then
     return query select * from public.cost_attribution_project_actuals_core(p_project_id, p_fiscal_year);
   else
@@ -191,6 +195,7 @@ grant execute on function public.budget_attributed_year_sums_scoped(uuid, text[]
 create function public.budget_attributed_year_sums(p_project_id uuid, p_fiscal_years text[]) returns TABLE(fiscal_year text, category budget_category, source_sum numeric, as_of timestamp with time zone)
   language plpgsql stable set search_path = public, pg_temp as $$
 begin
+  perform public.assert_not_light();
   if public.money_read_is_internal() then
     return query select * from public.budget_attributed_year_sums_core(p_project_id, p_fiscal_years);
   else
