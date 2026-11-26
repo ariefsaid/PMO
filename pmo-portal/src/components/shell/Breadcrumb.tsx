@@ -40,11 +40,11 @@ interface BreadcrumbProps {
  * Wayfinding breadcrumb: muted links → foreground hover, bold current label.
  *
  * C3 mobile navigation (AC-IXD-MOBILE-W4-C3 C3-10):
- *   At ≤921px (the shell's rail-collapse breakpoint), show ONLY the current crumb
+ *   At ≤1101px (the shell's rail-collapse breakpoint), show ONLY the current crumb
  *   shown in full. Parent crumb links are hidden (the in-page BackBar
  *   already carries the parent escape on detail pages; the drawer carries top-level
  *   nav). This keeps the top bar tidy at 375px without sacrificing wayfinding.
- *   Desktop (>921px) is unchanged: all parts show.
+ *   Desktop (>1101px) is unchanged: all parts show.
  */
 /** True while the page body carries its own visible h1 (the phone top bar then stays empty). */
 const usePageHasTitle = (): boolean => {
@@ -110,13 +110,13 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               // C3: the separator is hidden at mobile alongside its parent link.
               <span
                 aria-hidden
-                className="shrink-0 opacity-50 max-[920px]:hidden [&_svg]:size-3.5"
+                className="shrink-0 opacity-50 max-[1100px]:hidden [&_svg]:size-3.5"
               >
                 <Icon name="chev" />
               </span>
             )}
             {!last && (part.onClick || part.href) && !canOpen(part.href) ? (
-              <span title={part.title ?? label} className={cn(parentTruncation, 'text-muted-foreground max-[920px]:hidden')}>
+              <span title={part.title ?? label} className={cn(parentTruncation, 'text-muted-foreground max-[1100px]:hidden')}>
                 {label}
               </span>
             ) : last || (!part.onClick && !part.href) ? (
@@ -125,15 +125,15 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 title={part.title ?? (typeof label === 'string' ? label : undefined)}
                 className={cn(
                   'min-w-0 truncate font-semibold text-foreground',
-                  visibleParts.length > 2 && 'min-[921px]:shrink-0 min-[921px]:max-w-[18rem]',
-                  pageHasTitle && 'max-[920px]:hidden',
+                  visibleParts.length > 2 && 'min-[1101px]:shrink-0 min-[1101px]:max-w-[18rem]',
+                  pageHasTitle && 'max-[1100px]:hidden',
                 )}
               >
                 {label}
               </span>
             ) : (
               // C3: parent crumb links hide at exactly the breakpoint where the phoneOnly
-              // BackBar shows (max-[920px]), so no width has neither way back (#735).
+              // BackBar shows (max-[1100px]), so no width has neither way back (#735).
               part.href ? (
                 <a
                   href={part.href}
@@ -155,7 +155,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   }}
                   aria-label={part.ariaLabel}
                   title={part.title ?? label}
-                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[920px]:hidden')}
+                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[1100px]:hidden')}
                 >
                   {label}
                 </a>
@@ -165,7 +165,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   onClick={part.onClick}
                   aria-label={part.ariaLabel}
                   title={part.title ?? label}
-                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[920px]:hidden')}
+                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[1100px]:hidden')}
                 >
                   {label}
                 </button>

@@ -21,24 +21,8 @@ import { LeadSlot, PrimaryCell } from './DataTableShared';
 import type { GroupedRowEntry } from './DataTableShared';
 import { columnAlignmentClass, numericColumnClass } from './dataTableColumns';
 
-/** Sticky row-actions column (⋯). Chromium sticky-table-cell paint quirks, pinned empirically
- *  (2026-10-08 fix round, AC-TBL-STICKY-001):
- *  1. In a `border-collapse` table the cell's collapsed `border-l` does NOT travel with a sticky
- *     cell — at the stuck position no border paints at all. The divider is an INSET box-shadow
- *     hairline, which paints with the cell's own layer in light and dark.
- *  2. A cell stuck flush (`right-0`) paints its background ~1px short of its layout edge, leaving
- *     a seam through which scrolled text shows as a glyph sliver PAST the ⋯ column. Sticking 1px
- *     PAST the scrollport edge (`-right-px`) lets the scroller's own clip cut the excess and
- *     closes the seam.
- *  3. An OUTSET box-shadow on a sticky table cell is not painted at all (clipped to the cell's
- *     box), so the left-cast separation shadow is a positioned gradient strip (ROW_MENU_SEAM_CLASS)
- *     rendered inside the cell — see DESIGN.md §6 Row actions.
- *  4. While every column fits (the scroller carries no `data-dt-overflowing`), nothing runs under the
- *     cell, so it paints NO surface and NO divider of its own: it takes the row's surface (an embedded
- *     table on the grey page stays grey) and the column reads as part of the row. The opaque surface and
- *     the hairline turn on only while content is hidden under it. */
-const ROW_MENU_STICKY_CLASS =
-  'sticky -right-px [[data-dt-overflowing]_&]:shadow-[inset_1px_0_0_hsl(var(--border))]';
+/** Actions scroll with their row so they never cover a currency figure. */
+const ROW_MENU_STICKY_CLASS = "relative";
 /** The sticky actions cell's opaque surface, only while content scrolls under it (see 4 above). */
 const ROW_MENU_COVER = '[[data-dt-overflowing]_&]:bg-card';
 /** Left-cast separation gradient for the sticky actions column: from the `foreground` token
