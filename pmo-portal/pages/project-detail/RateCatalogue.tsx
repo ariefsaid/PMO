@@ -37,17 +37,54 @@ export default function RateCatalogue({ projectId, currency, canWrite, onImportO
   };
   if (state === 'loading') return <p role="status">{t('rateCatalogue.loading', 'Loading rates…')}</p>;
   if (state === 'error') return <div role="alert"><p>{t('rateCatalogue.loadError', 'Could not load rates')}</p><Button variant="outline" onClick={() => void load()}>{t('rateCatalogue.retry', 'Retry')}</Button></div>;
-  return <section className="space-y-4" aria-label={t('rateCatalogue.title', 'Rate catalogue')}>
-    {canWrite && <div className="flex flex-wrap items-end gap-2">
-      <TextField id="catalogue-variant" label={t('rateCatalogue.newVariant', 'New location')} value={name} onChange={setName} />
-      <Button variant="outline" disabled={saving || !name.trim()} onClick={() => void write(async () => { await repositories.rateCatalogue.addVariants(projectId, [name.trim()]); setName(''); })}>{t('rateCatalogue.addVariant', 'Add location')}</Button>
-      <SelectField id="catalogue-default" label={t('rateCatalogue.defaultVariant', 'Default location')} value={variants.find((v) => v.is_default)?.id ?? ''} placeholder={t('rateCatalogue.none', 'None')} options={variants.map((v) => ({ value: v.id, label: v.name }))} onChange={(v) => void write(() => repositories.rateCatalogue.setDefaultVariant(projectId, v || null))} disabled={saving} />
-      <Button variant="primary" onClick={() => { setImportOpen(true); onImportOpenChange?.(true); }} disabled={variants.length === 0}>{t('rateCatalogue.import', 'Import')}</Button>
+  const title = t('rateCatalogue.title', 'Rate catalogue');
+  const cell = 'px-4 py-3 align-baseline';
+  return <section className="min-w-0 space-y-4" aria-label={title}>
+    {items.length === 0 ? (
+      <p className="text-control text-muted-foreground">
+        {variants.length === 0 && canWrite ? t('rateCatalogue.noLocations', 'No locations yet. Add a location.') : t('rateCatalogue.empty', 'No catalogue items')}
+      </p>
+    ) : (
+      <div role="group" tabIndex={0} aria-label={title} className="relative overflow-x-auto rounded-lg border border-border focus-visible:outline-offset-[-2px]">
+        <table className="w-full text-control">
+          <thead className="border-b border-border text-left text-muted-foreground">
+            <tr>
+              <th scope="col" className={`${cell} font-normal`}>{t('rateCatalogue.item', 'Item')}</th>
+              <th scope="col" className={`${cell} font-normal`}>{t('rateCatalogue.location', 'Location')}</th>
+              <th scope="col" className={`${cell} text-right font-normal`}>{t('rateCatalogue.rate', 'Rate')}</th>
+              <th scope="col" className={`${cell} font-normal`}>{t('rateCatalogue.effective', 'Effective from')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {items.flatMap((item) => {
+              const itemRates = ratesByItem.get(item.id) ?? [];
+              return (itemRates.length ? itemRates : [null]).map((rate) => (
+                <tr key={rate ? `${item.id}-${rate.variant_id}-${rate.effective_from}` : item.id}>
+                  <th scope="row" className={`${cell} text-left font-normal`}>
+                    <span className="block text-muted-foreground">{item.item_code}</span>
+                    <span className="break-words">{item.description}</span>
+                  </th>
+                  <td className={cell}>{rate ? variantsById.get(rate.variant_id) : '—'}</td>
+                  <td className={`${cell} whitespace-nowrap text-right tabular-nums`}>{rate ? formatCurrency(rate.rate, currency, { precision: 'minor' }) : '—'}</td>
+                  <td className={`${cell} whitespace-nowrap`}>{rate ? formatDayYear(rate.effective_from) : '—'}</td>
+                </tr>
+              ));
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+    {canWrite && <div className="space-y-4 border-t border-border pt-4">
+      <div className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <TextField id="catalogue-variant" label={t('rateCatalogue.newVariant', 'New location')} value={name} onChange={setName} />
+        <Button variant="outline" disabled={saving || !name.trim()} onClick={() => void write(async () => { await repositories.rateCatalogue.addVariants(projectId, [name.trim()]); setName(''); })}>{t('rateCatalogue.addVariant', 'Add location')}</Button>
+      </div>
+      <div className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <SelectField id="catalogue-default" label={t('rateCatalogue.defaultVariant', 'Default location')} value={variants.find((v) => v.is_default)?.id ?? ''} placeholder={t('rateCatalogue.none', 'None')} options={variants.map((v) => ({ value: v.id, label: v.name }))} onChange={(v) => void write(() => repositories.rateCatalogue.setDefaultVariant(projectId, v || null))} disabled={saving} />
+        <Button variant="primary" onClick={() => { setImportOpen(true); onImportOpenChange?.(true); }} disabled={variants.length === 0}>{t('rateCatalogue.import', 'Import')}</Button>
+      </div>
     </div>}
     {error && <p role="alert">{t('rateCatalogue.saveError', 'Could not save. Try again.')}</p>}
-    {items.length === 0 ? <p>{variants.length === 0 && canWrite ? t('rateCatalogue.noLocations', 'No locations yet. Add a location.') : t('rateCatalogue.empty', 'No catalogue items')}</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left"><th scope="col">{t('rateCatalogue.item', 'Item')}</th><th scope="col">{t('rateCatalogue.location', 'Location')}</th><th scope="col" className="text-right pr-4">{t('rateCatalogue.rate', 'Rate')}</th><th scope="col">{t('rateCatalogue.effective', 'Effective from')}</th></tr></thead><tbody>
-      {items.flatMap((item) => { const itemRates = ratesByItem.get(item.id) ?? []; return itemRates.length ? itemRates.map((rate) => <tr className="border-b border-border" key={`${item.id}-${rate.variant_id}-${rate.effective_from}`}><td>{item.item_code} · {item.description}</td><td>{variantsById.get(rate.variant_id)}</td><td className="text-right tabular pr-4">{formatCurrency(rate.rate, currency, { precision: 'minor' })}</td><td className="whitespace-nowrap">{formatDayYear(rate.effective_from)}</td></tr>) : [<tr key={item.id}><td>{item.item_code} · {item.description}</td><td>—</td><td>—</td><td>—</td></tr>]; })}
-    </tbody></table></div>}
     {importOpen && <ImportWizard descriptor={makeRateCatalogueImportDescriptor(projectId, variants.map((v) => v.name), t)} onClose={(didImport) => { setImportOpen(false); onImportOpenChange?.(false); if (didImport) void load(); }} />}
   </section>;
 }
