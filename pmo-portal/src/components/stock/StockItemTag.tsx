@@ -7,7 +7,7 @@ import React from 'react';
  */
 export const StockItemTag: React.FC<{ name?: string | null }> = ({ name }) =>
   name ? (
-    <span data-testid="stock-item-tag" className="mt-0.5 inline-block rounded border border-border px-1.5 py-0.5 text-sm font-medium">
+    <span data-testid="stock-item-tag" className="mt-0.5 inline-block rounded border border-border px-2 py-0.5 text-sm font-medium">
       {name}
     </span>
   ) : null;
