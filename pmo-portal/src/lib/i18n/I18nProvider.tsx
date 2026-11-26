@@ -5,6 +5,7 @@ import { setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLo
 import { useResolvedLocale, useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import { useApplyOrgTerminology } from '@/src/hooks/useOrgTerminology';
 import { useApplyOrgRoleNames } from '@/src/hooks/useOrgRoleNames';
+import { useApplyOrgStageNames } from '@/src/hooks/useOrgStageNames';
 
 /**
  * Mounts i18next and points BOTH string translation and `src/lib/format.ts` at the resolved locale.
@@ -29,6 +30,8 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useApplyOrgTerminology();
   // #2712: the org's own role names, read by the role picker, directory and confirmations.
   useApplyOrgRoleNames();
+  // #2906: the org's own stage names.
+  useApplyOrgStageNames(resolved.locale);
   // A re-render trigger, not a gate. Its only job is to re-render the subtree once the first
   // catalogue has landed, so keys that rendered as their English source string during boot are
   // replaced by their catalogue entry. Deliberately NOT used to withhold children: blanking the
