@@ -153,6 +153,7 @@ const OpeningBalances: React.FC = () => {
   return (
     <div className="min-w-0">
       {header}
+      <p className="mb-3 text-control text-muted-foreground sm:hidden">{t('openingBalances.scrollHint', 'Scroll sideways to see every column.')}</p>
       <div className="space-y-[var(--space-panel-gap)]">
         <Card role="region" aria-labelledby="ob-totals">
           <CardHead id="ob-totals">{t('openingBalances.totalsTitle', 'Totals to check against your source file')}</CardHead>
