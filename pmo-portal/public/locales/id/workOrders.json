@@ -378,7 +378,8 @@
       "progress": "Progres",
       "cost": "Biaya langsung",
       "billed": "Ditagih",
-      "end": "Selesai"
+      "end": "Selesai",
+      "costBasis": "Anggaran / kelebihan"
     },
     "costOver": "Melebihi anggaran {{amount}}",
     "costBudget": "Anggaran {{amount}}",

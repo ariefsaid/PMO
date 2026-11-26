@@ -19,6 +19,7 @@ import { WorkOrderProjectPanels } from './WorkOrderProjectPanels';
 import { NewWorkOrderModal } from './NewWorkOrderModal';
 import { useWorkOrderProjectChoices } from '@/src/hooks/useWorkOrderProjectChoices';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { dropBlankColumns } from '@/src/components/ui/dataTableColumns';
 
 const STATUSES: WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
 const FILTER_KEYS = ['q', 'status', 'project', 'discipline'] as const;
@@ -29,14 +30,6 @@ const FILTER_KEYS = ['q', 'status', 'project', 'discipline'] as const;
  * work order. Money appears only where the work-order page shows it to the same role (invoice view right for billing,
  * plan view right for cost); the reads are a fixed set, never one per row.
  */
-/** A table figure with its one muted second line, both ending on the column's right edge. */
-const TwoLine: React.FC<{ value: React.ReactNode; sub: React.ReactNode; testId: string }> = ({ value, sub, testId }) => (
-  <span className="block text-right" data-testid={testId}>
-    <span className="block tabular-nums">{value}</span>
-    {sub && <span className="block whitespace-nowrap tabular-nums text-muted-foreground">{sub}</span>}
-  </span>
-);
-
 /** Direct cost above its planned budget: the work-order page's own variance rule. */
 const isOver = (r: DashboardRow) => Boolean(r.cost) && planVariance(r.cost!.plan, r.cost!.direct).state === 'over';
 
@@ -113,22 +106,26 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         </span>
       ),
       exportValue: (r) => (r.progress === null ? '' : Math.round(r.progress)), exportType: 'number' },
-    ...(costState === 'shown' ? [{ key: 'cost', header: t('all.col.cost', 'Direct cost'), kind: 'money' as const, size: 208, keepWhenBlank: true,
+    ...(costState === 'shown' ? [{ key: 'cost', header: t('all.col.cost', 'Direct cost'), kind: 'money' as const, size: 176, keepWhenBlank: true,
+      cell: (r: DashboardRow) => !r.cost || r.cost.direct === null ? pendingMark : <span data-testid={`wo-cost-${r.id}`}>{formatTableMoney(r.cost.direct, r.cost.currency)}</span>,
+      exportValue: (r: DashboardRow) => r.cost?.direct ?? '', exportType: 'number' as const },
+    { key: 'costBasis', header: t('all.col.costBasis', 'Budget / overrun'), kind: 'money' as const, size: 208,
       cell: (r: DashboardRow) => {
         if (!r.cost || r.cost.direct === null) return pendingMark;
         const v = planVariance(r.cost.plan, r.cost.direct);
-        return (
-          <TwoLine testId={`wo-cost-${r.id}`} value={formatTableMoney(r.cost.direct, r.cost.currency)}
-            sub={v.state === 'over'
-              ? <span className="text-destructive-text">{t('all.costOver', 'Over budget by {{amount}}', { amount: formatTableMoney(v.by, r.cost.currency) })}</span>
-              : r.cost.plan !== null ? t('all.costBudget', 'Budget {{amount}}', { amount: formatTableMoney(r.cost.plan, r.cost.currency) }) : null} />
-        );
+        return v.state === 'over'
+          ? <span className="text-destructive-text">{t('all.costOver', 'Over budget by {{amount}}', { amount: formatTableMoney(v.by, r.cost.currency) })}</span>
+          : r.cost.plan !== null ? t('all.costBudget', 'Budget {{amount}}', { amount: formatTableMoney(r.cost.plan, r.cost.currency) }) : '—';
       },
-      exportValue: (r: DashboardRow) => r.cost?.direct ?? '', exportType: 'number' as const }] : []),
+      exportValue: (r: DashboardRow) => {
+        if (!r.cost || r.cost.direct === null) return '';
+        const variance = planVariance(r.cost.plan, r.cost.direct);
+        return variance.state === 'over' ? variance.by : r.cost.plan ?? '';
+      }, exportType: 'number' as const }] : []),
+    ...(canBilling ? [{ key: 'value', header: t('all.tile.orderValue', 'Order value'), kind: 'money' as const, size: 176, cell: (r: DashboardRow) => r.billing?.complete ? formatTableMoney(r.billing.orderNet, r.billing.currency) : pendingMark, exportValue: (r: DashboardRow) => r.billing?.complete ? r.billing.orderNet : '' }] : []),
     ...(canBilling ? [{ key: 'billed', header: t('all.col.billed', 'Billed'), kind: 'money' as const, size: 176, keepWhenBlank: true,
       cell: (r: DashboardRow) => (!r.billing ? pendingMark : !r.billing.complete ? t('all.cannotTotal', "Can't total")
-        : <TwoLine testId={`wo-billed-${r.id}`} value={formatTableMoney(r.billing.invoiced, r.billing.currency)}
-            sub={t('all.ofOrder', 'of {{amount}}', { amount: formatTableMoney(r.billing.orderNet, r.billing.currency) })} />),
+        : <span data-testid={`wo-billed-${r.id}`} className="tabular-nums whitespace-nowrap">{formatTableMoney(r.billing.invoiced, r.billing.currency)}</span>),
       exportValue: (r: DashboardRow) => (r.billing?.complete ? r.billing.invoiced : ''), exportType: 'number' as const }] : []),
     { key: 'missing', header: t('missing.title', 'Still missing'), align: 'num', size: 118,
       cell: (r) => (r.openSteps === 0 && r.late === 0 ? '—' : (
@@ -174,11 +171,12 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   const exceptionCount = costState === 'shown' ? 2 : 1;
   const positionTiles = tiles.slice(0, -exceptionCount);
   const exceptionTiles = tiles.slice(-exceptionCount);
+  const hasSummary = positionTiles.length > 0 || scoped.some((row) => row.late > 0 || (costState === 'shown' && isOver(row)));
   const summary = (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-x-8 gap-y-1 rounded-md border border-border bg-card px-4 py-1">
+      {scoped.some((r) => r.late > 0 || (costState === 'shown' && isOver(r))) && <div className="flex flex-wrap gap-x-8 gap-y-1 rounded-md border border-border bg-card px-4 py-1">
         {exceptionTiles.map((tile, index) => <div key={index} className="flex items-center gap-2 text-control"><span>{tile.label}</span>{tile.value}</div>)}
-      </div>
+      </div>}
       {positionTiles.length > 0 && <StatTiles tiles={positionTiles} columns={positionTiles.length} />}
     </div>
   );
@@ -187,12 +185,13 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
   return (
     <ListPage
       title={terms.clientWorkOrder}
+      desktopToolbarClassName="max-sm:!grid-cols-[minmax(0,1fr)_auto] max-sm:[&_[data-testid=list-page-action-group]]:col-start-2"
       hideHeader={Boolean(projectId)}
       primaryAction={newButton || workInHand ? <div className="flex flex-wrap items-center gap-2">{workInHand}{newButton}</div> : undefined}
       headingLevel={projectId ? 2 : 1}
       count={all.isPending ? undefined : rows.length}
       exportAction={<>{projectId && (all.isPending || rows.length > 0) && newButton}<ExportButton rows={filtered} columns={columns} entity="WorkOrders" /></>}
-      banner={rows.length > 0 ? (isDesktop
+      banner={rows.length > 0 && hasSummary ? (isDesktop
         ? <div className={cn('mb-4', projectId && '[--space-content-inset:var(--panel-inset)]')}>{summary}</div>
         : <details className="mb-4 rounded-md border border-border bg-card"><summary className="cursor-pointer px-4 py-3 text-control font-medium">{t('all.summary', 'Summary')}</summary><div className="px-4 pb-4">{summary}</div></details>) : undefined}
       filters={(
@@ -206,6 +205,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
           onClear={clear}
           shown={filtered.length}
           total={filtered.length < rows.length ? rows.length : undefined}
+          className="[&_[data-testid=status-filter-scroll]]:order-last [&_[data-testid=status-filter-scroll]]:!w-full [&_[role=tablist]]:!flex-nowrap [&_[role=tablist]]:!w-max [&_[role=tab]]:whitespace-nowrap"
           module="work-orders"
         />
       )}
@@ -213,6 +213,18 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
       <DataTable<DashboardRow>
         rows={filtered}
         columns={columns}
+        mobileCardTitle={(row) => <div className="space-y-1.5">
+          <span className="block font-semibold">{row.wo_number ?? row.title}</span>
+          {row.wo_number && <span className="block text-control text-muted-foreground">{row.title}</span>}
+          {!projectId && <span className="block text-control text-muted-foreground">{row.project_name ?? '—'}</span>}
+          <StatusPill record="workOrder" state={row.status} />
+        </div>}
+        mobileCardDetails={(row) => <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-control">
+          {dropBlankColumns(columns, filtered, undefined, !all.isPending).filter((column) => !['number', 'project', 'status'].includes(column.key)).map((column) => <React.Fragment key={column.key}>
+            <dt className="text-muted-foreground">{column.header}</dt>
+            <dd className="min-w-0 text-right tabular-nums">{column.cell(row)}</dd>
+          </React.Fragment>)}
+        </dl>}
         rowKey={(r) => r.id}
         rowHref={(r) => `/work-orders/${r.id}`}
         onActivate={(r) => navigate(`/work-orders/${r.id}`)}
@@ -220,7 +232,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         accessibleName={terms.clientWorkOrder}
         tableId={projectId ? 'project-work-orders' : 'work-orders'}
         compactRows
-        cardBelow={900}
+        cardBelow={640}
         state={state}
         onRetry={() => all.refetch()}
         errorTitle={t('all.error', "Couldn't load your work orders")}

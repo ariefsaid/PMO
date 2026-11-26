@@ -378,7 +378,8 @@
       "progress": "Progress",
       "cost": "Direct cost",
       "billed": "Billed",
-      "end": "End"
+      "end": "End",
+      "costBasis": "Budget / overrun"
     },
     "costOver": "Over budget by {{amount}}",
     "costBudget": "Budget {{amount}}",
