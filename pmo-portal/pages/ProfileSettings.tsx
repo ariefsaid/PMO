@@ -267,27 +267,6 @@ const ProfileSettings: React.FC = () => {
             </p>
           </div>
 
-          <div>
-            <SelectField label={t('profilePreferences:textSize.label', 'Text size')}
-              value={textSize} onChange={(value) => setTextSize(value as TextSize)}
-              options={[
-                { value: 'default', label: t('profilePreferences:textSize.default', 'Default') },
-                { value: 'large', label: t('profilePreferences:textSize.large', 'Large') },
-                { value: 'larger', label: t('profilePreferences:textSize.larger', 'Larger') },
-              ]}
-              helper={t('profilePreferences:textSize.help', 'Applied immediately on this device.')} fullWidth />
-          </div>
-
-          <div>
-            <SelectField label={t('profilePreferences:homeLayout.label', 'Home layout')}
-              value={homeLayout} onChange={(value) => setHomeLayout(value as HomeLayout)}
-              options={[
-                { value: 'overview', label: t('profilePreferences:homeLayout.overview', 'Overview') },
-                { value: 'focused', label: t('profilePreferences:homeLayout.focused', 'Focused') },
-              ]}
-              helper={t('profilePreferences:homeLayout.help', 'Applied immediately on this device.')} fullWidth />
-          </div>
-
           <div className="sm:col-span-2">
             <Combobox
               label={t('profileSettings.timezone.label', 'Timezone')}
@@ -365,6 +344,29 @@ const ProfileSettings: React.FC = () => {
             {errorMsg}
           </p>
         )}
+        <div className="mt-6 grid grid-cols-1 gap-5 border-t border-border pt-6 sm:grid-cols-2">
+          <div>
+            <SelectField label={t('profilePreferences:textSize.label', 'Text size')}
+              value={textSize} onChange={(value) => setTextSize(value as TextSize)}
+              options={[
+                { value: 'default', label: t('profilePreferences:textSize.default', 'Default') },
+                { value: 'large', label: t('profilePreferences:textSize.large', 'Large') },
+                { value: 'larger', label: t('profilePreferences:textSize.larger', 'Larger') },
+              ]}
+              helper={t('profilePreferences:textSize.help', 'Applied immediately on this device.')} fullWidth />
+          </div>
+
+          <div>
+            <SelectField label={t('profilePreferences:homeLayout.label', 'Home layout')}
+              value={homeLayout} onChange={(value) => setHomeLayout(value as HomeLayout)}
+              options={[
+                { value: 'overview', label: t('profilePreferences:homeLayout.overview', 'Overview') },
+                { value: 'focused', label: t('profilePreferences:homeLayout.focused', 'Focused') },
+              ]}
+              helper={t('profilePreferences:homeLayout.help', 'Applied immediately on this device.')} fullWidth />
+          </div>
+
+        </div>
       </div>
       <EmailOptOutSetting />
       <UnsavedChangesDialog

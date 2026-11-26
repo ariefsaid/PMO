@@ -951,6 +951,8 @@
     "action": "Action",
     "runs": "Runs",
     "tokens": "Tokens",
+    "promptTokens": "Input tokens",
+    "completionTokens": "Output tokens",
     "providerCost": "Provider cost",
     "monthUnavailable": "Month unavailable",
     "providerPricingUnavailable": "Provider pricing unavailable",

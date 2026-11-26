@@ -33,14 +33,14 @@ const TypeRow: React.FC<{ type: PurchaseType | null; canManage: boolean; nextPos
     try { await m.setActive.mutateAsync({ id: type.id, active: !type.active }); } catch (err) { setError(refusal(err)); }
   };
   return (
-    <li className="space-y-2 rounded-md border border-border p-3" data-testid={type ? 'purchase-type-row' : 'purchase-type-new'}>
-      {error && <FormErrorStrip>{error}</FormErrorStrip>}
-      {type && !type.active && <p className="text-sm text-muted-foreground">{t('settings.retired', 'Retired')}</p>}
-      <TextField label={t('settings.name', 'Name')} value={name} onChange={setName} disabled={!canManage} />
-      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} value={nameId} onChange={setNameId} disabled={!canManage} />
-      <Checkbox checked={isRental} onChange={setIsRental} disabled={!canManage} label={t('settings.isRental', 'This type has a rental period')} />
+    <li className="grid items-end gap-3 border-b border-border py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(10rem,auto)_auto]" data-testid={type ? 'purchase-type-row' : 'purchase-type-new'}>
+      {error && <div className="md:col-span-4"><FormErrorStrip>{error}</FormErrorStrip></div>}
+      {type && !type.active && <p className="text-sm text-muted-foreground md:col-span-4">{t('settings.retired', 'Retired')}</p>}
+      <TextField label={t('settings.name', 'Name')} value={name} onChange={setName} disabled={!canManage} fullWidth />
+      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} value={nameId} onChange={setNameId} disabled={!canManage} fullWidth />
+      <div className="flex min-h-10 items-center"><Checkbox checked={isRental} onChange={setIsRental} disabled={!canManage} label={t('settings.isRental', 'This type has a rental period')} /></div>
       {canManage && (
-        <span className="flex flex-wrap gap-2">
+        <span className="flex min-h-10 flex-wrap items-center gap-2">
           <Button variant={type ? 'outline' : 'primary'} size="sm" disabled={!dirty || !name.trim()} loading={m.upsert.isPending} onClick={() => void save()}>
             {type ? t('settings.save', 'Save') : t('settings.add', 'Add type')}
           </Button>
@@ -63,7 +63,7 @@ const TypeList: React.FC<{ canManage: boolean }> = ({ canManage }) => {
       {types.isError && <ListState variant="error" title={t('settings.loadError', "Couldn't load purchase types")} onRetry={() => void types.refetch()} />}
       {types.data && list.length === 0 && <p className="text-muted-foreground">{t('settings.empty', 'No types yet.')}</p>}
       {types.data && (
-        <ul className="space-y-3">
+        <ul>
           {list.map((x) => <TypeRow key={`${x.id}:${x.name}:${x.nameId ?? ''}:${x.isRental}`} type={x} canManage={canManage} nextPosition={0} />)}
           {canManage && <TypeRow key={`new-${list.length}`} type={null} canManage nextPosition={list.length + 1} />}
         </ul>

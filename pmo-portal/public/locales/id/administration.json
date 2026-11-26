@@ -951,6 +951,8 @@
     "action": "Aksi",
     "runs": "Eksekusi",
     "tokens": "Token",
+    "promptTokens": "Token masukan",
+    "completionTokens": "Token keluaran",
     "providerCost": "Biaya penyedia",
     "monthUnavailable": "Bulan tidak tersedia",
     "providerPricingUnavailable": "Harga penyedia tidak tersedia",

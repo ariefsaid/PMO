@@ -54,8 +54,8 @@ const ChainEditor: React.FC = () => {
         {steps.length === 0 && <p className="text-muted-foreground">{t('settings.noChain', 'No steps yet. Requests cannot be sent until a chain exists.')}</p>}
         <ol className="space-y-3">
           {steps.map((s, i) => (
-            <li key={i} className="space-y-2 rounded-md border border-border p-3" data-testid="chain-step">
-              <p className="font-medium">{t('settings.stepN', 'Step {{n}}', { n: i + 1 })}</p>
+            <li key={i} className="grid gap-3 border-b border-border py-4 last:border-b-0 md:grid-cols-2" data-testid="chain-step">
+              <p className="font-medium md:col-span-2">{t('settings.stepN', 'Step {{n}}', { n: i + 1 })}</p>
               {(builtInOn || s.jobRole) && (
                 <SelectField label={t('settings.jobRole', 'Built-in role that decides')} value={s.jobRole ?? ''} fullWidth disabled={!canManage || !builtInOn}
                   onChange={(v) => { const base = baseLevelOf(v); edit(i, base ? { jobRole: v, role: base } : { jobRole: null }); }}
@@ -70,7 +70,7 @@ const ChainEditor: React.FC = () => {
               <TextField label={t('settings.purpose', 'What this step checks')} value={s.label} onChange={(v) => edit(i, { label: v })} disabled={!canManage} />
               <Checkbox checked={s.onlyOverPlan} disabled={!canManage} onChange={(v) => edit(i, { onlyOverPlan: v })}
                 label={t('settings.onlyOverPlan', 'Only when a line is over plan')} />
-              {canManage && <span className="flex gap-2">
+              {canManage && <span className="flex flex-wrap gap-2 md:col-span-2">
                 <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)}>{t('settings.moveUp', 'Move up')}</Button>
                 <Button variant="ghost" size="sm" disabled={i === steps.length - 1} onClick={() => move(i, 1)}>{t('settings.moveDown', 'Move down')}</Button>
                 <Button variant="ghost" size="sm" onClick={() => setDraft(steps.filter((_, j) => j !== i))}>{t('settings.removeStep', 'Remove step')}</Button>
