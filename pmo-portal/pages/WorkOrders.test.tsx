@@ -3,6 +3,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import { renderWithQueryClient } from '@/test/renderWithQueryClient';
@@ -39,7 +40,7 @@ const row = (over: Partial<DashboardRow>): DashboardRow => ({
   cost: { currency: 'USD', direct: '900.00', plan: '800.00' }, openSteps: 0, late: 0, ...over,
 });
 const renderPage = (path = '/work-orders', role: Role = 'Engineer') => renderWithQueryClient(
-  <ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[path]}><WorkOrders /></MemoryRouter></ImpersonationProvider>,
+  <ImpersonationProvider realRole={role}><MemoryRouter initialEntries={[path]}><ToastProvider><WorkOrders /></ToastProvider></MemoryRouter></ImpersonationProvider>,
 );
 const rowFor = (label: string) => screen.getByRole('row', { name: new RegExp(label) });
 
