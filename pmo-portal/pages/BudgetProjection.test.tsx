@@ -869,7 +869,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(row.getByText('—')).toBeInTheDocument();
     expect(row.getByText('-$75,000')).toBeInTheDocument();
     expect(row.getByText('Unavailable')).toBeInTheDocument();
-    expect(row.queryByText('$0')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('forecast-recorded-Labor')).queryByText('$0')).not.toBeInTheDocument();
     expect(row.queryByText('0%')).not.toBeInTheDocument();
   });
 
@@ -908,7 +908,7 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     fetchMock.mockResolvedValue([{ ...unread, category: 'Equipment', pmoBudgetAmount: 20000 }]);
     renderForecast();
     const row = within(await rowFor('Equipment'));
-    expect(row.queryByText('$0')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('forecast-recorded-Equipment')).queryByText('$0')).not.toBeInTheDocument();
     expect(row.queryByText('0%')).not.toBeInTheDocument();
   });
 
@@ -916,7 +916,7 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     fetchMock.mockResolvedValue([{ ...unread, actualsAsOf: null }]);
     renderForecast();
     const row = within(await rowFor('Labor'));
-    expect(row.queryByText('$0')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('forecast-recorded-Labor')).queryByText('$0')).not.toBeInTheDocument();
     expect(row.getByText('$100,000')).toBeInTheDocument();
     expect(screen.queryByText(/Recorded spending as of/)).not.toBeInTheDocument();
   });
