@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
-import { Button, ConfirmDialog, DataTable, ListState, MobileActionBar, ReasonDialog, RecordHeader, RecordSection, RecordStack, SelectField, cn, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, MobileActionBar, ReasonDialog, RecordHeader, RecordMenu, RecordSection, RecordStack, SelectField, cn, useToast, type Column } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -115,22 +115,24 @@ const MaterialRequestDetailPage: React.FC = () => {
     () => m.decide.mutateAsync({ id: req.id, position: open!.position, decision, reason, sourceWarehouseId: decision === 'approve' && needsSource && source ? source : null }),
     decision === 'approve' ? t('detail.approved', 'Step approved') : decision === 'return' ? t('detail.returned', 'Sent back to the requester') : t('detail.rejected', 'Request rejected'));
 
+  const menuItems = [
+    ...(canDecide ? [
+      { key: 'return', label: t('detail.return', 'Send back'), onSelect: () => setDialog({ kind: 'return' } as const) },
+      { key: 'reject', label: t('detail.reject', 'Reject'), onSelect: () => setDialog({ kind: 'reject' } as const) }] : []),
+    ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' } as const) }] : []),
+    ...(canPrintDeliveryNote ? [{ key: 'printDeliveryNote', label: t('detail.printDeliveryNote', 'Print delivery note'), onSelect: () => navigate(`/material-requests/${req.id}/delivery-note`) }] : []),
+  ];
+
   return (
     <div>
       <div className="hidden max-[920px]:block"><BackBar label={t('form.back', 'Material requests')} onBack={() => navigate('/material-requests')} /></div>
       <RecordHeader panelInset name={req.number} status={<RequestStatusPill status={req.status} />}
         meta={<span>{t('detail.meta', 'Raised by {{name}} · needed by {{date}}', { name: name(req.createdBy), date: formatDay(req.neededBy) })}</span>}
-        primaryAction={canDecide ? <Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button>
+        primaryAction={canDecide ? <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 flex gap-2 border-t border-border bg-card p-3 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button><RecordMenu items={menuItems} ariaLabel={t('detail.moreActions', 'More actions')} /></MobileActionBar>
           : canEdit ? <Button variant="primary" onClick={() => navigate(`/material-requests/${req.id}/edit`)}>{t('detail.edit', 'Edit and send')}</Button>
           : canPrintDeliveryNote ? <Button variant="outline" onClick={() => navigate(`/material-requests/${req.id}/delivery-note`)}>{t('detail.printDeliveryNote', 'Print delivery note')}</Button>
           : undefined}
-        menuItems={[
-          ...(canDecide ? [
-            { key: 'return', label: t('detail.return', 'Send back'), onSelect: () => setDialog({ kind: 'return' }) },
-            { key: 'reject', label: t('detail.reject', 'Reject'), onSelect: () => setDialog({ kind: 'reject' }) }] : []),
-          ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' }) }] : []),
-          ...(canPrintDeliveryNote ? [{ key: 'printDeliveryNote', label: t('detail.printDeliveryNote', 'Print delivery note'), onSelect: () => navigate(`/material-requests/${req.id}/delivery-note`) }] : []),
-        ]} menuLabel={t('detail.moreActions', 'More actions')}>
+        menuItems={canDecide ? [] : menuItems} menuLabel={t('detail.moreActions', 'More actions')}>
         <p><span className="text-muted-foreground">{t('list.columns.workOrder', 'Work order')}: </span><RequestWorkOrder workOrderId={req.workOrderId} projectId={req.projectId} /></p>
         {req.note && <p>{req.note}</p>}
         <div><FollowUpTaskButton type="material_request" recordId={req.id} projectId={req.projectId} defaultName={req.number} finished={['fulfilled', 'rejected', 'cancelled'].includes(req.status)} /></div>
@@ -187,11 +189,6 @@ const MaterialRequestDetailPage: React.FC = () => {
         </RecordSection>
       </RecordStack>
 
-      {canDecide && <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 flex gap-2 border-t border-border bg-card p-3 sm:hidden">
-        <Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button>
-        <Button variant="outline" onClick={() => setDialog({ kind: 'return' })}>{t('detail.return', 'Send back')}</Button>
-        <Button variant="outline" onClick={() => setDialog({ kind: 'reject' })}>{t('detail.reject', 'Reject')}</Button>
-      </MobileActionBar>}
       <ConfirmDialog open={dialog?.kind === 'approve'} title={t('detail.approveTitle', 'Approve this step')} confirmLabel={t('detail.approve', 'Approve')}
         description={needsSource
           ? (retrySourceOptions.length > 0

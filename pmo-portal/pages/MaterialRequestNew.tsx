@@ -211,7 +211,7 @@ const MaterialRequestNewPage: React.FC = () => {
                 {l.itemId && p && !plans.isPending && <UsageWarning line={{ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity) }} thresholds={usage.thresholds} />}
                 {/* A reason already typed stays visible (and editable) even before the plan figures load, so a returned request never looks like it lost it. */}
                 {(st?.overPlan || l.reason.trim() !== '') && (
-                  <TextArea label={t('form.reason', 'Why do you need more than the plan?')} required={Boolean(st?.overPlan)} maxLength={500} rows={2}
+                  <TextArea label={st?.overPlan ? t('form.reason', 'Why do you need more than the plan?') : t('form.savedReason', 'Saved reason')} required={Boolean(st?.overPlan)} maxLength={500} rows={2}
                     value={l.reason} onChange={(v) => patch(l.key, { reason: v })}
                     error={err === 'reasonRequired' ? t('form.reasonRequired', 'Give a reason (up to 500 characters).') : err === 'reasonTooLong' ? t('form.reasonTooLong', 'Keep the reason under 500 characters.') : undefined} />
                 )}
