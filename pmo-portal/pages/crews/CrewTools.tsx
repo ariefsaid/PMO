@@ -221,7 +221,7 @@ const SettingsCard: React.FC = () => {
     })();
   };
   return (
-    <Card className="mb-6">
+    <Card className="mt-6">
       <CardHead>{t('crewTools:settingsTitle', 'Equipment coordinator')}</CardHead>
       <CardPad>
         <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
@@ -332,7 +332,7 @@ export const CrewTools: React.FC = () => {
     { key: 'usable', header: t('crewTools:usable', 'Usable'), align: 'num', cell: (l) => <strong>{l.usable_qty}</strong> },
     { key: 'report', header: t('crewTools:reportColumn', 'Report'),
       cell: (l) => (canReportHere && l.usable_qty > 0
-        ? <Button variant="outline" size="sm" onClick={() => openReport(l)}>{t('crewTools:reportProblem', 'Report a problem')}</Button> : null) },
+        ? <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => openReport(l)}>{t('crewTools:reportProblem', 'Report a problem')}</Button> : null) },
   ];
   const reportColumns: Column<ToolReportRow>[] = [
     { key: 'tool', header: t('crewTools:name', 'Tool'), kind: 'primary', rowHeader: true, cell: (r) => `${r.line_name} x${r.qty}` },
@@ -356,39 +356,35 @@ export const CrewTools: React.FC = () => {
 
   return (
     <>
-      {canConfigure && <SettingsCard />}
       <div className="mb-4 max-w-sm">
         <SelectField label={t('crewTools:crew', 'Crew')} value={crewId ?? ''} onChange={setCrewId}
           options={crewRows.map((c) => ({ value: c.id, label: `${c.code} ${c.name}` }))} />
       </div>
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
-      <Card>
+      <Card seam>
         <CardHead actions={canManage ? <Button variant="outline" size="sm" onClick={() => setEditing('new')}><Icon name="plus" />{t('crewTools:add', 'Add tool')}</Button> : undefined}>
           {t('crewTools:linesTitle', 'Tools of {{crew}}', { crew: crew?.name ?? '' })}
         </CardHead>
-        <CardPad>
-          {lines.isPending ? <ListState variant="loading" shape="table" rows={3} /> : lines.isError ? (
-            <ListState variant="error" title={t('crewTools:linesError', "Couldn't load this crew's tools")} onRetry={() => void lines.refetch()} retryLabel={t('crewTools:retry', 'Retry')} />
+          {lines.isPending ? <CardPad><ListState variant="loading" shape="table" rows={3} /></CardPad> : lines.isError ? (
+            <CardPad><ListState variant="error" title={t('crewTools:linesError', "Couldn't load this crew's tools")} onRetry={() => void lines.refetch()} retryLabel={t('crewTools:retry', 'Retry')} /></CardPad>
           ) : (
-            <DataTable<ToolLineRow> rows={lineRows} columns={lineColumns} rowKey={(l) => l.id} tableId="crew-tools-table"
+            <DataTable<ToolLineRow> embedded rows={lineRows} columns={lineColumns} rowKey={(l) => l.id} tableId="crew-tools-table"
               rowMenu={(l) => (canManage
                 ? [{ label: t('crewTools:edit', 'Edit'), onClick: () => setEditing(l) }, { label: t('crewTools:archive', 'Archive'), onClick: () => setArchiving(l) }] : [])}
               state={lineRows.length === 0 ? 'empty' : undefined} emptyTitle={t('crewTools:noTools', 'No tools registered for this crew')}
               emptyAction={canManage ? { label: t('crewTools:add', 'Add tool'), onClick: () => setEditing('new') } : undefined} emptyActionVariant="outline" />
           )}
-        </CardPad>
       </Card>
-      <Card className="mt-6">
+      <Card seam className="mt-6">
         <CardHead>{t('crewTools:openReports', 'Open reports')}</CardHead>
-        <CardPad>
-          {reports.isPending ? <ListState variant="loading" shape="table" rows={2} /> : reports.isError ? (
-            <ListState variant="error" title={t('crewTools:reportsError', "Couldn't load the open reports")} onRetry={() => void reports.refetch()} retryLabel={t('crewTools:retry', 'Retry')} />
+          {reports.isPending ? <CardPad><ListState variant="loading" shape="table" rows={2} /></CardPad> : reports.isError ? (
+            <CardPad><ListState variant="error" title={t('crewTools:reportsError', "Couldn't load the open reports")} onRetry={() => void reports.refetch()} retryLabel={t('crewTools:retry', 'Retry')} /></CardPad>
           ) : (
-            <DataTable<ToolReportRow> rows={reportRows} columns={reportColumns} rowKey={(r) => r.id} tableId="crew-tool-reports-table"
+            <DataTable<ToolReportRow> embedded rows={reportRows} columns={reportColumns} rowKey={(r) => r.id} tableId="crew-tool-reports-table"
               state={reportRows.length === 0 ? 'empty' : undefined} emptyTitle={t('crewTools:noReports', 'Nothing damaged or lost right now')} />
           )}
-        </CardPad>
       </Card>
+      {canConfigure && <SettingsCard />}
       {reporting && (
         <ReportSheet
           line={reporting}

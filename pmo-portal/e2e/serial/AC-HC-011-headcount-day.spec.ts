@@ -11,6 +11,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -23,8 +24,6 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 );
 test.setTimeout(180_000);
 
-const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const need = <D>(step: string, r: { data: D; error: { message: string } | null }): NonNullable<D> => {
   if (r.error) throw new Error(`AC-HC-011 ${step}: ${r.error.message}`);
   if (r.data === null || r.data === undefined) throw new Error(`AC-HC-011 ${step}: no row returned`);
@@ -44,7 +43,7 @@ test.beforeEach(async () => {
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   run = `E2E-HC-${Date.now()}`;
   className = `Gate ${run}`;
-  const from = new Date(); from.setDate(from.getDate() - 7);
+  const from = inDays(-7); // rostered a week back by the organisation's clock
   const projectId = need('project', await admin.from('projects')
     .insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
   workOrderId = need('work order', await admin.from('work_orders').insert({
@@ -54,7 +53,7 @@ test.beforeEach(async () => {
     org_id: ORG_ID, code: run.slice(-18), name: `${run} crew`, kind: 'own', field_controller_id: ENGINEER_ID,
   }).select('id').single()).id;
   need('roster', await admin.from('work_order_crews')
-    .insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: iso(from) }).select('id').single());
+    .insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from }).select('id').single());
   classId = need('class', await admin.from('labour_cost_classes').insert({ org_id: ORG_ID, code: run.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(-20), name: className }).select('id').single()).id;
   need('class rate', await admin.from('labour_cost_rates').insert({
     org_id: ORG_ID, subject_kind: 'class', class_id: classId, basis: 'daily', amount: 150000, overtime_multiplier: 1, day_hours: 8, month_hours: 173, effective_from: '2020-01-01',
@@ -63,9 +62,8 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   if (!admin || !crewId) return;
-  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
   await admin.from('headcount_days').delete().eq('work_order_id', workOrderId);
-  await admin.from('work_order_crews').update({ valid_to: iso(yesterday) }).eq('crew_id', crewId);
+  await admin.from('work_order_crews').update({ valid_to: inDays(-1) }).eq('crew_id', crewId);
   await admin.from('labour_cost_rates').delete().eq('class_id', classId);
   await admin.from('labour_cost_classes').update({ archived_at: new Date().toISOString() }).eq('id', classId);
   crewId = '';
@@ -74,7 +72,7 @@ test.afterEach(async () => {
 test('AC-HC-011 the foreman enters a head count and a different approver approves it', async ({ page, browser }) => {
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
-  await expect(page.getByText(/No head count entered for this day/)).toBeVisible();
+  await expect(page.getByText('No head count for this day')).toBeVisible();
   await page.getByRole('combobox', { name: 'Labour class' }).selectOption({ label: className });
   await page.getByRole('textbox', { name: 'Number of people' }).fill('6');
   await page.getByRole('button', { name: 'Save head count' }).click();

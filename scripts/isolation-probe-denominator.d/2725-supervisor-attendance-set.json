@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "supervisor_task_issue_work_orders()"
+  ]
+}

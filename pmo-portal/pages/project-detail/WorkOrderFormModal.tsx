@@ -12,14 +12,16 @@ import {
   SelectField,
   FormSection,
   FormGrid,
+  Combobox,
   useEntityForm,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, parseMoneyInputAtScale } from '@/src/lib/format';
 import { validateWorkOrderAmount } from './workOrderAmountValidation';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, WorkOrderInput, WorkOrderPatch } from '@/src/lib/db/workOrders';
 import { DateField } from '@/src/components/ui/DateField';
+import type { WorkOrderProjectChoice } from '@/src/hooks/useWorkOrderProjectChoices';
 import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
 import type { WorkOrderListEntry } from '@/src/lib/db/workOrderLists';
 
@@ -43,6 +45,7 @@ import type { WorkOrderListEntry } from '@/src/lib/db/workOrderLists';
  */
 
 interface FormValues {
+  projectId: string;
   title: string;
   clientPoNumber: string;
   description: string;
@@ -64,8 +67,12 @@ const validate = (
   v: FormValues,
   t: TFunction,
   isEdit: boolean,
+  needsProject: boolean,
 ): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
+  if (needsProject && !v.projectId) {
+    errors.projectId = t('projectDetail.workOrderForm.errors.projectRequired', 'Choose the project this work order belongs to');
+  }
   if (!v.title.trim()) {
     errors.title = t('projectDetail.workOrderForm.errors.titleRequired', 'A title is required');
   }
@@ -104,8 +111,15 @@ interface WorkOrderFormModalProps {
   workOrder: WorkOrderRow | null;
   currencySymbolPrefix: string;
   onClose: () => void;
-  onCreate: (input: WorkOrderInput) => Promise<void>;
-  onUpdate: (id: string, patch: WorkOrderPatch) => Promise<void>;
+  /** Create only. Receives the chosen project when `project` is supplied. */
+  onCreate?: (input: WorkOrderInput, projectId?: string) => Promise<void>;
+  /** Edit only. */
+  onUpdate?: (id: string, patch: WorkOrderPatch) => Promise<void>;
+  /**
+   * Create only (the Work orders page and a project's Work orders tab): adds the Project field first.
+   * `lockedId` presets it and locks it (opened from one project's tab); without it the person chooses.
+   */
+  project?: { options: WorkOrderProjectChoice[]; lockedId?: string };
 }
 
 const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
@@ -114,14 +128,17 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
   onClose,
   onCreate,
   onUpdate,
+  project,
 }) => {
   const { t } = useTranslation('project');
   const isEdit = !!workOrder;
+  const needsProject = !isEdit && Boolean(project);
 
-  const validateWithT = useCallback((v: FormValues) => validate(v, t, isEdit), [t, isEdit]);
+  const validateWithT = useCallback((v: FormValues) => validate(v, t, isEdit, needsProject), [t, isEdit, needsProject]);
 
   const form = useEntityForm<FormValues>({
     initialValues: {
+      projectId: project?.lockedId ?? '',
       title: workOrder?.title ?? '',
       clientPoNumber: workOrder?.client_po_number ?? '',
       description: workOrder?.description ?? '',
@@ -139,9 +156,14 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
     validate: validateWithT,
     idPrefix: 'work-order-form',
     module: 'work-orders',
-    requiredFields: isEdit ? ['title'] : ['title', 'orderValue', 'taxTreatment', 'taxAmount'],
+    requiredFields: isEdit
+      ? ['title']
+      : [...(needsProject ? (['projectId'] as const) : []), 'title', 'orderValue', 'taxTreatment', 'taxAmount'],
   });
 
+  const projectField = form.fieldProps('projectId');
+  const chosenProject = project?.options.find((o) => o.value === form.values.projectId) ?? null;
+  const moneyPrefix = chosenProject ? currencySymbol(chosenProject.currency) : currencySymbolPrefix;
   const titleField = form.fieldProps('title');
   const poField = form.fieldProps('clientPoNumber');
   const descField = form.fieldProps('description');
@@ -167,6 +189,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
 
   const errorSummary = (() => {
     const items: { fieldId: string; message: string }[] = [];
+    if (form.errors.projectId) items.push({ fieldId: projectField.id, message: form.errors.projectId });
     if (form.errors.title) items.push({ fieldId: titleField.id, message: form.errors.title });
     if (form.errors.orderValue) items.push({ fieldId: valueField.id, message: form.errors.orderValue });
     if (form.errors.taxTreatment)
@@ -187,7 +210,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
     void form.handleSubmit(async (values) => {
       try {
         if (isEdit && workOrder) {
-          await onUpdate(workOrder.id, {
+          await onUpdate?.(workOrder.id, {
             title: values.title.trim(),
             clientPoNumber: blankToNull(values.clientPoNumber),
             description: blankToNull(values.description),
@@ -203,7 +226,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
         const value = parseMoneyInputAtScale(values.orderValue, 2);
         const tax = taxFields.facts;
         if (value === null || tax === null) return;
-        await onCreate({
+        const input: WorkOrderInput = {
           title: values.title.trim(),
           clientPoNumber: blankToNull(values.clientPoNumber),
           description: blankToNull(values.description),
@@ -216,7 +239,9 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           endDate: blankToNull(values.endDate),
           ...(showAreas ? { areaId: blankToNull(values.areaId) } : {}),
           ...(showGroups ? { groupId: blankToNull(values.groupId) } : {}),
-        });
+        };
+        if (needsProject) await onCreate?.(input, values.projectId);
+        else await onCreate?.(input);
       } catch (err) {
         const { headline, detail } = classifyMutationError(err);
         setSaveError({ headline, detail });
@@ -248,6 +273,24 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
     >
       <FormSection legend={t('projectDetail.workOrderForm.detailsLegend', 'The client’s order')}>
         <FormGrid>
+          {needsProject && project && (
+            <div className="col-span-full">
+              <Combobox
+                id={projectField.id}
+                label={t('projectDetail.workOrderForm.project', 'Project')}
+                noun="project"
+                placeholder={t('projectDetail.workOrderForm.projectPlaceholder', 'Choose a project')}
+                required={!project.lockedId}
+                value={form.values.projectId || null}
+                selectedOption={chosenProject}
+                onChange={(v) => form.setValue('projectId', v)}
+                loadOptions={async () => project.options}
+                disabled={Boolean(project.lockedId)}
+                error={projectField.error}
+                helper={project.options.length === 0 ? t('projectDetail.workOrderForm.noProjects', 'There is no project to add a work order to yet.') : undefined}
+              />
+            </div>
+          )}
           <TextField
             id={poField.id}
             label={t('projectDetail.workOrderForm.clientPoNumber', 'Client reference')}
@@ -335,7 +378,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
               id={valueField.id}
               label={t('projectDetail.workOrderForm.orderValue', 'Order value')}
               required
-              prefix={currencySymbolPrefix}
+              prefix={moneyPrefix}
               value={valueField.value}
               onChange={valueField.onChange}
               onBlur={valueField.onBlur}
@@ -360,7 +403,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
               id={taxField.id}
               label={t('projectDetail.workOrderForm.taxAmount', 'Tax amount')}
               required
-              prefix={currencySymbolPrefix}
+              prefix={moneyPrefix}
               value={taxField.value}
               readOnly={taxFields.hasRate}
               onChange={taxField.onChange}
@@ -380,7 +423,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
             )
           : t(
               'projectDetail.workOrderForm.newSubtitle',
-              'Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.',
+              'Record the client’s purchase order against the project’s contract. It starts as a draft and draws down the contract only once it is issued.',
             )}</p>
     </EntityFormModal>
   );

@@ -307,6 +307,15 @@ describe('WorkOrderDetail', () => {
     renderPage('cost');
     expect(screen.getByText('Line amount not shown')).toBeTruthy();
   });
+  it('#1126 a cost record whose name is its code reads once, and its hours read in the reader\'s language', async () => {
+    h.lines = q({ equipment_usage: [{ ...ln('equipment_usage', 'eq1', null), reference: 'CR-1 · CR-1', quantity: 7.5, quantityUnit: 'hours' }] });
+    h.money = q({ equipment_usage: { eq1: { amount: 100, currency: 'IDR' } } });
+    renderPage('cost');
+    const line = screen.getByTestId('cost-line-eq1');
+    expect(line.textContent).toContain('CR-1');
+    expect(line.textContent).not.toContain('CR-1 · CR-1');
+    expect(within(line).getByText('7.5 hours')).toBeTruthy();
+  });
   it('AC-WORP-007 a caller who cannot read purchase money sees records with no total and a restricted note', () => {
     h.money = q({ purchase_order: null });
     renderPage('cost');

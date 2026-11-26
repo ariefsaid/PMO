@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { signIn } from '../helpers';
+import { orgToday } from '../support/jobJourney';
 import { serviceClient } from '../support/jobFixtures';
 import { makeItem, runSuffix, userClient, SEED_PROJECT_ID } from '../support/stockFixture';
 
@@ -42,7 +43,7 @@ test('AC-DRS-019 the site location is set on the work order and a material line 
   const item = await makeItem(admin, sfx, 'R');
   const on = await admin.rpc('set_dsr_stock_issue', { p_on: true, p_items: 'all' });
   expect(on.error).toBeNull();
-  const draft = await engineer.rpc('dsr_save_draft', { p: { work_order_id: woId, work_date: new Date().toISOString().slice(0, 10), consumables: [{ stock_item_id: item.id, quantity: '2' }] } });
+  const draft = await engineer.rpc('dsr_save_draft', { p: { work_order_id: woId, work_date: orgToday(), consumables: [{ stock_item_id: item.id, quantity: '2' }] } });
   if (draft.error) throw draft.error;
   const reportId = String(draft.data);
 

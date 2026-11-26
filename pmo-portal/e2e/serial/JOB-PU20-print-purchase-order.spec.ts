@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner, PM_ID } from '../support/jobFixtures';
+import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 import { userClient } from '../support/stockFixture';
 import { buyerTest as test } from '../support/buyerOrdering';
@@ -43,7 +44,7 @@ test('JOB-PU20 the Buyer prints an approved purchase order with its lines', asyn
     }).select('id').single());
     need('approved order', await svc.from('purchase_orders').insert({
       id: poId, org_id: ORG_ID, procurement_id: purchaseId, status: 'Issued', amount: 1200, currency: 'IDR',
-      po_number: poNumber, work_order_id: workOrderId, date: new Date().toISOString().slice(0, 10),
+      po_number: poNumber, work_order_id: workOrderId, date: orgToday(),
     }).select('id').single());
     need('order line', await svc.from('purchase_order_lines').insert({
       org_id: ORG_ID, po_id: poId, revision: 1, boq_item_id: itemId, quantity: 100, rate: 12, unit: 'm3',

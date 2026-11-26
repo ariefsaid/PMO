@@ -2,11 +2,12 @@
 import { test, expect } from '@playwright/test';
 import ExcelJS from 'exceljs';
 import { signIn } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { makeWarehouse, runSuffix, userClient } from '../support/stockFixture';
 
 test.setTimeout(120_000);
 
-const isoDay = (back: number) => { const d = new Date(); d.setDate(d.getDate() - back); return d.toISOString().slice(0, 10); };
+const isoDay = (back: number) => inDays(-back); // opening history is dated by the organisation's calendar
 
 async function sheet(rows: string[][]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();

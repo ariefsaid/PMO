@@ -4,7 +4,7 @@ import { signIn } from './helpers';
 import { siteRole } from './support/siteRoleJourney';
 import { createBillingFixture, cleanupBilling } from './support/billingFixture';
 import { ORG_ID, inDays, need } from './support/jobJourney';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 // The journey is two tests so each stays well inside its time budget: the inspector files the document once, then the
 // billing officer's claims reuse it. The second starts from the filed document, set up as the first leaves it.
@@ -24,7 +24,8 @@ test('AC-WQE-001 the inspector files a quality document once on the step an admi
     await page.goto(`/work-orders/${fixture.workOrderId}`);
     await openWorkOrderArea(page, 'billing');
     const stepRow = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
-    const evidenceMark = stepRow.getByRole('checkbox', { name: 'Documents here count as claim evidence' });
+    await expect(stepRow).toBeVisible({ timeout: 30_000 });
+    const evidenceMark = (await openRowUpdate(page, 'Quality evidence')).getByRole('checkbox', { name: 'Documents here count as claim evidence' });
     await evidenceMark.click();
     await expect(evidenceMark).toBeChecked();
 
@@ -34,9 +35,11 @@ test('AC-WQE-001 the inspector files a quality document once on the step an admi
     await page.goto(`/work-orders/${fixture.workOrderId}`);
     await openWorkOrderArea(page, 'billing');
     const quality = page.getByTestId('wo-billing-step').filter({ hasText: 'Quality evidence' });
-    await quality.getByRole('combobox', { name: 'Additional document' }).selectOption(fixture.documentId);
-    await quality.getByRole('button', { name: 'Attach additional document' }).click();
-    await expect(quality.getByRole('link', { name: fixture.documentTitle })).toBeVisible();
+    await expect(quality).toBeVisible({ timeout: 30_000 });
+    const qualityUpdate = await openRowUpdate(page, 'Quality evidence');
+    await qualityUpdate.getByRole('combobox', { name: 'Additional document' }).selectOption(fixture.documentId);
+    await qualityUpdate.getByRole('button', { name: 'Attach additional document' }).click();
+    await expect(qualityUpdate.getByRole('link', { name: fixture.documentTitle })).toBeVisible();
 
     const marked = must('marked step', await db.from('work_order_billing_steps').select('claim_evidence_enabled').eq('id', step).single());
     expect(marked.claim_evidence_enabled).toBe(true);

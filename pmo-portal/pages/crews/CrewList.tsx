@@ -244,17 +244,16 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
     { key: 'to', header: t('crews:to', 'To'), cell: (m) => (m.valid_to ? formatDay(m.valid_to) : t('crews:open', 'Open')) },
   ];
   return (
-    <Card className="mt-6">
+    <Card seam className="mt-6">
       <CardHead actions={canManage ? <Button variant="outline" size="sm" onClick={() => setPlacing(true)}><Icon name="plus" />{t('crews:place', 'Add person')}</Button> : undefined}>
         {t('crews:membersOf', 'People in {{crew}}', { crew: crew.name })}
       </CardHead>
-      <CardPad>
-        {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
-        {members.isPending ? <ListState variant="loading" shape="table" rows={3} /> : members.isError ? (
-          <ListState variant="error" title={t('crews:membersError', "Couldn't load this crew's people")} onRetry={() => void members.refetch()}
-            retryLabel={t('crews:retry', 'Retry')} />
+        {problem && <p role="alert" className="px-4 pb-3 text-sm text-destructive-text">{problem}</p>}
+        {members.isPending ? <CardPad><ListState variant="loading" shape="table" rows={3} /></CardPad> : members.isError ? (
+          <CardPad><ListState variant="error" title={t('crews:membersError', "Couldn't load this crew's people")} onRetry={() => void members.refetch()}
+            retryLabel={t('crews:retry', 'Retry')} /></CardPad>
         ) : (
-          <DataTable<CrewMemberRow> rows={members.data ?? []} columns={columns} rowKey={(m) => m.id} tableId="crew-members-table"
+          <DataTable<CrewMemberRow> embedded rows={members.data ?? []} columns={columns} rowKey={(m) => m.id} tableId="crew-members-table"
             rowMenu={(m) => (canManage && (!m.valid_to || m.valid_to >= today)
               ? [
                   ...((roles.data ?? []).length > 0 ? [{ label: m.standard_role_id ? t('crews:changeRole', 'Change crew role') : t('crews:setRole', 'Set crew role'), onClick: () => setSettingRole(m) }] : []),
@@ -265,7 +264,6 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
             emptyAction={canManage ? { label: t('crews:place', 'Add person'), onClick: () => setPlacing(true) } : undefined}
             emptyActionVariant="outline" />
         )}
-      </CardPad>
       {placing && <PlacePersonModal crew={crew} onClose={() => setPlacing(false)} />}
       {settingRole && <SetCrewRoleModal crew={crew} member={settingRole} personName={nameOf(settingRole.worker_id)} onClose={() => setSettingRole(null)} />}
       <ConfirmDialog open={ending !== null} title={t('crews:endTitle', 'End this placement?')}

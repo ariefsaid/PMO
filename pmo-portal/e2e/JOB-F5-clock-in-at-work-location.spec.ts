@@ -69,7 +69,7 @@ test('JOB-F5 an inside clock-in is recorded and an outside one waits for the sit
     await supervisor.signIn(page);
     await page.goto('/crews');
     await expect(page.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible({ timeout: 20_000 });
-    const request = page.getByRole('listitem').filter({ hasText: `${run} slab` });
+    const request = page.getByRole('row').filter({ hasText: `${run} slab` });
     await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
     await request.getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByLabel('Notifications alt+T').getByText('Check-in approved')).toBeVisible({ timeout: 20_000 });

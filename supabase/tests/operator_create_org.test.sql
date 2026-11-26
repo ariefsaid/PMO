@@ -106,7 +106,7 @@ select is(
   'AC-ORG-005 the first Admin membership lands in the NEW org, active (stamp-trigger guard)');
 -- AC-ORG-014 (#619) — the per-org configuration companions: the new org carries the OD-SP-2 stage ramp.
 select is(
-  (select count(*)::int from pipeline_stage_config c join organizations o on o.id = c.org_id where o.name = 'AC-ORG New Org'), 5,
+  (select count(*)::int from pipeline_stage_config c join organizations o on o.id = c.org_id where o.name = 'AC-ORG New Org' and c.win_probability is not null), 5,
   'AC-ORG-014 the new org has its five pipeline win-probability rows (seed_org_defaults)');
 select is(
   (select win_probability::numeric from pipeline_stage_config c join organizations o on o.id = c.org_id

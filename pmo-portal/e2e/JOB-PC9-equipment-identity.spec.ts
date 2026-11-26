@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — disposable tenant, project-control-manager login, work order and approved equipment entry.
 import { test, expect } from '@playwright/test';
-import { serviceClient, need } from './support/jobJourney';
+import { serviceClient, need, orgToday } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
 import { openWorkOrderArea } from './support/workOrderArea';
 
@@ -14,13 +14,13 @@ test('JOB-PC9 Project Control Manager identifies the machine allocated to its wo
     const project = must('project', await db.from('projects').insert({ org_id: org.id, name: 'Resource work', status: 'Ongoing Project' }).select('id').single());
     const wo = must('work order', await db.from('work_orders').insert({ org_id: org.id, project_id: project.id, title: 'Resource work order', status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0 }).select('id').single());
     const asset = must('asset', await db.from('equipment_assets').insert({ org_id: org.id, code: 'CR-1', name: 'Site crane', default_unit: 'days' }).select('id').single());
-    must('approved equipment', await db.from('equipment_usage_entries').insert({ org_id: org.id, project_id: project.id, work_order_id: wo.id, author_id: pcm.id, asset_id: asset.id, work_date: new Date().toISOString().slice(0, 10), quantity: 1, unit: 'days', kind: 'work', status: 'Approved', approved_at: new Date().toISOString() }).select('id'));
+    must('approved equipment', await db.from('equipment_usage_entries').insert({ org_id: org.id, project_id: project.id, work_order_id: wo.id, author_id: pcm.id, asset_id: asset.id, work_date: orgToday(), quantity: 1, unit: 'days', kind: 'work', status: 'Approved', approved_at: new Date().toISOString() }).select('id'));
     await pcm.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
     await openWorkOrderArea(page, 'cost');
     const equipment = page.getByTestId('cost-group-equipment_usage');
     await expect(equipment).toContainText('CR-1 · Site crane');
-    await expect(equipment).toContainText('1 days');
+    await expect(equipment).toContainText('1 day');
   } finally {
     removeJobOrganization(org.id);
     await pcm.remove();

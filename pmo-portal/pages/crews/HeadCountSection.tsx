@@ -78,20 +78,18 @@ export const HeadCountSection: React.FC<Props> = ({ crewId, fieldControllerId, w
 
   return (
     <Card>
-      <CardHead>{t('headCount.title', 'Head count')}</CardHead>
+      <CardHead actions={<span className="text-sm text-muted-foreground" data-testid="headcount-named">{t('headCount.namedPresent', '{{n}} named present above', { n: namedPresent })}</span>}>
+        {t('headCount.title', 'Head count')}
+      </CardHead>
       <CardPad>
-        <p className="mb-3 text-control text-muted-foreground">
-          {t('headCount.named', '{{n}} named people are ticked present on this crew today. Count here only the people not named on the roster.', { n: namedPresent })}
-        </p>
+        <p className="mb-4 text-sm text-muted-foreground">{t('headCount.onlyUnnamed', 'Count only people not named above')}</p>
         {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
         {day.isPending && <ListState variant="loading" shape="table" rows={2} />}
         {!day.isPending && day.isError && (
           <ListState variant="error" title={t('headCount.error', "Couldn't load the head count")} onRetry={() => { void day.refetch(); }} retryLabel={t('crews:retry', 'Retry')} />
         )}
         {!day.isPending && !day.isError && lines.length === 0 && (
-          <p className="mb-3 text-control text-foreground">
-            {t('headCount.empty', 'No head count entered for this day. The crew\'s Foreman or a crew manager adds it here. A person is either named and ticked above or counted here, never both.')}
-          </p>
+          <p className="mb-4 text-sm text-foreground">{t('headCount.emptyDay', 'No head count for this day')}</p>
         )}
         {lines.length > 0 && (
           <table className="mb-4 w-full text-sm">

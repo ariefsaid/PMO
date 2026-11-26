@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
+import { inDays } from './support/jobJourney';
 import { removeJobOrganization } from './support/jobRoleUser';
 import { openWorkOrderArea } from './support/workOrderArea';
 
@@ -54,7 +55,7 @@ test('JOB-PC14 an administrator reads the loaded opening balances of a running w
     );
     const signedIn = await api.auth.signInWithPassword({ email: `opening-${run}@example.test`, password });
     if (signedIn.error) throw signedIn.error;
-    const asOf = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const asOf = inDays(-1); // the opening is read as of yesterday by the organisation's calendar
     ok('work order opening', await api.rpc('load_work_order_opening', {
       p_work_order_id: wo.id, p_as_of: asOf,
       p_lines: [{ boq_item_id: line.id, certified_quantity: 40, claimed_quantity: 30 }],

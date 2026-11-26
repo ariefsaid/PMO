@@ -1,3 +1,4 @@
+import { orgStageName } from '@/src/lib/status/orgStageNames';
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -54,7 +55,8 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   const { t, i18n } = useTranslation(['common', 'boardDrag']);
   // English keeps the stored stage names this menu always showed ("Loss Tender"); other languages read the label map.
   const mapLabel = useProjectStatusLabel();
-  const statusLabel = (s: string) => (i18n.resolvedLanguage === 'id' ? mapLabel(s) : s);
+  // The organisation's own stage name wins in either language (#2906).
+  const statusLabel = (s: string) => orgStageName(s) ?? (i18n.resolvedLanguage === 'id' ? mapLabel(s) : s);
   const can = usePermission();
   const mutation = useProjectTransition();
   const { toast } = useToast();
