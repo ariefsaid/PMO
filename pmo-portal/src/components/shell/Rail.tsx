@@ -744,7 +744,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
             className={({ isActive }: { isActive: boolean }) =>
               cn(
                 NAV_LINK_BASE,
-                isActive
+                (isActive || location.pathname.startsWith('/master-data/'))
                   ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
                   : 'text-foreground hover:bg-surface-hover',
               )

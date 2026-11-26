@@ -54,7 +54,7 @@ describe('AC-RTD-014 an approval step can name the built-in role that decides it
     expect(level).toBeDisabled();
     expect(within(step).getByText('Set by the built-in role.')).toBeInTheDocument();
     await userEvent.type(within(step).getByLabelText('What this step checks'), 'Stock check');
-    await userEvent.click(screen.getByRole('button', { name: 'Save chain' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
     expect(h.setChain).toHaveBeenCalledWith([{ role: 'Engineer', jobRole: 'material_coordinator', label: 'Stock check', onlyOverPlan: false }]);
   });
 
@@ -64,7 +64,7 @@ describe('AC-RTD-014 an approval step can name the built-in role that decides it
     const step = screen.getByTestId('chain-step');
     await userEvent.selectOptions(within(step).getByLabelText('Built-in role that decides'), '');
     expect(within(step).getByLabelText('Role')).toBeEnabled();
-    await userEvent.click(screen.getByRole('button', { name: 'Save chain' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
     expect(h.setChain).toHaveBeenCalledWith([{ role: 'Project Manager', jobRole: null, label: 'Site check', onlyOverPlan: false }]);
   });
 

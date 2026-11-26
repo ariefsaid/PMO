@@ -223,10 +223,11 @@
   "ui": {
     "errorBoundary": {
       "title": "Something went wrong",
-      "body": "The page hit an unexpected error. You can try again, or head back home.",
+      "body": "The page hit an unexpected error. You can try again, or return to the Dashboard.",
       "retry": "Try again",
       "reload": "Reload",
-      "home": "Dashboard"
+      "home": "Dashboard",
+      "more": "More recovery options"
     },
     "accessDenied": {
       "title": "You don't have access to this page",
@@ -460,8 +461,8 @@
   "fx": {
     "saveRate": "Save rate",
     "saveRates": "Save rates",
-    "upload": "Upload rates",
-    "newRate": "New rate",
+    "upload": "Upload file",
+    "newRate": "Add one rate",
     "editRate": "Edit rate",
     "date": "Publication date",
     "rate": "IDR per USD",
@@ -870,7 +871,8 @@
         "noteHelper": "Optional context recorded against the grant."
       },
       "amountRequired": "Amount is required.",
-      "amountPositive": "Grant amount must be positive."
+      "amountPositive": "Grant amount must be positive.",
+      "balanceHelp": "Balance after credit grants and usage."
     },
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",
@@ -5024,5 +5026,9 @@
     "title": "Page not found",
     "body": "The page you're looking for doesn't exist or has been moved.",
     "back": "Back to Dashboard"
+  },
+  "pageSave": {
+    "save": "Save",
+    "failed": "Some changes were not saved. Try again."
   }
 }

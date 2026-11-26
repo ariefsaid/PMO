@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -132,14 +133,16 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
         />
       )}
       {balanceQuery.data !== undefined && (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-4">
           <span className="text-control text-muted-foreground">{t('admin.credits.orgBalance', 'Org balance')}</span>
-          <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
+          <span className="text-metric font-semibold tabular" data-testid="org-credit-balance">
             {formatNumberExact(balanceQuery.data)}{' '}
             <span className="text-control font-semibold text-muted-foreground">
               {t('admin.credits.unit', 'credits')}
             </span>
           </span>
+          <p className="text-control text-muted-foreground">{t('admin.credits.balanceHelp', 'Balance after credit grants and usage.')}</p>
+          <div className="flex gap-4 text-control"><Link className="font-medium text-primary-text underline" to="/administration/plan">{t('plans:yourPlan.navLabel', 'Your plan')}</Link>{isOperator && <Link className="font-medium text-primary-text underline" to="/administration/usage">{t('admin.nav.usage', 'Usage')}</Link>}</div>
         </div>
       )}
 

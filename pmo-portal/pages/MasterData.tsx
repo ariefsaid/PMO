@@ -104,7 +104,7 @@ export default function MasterDataPage() {
           {!readable && (
             <>
               <p className="min-w-0 text-muted-foreground">{t('administration:odoo.master.connectContents', 'After connecting: items, units, warehouses, cost accounts, accounts, and taxes.')}</p>
-              <Link to="/administration/integrations" className="touch-target inline-flex min-h-[var(--control-height)] items-center rounded-sm px-2 font-medium text-primary-text underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <Link to="/administration/integrations" className="touch-target inline-flex min-h-[var(--control-height)] items-center rounded-sm font-medium text-primary-text underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 {t('administration:odoo.master.connect', 'Connect Odoo')}
               </Link>
             </>

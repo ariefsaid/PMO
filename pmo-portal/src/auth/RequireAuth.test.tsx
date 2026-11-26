@@ -196,6 +196,16 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
     expect(screen.queryByRole('button', { name: /retry profile/i })).not.toBeInTheDocument();
   });
 
+  it('shows the account setup next step in Bahasa', async () => {
+    state.session = { user: { id: 'u-setup-id' } };
+    state.profileError = { code: 'PGRST116', message: 'No profile' };
+    render(bahasaTree('/'));
+    expect(await screen.findByRole('heading', { name: ID_AUTH.notProvisioned.title })).toBeInTheDocument();
+    expect(screen.getByText(ID_AUTH.notProvisioned.body)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keluar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /coba lagi/i })).not.toBeInTheDocument();
+  });
+
   it('a retry that finds no profile row switches to the not-provisioned page', async () => {
     state.session = { user: { id: 'u-retry-not-provisioned' } };
     state.profileError = { code: '57014', message: 'network timeout' };
@@ -209,7 +219,7 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
-    expect(await screen.findByText(/your account isn't set up for this workspace yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/account not set up/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
     expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
@@ -251,7 +261,7 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/your account isn't set up for this workspace yet/i)
+        screen.getByText(/account not set up/i)
       ).toBeInTheDocument()
     );
     expect(

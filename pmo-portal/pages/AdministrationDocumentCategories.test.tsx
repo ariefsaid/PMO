@@ -1,3 +1,4 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -32,7 +33,7 @@ const cats: DocumentCategory[] = [
 const wrap = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider><AdministrationDocumentCategories /></ToastProvider>
+      <ToastProvider><SettingsSaveProvider><SettingsSaveAction /><AdministrationDocumentCategories /></SettingsSaveProvider></ToastProvider>
     </QueryClientProvider>,
   );
 
@@ -57,10 +58,10 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     expect(byName(/Finance/)).toBeChecked();
     expect(byName(/Engineer/)).not.toBeChecked();
     // Save is idle until something changes
-    expect(within(card).getByRole('button', { name: /Save who can see it/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
     await user.click(byName(/Finance/));
     await user.click(byName(/Executive/));
-    await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Executive', 'Admin'], []));
   });
 
@@ -69,17 +70,20 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     wrap();
     const card = await screen.findByTestId('document-category-c-inv');
     await user.click(within(card).getByRole('checkbox', { name: /Finance/ }));
-    await user.click(within(card).getByRole('button', { name: /Save who can see it/i }));
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
     await waitFor(() => expect(state.setAccess).toHaveBeenCalledWith('c-inv', ['Admin'], []));
   });
 
   it('creates a category with the chosen roles (Admin always included, never an org id)', async () => {
     const user = userEvent.setup();
     wrap();
+    await screen.findByTestId('document-category-c-inv');
+    await user.click(screen.getByRole('button', { name: 'New category', exact: true }));
     const form = await screen.findByTestId('document-category-new');
+    expect(within(form).getByLabelText(/Category name/i)).toHaveFocus();
     await user.type(within(form).getByLabelText(/Category name/i), 'Commercial approval');
     await user.click(within(form).getByRole('checkbox', { name: /Finance/ }));
-    await user.click(within(form).getByRole('button', { name: /Create category/i }));
+    await user.click(screen.getByRole('button', { name: /Create category/i }));
     await waitFor(() => expect(state.create).toHaveBeenCalledWith('Commercial approval', ['Finance', 'Admin']));
   });
 

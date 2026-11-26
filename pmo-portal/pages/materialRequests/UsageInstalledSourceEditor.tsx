@@ -1,3 +1,4 @@
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, RecordSection, SelectField, useToast } from '@/src/components/ui';
@@ -25,13 +26,14 @@ export const UsageInstalledSourceEditor: React.FC = () => {
     catch (err) { setError(refusal(err)); }
     finally { setSaving(false); }
   };
+  const pageSave = useSettingsSaveEntry({ dirty: edited !== null && edited !== q.data, invalid: q.isError, busy: saving, save });
   return (
     <RecordSection title={t('usage.installedTitle', 'What counts as installed')} subline={t('usage.installedSub', 'The usage warning compares installed material with the plan. Choose where installed quantities come from.')}>
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       <div className="flex flex-wrap items-end gap-2">
         <SelectField label={t('usage.installedLabel', 'Installed material comes from')} value={value} onChange={(v) => setEdited(v as UsageInstalledSource)}
           options={[{ value: 'site_reports', label: t('usage.installedSiteReports', 'Validated site reports') }, { value: 'stock_issues', label: t('usage.installedStockIssues', 'Storekeeper issues to the work order (less returns)') }]} />
-        <Button variant="primary" disabled={edited === null || edited === q.data} loading={saving} onClick={() => void save()}>{t('usage.installedSave', 'Save source')}</Button>
+        {!pageSave && <Button variant="primary" disabled={edited === null || edited === q.data} loading={saving} onClick={() => void save()}>{t('usage.installedSave', 'Save source')}</Button>}
       </div>
     </RecordSection>
   );

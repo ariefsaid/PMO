@@ -1,3 +1,5 @@
+import { AdministrationActions } from '@/src/components/admin/AdministrationActions';
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +13,7 @@ import {
   StatusPill,
   Switch,
   TextField,
+  ViewToggle,
   useToast,
 } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
@@ -20,7 +23,7 @@ import { useOperatorOrgs, useOperatorOrgOverrides, useOperatorResolvedFeatures, 
 import {
   CORE_FEATURES,
   FEATURE_GROUPS,
-  FEATURE_LABELS,
+  featureLabel,
   type FeatureSource,
   type OrgFeatureKey,
 } from '@/src/lib/features';
@@ -117,6 +120,11 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
 
   const [planEditorId, setPlanEditorId] = useState<string | null>(null);
   /** Global switch awaiting confirmation (turning an all-orgs switch OFF). */
+  const [view, setView] = useState<'organisation' | 'plans'>('organisation');
+  const [queued, setQueued] = useState<Record<string, () => Promise<unknown>>>({});
+  const [values, setValues] = useState<Record<string, boolean | string>>({});
+  const stage = (id: string, value: boolean | string, apply: () => Promise<unknown>) => { setValues((v) => ({ ...v, [id]: value })); setQueued((q) => ({ ...q, [id]: apply })); };
+  const shown = (id: string, fallback: boolean): boolean => typeof values[id] === 'boolean' ? values[id] as boolean : fallback;
   const [pendingGlobalOff, setPendingGlobalOff] = useState<OrgFeatureKey | null>(null);
 
   const plans = useMemo(() => catalogue.data?.plans ?? [], [catalogue.data?.plans]);
@@ -160,8 +168,8 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
 
   const planMutation = useMutation({
     mutationFn: (args: { orgId: string; planId: string }) => repositories.orgFeature.setOrgPlan(args),
-    onSuccess: () => {
-      void refresh();
+    onSuccess: async () => {
+      await refresh();
       toast(t('console.planSaved', 'Plan assigned'), t('console.planSavedBody', 'The organisation now resolves that plan’s switches.'), 'success');
     },
     onError: (err) => onError(err),
@@ -170,14 +178,14 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const overrideMutation = useMutation({
     mutationFn: (args: { orgId: string; key: OrgFeatureKey; enabled: boolean }) =>
       repositories.orgFeature.toggle(args),
-    onSuccess: () => void refresh(),
+    onSuccess: () => refresh(),
     onError: (err) => onError(err),
   });
 
   const clearMutation = useMutation({
     mutationFn: (args: { orgId: string; key: OrgFeatureKey }) => repositories.orgFeature.clearOverride(args),
-    onSuccess: () => {
-      void refresh();
+    onSuccess: async () => {
+      await refresh();
       toast(t('console.cleared', 'Override cleared'), t('console.clearedBody', 'The switch follows the plan again.'), 'success');
     },
     onError: (err) => onError(err),
@@ -185,9 +193,9 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
 
   const globalMutation = useMutation({
     mutationFn: (args: { key: OrgFeatureKey; enabled: boolean }) => repositories.orgFeature.setGlobal(args),
-    onSuccess: (_data, args) => {
+    onSuccess: async (_data, args) => {
       setPendingGlobalOff(null);
-      void refresh();
+      await refresh();
       toast(
         t('console.globalSaved', 'All-organisations switch updated'),
         args.enabled
@@ -205,7 +213,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
   const planFeatureMutation = useMutation({
     mutationFn: (args: { planId: string; key: OrgFeatureKey; enabled: boolean }) =>
       repositories.orgFeature.setPlanFeature(args),
-    onSuccess: () => void refresh(),
+    onSuccess: () => refresh(),
     onError: (err) => onError(err),
   });
 
@@ -216,9 +224,9 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
       projectLimit: number | null;
       aiMonthlyMessages: number | null;
     }) => repositories.orgFeature.setPlanLimits(args),
-    onSuccess: () => {
+    onSuccess: async () => {
       setLimitDraft(null);
-      void refresh();
+      await refresh();
       toast(t('console.limitsSaved', 'Limits saved'), t('console.limitsSavedBody', 'New organisations on this plan inherit them.'), 'success');
     },
     onError: (err) => onError(err, 'console.limitRefused'),
@@ -232,6 +240,20 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
     planFeatureMutation.isPending ||
     planLimitsMutation.isPending;
 
+  const pageSave = useSettingsSaveEntry({
+    dirty: Object.keys(queued).length > 0 || limitDraft !== null, busy: anyPending,
+    save: async () => {
+      for (const [id, apply] of Object.entries(queued)) {
+        await apply();
+        setQueued((q) => { const next = { ...q }; delete next[id]; return next; });
+        setValues((v) => { const next = { ...v }; delete next[id]; return next; });
+      }
+      if (limitDraft && planEditor) {
+        const toLimit = (raw: string): number | null => raw.trim() === '' ? null : Number(raw);
+        await planLimitsMutation.mutateAsync({ planId: planEditor.planId, seatLimit: toLimit(limits.seats), projectLimit: toLimit(limits.projects), aiMonthlyMessages: toLimit(limits.aiMessages) });
+      }
+    },
+  });
   const orgOptions = useMemo(
     () => (orgs.data ?? []).map((org) => ({ value: org.id, label: org.name })),
     [orgs.data],
@@ -282,7 +304,9 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
 
   return (
     <div className="min-w-0 space-y-6">
-      <Card data-testid="console-header" className="px-4 py-4">
+      {(Object.keys(queued).length > 0 || limitDraft !== null) && <AdministrationActions><Button variant="outline" onClick={() => { setQueued({}); setValues({}); setLimitDraft(null); }}>{t('console.discard', 'Discard changes')}</Button></AdministrationActions>}
+      <ViewToggle semantics="toggle" ariaLabel={t('console.viewLabel', 'Feature settings view')} value={view} onChange={setView} options={[{ value: 'organisation', label: t('console.orgView', 'This organisation') }, { value: 'plans', label: t('console.planDefaultsHeading', 'Plan defaults and limits') }]} />
+      {view === 'organisation' && <Card data-testid="console-header" className="px-4 py-4">
         {header}
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField
@@ -290,15 +314,16 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
             value={selectedOrgId}
             options={orgOptions}
             onChange={(value) => setSelectedOrgId(value)}
-            helper={t('console.organisationHelper', 'Every switch below is this organisation’s resolved state.')}
+            disabled={anyPending || Object.keys(queued).length > 0 || limitDraft !== null}
+            helper={t('console.organisationHelper', 'Effective state shows saved settings. Changes apply when you select Save.')}
             fullWidth
           />
           <SelectField
             label={t('console.plan', 'Plan')}
-            value={orgPlan.isSuccess ? effectivePlanId : ''}
+            value={values[`org-plan:${selectedOrgId}`] as string ?? (orgPlan.isSuccess ? effectivePlanId : '')}
             options={planOptions}
             placeholder={orgPlan.isError ? t('console.planUnknown', 'Plan unavailable') : t('console.planLoading', 'Loading plan…')}
-            onChange={(value) => planMutation.mutate({ orgId: selectedOrgId, planId: value })}
+            onChange={(value) => stage(`org-plan:${selectedOrgId}`, value, () => planMutation.mutateAsync({ orgId: selectedOrgId, planId: value }))}
             helper={
               !orgPlan.isSuccess
                 ? <span aria-hidden="true" data-testid="plan-helper-reserve" className="block h-10 lg:h-5" />
@@ -314,7 +339,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
             fullWidth
           />
         </div>
-      </Card>
+      </Card>}
 
       {bodyError ? (
         <ListState
@@ -332,7 +357,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
       ) : (
         <>
 
-      <section aria-labelledby="console-switches" className="@container min-w-0">
+      {view === 'organisation' && <section aria-labelledby="console-switches" className="@container min-w-0">
         <SectionHeader
           title={t('console.switchesHeading', 'Switches for {{org}}', {
             org: selectedOrg?.name ?? t('console.thisOrganisation', 'this organisation'),
@@ -371,7 +396,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     const globalOn = global[key];
                     const globalOffWins = source === 'global' && globalOn === false;
                     const planDefault = orgPlanDefaults[key];
-                    const label = FEATURE_LABELS[key];
+                    const label = featureLabel(t, key);
                     const isAdminOwned = key === 'feedback_surveys';
                     return (
                       <tr key={key} data-testid={`feature-row-${key}`}>
@@ -399,8 +424,8 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                           ) : (
                             <div className="flex items-center gap-2">
                               <Switch
-                                checked={enabled}
-                                onChange={() => overrideMutation.mutate({ orgId: selectedOrgId, key, enabled: !enabled })}
+                                checked={shown(`org:${selectedOrgId}:${key}`, enabled)}
+                                onChange={() => { const next = !shown(`org:${selectedOrgId}:${key}`, enabled); stage(`org:${selectedOrgId}:${key}`, next, () => overrideMutation.mutateAsync({ orgId: selectedOrgId, key, enabled: next })); }}
                                 label={t('console.overrideSwitch', '{{feature}}: override for this organisation', { feature: label })}
                                 disabled={anyPending || globalOffWins}
                               />
@@ -409,7 +434,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                                   variant="ghost"
                                   size="sm"
                                   disabled={anyPending}
-                                  onClick={() => clearMutation.mutate({ orgId: selectedOrgId, key })}
+                                  onClick={() => stage(`org:${selectedOrgId}:${key}`, Boolean(orgPlanDefaults[key]), () => clearMutation.mutateAsync({ orgId: selectedOrgId, key }))}
                                 >
                                   {t('console.clearOverride', 'Clear')}
                                 </Button>
@@ -431,10 +456,10 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                             </span>
                           ) : (
                             <Switch
-                              checked={globalOn}
+                              checked={shown(`global:${key}`, Boolean(globalOn))}
                               onChange={() => {
-                                if (globalOn) setPendingGlobalOff(key);
-                                else globalMutation.mutate({ key, enabled: true });
+                                if (shown(`global:${key}`, Boolean(globalOn))) setPendingGlobalOff(key);
+                                else stage(`global:${key}`, true, () => globalMutation.mutateAsync({ key, enabled: true }));
                               }}
                               label={t('console.globalSwitch', '{{feature}}: switch for all organisations', { feature: label })}
                               disabled={anyPending}
@@ -451,7 +476,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                   {t('console.coreHeading', 'Core modules (never switchable)')}
                 </th>
                 <td colSpan={5} className="px-4 py-2 text-control text-muted-foreground">
-                  {CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}
+                  {CORE_FEATURES.map((key) => featureLabel(t, key)).join(' · ')}
                 </td>
               </tr>
             </tbody>
@@ -470,7 +495,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                   const globalOn = global[key];
                   const globalOffWins = source === 'global' && globalOn === false;
                   const planDefault = orgPlanDefaults[key];
-                  const label = FEATURE_LABELS[key];
+                  const label = featureLabel(t, key);
                   const isAdminOwned = key === 'feedback_surveys';
                   return (
                     <li key={key} data-testid={`feature-phone-row-${key}`} className="min-w-0 space-y-2 p-3">
@@ -489,21 +514,21 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                       ) : (
                         <div className="grid gap-2 border-t border-border pt-2">
                           <div className="flex min-w-0 items-center justify-between gap-3">
-                            <span className="min-w-0 text-control">{t('console.thisOrganisation', 'This organisation')}</span>
+                            <span className="min-w-0 text-control">{t('console.colOverride', 'This organisation')}</span>
                             <div className="flex shrink-0 items-center gap-2">
                               {hasOverride && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   disabled={anyPending}
-                                  onClick={() => clearMutation.mutate({ orgId: selectedOrgId, key })}
+                                  onClick={() => stage(`org:${selectedOrgId}:${key}`, Boolean(orgPlanDefaults[key]), () => clearMutation.mutateAsync({ orgId: selectedOrgId, key }))}
                                 >
                                   {t('console.clearOverride', 'Clear')}
                                 </Button>
                               )}
                               <Switch
-                                checked={enabled}
-                                onChange={() => overrideMutation.mutate({ orgId: selectedOrgId, key, enabled: !enabled })}
+                                checked={shown(`org:${selectedOrgId}:${key}`, enabled)}
+                                onChange={() => { const next = !shown(`org:${selectedOrgId}:${key}`, enabled); stage(`org:${selectedOrgId}:${key}`, next, () => overrideMutation.mutateAsync({ orgId: selectedOrgId, key, enabled: next })); }}
                                 label={t('console.overrideSwitch', '{{feature}}: override for this organisation', { feature: label })}
                                 disabled={anyPending || globalOffWins}
                               />
@@ -520,10 +545,10 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                               </span>
                             ) : (
                               <Switch
-                                checked={globalOn}
+                                checked={shown(`global:${key}`, Boolean(globalOn))}
                                 onChange={() => {
-                                  if (globalOn) setPendingGlobalOff(key);
-                                  else globalMutation.mutate({ key, enabled: true });
+                                  if (shown(`global:${key}`, Boolean(globalOn))) setPendingGlobalOff(key);
+                                  else stage(`global:${key}`, true, () => globalMutation.mutateAsync({ key, enabled: true }));
                                 }}
                                 label={t('console.globalSwitch', '{{feature}}: switch for all organisations', { feature: label })}
                                 disabled={anyPending}
@@ -540,19 +565,20 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
           ))}
           <section aria-label={t('console.coreHeading', 'Core modules (never switchable)')} className="rounded-lg border border-border bg-card p-3">
             <h3 className="text-control font-semibold text-foreground">{t('console.coreHeading', 'Core modules (never switchable)')}</h3>
-            <p className="mt-2 text-control text-muted-foreground">{CORE_FEATURES.map((key) => FEATURE_LABELS[key]).join(' · ')}</p>
+            <p className="mt-2 text-control text-muted-foreground">{CORE_FEATURES.map((key) => featureLabel(t, key)).join(' · ')}</p>
           </section>
         </div>
-      </section>
+      </section>}
 
-      <section aria-labelledby="console-plan-defaults" className="min-w-0">
+      {view === 'plans' && <section aria-labelledby="console-plan-defaults" className="min-w-0">
         <SectionHeader title={t('console.planDefaultsHeading', 'Plan defaults and limits')} />
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="rounded-lg border border-border bg-card">
             <div className="border-b border-border px-4 py-3">
               <SelectField
                 label={t('console.planToEdit', 'Plan to edit')}
                 value={planEditor?.planId ?? ''}
+                disabled={anyPending || Object.keys(queued).length > 0 || limitDraft !== null}
                 options={planOptions}
                 onChange={(value) => {
                   setPlanEditorId(value);
@@ -569,15 +595,15 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                     const on = Boolean(editorPlanDefaults[key]);
                     return (
                       <li key={key} data-testid={`plan-default-${key}`} className="flex items-center justify-between gap-3 px-4 py-2">
-                        <span className="text-control">{FEATURE_LABELS[key]}</span>
+                        <span className="text-control">{featureLabel(t, key)}</span>
                         <Switch
-                          checked={on}
+                          checked={shown(`plan:${planEditor?.planId}:${key}`, on)}
                           onChange={() =>
                             planEditor &&
-                            planFeatureMutation.mutate({ planId: planEditor.planId, key, enabled: !on })
+                            stage(`plan:${planEditor.planId}:${key}`, !shown(`plan:${planEditor.planId}:${key}`, on), () => planFeatureMutation.mutateAsync({ planId: planEditor.planId, key, enabled: !shown(`plan:${planEditor.planId}:${key}`, on) }))
                           }
                           label={t('console.planDefaultSwitch', '{{feature}}: default for the {{plan}} plan', {
-                            feature: FEATURE_LABELS[key],
+                            feature: featureLabel(t, key),
                             plan: planEditor?.name ?? t('console.thisPlan', 'selected'),
                           })}
                           disabled={anyPending || !planEditor}
@@ -620,7 +646,7 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                 onChange={(value) => updateDraft({ aiMessages: value })}
                 fullWidth
               />
-              <Button
+              {!pageSave && <Button
                 variant="primary"
                 disabled={anyPending || !planEditor}
                 onClick={() => {
@@ -635,11 +661,11 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
                 }}
               >
                 {t('console.saveLimits', 'Save limits')}
-              </Button>
+              </Button>}
             </div>
           </Card>
         </div>
-      </section>
+      </section>}
         </>
       )}
 
@@ -650,12 +676,12 @@ const OperatorConsole: React.FC<ConsoleProps> = ({ defaultOrgId }) => {
         description={t(
           'console.globalConfirmBody',
           '{{feature}} will be off for every organisation, whatever its plan or override. Data is kept; switching it back on restores it.',
-          { feature: pendingGlobalOff ? FEATURE_LABELS[pendingGlobalOff] : '' },
+          { feature: pendingGlobalOff ? featureLabel(t, pendingGlobalOff) : '' },
         )}
         confirmLabel={t('console.globalConfirmAction', 'Switch off for all')}
         loading={globalMutation.isPending}
         onConfirm={() => {
-          if (pendingGlobalOff) globalMutation.mutate({ key: pendingGlobalOff, enabled: false });
+          if (pendingGlobalOff) { const key = pendingGlobalOff; stage(`global:${key}`, false, () => globalMutation.mutateAsync({ key, enabled: false })); setPendingGlobalOff(null); }
         }}
         onCancel={() => setPendingGlobalOff(null)}
       />
@@ -680,7 +706,7 @@ const ReadOnlyFeatures: React.FC = () => {
               const on = Boolean(states?.[key]?.displayEnabled);
               return (
                 <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-control font-medium">{FEATURE_LABELS[key]}</span>
+                  <span className="text-control font-medium">{featureLabel(t, key)}</span>
                   <StatusPill variant={on ? 'won' : 'neutral'}>
                     {key === 'feedback_surveys'
                       ? t('console.adminOwnedRow', 'Admin-owned')
@@ -693,7 +719,7 @@ const ReadOnlyFeatures: React.FC = () => {
         ))}
         {CORE_FEATURES.map((key) => (
           <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-control font-medium">{FEATURE_LABELS[key]}</span>
+            <span className="text-control font-medium">{featureLabel(t, key)}</span>
             <StatusPill variant="neutral">{t('console.sourceCore', 'Always on')}</StatusPill>
           </li>
         ))}

@@ -45,16 +45,16 @@ describe('material request approval settings', () => {
     h.role = 'Engineer';
     render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
     expect(screen.queryByText('Daily cut-off')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/^Time \(24-hour/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save cut-off' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Time$/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save', exact: true })).not.toBeInTheDocument();
   });
 
   it('AC-MRQ-021 an Admin sees the cut-off control and can save it', () => {
     h.role = 'Admin';
     render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
     expect(screen.getByText('Daily cut-off')).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Time \(24-hour/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save cut-off' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Time$/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save', exact: true })).toBeInTheDocument();
   });
 
   describe('#2687 printable delivery note settings', () => {
@@ -84,7 +84,7 @@ describe('material request approval settings', () => {
 
       // Change a block, then save
       await userEvent.type(screen.getAllByRole('textbox', { name: /Signature block 3/i })[0], ' (site)');
-      const saveBtn = screen.getByTestId('save-delivery-note-settings-button');
+      const saveBtn = screen.getByRole('button', { name: 'Save', exact: true });
       await userEvent.click(saveBtn);
 
       expect(h.setDeliveryNoteSettings).toHaveBeenCalledWith({

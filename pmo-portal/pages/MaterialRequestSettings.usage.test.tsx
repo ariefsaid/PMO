@@ -36,7 +36,7 @@ describe('AC-MUT-010 usage warning settings are Admin-only', () => {
     expect(screen.getByText('Usage warnings')).toBeInTheDocument();
     expect(screen.getByLabelText('First warning (% of plan)')).toBeInTheDocument();
     expect(screen.getByLabelText('Second warning (% of plan)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save warnings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save', exact: true })).toBeInTheDocument();
     expect(screen.getByLabelText('Installed material comes from')).toBeInTheDocument();
   });
 });
