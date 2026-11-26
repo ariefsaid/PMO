@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
-import { Button, ConfirmDialog, DataTable, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack, SelectField, cn, useToast, type Column } from '@/src/components/ui';
+import { Button, ConfirmDialog, DataTable, ListState, MobileActionBar, ReasonDialog, RecordHeader, RecordSection, RecordStack, SelectField, cn, useToast, type Column } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -187,6 +187,11 @@ const MaterialRequestDetailPage: React.FC = () => {
         </RecordSection>
       </RecordStack>
 
+      {canDecide && <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 flex gap-2 border-t border-border bg-card p-3 sm:hidden">
+        <Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button>
+        <Button variant="outline" onClick={() => setDialog({ kind: 'return' })}>{t('detail.return', 'Send back')}</Button>
+        <Button variant="outline" onClick={() => setDialog({ kind: 'reject' })}>{t('detail.reject', 'Reject')}</Button>
+      </MobileActionBar>}
       <ConfirmDialog open={dialog?.kind === 'approve'} title={t('detail.approveTitle', 'Approve this step')} confirmLabel={t('detail.approve', 'Approve')}
         description={needsSource
           ? (retrySourceOptions.length > 0
