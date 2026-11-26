@@ -49,6 +49,7 @@
     "open": "Buka"
   },
   "notice": {
+    "folderAccessDenied": "Anda tidak memiliki akses ke folder ini di Microsoft 365. Hubungi pemilik folder.",
     "expiredFolder": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melihat file folder ini."
   },
   "folderTree": {
