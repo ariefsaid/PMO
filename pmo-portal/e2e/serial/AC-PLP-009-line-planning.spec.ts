@@ -27,5 +27,5 @@ test('AC-PLP-009 line planning is on for everyone (#2746) with starter categorie
   await page.getByRole('tab', { name: /line items/i }).click();
   const panel = page.getByTestId('line-plan-panel');
   await expect(panel.getByLabel('Line category')).toHaveValue(/.+/);
-  await expect(panel.getByLabel('Needed by')).toHaveValue('31 Dec 2026');
+  await expect(panel.getByRole('textbox', { name: 'Needed by' })).toHaveValue('31 Dec 2026');
 });
