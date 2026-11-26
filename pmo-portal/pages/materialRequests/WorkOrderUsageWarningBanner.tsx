@@ -19,11 +19,21 @@ const Inner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   return (
     <div role="status" className="mb-2 text-control text-warning-foreground" data-testid="wo-usage-warning">
       <p className="font-semibold">{t('usage.cardTitle', 'Installed material past the usage warning')}</p>
-      <ul className="mt-1 space-y-1">
-        {rows.map((r) => (
-          <li key={r.itemId}>{t('usage.cardLine', '{{item}}: {{installed}} of {{plan}} {{unit}} planned installed, past the {{threshold}}% warning.', { item: r.itemName, installed: fmt(r.installedQty), plan: fmt(r.planQty), unit: r.unit, threshold: fmt(r.threshold) })}</li>
-        ))}
-      </ul>
+      <table className="mt-1 w-full max-w-xl text-control" aria-label={t('usage.cardTitle', 'Installed material past the usage warning')}>
+        <thead><tr className="text-left text-muted-foreground">
+          <th scope="col" className="py-1 pr-4 font-normal">{t('usage.cardItem', 'Item')}</th>
+          <th scope="col" className="py-1 pl-4 text-right font-normal">{t('usage.cardInstalled', 'Installed')}</th>
+          <th scope="col" className="py-1 pl-4 text-right font-normal">{t('usage.cardPlan', 'Planned')}</th>
+          <th scope="col" className="py-1 pl-4 text-right font-normal">{t('usage.cardThreshold', 'Warning at')}</th>
+        </tr></thead>
+        <tbody>{rows.map((r) => (
+          <tr key={r.itemId} className="border-t border-warning/30">
+            <th scope="row" className="py-1 pr-4 text-left font-medium">{r.itemName}</th>
+            <td className="py-1 pl-4 text-right tabular-nums whitespace-nowrap">{fmt(r.installedQty)} <span className="text-muted-foreground">{r.unit}</span></td>
+            <td className="py-1 pl-4 text-right tabular-nums whitespace-nowrap">{fmt(r.planQty)} <span className="text-muted-foreground">{r.unit}</span></td>
+            <td className="py-1 pl-4 text-right tabular-nums">{fmt(r.threshold)}%</td>
+          </tr>))}</tbody>
+      </table>
     </div>
   );
 };

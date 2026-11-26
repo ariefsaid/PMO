@@ -673,7 +673,10 @@
       "banner": {
         "title": "Barang dikeluarkan melebihi progres: {{count}}",
         "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres $t(common:terms.clientWorkOrder) ({{progress}}%). Ini hanya peringatan.",
-        "row": "{{name}}: dikeluarkan {{issued}}% dari rencana, progres {{progress}}%, lebih {{gap}} poin"
+        "item": "Barang",
+        "issued": "Dikeluarkan dari rencana",
+        "ahead": "Di depan progres",
+        "points": "{{gap}} poin"
       },
       "setting": {
         "manage": "Peringatan pengeluaran terhadap progres",

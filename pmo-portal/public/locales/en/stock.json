@@ -673,7 +673,10 @@
       "banner": {
         "title": "Items issued ahead of progress: {{count}}",
         "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",
-        "row": "{{name}}: issued {{issued}}% of planned, progress {{progress}}%, {{gap}} points ahead"
+        "item": "Item",
+        "issued": "Issued of plan",
+        "ahead": "Ahead of progress",
+        "points": "{{gap}} points"
       },
       "setting": {
         "manage": "Issued-versus-progress warning",
