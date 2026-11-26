@@ -100,7 +100,8 @@ test('JOB-PU14 the storekeeper receives 37 of 40 at the site and a purchasing us
   await page.goto(`/procurement/${purchase.id}`);
   await page.getByRole('tab', { name: 'Items' }).click();
   // The order's line reads, column by column: Ordered 40 · Received 37 · Outstanding 3.
-  const orderLine = page.getByRole('table', { name: 'Goods received' }).getByRole('row').filter({ hasText: item.name });
+  // The purchase has one line (the fixture's); its row is the table's only row with a row header.
+  const orderLine = page.getByRole('table', { name: 'Goods received' }).getByRole('row').filter({ has: page.getByRole('rowheader') });
   await expect(orderLine.getByRole('cell').nth(0)).toHaveText(/^40\b/, { timeout: 20_000 });
   await expect(orderLine.getByRole('cell').nth(1)).toHaveText(/^37\b/);
   await expect(orderLine.getByRole('cell').nth(2)).toHaveText(/^3\b/);
