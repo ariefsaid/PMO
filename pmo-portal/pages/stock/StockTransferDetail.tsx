@@ -167,7 +167,7 @@ const StockTransferDetail: React.FC = () => {
         actions={deliveryNotes.data?.enabled ? <Link to={`/stock/transfers/${transfer.id}/print`} className={buttonClasses('outline')}>{t('transfers.print.action')}</Link> : undefined}
         menuItems={canRecall ? [{ key: 'recall', label: t('transfers.recallAction'), danger: true, onSelect: () => { setReason(''); setRecalling(true); } }] : undefined}
       />
-      <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={t('transfers.summary')}>
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-3 lg:grid-cols-4" aria-label={t('transfers.summary')}>
         {facts.map((f) => <div key={f.key} className="min-w-0"><dt className="text-control text-muted-foreground">{f.label}</dt><dd className="break-words text-control text-foreground">{f.value}</dd></div>)}
       </dl>
       {transfer.status === 'Sent' && waitingFailed && (
