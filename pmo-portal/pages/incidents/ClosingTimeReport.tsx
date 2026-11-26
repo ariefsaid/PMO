@@ -295,8 +295,8 @@ export const ClosingTimeReport: React.FC = () => {
       </Card>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="closing-report-kpis">
-        <Card>
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-4" data-testid="closing-report-kpis">
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <span className="text-control text-muted-foreground">
               {t('closingReport.cards.totalIssues', 'Total issues')}
@@ -305,9 +305,9 @@ export const ClosingTimeReport: React.FC = () => {
               {summary.totalIssues}
             </div>
           </CardPad>
-        </Card>
+        </div>
 
-        <Card>
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <span className="text-control text-muted-foreground">
               {t('closingReport.cards.closedIssues', 'Closed issues')}
@@ -321,9 +321,9 @@ export const ClosingTimeReport: React.FC = () => {
               </span>
             </div>
           </CardPad>
-        </Card>
+        </div>
 
-        <Card>
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <span className="text-control text-muted-foreground">
               {t('closingReport.cards.avgClosingTime', 'Avg time to close')}
@@ -332,23 +332,23 @@ export const ClosingTimeReport: React.FC = () => {
               {formatClosingDuration(summary.overallAvgHours, t)}
             </div>
           </CardPad>
-        </Card>
+        </div>
 
-        <Card className={summary.overdueIssues > 0 ? 'border-warning/50' : ''}>
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-control text-muted-foreground">
                 {t('closingReport.cards.stalledIssues', 'Stalled issues')}
               </span>
             </div>
-            <div className="text-metric font-semibold text-foreground">
+            <div className={`text-metric font-semibold ${summary.overdueIssues > 0 ? 'text-warning-foreground' : 'text-foreground'}`}>
               {summary.overdueIssues}
             </div>
             <p className="text-xs text-muted-foreground">
               {t('closingReport.cards.stalledSub', 'Overdue and open')}
             </p>
           </CardPad>
-        </Card>
+        </div>
       </div>
 
       {/* Data Table */}

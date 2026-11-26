@@ -76,8 +76,8 @@ const SafetySummary: React.FC = () => {
                 const kind = DETAIL_KIND[f.key];
                 const drill = !client && kind && f.value !== null && f.value > 0;
                 return (
-                  <li key={f.key}>
-                    <Card>
+                  <li key={f.key} className="h-full">
+                    <Card className="h-full">
                       <div className="p-4">
                         <div className="text-control text-muted-foreground">{label(f)}</div>
                         <div className="mt-1 text-xl font-semibold tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</div>
