@@ -102,7 +102,7 @@ test('AC-CUS-015: a planner adds a standard, generates the work order\'s consuma
     await page.getByLabel('Deliver to').selectOption({ label: `${site.code} · ${site.name}` });
     await page.getByLabel(/^item/i).selectOption({ label: `${rod.code} · ${rod.name}` });
     await page.getByLabel(/^quantity/i).fill('9');
-    await expect(page.getByTestId('mrq-plan')).toContainText('Plan 8.8');
+    await expect(page.getByTestId('mrq-plan-qty')).toHaveText(/^8\.8\b/);
     await expect(page.getByTestId('mrq-plan-source')).toContainText('From usage standards');
     await expect(page.getByTestId('mrq-plan')).toContainText('Over plan');
     await page.getByRole('button', { name: 'Send for approval' }).click();

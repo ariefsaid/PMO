@@ -127,7 +127,13 @@
     "title": "New material request",
     "wholeOnly": "This item is counted in whole units. Enter a whole number.",
     "workOrder": "Work order",
-    "workOrderNoun": "work order"
+    "workOrderNoun": "work order",
+    "figures": {
+      "plan": "Plan",
+      "prior": "Requested before",
+      "total": "New total",
+      "sectionPlan": "{{section}} plan"
+    }
   },
   "inbox": {
     "scope": "Material requests",

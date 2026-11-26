@@ -127,7 +127,13 @@
     "title": "Permintaan material baru",
     "wholeOnly": "Barang ini dihitung dalam satuan utuh. Masukkan bilangan bulat.",
     "workOrder": "$t(common:terms.clientWorkOrder)",
-    "workOrderNoun": "$t(common:terms.clientWorkOrder)"
+    "workOrderNoun": "$t(common:terms.clientWorkOrder)",
+    "figures": {
+      "plan": "Rencana",
+      "prior": "Sudah diminta",
+      "total": "Total baru",
+      "sectionPlan": "Rencana {{section}}"
+    }
   },
   "inbox": {
     "scope": "Permintaan material",
