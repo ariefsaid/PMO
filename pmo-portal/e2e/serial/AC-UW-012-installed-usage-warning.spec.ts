@@ -48,5 +48,9 @@ test('AC-UW-012 installed material past the share tells the engineer who reporte
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 'admin@acme.test');
   await page.goto(`/projects/${SEED_PROJECT_ID}/contract?wo=${woId}`);
-  await expect(page.getByTestId(`customer-order-${woId}`).getByTestId('wo-usage-warning')).toContainText(/85 of 100 .* planned installed, past the 80% warning/, { timeout: 20_000 });
+  // The warning row reads installed 85 of planned 100, past the 80% warning.
+  const warning = page.getByTestId(`customer-order-${woId}`).getByTestId('wo-usage-warning').getByRole('row').filter({ has: page.getByRole('rowheader') });
+  await expect(warning.getByRole('cell').nth(0)).toHaveText(/^85\b/, { timeout: 20_000 });
+  await expect(warning.getByRole('cell').nth(1)).toHaveText(/^100\b/);
+  await expect(warning.getByRole('cell').nth(2)).toHaveText('80%');
 });

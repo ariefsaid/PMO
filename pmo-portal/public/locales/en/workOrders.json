@@ -13,9 +13,13 @@
     "error": "Couldn't load the scope",
     "empty": "No contract lines are allocated to this work order yet.",
     "allocate": "Allocate lines on the project",
-    "overall": "Overall {{pct}} complete",
     "lump": "{{done}} of {{all}}",
-    "qty": "{{done}} of {{all}} {{unit}}"
+    "qty": "{{done}} of {{all}} {{unit}}",
+    "col": {
+      "line": "Contract line",
+      "accepted": "Accepted",
+      "percent": "Complete"
+    }
   },
   "costs": {
     "title": "Costs",
@@ -45,10 +49,15 @@
       "purchase_order": "Not counted as direct cost yet: an order counts once its supplier bill is recorded.",
       "goods_receipt": "Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded."
     },
-    "attendanceLabel": "Attendance"
+    "attendanceLabel": "Attendance",
+    "col": {
+      "record": "Record",
+      "date": "Date",
+      "quantity": "Quantity",
+      "amount": "Amount"
+    }
   },
   "billing": {
-    "title": "Billing and acceptances",
     "error": "Couldn't load the billing figures",
     "noFigures": "No billing figures for this work order yet.",
     "invoiced": "Invoiced",
@@ -79,7 +88,8 @@
       "toDate": "to date",
       "total": "Total billed"
     },
-    "openContract": "Claims and invoices"
+    "openContract": "Claims and invoices",
+    "invoicesTitle": "Invoices"
   },
   "documents": {
     "title": "Documents",
@@ -396,8 +406,7 @@
     "cost": "Cost and plan",
     "material": "Materials",
     "billing": "Billing",
-    "inspections": "Inspections",
-    "closeout": "Close-out",
+    "checks": "Inspections and close-out",
     "documents": "Documents and safety",
     "issues": "Issues and tasks"
   },
@@ -449,5 +458,6 @@
   },
   "new": {
     "action": "New work order"
-  }
+  },
+  "complete": "Complete"
 }

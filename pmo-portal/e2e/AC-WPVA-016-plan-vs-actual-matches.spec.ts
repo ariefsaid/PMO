@@ -6,6 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from './helpers';
 import { formatExactMoney } from '../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(60_000);
 
@@ -72,6 +73,7 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     await page.locator('a[href="/work-orders/' + workOrderId + '"]').first().click();
 
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'cost');
     const panel = page.getByTestId('wo-page-pva');
     await expect(panel).toBeVisible();
     await expect(panel.getByTestId('wo-page-pva-plan-direct')).toHaveText(formatExactMoney('5000.00', 'EUR', 'en-US') ?? 'unformattable');

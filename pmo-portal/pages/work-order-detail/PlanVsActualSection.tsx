@@ -85,19 +85,40 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
   const nameOf = (id: string | null) => (id === null ? t('noDiscipline', 'No discipline') : disciplines.find((d) => d.id === id)?.name ?? t('unknownDiscipline', 'Archived discipline'));
   const revenue = w.revenue === null || !w.revenueComplete ? t('revenueUnknown', 'Revenue unknown') : money(w.revenue);
 
-  const figure = (testId: string, label: string, value: React.ReactNode, note?: React.ReactNode) => (
-    <div key={testId}>
+  const figure = (testId: string, label: string, value: React.ReactNode) => (
+    <div key={testId} className="min-w-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="tabular-nums" data-testid={testId}>{value}{note ? <div className="text-muted-foreground">{note}</div> : null}</dd>
+      <dd className="mt-1 font-medium tabular-nums" data-testid={testId}>{value}</dd>
     </div>
+  );
+  // One question per row: what was planned, what it has cost, and what is left or over (stacked under the actual).
+  const planLabel = t('col.planShort', 'Plan');
+  const actualLabel = t('col.actualShort', 'Actual');
+  // A phone reads each row as its name over two labelled figures; wider screens read one table.
+  const stackedCell = 'max-sm:flex max-sm:justify-between max-sm:gap-4 max-sm:py-1 max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-label)]';
+  const costRow = (key: string, label: string, plan: string | null, actual: string | null, planId: string, actualId: string) => (
+    <tr key={key} className="border-t border-border max-sm:block max-sm:py-2">
+      <th scope="row" className="py-3 pr-4 text-left font-normal max-sm:block max-sm:py-1 max-sm:font-medium">{label}</th>
+      <td className={`py-3 pr-4 text-right tabular-nums max-sm:pr-0 ${stackedCell}`} data-label={planLabel} data-testid={planId}>{planText(plan)}</td>
+      <td className={`py-3 text-right tabular-nums ${stackedCell}`} data-label={actualLabel} data-testid={actualId}><span>{money(actual)}{plan !== null && <span className="block text-muted-foreground">{variantText(plan, actual)}</span>}</span></td>
+    </tr>
   );
   return (
     <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-control sm:grid-cols-3">
-        {figure('wo-page-pva-plan-direct', t('col.plan', 'Planned direct'), planText(f.plan.direct_budget))}
-        {figure('wo-page-pva-direct', t('col.direct', 'Direct cost'), money(f.direct), variantText(f.plan.direct_budget, f.direct))}
-        {figure('wo-page-pva-plan-indirect', t('col.planIndirect', 'Planned indirect'), planText(f.plan.indirect_budget))}
-        {figure('wo-page-pva-allocated', t('col.shared', 'Shared cost'), money(f.allocated), variantText(f.plan.indirect_budget, f.allocated))}
+      <div>
+        <table className="w-full text-control max-sm:block" data-testid="wo-page-pva-cost">
+          <thead className="max-sm:sr-only"><tr className="text-right text-muted-foreground">
+            <th scope="col" className="pb-2 pr-4 text-left font-normal"><span className="sr-only">{t('col.cost', 'Cost')}</span></th>
+            <th scope="col" className="pb-2 pr-4 font-normal">{planLabel}</th>
+            <th scope="col" className="pb-2 font-normal">{actualLabel}</th>
+          </tr></thead>
+          <tbody className="max-sm:block">
+            {costRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct')}
+            {costRow('shared', t('col.shared', 'Shared cost'), f.plan.indirect_budget, f.allocated, 'wo-page-pva-plan-indirect', 'wo-page-pva-allocated')}
+          </tbody>
+        </table>
+      </div>
+      <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-4 text-control sm:grid-cols-3">
         {figure('wo-page-pva-revenue', t('col.revenue', 'Billed revenue'), revenue)}
         {figure('wo-page-pva-direct-margin', t('col.directMargin', 'Direct margin'), marginText(f.directMargin))}
         {figure('wo-page-pva-result', t('col.result', 'After shared cost'), marginText(f.result))}

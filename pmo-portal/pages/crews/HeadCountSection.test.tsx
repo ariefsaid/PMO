@@ -42,13 +42,13 @@ describe('HeadCountSection', () => {
 
   it('AC-HC-011 an empty day says what is missing, who adds it, and not to count a named person twice', () => {
     renderIt();
-    expect(screen.getByText(/No head count entered for this day\./)).toBeInTheDocument();
-    expect(screen.getByText(/never both/)).toBeInTheDocument();
+    expect(screen.getByText('No head count for this day')).toBeInTheDocument();
+    expect(screen.getByText('Count only people not named above')).toBeInTheDocument();
   });
 
   it('AC-HC-011 the named people ticked present on the crew are shown beside the field, so the keeper sees the overlap', () => {
     renderIt(4);
-    expect(screen.getByText('4 named people are ticked present on this crew today. Count here only the people not named on the roster.')).toBeInTheDocument();
+    expect(screen.getByTestId('headcount-named')).toHaveTextContent('4 named present above');
   });
 
   it("AC-HC-011 the crew's foreman enters a class and a number; archived classes are not offered", async () => {

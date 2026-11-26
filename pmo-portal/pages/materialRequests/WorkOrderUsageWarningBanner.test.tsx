@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -15,7 +15,9 @@ describe('AC-UW-012 the work order card shows installed material past the warnin
   it('names the item, installed against plan and the threshold', () => {
     h.rows = [{ itemId: 'i1', itemName: 'Cement', unit: 'BAG', installedQty: 85, planQty: 100, threshold: 80 }];
     render(wrap(<WorkOrderUsageWarningBanner workOrderId="w1" />));
-    expect(screen.getByTestId('wo-usage-warning')).toHaveTextContent('Cement: 85 of 100 BAG planned installed, past the 80% warning.');
+    const row = screen.getByRole('row', { name: /Cement/ });
+    const cells = within(row).getAllByRole('cell').map((c) => c.textContent);
+    expect(cells).toEqual(['85 BAG', '100 BAG', '80%']);
   });
   it('renders nothing when no warning is recorded', () => {
     h.rows = [];

@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test';
 import { formatExactMoney } from '../src/lib/format';
 import { inDays, orgToday, serviceClient, need } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -61,6 +62,7 @@ test('JOB-PC16 idle time recorded on a validated report becomes cost at the work
     // Before validation the work order shows no idle cost for that cause.
     await pcm.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByTestId('wo-page-pva-plan-direct').or(page.getByRole('heading', { level: 1 })).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId(`wo-page-pva-idle-${why.id}`)).toHaveCount(0);
 
@@ -72,6 +74,7 @@ test('JOB-PC16 idle time recorded on a validated report becomes cost at the work
 
     // The work order's idle cost now shows four hours at that rate, by cause.
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'cost');
     const row = page.getByTestId(`wo-page-pva-idle-${why.id}`);
     await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row).toContainText('Weather');

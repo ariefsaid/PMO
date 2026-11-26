@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -37,6 +38,7 @@ test('JOB-PC11 an engineer cannot close a start-work prerequisite without proof,
     // The engineer opens the work order and follows its prerequisite tasks.
     await engineer.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'issues');
     const openTasks = page.getByTestId('wo-open-tasks');
     await expect(openTasks).toBeVisible({ timeout: 30_000 });
     await expect(openTasks).toContainText(`${run} scaffold handover`);
@@ -58,6 +60,7 @@ test('JOB-PC11 an engineer cannot close a start-work prerequisite without proof,
 
     // The work order now lists the two prerequisites still open.
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'issues');
     await expect(page.getByTestId('wo-open-tasks')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('wo-open-tasks')).not.toContainText('scaffold handover');
     await expect(page.getByTestId('wo-open-tasks')).toContainText(`${run} permit approval`);

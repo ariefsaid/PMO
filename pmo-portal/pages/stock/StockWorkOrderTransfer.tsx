@@ -96,9 +96,8 @@ const StockWorkOrderTransfer: React.FC = () => {
 
   return (
     <div>
-      <PageHeader title={t('workOrderTransfer.title')} />
+      <PageHeader title={t('workOrderTransfer.title')} help={<p>{t('workOrderTransfer.intro')}</p>} />
       <form className="max-w-3xl space-y-4 pb-24 md:pb-0" onSubmit={(e) => { e.preventDefault(); if (validate()) setConfirm(true); }} noValidate>
-        <p className="text-sm text-muted-foreground">{t('workOrderTransfer.intro')}</p>
         <FormErrorStrip>{error || undefined}</FormErrorStrip>
         <FormGrid>
           <SelectField label={t('workOrderTransfer.project')} required value={projectId} onChange={(v) => { setProjectId(v); setFrom(''); setTo(''); setLocation(''); setLines([{ key: nextKey.current++, itemId: '', quantity: '' }]); }}

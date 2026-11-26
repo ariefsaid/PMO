@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
 import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -46,6 +47,7 @@ test('JOB-F19 the safety officer records a toolbox talk, the start-work checklis
     // 1. The safety officer starts today's record from the work order.
     await safetyOfficer.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'documents');
     const section = page.getByTestId('safety-section');
     await expect(section).toBeVisible({ timeout: 20_000 });
     await section.getByTestId('safety-new-day').click();
@@ -73,6 +75,7 @@ test('JOB-F19 the safety officer records a toolbox talk, the start-work checklis
 
     // 5. Goal: back on the work order, the day is recorded, and its record carries all three.
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'documents');
     const todayRow = page.locator(`[data-testid="safety-day-row"][data-date="${orgToday()}"]`);
     await expect(todayRow).toBeVisible({ timeout: 20_000 });
     await todayRow.getByRole('button', { name: 'Open' }).click();

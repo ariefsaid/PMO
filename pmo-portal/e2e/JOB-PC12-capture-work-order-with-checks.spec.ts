@@ -5,6 +5,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(240_000);
 
@@ -52,6 +53,7 @@ test('JOB-PC12 the issuer captures a work order as Draft with its document; thre
     await expect(page.getByText(`Client PO ${run}/WO/001`)).toBeVisible({ timeout: 20_000 });
 
     // ...and attaches the client's document to it.
+    await openWorkOrderArea(page, 'documents');
     await page.getByRole('button', { name: 'Add document' }).click();
     await page.getByRole('dialog').getByLabel(/Title/).fill(`${run} client work order`);
     await page.getByRole('dialog').getByRole('button', { name: 'Add document' }).click();

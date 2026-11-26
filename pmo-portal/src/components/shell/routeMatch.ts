@@ -362,6 +362,7 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/reorder': '/stock',
   '/stock/at-risk': '/stock',
   '/stock/opening': '/stock',
+  '/stock/usage-standards': '/stock',
   '/stock/setup': '/stock',
   '/stock/transfers': '/stock',
   '/stock/transfers/new': '/stock',
@@ -399,6 +400,9 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/reorder': { label: 'Reorder', i18nKey: 'stock:tabs.reorder' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/setup': { label: 'Setup', i18nKey: 'stock:tabs.setup' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/at-risk': { label: 'At risk', i18nKey: 'stock:tabs.atRisk' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/opening': { label: 'Opening stock', i18nKey: 'stock:opening.title' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/usage-standards': { label: 'Usage standards', i18nKey: 'stock:tabs.usageStandards' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/transfers': { label: 'Transfers', i18nKey: 'stock:tabs.transfers' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/transfers/new': { label: 'Send transfer', i18nKey: 'stock:transfers.sendTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/work-order-transfer': { label: 'Move leftover', i18nKey: 'stock:workOrderTransfer.title' }, // i18n-exempt: fallback label is replaced from i18nKey at render

@@ -10,6 +10,7 @@ import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
 import { orgToday } from './support/jobJourney';
 import { createJobRoleUser } from './support/jobRoleUser';
 import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -53,6 +54,7 @@ test('JOB-BQ9 a quality inspector records the test, attaches its report and the 
     // 1–3. The Quality Inspector records the invitation, the execution and the report.
     await quality.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'checks');
     const card = page.getByTestId(`inspection-${inspectionId}`);
     await expect(card.getByTestId('inspection-status')).toHaveText('Purchase raised');
     await card.getByRole('button', { name: 'Record invitation' }).click();
@@ -74,6 +76,7 @@ test('JOB-BQ9 a quality inspector records the test, attaches its report and the 
     await page.context().clearCookies();
     await pm.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId(`inspection-${inspectionId}`).getByTestId('inspection-cost')).toContainText(/12[.,]000/, { timeout: 15_000 });
   } finally {
     if (inspectionId) {

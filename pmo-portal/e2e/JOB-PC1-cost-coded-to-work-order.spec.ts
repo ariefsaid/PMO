@@ -8,6 +8,7 @@ import { pickComboboxOption } from './helpers';
 import { need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -97,6 +98,7 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
 
     // 4. All three appear in that work order's actual cost.
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     const timesheetGroup = page.getByTestId('cost-group-timesheet_entry');
     const equipmentGroup = page.getByTestId('cost-group-equipment_usage');
     const stockGroup = page.getByTestId('cost-group-stock_document');

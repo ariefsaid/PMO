@@ -139,29 +139,27 @@ export const CrewLoans: React.FC = () => {
     { key: 'to', header: t('crews:to', 'To'), cell: (l) => formatDay(l.valid_to) },
   ];
   return (
-    <Card className="mt-6" data-testid="crew-loans">
+    <Card seam className="mt-6" data-testid="crew-loans">
       <CardHead actions={canManage ? <Button variant="outline" size="sm" onClick={() => setLending(true)}><Icon name="plus" />{t('crews:loans.lend', 'Lend worker')}</Button> : undefined}>
         {t('crews:loans.title', 'Crew loans')}
       </CardHead>
-      <CardPad>
         {!canManage && (
-          <p className="mb-3 text-sm text-muted-foreground" data-testid="crew-loans-who">
+          <p className="px-4 pb-3 text-sm text-muted-foreground" data-testid="crew-loans-who">
             {t('crews:loans.whoLends', 'Only people who manage crews (administrator, executive, project manager) can lend a worker. Ask one of them.')}
           </p>
         )}
-        {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
-        {loans.isPending ? <ListState variant="loading" shape="table" rows={3} /> : loans.isError ? (
-          <ListState variant="error" title={t('crews:loans.error', "Couldn't load crew loans")} onRetry={() => void loans.refetch()}
-            retryLabel={t('crews:retry', 'Retry')} />
+        {problem && <p role="alert" className="px-4 pb-3 text-sm text-destructive-text">{problem}</p>}
+        {loans.isPending ? <CardPad><ListState variant="loading" shape="table" rows={3} /></CardPad> : loans.isError ? (
+          <CardPad><ListState variant="error" title={t('crews:loans.error', "Couldn't load crew loans")} onRetry={() => void loans.refetch()}
+            retryLabel={t('crews:retry', 'Retry')} /></CardPad>
         ) : (
-          <DataTable<CrewLoanRow> rows={loans.data ?? []} columns={columns} rowKey={(l) => l.id} tableId="crew-loans-table"
+          <DataTable<CrewLoanRow> embedded rows={loans.data ?? []} columns={columns} rowKey={(l) => l.id} tableId="crew-loans-table"
             rowMenu={(l) => (canManage && l.valid_to >= today ? [{ label: t('crews:loans.end', 'End loan'), onClick: () => setEnding(l) }] : [])}
             state={(loans.data ?? []).length === 0 ? 'empty' : undefined}
             emptyTitle={t('crews:loans.empty', 'No crew loans yet')}
             emptyAction={canManage ? { label: t('crews:loans.lend', 'Lend worker'), onClick: () => setLending(true) } : undefined}
             emptyActionVariant="outline" />
         )}
-      </CardPad>
       {lending && <LendWorkerModal allowedCrewIds={['Admin', 'Executive', 'Project Manager'].includes(realRole ?? '') ? undefined : scope.data ?? []} onClose={() => setLending(false)} />}
       <ConfirmDialog open={ending !== null} title={t('crews:loans.endTitle', 'End this loan?')}
         description={t('crews:loans.endBody', '{{name}} returns to the home crew after today. Recorded attendance stays.', { name: ending ? workerName(ending.worker_id) : '' })}

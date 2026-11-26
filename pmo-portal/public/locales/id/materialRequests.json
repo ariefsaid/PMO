@@ -304,6 +304,9 @@
     "installedSave": "Simpan sumber",
     "installedSaved": "Sumber disimpan",
     "cardTitle": "Material terpasang melewati peringatan pemakaian",
-    "cardLine": "{{item}}: {{installed}} dari {{plan}} {{unit}} rencana terpasang, melewati peringatan {{threshold}}%."
+    "cardItem": "Barang",
+    "cardInstalled": "Terpasang",
+    "cardPlan": "Direncanakan",
+    "cardThreshold": "Peringatan pada"
   }
 }

@@ -27,7 +27,8 @@ describe('WorkOrderMaterialCompletion (1124d)', () => {
     expect(screen.getAllByText('Material completion').length).toBeGreaterThan(0);
     expect(screen.getByText('PIPE')).toBeInTheDocument();
     for (const h2 of ['Issued', 'Returned', 'Moved in', 'Moved out', 'Counted difference', 'Balance']) expect(screen.getAllByText(h2).length).toBeGreaterThan(0);
-    expect(screen.getByRole('region', { name: 'Totals' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('material-completion-total').length).toBeGreaterThan(0);
+    expect(screen.getByRole('rowheader', { name: 'Totals' })).toBeInTheDocument();
   });
   it('AC-WMC-003 shows no cost figures when the database sent none', () => {
     renderPage();

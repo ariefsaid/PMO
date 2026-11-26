@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { serviceClient, need, orgToday } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(90000);
 test('JOB-PC9 Planner identifies the machine allocated to its work order', async ({ page }) => {
@@ -16,6 +17,7 @@ test('JOB-PC9 Planner identifies the machine allocated to its work order', async
     must('approved equipment', await db.from('equipment_usage_entries').insert({ org_id: org.id, project_id: project.id, work_order_id: wo.id, author_id: planner.id, asset_id: asset.id, work_date: orgToday(), quantity: 1, unit: 'days', kind: 'work', status: 'Approved', approved_at: new Date().toISOString() }).select('id'));
     await planner.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'cost');
     const equipment = page.getByTestId('cost-group-equipment_usage');
     await expect(equipment).toContainText('CR-1 · Site crane');
     await expect(equipment).toContainText('1 days');
