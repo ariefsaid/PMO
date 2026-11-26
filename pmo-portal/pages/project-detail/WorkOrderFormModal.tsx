@@ -14,7 +14,6 @@ import {
   FormGrid,
   Combobox,
   useEntityForm,
-  type ComboboxOption,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -22,6 +21,7 @@ import { validateWorkOrderAmount } from './workOrderAmountValidation';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, WorkOrderInput, WorkOrderPatch } from '@/src/lib/db/workOrders';
 import { DateField } from '@/src/components/ui/DateField';
+import type { WorkOrderProjectChoice } from '@/src/hooks/useWorkOrderProjectChoices';
 import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
 import type { WorkOrderListEntry } from '@/src/lib/db/workOrderLists';
 
@@ -106,18 +106,13 @@ const validate = (
   return errors;
 };
 
-/** A project a work order can be created on; `currency` sets the money prefix once it is chosen. */
-export interface WorkOrderProjectChoice extends ComboboxOption {
-  currency: string;
-}
-
 interface WorkOrderFormModalProps {
   /** null = create a Draft; a row = edit that Draft's body. */
   workOrder: WorkOrderRow | null;
   currencySymbolPrefix: string;
   onClose: () => void;
   /** Create only. Receives the chosen project when `project` is supplied. */
-  onCreate?: (input: WorkOrderInput, projectId: string) => Promise<void>;
+  onCreate?: (input: WorkOrderInput, projectId?: string) => Promise<void>;
   /** Edit only. */
   onUpdate?: (id: string, patch: WorkOrderPatch) => Promise<void>;
   /**
@@ -428,7 +423,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
             )
           : t(
               'projectDetail.workOrderForm.newSubtitle',
-              'Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.',
+              'Record the client’s purchase order against the project’s contract. It starts as a draft and draws down the contract only once it is issued.',
             )}</p>
     </EntityFormModal>
   );

@@ -1469,9 +1469,15 @@
     "projectIncidents": "Project incidents",
     "workOrderForm": {
       "area": "Area",
+      "errors": {
+        "projectRequired": "Choose the project this work order belongs to"
+      },
       "group": "Group",
       "noArea": "No area",
-      "noGroup": "No group"
+      "noGroup": "No group",
+      "noProjects": "There is no project to add a work order to yet.",
+      "project": "Project",
+      "projectPlaceholder": "Choose a project"
     }
   },
   "common": {

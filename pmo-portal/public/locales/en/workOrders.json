@@ -448,7 +448,6 @@
     "checks_other": "{{count}} checks"
   },
   "new": {
-    "action": "New work order",
-    "created": "Draft work order created"
+    "action": "New work order"
   }
 }

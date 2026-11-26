@@ -1469,9 +1469,15 @@
     "projectIncidents": "Insiden proyek",
     "workOrderForm": {
       "area": "Wilayah",
+      "errors": {
+        "projectRequired": "Pilih proyek tempat $t(common:terms.clientWorkOrder) ini berada"
+      },
       "group": "Grup",
       "noArea": "Tanpa wilayah",
-      "noGroup": "Tanpa grup"
+      "noGroup": "Tanpa grup",
+      "noProjects": "Belum ada proyek untuk ditambahi $t(common:terms.clientWorkOrder).",
+      "project": "Proyek",
+      "projectPlaceholder": "Pilih proyek"
     }
   },
   "common": {

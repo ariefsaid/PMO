@@ -448,7 +448,6 @@
     "checks_other": "{{count}} pemeriksaan"
   },
   "new": {
-    "action": "$t(common:terms.clientWorkOrder) baru",
-    "created": "Draft $t(common:terms.clientWorkOrder) dibuat"
+    "action": "$t(common:terms.clientWorkOrder) baru"
   }
 }

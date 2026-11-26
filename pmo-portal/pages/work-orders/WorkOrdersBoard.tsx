@@ -16,7 +16,8 @@ import { COST_PROJECT_CAP, useWorkOrderDashboard } from '@/src/hooks/useWorkOrde
 import type { DashboardRow } from '@/src/lib/workOrderDashboard';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import { WorkOrderProjectPanels } from './WorkOrderProjectPanels';
-import { NewWorkOrderModal, useWorkOrderProjectChoices } from './NewWorkOrderModal';
+import { NewWorkOrderModal } from './NewWorkOrderModal';
+import { useWorkOrderProjectChoices } from '@/src/hooks/useWorkOrderProjectChoices';
 
 const STATUSES: WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
 const FILTER_KEYS = ['q', 'status', 'project', 'discipline'] as const;

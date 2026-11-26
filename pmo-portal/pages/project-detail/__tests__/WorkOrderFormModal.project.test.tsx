@@ -7,7 +7,8 @@ import type { WorkOrderLists } from '@/src/hooks/useWorkOrderLists';
 
 const NONE: WorkOrderLists = { areas: [], groups: [], liveAreas: [], liveGroups: [], hasLists: false };
 vi.mock('@/src/hooks/useWorkOrderLists', () => ({ useWorkOrderLists: () => NONE }));
-import WorkOrderFormModal, { type WorkOrderProjectChoice } from '../WorkOrderFormModal';
+import WorkOrderFormModal from '../WorkOrderFormModal';
+import type { WorkOrderProjectChoice } from '@/src/hooks/useWorkOrderProjectChoices';
 
 const PROJECTS: WorkOrderProjectChoice[] = [
   { value: 'p1', label: 'Harbour fit-out', currency: 'USD' },

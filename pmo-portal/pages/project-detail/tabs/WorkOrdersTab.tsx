@@ -1,7 +1,7 @@
 import { BillingReconciliation } from './BillingReconciliation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   Button,
   buttonClasses,
@@ -114,7 +114,6 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
   const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
   const { update, setValue, transition } = useWorkOrderMutations(projectId);
-  const navigate = useNavigate();
 
   // `undefined` = closed · a row = edit that draft's body. New work orders are created on the Work orders tab.
   const [formFor, setFormFor] = useState<WorkOrderRow | undefined>(undefined);
