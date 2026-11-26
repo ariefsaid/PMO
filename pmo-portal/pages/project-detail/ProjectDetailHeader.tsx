@@ -109,6 +109,7 @@ export interface ProjectDetailHeaderProps {
   commitmentPending?: boolean;
   commitmentError?: boolean;
   onEditProject?: () => void;
+  editIsPrimary?: boolean;
   /** The one filled action for the project's state, top-right of the title row (UX AC1/AC2). */
   primaryAction?: React.ReactNode;
   /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
@@ -305,6 +306,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   commitmentPending = false,
   commitmentError = false,
   onEditProject,
+  editIsPrimary = false,
   primaryAction,
   compact = false,
   editValueRequest = 0,
@@ -586,7 +588,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // Phone keeps the header to one row: Edit moves into the menu there.
   const editInMenu = canEdit && ((compact && !isDesktopHeader) || primaryRendered);
   const editButton = canEdit && !editInMenu ? (
-    <Button variant={primaryRendered ? "outline" : "primary"} size="sm" className="touch-target" onClick={onEditProject}>
+    <Button variant={editIsPrimary && !primaryRendered ? "primary" : "outline"} size="sm" className="touch-target" onClick={onEditProject}>
       {t('projectDetail.header.action.edit', 'Edit')}
     </Button>
   ) : undefined;
