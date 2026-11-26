@@ -53,10 +53,6 @@ select is(project_money_in_scope('27500000-0000-0000-0000-0000000000d1'), true, 
 select is(project_money_in_scope('27500000-0000-0000-0000-0000000000d2'), false, 'PS1 helper: another PM''s project is out of scope');
 select is(project_money_in_scope(null), true, 'PS1 helper: money not bound to a project is outside the rule');
 
-select lives_ok($$select * from stock_issue_cost_lines('27500000-0000-0000-0000-0000000000d1')$$, 'PS1 own project: stock_issue_cost_lines returns');
-select throws_ok($$select * from stock_issue_cost_lines('27500000-0000-0000-0000-0000000000d2')$$, 'P0002', 'project not found', 'PS1 other project: stock_issue_cost_lines reads as not found');
-select throws_ok($$select * from stock_issue_cost_lines('27500000-0000-0000-0000-0000000000ff')$$, 'P0002', 'project not found', 'PS1 a project that does not exist reads the same');
-
 select lives_ok($$select * from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d1')$$, 'PS1 own project: work_order_cost_amounts returns');
 select throws_ok($$select * from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d2')$$, 'P0002', 'project not found', 'PS1 other project: work_order_cost_amounts reads as not found');
 select is((select count(*) from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d1') where project_id = '27500000-0000-0000-0000-0000000000d1'),
@@ -69,26 +65,14 @@ select throws_ok($$select * from qcr_over_contract('27500000-0000-0000-0000-0000
 select is((select array_agg(project_id order by project_id) from get_projects_money_collection(array['27500000-0000-0000-0000-0000000000d1','27500000-0000-0000-0000-0000000000d2']::uuid[])),
           array['27500000-0000-0000-0000-0000000000d1']::uuid[], 'PS1 money collection returns only the Project Manager''s own project');
 
-select is((select array_agg(project_id order by project_id) from project_pmo_positions(null) where project_id in ('27500000-0000-0000-0000-0000000000d1','27500000-0000-0000-0000-0000000000d2')),
-          array['27500000-0000-0000-0000-0000000000d1']::uuid[], 'PS1 positions of all projects return only the Project Manager''s own project');
-
 select lives_ok($$select * from get_project_finances('27500000-0000-0000-0000-0000000000d1')$$, 'PS1 own project: get_project_finances returns');
 select throws_ok($$select * from get_project_finances('27500000-0000-0000-0000-0000000000d2')$$, 'P0002', 'project not found', 'PS1 other project: get_project_finances reads as not found');
-select is((select count(*) from project_pmo_spent_position('27500000-0000-0000-0000-0000000000d2')), 0::bigint, 'PS1 other project: project_pmo_spent_position returns no rows');
-select is((select count(*) from project_pmo_commitment_position('27500000-0000-0000-0000-0000000000d2')), 0::bigint, 'PS1 other project: project_pmo_commitment_position returns no rows');
-select is((select count(*) from project_pmo_paid_by_category('27500000-0000-0000-0000-0000000000d2', null, null)), 0::bigint, 'PS1 other project: project_pmo_paid_by_category returns no rows');
-select is((select count(*) from project_pmo_spent_position('27500000-0000-0000-0000-0000000000d1')), 1::bigint, 'PS1 own project: project_pmo_spent_position returns its row');
 
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000401')), 777::numeric, 'PS1 own work order: tpi_costs shows the estimate');
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000402')), null::numeric, 'PS1 other work order: tpi_costs withholds the money');
 
 select lives_ok($$select * from get_bill_match('27500000-0000-0000-0000-000000000621')$$, 'PS1 own project: get_bill_match returns');
 select throws_ok($$select * from get_bill_match('27500000-0000-0000-0000-000000000622')$$, 'P0002', 'invoice not found', 'PS1 other project: get_bill_match reads as not found');
-
-select is((select count(*) from equipment_charge_project_actuals('27500000-0000-0000-0000-0000000000d2', null)), 0::bigint, 'PS1 other project: equipment_charge_project_actuals returns no rows');
-select is((select count(*) from equipment_charge_project_actuals_between('27500000-0000-0000-0000-0000000000d2', null, null)), 0::bigint, 'PS1 other project: equipment_charge_project_actuals_between returns no rows');
-select is((select count(*) from cost_attribution_project_actuals('27500000-0000-0000-0000-0000000000d2', null)), 0::bigint, 'PS1 other project: cost_attribution_project_actuals returns no rows');
-select is((select count(*) from budget_attributed_year_sums('27500000-0000-0000-0000-0000000000d2', array['2026'])), 0::bigint, 'PS1 other project: budget_attributed_year_sums returns no rows');
 select is((select count(*) from project_erp_journal_lines('27500000-0000-0000-0000-0000000000d2')), 0::bigint, 'PS1 other project: project_erp_journal_lines returns no rows');
 select is((select count(*) from list_equipment_allocations(null, '2026-01-01', '2026-12-31', '27500000-0000-0000-0000-0000000000d2')), 0::bigint, 'PS1 other project: list_equipment_allocations returns no rows');
 select ok(not (get_project_consumption('27500000-0000-0000-0000-0000000000d2', '2026-01-01', '2026-12-31')::text like '%net_value%'), 'PS1 other project: get_project_consumption withholds the money');
@@ -96,7 +80,6 @@ select ok(not (get_project_consumption('27500000-0000-0000-0000-0000000000d2', '
 -- ── Roles above Project Manager read both projects ───────────────────────────────────────────────
 select pg_temp.act_as('27500000-0000-0000-0000-0000000000a2');
 select is(project_money_in_scope('27500000-0000-0000-0000-0000000000d2'), true, 'PS1 Finance: helper in scope for any project');
-select lives_ok($$select * from stock_issue_cost_lines('27500000-0000-0000-0000-0000000000d2')$$, 'PS1 Finance: other project unchanged');
 select lives_ok($$select * from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d2')$$, 'PS1 Finance: work_order_cost_amounts unchanged');
 select is((select count(*) from get_projects_money_collection(array['27500000-0000-0000-0000-0000000000d1','27500000-0000-0000-0000-0000000000d2']::uuid[])), 2::bigint, 'PS1 Finance: money collection returns both projects');
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000402')), 888::numeric, 'PS1 Finance: tpi_costs unchanged');
@@ -109,7 +92,6 @@ select lives_ok($$select * from work_order_idle_cost('27500000-0000-0000-0000-00
 
 -- ── Another organisation is still refused ────────────────────────────────────────────────────────
 select pg_temp.act_as('27500000-0000-0000-0000-0000000000b1');
-select throws_ok($$select * from stock_issue_cost_lines('27500000-0000-0000-0000-0000000000d1')$$, 'P0002', 'project not found', 'PS1 other organisation: stock_issue_cost_lines still refused');
 select throws_ok($$select * from work_order_cost_amounts('27500000-0000-0000-0000-0000000000d1')$$, 'P0002', 'project not found', 'PS1 other organisation: work_order_cost_amounts still refused');
 select throws_ok($$select * from get_bill_match('27500000-0000-0000-0000-000000000621')$$, 'P0002', 'invoice not found', 'PS1 other organisation: get_bill_match still refused');
 

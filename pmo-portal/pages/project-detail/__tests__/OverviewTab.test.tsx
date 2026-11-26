@@ -15,9 +15,10 @@ const h = vi.hoisted(() => ({ role: 'Finance' as string }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role, canImpersonate: false, viewAs: vi.fn() }),
 }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-pm' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (_action: string, entity: string) => entity === 'salesInvoice'
-    ? ['Admin', 'Executive', 'Finance'].includes(h.role)
+    ? ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(h.role)
     : entity === 'workOrder'
       ? ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(h.role)
       : true,
@@ -81,6 +82,17 @@ describe('active project Overview role composition', () => {
     expect(within(panel).getByRole('region', { name: 'My open tasks' })).toBeInTheDocument();
     expect(within(panel).getByRole('region', { name: 'Project delivery' })).toBeInTheDocument();
     expect(within(panel).queryByRole('region', { name: 'Project finances' })).not.toBeInTheDocument();
+  });
+
+  it('AC-PS1-001: a Project Manager sees the finances of their own project, not of another PM\'s', () => {
+    const { unmount } = renderOverview('Project Manager');
+    expect(within(screen.getByRole('tabpanel', { name: 'Overview' })).getByRole('region', { name: 'Project finances' })).toBeInTheDocument();
+    unmount();
+    project.project_manager_id = 'someone-else';
+    try {
+      renderOverview('Project Manager');
+      expect(within(screen.getByRole('tabpanel', { name: 'Overview' })).queryByRole('region', { name: 'Project finances' })).not.toBeInTheDocument();
+    } finally { project.project_manager_id = 'u-pm'; }
   });
 
   it('AC-WOMS-001 the Billing milestones block follows the Phase timeline on an active project', () => {
