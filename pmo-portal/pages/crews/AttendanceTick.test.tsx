@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
   role: 'Engineer' as string,
@@ -81,6 +81,7 @@ describe('attendance tick screen (#2528)', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       renderAt('/crews?view=attendance&wo=wo1');
       expect(screen.getByLabelText('Date')).toHaveValue('26 Nov 2026');

@@ -38,6 +38,7 @@ import {
   type Column,
   type RowMenuItem,
   TaxBasisLabel,
+  SelectField,
   StatusPill,
   Tooltip,
   KPIRow,
@@ -665,7 +666,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     return exact && exact !== tile ? { value: tile, exactValue: exact } : { value: tile };
   };
   const spendingSetupLink = canManageAccounting ? { to: '/administration/accounting#budget-account-map', label: t('projectDetail.cost.finishSetup', 'Finish spending setup') } : undefined;
-  const budgetUnit = <span className="text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
+  const budgetUnit = <span className="inline-block whitespace-nowrap text-sm text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-sm" /></>}</span>;
   // #2330: paid spending with no budget category sits in the Uncategorized row; the strip says so once, in full.
   const uncategorizedNote = position.uncategorized && canSeeActuals && totalSpent !== null
     ? position.uncategorized.amount === null
@@ -808,12 +809,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         : <Tooltip content={categoryUtilizationFormula}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 160, minSize: 150,
       cell: (row) => {
         // The remainder row is not a planning category, so it claims no "Not budgeted" status.
         if (isNotSplitRow(row)) return null;
         const status = getStatus(row);
-        return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null;
+        return status ? <StatusPill variant={status.variant} className="whitespace-nowrap shrink-0" wrap={false}>{status.label}</StatusPill> : null;
       },
     },
   ];
@@ -1037,7 +1038,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className={showsEquivalent ? 'grid-cols-1 min-[1024px]:grid-cols-2 min-[1024px]:[&>*:last-child]:col-span-full min-[1360px]:grid-cols-6 min-[1360px]:[&>*]:col-span-2 min-[1360px]:[&>*:nth-child(n+4)]:col-span-3' : 'grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]'}>
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className={showsEquivalent ? 'grid-cols-1 min-[1024px]:grid-cols-2 min-[1024px]:[&>*:last-child]:col-span-full min-[1360px]:grid-cols-6 min-[1360px]:[&>*]:col-span-2 min-[1360px]:[&>*:nth-child(n+4)]:col-span-3' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5'}>
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? (activeVersion || versions.length === 0 ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : noActiveBudgetCaption) : equivalentCaption(totalBudget, activeBudgetCurrency)} captionWrap captionNote={equivalentNote(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} nowrapLabel keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} captionWrap captionNote={equivalentNote(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
@@ -1092,9 +1093,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span>{t('projectDetail.budget.version', 'Version')}</span>
-              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="touch-target h-[var(--control-height-sm)] max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
-                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {statusLabel('budgetVersion', version.status, tCommon)}</option>)}
-              </select>
+              <SelectField hideLabel label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(value) => { setSelectedVersionId(value); setDraftEditorOpen(false); }} options={versions.map((version) => ({ value: version.id, label: `v${version.version} · ${statusLabel('budgetVersion', version.status, tCommon)}` }))} />
             </label>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
             {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}

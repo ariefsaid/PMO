@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const h = vi.hoisted(() => ({
@@ -85,6 +85,7 @@ describe('/equipment/assets/:assetId (AC-EQU-001 FE reference, FR-EQU-044/071)',
       // 2026-11-15 20:00 UTC is already 2026-11-16 in Asia/Jakarta.
       vi.setSystemTime(new Date('2026-11-15T20:00:00Z'));
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+      setActiveOrgTimezone('Asia/Jakarta');
       renderPage();
       expect((h.totalsArgs.at(-1) as { to: string }).to).toBe('2026-11-16');
       await userEvent.setup().click(screen.getByRole('button', { name: /end costing/i }));

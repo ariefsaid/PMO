@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { Role } from '@/src/auth/AuthContext';
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
@@ -115,6 +115,7 @@ describe('ProjectEquipmentPanel (FR-EQU-071, FR-EQU-051)', () => {
       // 2026-06-01 20:00 UTC is already 2026-06-02 in Asia/Jakarta.
       vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+      setActiveOrgTimezone('Asia/Jakarta');
       renderPanel();
       expect((h.allocArgs.at(-1) as { to: string }).to).toBe('2026-06-02');
     } finally {

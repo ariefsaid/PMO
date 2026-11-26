@@ -17,24 +17,28 @@ import { useRoleLabels } from '@/pages/admin-users/roleLabels';
 import { useCanApprovePlan, useEquipmentPlanApprovalRoute, useEquipmentPlanSettings, usePlanCategories, usePlanMutations, usePlansForMonth } from '@/src/hooks/useEquipmentPlans';
 import { monthEnd, monthStart, planTotal, type EquipmentPlan, type PlanLineInput } from '@/src/lib/repositories/equipmentPlans';
 import { formatCurrency, formatDay, formatMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
+import { orgDayDate } from '@/src/hooks/useOrgToday';
 
 /** A line while it is being typed: numbers stay text until saved. */
 interface LineDraft {
   id: string; description: string; workOrderId: string; categoryId: string; vendorId: string;
   quantity: string; rate: string; dateFrom: string; dateTo: string; procurementId: string | null;
+  /** The saved rate / vendor is hidden from this person (#2788): left empty, it is not sent and the stored one stays. */
+  rateHidden?: boolean; vendorHidden?: boolean;
 }
 
 const newLine = (month: string): LineDraft => ({
   id: crypto.randomUUID(), description: '', workOrderId: '', categoryId: '', vendorId: '', quantity: '1', rate: '', dateFrom: month, dateTo: monthEnd(month), procurementId: null,
 });
 const fromPlan = (plan: EquipmentPlan): LineDraft[] => plan.lines.map((l) => ({
-  id: l.id, description: l.description ?? '', workOrderId: l.workOrderId ?? '', categoryId: l.categoryId ?? '', vendorId: l.vendorId,
-  quantity: String(l.quantity), rate: String(l.rate), dateFrom: l.dateFrom, dateTo: l.dateTo, procurementId: l.procurementId,
+  id: l.id, description: l.description ?? '', workOrderId: l.workOrderId ?? '', categoryId: l.categoryId ?? '', vendorId: l.vendorId ?? '',
+  quantity: String(l.quantity), rate: l.rate === null ? '' : String(l.rate), dateFrom: l.dateFrom, dateTo: l.dateTo, procurementId: l.procurementId,
+  rateHidden: l.rate === null, vendorHidden: l.vendorId === null,
 }));
 
 /** Thirteen months: last month to eleven months ahead. */
 const monthOptions = (): Array<{ value: string; label: string }> => {
-  const now = new Date();
+  const now = orgDayDate();
   return Array.from({ length: 13 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 1 + i, 1);
     return { value: monthStart(d), label: formatMonthYear(d) };
@@ -54,7 +58,8 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
   const vendors = useVendorOptions();
   const workOrders = useProjectWorkOrders(projectId);
   const categories = usePlanCategories();
-  const { currency } = useOrgCurrencyState();
+  const { currency, isResolved } = useOrgCurrencyState();
+  const money = (value: number) => isResolved ? formatCurrency(value, currency) : '—';
   const [lines, setLines] = useState<LineDraft[]>(() => (plan ? fromPlan(plan) : []));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +68,7 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
   // Lines open as their form: a new line, one the author chose to edit; the rest read as table rows.
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const narrow = useIsNarrow();
+  const hasWorkOrder = lines.some((line) => Boolean(line.workOrderId));
   const cellX = 'px-[var(--table-cell-inset)] align-top [--table-cell-inset:var(--panel-inset)] first:pl-[var(--panel-inset)] last:pr-[var(--panel-inset)]';
 
   const status = plan?.status ?? 'Draft';
@@ -94,15 +100,18 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
     const out: PlanLineInput[] = [];
     lines.forEach((l, i) => {
       const p = parsed[i]!;
+      const keepRate = Boolean(l.rateHidden) && !l.rate.trim();
+      const keepVendor = Boolean(l.vendorHidden) && !l.vendorId;
       if (!l.description.trim()) next[`${l.id}.description`] = t('errors.descriptionRequired', 'Say what is needed.');
-      if (!l.vendorId) next[`${l.id}.vendor`] = t('errors.vendorRequired', 'Choose a vendor.');
+      if (!keepVendor && !l.vendorId) next[`${l.id}.vendor`] = t('errors.vendorRequired', 'Choose a vendor.');
       if (p.q === null || p.q <= 0) next[`${l.id}.quantity`] = t('errors.quantityInvalid', 'Enter a quantity above 0.');
-      if (p.r === null || p.r < 0) next[`${l.id}.rate`] = t('errors.rateInvalid', 'Enter a rate of 0 or more.');
+      if (!keepRate && (p.r === null || p.r < 0)) next[`${l.id}.rate`] = t('errors.rateInvalid', 'Enter a rate of 0 or more.');
       if (!l.dateFrom || !l.dateTo) next[`${l.id}.dates`] = t('errors.datesRequired', 'Choose the dates.');
       else if (l.dateTo < l.dateFrom) next[`${l.id}.dates`] = t('errors.dateOrder', 'The end cannot be before the start.');
       else if (l.dateFrom < month || l.dateTo > monthEnd(month)) next[`${l.id}.dates`] = t('errors.dateMonth', 'The dates must be inside the month.');
-      if (!next[`${l.id}.description`] && !next[`${l.id}.vendor`] && p.q !== null && p.r !== null) {
-        out.push({ id: l.id, workOrderId: l.workOrderId || null, categoryId: l.categoryId || null, description: l.description.trim(), quantity: p.q, rate: p.r, vendorId: l.vendorId, dateFrom: l.dateFrom, dateTo: l.dateTo });
+      if (!next[`${l.id}.description`] && !next[`${l.id}.vendor`] && p.q !== null && (p.r !== null || keepRate)) {
+        out.push({ id: l.id, workOrderId: l.workOrderId || null, categoryId: l.categoryId || null, description: l.description.trim(), quantity: p.q,
+          ...(keepRate || p.r === null ? {} : { rate: p.r }), ...(keepVendor ? {} : { vendorId: l.vendorId }), dateFrom: l.dateFrom, dateTo: l.dateTo });
       }
     });
     setErrors(next);
@@ -155,7 +164,7 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
         <table className="w-full border-collapse text-control" aria-label={t('lines', 'Lines')}>
           {!narrow && <thead><tr className="h-[var(--table-head-height)] whitespace-nowrap border-b border-border bg-surface-table-head text-left font-semibold">
             <th scope="col" className={cellX}>{t('line.description', 'What is needed')}</th>
-            <th scope="col" className={cellX}>{t('line.workOrder', 'Work order')}</th>
+            {hasWorkOrder && <th scope="col" className={cellX}>{t('line.workOrder', 'Work order')}</th>}
             <th scope="col" className={cellX}>{t('line.vendor', 'Vendor')}</th>
             <th scope="col" className={cellX}>{t('line.dates', 'Dates')}</th>
             <th scope="col" className={cn(cellX, 'text-right')}>{t('line.quantity', 'Quantity')}</th>
@@ -166,7 +175,7 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
           <tbody>
             {lines.map((l, i) => {
               const p = parsed[i]!;
-              const amount = p.q != null && p.r != null ? formatCurrency(p.q * p.r, currency) : '—';
+              const amount = p.q != null && p.r != null ? money(p.q * p.r) : '—';
               const hasError = Object.keys(errors).some((k) => k.startsWith(`${l.id}.`));
               const wo = woOptions.find((o) => o.value === l.workOrderId && o.value !== '')?.label;
               const cat = categoryOptions(l.categoryId).find((o) => o.value === l.categoryId && o.value !== '')?.label;
@@ -174,7 +183,7 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
               const orderLink = l.procurementId && <Link className="text-primary-text hover:underline" to={`/procurement/${l.procurementId}`} data-testid="plan-line-order">{t('line.orderOpen', 'Open order')} · {formatDay(l.dateFrom)}</Link>;
               if (editable && (open.has(l.id) || hasError)) return (
                 <tr key={l.id} className="border-b border-border/70" data-testid="plan-line">
-                  <td colSpan={8} className="px-[var(--panel-inset)] py-4">
+                  <td colSpan={narrow ? 1 : hasWorkOrder ? 8 : 7} className="px-[var(--panel-inset)] py-4">
                     <p className="mb-3 font-semibold">{t('line.title', 'Line {{n}}', { n: i + 1 })}</p>
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="sm:col-span-2"><TextField label={t('line.description', 'What is needed')} value={l.description} onChange={(v) => patch(l.id, { description: v })} error={errors[`${l.id}.description`]} fullWidth /></div>
@@ -207,7 +216,7 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
                     <p className="font-semibold">{l.description || '—'}</p>
                     <p className="text-muted-foreground">{[vendor, wo, cat].filter(Boolean).join(' · ')}</p>
                     <p className="text-muted-foreground">{dates}</p>
-                    <p className="mt-1 flex justify-between tabular-nums"><span>{l.quantity} × {p.r != null ? formatCurrency(p.r, currency) : '—'}</span><span className="font-semibold">{amount}</span></p>
+                    <p className="mt-1 flex justify-between tabular-nums"><span>{l.quantity} × {p.r != null ? money(p.r) : '—'}</span><span className="font-semibold">{amount}</span></p>
                     <div className="mt-1">{actions}</div>
                   </td>
                 </tr>
@@ -215,11 +224,11 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
               return (
                 <tr key={l.id} className="border-b border-border/70" data-testid="plan-line">
                   <th scope="row" className={cn(cellX, 'py-3 text-left font-semibold')}>{l.description || '—'}{cat && <span className="block font-normal text-muted-foreground">{cat}</span>}</th>
-                  <td className={cn(cellX, 'py-3')}>{wo ?? '—'}</td>
+                  {hasWorkOrder && <td className={cn(cellX, 'py-3')}>{wo ?? '—'}</td>}
                   <td className={cn(cellX, 'py-3')}>{vendor ?? '—'}</td>
                   <td className={cn(cellX, 'whitespace-nowrap py-3')}>{dates}</td>
                   <td className={cn(cellX, 'py-3 text-right tabular-nums')}>{p.q != null ? p.q : '—'}</td>
-                  <td className={cn(cellX, 'whitespace-nowrap py-3 text-right tabular-nums')}>{p.r != null ? formatCurrency(p.r, currency) : '—'}</td>
+                  <td className={cn(cellX, 'whitespace-nowrap py-3 text-right tabular-nums')}>{p.r != null ? money(p.r) : '—'}</td>
                   <td className={cn(cellX, 'whitespace-nowrap py-3 text-right tabular-nums')}>{amount}</td>
                   <td className={cn(cellX, 'py-2')}>{actions}</td>
                 </tr>
@@ -227,9 +236,9 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
             })}
           </tbody>
           <tfoot><tr>
-            {!narrow && <td colSpan={6} className={cn(cellX, 'py-3 text-right font-semibold')}>{t('total', 'Month total')}</td>}
+            {!narrow && <td colSpan={hasWorkOrder ? 6 : 5} className={cn(cellX, 'py-3 text-right font-semibold')}>{t('total', 'Month total')}</td>}
             <td colSpan={narrow ? 1 : 1} className={cn(cellX, 'whitespace-nowrap py-3 text-right font-semibold tabular-nums')} data-testid="plan-total">
-              {narrow && <span className="mr-2">{t('total', 'Month total')}</span>}{formatCurrency(total, currency)}</td>
+              {narrow && <span className="mr-2">{t('total', 'Month total')}</span>}{money(total)}</td>
             {!narrow && <td />}
           </tr></tfoot>
         </table>
@@ -253,7 +262,7 @@ const EquipmentPlansPage: React.FC = () => {
   const settings = useEquipmentPlanSettings();
   const projects = useProjectOptions();
   const [projectId, setProjectId] = useState('');
-  const [month, setMonth] = useState(monthStart(new Date()));
+  const [month, setMonth] = useState(monthStart(orgDayDate()));
   const plans = usePlansForMonth(month, settings.data?.enabled === true);
   const plan = plans.data?.find((p) => p.projectId === projectId) ?? null;
   const months = monthOptions();

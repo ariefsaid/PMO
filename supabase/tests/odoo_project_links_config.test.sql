@@ -131,9 +131,10 @@ select is((select count(*)::int from audit_events where action='integration.odoo
 
 -- the one shared in-use check (FR-ODC-073): a project with a pushed native invoice cannot be un-linked
 reset role;
+insert into companies (id, org_id, name, type) values ('a6050000-0000-0000-0000-0000000000c9','a6050000-0000-0000-0000-000000000001','ODC invoice customer','Client');
 insert into sales_invoices (id, org_id, project_id, customer_id, amount, tax_treatment, tax_amount, currency, status, pmo_native, native_lines) values
  ('a6050000-0000-0000-0000-0000000000f4','a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c1',
-  (select id from companies limit 1),1,'exclusive',0,'IDR','Draft', true, '[{"item_code":"SVC","description":null,"qty":1,"rate":1,"amount":1.00}]');
+  'a6050000-0000-0000-0000-0000000000c9',1,'exclusive',0,'IDR','Draft', true, '[{"item_code":"SVC","description":null,"qty":1,"rate":1,"amount":1.00}]');
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
  ('a6050000-0000-0000-0000-000000000001','revenue','a6050000-0000-0000-0000-0000000000f4','odoo','INV-1');
 set local role service_role;

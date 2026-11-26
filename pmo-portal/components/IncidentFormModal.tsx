@@ -20,6 +20,7 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useAssigneeOptions, useIncidentEvidenceMutations } from '@/src/hooks/useIncidents';
 import { useIncidentTypes } from '@/src/hooks/useIncidentTypes';
 import type { IncidentRow, IncidentSeverity, IncidentInput } from '@/src/lib/db/incidents';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { DateField } from '@/src/components/ui/DateField';
 import { severityLabel } from '@/src/lib/incidents/transitions';
 
@@ -40,18 +41,6 @@ interface FormValues {
 }
 
 type Errors = Partial<Record<keyof FormValues, string>>;
-
-/**
- * Today as a LOCAL-date `YYYY-MM-DD` string (the <input type="date"> value format,
- * matching the `date` — not timestamptz — column). Built from local
- * getFullYear/getMonth/getDate to avoid the UTC-midnight off-by-one that
- * `toISOString().slice(0,10)` would introduce in negative-UTC-offset zones.
- */
-function todayLocalISO(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 /** The selected due day ends in the user's resolved timezone. */
 function dueDateToIso(date: string, invalidMessage: string): string | null {
@@ -114,7 +103,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
     initialValues: {
       // AC-W6-IXD-INCDATE (B-5): the dominant case is filing a same-day incident, so the
       // create form defaults the date to TODAY. Edit keeps the stored value.
-      incident_date: incident?.incident_date ?? todayLocalISO(),
+      incident_date: incident?.incident_date ?? orgDayNow(),
       type: incident?.type ?? '',
       severity: incident?.severity ?? 'Low',
       location: incident?.location ?? '',

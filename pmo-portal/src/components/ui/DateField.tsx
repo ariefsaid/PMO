@@ -188,7 +188,7 @@ export const DateField: React.FC<DateFieldProps> = ({
               onKeyDown?.(e);
               if (e.key === 'Enter' && draft !== null && !commit(draft)) e.preventDefault();
             }}
-            className={cn(shell, 'pr-9', (error || unreadable || rangeMessage) && formControlInvalid)}
+            className={cn(shell, 'w-full pr-9', (error || unreadable || rangeMessage) && formControlInvalid)}
           />
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger

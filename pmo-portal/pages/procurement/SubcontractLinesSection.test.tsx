@@ -7,7 +7,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
-import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatCurrency } from '@/src/lib/format';
 import type { SubcontractPoPositionRow, SubcontractCapExceptionRow } from '@/src/lib/db/subcontracts';
 import enProcurement from '@/public/locales/en/procurement.json';
@@ -226,6 +226,7 @@ describe('SubcontractLinesSection', () => {
       // 2026-06-01 20:00 UTC == 2026-06-02 03:00 in Asia/Jakarta (UTC+7).
       vi.setSystemTime(new Date('2026-06-01T20:00:00Z'));
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+      setActiveOrgTimezone('Asia/Jakarta');
       renderSection();
 
       fireEvent.click(screen.getByRole('button', { name: /record acceptance/i }));

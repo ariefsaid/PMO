@@ -62,6 +62,11 @@ afterEach(cleanup);
 const rowOrder = () => screen.getAllByTestId(/^wih-row-/).map((r) => r.getAttribute('data-testid'));
 
 describe('Work in hand screen', () => {
+  it('lets a keyboard user focus the currency table to scroll through its figures', () => {
+    setData([rated('c', 'Contract', '900000.00')]);
+    renderPage();
+    expect(screen.getByRole('region', { name: 'IDR contracts and work orders' })).toHaveAttribute('tabindex', '0');
+  });
   it('ranks contracts with their work orders beneath, and each opens its page', () => {
     setData([
       rated('c-big', 'Big contract', '900000.00'),

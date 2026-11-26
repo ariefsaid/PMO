@@ -31,6 +31,13 @@ function setup(path: string) {
 }
 
 describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a list fetch', () => {
+  it('names a material request from its detail query', async () => {
+    const { qc, result } = setup('/material-requests/r1/edit');
+    act(() => { qc.setQueryData(['material-requests', 'org-1', 'one', 'r1'], { id: 'r1', number: 'MRQ-1' }); });
+    await waitFor(() => expect(recordLabelForPath('/material-requests/r1/edit', result.current.lists)).toBe('MRQ-1'));
+    expect(result.current.resolved).toBe(true);
+    expect(qc.isFetching()).toBe(0);
+  });
   it.each(['/projects/p1', '/procurement/pr1', '/companies/c1', '/contacts/k1', '/incidents/i1', '/meetings/m1', '/views/v1'])(
     'mounting on %s with an empty cache fires no list query',
     (path) => {

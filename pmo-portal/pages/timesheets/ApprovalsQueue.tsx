@@ -1,3 +1,4 @@
+import { WeekHoursTable } from './WeekHoursTable';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +13,6 @@ import {
   ListState,
   ReasonDialog,
   StatusPill,
-  TimesheetGrid,
   useToast,
   type TimesheetDay,
   type TimesheetGridRow,
@@ -245,7 +245,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           {rows.length === 0 ? (
             <p className="px-2 py-3 text-control text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
           ) : (
-            <TimesheetGrid days={days} rows={rows} />
+            <WeekHoursTable days={days} rows={rows} />
           )}
         </div>
 

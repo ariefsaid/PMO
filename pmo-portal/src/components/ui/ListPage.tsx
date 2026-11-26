@@ -149,7 +149,7 @@ export const ListPage: React.FC<ListPageProps> = ({
             {mobileToolbar}
           </Toolbar>
         ) : (
-          <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-center ${desktopToolbarClassName ?? ''}`}>
+          <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 ${search ? 'md:grid-cols-[minmax(0,1fr)_220px_auto]' : 'md:grid-cols-[minmax(0,1fr)_auto]'} md:items-center ${desktopToolbarClassName ?? ''}`}>
             {(filters || secondaryFilter) && (
               <div data-testid="list-page-filter-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-1 md:row-start-1">
                 {filters}
@@ -158,7 +158,7 @@ export const ListPage: React.FC<ListPageProps> = ({
             )}
             {search && <div data-testid="list-page-search-group" className="min-w-0 md:col-start-2 md:row-start-1">{search}</div>}
             {(view || exportAction || importAction) && (
-              <div data-testid="list-page-action-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-3 md:row-start-1">
+              <div data-testid="list-page-action-group" className={`flex min-w-0 flex-wrap items-center gap-2 ${search ? 'md:col-start-3' : 'md:col-start-2'} md:row-start-1`}>
                 {view && <div data-testid="list-page-view" className="shrink-0">{view}</div>}
                 {exportAction}
                 {importAction}
