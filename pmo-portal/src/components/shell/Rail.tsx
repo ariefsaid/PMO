@@ -205,7 +205,7 @@ const FinanceOverdueCountValue: React.FC<{ enabled: boolean }> = ({ enabled }) =
   if (isPending || isError || count === undefined || count <= 0) return null;
   return (
     <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-      <Badge aria-hidden="true">{count}</Badge>
+      <Badge aria-hidden="true" className="sr-only">{count}</Badge>
       {/* Same shape as the Approvals count: the link reads "Finance, 3 overdue invoices". */}
       <span className="sr-only">
         , {t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}

@@ -1,3 +1,4 @@
+import { getNumberLocale } from "@/src/lib/locale/activeLocale";
 import React, { memo, useMemo, useRef } from 'react';
 import { rowContentKey, useLiveRowProps } from './useLiveRowProps';
 import { RowOpenControl } from './RowOpenControl';
@@ -315,7 +316,7 @@ function DataTableRowInner<Row>({
             {...(col.rowHeader ? { scope: 'row' as const } : {})}
             style={{
               width: columnWidthVar(col.key),
-              ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}),
+              minWidth: columnMinSize(col) ?? 120,
               ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}),
             }}
             className={cn(
@@ -627,7 +628,7 @@ export function DataTableDesktop<Row>({
     frozenKeys.current = keyed;
   }
   const { rowKeys, rowKeysSignature } = keyed;
-  const rowFingerprint = i18n.language;
+  const rowFingerprint = `${i18n.language}:${getNumberLocale()}`;
   const resizeHeaderKey = modelHeaders.map((header) => header.id).join('|');
   const resizeColumnVisibilityKey = columns
     .map((column) => `${column.key}:${column.colClassName ?? ''}`)
@@ -680,13 +681,14 @@ export function DataTableDesktop<Row>({
     <div
       ref={tableBranchRef}
       data-testid="dt-table-branch"
-      className="relative overflow-x-auto"
+      className="relative min-w-0 max-w-full overflow-x-auto"
     >
       <table
         ref={tableRef}
         aria-label={accessibleName}
         style={{
           ...columnSizeVars,
+          minWidth: columns.filter((column) => !/(^|\s)hidden($|\s)/.test(column.colClassName ?? "")).reduce((sum, column) => sum + (columnMinSize(column) ?? 120), 0) + (rowMenu ? 40 : 0) + (selection ? 40 : 0),
           ...(hasUserColumnSizing ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
         }}
         className="w-full border-collapse text-control"
@@ -712,10 +714,10 @@ export function DataTableDesktop<Row>({
                   aria-labelledby={`datatable-header-label-${tableInstanceId}-${col.key}`}
                   aria-describedby={col.caveat ? caveatId : undefined}
                   style={columnSizing[col.key] !== undefined || columnDefaultSize(col) !== undefined
-                    ? { width: columnWidthVar(col.key), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
-                    : undefined}
+                    ? { width: columnWidthVar(col.key), minWidth: columnMinSize(col) ?? 120, ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
+                    : { minWidth: columnMinSize(col) ?? 120 }}
                   className={cn(
-                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] text-control font-semibold text-foreground break-words select-none',
+                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] text-control font-semibold text-foreground break-normal select-none',
                     col.stickyLeft && 'left-0 z-[3]',
                     columnAlignmentClass(col),
                     numericColumnClass(col),
@@ -728,12 +730,12 @@ export function DataTableDesktop<Row>({
                       onClick={() => onSort?.(col.sortKey!)}
                       className="inline-flex max-w-full items-center gap-1 text-inherit hover:text-foreground [&_svg]:size-3 [&_svg]:shrink-0"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{col.header}</span>
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:normal]">{col.header}</span>
                       {col.caveat && <span aria-hidden="true" className="ml-0.5 shrink-0 text-warning-foreground">*</span>}
                       {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="shrink-0 opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <span className="inline-flex max-w-full items-baseline gap-0.5"><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{col.header}</span>{col.caveat && <span aria-hidden="true" className="shrink-0 text-warning-foreground">*</span>}</span>
+                    <span className="inline-flex max-w-full items-baseline gap-0.5"><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 whitespace-normal [overflow-wrap:normal]">{col.header}</span>{col.caveat && <span aria-hidden="true" className="shrink-0 text-warning-foreground">*</span>}</span>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;

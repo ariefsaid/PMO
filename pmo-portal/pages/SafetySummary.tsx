@@ -96,7 +96,7 @@ const SafetySummary: React.FC = () => {
             </ul>
             {hidden.length > 0 && (
               <p className="text-control text-muted-foreground" data-testid="safety-hidden">
-                {hidden.map((f) => `${label(f)}: ${f.reason ?? t('summary.hiddenDefault', 'cannot be computed for this period')}`).join(' · ')}
+                {hidden.map((f) => `${label(f)}: ${(f.reason === 'no locked or approved attendance in this month' ? t('summary.noAttendanceHours', 'no locked or approved attendance in this month') : f.reason === 'no locked or approved attendance to count from' ? t('summary.noAttendanceSafe', 'no locked or approved attendance to count from') : f.reason) ?? t('summary.hiddenDefault', 'cannot be computed for this period')}`).join(' · ')}
               </p>
             )}
             {open && (

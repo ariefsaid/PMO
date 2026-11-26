@@ -218,7 +218,7 @@
     "section": "Bagian",
     "sections": "Bagian",
     "supplier": "Supplier",
-    "timesheet": "Timesheet"
+    "timesheet": "Lembar waktu"
   },
   "ui": {
     "errorBoundary": {

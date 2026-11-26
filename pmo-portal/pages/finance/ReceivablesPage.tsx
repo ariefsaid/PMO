@@ -114,10 +114,12 @@ export default function ReceivablesPage() {
   const dueSoonByCurrency = useMemo(() => dueSoonTotals(dueSoon.map(({ invoice }) => invoice)), [dueSoon]);
   const thisMonthCash = useMemo(() => today ? monthlyCash(payments, monthStart(today), nextMonthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
   const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
-  const cashDeltaCents = (thisMonthCash.totals[orgCurrency] ?? 0) - (lastMonthCash.totals[orgCurrency] ?? 0);
+  const cashCurrencies = Object.entries(thisMonthCash.totals).filter(([, cents]) => cents !== 0).map(([currency]) => currency);
+  const cashComparisonCurrency = cashCurrencies.length === 1 ? cashCurrencies[0] : orgCurrency;
+  const cashDeltaCents = (thisMonthCash.totals[cashComparisonCurrency] ?? 0) - (lastMonthCash.totals[cashComparisonCurrency] ?? 0);
   const cashDelta = (() => {
-    if (!today || cashPending || cashError || thisMonthCash.unknown || lastMonthCash.unknown) return undefined;
-    const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
+    if (!today || cashPending || cashError || thisMonthCash.unknown || lastMonthCash.unknown || cashCurrencies.length > 1) return undefined;
+    const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, cashComparisonCurrency);
     const cashIncreased = cashDeltaCents > 0;
     const cashDecreased = cashDeltaCents < 0;
     return amount === null ? undefined : cashIncreased ? `+${amount}` : cashDecreased ? `−${amount}` : amount;
@@ -209,7 +211,7 @@ export default function ReceivablesPage() {
           />
           <KPITile
             icon="grid" tone="green" label={t('finance:receivables.receivedThisMonth', 'Received this month')}
-            caption={!cashPending && !cashError && cashDelta ? t('finance:receivables.vsLastMonth', '{{delta}} vs last month', { delta: cashDelta }) : undefined}
+            caption={!cashPending && !cashError && cashDelta ? t('finance:receivables.vsLastMonthWithAmount', '{{delta}} vs last month ({{previous}})', { delta: cashDelta, previous: formatTileMoney((lastMonthCash.totals[cashComparisonCurrency] ?? 0) / 100, cashComparisonCurrency) }) : undefined}
             value={cashPending || cashError || thisMonthCash.unknown ? null : cashTile.value} exactValue={cashPending || cashError || thisMonthCash.unknown ? undefined : cashTile.exactValue} loading={cashPending} error={cashError}
             unavailableReason={!cashPending && !cashError && thisMonthCash.unknown ? t('finance:receivables.receiptUnknown', { defaultValue: '{{count}} receipt amounts unknown', count: thisMonthCash.unknown }) : undefined}
             help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
