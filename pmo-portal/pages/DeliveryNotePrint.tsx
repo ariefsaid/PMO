@@ -8,7 +8,7 @@ import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgName } from '@/src/hooks/useOrgName';
-import { formatDay } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import {
@@ -89,11 +89,11 @@ const DeliveryNotePrintPage: React.FC = () => {
   const metaItems: PrintHeaderMetaItem[] = [
     {
       label: t('deliveryNote.date', 'Date'),
-      value: formatDay(req.createdAt),
+      value: formatDayYear(req.createdAt),
     },
     {
       label: t('deliveryNote.neededBy', 'Needed by'),
-      value: formatDay(req.neededBy),
+      value: formatDayYear(req.neededBy),
     },
     {
       label: t('deliveryNote.workOrder', 'Work order'),
@@ -114,7 +114,7 @@ const DeliveryNotePrintPage: React.FC = () => {
     ...(req.note
       ? [
           {
-            label: t('form.note', 'Note'),
+            label: t('deliveryNote.remarks', 'Remarks'),
             value: req.note,
           },
         ]
@@ -194,6 +194,7 @@ const DeliveryNotePrintPage: React.FC = () => {
           />
 
           <PrintTable<MaterialRequestLine>
+            mobileStack
             columns={columns}
             data={req.lines}
             keyExtractor={(line) => line.id}
@@ -203,6 +204,7 @@ const DeliveryNotePrintPage: React.FC = () => {
             blocks={signatureBlocks}
             nameLabel={t('deliveryNote.signedBy', 'Name')}
             dateLabel={t('deliveryNote.signatureDate', 'Date')}
+            signLabel={t('deliveryNote.signature', 'Signature')}
           />
         </PrintDocument>
       </main>

@@ -64,6 +64,7 @@
     "project": "Project",
     "quantity": "Quantity",
     "remarks": "Remarks",
+    "signature": "Signature",
     "signatureDate": "Date",
     "signedBy": "Name",
     "title": "Delivery note",
