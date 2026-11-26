@@ -262,6 +262,9 @@ const ApprovalsPage: React.FC = () => {
     );
   }
 
+  const otherDecisionCount = allPopulation.filter(({ kind }) => kind !== 'procurement' && kind !== 'timesheets').length;
+  const showPreview = queueItems.length > 0 || activeScope !== 'all' || otherDecisionCount === 0 || correctionPending || correctionError;
+
   const previewFallback = (() => {
     if (queueItems.length > 0) return null;
     const includesExpenses = (activeScope === 'all' || activeScope === 'expense') && canShowExpenses;
@@ -379,7 +382,7 @@ const ApprovalsPage: React.FC = () => {
 
       {allCaughtUp ? (
         <div
-          className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-6 py-14 text-center"
+          className="space-y-2 rounded-lg border border-border bg-card p-4"
           data-testid="approvals-caught-up"
         >
           <div className="text-[16px] font-semibold">
@@ -431,7 +434,7 @@ const ApprovalsPage: React.FC = () => {
           {activeScope === 'work_order_acceptance' && <WorkOrderAcceptanceSection entries={allPopulation} />}
         </div>
       ) : (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
+        <div className={showPreview ? 'grid gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start' : undefined}>
           <Card
             variant="bare"
             role="region"
@@ -487,7 +490,7 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.procurement.emptyTitle',
                     'No procurement cases awaiting your decision',
                   )}
-                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
+                  hideWhenEmpty={activeScope === 'all' && (queueItems.length > 0 || otherDecisionCount > 0)}
                   procurementBulk={procurementBulk}
                 />
               )}
@@ -506,31 +509,33 @@ const ApprovalsPage: React.FC = () => {
                     'approvals.group.timesheets.emptyTitle',
                     'No timesheets awaiting your decision',
                   )}
-                  hideWhenEmpty={activeScope === 'all' && queueItems.length > 0}
+                  hideWhenEmpty={activeScope === 'all' && (queueItems.length > 0 || otherDecisionCount > 0)}
                   bulk={timesheetBulk}
                 />
               )}
             </div>
           </Card>
 
-          <Card
-            variant="bare"
-            role="region"
-            aria-label={t('approvals.previewRegionLabel', 'Approval preview')}
-            id="approvals-preview"
-            data-testid="approvals-preview-region"
-            className="min-w-0"
-          >
-            {selectedItem ? (
-              selectedItem.kind === 'procurement' ? (
-                <ProcurementApprovalPreview row={selectedItem.row} surface="panel" />
+          {showPreview && (
+            <Card
+              variant="bare"
+              role="region"
+              aria-label={t('approvals.previewRegionLabel', 'Approval preview')}
+              id="approvals-preview"
+              data-testid="approvals-preview-region"
+              className="min-w-0"
+            >
+              {selectedItem ? (
+                selectedItem.kind === 'procurement' ? (
+                  <ProcurementApprovalPreview row={selectedItem.row} surface="panel" />
+                ) : (
+                  <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" eligibleFromQueue />
+                )
               ) : (
-                <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" eligibleFromQueue />
-              )
-            ) : (
-              previewFallback ?? <p className="text-sm text-muted-foreground">{t('procurement:approvalQueue.pickItem', 'Pick an item above to see it and decide.')}</p>
+                previewFallback ?? <p className="text-sm text-muted-foreground">{t('procurement:approvalQueue.pickItem', 'Pick an item above to see it and decide.')}</p>
             )}
           </Card>
+          )}
         </div>
       )}
 

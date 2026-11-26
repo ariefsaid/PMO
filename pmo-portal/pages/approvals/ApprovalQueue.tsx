@@ -42,7 +42,7 @@ export function QueueButton({
         onClick={onSelect}
         aria-pressed={selected}
         className={[
-          'w-full rounded-lg border px-3 py-3 text-left transition-colors',
+          'w-full min-w-0 flex-1 rounded-lg border px-3 py-3 text-left transition-colors',
           selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
         ].join(' ')}
       >
@@ -56,9 +56,9 @@ export function QueueButton({
             {(row.code ?? row.pr_number) && <><span>·</span><span className="record-id">{row.code ?? row.pr_number}</span></>}
           </div>
         </div>
-        <div className="mt-2 text-control text-muted-foreground">
-          <span className="block break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
-          <span className="mt-1 block tabular font-medium text-foreground">{formatTableMoney(row.total_value, row.currency) ?? '—'}</span>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-control text-muted-foreground">
+          <span className="min-w-0 break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
+          <span className="ml-auto break-words text-right tabular text-foreground">{formatTableMoney(row.total_value, row.currency) ?? '—'}</span>
         </div>
       </button>
     );
