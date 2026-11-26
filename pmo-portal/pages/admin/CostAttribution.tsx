@@ -1,3 +1,4 @@
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,11 +22,7 @@ import { useRuleErrorCopy } from './useRuleErrorCopy';
  */
 const QUERY_KEY = ['cost-attribution-rules'] as const;
 
-// The viewer's local calendar day as YYYY-MM-DD (what the rule's end date has always been).
-const todayIso = (): string => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
+const todayIso = orgDayNow;
 
 const CostAttribution: React.FC = () => {
   const { t } = useTranslation();
