@@ -232,7 +232,17 @@
     "approvedBy": "Approved by {{name}}",
     "rejectedBy": "Rejected by {{name}}",
     "nobodyToFileFor": "You can file leave only for yourself and the people you manage. Ask your line manager or an Admin to file it.",
-    "goesTo": "Your person record manager decides. If that manager is missing or inactive, an HR Manager decides, then an Admin. The person who enters the request cannot decide it. You get a notification with the result."
+    "goesTo": "Your person record manager decides. If that manager is missing or inactive, an HR Manager decides, then an Admin. The person who enters the request cannot decide it. You get a notification with the result.",
+    "dates": "Dates",
+    "daysHeader": "Days",
+    "decider": "Decider",
+    "noDecider": "No approver",
+    "decision": "Decision",
+    "openRow": "Open the leave of {{name}}",
+    "waitingForLabel": "Waiting for",
+    "approvedByLabel": "Approved by",
+    "rejectedByLabel": "Rejected by",
+    "noteLabel": "Note"
   },
   "checkIn": {
     "requestsTitle": "Check-ins waiting for you",

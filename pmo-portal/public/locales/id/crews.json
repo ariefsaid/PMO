@@ -232,7 +232,17 @@
     "approvedBy": "Disetujui oleh {{name}}",
     "rejectedBy": "Ditolak oleh {{name}}",
     "nobodyToFileFor": "Anda hanya dapat mengajukan cuti untuk diri sendiri dan orang yang Anda kelola. Minta atasan langsung atau Admin yang mengajukannya.",
-    "goesTo": "Permintaan Anda diputuskan oleh manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang memasukkan permintaan tidak boleh memutuskan. Hasilnya akan masuk ke notifikasi Anda."
+    "goesTo": "Permintaan Anda diputuskan oleh manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang memasukkan permintaan tidak boleh memutuskan. Hasilnya akan masuk ke notifikasi Anda.",
+    "dates": "Tanggal",
+    "daysHeader": "Hari",
+    "decider": "Pemutus",
+    "noDecider": "Tanpa penyetuju",
+    "decision": "Keputusan",
+    "openRow": "Buka cuti {{name}}",
+    "waitingForLabel": "Menunggu",
+    "approvedByLabel": "Disetujui oleh",
+    "rejectedByLabel": "Ditolak oleh",
+    "noteLabel": "Catatan"
   },
   "checkIn": {
     "requestsTitle": "Absen menunggu Anda",
