@@ -67,7 +67,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
       const value = `${year}-${month}`;
       return { value, label: formatUtcMonthYearFull(new Date(`${value}-01T00:00:00Z`)) };
     });
-  }, [range]);
+  }, [range, loc]);
   const showValue = (r?.months ?? []).some((m: ConsumptionMonthRow) => m.netValue !== undefined);
   const empty = !reversed && r && r.months.length === 0 && r.allowances.length === 0 && r.unplanned.length === 0;
 
