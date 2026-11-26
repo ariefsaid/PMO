@@ -61,6 +61,7 @@ export const PerformanceFigures: React.FC<{
     return t(`performance.reading.${kind}.${r}`, defaults[kind][r]);
   };
   const card = (kind: 'cpi' | 'spi', index: Index) => {
+    const hiddenText = index.state === 'value' ? null : hidden(index);
     return (
       <div key={kind} data-testid={`${idPrefix}-${kind}`}>
         <dt className="text-muted-foreground">{kind === 'cpi' ? t('performance.cpi', 'Cost performance index') : t('performance.spi', 'Schedule performance index')}</dt>
@@ -71,7 +72,7 @@ export const PerformanceFigures: React.FC<{
               <div data-testid={`${idPrefix}-${kind}-reading`}>{readingText(kind, index.reading)}</div>
             </>
           ) : (
-            <div className="text-metric font-semibold tabular-nums text-muted-foreground">—</div>
+            <div className="text-metric font-semibold tabular-nums text-muted-foreground" data-testid={hiddenText === '—' ? `${idPrefix}-${kind}-hidden` : undefined}>—</div>
           )}
         </dd>
       </div>
@@ -90,7 +91,7 @@ export const PerformanceFigures: React.FC<{
         {card('cpi', performance.cpi)}
         {card('spi', performance.spi)}
       </dl>
-      <div className="text-control text-muted-foreground">{(['cpi', 'spi'] as const).map((kind) => { const index = performance[kind]; return index.state !== 'value' ? <p key={kind} data-testid={`${idPrefix}-${kind}-hidden`}>{hidden(index)}</p> : null; })}</div>
+      <div className="text-control text-muted-foreground">{(['cpi', 'spi'] as const).map((kind) => { const index = performance[kind]; return index.state !== 'value' && hidden(index) !== '—' ? <p key={kind} data-testid={`${idPrefix}-${kind}-hidden`}>{hidden(index)}</p> : null; })}</div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-control sm:grid-cols-3 sm:gap-x-6">
         <div className="min-w-0"><dt className="text-muted-foreground">{t('performance.ev', 'Earned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-ev`}>{money(performance.ev)}</dd></div>
         <div className="min-w-0"><dt className="text-muted-foreground">{t('performance.pv', 'Planned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-pv`}>{money(performance.pv)}</dd></div>
