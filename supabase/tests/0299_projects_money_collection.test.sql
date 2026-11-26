@@ -17,6 +17,8 @@ values
  ('02990000-0000-0000-0000-0000000000d1','02990000-0000-0000-0000-000000000001','Synthetic delivery project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-ONE'),
  ('02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-000000000001','No reading project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-TWO'),
  ('02990000-0000-0000-0000-0000000000d3','02990000-0000-0000-0000-000000000002','Foreign project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-FOREIGN');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update public.projects set project_manager_id = '02990000-0000-0000-0000-0000000000a1' where org_id = '02990000-0000-0000-0000-000000000001' and project_manager_id is null;
 insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id) values
  ('02990000-0000-0000-0000-0000000000f1','02990000-0000-0000-0000-000000000001','ERP committed PO','Ordered',75,'02990000-0000-0000-0000-0000000000d1','02990000-0000-0000-0000-0000000000a1');
 insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id,currency,budget_category) values

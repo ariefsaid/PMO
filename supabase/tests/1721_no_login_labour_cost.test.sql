@@ -24,6 +24,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('17210000-0000-0000-0000-0000000000a5', '17210000-0000-0000-0000-00000000000a', 'Login Two', 'nll-login-two@example.com', 'Engineer', 'active');
 insert into projects (id, org_id, name, status, currency) values
   ('17210000-0000-0000-0000-0000000000d1', '17210000-0000-0000-0000-00000000000a', 'NLL Site', 'Ongoing Project', 'IDR');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update projects set project_manager_id = '17210000-0000-0000-0000-0000000000a2' where org_id = '17210000-0000-0000-0000-00000000000a' and project_manager_id is null;
 insert into work_orders (id, org_id, project_id, wo_number, title, status, order_value, tax_treatment, tax_amount, currency) values
   ('17210000-0000-0000-0000-000000000401', '17210000-0000-0000-0000-00000000000a', '17210000-0000-0000-0000-0000000000d1', 'WO-1', 'One', 'Issued', 10000, 'exclusive', 0, 'IDR'),
   ('17210000-0000-0000-0000-000000000402', '17210000-0000-0000-0000-00000000000a', '17210000-0000-0000-0000-0000000000d1', 'WO-2', 'Two', 'Issued', 10000, 'exclusive', 0, 'IDR');

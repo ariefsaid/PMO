@@ -1,6 +1,7 @@
 -- A Project Manager reads project money for their own projects (owner ruling 26 Nov 2026).
 -- project_money_in_scope is the one definition of "own project": projects.project_manager_id = the caller, the same rule
--- get_work_in_hand applies. Other roles, and money not bound to a project, are unchanged.
+-- get_work_in_hand applies, plus the Project Control Manager job role, which the rights catalogue (2046) lets read every project.
+-- Other roles, and money not bound to a project, are unchanged.
 -- A project outside the Project Manager's scope reads as not found, or as no rows, or with the money withheld.
 -- Reverse: rollback/2750_pm_reads_own_project_money_down.sql.
 -- drops: each restated function replaces its project-exists test (or filter) with the same test plus project_money_in_scope; nothing else changes.
@@ -9,6 +10,7 @@ create or replace function public.project_money_in_scope(p_project uuid)
   returns boolean language sql stable security invoker set search_path = public, pg_temp as $$
   select p_project is null
       or public.auth_role() is distinct from 'Project Manager'::public.user_role
+      or public.actor_holds_job_role('project_control_manager')
       or exists (select 1 from public.projects p
                   where p.id = p_project and p.org_id = public.auth_org_id() and p.project_manager_id = auth.uid())
 $$;

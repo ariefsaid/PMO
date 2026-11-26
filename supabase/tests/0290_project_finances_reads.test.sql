@@ -203,6 +203,8 @@ insert into public.projects (id,org_id,name,status,currency,contract_value,tax_t
                              tax_base_numerator,tax_base_denominator,subject_to_vat,customer_contract_ref)
 values ('02900000-0000-0000-0000-0000000000d7','02900000-0000-0000-0000-000000000001','Volume',
         'Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'READ-VOLUME');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update public.projects set project_manager_id = '02900000-0000-0000-0000-0000000000a4' where org_id = '02900000-0000-0000-0000-000000000001' and project_manager_id is null;
 insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,
                                    tax_treatment,tax_amount,currency,status,erp_docstatus)
 select ('02900000-0000-0000-0000-' || lpad((60000+g)::text,12,'0'))::uuid,

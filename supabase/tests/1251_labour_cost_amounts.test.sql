@@ -20,6 +20,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into projects (id, org_id, name, status, currency) values
   ('26710000-0000-0000-0000-0000000000d1', '26710000-0000-0000-0000-00000000000a', 'LM Site', 'Ongoing Project', 'IDR'),
   ('26710000-0000-0000-0000-0000000000d2', '26710000-0000-0000-0000-00000000000a', 'LM Site 2', 'Ongoing Project', 'IDR');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update projects set project_manager_id = '26710000-0000-0000-0000-0000000000a2' where org_id = '26710000-0000-0000-0000-00000000000a' and project_manager_id is null;
 insert into work_orders (id, org_id, project_id, wo_number, title, status, order_value, tax_treatment, tax_amount, currency) values
   ('26710000-0000-0000-0000-000000000401', '26710000-0000-0000-0000-00000000000a', '26710000-0000-0000-0000-0000000000d1', 'WO-A', 'A', 'Issued', 10000, 'exclusive', 0, 'IDR'),
   ('26710000-0000-0000-0000-000000000402', '26710000-0000-0000-0000-00000000000a', '26710000-0000-0000-0000-0000000000d2', 'WO-B', 'B', 'Issued', 10000, 'exclusive', 0, 'IDR');
