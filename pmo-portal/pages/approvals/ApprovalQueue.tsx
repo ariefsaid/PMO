@@ -152,7 +152,7 @@ export function QueueGroup({
   if (hideWhenEmpty && !isPending && !isError && items.length === 0) return null;
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between gap-2 px-3">
+      <div className="mb-2 flex items-center justify-between gap-2 pr-3">
         <h2 className="text-control font-semibold text-muted-foreground">
           {title}
         </h2>
