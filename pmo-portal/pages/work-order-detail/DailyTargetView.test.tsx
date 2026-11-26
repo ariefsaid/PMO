@@ -124,8 +124,15 @@ describe('DailyTargetView (#2672)', () => {
       expect(screen.getByTestId('wo-daily-cost-total-2026-12-01').textContent).toBe(money('50.00'));
       expect(screen.getByTestId('wo-daily-cost-net-2026-12-01').textContent).toBe(money('30.00'));
       expect(screen.getByTestId('wo-daily-cost-net-2026-12-02').textContent).toBe(money('-7.00'));
-      expect(screen.queryByTestId('wo-daily-cost-row-2026-11-30')).toBeNull();
+      expect(screen.queryByTestId('wo-daily-cost-total-2026-11-30')).toBeNull();
       expect(screen.queryByText('Labour')).toBeNull();
+      // Beside the revenue of the same row, not in a second table.
+      expect(screen.getByTestId('wo-daily-row-2026-12-01').contains(screen.getByTestId('wo-daily-cost-net-2026-12-01'))).toBe(true);
+    });
+    it('a day with cost stays on the table even when it is a non-working day with no revenue', () => {
+      state.query = ok(target({ days: [day({ date: '2026-12-06', working: false, hasTarget: false, target: '0.00', actual: '0.00', gap: '0.00' })] }));
+      render(<DailyTargetView workOrderId="w" costGroups={buildCostView([line('expense_claim', 'c9', '2026-12-06')], { expense_claim: { c9: idr(12) } })} />);
+      expect(screen.getByTestId('wo-daily-cost-net-2026-12-06').textContent).toBe(money('-12.00'));
     });
     it('a cost with no day is named apart and spread over no day', () => {
       state.query = ok(target());
@@ -135,14 +142,14 @@ describe('DailyTargetView (#2672)', () => {
     it('a caller who cannot read any cost amount sees revenue and target only', () => {
       state.query = ok(target());
       render(<DailyTargetView workOrderId="w" costGroups={buildCostView(groups.flatMap((g) => g.lines), { equipment_usage: null, stock_document: null, expense_claim: null })} />);
-      expect(screen.queryByTestId('wo-daily-cost-table')).toBeNull();
+      expect(screen.queryByTestId('wo-daily-cost-total-2026-12-01')).toBeNull();
       expect(screen.queryByTestId('wo-daily-cost-undated')).toBeNull();
       expect(screen.getByTestId('wo-daily-table')).toBeTruthy();
     });
     it('without cost groups the view is unchanged', () => {
       state.query = ok(target());
       render(<DailyTargetView workOrderId="w" />);
-      expect(screen.queryByTestId('wo-daily-cost-table')).toBeNull();
+      expect(screen.queryByTestId('wo-daily-cost-total-2026-12-01')).toBeNull();
     });
   });
 });

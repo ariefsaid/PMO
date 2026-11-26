@@ -89,7 +89,6 @@
       "other": "Lainnya",
       "total": "Biaya",
       "net": "Pendapatan dikurangi biaya",
-      "caption": "Biaya dan pendapatan harian untuk {{month}}",
       "undated": "Tanpa tanggal: {{amount}}"
     }
   },

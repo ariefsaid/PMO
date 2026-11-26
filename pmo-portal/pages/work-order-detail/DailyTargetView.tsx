@@ -10,7 +10,7 @@ import { formatDate, formatExactMoney, formatNumberMax2, formatShortAmount, form
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { asOfForMonth, shiftMonth, visibleDays } from '@/src/lib/dailyTarget';
-import { buildDailyCost, DAY_CATEGORIES, type DailyCostCells, type SourceGroup } from '@/src/lib/workOrderCostView';
+import { buildDailyCost, DAY_CATEGORIES, type SourceGroup } from '@/src/lib/workOrderCostView';
 
 interface Props {
   workOrderId: string;
@@ -32,9 +32,13 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   const q = useWorkOrderDailyTarget(workOrderId, asOfForMonth(month, currentMonth));
   const data = q.data;
   const title = t('daily.title', 'Daily target');
-  const rows = useMemo(() => visibleDays(data?.days ?? []), [data]);
-  const chart = useMemo(() => rows.map((d) => ({ date: d.date.slice(8), target: Number(d.target), actual: Number(d.actual) })), [rows]);
   const daily = useMemo(() => (costGroups && data ? buildDailyCost(costGroups, data.currency) : null), [costGroups, data]);
+  // A day that carries cost stays on the table even when it is a non-working day, so the days always add up to the cost list.
+  const rows = useMemo(() => (data?.days ?? []).filter((d) => visibleDays([d]).length > 0 || daily?.days[d.date] !== undefined), [data, daily]);
+  const chart = useMemo(() => rows.map((d) => ({ date: d.date.slice(8), target: Number(d.target), actual: Number(d.actual) })), [rows]);
+  const costCells = useMemo(() => (daily ? [...Object.values(daily.days), ...(daily.undated ? [daily.undated] : [])] : []), [daily]);
+  const costCols = DAY_CATEGORIES.filter((k) => costCells.some((c) => typeof c[k] === 'number'));
+  const hasCostTotal = costCells.some((c) => typeof c.total === 'number');
   const monthLabel = formatUtcMonthYearFull(new Date(`${month}T00:00:00Z`));
 
   const nav = (
@@ -64,6 +68,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   const figure = (testId: string, label: string, value: React.ReactNode) => (
     <div key={testId}><dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums" data-testid={testId}>{value}</dd></div>
   );
+  const costFigure = (v: number | null | undefined) => (typeof v === 'number' ? money(toMoney(v)) : '—');
   const none = t('daily.noTarget', 'No target entered');
   const summary = t('daily.chartSummary', 'Daily revenue for {{month}}: target against actual per day.', { month: monthLabel });
 
@@ -111,7 +116,10 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
               <th scope="col" className="py-1 pr-4 text-left font-normal">{t('daily.day', 'Day')}</th>
               <th scope="col" className="py-1 pr-4 font-normal">{t('daily.target', 'Target')}</th>
               <th scope="col" className="py-1 pr-4 font-normal">{t('daily.actual', 'Actual')}</th>
-              <th scope="col" className="py-1 font-normal">{t('daily.dayGap', 'Gap')}</th>
+              <th scope="col" className={`py-1 ${costCols.length || hasCostTotal ? 'pr-4' : ''} font-normal`}>{t('daily.dayGap', 'Gap')}</th>
+              {costCols.map((k) => <th key={k} scope="col" className="py-1 pr-4 font-normal">{t(`daily.cost.${k}`, k)}</th>)}
+              {hasCostTotal && <th scope="col" className="py-1 pr-4 font-normal">{t('daily.cost.total', 'Cost')}</th>}
+              {hasCostTotal && <th scope="col" className="py-1 font-normal">{t('daily.cost.net', 'Revenue less cost')}</th>}
             </tr></thead>
             <tbody>
               {rows.map((d) => (
@@ -129,59 +137,11 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
                     {money(d.actual)}
                     {d.pendingReports > 0 && <div className="text-muted-foreground">{t('daily.dayPending', '{{count}} not yet validated', { count: d.pendingReports })}</div>}
                   </td>
-                  <td className="py-1 text-right tabular-nums">{d.hasTarget ? gapWords(d.gap) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {daily && <DailyCostTable daily={daily} month={data.month.slice(0, 7)} revenue={Object.fromEntries(data.days.map((d) => [d.date, d.actual]))} money={money} t={t} caption={monthLabel} />}
-    </RecordSection>
-  );
-};
-
-const toMoney = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
-
-/**
- * Cost beside revenue, per day (#1126): labour, equipment, material, other, the day's cost and revenue less cost. A column with
- * no readable figure is not drawn; an unreadable day shows "—", never 0. A cost with no day gets its own line, not a share of any day.
- */
-const DailyCostTable: React.FC<{
-  daily: ReturnType<typeof buildDailyCost>; month: string; revenue: Record<string, string>; caption: string;
-  money: (v: string) => string; t: (k: string, d: string, o?: Record<string, unknown>) => string;
-}> = ({ daily, month, revenue, caption, money, t }) => {
-  const days = Object.entries(daily.days).filter(([d]) => d.startsWith(month));
-  const shown = (c: DailyCostCells | null, k: keyof DailyCostCells) => typeof c?.[k] === 'number';
-  const all = [...days.map(([, c]) => c), ...(daily.undated ? [daily.undated] : [])];
-  const cols = DAY_CATEGORIES.filter((k) => all.some((c) => shown(c, k)));
-  const hasTotal = all.some((c) => shown(c, 'total'));
-  const cell = (v: number | null | undefined) => (typeof v === 'number' ? money(toMoney(v)) : '—');
-  const label: Record<string, string> = {
-    labour: t('daily.cost.labour', 'Labour'), equipment: t('daily.cost.equipment', 'Equipment'),
-    material: t('daily.cost.material', 'Material'), other: t('daily.cost.other', 'Other'),
-  };
-  if (cols.length === 0 && !hasTotal) return null;
-  return (
-    <>
-      {days.length > 0 && (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-control" data-testid="wo-daily-cost-table">
-            <caption className="sr-only">{t('daily.cost.caption', 'Daily cost and revenue for {{month}}', { month: caption })}</caption>
-            <thead><tr className="text-right text-muted-foreground">
-              <th scope="col" className="py-1 pr-4 text-left font-normal">{t('daily.day', 'Day')}</th>
-              {cols.map((k) => <th key={k} scope="col" className="py-1 pr-4 font-normal">{label[k]}</th>)}
-              {hasTotal && <th scope="col" className="py-1 pr-4 font-normal">{t('daily.cost.total', 'Cost')}</th>}
-              {hasTotal && <th scope="col" className="py-1 font-normal">{t('daily.cost.net', 'Revenue less cost')}</th>}
-            </tr></thead>
-            <tbody>
-              {days.map(([date, c]) => (
-                <tr key={date} className="border-t border-border" data-testid={`wo-daily-cost-row-${date}`}>
-                  <th scope="row" className="py-1 pr-4 text-left font-normal">{formatDate(date)}</th>
-                  {cols.map((k) => <td key={k} className="py-1 pr-4 text-right tabular-nums" data-testid={`wo-daily-cost-${k}-${date}`}>{cell(c[k])}</td>)}
-                  {hasTotal && <td className="py-1 pr-4 text-right tabular-nums" data-testid={`wo-daily-cost-total-${date}`}>{cell(c.total)}</td>}
-                  {hasTotal && <td className="py-1 text-right tabular-nums" data-testid={`wo-daily-cost-net-${date}`}>
-                    {c.total === null ? '—' : money(toMoney((Math.round(Number(revenue[date] ?? 0) * 100) - Math.round(c.total * 100)) / 100))}
+                  <td className={`py-1 text-right tabular-nums ${costCols.length || hasCostTotal ? 'pr-4' : ''}`}>{d.hasTarget ? gapWords(d.gap) : '—'}</td>
+                  {costCols.map((k) => <td key={k} className="py-1 pr-4 text-right tabular-nums" data-testid={`wo-daily-cost-${k}-${d.date}`}>{costFigure(daily?.days[d.date]?.[k])}</td>)}
+                  {hasCostTotal && <td className="py-1 pr-4 text-right tabular-nums" data-testid={`wo-daily-cost-total-${d.date}`}>{costFigure(daily?.days[d.date]?.total)}</td>}
+                  {hasCostTotal && <td className="py-1 text-right tabular-nums" data-testid={`wo-daily-cost-net-${d.date}`}>
+                    {typeof daily?.days[d.date]?.total === 'number' ? money(toMoney((Math.round(Number(d.actual) * 100) - Math.round((daily.days[d.date].total as number) * 100)) / 100)) : '—'}
                   </td>}
                 </tr>
               ))}
@@ -189,11 +149,13 @@ const DailyCostTable: React.FC<{
           </table>
         </div>
       )}
-      {typeof daily.undated?.total === 'number' && (
+      {typeof daily?.undated?.total === 'number' && (
         <p className="mt-2 text-control text-muted-foreground" data-testid="wo-daily-cost-undated">
           {t('daily.cost.undated', 'Not dated to a day: {{amount}}', { amount: money(toMoney(daily.undated.total)) })}
         </p>
       )}
-    </>
+    </RecordSection>
   );
 };
+
+const toMoney = (n: number) => (Math.round(n * 100) / 100).toFixed(2);

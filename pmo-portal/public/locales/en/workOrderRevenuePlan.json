@@ -89,7 +89,6 @@
       "other": "Other",
       "total": "Cost",
       "net": "Revenue less cost",
-      "caption": "Daily cost and revenue for {{month}}",
       "undated": "Not dated to a day: {{amount}}"
     }
   },

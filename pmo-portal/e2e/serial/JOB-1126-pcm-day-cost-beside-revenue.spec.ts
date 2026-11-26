@@ -75,7 +75,7 @@ test('JOB-1126 the Project Control Manager sees the day\'s cost beside the day\'
     await expect(daily).not.toContainText('restricted for your role');
 
     // The day: its revenue (50), the bill's cost (7) under Material, the day's cost and revenue less cost (43); nothing spread.
-    const row = daily.getByTestId(`wo-daily-cost-row-${today}`);
+    const row = daily.getByTestId(`wo-daily-row-${today}`);
     await expect(row).toBeVisible();
     await expect(daily.getByTestId(`wo-daily-cost-material-${today}`)).toHaveText(money('7.00'));
     await expect(daily.getByTestId(`wo-daily-cost-total-${today}`)).toHaveText(money('7.00'));
