@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgQuery } from './useOrgQuery';
@@ -15,23 +15,20 @@ import { workOrderFinanceRepository } from '@/src/lib/repositories/workOrderFina
 import { buildDashboardRows, type DashboardRow, type DashboardWorkOrder } from '@/src/lib/workOrderDashboard';
 import { closeoutOverdueByWorkOrder, orgToday } from '@/src/lib/checklistDue';
 import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
-import type { WorkOrderFigures } from '@/src/lib/workOrderPlanVsActual';
 
-/** Above this many projects in view, cost is not read (each project's roll-up is its own read): the reader picks a project. */
-export const COST_PROJECT_CAP = 6;
-
-export type CostState = 'shown' | 'hidden' | 'too-many';
+export type CostState = 'shown' | 'hidden';
 
 /**
  * The work-order dashboard's rows (#2805), for every work order the reader may see or for one project. A fixed set of
  * reads whatever the row count: the work orders, their contract lines, the allocated contract items, confirmed
  * acceptances, billing, billing steps and close-out items, each one request (paged by thousands). Cost is the
- * plan-versus-actual roll-up the work-order page reads, one per project in view and only up to `COST_PROJECT_CAP`.
+ * direct-cost and budget roll-up for the projects in view, fetched as a batch.
  * Billing needs the invoice view right and cost the plan view right, exactly as on the work-order page.
  */
 export function useWorkOrderDashboard(projectId?: string, costProjectIds?: readonly string[]) {
   const may = usePermission();
-  const orgId = useAuth().currentUser?.org_id;
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
   const scoped = Boolean(projectId);
   const pid = projectId ?? '';
   const canBilling = may('view', 'salesInvoice');
@@ -62,26 +59,17 @@ export function useWorkOrderDashboard(projectId?: string, costProjectIds?: reado
     project_name: 'project_name' in o ? (o.project_name as string | null) : null, end_date: o.end_date,
   })), [orders.data]);
 
-  const costIds = useMemo(() => {
-    const ids = scoped ? [pid] : [...new Set(costProjectIds ?? workOrders.map((w) => w.project_id))];
-    return ids.length <= COST_PROJECT_CAP ? ids : null;
-  }, [scoped, pid, costProjectIds, workOrders]);
-  const costReads = useQueries({
-    queries: (canPlan && costIds ? costIds : []).map((id) => ({
-      queryKey: ['work-order-plan-vs-actual', orgId, id],
-      queryFn: () => workOrderFinanceRepository.projectPlanVsActual(id),
-      enabled: Boolean(orgId),
-    })),
+  const costIds = useMemo(() => scoped ? [pid] : [...new Set(costProjectIds ?? workOrders.map((w) => w.project_id))].sort(),
+    [scoped, pid, costProjectIds, workOrders]);
+  const readCosts = Boolean(orgId) && canPlan && costIds.length > 0;
+  const costRead = useQuery({
+    queryKey: ['work-order-plan-vs-actual', orgId, 'dashboard', costIds, currentUser?.id, currentUser?.role],
+    queryFn: () => workOrderFinanceRepository.dashboardCosts(costIds),
+    enabled: readCosts,
   });
-  const costData = costReads.map((q) => q.data);
-  const costKey = costReads.map((q) => q.dataUpdatedAt).join(',');
-  const cost = useMemo(() => {
-    if (costData.length === 0 || costData.some((d) => !d) || costData.some((d) => d!.rollup.restricted)) return undefined;
-    return new Map<string, WorkOrderFigures>(costData.flatMap((d) => d!.rollup.workOrders.map((f) => [f.workOrderId, f] as const)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- costKey changes whenever any roll-up read lands.
-  }, [costKey]);
-  const restricted = costData.some((d) => d?.rollup.restricted);
-  const costState: CostState = !canPlan || restricted ? 'hidden' : costIds === null ? 'too-many' : 'shown';
+  const cost = useMemo(() => costRead.data ? new Map(costRead.data.map(({ workOrderId, ...figures }) => [workOrderId, figures])) : undefined,
+    [costRead.data]);
+  const costState: CostState = !canPlan || costRead.data === null ? 'hidden' : 'shown';
 
   const today = orgToday(new Date(), getActiveOrgTimezone());
   const rows = useMemo<DashboardRow[]>(() => buildDashboardRows({
@@ -102,9 +90,9 @@ export function useWorkOrderDashboard(projectId?: string, costProjectIds?: reado
     isError: orders.isError,
     refetch: () => { void orders.refetch(); },
     /** Figures still arriving: their cells read as loading rather than blank. */
-    figuresPending: lines.isPending || items.isPending || acceptances.isPending || (canBilling && billing.isPending) || costReads.some((q) => q.isPending),
-    figuresError: lines.isError || items.isError || acceptances.isError || (canBilling && billing.isError) || steps.isError || costReads.some((q) => q.isError),
-    retryFigures: () => { for (const q of [lines, items, acceptances, billing, steps, closeout, ...costReads]) void q.refetch(); },
+    figuresPending: lines.isPending || items.isPending || acceptances.isPending || (canBilling && billing.isPending) || (readCosts && costRead.isPending),
+    figuresError: lines.isError || items.isError || acceptances.isError || (canBilling && billing.isError) || steps.isError || (readCosts && costRead.isError),
+    retryFigures: () => { for (const q of [lines, items, acceptances, billing, steps, closeout]) void q.refetch(); if (readCosts) void costRead.refetch(); },
     canBilling,
     costState,
     disciplines: disciplines.data ?? [],

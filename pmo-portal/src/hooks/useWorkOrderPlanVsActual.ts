@@ -14,14 +14,14 @@ export function useProjectPlanVsActual(projectId: string, enabled = true) {
   });
 }
 
-function useInvalidate(projectId: string) {
+function useInvalidate() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
-  return () => qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', currentUser?.org_id, projectId] });
+  return () => qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', currentUser?.org_id] });
 }
 
 export function useSaveWorkOrderPlan(projectId: string) {
-  const invalidate = useInvalidate(projectId);
+  const invalidate = useInvalidate();
   return useMutation({
     mutationFn: ({ workOrderId, changes }: { workOrderId: string; changes: PlanChange[] }) =>
       workOrderFinanceRepository.setPlan(projectId, workOrderId, changes),
@@ -30,11 +30,11 @@ export function useSaveWorkOrderPlan(projectId: string) {
 }
 
 export function useSetSharedSplit(projectId: string) {
-  const invalidate = useInvalidate(projectId);
+  const invalidate = useInvalidate();
   return useMutation({ mutationFn: (split: SplitPercent[]) => workOrderFinanceRepository.setSplit(projectId, split), onSuccess: invalidate });
 }
 
 export function useClearSharedSplit(projectId: string) {
-  const invalidate = useInvalidate(projectId);
+  const invalidate = useInvalidate();
   return useMutation({ mutationFn: () => workOrderFinanceRepository.clearSplit(projectId), onSuccess: invalidate });
 }

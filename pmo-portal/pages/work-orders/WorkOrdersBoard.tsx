@@ -12,7 +12,7 @@ import { useTerms } from '@/src/lib/i18n/terms';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { planVariance } from '@/src/lib/workOrderPlanVsActual';
-import { COST_PROJECT_CAP, useWorkOrderDashboard } from '@/src/hooks/useWorkOrderDashboard';
+import { useWorkOrderDashboard } from '@/src/hooks/useWorkOrderDashboard';
 import type { DashboardRow } from '@/src/lib/workOrderDashboard';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import { WorkOrderProjectPanels } from './WorkOrderProjectPanels';
@@ -199,11 +199,6 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         cardValuesEnd
         filteredEmpty={rows.length > 0 ? { message: t('all.noMatch', 'No work order matches your search'), clearFiltersLabel: ts('ui.filterBar.clear', 'Clear all'), onClearFilters: clear } : undefined}
       />
-      {costState === 'too-many' && !values.project && filtered.length > 0 && (
-        <p className="mt-2 text-control text-muted-foreground" data-testid="work-orders-cost-note">
-          {t('all.costTooMany', 'Direct cost shows for up to {{count}} projects. Choose a project.', { count: COST_PROJECT_CAP })}
-        </p>
-      )}
       {all.figuresError && (
         <p className="mt-2 text-control text-muted-foreground" role="status">
           {t('all.figuresError', "Some figures couldn't load.")}{' '}

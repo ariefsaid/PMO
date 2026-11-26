@@ -385,7 +385,6 @@
       "overShow": "Tampilkan $t(common:terms.clientWorkOrder) yang melebihi anggaran ({{count}})"
     },
     "openRow": "Buka {{label}}",
-    "costTooMany": "Biaya langsung tampil untuk paling banyak {{count}} proyek. Pilih proyek.",
     "figuresError": "Sebagian angka gagal dimuat.",
     "searchShort": "Cari",
     "workInHand": "Pekerjaan dalam tangan"

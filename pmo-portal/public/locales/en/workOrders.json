@@ -385,7 +385,6 @@
       "overShow": "Show work orders over budget ({{count}})"
     },
     "openRow": "Open {{label}}",
-    "costTooMany": "Direct cost shows for up to {{count}} projects. Choose a project.",
     "figuresError": "Some figures couldn't load.",
     "searchShort": "Search",
     "workInHand": "Work in hand"

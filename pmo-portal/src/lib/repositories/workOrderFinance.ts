@@ -7,6 +7,7 @@
  * `rollupProject` — the only place a figure is computed (FR-WPVA-010: the screens never re-sum).
  */
 import {
+  getDashboardWorkOrderCosts,
   listProjectCostAmounts,
   listProjectPlanLines,
   setWorkOrderPlan,
@@ -78,6 +79,14 @@ async function load(projectId: string): Promise<ProjectPlanVsActual> {
 }
 
 export const workOrderFinanceRepository = {
+  dashboardCosts: (projectIds: readonly string[]) => wrap(async () => {
+    try {
+      return await getDashboardWorkOrderCosts(projectIds);
+    } catch (error) {
+      if (isRefused(error)) return null;
+      throw error;
+    }
+  }),
   projectPlanVsActual: (projectId: string): Promise<ProjectPlanVsActual> => wrap(() => load(projectId)),
   setPlan: (projectId: string, workOrderId: string, changes: readonly PlanChange[]): Promise<void> => wrap(() => setWorkOrderPlan(projectId, workOrderId, changes)),
   setSplit: (projectId: string, split: readonly SplitPercent[]): Promise<number> => wrap(() => setSharedSplit(projectId, split)),
