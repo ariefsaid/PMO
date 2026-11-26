@@ -77,6 +77,8 @@ describe('AC-DCV-020 Administration › Document categories', () => {
     const user = userEvent.setup();
     wrap();
     const form = await screen.findByTestId('document-category-new');
+    await user.click(screen.getByRole('button', { name: 'New category', exact: true }));
+    expect(within(form).getByLabelText(/Category name/i)).toHaveFocus();
     await user.type(within(form).getByLabelText(/Category name/i), 'Commercial approval');
     await user.click(within(form).getByRole('checkbox', { name: /Finance/ }));
     await user.click(within(form).getByRole('button', { name: /Create category/i }));

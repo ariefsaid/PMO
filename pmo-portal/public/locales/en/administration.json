@@ -1071,7 +1071,7 @@
   },
   "documentCategories": {
     "nav": "Document categories",
-    "intro": "Every document is filed under one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.",
+    "intro": "Each document has one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.",
     "m365Note": "Files linked from Microsoft 365 keep Microsoft’s own permissions. These settings control only the register entry, preview and open link in PMO.",
     "name": "Category name",
     "namePlaceholder": "e.g. Commercial approval",

@@ -254,7 +254,7 @@ const AdministrationDocumentCategories: React.FC = () => {
   return (
     <div data-testid="administration-panel-document-categories" className="min-w-0 space-y-4">
       <p className="max-w-prose text-control text-muted-foreground">
-        {t('administration:documentCategories.intro', 'Every document is filed under one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.')}
+        {t('administration:documentCategories.intro', 'Each document has one category. Choose which roles can see the documents in each category; people in other roles will not see them or their files. Admin always sees every category.')}
       </p>
       <p className="max-w-prose text-control text-muted-foreground">
         {t('administration:documentCategories.m365Note', 'Files linked from Microsoft 365 keep Microsoft’s own permissions. These settings control only the register entry, preview and open link in PMO.')}
@@ -264,10 +264,13 @@ const AdministrationDocumentCategories: React.FC = () => {
       {!isPending && !isError ? (
         <>
           {canManage && (
-            <NewCategory
-              busy={busy}
-              onCreate={(name, roles) => run(() => m.create.mutateAsync({ name, roles }), t('administration:documentCategories.created', 'Category created'))}
-            />
+            <Button variant="outline" aria-controls="new-document-category" onClick={() => {
+              const form = document.getElementById('new-document-category');
+              form?.scrollIntoView({ block: 'start' });
+              form?.querySelector('input')?.focus({ preventScroll: true });
+            }}>
+              {t('administration:documentCategories.newTitle', 'New category')}
+            </Button>
           )}
           <div role="list" aria-label={t('administration:documentCategories.listLabel', 'Document categories')} className="min-w-0 rounded-lg border border-border bg-card">
           <CategoryHeader />
@@ -287,6 +290,14 @@ const AdministrationDocumentCategories: React.FC = () => {
             />
           ))}
           </div>
+          {canManage && (
+            <div id="new-document-category" className="scroll-mt-4">
+              <NewCategory
+                busy={busy}
+                onCreate={(name, roles) => run(() => m.create.mutateAsync({ name, roles }), t('administration:documentCategories.created', 'Category created'))}
+              />
+            </div>
+          )}
           {archived.length > 0 && (
             <>
               <h3 className="pt-4 text-group font-semibold">{t('administration:documentCategories.archivedHeading', 'Archived categories')}</h3>

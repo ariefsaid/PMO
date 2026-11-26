@@ -1071,7 +1071,7 @@
   },
   "documentCategories": {
     "nav": "Kategori dokumen",
-    "intro": "Setiap dokumen disimpan dalam satu kategori. Pilih peran mana yang dapat melihat dokumen di setiap kategori; orang dengan peran lain tidak akan melihat dokumen maupun berkasnya. Admin selalu melihat semua kategori.",
+    "intro": "Dokumen memiliki satu kategori. Pilih peran mana yang dapat melihat dokumen di setiap kategori; orang dengan peran lain tidak akan melihat dokumen maupun berkasnya. Admin selalu melihat semua kategori.",
     "m365Note": "Berkas yang ditautkan dari Microsoft 365 tetap memakai izin Microsoft sendiri. Pengaturan ini hanya mengatur entri daftar, pratinjau, dan tautan buka di PMO.",
     "name": "Nama kategori",
     "namePlaceholder": "mis. Persetujuan komersial",
