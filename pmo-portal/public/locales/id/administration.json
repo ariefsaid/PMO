@@ -752,6 +752,7 @@
         "inviteResentDetail": "Tautan sebelumnya untuk {{email}} sudah kedaluwarsa. Tautan baru sedang dikirim."
       },
       "setup": {
+        "readError": "Tidak dapat memeriksa pengaturan pengguna lapangan",
         "unlinked": "Login belum ditautkan ke seorang personel, jadi belum bisa dimasukkan ke kru.",
         "linkAction": "Tautkan ke personel",
         "noCrew": "Belum masuk kru mana pun, jadi belum ada pekerjaan untuk absen.",
