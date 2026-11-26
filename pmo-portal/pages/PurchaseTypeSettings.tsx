@@ -1,7 +1,10 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, ListState, RecordSection, RecordStack, TextField, useToast } from '@/src/components/ui';
+import { Button, PageHeader, Checkbox, ListState, RecordSection, RecordStack, TextField, useToast } from '@/src/components/ui';
 import { useRefusalLine } from '@/src/lib/refusals';
 import { BackBar } from '@/src/components/shell';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
@@ -27,6 +30,8 @@ const TypeRow: React.FC<{ type: PurchaseType | null; canManage: boolean; nextPos
       if (!type) { setName(''); setNameId(''); setIsRental(false); onDone?.(); }
     } catch (err) { setError(refusal(err)); }
   };
+  const wide = useIsDesktop(1280);
+  const pageSave = useSettingsSaveEntry(type && canManage ? { dirty, invalid: !name.trim(), busy: m.upsert.isPending, save } : null);
   const toggleActive = async () => {
     if (!type) return;
     setError(null);
@@ -36,15 +41,15 @@ const TypeRow: React.FC<{ type: PurchaseType | null; canManage: boolean; nextPos
     <li className="grid items-end gap-3 border-b border-border py-3 last:border-b-0 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(10rem,1fr)_11rem]" data-testid={type ? 'purchase-type-row' : 'purchase-type-new'}>
       {error && <div className="md:col-span-2 xl:col-span-4"><FormErrorStrip>{error}</FormErrorStrip></div>}
       {type && !type.active && <p className="text-sm text-muted-foreground md:col-span-2 xl:col-span-4">{t('settings.retired', 'Retired')}</p>}
-      <TextField label={t('settings.name', 'Name')} value={name} onChange={setName} disabled={!canManage} wrapperClassName="min-w-0" />
-      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} value={nameId} onChange={setNameId} disabled={!canManage} wrapperClassName="min-w-0" />
+      <TextField label={t('settings.name', 'Name (English)')} hideLabel={Boolean(type && wide)} value={name} onChange={setName} disabled={!canManage} wrapperClassName="min-w-0" />
+      <TextField label={t('settings.nameId', 'Name in Bahasa Indonesia')} hideLabel={Boolean(type && wide)} value={nameId} onChange={setNameId} disabled={!canManage} wrapperClassName="min-w-0" />
       <div className="flex min-h-10 items-center"><Checkbox checked={isRental} onChange={setIsRental} disabled={!canManage} label={t('settings.isRental', 'This type has a rental period')}>{t('settings.isRental', 'This type has a rental period')}</Checkbox></div>
       {canManage && (
         <span className="flex min-h-10 flex-wrap items-center gap-2">
-          <Button variant={type ? 'outline' : 'primary'} size="sm" disabled={!dirty || !name.trim()} loading={m.upsert.isPending} onClick={() => void save()}>
+          {(!pageSave || !type) && <Button variant={type ? 'outline' : 'primary'} size="sm" disabled={!dirty || !name.trim()} loading={m.upsert.isPending} onClick={() => void save()}>
             {type ? t('settings.save', 'Save') : t('settings.add', 'Add type')}
-          </Button>
-          {type && <Button variant="ghost" size="sm" onClick={() => void toggleActive()}>{type.active ? t('settings.retire', 'Retire') : t('settings.restore', 'Restore')}</Button>}
+          </Button>}
+          {type && <Button variant="outline" size="sm" onClick={() => void toggleActive()}>{type.active ? t('settings.retire', 'Retire') : t('settings.restore', 'Restore')}</Button>}
         </span>
       )}
     </li>
@@ -63,10 +68,13 @@ const TypeList: React.FC<{ canManage: boolean }> = ({ canManage }) => {
       {types.isError && <ListState variant="error" title={t('settings.loadError', "Couldn't load purchase types")} onRetry={() => void types.refetch()} />}
       {types.data && list.length === 0 && <p className="text-muted-foreground">{t('settings.empty', 'No types yet.')}</p>}
       {types.data && (
+        <>
+        <div aria-hidden className="hidden xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(10rem,1fr)_11rem] gap-3 border-b border-border pb-2 text-control font-medium text-muted-foreground"><span>{t('settings.name', 'Name (English)')}</span><span>{t('settings.nameId', 'Name in Bahasa Indonesia')}</span><span>{t('settings.rentalColumn', 'Rental period')}</span><span /></div>
         <ul>
           {list.map((x) => <TypeRow key={`${x.id}:${x.name}:${x.nameId ?? ''}:${x.isRental}`} type={x} canManage={canManage} nextPosition={0} />)}
-          {canManage && <TypeRow key={`new-${list.length}`} type={null} canManage nextPosition={list.length + 1} />}
         </ul>
+        {canManage && <div className="mt-6 border-t border-border pt-4"><h3 className="text-group font-semibold">{t('settings.add', 'Add type')}</h3><TypeRow key={`new-${list.length}`} type={null} canManage nextPosition={list.length + 1} /></div>}
+        </>
       )}
     </RecordSection>
   );
@@ -80,7 +88,7 @@ const PurchaseTypeSettingsPage: React.FC = () => {
   return (
     <div>
       <BackBar label={t('settings.back', 'Procurement')} onBack={() => navigate('/procurement')} />
-      <h1 className="mb-4 text-xl font-semibold">{t('settings.title', 'Purchase types')}</h1>
+      <PageHeader title={t('settings.title', 'Purchase types')} action={<SettingsSaveAction />} />
       {!canManage && <p className="mb-3 text-muted-foreground">{t('settings.adminOnly', 'Only an Admin can change purchase types.')}</p>}
       <RecordStack>
         <TypeList canManage={canManage} />
@@ -88,4 +96,5 @@ const PurchaseTypeSettingsPage: React.FC = () => {
     </div>
   );
 };
-export default PurchaseTypeSettingsPage;
+const PurchaseTypeSettings: React.FC = () => <SettingsSaveProvider><PurchaseTypeSettingsPage /></SettingsSaveProvider>;
+export default PurchaseTypeSettings;

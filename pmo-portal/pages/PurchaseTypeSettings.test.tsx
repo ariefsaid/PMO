@@ -58,7 +58,7 @@ describe('purchase type settings (#2697)', () => {
     renderPage();
     const row = screen.getAllByTestId('purchase-type-row')[0];
     await userEvent.click(row.querySelector('input[type="checkbox"]') as HTMLElement);
-    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
     expect(await screen.findByText('Purchases use this type. Retire it and add a new one instead.')).toBeInTheDocument();
   });
 
