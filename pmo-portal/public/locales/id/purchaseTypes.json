@@ -47,7 +47,7 @@
     "listTitle": "Jenis",
     "listSub": "Ini jenis milik Anda sendiri. Ubah nama, tambah atau nonaktifkan. Hanya jenis yang memiliki masa sewa yang dapat diperpanjang.",
     "empty": "Belum ada jenis.",
-    "name": "Nama",
+    "name": "Nama (English)",
     "nameId": "Nama dalam Bahasa Indonesia",
     "isRental": "Jenis ini memiliki masa sewa",
     "position": "Urutan",
@@ -56,6 +56,7 @@
     "restore": "Aktifkan lagi",
     "retired": "Nonaktif",
     "loadError": "Jenis pembelian tidak dapat dimuat",
-    "adminOnly": "Hanya Admin yang dapat mengubah jenis pembelian."
+    "adminOnly": "Hanya Admin yang dapat mengubah jenis pembelian.",
+    "rentalColumn": "Masa sewa"
   }
 }

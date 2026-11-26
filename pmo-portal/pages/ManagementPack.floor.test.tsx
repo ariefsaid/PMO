@@ -114,13 +114,13 @@ afterEach(() => {
 describe('Finance reports floor controls', () => {
   it('floor: From month updates the URL and rereads the selected range', () => {
     renderPage('/finance/reports?to=2026-04');
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-02' } });
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-02-01' } });
     const params = new URLSearchParams(new URLSearchParams(route()?.split('?')[1]));
     expect(params.get('from')).toBe('2026-02');
     expect(h.rangeCalls).toContainEqual({ from: '2026-02-01', to: '2026-04-01' });
   });
 
-  it('floor: As at month updates the heading and query range, and invalid text clears the URL value', () => {
+  it('floor: As at month updates the heading and query range, and clearing the field clears the URL value', () => {
     h.rangeFactory = (range) => buildManagementPack({
       ...facts,
       from: range.from ?? facts.from,
@@ -128,12 +128,12 @@ describe('Finance reports floor controls', () => {
     });
     renderPage('/finance/reports?from=2026-03&to=2026-04');
     const asAt = screen.getByLabelText('As at');
-    fireEvent.change(asAt, { target: { value: '2026-05' } });
+    fireEvent.change(asAt, { target: { value: '2026-05-01' } });
     expect(new URLSearchParams(route()?.split('?')[1]).get('to')).toBe('2026-05');
     expect(h.rangeCalls).toContainEqual({ from: '2026-03-01', to: '2026-05-01' });
     expect(screen.getByRole('heading', { name: /^Projects as at May 2026/ })).toBeInTheDocument();
 
-    fireEvent.change(asAt, { target: { value: 'invalid-month' } });
+    fireEvent.change(asAt, { target: { value: '' } });
     expect(new URLSearchParams(route()?.split('?')[1]).has('to')).toBe(false);
   });
 

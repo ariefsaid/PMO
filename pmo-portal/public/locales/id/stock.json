@@ -508,8 +508,8 @@
     "workOrder": "Perintah kerja",
     "workOrderPlaceholder": "Lokasi saja (tanpa perintah kerja)",
     "workOrderSearch": "Cari perintah kerja…",
-    "workOrderNoun": "perintah kerja",
-    "workOrderNounPlural": "perintah kerja",
+    "workOrderNoun": "Perintah kerja",
+    "workOrderNounPlural": "Perintah kerja",
     "workOrderEmpty": "Proyek ini belum memiliki perintah kerja aktif.",
     "workOrderHelp": "Opsional: catat selisih hitungan ke perintah kerja ini."
   },
@@ -673,7 +673,10 @@
       "banner": {
         "title": "Barang dikeluarkan melebihi progres: {{count}}",
         "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres $t(common:terms.clientWorkOrder) ({{progress}}%). Ini hanya peringatan.",
-        "row": "{{name}}: dikeluarkan {{issued}}% dari rencana, progres {{progress}}%, lebih {{gap}} poin"
+        "item": "Barang",
+        "issued": "Dikeluarkan dari rencana",
+        "ahead": "Di depan progres",
+        "points": "{{gap}} poin"
       },
       "setting": {
         "manage": "Peringatan pengeluaran terhadap progres",
@@ -731,7 +734,7 @@
     }
   },
   "atRisk": {
-    "title": "Stok berisiko",
+    "title": "Perlindungan nilai stok",
     "count": "{{count}} lokasi",
     "countOne": "1 lokasi",
     "columns": {
@@ -755,7 +758,9 @@
     "states": {
       "emptyTitle": "Belum ada lokasi yang menyimpan stok",
       "emptySub": "Lokasi yang menyimpan stok muncul di sini bersama perlindungan yang dicatat untuknya."
-    }
+    },
+    "scope": "Nilai stok per lokasi dibandingkan dengan perlindungan yang dicatat. Untuk stok di bawah batas, buka Pesanan ulang.",
+    "scopeNoCost": "Lokasi yang menyimpan stok. Peran Anda tidak menampilkan nilai atau perlindungan; stok di bawah batas ada di Pesanan ulang."
   },
   "transfers": {
     "title": "Transfer stok",
@@ -763,7 +768,7 @@
     "sendTitle": "Kirim transfer stok",
     "off": {
       "title": "Transfer stok dua langkah belum aktif",
-      "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
+      "sub": "Transfer langsung tetap dicatat di Dokumen. Administrator dapat mengaktifkan transfer dua langkah di Pengaturan stok."
     },
     "empty": {
       "title": "Belum ada transfer stok",
@@ -851,7 +856,19 @@
       "from": "Dari",
       "to": "Ke",
       "name": "Nama",
-      "signatureDate": "Tanggal"
+      "signatureDate": "Tanggal",
+      "backShort": "Kembali",
+      "number": "Nomor",
+      "signature": "Tanda tangan",
+      "dispatchedBy": "Dikirim oleh",
+      "deliveredBy": "Diantar oleh",
+      "receivedBy": "Diterima oleh"
+    },
+    "columns": {
+      "transfer": "No. transfer",
+      "sent": "Dikirim",
+      "rejected": "Ditolak",
+      "note": "Catatan"
     }
   },
   "handover": {
@@ -903,6 +920,7 @@
     }
   },
   "transferSettings": {
+    "loadError": "Tidak dapat memuat pengaturan transfer stok",
     "manage": "Transfer stok dan bukti",
     "mode": "Cara transfer stok dilakukan",
     "oneStep": "Satu langkah: langsung diposting",
@@ -1002,7 +1020,9 @@
       "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
       "label": "Nama langkah persetujuan",
       "labelDefault": "Persetujuan peminjaman"
-    }
+    },
+    "free": "Bebas",
+    "reserved": "Dicadangkan"
   },
   "dsrIssue": {
     "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",
@@ -1102,7 +1122,6 @@
     "date": "Tanggal penerimaan",
     "noOrders": "Belum ada pesanan terkirim.",
     "stockItem": "Barang stok",
-    "progress": "Dipesan {{ordered}} · Diterima {{received}} · Sisa {{outstanding}}",
     "not_received": "Belum diterima",
     "partly_received": "Diterima sebagian",
     "fully_received": "Diterima seluruhnya",
@@ -1124,7 +1143,16 @@
     "changeMode": "Ubah penerimaan untuk organisasi ini?",
     "changeModeBody": "Ini mengubah penerimaan untuk semua pengguna. Isian formulir yang belum disimpan akan dibuang.",
     "progressTitle": "Barang diterima",
-    "openReceiving": "Buka penerimaan"
+    "openReceiving": "Buka penerimaan",
+    "line": "Barang",
+    "ordered": "Dipesan",
+    "received": "Diterima",
+    "outstanding": "Sisa",
+    "status": "Status",
+    "lines": "Baris pesanan",
+    "qualityTitle": "Pemeriksaan mutu",
+    "receipts": "Penerimaan",
+    "countedColumn": "Dihitung"
   },
   "materialCompletion": {
     "title": "Penyelesaian material",
@@ -1146,6 +1174,7 @@
     "print": "Cetak",
     "back": "Kembali ke perintah kerja",
     "preparedBy": "Disiapkan oleh",
-    "checkedBy": "Diperiksa oleh"
+    "checkedBy": "Diperiksa oleh",
+    "valueTotal": "Total nilai"
   }
 }

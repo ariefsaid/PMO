@@ -9,7 +9,7 @@ export interface BackBarProps {
   onBack: () => void;
   className?: string;
   /**
-   * Show the bar only at phone width (<=920px, where the top-bar breadcrumb is not
+   * Show the bar only at phone width (<=1100px, where the top-bar breadcrumb is not
    * visible). Loading / error / not-found states of record pages set this so they match
    * the loaded state and never show a redundant Back bar beside the breadcrumb on desktop.
    */
@@ -23,7 +23,7 @@ export interface BackBarProps {
 export const BackBar: React.FC<BackBarProps> = ({ label, onBack, className, phoneOnly }) => {
   const { t } = useTranslation();
   return (
-    <div className={cn('mb-3.5 items-center gap-2.5', phoneOnly ? 'hidden max-[920px]:flex' : 'flex', className)}>
+    <div className={cn('mb-3.5 items-center gap-2.5', phoneOnly ? 'hidden max-[1100px]:flex' : 'flex', className)}>
       <button
         type="button"
         onClick={onBack}

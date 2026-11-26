@@ -29,6 +29,8 @@
   "approvers": {
     "error": "Couldn't load the reviewer roles",
     "help": "Admin, Executive and Finance can always approve or return a request. Tick other roles that may too. Whoever raised, edited or submitted a request still cannot approve it.",
+    "inactive": "Saved reviewer roles only take effect when built-in roles are on.",
+    "openSettings": "Open built-in role settings",
     "save": "Save reviewer roles",
     "saved": "Reviewer roles saved",
     "title": "Who may review requests"
@@ -128,6 +130,8 @@
     "version": "Version {{n}}"
   },
   "list": {
+    "date": "Date",
+    "author": "Author",
     "allProjects": "All projects",
     "allStatuses": "All statuses",
     "empty": "No quantity change requests yet",
@@ -144,6 +148,10 @@
   },
   "newRequest": "New request",
   "over": {
+    "item": "Contract item",
+    "measured": "Progress / forecast",
+    "excess": "Over by",
+    "actions": "Actions",
     "contract": "Contract",
     "error": "Couldn't load contract lines",
     "flag": "Over contract",
@@ -212,6 +220,7 @@
     "empty": "No quantity change requests on this work order",
     "overLines": "{{count}} contract lines over their quantity",
     "raise": "Request a quantity change",
-    "title": "Quantity changes"
+    "title": "Quantity changes",
+    "raiseShort": "Request change"
   }
 }

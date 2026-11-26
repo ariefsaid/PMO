@@ -35,6 +35,15 @@ async function waitReady(page: Page) {
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
+async function supplierFilter(page: Page, select: boolean) {
+  await page.getByRole('button', { name: /^(Filters|Filter)$/ }).click();
+  const drawer = page.getByRole('dialog', { name: /^(Filters|Filter)$/ });
+  const supplier = drawer.getByRole('tab', { name: /^Supplier$/i });
+  if (select) await supplier.click();
+  else await expect(supplier).toHaveAttribute('aria-selected', 'true');
+  await drawer.getByRole('button', { name: /^(Close|Tutup)$/ }).click();
+}
+
 /** Regression guard for the CSS-grid blowout (mirrors AC-CO-001c): `main` never exceeds the
  *  viewport width at 390px, in either locale. Waits for `<main>` to attach first — right after a
  *  full navigation (a fresh `page.goto`, or just after a locale switch re-fetches catalogues) the
@@ -59,7 +68,7 @@ test(
     await waitReady(page);
     await expectNoHorizontalOverflow(page);
 
-    await page.getByRole('tab', { name: /^Supplier$/i }).click();
+    await supplierFilter(page, true);
     await expect(page).toHaveURL(/[?&]type=Vendor/);
     const searchEn = page.getByRole('searchbox', { name: /Search companies/i });
     await searchEn.fill('e');
@@ -77,7 +86,7 @@ test(
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=e(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('tab', { name: /^Supplier$/i })).toHaveAttribute('aria-selected', 'true');
+    await supplierFilter(page, false);
     await expect(searchEn).toHaveValue('e');
     await expectNoHorizontalOverflow(page);
 
@@ -96,7 +105,7 @@ test(
     await expectNoHorizontalOverflow(page);
 
     // The Supplier type label is localized; the `?type=` URL value stays the unchanged enum.
-    await page.getByRole('tab', { name: /^Supplier$/i }).click();
+    await supplierFilter(page, true);
     await expect(page).toHaveURL(/[?&]type=Vendor/);
     const searchId = page.getByRole('searchbox', { name: 'Cari perusahaan', exact: true });
     await expect(searchId).toBeVisible();
@@ -114,7 +123,7 @@ test(
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=e(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('tab', { name: /^Supplier$/i })).toHaveAttribute('aria-selected', 'true');
+    await supplierFilter(page, false);
     await expect(searchId).toHaveValue('e');
     await expectNoHorizontalOverflow(page);
   },
@@ -133,7 +142,13 @@ test.afterEach(async ({ page }) => {
     await page.goto('/settings/profile');
   }
   await expect(languageSelect(page)).toBeVisible();
+  const needsRestore = await languageSelect(page).inputValue() !== 'inherit';
   await languageSelect(page).selectOption('inherit');
-  await saveButton(page).click();
+  if (needsRestore) {
+    await expect(saveButton(page)).toBeEnabled();
+    await saveButton(page).click();
+  } else await expect(saveButton(page)).toBeDisabled();
+  await page.reload();
+  await expect(languageSelect(page)).toHaveValue('inherit');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 });

@@ -8,8 +8,8 @@
 import { test, expect } from '@playwright/test';
 import { visibleToast } from './helpers';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
-import { inDays } from './support/jobJourney';
-import { roleJobUser } from './support/roleJobUser';
+import { jobRoleUser } from './support/jobRole';
+import { orgDay } from './support/orgDay';
 
 test.setTimeout(240_000);
 
@@ -21,10 +21,10 @@ test('JOB-H5 HR officer files leave for a worker, the HR manager approves it, an
   }
 
   const run = runId('h5');
-  const hrOfficer = await roleJobUser(svc, 'hr_officer', runId('h5-hro'));
-  const hrManager = await roleJobUser(svc, 'hr_manager', runId('h5-hrm'));
-  const startDay = inDays(3);
-  const endDay = inDays(4);
+  const hrOfficer = await jobRoleUser({ service: svc, jobRole: 'hr_officer', run: runId('h5-hro') });
+  const hrManager = await jobRoleUser({ service: svc, jobRole: 'hr_manager', run: runId('h5-hrm') });
+  const startDay = await orgDay(3);
+  const endDay = await orgDay(4);
   let projectId = '';
   let workOrderId = '';
   let crewId = '';
@@ -55,10 +55,10 @@ test('JOB-H5 HR officer files leave for a worker, the HR manager approves it, an
       org_id: ORG_ID, code: `H5-${Date.now().toString(36).slice(-8)}`, name: `${run} crew`, kind: 'own',
     }).select('id').single()).id;
     ok('crew member', await svc.from('crew_members').insert({
-      org_id: ORG_ID, crew_id: crewId, worker_id: workerId, valid_from: inDays(-1),
+      org_id: ORG_ID, crew_id: crewId, worker_id: workerId, valid_from: await orgDay(-1),
     }));
     ok('roster', await svc.from('work_order_crews').insert({
-      org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: inDays(-1),
+      org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: await orgDay(-1),
     }));
 
     // 1. HR officer submits leave on behalf of the worker.
@@ -80,13 +80,13 @@ test('JOB-H5 HR officer files leave for a worker, the HR manager approves it, an
     await hrManager.signIn(page);
     await page.goto('/leave');
     await expect(page.getByText(/Waiting for your decision/)).toBeVisible({ timeout: 20_000 });
-    await page.getByRole('listitem', { name: new RegExp(`${run} Crew Worker`) }).first().getByRole('button', { name: 'Approve' }).click();
+    await page.getByRole('row', { name: new RegExp(`${run} Crew Worker`) }).first().getByRole('button', { name: 'Approve' }).click();
     await expect(visibleToast(page, 'Leave approved')).toBeVisible({ timeout: 15_000 });
 
     // 3. Goal: the roster marks THIS worker On leave on both days of the leave.
     for (const day of [startDay, endDay]) {
       await page.goto(`/crews?view=roster&wo=${workOrderId}&date=${day}`);
-      const workerRow = page.getByRole('listitem').filter({ hasText: `${run} Crew Worker` });
+      const workerRow = page.getByRole('row').filter({ hasText: `${run} Crew Worker` });
       await expect(workerRow).toBeVisible({ timeout: 20_000 });
       await expect(workerRow.getByText('On leave')).toBeVisible({ timeout: 20_000 });
     }

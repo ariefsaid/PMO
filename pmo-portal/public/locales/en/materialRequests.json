@@ -43,9 +43,16 @@
     "withdraw": "Withdraw request",
     "withdrawBody": "The request is cancelled and its approvers are no longer asked.",
     "withdrawTitle": "Withdraw this request",
-    "withdrawn": "Request withdrawn"
+    "withdrawn": "Request withdrawn",
+    "requested": "Requested",
+    "retryLoad": "Try again",
+    "backToList": "Back to material requests"
   },
   "deliveryNote": {
+    "number": "Number",
+    "dispatchedBy": "Dispatched by",
+    "deliveredBy": "Delivered by",
+    "receivedBy": "Received by",
     "back": "Back to request",
     "date": "Date",
     "deliveredTo": "Deliver to",
@@ -57,6 +64,7 @@
     "project": "Project",
     "quantity": "Quantity",
     "remarks": "Remarks",
+    "signature": "Signature",
     "signatureDate": "Date",
     "signedBy": "Name",
     "title": "Delivery note",
@@ -127,7 +135,14 @@
     "title": "New material request",
     "wholeOnly": "This item is counted in whole units. Enter a whole number.",
     "workOrder": "Work order",
-    "workOrderNoun": "work order"
+    "workOrderNoun": "work order",
+    "figures": {
+      "plan": "Plan",
+      "prior": "Requested before",
+      "total": "New total",
+      "sectionPlan": "{{section}} plan"
+    },
+    "savedReason": "Saved reason"
   },
   "inbox": {
     "scope": "Material requests",
@@ -159,7 +174,7 @@
     "filterStatus": "Status",
     "new": "New request",
     "rowLabel": "Open {{number}}",
-    "settings": "Approval settings",
+    "settings": "Material request settings",
     "standingIn": "standing in",
     "stepOf": "Step {{n}}: {{label}}",
     "title": "Material requests",
@@ -232,7 +247,7 @@
     "cutoffError": "Couldn't load the cut-off",
     "cutoffSaved": "Cut-off saved",
     "cutoffSub": "A request needed tomorrow must be sent before this time. Leave empty for no cut-off.",
-    "cutoffTime": "Time (24-hour, e.g. 12:00)",
+    "cutoffTime": "Time",
     "delegator": "Person who is away",
     "deliveryNote": "Printable delivery note",
     "deliveryNoteError": "Couldn't load delivery note settings",
@@ -260,10 +275,10 @@
     "standInSaved": "Stand-in saved",
     "standInSub": "Someone who can approve in your place for a date range. One hop only: a stand-in cannot hand it on.",
     "stepN": "Step {{n}}",
-    "title": "Approval settings",
+    "title": "Material request settings",
     "to": "To",
     "jobRole": "Built-in role that decides",
-    "jobRoleNone": "None: anyone with the access level",
+    "jobRoleNone": "Access level only",
     "jobRoleOff": "Built-in roles are off, so this cannot change. Turn them on in Administration to pick another.",
     "jobRoleHelp": "People without a built-in role count when their access level is the one this role is built on.",
     "roleSetByJobRole": "Set by the built-in role."
@@ -304,6 +319,9 @@
     "installedSave": "Save source",
     "installedSaved": "Source saved",
     "cardTitle": "Installed material past the usage warning",
-    "cardLine": "{{item}}: {{installed}} of {{plan}} {{unit}} planned installed, past the {{threshold}}% warning."
+    "cardItem": "Item",
+    "cardInstalled": "Installed",
+    "cardPlan": "Planned",
+    "cardThreshold": "Warning at"
   }
 }

@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from './../helpers';
-import { orgToday } from '../support/jobJourney';
+import { orgDay } from '../support/orgDay';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -49,7 +49,7 @@ test.beforeEach(async () => {
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   run = `E2E-ATR-${Date.now()}`;
   crewCode = `ATR-${String(Date.now()).slice(-10)}`;
-  const from = orgToday(); // the organisation's day (the screen reads it, not the runner's): placed and rostered from today: the default month period then holds exactly the one rostered day below
+  const from = await orgDay(); // the organisation's day (the screen reads it, not the runner's): placed and rostered from today: the default month period then holds exactly the one rostered day below
 
   const org = need('target read', await admin.from('organizations').select('attendance_target_rate').eq('id', ORG_ID).single());
   previousTarget = org.attendance_target_rate === null ? null : Number(org.attendance_target_rate);

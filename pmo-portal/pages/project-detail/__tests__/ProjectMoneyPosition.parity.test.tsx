@@ -126,7 +126,7 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     renderOverviewMoney();
     const money = screen.getByRole('region', { name: 'Money position' });
     await within(money).findByText("Couldn't load the money position");
-    expect(money).toHaveTextContent('USD · excl. PPN');
+    expect(money).toHaveTextContent('USD · excl. tax');
   });
 
   it.each([['en', 'en-US'], ['id', 'id-ID']] as const)('AC-PMP-003 one complete ERP reading gives the same spending to Budget vs actual and Project finances (%s)', async (locale, numberLocale) => {
@@ -308,7 +308,7 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
   it('OD-TAX-1 §2: the money blocks state the tax basis from the project row itself', async () => {
     renderOverviewMoney();
     const money = await screen.findByRole('region', { name: /Money position/ });
-    expect(within(money).getAllByText(/excl\. PPN/).length).toBeGreaterThan(0);
-    expect(within(costBlock()).getAllByText(/excl\. PPN/).length).toBeGreaterThan(0);
+    expect(within(money).getAllByText(/excl\. tax/).length).toBeGreaterThan(0);
+    expect(within(costBlock()).getAllByText(/excl\. tax/).length).toBeGreaterThan(0);
   });
 });

@@ -53,7 +53,7 @@ export const MAIN_SCROLL_CLASS = 'main-scroll';
 /**
  * The CSS-grid app shell: rail / header / main. `main` is a
  * programmatically-focusable landmark (skip-link target + focus-on-route-
- * change). ≤920px: the rail collapses (--rail-w:0 via index.css media query)
+ * change). ≤1100px: the rail collapses (--rail-w:0 via index.css media query)
  * and renders as an overlay drawer instead.
  *
  * C3 Shell Hardening (AC-IXD-MOBILE-W4-C3):
@@ -62,7 +62,7 @@ export const MAIN_SCROLL_CLASS = 'main-scroll';
  *    Esc-to-close, scrim-to-close, visible × button, focus-in-on-open,
  *    focus-restore-to-More-on-close, background inert, body scroll-lock,
  *    safe-area-inset padding.
- *  - Content gutter max-[921px]:px-4 for narrower mobile gutters.
+ *  - Content gutter max-[1101px]:px-4 for narrower mobile gutters.
  *  - Breadcrumb truncation is handled in Breadcrumb.tsx.
  */
 export const AppShell: React.FC<AppShellProps> = ({
@@ -262,7 +262,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           : '"rail header" "rail main"',
       }}
     >
-      {/* Persistent grid-area rail. Hidden ≤920px by the SAME index.css media
+      {/* Persistent grid-area rail. Hidden ≤1100px by the SAME index.css media
           query that zeroes --rail-w (single source of truth) via .rail-persistent.
           The hide lives HERE, on the grid-area wrapper — never on the Rail
           <aside> itself, so the drawer copy below stays visible.
@@ -312,8 +312,8 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px.
             #2061: THE one bottom inset. On a phone the page pads by the bar's measured height
             (`--phone-nav-height`, safe area included) plus any page action bar stacked on it
-            (`--mobile-action-bar-height`) and nothing more; with neither fixed the normal gutter applies. No screen adds its own. The nav token is 0 above the phone breakpoint; the action-bar token is published at any width a bar is docked. */}
-        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4 pb-[max(var(--space-page-gutter),calc(var(--phone-nav-height)+var(--mobile-action-bar-height,0px)))]">
+            (`--mobile-action-bar-height`), with a normal gutter above the docked bars. No screen adds its own. The nav token is 0 above the phone breakpoint; the action-bar token is published at any width a bar is docked. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pt-5 max-[1101px]:pt-4 pb-[calc(var(--space-page-gutter)+var(--phone-nav-height,0px)+var(--mobile-action-bar-height,0px))]">
           {children}
         </div>
       </main>
@@ -342,7 +342,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
       )}
 
-      {/* C3: Mobile rail drawer overlay (≤920px) — proper modal dialog.
+      {/* C3: Mobile rail drawer overlay (≤1100px) — proper modal dialog.
           - role=dialog aria-modal for AT
           - focus-trap (useFocusTrap) + Esc + scrim-close
           - visible × button to close
@@ -350,7 +350,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           - background (rail-persistent + main) marked inert (above)
           - body scroll-lock (useEffect above)
           The drawer renders on all viewport sizes so SSR/RTL tests work;
-          the CSS max-[921px]:block/min-[921px]:hidden hides it on desktop.
+          the CSS max-[1101px]:block/min-[1101px]:hidden hides it on desktop.
           Focus trap and Esc operate regardless of CSS visibility — this is
           intentional so the a11y contract is always satisfied.
 
@@ -360,7 +360,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           same pattern is used by CommandPalette. */}
       {railOpen && (
         <div
-          className="fixed inset-0 z-[60] max-[921px]:block min-[921px]:hidden"
+          className="fixed inset-0 z-[60] max-[1101px]:block min-[1101px]:hidden"
           onKeyDown={onTrapKeyDown}
         >
           {/* Scrim — desaturated near-black, low alpha (No-Pure-Black-Shadow Rule). */}

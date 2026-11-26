@@ -18,7 +18,7 @@ vi.mock('@/src/lib/repositories/stockReservations', () => ({ stockReservationsRe
 vi.mock('@/src/lib/repositories/leave', () => ({ leaveRepository: { settings: () => leaveSettings(), types: vi.fn(), visible: vi.fn(), onDate: vi.fn() } }));
 
 import { ORG_MODULES, ORG_SWITCHES, type OrgModuleKey, type OrgSwitchKey } from '@/src/lib/repositories/orgSwitches';
-import { useModuleOn, useOrgSwitch } from './useOrgSwitch';
+import { useModuleOn, useOrgSwitch, useStoredOrgSwitch } from './useOrgSwitch';
 import { useLeaveEnabled } from './useLeave';
 import { useReservationsEnabled } from './useStockReservations';
 import { clearOwnershipCache, setProjectBindings, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
@@ -77,6 +77,13 @@ describe('a feature in a module reads off while its module is off (the stored va
     stored[module] = false;
     const off = renderHook(() => useOrgSwitch(key), { wrapper: wrap });
     await waitFor(() => expect(off.result.current.data).toBe(false));
+  });
+
+  it('reads the stored switch for server rules while the UI module is off', async () => {
+    stored.modulePeopleCrews = false;
+    stored.builtInRoles = true;
+    const { result } = renderHook(() => useStoredOrgSwitch('builtInRoles'), { wrapper: wrap });
+    await waitFor(() => expect(result.current.data).toBe(true));
   });
 
   it('the leave navigation entry: leave stored on, People and crews off, hides it', async () => {

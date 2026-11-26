@@ -203,13 +203,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
     const note = hasTasksOutsideFilters
       ? t('projectDetail.tasks.noFilteredTasksInGroup', 'No tasks in this phase match the current filters.')
       : !group.completed && group.roots.length === 0 ? t('projectDetail.tasks.noTasksInGroup', 'No tasks in this phase yet.') : null;
-    return <div className="flex min-w-0 max-w-full flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 font-normal">
-      {dateRange && <Tooltip content={t('projectDetail.tasks.phaseDatesTooltip', 'Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.')}>
-        <span tabIndex={0} className="text-sm tabular text-muted-foreground">{dateRange}</span>
-      </Tooltip>}
-      {group.milestone?.target_date && <Tooltip content={t('projectDetail.tasks.phaseTargetTooltip', 'Target date from the project phase record.')}>
-        <span tabIndex={0} className="text-sm tabular text-muted-foreground">{t('projectDetail.tasks.phaseTargetDate', 'Target {{date}}', { date: formatDay(group.milestone.target_date) })}</span>
-      </Tooltip>}
+    return <div className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1.5 py-2 font-normal">
       {group.milestone && <Tooltip content={t(
         'projectDetail.tasks.phaseProgressTooltip',
         'Manual progress, or calculated from the phase\'s tasks.',
@@ -222,6 +216,12 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center">
           <ProgressBar value={Math.round(gp.calculatedPct)} tone={gp.calculatedPct >= 100 ? 'success' : 'primary'} showValue compact className="max-w-full flex-wrap" aria-label={t('projectDetail.tasks.groupProgress', 'Group progress')} />
         </span>
+      </Tooltip>}
+      {dateRange && <Tooltip content={t('projectDetail.tasks.phaseDatesTooltip', 'Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.')}>
+        <span tabIndex={0} className="text-sm tabular text-muted-foreground">{dateRange}</span>
+      </Tooltip>}
+      {group.milestone?.target_date && <Tooltip content={t('projectDetail.tasks.phaseTargetTooltip', 'Target date from the project phase record.')}>
+        <span tabIndex={0} className="text-sm tabular text-muted-foreground">{t('projectDetail.tasks.phaseTargetDate', 'Target {{date}}', { date: formatDay(group.milestone.target_date) })}</span>
       </Tooltip>}
       {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>
         <span tabIndex={0} className="text-sm font-medium text-destructive-text">{t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: lateDays })}</span>

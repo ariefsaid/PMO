@@ -22,13 +22,13 @@ describe('vendor payment SoD affordance', () => {
   it('disables payment for the approver on an ERP-owned procurement with the reason', () => {
     setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderRow(true);
-    expect(screen.getByRole('button', { name: 'Capture Payment' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeDisabled();
     expect(screen.getByText('Separation of duties: the approver cannot pay their own procurement.')).toBeInTheDocument();
   });
 
   it('keeps payment available to a non-approver payer', () => {
     setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderRow(false);
-    expect(screen.getByRole('button', { name: 'Capture Payment' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeEnabled();
   });
 });

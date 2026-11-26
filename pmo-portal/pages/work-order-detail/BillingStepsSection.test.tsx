@@ -99,8 +99,8 @@ describe('BillingStepsSection', () => {
   it('AC-WQE-006 only Admin can mark an existing work-order step for claim evidence', async () => {
     h.role = 'Admin';
     const user = renderIt();
-    const row = screen.getByTestId('wo-billing-steps').querySelector('[aria-label="Step two"]') as HTMLElement;
-    await user.click(within(row).getByRole('checkbox', { name: 'Documents here count as claim evidence' }));
+    await user.click(screen.getByRole('button', { name: 'Update Step two' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Step two' })).getByRole('checkbox', { name: 'Documents here count as claim evidence' }));
     expect(h.markEvidence).toHaveBeenCalledWith({ stepId: 's2', enabled: true });
   });
 
@@ -123,10 +123,11 @@ describe('BillingStepsSection', () => {
     expect(screen.getByTestId('wo-billing-steps-summary')).toHaveTextContent('does not block invoicing');
   });
 
-  it('AC-WBS-002 with no list says who chooses the template', () => {
+  it('AC-WBS-002 with no list states what is absent without claiming a role restriction', () => {
     h.steps = [];
     renderIt();
-    expect(screen.getByTestId('wo-billing-steps-empty')).toHaveTextContent('Admin or a Finance person chooses that template');
+    expect(screen.getByTestId('wo-billing-steps-empty')).toHaveTextContent('No billing steps to show.');
+    expect(screen.getByTestId('wo-billing-steps-empty')).not.toHaveTextContent('not shown to your role');
   });
 
   it('a Draft work order shows nothing', () => {
@@ -136,6 +137,7 @@ describe('BillingStepsSection', () => {
 
   it('AC-WBS-005 a runner marks the current step done only once its required document is attached, and is told why', async () => {
     const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Update Step two' }));
     const done = screen.getByRole('button', { name: 'Mark Step two done' });
     expect(done).toBeDisabled();
     expect(screen.getByText('Attach every required document before marking this step done.')).toBeInTheDocument();
@@ -144,14 +146,24 @@ describe('BillingStepsSection', () => {
     expect(h.attach).toHaveBeenCalledWith({ stepId: 's2', slotId: 'x2', documentId: 'd1' });
   });
 
-  it('AC-WBS-005 the person list offers active full accounts only', () => {
-    renderIt();
+  it('AC-WBS-005 the person list offers active full accounts only', async () => {
+    const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Update Step two' }));
     const options = within(screen.getByRole('combobox', { name: 'Person on this step' })).getAllByRole('option').map((o) => o.textContent);
     expect(options).toContain('Dewi Survey');
     expect(options).not.toContain('Field Foreman');
     expect(options).not.toContain('Gone Person');
   });
 
+  it('#1126 a row is for scanning: its controls open on the right, and Mark done closes the drawer', async () => {
+    const user = renderIt();
+    expect(screen.queryByRole('combobox', { name: 'Person on this step' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Update Step two' }));
+    const drawer = screen.getByRole('dialog', { name: 'Step two' });
+    expect(within(drawer).getByRole('combobox', { name: 'Person on this step' })).toBeInTheDocument();
+    await user.selectOptions(within(drawer).getByRole('combobox', { name: 'Document for Pack' }), 'd1');
+    expect(within(drawer).getByRole('button', { name: 'Attach to Pack' })).toBeEnabled();
+  });
   it('AC-WBS-005 a reader who is not the owner, the named person or a runner sees no controls', () => {
     h.key = 'quality_manager'; h.role = 'Project Manager';
     renderIt();
@@ -163,6 +175,7 @@ describe('BillingStepsSection', () => {
     h.steps = [step({ id: 's9', position: 1, name: 'Only', ownerRoleKey: 'billing_officer', startedOn: '2026-03-10' })];
     h.complete.mockRejectedValue(new AppError('WBS_DATE_FUTURE: nope', '22023'));
     const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Update Only' }));
     await user.click(screen.getByRole('button', { name: 'Mark Only done' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('refused: WBS_DATE_FUTURE: nope');
   });
@@ -303,6 +316,7 @@ describe('BillingStepsSection', () => {
   it('an optional current step can be skipped', async () => {
     h.steps = [step({ id: 's8', position: 1, name: 'Maybe', optional: true, ownerRoleKey: 'billing_officer', startedOn: '2026-03-10' })];
     const user = renderIt();
+    await user.click(screen.getByRole('button', { name: 'Update Maybe' }));
     await user.click(screen.getByRole('button', { name: 'Skip Maybe' }));
     // Skipping asks for a reason first: nothing is sent until one is typed.
     const dialog = screen.getByRole('dialog', { name: 'Skip Maybe' });
@@ -327,6 +341,7 @@ it('AC-SITE-BQ10 an inspector files evidence on an owned step with no template s
  h.role='Engineer'; h.key='quality_inspector';
  h.steps=[step({id:'quality',position:1,name:'Quality',ownerRoleKey:'quality_inspector',startedOn:'2026-03-10',documents:[]})];
  const user=renderIt();
+ await user.click(screen.getByRole('button',{name:'Update Quality'}));
  await user.selectOptions(screen.getByRole('combobox',{name:'Additional document'}),'d1');
  await user.click(screen.getByRole('button',{name:'Attach additional document'}));
  expect(h.attach).toHaveBeenCalledWith({stepId:'quality',slotId:null,documentId:'d1'});

@@ -1,5 +1,6 @@
+import { SettingsSaveProvider, SettingsSaveAction } from '@/src/components/admin/SettingsSave';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -21,20 +22,37 @@ vi.mock('@/src/lib/db/orgRoleNames', async (orig) => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
 
+import { listOrgTerminology } from '@/src/lib/db/orgTerminology';
 import AdministrationTerminology from './AdministrationTerminology';
 import { TERM_KEYS } from '@/src/lib/i18n/orgTerms';
 
 const wrap = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider>
+      <ToastProvider><SettingsSaveProvider><SettingsSaveAction />
         <AdministrationTerminology />
-      </ToastProvider>
+      </SettingsSaveProvider></ToastProvider>
     </QueryClientProvider>,
   );
 
 describe('AC-TERM-004 Administration › Terminology', () => {
   beforeEach(() => { vi.clearAllMocks(); permissions.write = true; });
+  it('#2813 shows the stored wording after the second language fails to save', async () => {
+    save.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Failed to fetch'));
+    wrap();
+    await screen.findByTestId('term-card-workOrder');
+    const english = within(screen.getByTestId('term-row-workOrder-en')).getByRole('textbox', { name: 'Singular' });
+    const bahasa = within(screen.getByTestId('term-row-workOrder-id')).getByRole('textbox', { name: 'Singular' });
+    expect(english).toHaveValue('Job card');
+    vi.mocked(listOrgTerminology).mockResolvedValueOnce({ en: { workOrder: { singular: 'Job sheet', plural: 'Job sheets' } } });
+    fireEvent.change(english, { target: { value: 'Job sheet' } });
+    fireEvent.change(bahasa, { target: { value: 'Pengawas' } });
+    const saveButton = screen.getByText('Save', { selector: 'button' });
+    fireEvent.click(saveButton);
+    await waitFor(() => expect(bahasa).toHaveValue(''));
+    expect(english).toHaveValue('Job sheet');
+    expect(saveButton).toBeDisabled();
+  });
   it('AC-TR-002 lists a card, with its default wording in both languages, for every registry term', async () => {
     wrap();
     await screen.findByTestId('term-card-workOrder');
@@ -52,24 +70,23 @@ describe('AC-TERM-004 Administration › Terminology', () => {
     expect(screen.getByTestId('term-card-workOrder').querySelectorAll('button')).toHaveLength(0);
     expect((row.querySelector('input') as HTMLInputElement).disabled).toBe(true);
   });
-  it('shows the saved override and saves an edit for one language with the card\'s single Save', async () => {
+  it('shows the saved override and saves an edit for one language with the page\'s single Save', async () => {
     wrap();
     const row = await screen.findByTestId('term-row-workOrder-en');
     const singular = row.querySelector('input') as HTMLInputElement;
     await waitFor(() => expect(singular.value).toBe('Job card'));
-    await userEvent.clear(singular);
-    await userEvent.type(singular, 'SPK');
-    await userEvent.click(within(screen.getByTestId('term-card-workOrder')).getByRole('button', { name: 'Save' }));
+    fireEvent.change(singular, { target: { value: 'SPK' } });
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ key: 'workOrder', locale: 'en', singular: 'SPK' })));
     expect(save).toHaveBeenCalledTimes(1);
   });
-  it('one term has exactly one Save and one Reset, covering both languages', async () => {
+  it('one page Save covers both languages', async () => {
     wrap();
-    const card = await screen.findByTestId('term-card-workOrder');
-    expect(within(card).getAllByRole('button')).toHaveLength(2);
+    await screen.findByTestId('term-card-workOrder');
+    expect(screen.getAllByText('Save', { selector: 'button' })).toHaveLength(1);
     const bahasa = within(screen.getByTestId('term-row-workOrder-id')).getAllByRole('textbox')[0];
-    await userEvent.type(bahasa, 'Perintah Kerja');
-    await userEvent.click(within(card).getByRole('button', { name: 'Save' }));
+    fireEvent.change(bahasa, { target: { value: 'Perintah Kerja' } });
+    fireEvent.click(screen.getByText('Save', { selector: 'button' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ key: 'workOrder', locale: 'id', singular: 'Perintah Kerja' })));
   });
   it('resets the term back to the default wording', async () => {

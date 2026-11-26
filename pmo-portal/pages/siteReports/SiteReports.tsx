@@ -2,7 +2,7 @@ import { useDsrStockFlags, useDsrStockSettings } from '@/src/hooks/useDsrStockIs
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, PageHeader, SelectField, StatusPill } from '@/src/components/ui';
+import { Button, DataTable, ListState, PageHeader, SelectField, StatusPill } from '@/src/components/ui';
 import { ScheduleThisReport } from '@/src/components/emailNotifications/ScheduleThisReport';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -120,21 +120,23 @@ const SiteReports: React.FC = () => {
             action={mayEnter ? { label: t('newReport', 'New report'), onClick: () => setNewOpen(true) } : undefined} />
         ) : (
           <>
-            <ul className="panel-card divide-y divide-border" data-testid="dsr-list">
-              {list.data.rows.map((r) => (
-                <li key={r.id}>
-                  <Link to={`/site-reports/${r.id}`} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 hover:bg-surface-hover">
-                    <span className="tabular-nums text-foreground">{formatDay(r.work_date)}</span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.work_order_label}</span>
-                    {r.crew_name && <span className="text-muted-foreground" data-testid="dsr-crew">{t('list.crewLabel', { defaultValue: 'Crew {{name}}', name: r.crew_name })}</span>}
-                    {r.person_name && <span className="text-muted-foreground" data-testid="dsr-person">{t('list.personLabel', { defaultValue: 'Person {{name}}', name: r.person_name })}</span>}
-                    <span className="text-muted-foreground">{r.author_name ?? '—'}</span>
-                    {stockFlags?.has(r.id) && <StatusPill variant="warn" data-testid="dsr-stock-flag">{t('stock.flag', 'Stock flagged')}</StatusPill>}
-                    <StatusPill record="siteReport" state={r.status} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <div data-testid="dsr-list">
+              <DataTable
+                tableId="site-report-list"
+                rows={list.data.rows}
+                rowKey={(r) => r.id}
+                rowHref={(r) => `/site-reports/${r.id}`}
+                onActivate={(r) => navigate(`/site-reports/${r.id}`)}
+                rowLabel={(r) => r.work_order_label}
+                columns={[
+                  { key: 'workOrder', header: t('new.workOrder', 'Work order'), kind: 'primary', size: 240, cell: (r) => r.work_order_label },
+                  { key: 'date', header: t('new.date', 'Work date'), kind: 'date', cell: (r) => formatDay(r.work_date) },
+                  { key: 'crew', header: t('list.crewPerson', 'Crew / person'), cell: (r) => <>{r.crew_name && <span data-testid="dsr-crew">{t('list.crewLabel', { defaultValue: 'Crew {{name}}', name: r.crew_name })}</span>}{r.person_name && <span data-testid="dsr-person">{t('list.personLabel', { defaultValue: 'Person {{name}}', name: r.person_name })}</span>}</> },
+                  { key: 'author', header: t('list.author', 'Author'), cell: (r) => r.author_name ?? '—' },
+                  { key: 'status', header: t('list.status', 'Status'), kind: 'status', size: 180, minSize: 180, cell: (r) => <div className="flex flex-wrap gap-2">{stockFlags?.has(r.id) && <StatusPill variant="warn" data-testid="dsr-stock-flag">{t('stock.flag', 'Stock flagged')}</StatusPill>}<StatusPill record="siteReport" state={r.status} /></div> },
+                ]}
+              />
+            </div>
             {(page > 0 || list.data.hasMore) && (
               <nav className="flex items-center justify-end gap-2" aria-label={t('list.pages', 'Pages')}>
                 <Button variant="ghost" disabled={page === 0} onClick={() => setParam('page', String(page - 1))}>{t('list.previous', 'Previous')}</Button>

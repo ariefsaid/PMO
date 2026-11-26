@@ -8,6 +8,7 @@ import { signIn } from './helpers';
 import { runId, serviceClient } from './support/jobFixtures';
 import { PM_ID, inDays, sql } from './support/jobJourney';
 import { cleanupBilling, createBillingFixture, type BillingFixture } from './support/billingFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -48,6 +49,7 @@ test('JOB-PM-7 the delivery record names who confirms it, Finance confirms it fr
   await expect(waitingLink).toContainText(/Client acceptance|BAST klien/);
   await waitingLink.click();
   await expect(page).toHaveURL(new RegExp(`/work-orders/${fx.workOrderId}$`));
+  await openWorkOrderArea(page, 'billing');
 
   const row = page.getByTestId(`acceptance-${acceptanceId}`);
   // The chip names who it waits on: no unnamed "other party".

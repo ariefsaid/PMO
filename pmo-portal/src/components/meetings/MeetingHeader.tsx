@@ -114,7 +114,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
   };
 
   return (
-    <RecordHeader
+    <RecordHeader panelInset
       name={meeting.title}
       icon={(meeting.title.trim().charAt(0) || '•').toUpperCase()}
       status={meeting.archived_at

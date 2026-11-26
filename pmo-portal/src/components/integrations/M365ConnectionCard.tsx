@@ -457,7 +457,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
               button was the tallest child, so `items-start` left it hanging about 3px below the 20px
               sentence line. The icon stays outside that row on `items-start` + `mt-[3px]`, so a wrapped
               sentence still keeps its icon on the FIRST line (AC-M365LOC-008). */}
-          <span className="flex min-w-0 items-center gap-1.5">
+          <span className="flex min-w-0 flex-col items-start gap-2">
             <span>
               {errorState
                 ? localizedError(t, errorState.code, 'status')
@@ -470,7 +470,7 @@ export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnav
               type="button"
               variant="outline"
               size="sm"
-              className="ml-1 shrink-0"
+              className="shrink-0"
               onClick={() => {
                 setErrorState(null);
                 setPhase('loading');

@@ -175,11 +175,11 @@ describe('PMDashboard approvals queue (ported N15)', () => {
     expect(screen.queryByText(/Procurement approvals — coming soon/i)).not.toBeInTheDocument();
   });
 
-  it('#2886: a billing step waiting on the PM role shows under Waits on you and links to the project billing tab', async () => {
-    h.steps = [{ projectId: 'p1', daysOver: 0 }];
+  it('#2886: a billing step waiting on the PM role shows under Waits on you and opens the waiting claim', async () => {
+    h.steps = [{ projectId: 'p1', claimId: 'claim-1', daysOver: 0 }];
     renderDashboard();
     const link = await screen.findByRole('link', { name: /billing step waiting on your role/i }, { timeout: 5000 });
-    expect(link).toHaveAttribute('href', '/projects/p1/billing');
+    expect(link).toHaveAttribute('href', '/projects/p1/billing?open=claim-1&openType=billingClaim');
   });
 
   it('AC-SL-A-001: nothing waiting → no approvals doorway', async () => {

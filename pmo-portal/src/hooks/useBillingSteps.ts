@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useOrgId } from '@/src/hooks/useOrgId';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
@@ -85,8 +85,14 @@ export function useOverdueClaimSteps(projectId: string) {
 }
 
 /** A work order's billing step list (advisory), and the rights-checked writes on it. Every write refreshes the list and the waiting steps. */
+export const workOrderStepsQuery = (orgId: string | undefined, workOrderId: string | undefined) => ({
+  queryKey: ['work-order-billing-steps', orgId, workOrderId ?? ''],
+  queryFn: () => repositories.billingStages.workOrderSteps(workOrderId ?? ''),
+  enabled: Boolean(orgId) && Boolean(workOrderId),
+});
+
 export function useWorkOrderSteps(workOrderId: string | undefined) {
-  return useOrgQuery(['work-order-billing-steps', workOrderId ?? ''], () => repositories.billingStages.workOrderSteps(workOrderId ?? ''), { enabled: Boolean(workOrderId) });
+  return useQuery(workOrderStepsQuery(useOrgId(), workOrderId));
 }
 
 /** The rows of every issued work order the viewer may see, optionally one project (the billing board). */

@@ -40,7 +40,7 @@ describe('ErrorBoundary (reliability harden #4 — render throw must not white-s
       </ErrorBoundary>,
     );
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /home/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('href', '/');
   });
 
   it('retry resets the boundary so a recovered child renders again', () => {

@@ -38,6 +38,26 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
             background-color: transparent !important;
             color: #000 !important;
           }
+          [data-app-shell="root"] {
+            display: block !important;
+            height: auto !important;
+            overflow: visible !important;
+            contain: none !important;
+          }
+          #main {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          #main > div {
+            padding: 0 !important;
+            max-width: none !important;
+          }
+          [data-testid="purchase-order-page"],
+          [data-testid="delivery-note-page"] {
+            min-height: 0 !important;
+          }
+          .rail-persistent,
+          .shell-header,
           .print-hide {
             display: none !important;
           }

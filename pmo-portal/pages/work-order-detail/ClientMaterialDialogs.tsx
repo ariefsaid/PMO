@@ -201,7 +201,9 @@ export const PickupDialog: React.FC<LineDialogProps & {
   const { t } = useTranslation('workOrders');
   const submitError = useSubmitError();
   const [quantity, setQuantity] = useState('');
-  const [warehouseId, setWarehouseId] = useState(locations.length === 1 ? locations[0].value : '');
+  const [picked, setWarehouseId] = useState('');
+  // The one site location is chosen for the person, also when the locations arrive after the dialog opened.
+  const warehouseId = picked || (locations.length === 1 ? locations[0].value : '');
   const [on, setOn] = useState('');
   const [collector, setCollector] = useState('');
   const [paper, setPaper] = useState('');

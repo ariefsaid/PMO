@@ -57,6 +57,11 @@ describe('AC-WOC-002 issue or cancel a work order on its own page', () => {
     expect(h.cancel).toHaveBeenCalledWith({ id: 'wo-1', reason: 'Client withdrew the order' }, expect.anything());
   });
 
+  it('an issued work order has no further lifecycle transition to promote as a primary action', () => {
+    renderWith({ ...draft, status: 'Issued' });
+    expect(screen.queryByRole('button', { name: 'Issue' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Cancel work order' })).toBeInTheDocument();
+  });
   it('offers nothing on a closed or cancelled work order', () => {
     renderWith({ ...draft, status: 'Cancelled', issue_eligibility: 'unavailable' });
     expect(screen.queryByRole('button', { name: 'Issue' })).toBeNull();

@@ -141,7 +141,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
 
   // Weekend tint lives INSIDE the cell (cn does not merge classes, so a column class cannot reliably
   // override the table's own header/cell backgrounds).
-  const tint = (weekend: boolean | undefined) => cn('-mx-3 -my-2 flex flex-col items-center justify-center px-1', weekend && 'bg-secondary/60');
+  const tint = (weekend: boolean | undefined) => cn('-mx-3 -my-2 flex flex-col items-center justify-center whitespace-nowrap px-1', weekend && 'bg-secondary/60');
 
   const columns: Column<TimesheetGridRow>[] = [
     {
@@ -152,18 +152,16 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
       size: 200,
       minSize: 140,
       cell: (r) => editable ? (
-        // Editable: name/code/note on the left, delete on the RIGHT of the same sticky
-        // (always-visible) cell — so the delete stays reachable at 375px without the
-        // horizontal scroll that pushes a trailing column off-screen on a phone.
-        // One delete control, one accessible name.
+        // Desktop keeps identity and notes together; deletion has a trailing action column.
+        // The phone card retains its always-visible delete control in the header.
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="break-words text-control font-medium" title={r.projectLegalName ?? r.project}>
               {r.project}
             </div>
             {r.code && (
-              <div className="break-words record-id">
-                {r.code}
+              <div className="min-w-0">
+                <span className="record-id">{r.code}</span>
               </div>
             )}
             {/* AC-W6-IXD-NOTE (B-4): demote the per-row note. Collapse-on-demand —
@@ -176,15 +174,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               onNoteChange={onNoteChange}
             />
           </div>
-          <Button
-            className="touch-target shrink-0"
-            variant="ghost"
-            size="icon"
-            aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
-            onClick={() => onDeleteRow?.(r.id)}
-          >
-            <Icon name="x" />
-          </Button>
+          <Button className="touch-target shrink-0" variant="ghost" size="icon" aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })} onClick={() => onDeleteRow?.(r.id)}><Icon name="x" /></Button>
         </div>
       ) : (
         // Read-only branch — project name links to /projects/:id when projectId present
@@ -197,8 +187,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             className="break-words text-control font-medium"
           />
           {r.code && (
-            <div className="break-words record-id">
-              {r.code}
+            <div className="min-w-0">
+              <span className="record-id">{r.code}</span>
             </div>
           )}
           {r.workOrderLabel && <div className="break-words text-control text-muted-foreground">{r.workOrderLabel}</div>}
@@ -208,7 +198,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     ...days.map((d, i): Column<TimesheetGridRow> => ({
       key: `day-${i}`,
       header: (
-        <span className={cn('flex flex-col items-center justify-center px-1', d.weekend && 'bg-secondary/60')} style={{ minHeight: 38 }}>
+        <span className={cn('flex flex-col items-center justify-center whitespace-nowrap px-1', d.weekend && 'bg-secondary/60')} style={{ minHeight: 38 }}>
           {d.label}
           <span className="mt-0.5 block text-control font-normal tabular text-muted-foreground">{d.dateNum}</span>
         </span>
@@ -290,13 +280,15 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     },
   ];
 
+
+
   const totals = [{
     key: 'daily',
     label: <span className="text-control font-semibold text-muted-foreground">{t('timesheets.dailyTotal', 'Daily total')}</span>,
     values: {
       ...Object.fromEntries(dailyTotals.map((total, i) => [
         `day-${i}`,
-        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? formatNumberExact(total) : '·'}</span>,
+        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? formatNumberExact(total) : '—'}</span>,
       ])),
       total: <span data-testid="tsgrid-grand-total" className="text-sm font-bold tabular">{formatNumberExact(grandTotal)}</span>,
     } as Record<string, React.ReactNode>,
@@ -320,7 +312,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           tableId="timesheet-grid"
           accessibleName={t('timesheets.title', 'Timesheets')}
           totals={totals}
-          className="rounded-none! border-0!"
+          className="min-w-[760px] rounded-none! border-0!"
         />
       </div>
       {/* Decorative scroll-fade overlay (aria-hidden + pointer-events-none). */}
@@ -400,8 +392,8 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                   />
                 )}
                 {r.code && (
-                  <div className="break-words record-id">
-                    {r.code}
+                  <div className="min-w-0">
+                    <span className="record-id">{r.code}</span>
                   </div>
                 )}
                 {!editable && r.workOrderLabel && (

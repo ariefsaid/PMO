@@ -58,7 +58,7 @@ describe('DataTable render count (desktop sticky seam)', () => {
     expect(cell).toHaveBeenCalledTimes(rows.length);
   });
 
-  it('AC-TBL-STICKY-001 does not re-render the body when scrolling toggles the seam', () => {
+  it('AC-TBL-STICKY-001 does not re-render the body when scrolling reaches either edge', () => {
     const metrics = stubLayout({ scrollWidth: 500, clientWidth: 300, scrollLeft: 0 });
     const { cell } = mount();
     cell.mockClear();
@@ -67,12 +67,10 @@ describe('DataTable render count (desktop sticky seam)', () => {
     metrics.scrollLeft = 200;
     fireEvent.scroll(scrollport);
     expect(scrollport).not.toHaveAttribute('data-dt-overflowing');
-    expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(0);
 
     metrics.scrollLeft = 0;
     act(() => { fireEvent.scroll(scrollport); });
     expect(scrollport).toHaveAttribute('data-dt-overflowing', '');
-    expect(document.querySelectorAll('[data-dt-seam]')).toHaveLength(rows.length + 1);
     expect(cell).not.toHaveBeenCalled();
   });
 

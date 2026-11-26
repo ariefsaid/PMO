@@ -22,7 +22,7 @@ describe('BackBar', () => {
     render(<BackBar label="Projects" onBack={() => {}} phoneOnly />);
     const bar = screen.getByRole('button', { name: /back to projects/i }).parentElement!;
     expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(bar.className).toContain('max-[1100px]:flex');
     // A bare `flex` would override `hidden` and show the bar on desktop.
     expect(bar.className.split(/\s+/)).not.toContain('flex');
   });

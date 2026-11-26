@@ -14,7 +14,7 @@
   "editTitle": "Ubah {{section}}",
   "empty": "Belum ada {{sections}}.",
   "errors": {
-    "duplicateCode": "Kode itu sudah dipakai pada work order ini",
+    "duplicateCode": "Kode itu sudah dipakai pada perintah kerja ini",
     "duplicateCodeSub": "Kode tetap dicadangkan, termasuk untuk {{sections}} yang diarsipkan. Pilih kode lain.",
     "inUse": "Sedang dipakai",
     "inUseSub": "Masih ada catatan yang merujuk {{section}} ini. Arsipkan saja."
@@ -33,9 +33,9 @@
     "close": "Tutup",
     "empty": "Belum ada rencana material.",
     "format": "Masukkan jumlah di atas nol, maksimal 3 desimal.",
-    "headroom": "Rencana work order {{plan}}; direncanakan pada {{sections}} lain {{other}}; sisa ruang {{room}}",
+    "headroom": "Rencana perintah kerja {{plan}}; direncanakan pada {{sections}} lain {{other}}; sisa ruang {{room}}",
     "item": "Barang",
-    "overAllocated": "{{items}} dialokasikan melebihi rencana work order.",
+    "overAllocated": "{{items}} dialokasikan melebihi rencana perintah kerja.",
     "plan": "Rencana",
     "quantity": "Jumlah rencana",
     "remaining": "Sisa",

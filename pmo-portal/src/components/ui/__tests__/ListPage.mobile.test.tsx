@@ -11,7 +11,7 @@
  * Projects tests.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { ListPage } from '../ListPage';
 
@@ -85,7 +85,7 @@ describe('ListPage mobile toolbar seam (AC-PRJUX-001 / AC-PRJUX-006)', () => {
     expect(screen.getByRole('button', { name: 'New project' })).toBeInTheDocument();
   });
 
-  it('AC-PRJUX-006: without mobileToolbar the desktop toolbar behavior is preserved even below md', () => {
+  it('AC-PRJUX-006: without mobileToolbar, phone search stays available and Filters opens the remaining controls', async () => {
     mockViewport(false);
     render(
       <ListPage
@@ -99,9 +99,11 @@ describe('ListPage mobile toolbar seam (AC-PRJUX-001 / AC-PRJUX-006)', () => {
       </ListPage>,
     );
     const toolbar = screen.getByTestId('list-page-toolbar');
-    expect(within(toolbar).getByTestId('slot-filters')).toBeInTheDocument();
     expect(within(toolbar).getByTestId('slot-search')).toBeInTheDocument();
-    expect(within(toolbar).getByTestId('slot-view')).toBeInTheDocument();
+    fireEvent.click(within(toolbar).getByRole('button', { name: 'Filters' }));
+    const filters = await screen.findByRole('dialog', { name: 'Filters' });
+    expect(within(filters).getByTestId('slot-filters')).toBeInTheDocument();
+    expect(within(filters).getByTestId('slot-view')).toBeInTheDocument();
   });
 
   it('AC-PRJUX-006: mobileToolbar alone (no desktop slots) still renders a toolbar below md', () => {

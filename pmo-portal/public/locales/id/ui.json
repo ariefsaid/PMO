@@ -1,0 +1,21 @@
+{
+  "back": "Kembali",
+  "filters": "Filter",
+  "tabs": {
+    "hideDetails": "Sembunyikan detail",
+    "showDetails": "Tampilkan detail",
+    "scrollLeft": "Gulir tab ke kiri",
+    "scrollRight": "Gulir tab ke kanan"
+  },
+  "table": {
+    "scrollLeft": "Gulir tabel ke kiri",
+    "scrollRight": "Gulir tabel ke kanan"
+  },
+  "pageSave": {
+    "save": "Simpan",
+    "failed": "Sebagian perubahan belum disimpan. Coba lagi."
+  },
+  "errorBoundary": {
+    "more": "Pilihan pemulihan lain"
+  }
+}

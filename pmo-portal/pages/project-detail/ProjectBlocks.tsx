@@ -26,6 +26,7 @@ import { settlementFromFinanceBuckets, settlementIn } from '@/src/lib/invoiceSet
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { countedTasks } from '@/src/lib/tasks/taskTree';
+import { taskMilestoneIds } from '@/src/lib/delivery/milestoneRollup';
 
 /** Full whole-unit amount with its currency, right-aligned and tabular where it sits in a column (screen rules, Numbers). */
 const moneyIn = (currency: string) => (value: number) => formatTableMoney(value, currency) ?? String(value);
@@ -61,19 +62,6 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
 
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
-
-/**
- * Money figure columns by count, from the strip's own width: all in one row once each figure has ~10rem,
- * otherwise rows of equal length (5 → 3+2, 6 → 3+3), never one figure alone on a row. Static classes for the JIT.
- */
-const FIGURE_COLS: Record<number, string> = {
-  1: '@lg:grid-cols-1',
-  2: '@lg:grid-cols-2',
-  3: '@lg:grid-cols-3',
-  4: '@[42rem]:grid-cols-4',
-  5: '@[30rem]:grid-cols-3 @[52rem]:grid-cols-5',
-  6: '@[30rem]:grid-cols-3 @[62rem]:grid-cols-6',
-};
 
 const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /** One line at the panel foot (the empty billing milestones). */ footer?: React.ReactNode }> = ({ project, fillRow = false, footer }) => {
   const { t } = useTranslation('project');
@@ -206,17 +194,17 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
           under it, so each amount sits with its name (no label-to-amount gap across the panel). Tiles carry
           2–3 significant digits; the exact amount is the hover title and the screen-reader text. */}
       <div className="@container min-w-0">
-      <dl className={cn('grid min-w-0 grid-cols-2 gap-x-4 gap-y-5 @lg:gap-x-6 @max-[30rem]:[&>:last-child:nth-child(odd)]:col-span-2', FIGURE_COLS[figures.length] ?? FIGURE_COLS[6])} aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
-        {figures.map((step) => {
+      <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-5 @lg:grid-cols-4 @lg:gap-x-6" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
+        {[...figures.filter((step) => step.key === 'contract' || step.key === 'spent'), ...figures.filter((step) => step.key !== 'contract' && step.key !== 'spent')].map((step) => {
           // A share under a zero says nothing; known zeros keep their figure but lose the caption.
           const pct = step.key === 'contract' || step.key === 'received' || step.key === 'spent' || step.value === 0 ? null : share(step.value);
           const budgetCaption = step.key === 'spent' && pos.hasBudget && pos.budgetComparisonKnown && pos.budget !== null
             ? t('projectDetail.money.ofBudget', 'of {{amount}} budget', { amount: tile(Number(pos.budget)) }) : null;
           return (
             // relative: the exact amount's screen-reader copy (sr-only, absolutely placed) stays inside its tile.
-            <div key={step.key} data-testid={step.key === 'received' ? 'money-lead-cash' : undefined} className="relative min-w-0">
+            <div key={step.key} data-testid={step.key === 'received' ? 'money-lead-cash' : undefined} className={cn("relative min-w-0", (step.key === 'contract' || step.key === 'spent') && '@lg:col-span-2')}>
               <dt className="text-control font-medium text-foreground">{explain(step.source, step.label, 'text-foreground')}</dt>
-              <dd className={cn('mt-1 whitespace-nowrap text-metric font-semibold leading-tight tabular-nums', step.value === 0 && step.key !== 'contract' ? 'text-muted-foreground' : 'text-foreground')} data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
+              <dd className={cn('mt-1 whitespace-nowrap font-semibold leading-tight tabular-nums', (step.key === 'contract' || step.key === 'spent') ? 'text-metric' : 'text-lg', step.value === 0 && step.key !== 'contract' ? 'text-muted-foreground' : 'text-foreground')} data-testid={step.key === 'contract' ? 'contract-value-amount' : undefined}>
                 <FigureContent value={tile(step.value)} exactValue={whole(step.value)} />
               </dd>
               {pct !== null && <dd className="mt-1 text-control tabular-nums text-muted-foreground">{t('projectDetail.money.shareOfContract', '{{percent}}% of contract', { percent: pct })}</dd>}
@@ -534,7 +522,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
             <span role="columnheader">{t('projectDetail.delivery.colProgress', 'Progress')}</span>
           </div>
           {all.map((milestone) => {
-            const phaseTasks = countedProjectTasks.filter((task) => task.milestone_id === milestone.id);
+            const phaseTasks = countedProjectTasks.filter((task) => taskMilestoneIds(task).includes(milestone.id));
             const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;
             const blockingTasks = phaseTasks.filter((task) => task.status === 'Blocked');
             const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : 0;

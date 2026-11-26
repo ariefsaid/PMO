@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Funnel, type FunnelStage } from '@/src/components/ui';
-import { formatMoneyLines, formatTableMoney } from '@/src/lib/format';
+import { formatMoneyLines, formatTileMoney, formatTableMoney } from '@/src/lib/format';
 import { type OpenFunnelStage, type SalesColumn } from '../../components/salesPipeline';
 import type { FunnelProjection } from './pipelineFunnelModel';
 
@@ -20,7 +20,7 @@ export interface PipelineFunnelProps {
 }
 
 // Whole units, but never a non-zero amount drawn as zero (screen-rules "Numbers").
-const money = (amount: number, currency: string) => formatTableMoney(amount, currency) ?? '';
+const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
 
 export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
   projection,
@@ -47,35 +47,37 @@ export const PipelineFunnel: React.FC<PipelineFunnelProps> = ({
     const empty = p.stage?.count === 0;
     // A stage holding two currencies reads one line per currency (the organisation's first), never a sum.
     const perCurrency = formatMoneyLines(
-      p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'table',
+      p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'tile',
     ).lines;
+    const exactCurrency = formatMoneyLines(p.byCurrency.map((c) => ({ currency: c.currency, amount: c.total })), p.stageCurrency, 'table').lines;
     const value = p.unavailable
       ? unavailableTotal
       : empty
         ? money(0, p.stageCurrency)
         : p.mixedStage
-          ? <>{perCurrency.map((line) => <div key={line}>{line}</div>)}</>
-          : money(p.totalValue, p.stageCurrency);
+          ? <>{perCurrency.map((line) => <div key={line} title={exactCurrency[perCurrency.indexOf(line)]}>{line}</div>)}</>
+          : <span title={formatTableMoney(p.totalValue, p.stageCurrency) ?? undefined}>{money(p.totalValue, p.stageCurrency)}</span>;
     return {
       name: stageLabel(p.col),
       dotColor: p.col.dotColor,
       value,
       weighted: p.unavailable || empty || p.mixedStage
         ? undefined
-        : t('sales.funnel.weighted', '{{value}} weighted', {
+        : <span title={t('sales.funnel.weighted', '{{value}} weighted', { value: formatTableMoney(p.weightedValue, p.stageCurrency) })}>{t('sales.funnel.weighted', '{{value}} weighted', {
             value: money(p.weightedValue, p.stageCurrency),
-          }),
+          })}</span>,
       barPct: p.barPct,
     };
   });
 
   return (
-    <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card p-[var(--panel-inset)]">
+    <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card h-full p-[var(--panel-inset)]">
       {header && <div className="mb-2">{header}</div>}
       <Funnel
         stages={funnelStages}
         presentation="flat"
         compact
+        fit
         selectedIndex={selectedIndex ?? undefined}
         onSelect={(i) => {
           const col = openColumns[i];

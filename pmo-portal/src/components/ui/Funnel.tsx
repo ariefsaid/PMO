@@ -32,6 +32,7 @@ export interface FunnelProps {
   presentation?: 'cards' | 'flat';
   /** Tighter vertical stage rhythm for the dense Sales Pipeline summary. */
   compact?: boolean;
+  fit?: boolean;
 }
 
 /** Connected stage-summary band (macro analog of the stepper).
@@ -49,7 +50,7 @@ export interface FunnelProps {
  *  distributes its leftover width evenly across stages, keeping them equal-looking when every
  *  amount already fits — `max-content` on both ends would leave stages bunched left with dead
  *  space on the right instead. */
-export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect, className, presentation = 'cards', compact = false }) => {
+export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect, className, presentation = 'cards', compact = false, fit = false }) => {
   const { t } = useTranslation();
   const interactive = !!onSelect;
   // A non-interactive Funnel (e.g. a dashboard panel with no onSelect) has NO focusable stage —
@@ -78,7 +79,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
       <div
         data-testid="funnel-stage-grid"
         className="grid min-w-full"
-        style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(max-content, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(${fit ? '0' : 'max-content'}, 1fr))` }}
       >
         {stages.map((s, i) => {
           const selected = i === selectedIndex;
@@ -102,7 +103,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 // needed to reveal the stage, never re-centering or scrolling the whole page.
                 if (interactive) e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
               }}
-              style={{ minWidth: `${FUNNEL_STAGE_MIN_REM}rem` }}
+              style={{ minWidth: fit ? 0 : `${FUNNEL_STAGE_MIN_REM}rem` }}
               className={cn(
                 'relative flex flex-col',
                 compact ? 'px-2 pb-2 pt-2' : 'px-3 pb-3 pt-3',
@@ -154,7 +155,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                   <div
                     data-funnel-stage-bar
                     className="h-[5px] overflow-hidden rounded-full bg-secondary"
-                    style={{ width: `${FUNNEL_BAR_TRACK_REM}rem` }}
+                    style={{ width: fit ? '100%' : `${FUNNEL_BAR_TRACK_REM}rem` }}
                   >
                     <span
                       className="block h-full rounded-full"

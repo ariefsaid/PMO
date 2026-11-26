@@ -296,6 +296,20 @@ const msa = (over: Partial<MilestoneWithProgress>): MilestoneWithProgress => ({
   effective_pct: over.effective_pct ?? 0,
 });
 
+it('AC-TREE-109: a completed group-linked task moves the curve on its completion date', () => {
+  const phase = { ...threePhases[0], target_date: '2026-06-01', effective_pct: 50 };
+  const task_group = { milestone_id: phase.id, archived_at: null };
+  const tasks = [
+    { ...scTask({ milestone_id: null, status: 'Done', completed_at: '2026-04-15T12:00:00Z' }), task_group },
+    { ...scTask({ milestone_id: phase.id }), task_group },
+    { ...scTask({ milestone_id: null, status: 'Done', completed_at: '2026-03-15T12:00:00Z' }),
+      task_group: { ...task_group, archived_at: '2026-04-01' } },
+  ];
+  const model = buildSCurve([phase], '2026-06-16', tasks);
+  expect(model.points.find((point) => point.date === '2026-04-15')?.actual).toBe(50);
+  expect(model.points.find((point) => point.date === '2026-03-15')?.actual ?? null).toBeNull();
+});
+
 describe('buildSCurve — actual series', () => {
   it('AC-SCA-001: ≥2 Done tasks at distinct completed_at → ≥2 non-null actual points, non-decreasing, last === actualToDate', () => {
     const milestones = [

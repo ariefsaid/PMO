@@ -13,14 +13,18 @@
     "error": "Couldn't load the scope",
     "empty": "No contract lines are allocated to this work order yet.",
     "allocate": "Allocate lines on the project",
-    "overall": "Overall {{pct}} complete",
     "lump": "{{done}} of {{all}}",
-    "qty": "{{done}} of {{all}} {{unit}}"
+    "qty": "{{done}} of {{all}} {{unit}}",
+    "col": {
+      "line": "Contract line",
+      "accepted": "Accepted",
+      "percent": "Complete"
+    }
   },
   "costs": {
     "title": "Costs",
     "error": "Couldn't load the costs",
-    "empty": "No costs are attributed to this work order yet.",
+    "empty": "No costs are visible to you for this work order.",
     "noDiscipline": "No discipline",
     "unknownDiscipline": "Discipline",
     "restricted": "Amount restricted for your role",
@@ -45,10 +49,16 @@
       "purchase_order": "Not counted as direct cost yet: an order counts once its supplier bill is recorded.",
       "goods_receipt": "Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded."
     },
-    "attendanceLabel": "Attendance"
+    "attendanceLabel": "Attendance",
+    "col": {
+      "record": "Record",
+      "date": "Date",
+      "quantity": "Quantity",
+      "amount": "Amount"
+    },
+    "open": "Open expenses"
   },
   "billing": {
-    "title": "Billing and acceptances",
     "error": "Couldn't load the billing figures",
     "noFigures": "No billing figures for this work order yet.",
     "invoiced": "Invoiced",
@@ -79,7 +89,8 @@
       "toDate": "to date",
       "total": "Total billed"
     },
-    "openContract": "Claims and invoices"
+    "openContract": "Claims and invoices",
+    "invoicesTitle": "Invoices"
   },
   "documents": {
     "title": "Documents",
@@ -95,14 +106,16 @@
     "empty": "No issues name this work order.",
     "due": "Fix by {{date}}",
     "noDue": "No due time",
-    "overdue": "Overdue"
+    "overdue": "Overdue",
+    "open": "Open incidents"
   },
   "openTasks": {
     "title": "Open tasks",
     "error": "Couldn't load the open tasks",
     "empty": "No open tasks name this work order.",
     "unassigned": "Unassigned",
-    "noDue": "No due date"
+    "noDue": "No due date",
+    "open": "Open tasks"
   },
   "siteLocation": {
     "title": "Site location",
@@ -344,9 +357,11 @@
       "stepAttachment": "Nothing is attached yet for step \"{{step}}\".",
       "quantityAccept": "{{quantity}} {{unit}} reported but not yet accepted. Record the acceptance.",
       "quantityClaim": "{{quantity}} {{unit}} accepted but not yet claimed."
-    }
+    },
+    "noProgress": "No work quantities have been reported yet."
   },
   "all": {
+    "summary": "Summary",
     "empty": "You have no work orders yet",
     "error": "Couldn't load your work orders",
     "noMatch": "No work order matches your search",
@@ -367,7 +382,8 @@
       "progress": "Progress",
       "cost": "Direct cost",
       "billed": "Billed",
-      "end": "End"
+      "end": "End",
+      "costBasis": "Budget / overrun"
     },
     "costOver": "Over budget by {{amount}}",
     "costBudget": "Budget {{amount}}",
@@ -396,8 +412,7 @@
     "cost": "Cost and plan",
     "material": "Materials",
     "billing": "Billing",
-    "inspections": "Inspections",
-    "closeout": "Close-out",
+    "checks": "Inspections and close-out",
     "documents": "Documents and safety",
     "issues": "Issues and tasks"
   },
@@ -446,5 +461,10 @@
     "openWorkOrder": "Open the work order",
     "checks_one": "{{count}} check",
     "checks_other": "{{count}} checks"
-  }
+  },
+  "new": {
+    "action": "New work order"
+  },
+  "complete": "Complete",
+  "stockOpen": "Open stock"
 }

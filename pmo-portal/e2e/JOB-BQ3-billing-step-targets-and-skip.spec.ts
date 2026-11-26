@@ -23,7 +23,7 @@ test('JOB-BQ3 a claim shows an overdue step and lets an optional step be marked 
   const db = admin;
   const run = runId('bq3t');
   fx = await createBillingFixture(db, run);
-  billing = await createJobRoleUser(db, ORG_ID, 'billing_officer');
+  billing = await createJobRoleUser(db, ORG_ID, 'finance_officer');
   {
     const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
     const claim = need('claim', await db.from('progress_claims').insert({
@@ -35,7 +35,7 @@ test('JOB-BQ3 a claim shows an overdue step and lets an optional step be marked 
       { org_id: ORG_ID, claim_id: claim.id, project_id: fx.projectId, position: 2, name: `${run} client approval`, client_side: true, optional: false },
     ]).select('id').limit(1));
 
-    // 1–3. The billing officer opens the claim: the step past its target reads overdue.
+    // 1–3. The finance officer opens the claim: the step past its target reads overdue.
     await billing.signIn(page);
     await page.goto(`/projects/${fx.projectId}/contract?open=${claim.id}&openType=billingClaim`);
     const drawer = page.getByRole('dialog');

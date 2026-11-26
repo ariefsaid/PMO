@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
 import { createJobRoleUser } from '../support/jobRoleUser';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(240_000);
 
@@ -93,14 +94,15 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     await expect(row).toContainText('1 step');
     await row.getByRole('button', { name: /Use BQ4 .* for new work orders/ }).click();
     await expect(row.getByTestId('default-step-template')).toBeVisible({ timeout: 15_000 });
-    await templates.getByRole('button', { name: 'Done' }).click();
-    // Done returns to Billing terms (the template choice is already saved); the officer closes it.
-    await terms.getByRole('button', { name: 'Close' }).click();
+    await templates.getByRole('button', { name: 'Close', exact: true }).last().click();
+    // Close returns to Billing terms (the template choice is already saved); the officer closes it.
+    await terms.getByRole('button', { name: 'Close', exact: true }).last().click();
     await expect(terms).toBeHidden();
 
     // 3. A newly issued work order carries that list; the billing officer adds one step to it.
     await db.from('work_orders').update({ status: 'Issued', issued_at: new Date().toISOString() }).eq('id', workOrderId).throwOnError();
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'billing');
     const steps = page.getByTestId('wo-billing-steps');
     await expect(steps.getByRole('listitem', { name: 'Prepare evidence' })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Add step' }).click();
@@ -115,12 +117,13 @@ test('JOB-BQ4 a work order takes its steps from a template and an added step lea
     await terms2.getByRole('button', { name: 'Manage templates' }).click();
     const templates2 = page.getByRole('dialog', { name: 'Billing step templates' });
     await expect(templates2.getByRole('listitem').filter({ hasText: 'BQ4 ' })).toContainText('1 step');
-    await templates2.getByRole('button', { name: 'Done' }).click();
-    await terms2.getByRole('button', { name: 'Close' }).click();
+    await templates2.getByRole('button', { name: 'Close', exact: true }).last().click();
+    await terms2.getByRole('button', { name: 'Close', exact: true }).last().click();
     await expect(terms2).toBeHidden();
 
     // 5. Saved deliberately, the work order's own list becomes a template of its own.
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'billing');
     await page.getByRole('button', { name: 'Save as template' }).click();
     const save = page.getByRole('dialog', { name: 'Save as template' });
     await save.getByLabel('Template name').fill('BQ4 saved two steps');

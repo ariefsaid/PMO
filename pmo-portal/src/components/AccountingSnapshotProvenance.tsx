@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { cn } from '@/src/components/ui/cn';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDayYear } from '@/src/lib/format';
 
 /**
  * AccountingSnapshotProvenance (Slice 7 task 7.8, ADR-0048): a read-only provenance strip for the
@@ -32,7 +32,7 @@ export interface AccountingSnapshotProvenanceProps {
 function formatAsOf(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatInstantDate(iso);
+  return formatDayYear(iso);
 }
 
 export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenanceProps> = ({ asOf, sourceReport, reportVersion, updatedLabel, className }) => {

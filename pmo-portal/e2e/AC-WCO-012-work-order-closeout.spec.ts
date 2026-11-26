@@ -7,6 +7,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -66,17 +67,20 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
 
     // The record shows the checklist with the two required items open.
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId('closeout-summary')).toContainText('Required items not done: 2');
 
     // A document is needed before an item can be marked done; the first item is current.
-    await expect(page.getByRole('button', { name: 'Mark Item one ' + suffix + ' done' })).toHaveCount(0);
-    await page.getByRole('combobox', { name: 'Document for Item one ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
+    await openRowUpdate(page, 'Item one ' + suffix);
+    await expect(page.getByRole('button', { name: 'Mark Item one ' + suffix + ' done' })).toBeDisabled();
+    await page.getByRole('combobox', { name: 'Project documents' }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Item one ' + suffix }).click();
     await page.getByRole('button', { name: 'Mark Item one ' + suffix + ' done' }).click();
     await expect(page.getByTestId('closeout-summary')).toContainText('Required items not done: 1');
 
     // The second item cannot be marked done before it has a document either; then it can.
-    await page.getByRole('combobox', { name: 'Document for Item two ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
+    await openRowUpdate(page, 'Item two ' + suffix);
+    await page.getByRole('combobox', { name: 'Project documents' }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Item two ' + suffix }).click();
 
     // Closing while the second required item is open is refused by the database, with the count.
@@ -89,6 +93,8 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
 
     // Mark it done, close again, and the record names who closed it.
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
+    await openRowUpdate(page, 'Item two ' + suffix);
     await page.getByRole('button', { name: 'Mark Item two ' + suffix + ' done' }).click();
     await expect(page.getByTestId('closeout-summary')).toContainText('Every required item is done');
     await page.goto('/projects/' + projectId + '/contract');
@@ -96,6 +102,7 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
     await page.getByRole('menuitem', { name: 'Close order' }).click();
     await page.getByRole('button', { name: 'Close work order' }).click();
     await page.goto('/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId('closeout-summary')).toContainText('by ' + profile.data.full_name);
     await expect(page.getByTestId('record-header')).toContainText('Closed');
   } catch (e) {

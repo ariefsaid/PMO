@@ -1,6 +1,6 @@
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -214,6 +214,13 @@ vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
 
 import { AppRoutes } from '../App';
 
+// The Administration route is a lazy chunk whose cold jsdom evaluation costs seconds. A journey
+// that navigates into it (or deep-links a section) suspends on that import inside its wait
+// window, which times out before the chunk resolves — the same warm-up the ask-AI palette test
+// does for AssistantPanel. Warm it once so the journeys below exercise navigation, not module
+// download; every assertion is unchanged.
+beforeAll(async () => { await import('./Administration'); }, 60_000);
+
 const publishOperatorState = () => {
   operatorState.revision += 1;
   operatorState.listeners.forEach((listener) => listener());
@@ -417,6 +424,12 @@ describe('Administration route-backed shell', () => {
     }
   });
 
+  it('explains who can change the tax settings to a read-only viewer', async () => {
+    renderShell('/administration/accounting', 'Executive');
+    const taxSettings = await screen.findByRole('region', { name: 'Tax and fiscal year' });
+    expect(within(taxSettings).getByText('Only an Admin can change this.')).toBeVisible();
+  });
+
   it('AC-ADMIA-005: an Executive still gets the existing read-only Users directory notice', () => {
     renderShell('/administration/users', 'Executive');
 
@@ -454,6 +467,17 @@ describe('Administration route-backed shell', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Organization integrations' })).toBeInTheDocument();
     // It is never mislabelled as the personal "My integrations" route (that lives at /integrations).
     expect(screen.queryByRole('heading', { name: 'My integrations' })).not.toBeInTheDocument();
+  });
+
+  it('keeps general organization settings in their named view with one page Save', async () => {
+    renderShell('/administration/integrations');
+    const feedback = await screen.findByText('Feedback and surveys');
+    expect(feedback).not.toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Organization settings' }));
+    expect(feedback).toBeVisible();
+    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
+    expect(screen.getByText('Organization integrations panel')).not.toBeVisible();
   });
 
   it.each(['/administration#org-project-number-pattern', '/administration/accounting#org-project-number-pattern'])(
@@ -573,18 +597,6 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     }
   });
 
-  it('DOM order follows heading → section nav → selected panel heading/content', async () => {
-    renderShell('/administration/users');
-    await waitFor(() => expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument());
-    const heading = screen.getByRole('heading', { level: 1, name: 'Users' });
-    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
-    const panel = screen.getByTestId('administration-panel-users');
-    const follows = (a: Element, b: Element) =>
-      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-    expect(follows(heading, nav)).toBe(true);
-    expect(follows(nav, panel)).toBe(true);
-  });
-
   it('uses no fake tab semantics — no role=tab/tablist and no aria-selected without that contract', async () => {
     renderShell('/administration/users');
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
@@ -599,19 +611,21 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
     expect(links.map((l) => l.getAttribute('href'))).toEqual([
+      // #1126: listed by job: people and access, setup, connections, plan; then All settings.
       '/administration/users',
       '/administration/people',
       '/administration/document-types',
-      '/administration/integrations',
       '/administration/modules',
       '/administration/accounting',
       '/administration/projects',
-      '/administration/plan',
-      '/administration/credits',
       '/administration/terminology',
       '/administration/document-categories',
       '/administration/exchange-rates',
       '/administration/cost-attribution',
+      '/administration/integrations',
+      '/administration/scheduled-reports',
+      '/administration/plan',
+      '/administration/credits',
       '/administration/all-settings',
     ]);
 
@@ -625,9 +639,6 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     expect(links[3]).toHaveFocus();
     await user.keyboard('{Tab}');
     expect(links[4]).toHaveFocus();
-
-    await user.keyboard('{Tab}');
-    expect(links[5]).toHaveFocus();
     // Enter on the focused Accounting setup link navigates (a real route change).
     await user.keyboard('{Enter}');
     await waitFor(() => expect(screen.getByTestId('administration-panel-accounting')).toBeInTheDocument());

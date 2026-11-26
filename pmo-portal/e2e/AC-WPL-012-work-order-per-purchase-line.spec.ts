@@ -58,7 +58,7 @@ test('AC-WPL-012 each purchase line names its work order; all-the-same is copied
       await addRow.getByLabel(/new item unit price/i).fill(rate);
       await addRow.getByRole('button', { name: /add line item/i }).click();
     }
-    const section = page.getByTestId('line-work-orders-section');
+    const section = page.getByTestId('line-plan-section');
     await expect(section).toBeVisible({ timeout: 15_000 });
     for (const line of ['Line one ' + suffix, 'Line two ' + suffix]) {
       await section.getByRole('combobox', { name: 'Work order for ' + line }).selectOption({ label: 'WO1-' + suffix });
@@ -75,7 +75,7 @@ test('AC-WPL-012 each purchase line names its work order; all-the-same is copied
 
     // Change line two to WO-2 on the Items tab: the lines now differ, and the request keeps WO-1.
     await page.getByRole('tab', { name: /Line items/i }).click();
-    const panel = page.getByTestId('line-work-orders-panel');
+    const panel = page.getByTestId('line-plan-panel');
     await expect(panel).toBeVisible({ timeout: 15_000 });
     await panel.getByRole('combobox', { name: 'Work order for Line two ' + suffix }).selectOption({ label: 'WO2-' + suffix });
     await panel.getByRole('button', { name: 'Save' }).click();

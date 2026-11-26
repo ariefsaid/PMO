@@ -198,17 +198,17 @@ export const EngineerDashboard: React.FC = () => {
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           <div>{header}<FigureHiddenLine compact /></div>
           <EngineerWaitingCard />
+          {returned && <EngineerReturnedCard claims={returnedClaims} />}
           {/* With no open task at all, the week leads the page and the all-clear sits under it as one line, not a tall empty card. */}
           <div className={cn('grid gap-[var(--space-panel-gap)]', !noOpenTasks && 'min-[900px]:grid-cols-2')}>
             {noOpenTasks
               ? <><EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} chart /><EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} undated={undatedTasks} today={organizationDay.day} dayError={dayError} loading={taskLoading} error={taskError} onRetry={refresh} /></>
               : <><EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} undated={undatedTasks} today={organizationDay.day} dayError={dayError} loading={taskLoading} error={taskError} onRetry={refresh} /><EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} chart /></>}
           </div>
-          <div className={returned ? 'grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start' : undefined}>
+          <div>
             <ChartCard title={hoursTitle} known={projectParts.length > 0} hiddenReason={t('home.eng.reasonNoHours', 'no time is logged this week')} pending={timeLoading} error={timeError ? { title: t('hub.engineer.timesheetsError', "Couldn't load your timesheets"), retry: refresh } : undefined} testId="chart-hours-by-project">
               <StackedBar ariaLabel={hoursTitle} parts={projectParts} />
             </ChartCard>
-            {returned && <EngineerReturnedCard claims={returnedClaims} />}
           </div>
           <WorkOrdersTile />
           {recentEl}
@@ -221,11 +221,11 @@ export const EngineerDashboard: React.FC = () => {
     <div className="space-y-[var(--space-panel-gap)]" data-home-layout="focused">
       {header}
       <EngineerWaitingCard />
+      {!claimsError && <EngineerReturnedCard claims={returnedClaims} />}
       <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
         <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} undated={undatedTasks} today={organizationDay.day} dayError={dayError} loading={taskLoading} error={taskError} onRetry={refresh} />
         <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} />
       </div>
-      {!claimsError && <EngineerReturnedCard claims={returnedClaims} />}
       <WorkOrdersTile />
       {recentEl}
     </div>

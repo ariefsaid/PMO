@@ -219,12 +219,12 @@ function makeDefaultFunctions(
       const rangeEnd = subMilliseconds(activeRange.end, 1)
       const start = activeRange.start
       if (isSameMonth(start, rangeEnd)) {
-        return `${format(start, "MMMM d", opts)} - ${format(rangeEnd, "d, yyyy", opts)}`
+        return `${format(start, "d MMM", opts)} – ${format(rangeEnd, "d MMM yyyy", opts)}`
       }
       if (isSameYear(start, rangeEnd)) {
-        return `${format(start, "MMM d", opts)} - ${format(rangeEnd, "MMM d, yyyy", opts)}`
+        return `${format(start, "d MMM", opts)} – ${format(rangeEnd, "d MMM yyyy", opts)}`
       }
-      return `${format(start, "MMM d, yyyy", opts)} - ${format(rangeEnd, "MMM d, yyyy", opts)}`
+      return `${format(start, "d MMM yyyy", opts)} – ${format(rangeEnd, "d MMM yyyy", opts)}`
     },
     formatEventTime: (start, end, allDay, opts) => {
       if (allDay) return cfg.labels.allDay

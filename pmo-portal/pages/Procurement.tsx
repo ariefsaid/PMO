@@ -481,6 +481,7 @@ const ProcurementPage: React.FC = () => {
           onChange={setTab}
           ariaLabel={t('tabs.label', 'Procurement lists')}
           idBase="procurement-list-tabs"
+          startAtFirst
           className="mb-0 min-w-0 gap-5"
         />
 
@@ -521,7 +522,7 @@ const ProcurementPage: React.FC = () => {
           {ready && tab === 'orphans' && (
             orphanQuery.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" rows={5} /></div>
               : orphanQuery.isError ? <ListState variant="error" title={t('orphans.error', "Couldn't load documents not in a procurement")} onRetry={() => void orphanQuery.refetch()} />
-                : orphanRows.length === 0 ? <ListState variant="empty" icon="table" title={t('orphans.empty.title', 'Every accounting-system document is in a procurement')} sub={t('orphans.empty.sub', 'New documents appear here after the next sync.')} />
+                : orphanRows.length === 0 ? <ListState variant="empty" icon="table" title={t('orphans.empty.title', 'Every accounting-system document is in a procurement')} sub={t('orphans.empty.sub', 'New documents appear here after the next sync.')} action={{ label: t('tab.needsYou', 'Needs you'), onClick: () => setTab('needs-you') }} />
                   : projectQueryForOrphans.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" rows={5} /></div>
                     : projectQueryForOrphans.isError || projectQueryForOrphans.data === undefined
                       ? <ListState

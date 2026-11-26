@@ -40,8 +40,11 @@ export default function OrgProjectClassificationOptions() {
       toast(headline, detail, 'warning');
     }
   };
-  return <section aria-label={t('projectClassification.title', 'Classification')} className="max-w-2xl space-y-4">
-    <p className="text-sm text-muted-foreground">{t('projectClassification.setupHelp', 'Service lines and sectors on project forms. Removing one keeps it on existing projects.')}</p>
+  return <section aria-labelledby="org-project-classification-heading" className="space-y-4">
+    <div>
+      <h2 id="org-project-classification-heading" className="text-group font-semibold">{t('projectClassification.title', 'Classification')}</h2>
+      <p className="mt-1 text-control text-muted-foreground">{t('projectClassification.setupHelp', 'Service lines and sectors on project forms. Removing one keeps it on existing projects.')}</p>
+    </div>
     {may('manage', 'orgProjectClassification') ? <>
       <FormGrid>
         <TextArea id="org-service-lines" label={t('projectClassification.serviceLines', 'Service lines')} value={values.serviceLines}

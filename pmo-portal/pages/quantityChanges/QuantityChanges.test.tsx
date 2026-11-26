@@ -24,6 +24,7 @@ const h = vi.hoisted(() => {
     list: { rows: [] as QcrListRow[], hasMore: false },
     listArgs: { filter: {} as Record<string, string>, page: 0 },
     limit: null as number | null,
+    builtInRoles: true,
     approverRoles: [] as string[],
     approverState: { isError: false, isPending: false, refetch: vi.fn() },
     listState: { isPending: false, isError: false, refetch: vi.fn() },
@@ -41,6 +42,7 @@ vi.mock('@/src/hooks/useQuantityChanges', () => ({
   useQuantityChangeApproverRoles: () => ({ data: h.approverState.isError || h.approverState.isPending ? undefined : h.approverRoles, ...h.approverState }),
   useQuantityChangeMutations: () => h.m,
 }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useStoredOrgSwitch: () => ({ data: h.builtInRoles }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
@@ -80,6 +82,8 @@ const view = (entry = '/quantity-changes') => render(
 
 beforeEach(() => {
   h.role = 'Finance';
+  h.builtInRoles = true;
+  h.approverRoles = [];
   h.approverState = { isError: false, isPending: false, refetch: vi.fn() };
   h.over = [];
   h.list = { rows: [], hasMore: false };
@@ -90,6 +94,17 @@ beforeEach(() => {
 });
 
 describe('QuantityChanges hub', () => {
+  it('explains that saved reviewer roles are inactive while built-in roles are off', () => {
+    h.role = 'Admin';
+    h.builtInRoles = false;
+    h.approverRoles = ['deputy_project_manager'];
+    view();
+    const card = within(screen.getByTestId('qcr-approver-roles'));
+    expect(card.getByRole('checkbox', { name: 'Deputy Project Manager' })).toBeChecked();
+    expect(card.getByText('Saved reviewer roles only take effect when built-in roles are on.')).toBeInTheDocument();
+    expect(card.getByRole('link', { name: 'Open built-in role settings' })).toHaveAttribute('href', '/administration/modules#module-people-crews');
+  });
+
   it('a role that may not raise sees no New request button and no limit section', () => {
     h.role = 'Engineer';
     view();

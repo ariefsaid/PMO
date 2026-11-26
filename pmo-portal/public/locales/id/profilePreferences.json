@@ -12,5 +12,7 @@
     "focused": "Fokus",
     "help": "Langsung diterapkan pada perangkat ini."
   },
-  "noChanges": "Tidak ada perubahan untuk disimpan"
+  "noChanges": "Tidak ada perubahan untuk disimpan",
+  "savedDetails": "Preferensi tersimpan",
+  "deviceSave": "Disimpan di perangkat ini setelah Anda memilih Simpan."
 }

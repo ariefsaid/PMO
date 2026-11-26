@@ -87,7 +87,7 @@ describe('AC-PLN-013 — Your plan is read-only', () => {
   it('AC-PLN-013: lists which switches are on, from the resolved set', async () => {
     renderPage();
     // On is plain text (read as ": On"); only an Off feature carries a mark, so a full plan repeats nothing.
-    const crm = (await screen.findByText('CRM (Sales Pipeline, Companies, Contacts)')) as HTMLElement;
+    const crm = (await screen.findByText('CRM (Companies, Contacts)')) as HTMLElement;
     expect(crm).toHaveTextContent(': On');
     expect(within(crm).queryByText('Off')).toBeNull();
     const stock = screen.getByText('Stock') as HTMLElement;

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
-const h = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'crew' }), placeNew: vi.fn().mockResolvedValue(undefined), crews: [] as unknown[], role: 'Admin', users: [{ id: 'u1', full_name: 'Field user', email: null, status: 'active' }], members: [] as unknown[], roles: [] as unknown[], workers: [] as unknown[], setRole: vi.fn().mockResolvedValue(undefined) }));
+const h = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'crew' }), placeNew: vi.fn().mockResolvedValue(undefined), crews: [] as unknown[], role: 'Admin', users: [{ id: 'u1', full_name: 'Field user', email: null, status: 'active' }], members: [] as unknown[], roles: [] as unknown[], workers: [] as unknown[], workersFailed: false, retryWorkers: vi.fn(), setRole: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: h.users }) }));
@@ -14,12 +14,26 @@ vi.mock('@/src/hooks/useCrews', () => ({
   useCrews: () => ({ data: h.crews, isPending: false, isError: false }),
   useCrewMutations: () => ({ createCrew: { mutateAsync: h.create }, archiveCrew: { mutateAsync: vi.fn() }, placeNewWorker: { mutateAsync: h.placeNew }, place: { mutateAsync: vi.fn() }, setPlacementRole: { mutateAsync: h.setRole, isPending: false } }),
   useCrewMembers: () => ({ data: h.members, isPending: false, isError: false }),
-  useCrewRoles: () => ({ data: h.roles }), useCrewWorkers: () => ({ data: h.workers }),
+  useCrewRoles: () => ({ data: h.roles }), useCrewWorkers: () => ({ data: h.workers, isError: h.workersFailed, refetch: h.retryWorkers }),
 }));
 import { CrewList } from './CrewList';
 
 describe('crew master', () => {
   beforeEach(() => { h.members = []; h.roles = []; h.workers = []; h.setRole.mockClear(); h.crews = []; h.role = 'Admin'; h.create.mockClear(); h.placeNew.mockClear(); });
+  it('#2812 retries a failed people lookup from the picker', async () => {
+    h.crews = [{ id: 'crew', code: 'C1', name: 'Crew one', kind: 'own', field_controller_id: null, vendor_company_id: null }];
+    h.workersFailed = true;
+    try {
+      render(<ToastProvider><CrewList creating={false} onCloseCreate={vi.fn()} onCreate={vi.fn()} /></ToastProvider>);
+      await userEvent.click(screen.getByRole('row', { name: /C1 Crew one/ }));
+      await userEvent.click(screen.getAllByRole('button', { name: 'Add person' })[0]);
+      await userEvent.click(screen.getByRole('combobox', { name: 'Person' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+      expect(h.retryWorkers).toHaveBeenCalledOnce();
+    } finally {
+      h.workersFailed = false;
+    }
+  });
   it('creates a crew with the selected discipline', async () => {
     const user = userEvent.setup();
     render(<ToastProvider><CrewList creating onCloseCreate={vi.fn()} onCreate={vi.fn()} /></ToastProvider>);

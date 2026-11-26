@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — own project, work order, crew and person; the roster and placements are ended and the fixture removed where history allows.
-// JOB-PC9 (planner): resources allocated per work order. The planner rosters a crew on a work order for a date range and logs crane hours on it
+// JOB-PC9 (project control manager, steps 7 and 14): resources allocated per work order. The project control manager rosters a crew on a work order for a date range and logs crane hours on it
 // (equipment use screen, a project manager approves the week); the work order page then lists both.
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -7,6 +7,7 @@ import { signIn, pickComboboxOption } from './helpers';
 import { roleJobUser } from './support/roleJobUser';
 import { need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 import { inDays, orgToday } from './support/jobJourney';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
@@ -31,10 +32,10 @@ test.afterEach(async () => {
   await planner?.cleanup();
 });
 
-test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and the work order page lists both', async ({ page }) => {
+test('JOB-PC9 a project control manager rosters a crew and logs crane hours on a work order, and the work order page lists both', async ({ page }) => {
   admin = serviceClient('JOB-PC9');
   const run = runId('JOBPC9');
-  planner = await roleJobUser(admin, 'planner', `${run}-planner`);
+  planner = await roleJobUser(admin, 'project_control_manager', `${run}-pcm`);
   const fx = await projectWithWorkOrders(admin, run, ['Pipe rack']);
   const wo = fx.workOrders[0];
   const from = orgToday(); const to = inDays(5); // rostered from today by the organisation's clock
@@ -60,7 +61,7 @@ test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and
   const rosterRows = need('roster', await admin.from('work_order_crews').select('valid_from, valid_to').eq('work_order_id', wo.id));
   expect(rosterRows).toEqual([{ valid_from: from, valid_to: to }]);
 
-  // The planner logs 8 crane hours on the work order (equipment use grid); a project manager approves the week.
+  // The project control manager logs 8 crane hours on the work order (equipment use grid); a project manager approves the week.
   await page.goto(`/equipment?week=${workDay}`);
   await page.getByRole('button', { name: 'Add row' }).click();
   await pickComboboxOption(page, page, /^Equipment/, new RegExp(run));
@@ -85,6 +86,7 @@ test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and
   await planner.signIn(page);
   await page.goto(`/work-orders/${wo.id}`);
   await expect(page.getByTestId('wo-crews-today')).toContainText(`${run} crew`, { timeout: 20_000 });
+  await openWorkOrderArea(page, 'cost');
   const equipment = page.getByTestId('cost-group-equipment_usage');
   await expect(equipment).toContainText(run, { timeout: 20_000 });
   await expect(equipment).toContainText(/8 hours/);

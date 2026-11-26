@@ -310,7 +310,7 @@ describe('AC-IXD-PROC-W5-1 (a): policy context follows the request evidence', ()
     renderPage('items');
     expect(screen.getByTestId('procurement-stage-tracker')).toBeInTheDocument();
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
-    expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-W5-1a: at terminal Paid state the header offers no lifecycle action buttons', () => {
@@ -368,8 +368,9 @@ describe('AC-IXD-PROC-W5-1 (b): exactly one primary button per stage (One-Blue R
   it('AC-IXD-PROC-W5-1b: at Requested stage (Finance, not requester) exactly ONE primary (Approve)', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(primaries()).toHaveLength(1);
-    expect(primaries()[0]).toHaveAccessibleName(/^approve$/i);
+    const decisionPrimaries = within(screen.getByTestId('procurement-decision')).getAllByRole('button').filter((button) => button.className.includes('bg-primary'));
+    expect(decisionPrimaries).toHaveLength(1);
+    expect(decisionPrimaries[0]).toHaveAccessibleName(/^approve$/i);
   });
 
   it('AC-IXD-PROC-W5-1b: no stage emits two primary buttons (Draft submit check)', () => {
@@ -403,13 +404,13 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
     detailState.data = { ...selfRequestedBase };
     renderPage();
     // fix-waiting item 3: it names who it waits for instead of a bare "Waiting for approval".
-    expect(within(screen.getByTestId('record-header-actions')).getByText(/^waiting for /i)).toBeInTheDocument();
+    expect(screen.getByText(/^waiting for /i)).toBeInTheDocument();
   });
 
   it('JOB-WAIT-3: the requester sees the named approver and the kind of approver from the route the database computed', () => {
     detailState.data = { ...selfRequestedBase, approvalRoute: { procurementId: 'p1', route: 'org', reason: 'exceeds_line', approvers: [{ id: 'u-ani', fullName: 'Ani Wijaya' }], requestAmount: 1, lineBudget: null, lineUsed: null } };
     renderPage();
-    expect(within(screen.getByTestId('record-header-actions')).getByText('Waiting for Ani Wijaya, senior approver')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for Ani Wijaya, senior approver')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-W5-1c: SoD-blocked state has NO Approve/Reject in the header actions or its menu', async () => {
@@ -426,7 +427,7 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
-    expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
     await openMoreActions();
     expect(screen.getByRole('menuitem', { name: /^return$/i })).toBeInTheDocument();
     // No SoD gate notice for an unblocked viewer
@@ -475,7 +476,7 @@ describe('AC-IXD-PROC-W5-1 (d): destructive verbs render after the primary CTA i
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
-    const approveBtn = headerActions().getByRole('button', { name: /^approve$/i });
+    const approveBtn = screen.getByRole('button', { name: /^approve$/i });
     await openMoreActions();
     const cancelItem = screen.getByRole('menuitem', { name: /^cancel procurement$/i });
 
@@ -503,7 +504,7 @@ describe('AC-IXD-PROC-W5-1 (d): destructive verbs render after the primary CTA i
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
-    const approveBtn = headerActions().getByRole('button', { name: /^approve$/i });
+    const approveBtn = screen.getByRole('button', { name: /^approve$/i });
     await openMoreActions();
     const rejectItem = screen.getByRole('menuitem', { name: /^return$/i });
 
@@ -548,7 +549,7 @@ describe('AC-IXD-PROC-W5-1 non-regression: terminal + adminBreakGlass states una
   it('non-regression: Approve is still a primary blue (no regression from W5-1b)', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const approveBtn = headerActions().getByRole('button', { name: /^approve$/i });
+    const approveBtn = screen.getByRole('button', { name: /^approve$/i });
     expect(approveBtn.className).toContain('bg-primary');
   });
 

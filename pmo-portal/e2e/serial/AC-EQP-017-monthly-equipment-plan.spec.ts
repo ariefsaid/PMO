@@ -55,8 +55,11 @@ test.afterAll(async () => {
 });
 
 const chooseProject = async (page: import('@playwright/test').Page) => {
+  const phone = (page.viewportSize()?.width ?? 1440) < 640;
+  if (phone) await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByLabel('Project', { exact: true }).click();
   await page.getByRole('option', { name: new RegExp(projectName) }).click();
+  if (phone) await page.getByRole('dialog', { name: 'Filters' }).getByRole('button', { name: 'Close', exact: true }).click();
 };
 
 test.describe('phone planner, desktop approver', () => {

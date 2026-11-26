@@ -1473,12 +1473,12 @@ describe('DocumentsTab — the register floor (care-10c)', () => {
     expect(within(screen.getByTestId('documents-register-assembly')).getByRole('status')).toHaveTextContent(/Showing 1–1 of 1\b/);
   });
 
-  it('care-10c: the empty register explains itself in the card and shows no count', () => {
+  it('care-10c: a writer can start adding a document from the empty register', () => {
     listState.data = [];
     renderTab('Admin');
     const assembly = screen.getByTestId('documents-register-assembly');
     expect(within(assembly).getByText('No documents yet')).toBeInTheDocument();
-    expect(within(assembly).getByText(/start the project's document register/i)).toBeInTheDocument();
+    expect(within(assembly).getByRole('button', { name: 'Add document' })).toBeEnabled();
     expect(within(assembly).queryByText(/^Showing/)).not.toBeInTheDocument();
   });
 

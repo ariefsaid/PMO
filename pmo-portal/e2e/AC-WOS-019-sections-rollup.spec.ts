@@ -121,7 +121,7 @@ test('AC-WOS-019: sections with foremen and planned amounts, a request on one, r
   await page.getByLabel('Deliver to').selectOption({ label: `${site.code} · ${site.name}` });
   await page.getByLabel(/^item/i).selectOption({ label: `${item.code} · ${item.name}` });
   await page.getByLabel(/^quantity/i).fill('40');
-  await expect(page.getByTestId('mrq-section-plan')).toContainText('Section plan 60');
+  await expect(page.getByTestId('mrq-section-plan-qty')).toContainText(/^60\b/);
   await expect(page.getByLabel(/why do you need more than the plan/i)).toHaveCount(0);
   await page.getByRole('button', { name: 'Send for approval' }).click();
   await expect(page).toHaveURL(/\/material-requests\/[0-9a-f-]{36}$/, { timeout: 20_000 });

@@ -20,11 +20,11 @@ export const WaitingDecisionSection: React.FC<{ kind: DatabaseListedKind; entrie
   const heading = waitingHeadingText(kind, rows.length, (key, fallback, options) => t(key, { defaultValue: fallback, ...(options ?? {}) }));
   return (
     <section aria-label={scopeLabelText(kind, (key, fallback) => t(key, fallback))} className="mb-4" data-testid={`approvals-waiting-${kind}`}>
-      <h2 className="mb-2 text-control font-semibold text-muted-foreground">{heading}</h2>
-      <Card>
+      <Card className="p-[var(--panel-inset)]">
+        <h2 className="mb-4 text-group font-semibold">{heading}</h2>
         <ul className="divide-y divide-border">
           {rows.map((row) => (
-            <li key={row.recordId} className="flex min-h-11 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
+            <li key={row.recordId} className="flex min-h-11 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0">
               <Link to={meta.href ? meta.href(row.recordId) : '/approvals'} className="min-w-0 break-words font-semibold text-primary-text hover:underline">{row.title}</Link>
               <span className="text-control text-muted-foreground">{t('waitingList:since', 'Waiting since {{date}}', { date: formatDay(row.createdAt) })}</span>
             </li>

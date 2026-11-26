@@ -35,6 +35,9 @@
   "discardBody": "Draf dihapus dari daftar. Draf ini tidak pernah dihitung dalam kuantitas tersertifikasi.",
   "discardAction": "Buang draf",
   "form": {
+    "attachmentsFailed": "Survei tersimpan, tetapi beberapa dokumen gagal dilampirkan.",
+    "retryAttachments": "Coba lampirkan lagi",
+    "closeSaved": "Tutup",
     "titleNew": "Catat survei",
     "titleCorrect": "Koreksi survei",
     "submit": "Simpan draf",

@@ -253,7 +253,7 @@ const ImprestFloatDetail: React.FC = () => {
 
       <OpenRequestsSection floatId={flt.id} currency={cur} onStartPlan={setPlanSeed} />
 
-      <PlansSection floatId={flt.id} seed={planSeed} onSeedDone={() => setPlanSeed(null)} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? orgToday(new Date(), getActiveOrgTimezone()).slice(0, 7) + '-01'}
+      <PlansSection secondaryCreate={!!pos && floatActions.some((a) => a === 'requestReplenishment' || a === 'requestFunding' || a === 'recordCount')} floatId={flt.id} seed={planSeed} onSeedDone={() => setPlanSeed(null)} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? orgToday(new Date(), getActiveOrgTimezone()).slice(0, 7) + '-01'}
         usageEmpty={planLines.length === 0}
         usage={pos ? (
           <div data-testid="month-plan-usage">

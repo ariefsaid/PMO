@@ -28,7 +28,7 @@ describe('PipelineFunnel money (#2199)', () => {
 
   it('a weighted value with many decimals still shows its whole-unit figure', () => {
     renderFunnel([stage('Leads', 1, 1234.5678, 160000.123456)], [deal('Leads', 'USD', 1235)]);
-    expect(norm(cell('Leads').querySelector('[data-funnel-stage-weighted]')?.textContent)).toContain('$160,000');
+    expect(norm(cell('Leads').querySelector('[data-funnel-stage-weighted] [title]')?.getAttribute('title'))).toContain('$160,000');
   });
 
   it('a stage the aggregate omits while a deal sits in it reads unavailable, never zero', () => {
@@ -56,7 +56,7 @@ describe('PipelineFunnel money (#2199)', () => {
       [stage('Leads', 3, 5300, 0)],
       [deal('Leads', 'USD', 1000), deal('Leads', 'USD', 1000), deal('Leads', 'IDR', 5_000_000)],
     );
-    const lines = Array.from(amount('Leads').children).map((n) => norm(n.textContent));
+    const lines = Array.from(amount('Leads').children).map((n) => norm(n.getAttribute('title')));
     expect(lines).toEqual(['$2,000', '+ IDR 5,000,000']);
   });
 });

@@ -59,8 +59,8 @@ test('JOB-PU3 an order without a needed-by date is refused; the requester sets i
   await page.goto(purchase.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await page.getByRole('tab', { name: /^Line items/ }).click();
-  const panel = page.getByTestId('order-needed-by-panel');
-  await expect(panel).toContainText('Required before the order is sent to the supplier', { timeout: 20_000 });
+  const panel = page.getByTestId('line-plan-panel');
+  await expect(panel).toContainText('Required to send the order', { timeout: 20_000 });
   await panel.getByLabel('Order needed by').fill(needed);
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(panel.getByRole('status')).toHaveText('Saved', { timeout: 20_000 });
@@ -70,7 +70,10 @@ test('JOB-PU3 an order without a needed-by date is refused; the requester sets i
   await page.goto(purchase.url);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await page.getByRole('tab', { name: /^Line items/ }).click();
-  await expect(page.getByTestId('order-needed-by-value')).toHaveText(needed, { timeout: 20_000 });
+  // The date reads as a day and month (screen rules: never numeric-only).
+  const [, mm, dd] = needed.split('-');
+  const month = new Date(Date.UTC(2000, Number(mm) - 1, 1)).toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' });
+  await expect(page.getByTestId('order-needed-by-value')).toHaveText(new RegExp(`^${Number(dd)} ${month}`), { timeout: 20_000 });
   await recordOrderWithConfirm(page);
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 20_000 });
   await page.getByRole('tab', { name: /^Timeline/ }).click();

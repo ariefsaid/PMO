@@ -63,6 +63,17 @@ describe('parseRefusal', () => {
 });
 
 describe('refusalText', () => {
+  it('AC-TREE-115: renders the depth limit in English and Bahasa Indonesia', async () => {
+    const error = { code: '23514', message: 'TASK_TREE_DEPTH: A task can sit at most 32 levels down' };
+    expect(refusalText(error, tReal)).toMatchObject({ headline: 'A task can sit at most 32 levels down.', known: true });
+
+    const instance = i18next.createInstance();
+    await instance.init({ lng: 'id', resources: { id: { refusals: idRefusals } } });
+    expect(refusalText(error, instance.t.bind(instance) as TFunction)).toMatchObject({
+      headline: 'Tugas hanya boleh berada hingga 32 tingkat ke bawah.', known: true,
+    });
+  });
+
   it('renders configured work-order terminology and the Timesheet label in Indonesian refusals', async () => {
     const instance = i18next.createInstance();
     await instance.init({ lng: 'id', resources: { id: { refusals: idRefusals, common: { ...idCommon, terms: { ...idCommon.terms, clientWorkOrder: 'SPK khusus' } } } }, initImmediate: false });
@@ -71,7 +82,7 @@ describe('refusalText', () => {
       expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('SPK khusus');
     }
     for (const code of ['ATT_HAS_TIMESHEET', 'ATT_LOCKED', 'ATT_TS_MANUAL_ENTRY', 'ATT_TS_NOT_DRAFT']) {
-      expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('Timesheet');
+      expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('Lembar waktu');
     }
     expect(refusalText(new Error('PCI_CREW: x'), translate).headline).toBe('Anda tidak ada di kru itu hari ini. Pilih kru lain atau tanyakan ke supervisor Anda.');
   });

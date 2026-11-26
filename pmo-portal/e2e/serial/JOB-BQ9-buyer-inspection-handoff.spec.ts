@@ -5,6 +5,7 @@ import { moneyJobRole } from '../support/moneyJobRole';
 import { serviceClient, projectWithWorkOrders, runId, need, ok, ORG_ID } from '../support/jobFixtures';
 import { createProcurementFixture } from '../procurement-fixture';
 import { recordOrderWithConfirm, signIn } from '../helpers';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the inspection commitment', async ({ page }) => {
   const admin = serviceClient('inspection handoff');
@@ -28,6 +29,7 @@ test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the 
     await recordOrderWithConfirm(page);
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered');
     await page.goto(`/work-orders/${project.workOrders[0].id}`);
+    await openWorkOrderArea(page, 'checks');
     const card = page.getByTestId('inspection-' + inspectionId);
     await expect(card.getByRole('link')).toHaveAttribute('href', `/procurement/${purchase.id}`);
     // Admin records the supplier order amount on screen after the buyer places the order.
@@ -46,6 +48,7 @@ test('JOB-BQ9 Buyer finds the quality managers purchase, orders it and sees the 
     await page.evaluate(() => localStorage.clear());
     await quality.login(page);
     await page.goto(`/work-orders/${project.workOrders[0].id}`);
+    await openWorkOrderArea(page, 'checks');
     await expect(page.getByTestId('inspection-' + inspectionId).getByTestId('inspection-cost')).toContainText(/12[,.]000.*committed/);
   } finally {
     if (inspectionId) ok('inspection', await admin.from('third_party_inspections').delete().eq('id', inspectionId));

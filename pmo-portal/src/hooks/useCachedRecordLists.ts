@@ -44,12 +44,21 @@ function detailKeyFor(pathname: string, orgId: string | undefined, actorId: stri
     ['/expenses/', 'expense-claim'],
     ['/views/', 'user_view'],
     ['/stock/documents/', 'stock-document'],
+    ['/material-requests/', 'material-requests'],
     ['/imprest/', 'imprest-float'],
+    ['/equipment/people/', 'people'],
   ];
   for (const [prefix, key] of routes) {
     if (!pathname.startsWith(prefix)) continue;
     const id = pathname.slice(prefix.length).split('/')[0];
-    if (id) return { prefix, key: key === 'procurement' ? [key, orgId, id, actorId, role] : [key, orgId, id], id };
+    if (id) {
+      const queryKey = key === 'procurement'
+        ? [key, orgId, id, actorId, role]
+        : key === 'material-requests'
+          ? [key, orgId, 'one', id]
+          : [key, orgId, id];
+      return { prefix, key: queryKey, id };
+    }
   }
   return undefined;
 }
@@ -88,7 +97,8 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
   const contacts = useCached<{ id: string; full_name: string }[]>(['contacts', orgId], has);
   const meetings = useCached<{ id: string; title: string }[]>(['meetings', orgId, 'all', ''], has);
   const userViews = useCached<UserViewListRow[]>(['user_views', orgId], has);
-  const equipmentAssets = useCached<{ rows: { id: string; name: string }[] }>(['equipment-assets', orgId], has);
+  // The register is read in pages (`useEquipmentAssetPages`): the label comes from every page loaded so far.
+  const equipmentAssets = useCached<{ pages: { rows: { id: string; name: string }[] }[] }>(['equipment-assets', orgId, 'pages'], has);
   const imprestFloats = useCached<{ rows: { id: string; project: { name: string } | null }[] }>(['imprest-floats', orgId], has);
 
   const detailRoute = detailKeyFor(pathname, orgId, currentUser?.id, currentUser?.role);
@@ -118,9 +128,11 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
         const rec = at('/imprest/') ? (detail.data as { id: string; project: { name: string } | null } | null | undefined) : undefined;
         return rec ? [...(list ?? []), { id: rec.id, name: rec.project?.name ?? '' }] : list;
       })(),
-      equipmentAssets: equipmentAssets.data?.rows.map((a) => ({ id: a.id, name: a.name })),
+      equipmentAssets: equipmentAssets.data?.pages.flatMap((page) => page.rows).map((a) => ({ id: a.id, name: a.name })),
       userViews: one(userViews.data?.map((v) => ({ id: v.id, name: v.name })), at('/views/')),
       stockDocuments: one(undefined, at('/stock/documents/')) as RecordLists['stockDocuments'],
+      materialRequests: one(undefined, at('/material-requests/')) as RecordLists['materialRequests'],
+      people: one(undefined, at('/equipment/people/')) as RecordLists['people'],
     };
     const listSettled =
       (pathname.startsWith('/projects/') && projects.settled && pipeline.settled && lostDeals.settled) ||

@@ -108,7 +108,6 @@ const OrgFiscalYearStart: React.FC = () => {
         ) : (
           <p className="text-control">
             <span className="font-semibold">{monthLabel}</span>
-            <span className="ml-2 text-muted-foreground">{t('admin.fiscalYear.adminOnly', 'Only an Admin can change this.')}</span>
           </p>
         )}
       </div>

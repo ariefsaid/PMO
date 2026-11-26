@@ -29,6 +29,8 @@
   "approvers": {
     "error": "Peran peninjau tidak bisa dimuat",
     "help": "Admin, Eksekutif dan Keuangan selalu dapat menyetujui atau mengembalikan permintaan. Centang peran lain yang juga boleh. Orang yang mengajukan, mengubah, atau mengirim permintaan tetap tidak dapat menyetujuinya.",
+    "inactive": "Peran peninjau yang disimpan hanya berlaku jika peran bawaan diaktifkan.",
+    "openSettings": "Buka pengaturan peran bawaan",
     "save": "Simpan peran peninjau",
     "saved": "Peran peninjau disimpan",
     "title": "Siapa yang boleh meninjau permintaan"
@@ -128,6 +130,8 @@
     "version": "Versi {{n}}"
   },
   "list": {
+    "date": "Tanggal",
+    "author": "Pembuat",
     "allProjects": "Semua proyek",
     "allStatuses": "Semua status",
     "empty": "Belum ada permintaan perubahan kuantitas",
@@ -144,6 +148,10 @@
   },
   "newRequest": "Permintaan baru",
   "over": {
+    "item": "Item kontrak",
+    "measured": "Progres / perkiraan",
+    "excess": "Melebihi",
+    "actions": "Tindakan",
     "contract": "Kontrak",
     "error": "Baris kontrak tidak dapat dimuat",
     "flag": "Melebihi kontrak",
@@ -212,6 +220,7 @@
     "empty": "Belum ada permintaan perubahan kuantitas pada $t(common:terms.clientWorkOrder) ini",
     "overLines": "{{count}} baris kontrak melebihi kuantitasnya",
     "raise": "Minta perubahan kuantitas",
-    "title": "Perubahan kuantitas"
+    "title": "Perubahan kuantitas",
+    "raiseShort": "Minta perubahan"
   }
 }

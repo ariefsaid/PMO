@@ -1,16 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, EntityFormModal, ListState, PageHeader, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, EntityFormModal, ListState, PageHeader, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { useStoredOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { useOverContract, useQuantityChangeApproverRoles, useQuantityChangeLimit, useQuantityChangeMutations, useQuantityChangeRequests } from '@/src/hooks/useQuantityChanges';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
+import { ORG_SETTINGS } from '@/src/lib/orgSettingsCatalogue';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { OverContractRow } from '@/src/lib/db/quantityChanges';
 import type { RequestStatus } from '@/src/lib/quantityChangeRules';
@@ -77,27 +79,39 @@ const QuantityChanges: React.FC = () => {
         ) : over.data.length === 0 ? (
           <p className="text-muted-foreground">{t('quantityChanges:over.none', 'No contract line is over its contract quantity')}</p>
         ) : (
-          <ul className="divide-y divide-border" data-testid="qcr-over-list">
+          <div className="overflow-x-auto" data-testid="qcr-over-list">
+          <table className="block w-full text-control min-[1200px]:table min-[1200px]:min-w-[760px]">
+            <thead className="sr-only text-muted-foreground min-[1200px]:table-header-group min-[1200px]:not-sr-only">
+              <tr>
+                <th scope="col" className="py-2 pr-4 text-left font-medium">{t('quantityChanges:over.item', 'Contract item')}</th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">{t('quantityChanges:over.contract', 'Contract')}</th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">{t('quantityChanges:over.measured', 'Progress / forecast')}</th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">{t('quantityChanges:over.excess', 'Over by')}</th>
+                <th scope="col" className="py-2 text-left font-medium">{t('quantityChanges:over.actions', 'Actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="block divide-y divide-border min-[1200px]:table-row-group">
             {over.data.map((r) => {
               const figure = r.over_progress ? r.progress_quantity : (r.forecast_quantity ?? 0);
               return (
-                <li key={r.boq_item_id} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 py-2" data-testid="qcr-over-row">
-                  <StatusPill variant="warn">{t('quantityChanges:over.flag', 'Over contract')}</StatusPill>
-                  <span className="min-w-0 flex-1 font-medium text-foreground">{r.item_code} · {r.description}</span>
-                  <span className="tabular-nums text-foreground">
-                    {t('quantityChanges:over.contract', 'Contract')} {r.contract_quantity} {r.unit}
-                  </span>
-                  <span className="tabular-nums text-foreground">
+                <tr key={r.boq_item_id} className="grid gap-2 py-3 min-[1200px]:table-row" data-testid="qcr-over-row">
+                  <td className="block min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4"><span className="font-medium text-foreground">{r.item_code} · {r.description}</span> <StatusPill variant="warn">{t('quantityChanges:over.flag', 'Over contract')}</StatusPill></td>
+                  <td className="block tabular-nums min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4 min-[1200px]:text-right"><span className="min-[1200px]:sr-only">{t('quantityChanges:over.contract', 'Contract')} </span>{r.contract_quantity} {r.unit}</td>
+                  <td className="block tabular-nums min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4 min-[1200px]:text-right">
                     {t(`quantityChanges:over.kind.${r.over_progress ? 'progress' : 'forecast'}`)} {figure}
                     {r.over_progress && r.progress_source ? ` (${t(`quantityChanges:over.source.${r.progress_source}`)})` : ''}
-                  </span>
-                  <span className="tabular-nums text-foreground">{t('quantityChanges:over.overBy', { defaultValue: 'Over by {{quantity}} {{unit}}', quantity: Math.round((figure - r.contract_quantity) * 1000) / 1000, unit: r.unit })}</span>
+                  </td>
+                  <td className="block tabular-nums min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4 min-[1200px]:text-right">{t('quantityChanges:over.overBy', { defaultValue: 'Over by {{quantity}} {{unit}}', quantity: Math.round((figure - r.contract_quantity) * 1000) / 1000, unit: r.unit })}</td>
+                  <td className="block min-[1200px]:table-cell min-[1200px]:py-2"><div className="flex flex-wrap items-center gap-2">
                   {r.open_request_id && <Link to={`/quantity-changes/${r.open_request_id}`} className="text-primary-text hover:underline">{t('quantityChanges:over.openRequest', 'Open request')}</Link>}
                   {mayForecast && <Button variant="ghost" onClick={() => setForecastFor(r)}>{t('quantityChanges:over.recordForecast', 'Record forecast')}</Button>}
-                </li>
+                  </div></td>
+                </tr>
               );
             })}
-          </ul>
+            </tbody>
+          </table>
+          </div>
         )}
       </RecordSection>
 
@@ -110,19 +124,24 @@ const QuantityChanges: React.FC = () => {
           <p className="text-muted-foreground">{t('quantityChanges:list.empty', 'No quantity change requests yet')}</p>
         ) : (
           <>
-            <ul className="divide-y divide-border" data-testid="qcr-list">
-              {list.data.rows.map((r) => (
-                <li key={r.id}>
-                  <Link to={`/quantity-changes/${r.id}`} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 py-2 hover:bg-surface-hover">
-                    <span className="tabular-nums text-foreground">{formatDay(r.created_at)}</span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.work_order_label}</span>
-                    <span className="text-muted-foreground">{t('quantityChanges:list.line', { count: r.line_count, defaultValue: '{{count}} lines' })}</span>
-                    <span className="text-muted-foreground">{r.author_name ?? '—'}</span>
-                    <StatusPill record="quantityChange" state={r.status} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <div data-testid="qcr-list">
+              <DataTable
+                tableId="quantity-change-list"
+                embedded
+                rows={list.data.rows}
+                rowKey={(r) => r.id}
+                rowHref={(r) => `/quantity-changes/${r.id}`}
+                onActivate={(r) => navigate(`/quantity-changes/${r.id}`)}
+                rowLabel={(r) => r.work_order_label}
+                columns={[
+                  { key: 'workOrder', header: t('quantityChanges:detail.workOrder', 'Work order'), kind: 'primary', size: 240, cell: (r) => r.work_order_label },
+                  { key: 'date', header: t('quantityChanges:list.date', 'Date'), kind: 'date', cell: (r) => formatDay(r.created_at) },
+                  { key: 'lines', header: t('quantityChanges:lines.title', 'Lines'), align: 'num', cell: (r) => t('quantityChanges:list.line', { count: r.line_count, defaultValue: '{{count}} lines' }) },
+                  { key: 'author', header: t('quantityChanges:list.author', 'Author'), cell: (r) => r.author_name ?? '—' },
+                  { key: 'status', header: t('quantityChanges:list.status', 'Status'), kind: 'status', size: 180, minSize: 180, cell: (r) => <StatusPill record="quantityChange" state={r.status} /> },
+                ]}
+              />
+            </div>
             {(page > 0 || list.data.hasMore) && (
               <nav className="mt-3 flex items-center justify-end gap-2" aria-label={t('quantityChanges:list.pages', 'Pages')}>
                 <Button variant="ghost" disabled={page === 0} onClick={() => setParam('page', String(page - 1))}>{t('quantityChanges:list.previous', 'Previous')}</Button>
@@ -179,6 +198,7 @@ const ApproverRolesSection: React.FC = () => {
   const { toast } = useToast();
   const roleName = useBuiltInRoleName();
   const query = useQuantityChangeApproverRoles();
+  const builtInRoles = useStoredOrgSwitch('builtInRoles');
   const { setApproverRoles } = useQuantityChangeMutations();
   const [draft, setDraft] = useState<string[] | null>(null);
   // Save sends the whole list, so the stored list must be known first: never a partial list over the saved one.
@@ -197,6 +217,14 @@ const ApproverRolesSection: React.FC = () => {
   return (
     <RecordSection title={t('approvers.title', 'Who may review requests')} data-testid="qcr-approver-roles">
       <p className="mb-3 text-foreground">{t('approvers.help', 'Admin, Executive and Finance can always approve or return a request. Tick other roles that may too. Whoever raised, edited or submitted a request still cannot approve it.')}</p>
+      {builtInRoles.data === false && (
+        <p className="mb-3 text-foreground">
+          {t('approvers.inactive', 'Saved reviewer roles only take effect when built-in roles are on.')}{' '}
+          <Link className="underline" to={ORG_SETTINGS.builtInRoles.route}>
+            {t('approvers.openSettings', 'Open built-in role settings')}
+          </Link>
+        </p>
+      )}
       {query.isError ? (
         <ListState variant="error" title={t('approvers.error', "Couldn't load the reviewer roles")} onRetry={() => void query.refetch()} />
       ) : query.data === undefined ? (

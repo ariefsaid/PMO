@@ -232,16 +232,23 @@
     "approvedBy": "Approved by {{name}}",
     "rejectedBy": "Rejected by {{name}}",
     "nobodyToFileFor": "You can file leave only for yourself and the people you manage. Ask your line manager or an Admin to file it.",
-    "goesTo": "Your person record manager decides. If that manager is missing or inactive, an HR Manager decides, then an Admin. The person who enters the request cannot decide it. You get a notification with the result."
+    "goesTo": "Your person record manager decides. If that manager is missing or inactive, an HR Manager decides, then an Admin. The person who enters the request cannot decide it. You get a notification with the result.",
+    "dates": "Dates",
+    "daysHeader": "Days",
+    "decider": "Decider",
+    "noDecider": "No approver",
+    "decision": "Decision",
+    "openRow": "Open the leave of {{name}}",
+    "waitingForLabel": "Waiting for",
+    "approvedByLabel": "Approved by",
+    "rejectedByLabel": "Rejected by",
+    "noteLabel": "Note"
   },
   "checkIn": {
     "requestsTitle": "Check-ins waiting for you",
-    "requestsHelper": "These people clocked in from their phone outside the work area, off the roster, or without a position. Approving records their attendance.",
     "outcomeOutside": "Outside the work area",
     "outcomeNotRostered": "Not on the roster today",
     "outcomeNoPosition": "No position",
-    "distance": "{{metres}} m from the area",
-    "hours": "{{hours}} h",
     "approve": "Approve",
     "reject": "Reject",
     "rejectSubject": "check-in",
@@ -269,7 +276,10 @@
     "areaLocateDenied": "Location is blocked for this site. Allow it in your browser, or type the numbers.",
     "areaLocateUnavailable": "Your position could not be read. Try again, or type the numbers.",
     "areaLocateTimeout": "Reading your position took too long. Try again, or type the numbers.",
-    "requestArea": "Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m"
+    "requestArea": "Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m",
+    "why": "Why it waits",
+    "distanceHeader": "From the area (m)",
+    "requestsCaption": "Approving records their attendance"
   },
   "release": {
     "error": "Couldn't load medical releases",
@@ -335,7 +345,6 @@
     "asked": "Asked",
     "filled": "Filled",
     "inProgress": "In progress",
-    "open": "Open",
     "progressLabel": "{{filled}} of {{asked}} filled",
     "people": "People linked",
     "unlinkNamed": "Unlink {{name}}",
@@ -354,14 +363,20 @@
     "reopened": "Need reopened",
     "error": "Couldn't load manpower needs",
     "empty": "No manpower needs yet",
-    "emptyWriter": "Record the positions a site needs and by when.",
     "emptyReader": "A project manager or the people team records the positions a site needs.",
     "status": {
       "open": "Open",
       "met": "Met",
       "cancelled": "Cancelled"
     },
-    "countsHidden": "Filled and in progress are shown to the people team and to the roles that read the clearance checklist."
+    "countsHidden": "Filled and in progress are shown to the people team and to the roles that read the clearance checklist.",
+    "progressTitle": "Progress",
+    "nobodyLinked": "Nobody linked yet",
+    "openRow": "Open the need for {{position}}",
+    "toFill": "To fill",
+    "positionGone": "Position no longer listed",
+    "projectGone": "Project no longer listed",
+    "neededByColumn": "Needed by"
   },
   "undoFollow": "Undo follow",
   "undoFollowFor": "Undo follow for {{name}}",
@@ -370,9 +385,7 @@
   "followUndone": "Follow undone",
   "headCount": {
     "title": "Head count",
-    "named": "{{n}} named people are ticked present on this crew today. Count here only the people not named on the roster.",
     "error": "Couldn't load the head count",
-    "empty": "No head count entered for this day. The crew's Foreman or a crew manager adds it here. A person is either named and ticked above or counted here, never both.",
     "class": "Labour class",
     "people": "People",
     "state": "Status",
@@ -409,7 +422,10 @@
       "category": "Document category",
       "choose": "Choose a photo or document",
       "attached": "File attached"
-    }
+    },
+    "namedPresent": "{{n}} named present above",
+    "onlyUnnamed": "Count only people not named above",
+    "emptyDay": "No head count for this day"
   },
   "savedExcept": "Saved for everyone except: {{people}}",
   "roleNotSet": "Crew role not set",
@@ -429,5 +445,9 @@
   "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster.",
   "reportedAbsent": "Reported absent: {{reason}}",
   "absentSick": "sick",
-  "absentOther": "other reason"
+  "absentOther": "other reason",
+  "workOrders": "Work orders",
+  "week": "Week",
+  "decision": "Decision",
+  "presentOf": "{{present}} of {{total}} present"
 }

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, EntityFormModal, FormGrid, ListState, SelectField, TextField, useToast,
+  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, ListState, RecordSection, SelectField, StatusPill, TextField, useToast,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 import { DateField } from '@/src/components/ui/DateField';
@@ -13,6 +13,7 @@ import { useDocumentTypes, useExpiryDocumentMutations, useSubjectDocuments } fro
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { EXPIRY_ATTACHMENT_ACCEPT, type ExpiryDocumentRow, type SubjectKind } from '@/src/lib/db/documentExpiry';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -23,6 +24,17 @@ type ExpiryDocumentTableRow = Tables<'expiry_documents'>;
  */
 type FormValues = {
   [K in 'type_id' | 'number' | 'issued_on' | 'expires_on' | 'location_note' | 'medical_status']: NonNullable<ExpiryDocumentTableRow[K]>;
+};
+
+/** Whole days from `today` to `day` (both ISO days); negative once it has passed. */
+const daysUntil = (day: string, today: string): number => Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+
+/** The expiry mark: red once expired, amber inside the 30-day warning window, nothing while it is far off. */
+export const ExpiryMark: React.FC<{ daysLeft: number }> = ({ daysLeft }) => {
+  const { t } = useTranslation();
+  if (daysLeft < 0) return <StatusPill variant="overdue">{t('equipment:expiry.expiredPill', 'Expired')}</StatusPill>;
+  if (daysLeft <= 30) return <StatusPill variant="warn">{t('equipment:expiry.dueSoon', 'Due soon')}</StatusPill>;
+  return null;
 };
 
 const empty = (d?: ExpiryDocumentRow): FormValues => ({
@@ -118,6 +130,7 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
   const { toast } = useToast();
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
+  const today = useOrgToday();
   const ctx = useMemo(() => ({ record: { kind, viewOnly: realRole !== effectiveRole } }), [kind, realRole, effectiveRole]);
   const q = useSubjectDocuments(kind, subjectId);
   const types = useDocumentTypes(kind);
@@ -151,7 +164,8 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
         ? (d.medical_status === 'unfit' ? t('equipment:expiry.medical.unfit', 'Unfit') : t('equipment:expiry.medical.fit', 'Fit'))
         : d.number ? <span className="record-id">{d.number}</span> : null },
     { key: 'issued', header: t('equipment:expiryEdit.issued', 'Issue date'), cell: (d) => (d.issued_on ? formatDay(d.issued_on) : null) },
-    { key: 'expires', header: t('equipment:expiry.expires', 'Expires'), cell: (d) => formatDay(d.expires_on) },
+    { key: 'expires', header: t('equipment:expiry.expires', 'Expires'), cell: (d) => <span className="whitespace-nowrap">{formatDay(d.expires_on)}</span> },
+    { key: 'mark', header: <span className="sr-only">{t('equipment:expiry.state', 'Expiry state')}</span>, cell: (d) => (today ? <ExpiryMark daysLeft={daysUntil(d.expires_on, today)} /> : null) },
     { key: 'file', header: t('equipment:expiryEdit.attachment', 'Attachment'),
       cell: (d) => d.attachment_path
         ? <Button variant="ghost" size="sm" onClick={() => void open(d.attachment_path as string)}>{t('equipment:expiryEdit.openFile', 'Open file')}</Button> : null },
@@ -164,25 +178,22 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
   ];
 
   return (
-    <Card role="region" aria-label={t('equipment:expiryEdit.title', 'Documents')} className="mb-4">
-      <CardHead actions={<CanWrite entity="expiryDocument" action="create" ctx={ctx}>
+    <RecordSection title={t('equipment:expiryEdit.title', 'Documents')} flush={!q.isPending && !q.isError && rows.length > 0}
+      actions={<CanWrite entity="expiryDocument" action="create" ctx={ctx}>
         <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('equipment:expiryEdit.add', 'Add document')}</Button>
-      </CanWrite>}>{t('equipment:expiryEdit.title', 'Documents')}</CardHead>
-      <CardPad className="pt-0">
+      </CanWrite>}>
         {q.isPending && <ListState variant="loading" rows={2} />}
         {!q.isPending && q.isError && <ListState variant="error" title={t('equipment:expiryEdit.error', "Couldn't load documents")}
           sub={t('equipment:expiry.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />}
         {!q.isPending && !q.isError && (rows.length === 0
-          ? <ListState variant="empty" title={t('equipment:expiryEdit.empty', 'No documents on this record')}
-              sub={t('equipment:expiryEdit.emptySub', 'Certificates and permits show here with their expiry dates.')} />
+          ? <p className="text-muted-foreground">{may('create', 'expiryDocument', ctx) ? t('equipment:expiryEdit.empty', 'No documents on this record') : t('equipment:expiryEdit.emptyAskAdmin', 'No documents on this record; ask an administrator to add one.')}</p>
           : <DataTable<ExpiryDocumentRow> embedded rows={rows} columns={columns} rowKey={(d) => d.id} tableId={`expiry-documents-${kind}`}
               accessibleName={t('equipment:expiryEdit.title', 'Documents')} />)}
-      </CardPad>
       {editing && <ExpiryDocumentForm kind={kind} subjectId={subjectId} doc={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
       <ConfirmDialog open={archiving !== null} tone="destructive" title={t('equipment:expiryEdit.archiveTitle', 'Archive document')}
         description={t('equipment:expiryEdit.archiveBody', 'It leaves this record and the expiry list, and no more warnings are sent for it.')}
         confirmLabel={t('equipment:expiryEdit.archive', 'Archive')} loading={archive.isPending} error={problem}
         onConfirm={() => void doArchive()} onCancel={() => { setArchiving(null); setProblem(null); }} />
-    </Card>
+    </RecordSection>
   );
 };

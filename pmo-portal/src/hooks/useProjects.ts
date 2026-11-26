@@ -49,14 +49,14 @@ export function useProjects(opts?: { enabled?: boolean }) {
 }
 
 /** One project by id (the detail route) — never loads the list. Org-scoped key (FR-QRY-002). */
+export const projectQuery = (orgId: string | undefined, id: string | undefined) => ({
+  queryKey: projectKeys.detail(orgId, id),
+  queryFn: () => repositories.project.getWithRefs(id!),
+  enabled: Boolean(orgId && id),
+});
+
 export function useProject(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ProjectWithRefs | null>({
-    queryKey: projectKeys.detail(orgId, id),
-    queryFn: () => repositories.project.getWithRefs(id!),
-    enabled: Boolean(orgId && id),
-  });
+  return useQuery(projectQuery(useAuth().currentUser?.org_id, id));
 }
 
 export { usePrefetchProject } from './usePrefetchProject';

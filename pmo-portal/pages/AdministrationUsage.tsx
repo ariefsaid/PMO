@@ -1,3 +1,4 @@
+import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
@@ -19,11 +20,11 @@ import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber, formatUtcMonthYear
 
 type UsageRow = UsageSummaryRow | OperatorUsageSummaryRow;
 
-/** "Jul 2026" from the RPC's month-start date; missing or unparseable → em-dash, never a raw value. */
-function monthBucket(month: string | null): string {
-  if (!month) return '—';
+/** "Jul 2026" from the RPC's month-start date; missing or unparseable values have no display month. */
+function monthBucket(month: string | null): string | null {
+  if (!month) return null;
   const parsed = new Date(month);
-  return Number.isNaN(parsed.getTime()) ? '—' : formatUtcMonthYearFull(parsed);
+  return Number.isNaN(parsed.getTime()) ? null : formatUtcMonthYearFull(parsed);
 }
 
 export interface AdministrationUsageProps {
@@ -40,6 +41,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   onRetry,
 }) => {
   const { t } = useTranslation('administration');
+  const assistant = useAgentRuntimeContext();
   if (isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
@@ -63,9 +65,12 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     return (
       <ListState
         variant="empty"
+        quiet
+        className="rounded-lg border border-border bg-card px-4 py-4"
         icon="admin"
         title={t('usage.emptyTitle', 'No usage yet')}
         sub={t('usage.emptySub', 'Agent usage appears here once your workspace starts using the assistant.')}
+        action={assistant.runtime ? { label: t('usage.openAssistant', 'Open assistant'), onClick: () => assistant.openPanel() } : undefined}
       />
     );
   }
@@ -82,18 +87,25 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     // The RPC's month bucket is a UTC month-start DATE; a raw `2026-07-01` is an ISO string on
     // screen (ux/1110 rule 1), so it goes through the shared UTC-pinned month formatter — the same
     // UTC pin the sibling agent-cost dashboard uses for its month buckets.
-    { key: 'month', header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) },
-    { key: 'action', header: t('usage.action', 'Action'), cell: (r) => r.action },
-    { key: 'runs', header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
+    { key: 'month', size: 125, header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) ?? t('usage.monthUnavailable', 'Month unavailable') },
+    { key: 'action', size: 140, header: t('usage.action', 'Action'), cell: (r) => r.action },
+    { key: 'runs', kind: 'number', size: 75, header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
     {
-      key: 'tokens',
-      header: t('usage.tokens', 'Tokens'),
-      cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
+      key: 'promptTokens', kind: 'number', size: 125,
+      header: t('usage.promptTokens', 'Input tokens'),
+      cell: (r) => formatNumber(r.prompt_tokens),
+    },
+    {
+      key: 'completionTokens', kind: 'number', size: 125,
+      header: t('usage.completionTokens', 'Output tokens'),
+      cell: (r) => formatNumber(r.completion_tokens),
     },
     ...(hasProviderCost
       ? [
           {
             key: 'providerCost',
+            kind: 'money',
+            size: 135,
             header: t('usage.providerCost', 'Provider cost'),
             keepWhenBlank: true,
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
@@ -102,19 +114,19 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
             cell: (r: UsageRow) =>
               'provider_cost_usd' in r && r.provider_cost_usd !== null
                 ? formatCurrencyFine(r.provider_cost_usd, PLATFORM_CURRENCY)
-                : '—',
+                : t('usage.providerPricingUnavailable', 'Provider pricing unavailable'),
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', kind: 'money', size: 105, header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', kind: 'money', size: 105, header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? t('usage.marginUnavailable', 'Pricing unavailable') : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 
   return (
     <div>
-      <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" />
+      <DataTable<UsageRow> rows={rows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" cardBelow={810} />
       {!hasMargin && (
         <p className="mt-2 text-control text-muted-foreground">
           {t('usage.pricingNote', 'Pricing not yet configured — margin will appear here once a per-credit USD rate is set.')}

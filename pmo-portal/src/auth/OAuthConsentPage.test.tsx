@@ -259,7 +259,8 @@ describe('OAuthConsentPage (AC-CLI-006)', () => {
 
   it('AC-CLI-006: a link without an authorization_id is refused without calling Supabase', () => {
     renderAt('/oauth/consent');
-    expect(screen.getByRole('alert')).toHaveTextContent('This sign-in request is incomplete.');
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign-in request incomplete' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toHaveAttribute('href', '/login');
     expect(consent.getConsentDetails).not.toHaveBeenCalled();
   });
 
@@ -278,7 +279,7 @@ describe('OAuthConsentPage (AC-CLI-006)', () => {
 
   it('AC-CLI-006: the incomplete-request view reads in Bahasa Indonesia', async () => {
     await renderInBahasa('/oauth/consent');
-    expect(screen.getByRole('alert')).toHaveTextContent('Permintaan masuk ini tidak lengkap.');
+    expect(screen.getByRole('link', { name: 'Kembali ke halaman masuk' })).toHaveAttribute('href', '/login');
     expect(screen.getByRole('heading', { level: 1, name: 'Permintaan masuk tidak lengkap' })).toBeInTheDocument();
     expect(screen.getByText('Mulai kembali proses masuk dari aplikasi yang mengirim Anda ke sini.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();

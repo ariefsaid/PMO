@@ -1,3 +1,5 @@
+import { setActiveLocale, resetActiveLocale } from "@/src/lib/locale/activeLocale";
+import { formatCurrency } from "@/src/lib/format";
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -49,6 +51,7 @@ function renderTable(ui: React.ReactElement) {
 }
 
 afterEach(() => {
+  resetActiveLocale();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   localStorage.clear();
@@ -496,4 +499,17 @@ describe('DataTable row memo follows what the row callbacks produce (review C1/I
     await user.click(screen.getByRole('button', { name: 'Show Alpha' }));
     expect(onOpen).toHaveBeenCalledWith('A', 't2');
   });
+});
+
+it("refreshes memoised money cells when only the number locale changes", () => {
+  desktopViewport();
+  setActiveLocale({ locale: "en", numberLocale: "en-US", timezone: "UTC" });
+  const moneyRows = [{ id: "money", name: "Money", amount: 1234.5 }];
+  const columns: Column<Row>[] = [{ key: "amount", header: "Amount", cell: row => formatCurrency(row.amount, "USD") }];
+  const table = <DataTable rows={moneyRows} columns={columns} rowKey={row => row.id} />;
+  const view = renderTable(table);
+  expect(screen.getByText(formatCurrency(1234.5, "USD"))).toBeInTheDocument();
+  setActiveLocale({ locale: "en", numberLocale: "id-ID", timezone: "UTC" });
+  view.rerender(<DataTable rows={moneyRows} columns={columns} rowKey={row => row.id} />);
+  expect(screen.getByText(formatCurrency(1234.5, "USD"))).toBeInTheDocument();
 });
