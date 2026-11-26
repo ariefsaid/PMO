@@ -227,7 +227,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
         ? <ListState key={source.name} variant="error" title={t('projectDetail.billing.sources.error', "Couldn't load {{source}}", { source: source.name })} onRetry={source.retry} />
         : <p key={source.name} role="status" className="text-sm text-muted-foreground">{t('projectDetail.billing.sources.loading', 'Loading {{source}}…', { source: source.name })}</p>)}
       <div>
-        <FormGrid columns={1}>
+        <FormGrid className="sm:[grid-template-columns:1fr]">
           <SelectField id="claim-kind" label={t('projectDetail.billing.claimForm.kind', 'Claim type')} value={kind}
             onChange={(value) => { setKind(value as Kind); setErrors({}); }} options={kindOptions} />
           {kind === 'progress' && (
