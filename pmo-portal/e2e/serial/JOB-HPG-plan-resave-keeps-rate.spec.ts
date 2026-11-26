@@ -59,6 +59,7 @@ test('JOB-HPG the Engineer moves a date on their saved plan while prices are hid
   await page.getByLabel('Project', { exact: true }).click();
   await page.getByRole('option', { name: new RegExp(projectName) }).click();
   const line = page.getByTestId('plan-line');
+  await line.getByRole('button', { name: 'Edit line 1', exact: true }).click();
   await expect(line.getByLabel('What is needed')).toHaveValue(`Crane ${sfx}`, { timeout: 20_000 });
   await expect(line.getByLabel('Rate')).toHaveValue('');
   const newEnd = month.replace(/01$/, '12');

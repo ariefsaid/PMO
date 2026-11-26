@@ -60,7 +60,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
     const item = page.getByRole('region', { name: 'Approvals queue' }).getByRole('button').filter({ hasText: `${run}-w` }).filter({ hasText: `${run} piling` });
     await expect(item).toBeVisible({ timeout: 30_000 });
     // The week shows its hours, with no cost figure beside them.
-    await expect(item).toContainText(/8 h$/);
+    await expect(item).toContainText(/8 hours$/);
     await expect(item).not.toContainText(dayRateText);
     await item.click();
     await expect(page.getByRole('region', { name: 'Approval preview' })).not.toContainText(dayRateText);

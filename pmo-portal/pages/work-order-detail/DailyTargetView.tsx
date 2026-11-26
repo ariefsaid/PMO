@@ -86,12 +86,6 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
       : g.state === 'ahead' ? t('daily.ahead', '{{amount}} ahead of target', { amount: money(g.by) })
       : t('daily.onTarget', 'On target');
   };
-  const signedGap = (gap: string) => {
-    const g = revenueGap(gap);
-    if (g.state === 'behind') return `-${money(g.by)}`;
-    if (g.state === 'ahead') return `+${money(g.by)}`;
-    return money('0');
-  };
   const figure = (testId: string, label: string, value: React.ReactNode) => (
     <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
       <dt className="self-end text-muted-foreground">{label}</dt>
@@ -210,7 +204,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
                     <td className={`${cell} pr-4 whitespace-nowrap max-sm:pr-0`} data-label={L.actual}>
                       <span>{money(d.actual)}{d.pendingReports > 0 && <span className="block whitespace-normal text-muted-foreground">{t('daily.dayPending', '{{count}} not yet validated', { count: d.pendingReports })}</span>}</span>
                     </td>
-                    <td className={`${cell} whitespace-nowrap ${costCols.length || hasCostTotal ? 'pr-4 max-sm:pr-0' : ''}`} data-label={L.gap}>{d.hasTarget ? signedGap(d.gap) : '—'}</td>
+                    <td className={`${cell} whitespace-nowrap ${costCols.length || hasCostTotal ? 'pr-4 max-sm:pr-0' : ''}`} data-label={L.gap}>{d.hasTarget ? gapWords(d.gap) : '—'}</td>
                     {costCols.map((k) => <td key={k} className={`${cell} pr-4 max-sm:pr-0`} data-label={t(`daily.cost.${k}`, k)} data-testid={`wo-daily-cost-${k}-${d.date}`}>{costFigure(dayCost?.[k])}</td>)}
                     {hasCostTotal && <td className={`${cell} pr-4 max-sm:pr-0`} data-label={L.total} data-testid={`wo-daily-cost-total-${d.date}`}>{costFigure(dayCost?.total)}</td>}
                     {hasCostTotal && <td className={`${cell} font-medium`} data-label={L.net} data-testid={`wo-daily-cost-net-${d.date}`}>
