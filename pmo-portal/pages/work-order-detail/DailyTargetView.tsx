@@ -127,6 +127,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
       <RecordSection title={title} actions={nav}>
         {monthOnly ? (
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-control sm:grid-cols-2">
+            {figure('wo-daily-mtd-target', t('daily.mtdTarget', 'Target to date'), data.hasTarget ? money(data.mtdTarget) : none)}
             {figure('wo-daily-month-target', t('daily.monthTarget', 'Month target'), data.hasTarget ? money(data.monthTarget) : none)}
             {figure('wo-daily-projection', t('daily.projection', 'Projection to month end'),
               data.projection === null ? t('daily.projectionNone', 'Not enough working days yet') : money(data.projection))}

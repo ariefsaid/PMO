@@ -36,6 +36,11 @@ const money = (v: string) => formatTableMoney(v, 'IDR');
 beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); state.asked = []; });
 
 describe('DailyTargetView (#2672)', () => {
+  it('AC-WDT-014 keeps target to date available in the work-order month view for comparison with the project', () => {
+    state.query = ok(target());
+    render(<DailyTargetView workOrderId="w" monthOnly />);
+    expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe(money('200.00'));
+  });
   it('shows target to date, actual to date, the gap in words and the projection', () => {
     state.query = ok(target());
     render(<DailyTargetView workOrderId="w" />);
