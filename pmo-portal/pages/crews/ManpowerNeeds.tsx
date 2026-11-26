@@ -202,7 +202,7 @@ export const ManpowerNeeds: React.FC = () => {
           <CardPad><ListState variant="error" title={t('crews:manpower.error', "Couldn't load manpower needs")} onRetry={() => void needs.refetch()} retryLabel={t('crews:retry', 'Retry')} /></CardPad>
         ) : (
           <DataTable<ManpowerNeedRow> embedded rows={rows} columns={columns} rowKey={(n) => n.id} tableId="manpower-needs-table"
-            onActivate={(n) => setFilter('need', n.id)} selectedKey={openNeed?.id} cardBelow={880}
+            onActivate={(n) => setFilter('need', n.id)} selectedKey={openNeed?.id} cardBelow={1000}
             mobileCardDetails={(n) => {
               const f = fig(n);
               return (
