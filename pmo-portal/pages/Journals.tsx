@@ -80,12 +80,10 @@ const JournalsPage: React.FC = () => {
           {t('journals:actions.new', 'New journal')}
         </Button>
       </CanWrite> : undefined}
-      filters={<div className="flex flex-wrap items-center gap-2">
-        <span aria-hidden className="text-control text-muted-foreground">{t('journals:list.from', 'From')}</span>
-        <DateField label={t('journals:list.from', 'From')} hideLabel value={range.from} max={range.to}
+      filters={<div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+        <DateField label={t('journals:list.from', 'From')} value={range.from} max={range.to}
           onChange={(v) => { if (v) setRange((r) => ({ ...r, from: v })); }} />
-        <span aria-hidden className="text-control text-muted-foreground">{t('journals:list.to', 'To')}</span>
-        <DateField label={t('journals:list.to', 'To')} hideLabel value={range.to} min={range.from}
+        <DateField label={t('journals:list.to', 'To')} value={range.to} min={range.from}
           onChange={(v) => { if (v) setRange((r) => ({ ...r, to: v })); }} />
       </div>}
       search={<SearchMini placeholder={t('journals:list.searchPlaceholder', 'Search journals…')} aria-label={t('journals:list.searchAria', 'Search journals')}
