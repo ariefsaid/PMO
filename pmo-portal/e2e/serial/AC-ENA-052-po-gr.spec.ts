@@ -25,6 +25,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { assertLocalBenchUrl } from './_benchGuard';
+import { inDays, orgToday } from '../support/jobJourney';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -162,7 +163,7 @@ test.describe('AC-ENA-052: PO + GR create+submit through the real served adapter
             procurementId: seeded.procurementId,
             referenceNumber: `AC-ENA-052-PO-${suffix}`,
             status: 'Draft',
-            date: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10),
+            date: inDays(7),
             amount: 200000,
             erp_doc_kind: 'purchase-order',
           },
@@ -185,7 +186,7 @@ test.describe('AC-ENA-052: PO + GR create+submit through the real served adapter
         body: JSON.stringify({
           domain: 'procurement',
           operation: 'create',
-          record: { id: seeded.grRecordId, procurementId: seeded.procurementId, receiptDate: new Date().toISOString().slice(0, 10), erp_doc_kind: 'goods-receipt' },
+          record: { id: seeded.grRecordId, procurementId: seeded.procurementId, receiptDate: orgToday(), erp_doc_kind: 'goods-receipt' },
           idempotencyKey: crypto.randomUUID(),
         }),
       });

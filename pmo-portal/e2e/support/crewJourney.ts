@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Locator, Page } from '@playwright/test';
-import { iso, need, ORG_ID, PM_ID } from './jobJourney';
+import { orgToday, need, ORG_ID, PM_ID } from './jobJourney';
 
 /** A uniquely named project with one open work order, for the crew journeys. */
 export async function seedWorkOrder(db: SupabaseClient, who: string, run: string, label: string) {
@@ -14,7 +14,7 @@ export async function seedWorkOrder(db: SupabaseClient, who: string, run: string
 
 /** Approved attendance is immutable, so cleanup ends the open roster and placements rather than deleting them. */
 export async function endCrewRows(db: SupabaseClient, crewIds: string[]) {
-  const today = iso(new Date());
+  const today = orgToday(); // the roster is ended by the organisation's day, which is what reads it
   await db.from('work_order_crews').update({ valid_to: today }).in('crew_id', crewIds);
   await db.from('crew_members').update({ valid_to: today }).in('crew_id', crewIds);
 }

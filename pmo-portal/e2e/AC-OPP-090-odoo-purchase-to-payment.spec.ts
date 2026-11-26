@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { bindCall, type OdooCall } from '../src/lib/adapterSeam/odoo/client';
 import { discoverCapabilities, type CapabilitySnapshot } from '../src/lib/adapterSeam/odoo/discovery';
 import { requireServiceRoleKey } from './helpers';
+import { inDays } from './support/jobJourney';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -238,7 +239,7 @@ async function makeTenant(admin: SupabaseClient, fixture: OdooFixture, suffix: s
   tenant.secretRef = secretRef;
   must('finalize Odoo connection', await admin.rpc('finalize_odoo_connect', {
     p_org_id: orgId, p_secret_ref: secretRef, p_site_url: new URL(BED_URL).origin, p_database: BED_DB,
-    p_key_expires_on: new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10),
+    p_key_expires_on: inDays(180),
     p_discard: false, p_kill_switch_enabled: true, p_actor_id: tenant.adminId,
   }));
   must('activate Odoo connection', await admin.rpc('activate_odoo_binding', {

@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { setOrgStageNames } from '@/src/lib/status/orgStageNames';
 import {
   OPEN_FUNNEL_STAGES,
   SALES_COLUMNS,
@@ -190,5 +191,13 @@ describe('stageLine (#1638)', () => {
       'Loss Tender', 'Declined', 'Ongoing Project', 'On Hold', 'Close Out', 'Internal Project']) {
       expect(STAGE_KEY_DATE_LABEL[s]).toBeDefined();
     }
+  });
+});
+
+describe('stage-date line with an organisation name (#2906)', () => {
+  afterEach(() => setOrgStageNames([], 'en'));
+  it('AC-STG-008: the card names the renamed stage, not the shipped date word', () => {
+    setOrgStageNames([{ status: 'Tender Submitted', label_en: 'Bid sent', label_id: null }], 'en');
+    expect(stageLine('Tender Submitted', '2026-11-01', '2026-11-21', (_k, d) => d)).toBe('Bid sent 01 Nov · 20 d');
   });
 });

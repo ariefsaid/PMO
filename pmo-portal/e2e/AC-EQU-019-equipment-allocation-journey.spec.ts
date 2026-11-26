@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, pickComboboxOption } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -22,7 +23,16 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 test.setTimeout(240_000);
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+// The 15th of last month BY THE ORGANISATION'S month: a past day in a month that is complete, so the month's cost pool and the logged hours share one calendar month.
+const orgNow = orgToday();
+const orgYear = Number(orgNow.slice(0, 4));
+const orgMonth = Number(orgNow.slice(5, 7));
+const lastMonthYear = orgMonth === 1 ? orgYear - 1 : orgYear;
+const lastMonth = orgMonth === 1 ? 12 : orgMonth - 1;
+const workDay = `${lastMonthYear}-${pad(lastMonth)}-15`;
+const firstOfLastMonth = `${lastMonthYear}-${pad(lastMonth)}-01`;
+const weekdayIndex = (new Date(`${workDay}T00:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0: the cell's position in the row
 
 let admin: SupabaseClient | undefined;
 let run = '';
@@ -38,12 +48,6 @@ const need = <D>(step: string, r: { data: D; error: { message: string } | null }
   if (data === null || data === undefined) throw new Error(`AC-EQU-019 ${step}: no row returned`);
   return data as NonNullable<D>;
 };
-
-// The 15th of last month: a past day in a month that is complete, so the month's cost pool and the logged hours share one calendar month.
-const today = new Date();
-const workDay = new Date(today.getFullYear(), today.getMonth() - 1, 15);
-const firstOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-const weekdayIndex = (workDay.getDay() + 6) % 7; // Monday = 0: the cell's position in the row
 
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
@@ -61,8 +65,8 @@ test.beforeEach(async () => {
   }).select('id').single()).id;
   mapId = need('account map', await admin.from('budget_category_account_map').insert({ org_id: ORG_ID, category: 'Equipment', erp_account: account, is_push_target: false }).select('id').single()).id;
   glId = need('ledger line', await admin.from('erp_gl_entry_mirror').insert({
-    org_id: ORG_ID, erp_name: `${run}-GL`, company: 'E2E', account, cost_center: `${run} CC`, fiscal_year: String(firstOfLastMonth.getFullYear()),
-    project: null, party_type: null, party: null, posting_date: iso(workDay), debit: 800, credit: 0, is_cancelled: false, erp_modified: '1',
+    org_id: ORG_ID, erp_name: `${run}-GL`, company: 'E2E', account, cost_center: `${run} CC`, fiscal_year: lastMonthYear,
+    project: null, party_type: null, party: null, posting_date: workDay, debit: 800, credit: 0, is_cancelled: false, erp_modified: '1',
   }).select('id').single()).id;
 });
 
@@ -81,7 +85,7 @@ test.afterEach(async () => {
 });
 
 test('AC-EQU-019 log on two projects, approve, set actual-cost basis, see both allocated amounts on the project Finances panel', async ({ page }) => {
-  const week = `/equipment?week=${iso(workDay)}`;
+  const week = `/equipment?week=${workDay}`;
   const nameA = `${run} A`; const nameB = `${run} B`;
 
   // 1. The Engineer logs 6 h on project A and 2 h on project B for the machine on the 15th of last month, then submits the week.
@@ -118,7 +122,7 @@ test('AC-EQU-019 log on two projects, approve, set actual-cost basis, see both a
   await dialog.getByRole('radio', { name: 'Actual cost by usage' }).check();
   await dialog.getByRole('textbox', { name: /Ledger account$/ }).fill(`${run} Depreciation`);
   await dialog.getByRole('textbox', { name: /Cost centre/ }).fill(`${run} CC`);
-  await dialog.getByLabel('Effective from').fill(iso(firstOfLastMonth));
+  await dialog.getByLabel('Effective from').fill(firstOfLastMonth);
   await dialog.getByRole('button', { name: 'Preview' }).click();
   await expect(dialog.getByRole('table', { name: /Preview/ })).toContainText(/600/, { timeout: 20_000 });
   await dialog.getByRole('button', { name: 'Save costing' }).click();
