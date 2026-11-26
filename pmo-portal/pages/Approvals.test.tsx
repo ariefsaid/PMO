@@ -629,14 +629,14 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
   });
 });
 
-describe('screen rules: approvals waiting hierarchy', () => {
-  it('puts the queue count on the waiting surface as a key figure', () => {
+describe('approval queue summary', () => {
+  it('names and counts the timesheets awaiting my decision', () => {
     queryState.data = submittedSheets;
     renderPage('timesheets');
 
     const waiting = screen.getByTestId('approvals-waiting-summary');
-    expect(waiting).toHaveClass('bg-waiting-surface');
-    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveClass('text-metric');
+    expect(within(waiting).getByRole('heading', { name: /waiting on your decision/i })).toBeInTheDocument();
+    expect(within(waiting).getByTestId('approvals-waiting-count')).toHaveTextContent(String(submittedSheets.length));
   });
 });
 
