@@ -76,6 +76,8 @@ const TasksTab: React.FC<TasksTabProps> = (props) => {
  */
 const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', onCountChange }) => {
   const { t } = useTranslation('project');
+  // Load the refusal catalogue before a task write can need it.
+  useTranslation('refusals');
   const { t: tStatus } = useTranslation('status');
   const may = usePermission();
   const { realRole } = useEffectiveRole();

@@ -35,7 +35,7 @@ test('JOB-T9 a phase with three tasks shows two of three when two are done', asy
   for (const [index, status] of (['Done', 'Done', 'In Progress'] as const).entries()) {
     ok('task', await admin.from('tasks').insert({
       org_id: ORG_ID, project_id: projectId, name: `Group task ${index + 1} ${sfx}`, status,
-      milestone_id: phase.id, task_group_id: group.id,
+      milestone_id: index === 0 ? phase.id : null, task_group_id: group.id,
     }));
   }
 
@@ -54,4 +54,9 @@ test('JOB-T9 a phase with three tasks shows two of three when two are done', asy
 
   // And the milestone's own progress reads two thirds (67%).
   await expect(page.getByRole('progressbar', { name: 'Phase progress' })).toHaveAttribute('aria-valuenow', '67');
+
+  await page.goto(`/projects/${projectId}`);
+  const timeline = page.getByRole('region', { name: 'Phase timeline' });
+  const phaseRow = timeline.getByRole('row').filter({ hasText: `Structure ${sfx}` });
+  await expect(phaseRow.getByRole('cell', { name: '2 of 3' })).toBeVisible();
 });

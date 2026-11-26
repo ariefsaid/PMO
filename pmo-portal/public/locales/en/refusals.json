@@ -491,6 +491,7 @@
   "MR_REASSIGN_SOD": "The person's current manager opened this release, or is the person. Set another direct manager first, then move it.",
   "LCM_HAS_LOGIN": "This person signs in, so their hours are costed on their timesheet. A class is only for people with no login.",
   "TASK_TREE_CYCLE": "A task cannot sit under one of its own subtasks.",
+  "TASK_TREE_DEPTH": "A task can sit at most 32 levels down.",
   "COT_OWNER_ROLE": "Choose a job role as this item's owner.",
   "CTR_OWN_REPORT": "You reported this tool, so someone else writes it off.",
   "DCV_ADMIN": "The Administrator always sees every category.",
