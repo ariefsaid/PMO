@@ -252,5 +252,6 @@
   "totalCost": "Total biaya, langsung dan bersama",
   "billedTitle": "Tagihan dan margin",
   "byDisciplineTitle": "Biaya per disiplin",
-  "openPage": "Buka halaman penuh"
+  "openPage": "Buka halaman penuh",
+  "otherCurrencyNote": "Sebagian biaya dalam mata uang lain: angka yang akan mencampur mata uang tidak ditampilkan, dan biaya itu dicatat terpisah."
 }

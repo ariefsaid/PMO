@@ -16,7 +16,7 @@ import {
 import { repositories } from '@/src/lib/repositories';
 import { useRefusalText } from '@/src/lib/refusals';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatDateOnly, formatTableMoney } from '@/src/lib/format';
 
 const RESULTS: InspectionResult[] = ['pass', 'fail', 'conditional'];
 
@@ -96,14 +96,14 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
               const text = money.length === 0
                 ? t('inspections.noCostYet', 'Purchase raised, no cost yet')
                 : money.map((c) => t('inspections.cost', '{{committed}} committed, {{billed}} billed', {
-                    committed: formatCurrency(c.committed ?? 0, c.currency as string), billed: formatCurrency(c.billed ?? 0, c.currency as string),
+                    committed: (formatTableMoney(c.committed ?? 0, c.currency as string) ?? '—'), billed: (formatTableMoney(c.billed ?? 0, c.currency as string) ?? '—'),
                   })).join(' · ');
               return mayOpenPurchase ? <Link className="underline" to={`/procurement/${encodeURIComponent(i.procurement_id)}`}>{text}</Link> : text;
             })()}
           </p>
         : <p className="text-control text-muted-foreground">{t('inspections.noPurchase', 'No purchase')}</p>}
       {estimate && estimate.estimate != null && estimate.estimate_currency && (
-        <p className="text-control text-muted-foreground">{t('inspections.estimate', 'Estimate {{amount}} (a planning figure, not a cost)', { amount: formatCurrency(estimate.estimate, estimate.estimate_currency) })}</p>
+        <p className="text-control text-muted-foreground">{t('inspections.estimate', 'Estimate {{amount}} (a planning figure, not a cost)', { amount: (formatTableMoney(estimate.estimate, estimate.estimate_currency) ?? '—') })}</p>
       )}
 
       {liveFiles.length > 0 && (

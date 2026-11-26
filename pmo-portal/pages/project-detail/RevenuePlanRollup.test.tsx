@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import type { ProjectRevenuePlan } from '@/src/lib/revenuePlan';
 import RevenuePlanRollup from './RevenuePlanRollup';
 
@@ -49,14 +49,14 @@ describe('RevenuePlanRollup (#2671)', () => {
   });
   it('shows one row per work order with the gap in words, and no plan as "No plan entered"', () => {
     renderIt();
-    expect(screen.getByTestId('revenue-plan-row-a').textContent).toContain(`${formatExactMoney('500.00', 'IDR', 'en-US')} behind plan`);
+    expect(screen.getByTestId('revenue-plan-row-a').textContent).toContain(`${formatTableMoney('500.00', 'IDR')} behind plan`);
     expect(screen.getByTestId('revenue-plan-row-a').textContent).toContain('1 not yet validated');
     expect(screen.getByTestId('revenue-plan-row-n').textContent).toContain('No plan entered');
   });
   it('AC-WRP-010 shows one total per currency, never blended', () => {
     renderIt();
-    expect(screen.getByTestId('revenue-plan-total-IDR').textContent).toContain(formatExactMoney('800.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('revenue-plan-total-USD').textContent).toContain(formatExactMoney('50.00', 'USD', 'en-US'));
+    expect(screen.getByTestId('revenue-plan-total-IDR').textContent).toContain(formatTableMoney('800.00', 'IDR'));
+    expect(screen.getByTestId('revenue-plan-total-USD').textContent).toContain(formatTableMoney('50.00', 'USD'));
   });
   it('AC-WRP-009 a refused caller sees "restricted"', () => {
     state.query = { data: undefined, isPending: false, isError: true, error: { code: '42501' }, refetch: vi.fn() };

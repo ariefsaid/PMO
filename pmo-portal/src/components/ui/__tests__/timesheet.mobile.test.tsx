@@ -79,6 +79,7 @@ describe('TimesheetGrid mobile/desktop single-render seam (B-C-1)', () => {
     // Mobile branch absent
     expect(document.querySelector('[data-testid="tsgrid-mobile"]')).not.toBeInTheDocument();
   });
+
 });
 
 // ── All 7 days reachable + editable at mobile ─────────────────────────────────

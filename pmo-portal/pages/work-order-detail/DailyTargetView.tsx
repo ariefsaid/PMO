@@ -6,8 +6,7 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { axisTickStyle, tooltipContentStyle, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { useWorkOrderDailyTarget } from '@/src/hooks/useWorkOrderDailyTarget';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { formatDay, formatExactMoney, formatNumberMax2, formatShortAmount, formatUtcMonthYearFull } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatDay, formatNumberMax2, formatTableMoney, formatShortAmount, formatUtcMonthYearFull } from '@/src/lib/format';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { asOfForMonth, shiftMonth, visibleDays } from '@/src/lib/dailyTarget';
 import { buildDailyCost, DAY_CATEGORIES, type SourceGroup } from '@/src/lib/workOrderCostView';
@@ -77,7 +76,8 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   }
   if (!data) return null;
 
-  const money = (v: string) => formatExactMoney(v, data.currency, getNumberLocale()) ?? v;
+  // Read-only money in whole units (screen rules), through the shared table formatter.
+  const money = (v: string) => formatTableMoney(v, data.currency) ?? v;
   const gapWords = (gap: string) => {
     const g = revenueGap(gap);
     return g.state === 'behind' ? t('daily.behind', '{{amount}} behind target', { amount: money(g.by) })
