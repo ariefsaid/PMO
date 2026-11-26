@@ -25,6 +25,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { requireLocalErpNextUrl } from '../../src/lib/testing/localErpNextUrl';
 import { requireLocalSupabaseUrl, requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { inDays } from '../support/jobJourney';
 
 const FUNCTIONS_TARGET = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const ADMIN_SUPABASE_TARGET = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_TARGET;
@@ -100,7 +101,7 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
             id: pmoRecordId,
             procurementId,
             erp_doc_kind: 'purchase-request',
-            items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 50000, schedule_date: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10) }],
+            items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 50000, schedule_date: inDays(7) }],
           },
           // Luna B1: the dispatch requires a UUID-shaped idempotency key (a short key can
           // substring-match another document's recovery anchor) — mint a real one, as the app does.

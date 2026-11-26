@@ -12,9 +12,6 @@ import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
-const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
 test('JOB-PC1 a project administrator logs a timesheet line, an equipment use and a stock issue against one work order, and all three reach its actual cost', async ({ page }) => {
   const svc = serviceClient('JOB-PC1');
   const run = runId('JOBPC1');
@@ -66,7 +63,11 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
     await expect(page.getByTestId('timesheets-save-status')).toHaveText('All changes saved', { timeout: 20_000 });
 
     // 2. An equipment use naming the work order.
-    const day = iso(new Date());
+    // e2e-org-day: allow — the grid (week window and editability) runs on the BROWSER clock, which
+    // playwright.config.ts pins to UTC; the journey must speak the same UTC day or the typed cell
+    // reads as future and stays disabled. save_equipment_usage still refuses only org-future days,
+    // and a browser-UTC day is never after the organisation's today.
+    const day = new Date().toISOString().slice(0, 10);
     await page.goto(`/equipment?week=${day}&asset=${assetId}`);
     await page.getByRole('button', { name: 'Add row', exact: true }).click();
     await pickComboboxOption(page, page, /^equipment/i, new RegExp(`CR-${sfx.toUpperCase()}`));
@@ -75,7 +76,7 @@ test('JOB-PC1 a project administrator logs a timesheet line, an equipment use an
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     const usageRow = page.getByRole('row').filter({ hasText: wo.number });
     await expect(usageRow).toHaveCount(1, { timeout: 20_000 });
-    const dayIndex = (new Date().getDay() + 6) % 7;
+    const dayIndex = (new Date().getUTCDay() + 6) % 7; // e2e-org-day: allow — the browser's UTC weekday, which is how the grid orders its cells
     const hoursCell = usageRow.getByRole('textbox').nth(dayIndex);
     await hoursCell.fill('3');
     await hoursCell.press('Enter');

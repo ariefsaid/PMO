@@ -3,6 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { makeItem, runSuffix, userClient } from './stockFixture';
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, serviceClient } from './jobFixtures';
+import { inDays } from './jobJourney';
 
 export interface WaitingFixture {
   sfx: string; projectId: string; woIds: string[]; boqId: string; requestId: string; requestNumber: string; chainBefore: unknown[];
@@ -26,7 +27,7 @@ export async function submittedOverPlanRequest(who: string, stepRole: 'Engineer'
   ok('set chain', await adminUser.rpc('mrq_set_chain', { p_steps: [{ role: stepRole, label: 'Site check', only_over_plan: false }] }));
 
   const user = await userClient(requester);
-  const neededBy = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+  const neededBy = inDays(3); // needed-by dates are read by the organisation's calendar
   const id = need('draft', await user.rpc('mrq_save_draft', {
     p_request_id: null, p_client_request_id: crypto.randomUUID(),
     p_header: { work_order_id: wo.id, needed_by: neededBy, note: null },

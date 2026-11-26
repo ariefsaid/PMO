@@ -5,6 +5,7 @@
  */
 import { expect } from '@playwright/test';
 import { buyerTest as test } from '../support/buyerOrdering';
+import { orgToday } from '../support/jobJourney';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
@@ -35,7 +36,7 @@ test.beforeAll(async () => {
   purchase = await createProcurementFixture({ status: 'Approved', title: 'JOB-PU8 collectors', withSupplier: true });
   const po = need('purchase order', await svc.from('purchase_orders').insert({
     org_id: ORG_ID, procurement_id: purchase.id, po_number: `PO-${Date.now()}`,
-    status: 'Issued', date: new Date().toISOString().slice(0, 10), amount: 12000, currency: 'USD',
+    status: 'Issued', date: orgToday(), amount: 12000, currency: 'USD',
   }).select('id').single());
   poId = po.id as string;
   ok('purchase ordered', await svc.from('procurements').update({ status: 'Ordered' }).eq('id', purchase.id));

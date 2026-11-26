@@ -79,7 +79,7 @@ interface WorkOrderCustomerOrderCardProps {
   openPoDrawer: (row: WorkOrderRow) => void;
   openLineDrawer: (line: OrderLineView) => void;
   openInvoiceDrawer: (invoice: InvoiceWithWorkOrder) => void;
-  setFormFor: (row: WorkOrderRow | null) => void;
+  setFormFor: (row: WorkOrderRow) => void;
   setPending: (pending: import('./workOrdersTabFigures').PendingTransition) => void;
   setBastFor: (value: { row: WorkOrderRow; draft: WorkOrderAcceptanceWithLines | null }) => void;
   setConfirmFor: (value: { acceptance: WorkOrderAcceptanceWithLines; error: string | null }) => void;
