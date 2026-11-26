@@ -120,15 +120,15 @@ const StageNamesCard: React.FC = () => {
                   const d = draftOf(r);
                   const err = errors[r.status];
                   return (
-                    <li key={r.status} data-testid={`stage-name-row-${r.status}`} className={`grid gap-2 py-2 @min-[28rem]:grid-cols-2 @min-[28rem]:gap-3 @min-[40rem]:items-center ${WIDE_COLUMNS}`}>
-                      <span className="min-w-0 break-words text-control text-foreground @min-[28rem]:col-span-2 @min-[40rem]:col-span-1">{shipped}</span>
-                      <span className="flex items-center gap-2">
+                    <li key={r.status} data-testid={`stage-name-row-${r.status}`} className={`grid gap-2 py-2 @min-[28rem]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] @min-[28rem]:gap-3 @min-[40rem]:items-center ${WIDE_COLUMNS}`}>
+                      <span className="min-w-0 break-words text-control text-foreground @min-[28rem]:row-span-2 @min-[40rem]:row-span-1">{shipped}</span>
+                      <span className="flex items-center gap-2 @min-[28rem]:col-start-2 @min-[40rem]:col-start-auto">
                         <span aria-hidden="true" className="w-6 shrink-0 text-control text-muted-foreground @min-[40rem]:hidden">EN</span>
                         <TextField hideLabel fullWidth wrapperClassName="min-w-0 flex-1" label={t('admin.stageNames.inputEn', '{{stage}}, English name', { stage: shipped })}
                           placeholder={shippedStatusLabel('project', r.status, english)} aria-invalid={Boolean(err) || undefined}
                           value={d.en} onChange={(v) => setField(r.status, r, 'en', v)} />
                       </span>
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 @min-[28rem]:col-start-2 @min-[40rem]:col-start-auto">
                         <span aria-hidden="true" className="w-6 shrink-0 text-control text-muted-foreground @min-[40rem]:hidden">ID</span>
                         <TextField hideLabel fullWidth wrapperClassName="min-w-0 flex-1" label={t('admin.stageNames.inputId', '{{stage}}, Bahasa Indonesia name', { stage: shipped })}
                           placeholder={shippedStatusLabel('project', r.status, idT ?? english)} aria-invalid={Boolean(err) || undefined}
