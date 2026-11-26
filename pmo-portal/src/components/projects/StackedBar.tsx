@@ -21,15 +21,7 @@ const NEUTRAL = [
   'bg-secondary text-foreground',
   'bg-muted text-foreground',
 ];
-const NEUTRAL_SWATCHES = [
-  { fill: 'hsl(var(--foreground))' },
-  { fill: 'hsl(var(--chart-neutral-mid))' },
-  { fill: 'hsl(var(--secondary))' },
-  { fill: 'hsl(var(--muted))' },
-];
-const MIN_LABELLED_SHARE = 14;
-const LEGEND_WIDTH = 320;
-const LEGEND_ROW_HEIGHT = 18;
+const MIN_LABELLED_SHARE = 25;
 
 /**
  * Parts of a whole as one stacked bar, labelled on the bar itself (no legend to decode). Segments too thin
@@ -49,45 +41,11 @@ export const StackedBar: React.FC<{
   const small = ordered.filter((segment) => !big.includes(segment));
   // Keep every slice separate so the legend swatch always matches its own bar colour.
   const shown = ordered;
-  let legendX = 0;
-  let legendY = 0;
-  const legendItems = small.map((segment) => {
-    const textWidth = Math.ceil(`${segment.label} ${segment.display}`.length * 7.5);
-    const itemWidth = 16 + textWidth + 12;
-    if (legendX > 0 && legendX + itemWidth > LEGEND_WIDTH) {
-      legendX = 0;
-      legendY += LEGEND_ROW_HEIGHT;
-    }
-    const item = { segment, x: legendX, y: legendY, colorIndex: shown.findIndex((shownSegment) => shownSegment.key === segment.key) };
-    legendX += itemWidth;
-    return item;
-  });
-  const legendHeight = legendItems.length ? legendY + LEGEND_ROW_HEIGHT : 0;
   return (
     <div className="min-w-0 space-y-2">
-      {small.length > 0 && (
-        <svg
-          role="img"
-          aria-label={`${ariaLabel} legend: ${small.map((segment) => segment.label).join(', ')}`}
-          focusable="false"
-          viewBox={`0 0 ${LEGEND_WIDTH} ${legendHeight}`}
-          preserveAspectRatio="none"
-          className="block max-w-full text-muted-foreground"
-          style={{ width: LEGEND_WIDTH, height: legendHeight }}
-        >
-          {legendItems.map(({ segment, x, y, colorIndex }) => {
-            const swatch = segment.accent
-              ? { fill: 'hsl(var(--destructive))' }
-              : NEUTRAL_SWATCHES[Math.min(Math.max(colorIndex, 0), NEUTRAL_SWATCHES.length - 1)]!;
-            return (
-              <g key={segment.key}>
-                <rect x={x} y={y + 4} width="10" height="10" rx="2" fill={swatch.fill} />
-                <text x={x + 16} y={y + 14} fill="currentColor" fontSize="14" fontFamily="inherit">{segment.label} {segment.display}</text>
-              </g>
-            );
-          })}
-        </svg>
-      )}
+      {small.length > 0 && <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground" aria-label={`${ariaLabel} legend`}>
+        {small.map((segment) => <li key={segment.key}>{segment.label} {segment.display}</li>)}
+      </ul>}
       <div role="img" aria-label={`${ariaLabel}: ${ordered.map((segment) => `${segment.label} ${segment.display}`).join(', ')}`} data-testid="stacked-bar" className={cn('flex h-9 w-full min-w-0 gap-px overflow-hidden rounded-md', className)}>
         {shown.map((segment, index) => {
           const share = (segment.value / total) * 100;
