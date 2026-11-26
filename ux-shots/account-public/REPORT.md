@@ -45,6 +45,7 @@ Screenshot paths: none. The local stack did not start, so there are no before or
 - Affected journey selection against the integration branch was broad, exceeding the 40-spec cap; journeys were not run. The default selector also failed initially because the local `origin/dev` ref was absent.
 - Local Supabase: full start failed from Docker storage exhaustion; a lean attempt reached schema initialization but failed creating a setup container. After the requested cleanup, the retry failed on the registry's unauthenticated pull limit. Database reset, seed sign-in, browser journeys and `scripts/ux-proof.sh` were not run. The requested browser bundle was absent; no browser was downloaded after the correction.
 - The vendor script was run before the correction and stopped at a missing upstream directory. Required skills were then recovered individually; the taste revision was pinned to the repository script's revision. No vendor script was run after the correction.
+- `scripts/ux-proof.sh /settings/profile`: failed immediately because no dev server was listening on the required port.
 - No journey steps or tests were changed.
 
 ## Owner to confirm
