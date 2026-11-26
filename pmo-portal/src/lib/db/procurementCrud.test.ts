@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // A flexible chainable mock of the supabase query builder (mirrors companies.test.ts) plus an `rpc`
 // spy for the select-quote RPC path. Each terminal (awaited) call resolves `result.value`; we assert
@@ -71,6 +71,7 @@ import {
   deleteProcurementDocument,
 } from './procurementCrud';
 import { ProcurementError } from './procurementLifecycle';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -503,5 +504,35 @@ describe('#541 procurement CRUD writes reject a using-denied 0-row no-op', () =>
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
     expect(h.calls.delete).toBeGreaterThan(0);
+  });
+});
+
+describe('#2788 a requester who may not see prices edits their draft lines through the line functions', () => {
+  afterEach(() => setPricesHidden(false));
+  it('adds a line through procurement_item_add and returns the masked row', async () => {
+    setPricesHidden(true);
+    h.rpcResult.value = { data: { id: 'l1', procurement_id: 'p1', name: 'Bolt', quantity: 2, rate: null, amount: null }, error: null };
+    const row = await createProcurementItem('p1', { id: 'l1', name: 'Bolt', quantity: 2, rate: 5 });
+    expect(h.calls.rpc).toEqual([['procurement_item_add', { p_procurement_id: 'p1', p_line: { id: 'l1', name: 'Bolt', quantity: 2, rate: 5 } }]]);
+    expect(h.calls.from).not.toContain('procurement_items');
+    expect(row.rate).toBeNull();
+  });
+  it('a retry with different saved data is the reconcile conflict', async () => {
+    setPricesHidden(true);
+    h.rpcResult.value = { data: null, error: { code: '23505', message: 'This line ID already has different saved data.' } };
+    await expect(createProcurementItem('p1', { id: 'l1', name: 'Bolt', quantity: 2, rate: 5 })).rejects.toMatchObject({ code: '23505' });
+  });
+  it('edits through procurement_item_edit and removes through procurement_item_remove, keeping the refusal code', async () => {
+    setPricesHidden(true);
+    h.rpcResult.value = { data: null, error: null };
+    await updateProcurementItem('l1', { quantity: 3, description: 'M8' });
+    await deleteProcurementItem('l1');
+    expect(h.calls.rpc).toEqual([
+      ['procurement_item_edit', { p_id: 'l1', p_patch: { quantity: 3, description: 'M8' } }],
+      ['procurement_item_remove', { p_id: 'l1' }],
+    ]);
+    expect(h.calls.from).not.toContain('procurement_items');
+    h.rpcResult.value = { data: null, error: { code: 'P0002', message: 'Line item not found or you do not have permission to edit it.' } };
+    await expect(updateProcurementItem('l1', { quantity: 4 })).rejects.toMatchObject({ code: 'P0002' });
   });
 });

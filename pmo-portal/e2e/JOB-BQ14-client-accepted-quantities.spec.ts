@@ -8,6 +8,7 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
+import { inDays, orgToday } from './support/jobJourney';
 import { createJobRoleUser } from './support/jobRoleUser';
 import { cleanupBilling, createBillingFixture, type BillingFixture } from './support/billingFixture';
 
@@ -48,13 +49,13 @@ test('JOB-BQ14 measured and accepted quantities show per item and a claim is pre
     for (const [i, surveyed] of [8, 4].entries()) {
       ok(`survey ${i + 1}`, await db.from('survey_records').insert({
         org_id: ORG_ID, project_id: fx.projectId, work_order_id: fx.workOrderId, boq_item_id: fx.boqId,
-        survey_date: new Date(Date.now() - (i + 1) * 86_400_000).toISOString().slice(0, 10),
+        survey_date: inDays(-(i + 1)),
         surveyed_quantity: surveyed, quality_ready_quantity: surveyed, status: 'confirmed',
         recorded_by: finance.id, confirmed_by: finance.id, confirmed_at: new Date().toISOString(), confirm_basis: 'standard',
       }));
     }
     acceptanceId = need('acceptance', await db.from('work_order_acceptances').insert({
-      org_id: ORG_ID, project_id: fx.projectId, work_order_id: fx.workOrderId, acceptance_date: new Date().toISOString().slice(0, 10),
+      org_id: ORG_ID, project_id: fx.projectId, work_order_id: fx.workOrderId, acceptance_date: orgToday(),
       is_final: false, status: 'Confirmed', prepared_by: finance.id, confirmed_by: finance.id, confirmed_at: new Date().toISOString(), confirm_basis: 'standard',
     }).select('id').single()).id as string;
     ok('acceptance line', await db.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: fx.boqId, quantity: 12 }));

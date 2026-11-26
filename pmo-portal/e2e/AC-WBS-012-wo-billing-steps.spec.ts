@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(120_000);
@@ -45,7 +46,7 @@ test('AC-WBS-012 a work order\'s billing steps advance in order and appear on th
       issued_at: new Date().toISOString(), order_value: 500_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'EUR',
     });
     if (wo.error) throw new Error('AC-WBS-012 fixture work order: ' + wo.error.message);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = orgToday();
     const steps = await admin.from('work_order_billing_steps').insert([
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 1, name: 'First ' + suffix, owner_role_key: 'billing_officer', target_days: 5, started_on: today },
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 2, name: 'Second ' + suffix, owner_role_key: 'finance_officer' },

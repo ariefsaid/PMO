@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { orgToday } from '../support/jobJourney';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { login, requireServiceRoleKey, waitForFonts } from '../helpers';
@@ -88,7 +89,7 @@ async function seedFixture(admin: SupabaseClient, fixture: Fixture): Promise<voi
   });
   if (caseError) throw new Error(`case fixture failed: ${caseError.message}`);
 
-  const invoiceDate = new Date().toISOString().slice(0, 10);
+  const invoiceDate = orgToday();
   const invoiceFacts = {
     org_id: ORG_ID,
     procurement_id: fixture.caseId,

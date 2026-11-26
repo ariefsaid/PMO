@@ -6,17 +6,18 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ok, ORG_ID, runId, serviceClient } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
 
-const ORG_TIMEZONE = 'Asia/Jakarta';
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** The 15th of the month `back` months before this one, on the organisation's calendar. */
 function dayInMonth(back: number): string {
-  const now = new Date();
-  const utc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 15));
-  void ORG_TIMEZONE;
-  return `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}`;
+  const org = orgToday(); // the work-in-hand buckets are the organisation's months
+  const year = Number(org.slice(0, 4));
+  const month = Number(org.slice(5, 7)) - back;
+  const shifted = new Date(Date.UTC(year, month - 1, 15));
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
 }
 
 test.setTimeout(120_000);

@@ -26,8 +26,6 @@ export const need = (who: string) => <D>(step: string, r: { data: D; error: { me
   return r.data as NonNullable<D>;
 };
 
-export const pad = (n: number) => String(n).padStart(2, '0');
-export const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 // The app and its scheduled jobs count days from the org's calendar day, not the runner's: between 17:00 and 24:00 UTC
 // the runner's UTC date is a day behind Jakarta. ponytail: the seed org's default_timezone; read it if a spec changes it.
 export const ORG_TIMEZONE = 'Asia/Jakarta';

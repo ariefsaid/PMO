@@ -9,7 +9,7 @@ import { useDailySiteReportMutations } from '@/src/hooks/useDailySiteReports';
 import { useCrews } from '@/src/hooks/useCrews';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { localToday as todayIso } from '@/src/lib/efaktur';
+import { orgDayNow as todayIso } from '@/src/hooks/useOrgToday';
 
 /**
  * Start a report: project, work order, work date (FR-DSR-001). The create carries one client request id for the

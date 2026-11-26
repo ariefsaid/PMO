@@ -153,6 +153,7 @@ export type Entity =
   | 'supplyRisk'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
+  | 'orgStageNames'
   | 'setupWorkflowSettings'
   | 'siteReportLists'
   | 'incidentTypes'
@@ -1190,6 +1191,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
   // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
   orgProjectClassification: { manage: allow(ADMIN) },
+  orgStageNames: { manage: allow(ADMIN) },
   // #2898: the standard checks copied onto each new Draft work order. Admin-only (set_work_order_check_template). UX ONLY; the database decides.
   workOrderCheckTemplate: { manage: allow(ADMIN) },
   // #2898: adding a check (a task linked to the work order). Mirrors check_task_work_order's manager trio (2680). UX ONLY.

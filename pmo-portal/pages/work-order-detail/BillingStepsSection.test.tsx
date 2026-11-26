@@ -55,7 +55,7 @@ vi.mock('@/src/lib/refusals', () => ({
   useRefusalLine: () => (e: unknown) => `refused: ${(e as Error).message}`,
   useRefusalText: () => (e: unknown) => ({ known: false, headline: `refused: ${(e as Error).message}`, detail: '' }),
 }));
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { BillingStepsSection } from './BillingStepsSection';
 
 const step = (p: Partial<WorkOrderStep> & Pick<WorkOrderStep, 'id' | 'position' | 'name'>): WorkOrderStep => ({
@@ -88,6 +88,7 @@ describe('BillingStepsSection', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       renderIt({ today: undefined });
       const row = screen.getByTestId('wo-billing-steps').querySelector('[aria-label="Step two"]') as HTMLElement;

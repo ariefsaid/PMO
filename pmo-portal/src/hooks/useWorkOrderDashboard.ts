@@ -14,7 +14,7 @@ import { workOrderDashboardRepository } from '@/src/lib/repositories/workOrderDa
 import { workOrderFinanceRepository } from '@/src/lib/repositories/workOrderFinance';
 import { buildDashboardRows, type DashboardRow, type DashboardWorkOrder } from '@/src/lib/workOrderDashboard';
 import { closeoutOverdueByWorkOrder, orgToday } from '@/src/lib/checklistDue';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import type { WorkOrderFigures } from '@/src/lib/workOrderPlanVsActual';
 
 /** Above this many projects in view, cost is not read (each project's roll-up is its own read): the reader picks a project. */
@@ -83,7 +83,7 @@ export function useWorkOrderDashboard(projectId?: string, costProjectIds?: reado
   const restricted = costData.some((d) => d?.rollup.restricted);
   const costState: CostState = !canPlan || restricted ? 'hidden' : costIds === null ? 'too-many' : 'shown';
 
-  const today = orgToday(new Date(), getActiveLocale().timezone);
+  const today = orgToday(new Date(), getActiveOrgTimezone());
   const rows = useMemo<DashboardRow[]>(() => buildDashboardRows({
     workOrders,
     lines: lines.data,

@@ -9,7 +9,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { signIn, visibleToast, pickComboboxOption } from './helpers';
-import { iso, need, ORG_ID, serviceClient } from './support/jobJourney';
+import { need, inDays, ORG_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { runId } from './support/jobFixtures';
@@ -22,8 +22,10 @@ let vendorId = ''; let vendorName = '';
 let manager: Awaited<ReturnType<typeof roleJobUser>>;
 let officer: Awaited<ReturnType<typeof roleJobUser>>;
 let wo = { projectId: '', workOrderId: '', title: '' };
-const workDay = new Date(); workDay.setDate(workDay.getDate() - 7);
-const weekdayIndex = (workDay.getDay() + 6) % 7;
+const workDay = inDays(-7); // a week back by the organisation's clock, which is the week the equipment grid is asked for
+const weekdayIndex = (new Date(`${workDay}T00:00:00Z`).getUTCDay() + 6) % 7;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const workDayLabel = `${Number(workDay.slice(8, 10))} ${MONTHS[Number(workDay.slice(5, 7)) - 1]}`;
 
 test.beforeEach(async () => {
   manager = await roleJobUser(db, 'equipment_manager', runId('e1-em'));
@@ -93,7 +95,7 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   await expect(page.getByText(new RegExp(vendorName)).first()).toBeVisible({ timeout: 20_000 });
 
   // Deploy it to the work order: the officer logs 8 hours of it there; the project manager approves the week.
-  await page.goto(`/equipment?week=${iso(workDay)}`);
+  await page.goto(`/equipment?week=${workDay}`);
   await page.getByRole('button', { name: 'Add row' }).click();
   await pickComboboxOption(page, page, /^Equipment/, new RegExp(pmCode));
   await pickComboboxOption(page, page, /^Project/, new RegExp(`${code} rented crane$`));
@@ -107,7 +109,7 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   await page.getByRole('button', { name: 'Submit week' }).click();
   await expect(page.getByText('Submitted', { exact: true })).toHaveCount(1, { timeout: 15_000 });
   await signIn(page, 'pm@acme.test');
-  await page.goto(`/equipment?week=${iso(workDay)}`);
+  await page.goto(`/equipment?week=${workDay}`);
   await page.getByRole('tab', { name: 'Approvals' }).click();
   await page.getByRole('button', { name: 'Approve week' }).click();
   await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
@@ -118,5 +120,5 @@ test('JOB-E1 the equipment officer registers a rented crane with vendor and rate
   await page.goto(`/work-orders/${wo.workOrderId}`);
   const equipment = page.getByTestId('cost-group-equipment_usage');
   await expect(equipment).toContainText(pmCode, { timeout: 20_000 });
-  await expect(equipment).toContainText(new RegExp(`(?<!\\d)${workDay.getDate()} [A-Z][a-z]{2}( \\d{4})? · 8 hours`));
+  await expect(equipment).toContainText(new RegExp(`(?<!\\d)${workDayLabel}( \\d{4})? · 8 hours`));
 });

@@ -878,7 +878,7 @@ const ProcurementDetails: React.FC = () => {
         <div className="mb-3">
           <RentalPanel readOnly={readOnlyDecision} procurementId={p.id} title={p.title} status={p.status} purchaseTypeId={p.purchase_type_id}
             rentalFrom={p.rental_from} rentalTo={p.rental_to} extendsId={p.extends_procurement_id}
-            lines={(p.items ?? []).map((i) => ({ id: i.id, name: i.name, description: i.description ?? null, quantity: Number(i.quantity), rate: Number(i.rate) }))} />
+            lines={(p.items ?? []).map((i) => ({ id: i.id, name: i.name, description: i.description ?? null, quantity: Number(i.quantity), rate: i.rate === null ? null : Number(i.rate) }))} />
         </div>
       )}
 

@@ -223,6 +223,8 @@
   "PO_ORDER_FORBIDDEN": "You cannot order purchases. Ask an Admin to name your built-in role under who can order purchases, or ask someone who can order.",
   "PO_ORDER_NOT_APPROVED": "This purchase has not been approved yet, so it cannot be ordered. Send it for approval first.",
   "PO_ORDER_ROLE_INVALID": "Choose built-in roles from the list. A field role cannot order.",
+  "PO_ORDER_ROLE_NO_PRICES": "While prices are hidden, only built-in roles that see prices can order purchases. Remove the role or turn off hiding prices first.",
+  "HIDE_PRICES_ORDER_ROLE": "A built-in role named to order purchases cannot see prices. Remove it from who can order purchases before hiding prices.",
   "PPL_DATE": "Choose the day the person left.",
   "PPL_FORBIDDEN": "Only an Admin can mark a person as having left.",
   "PPL_NOT_FOUND": "That person was not found, or has already left.",

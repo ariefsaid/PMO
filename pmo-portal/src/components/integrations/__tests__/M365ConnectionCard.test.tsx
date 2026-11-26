@@ -71,6 +71,9 @@ import { appRouteConfig } from '@/App';
 import { RequireAuth } from '@/src/auth/RequireAuth';
 import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { describeM365Error } from '@/src/lib/m365/connectClient';
+// The shell's organisation-defaults wait is proved in RequireAuth.orgDay.test.tsx; here the organisation is taken as known.
+vi.mock('@/src/hooks/useResolvedLocale', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useResolvedLocale')>()), useOrgDefaultsReady: () => true }));
+
 
 /** A not-connected connection_status response (the honest default for a fresh load). */
 const STATUS_NOT_CONNECTED = {
