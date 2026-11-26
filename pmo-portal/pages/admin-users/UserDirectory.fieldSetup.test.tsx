@@ -4,13 +4,14 @@ import { MemoryRouter } from 'react-router';
 
 /** fix/walk-people item 7: a Foreman or Field user with no linked person, or a linked person in no crew, is flagged with the one action. */
 const h = vi.hoisted(() => ({
+  failedRead: null as null | string,
   people: [] as Array<{ id: string; profile_id: string | null }>,
   placements: [] as Array<{ worker_id: string; valid_from: string; valid_to: string | null }>,
 }));
 vi.mock('@/src/hooks/useBuiltInRoles', () => ({ useBuiltInRoleMutation: () => ({}) }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: true }) }));
-vi.mock('@/src/hooks/usePeople', () => ({ usePeople: () => ({ data: h.people }) }));
-vi.mock('@/src/hooks/useCrews', () => ({ useAllCrewMembers: () => ({ data: h.placements }) }));
+vi.mock('@/src/hooks/usePeople', () => ({ usePeople: () => ({ data: h.failedRead === 'people' ? undefined : h.people, isError: h.failedRead === 'people' }) }));
+vi.mock('@/src/hooks/useCrews', () => ({ useAllCrewMembers: () => ({ data: h.failedRead === 'placements' ? undefined : h.placements, isError: h.failedRead === 'placements' }) }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));
 
 import { UserDirectory } from './UserDirectory';
@@ -23,6 +24,17 @@ const props = (rows: unknown[]) => ({
 });
 
 describe('field-role setup flags in the Users directory', () => {
+  it.each(['people', 'placements'])('#2812 reports when the %s read prevents checking setup', (read) => {
+    h.people = [{ id: 'p1', profile_id: 'u1' }];
+    h.failedRead = read;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render(<MemoryRouter><UserDirectory {...(props([user('u1', 'foreman')]) as any)} /></MemoryRouter>);
+      expect(screen.getByText("Couldn't check field setup")).toBeVisible();
+    } finally {
+      h.failedRead = null;
+    }
+  });
   it('flags an unlinked Foreman and a linked Field user with no crew, each with its action, and nobody else', () => {
     h.people = [{ id: 'p2', profile_id: 'u2' }, { id: 'p3', profile_id: 'u3' }];
     h.placements = [{ worker_id: 'p3', valid_from: '2000-01-01', valid_to: null }];

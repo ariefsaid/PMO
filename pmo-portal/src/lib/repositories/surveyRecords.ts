@@ -1,4 +1,4 @@
-import { archiveSurveyDraft, attachSurveyDocument, confirmSurvey, listSurveyRecords, recordSurvey } from '@/src/lib/db/surveyRecords';
+import { archiveSurveyDraft, attachSurveyDocuments, confirmSurvey, listSurveyRecords, recordSurvey } from '@/src/lib/db/surveyRecords';
 import { wrap } from './repositoryErrors';
 import type { SurveyRecordRepository } from './contracts/surveyRecords';
 
@@ -6,7 +6,7 @@ import type { SurveyRecordRepository } from './contracts/surveyRecords';
 export const surveyRecordRepository: SurveyRecordRepository = {
   list: (workOrderId) => wrap(() => listSurveyRecords(workOrderId)),
   record: (input) => wrap(() => recordSurvey(input)),
-  attachDocument: (id, documentId) => wrap(() => attachSurveyDocument(id, documentId)),
+  attachDocuments: (id, documentIds) => wrap(() => attachSurveyDocuments(id, documentIds)),
   confirm: (id) => wrap(() => confirmSurvey(id)),
   discard: (id) => wrap(() => archiveSurveyDraft(id)),
 };

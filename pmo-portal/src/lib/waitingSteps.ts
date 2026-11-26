@@ -11,7 +11,7 @@ export interface WaitingStepsFact {
   overdue: number;
   /** Days over target of the longest-overdue step, null when none is overdue. */
   oldestOverdueDays: number | null;
-  /** The project's billing tab when every step is on one project, else the project list. */
+  /** The waiting claim, its project billing tab, or the project list. */
   href: string;
 }
 
@@ -19,11 +19,14 @@ export function summariseWaitingSteps(rows: ReadonlyArray<WaitingStep>): Waiting
   if (rows.length === 0) return null;
   const overdue = rows.filter((r) => r.daysOver > 0);
   const projects = new Set(rows.map((r) => r.projectId));
-  const only = projects.size === 1 ? rows[0].projectId : null;
+  const billingHref = projects.size === 1 ? `/projects/${encodeURIComponent(rows[0].projectId)}/billing` : '/projects';
+  const href = rows.every((row) => row.claimId === rows[0].claimId) && projects.size === 1
+    ? `${billingHref}?open=${encodeURIComponent(rows[0].claimId)}&openType=billingClaim`
+    : billingHref;
   return {
     count: rows.length,
     overdue: overdue.length,
     oldestOverdueDays: overdue.length > 0 ? Math.max(...overdue.map((r) => r.daysOver)) : null,
-    href: only ? `/projects/${encodeURIComponent(only)}/billing` : '/projects',
+    href,
   };
 }
