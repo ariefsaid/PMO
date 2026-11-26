@@ -94,7 +94,7 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
   const rateField = <NumberField localeAware label={t('equipment:availability.rate', 'Rate')} value={rate} onChange={setRate} />;
 
   return (
-    <RecordSection title={t('equipment:availability.terms', 'Rental terms')} flush
+    <RecordSection title={t('equipment:availability.terms', 'Rental terms')} flush={rows.length > 0 ? 'table' : true}
       actions={<>
         <Button variant="outline" size="sm" onClick={() => open('terms')}>{t('equipment:availability.addTerms', 'Add rental terms')}</Button>
         <RecordMenu items={menu} ariaLabel={t('equipment:availability.otherAssetActions', 'Other asset actions')} />

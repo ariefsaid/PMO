@@ -17,13 +17,15 @@ import { cn } from './cn';
  *   • `actions` optional controls on the heading's right (one per section; a record action never sits bare).
  *   • children  none = a heading-only panel (heading + its action, nothing under it).
  *   • `flush`   content spans edge to edge (a table whose first column text is on the inset).
+ *               `table` keeps that flush frame and lets desktop header cells supply the content gap.
  *               Default: content is padded to the same inset as the heading.
  * Panels stack with the section gap (32px) via `RecordStack`; the heading sits 12–16px above its content.
  */
 export interface RecordSectionProps {
   title: React.ReactNode;
   actions?: React.ReactNode;
-  flush?: boolean;
+  /** A desktop table supplies its own cell inset below the heading. */
+  flush?: boolean | 'table';
   /** One muted line under the heading (a unit or basis said once), outside the heading's accessible name. */
   subline?: React.ReactNode;
   /** Stable id for the heading, for callers whose anchors or tests address the region by it. */
@@ -41,7 +43,7 @@ export const RecordSection: React.FC<RecordSectionProps> = ({ title, actions, fl
   const hasBody = children != null && children !== false;
   return (
   <section data-testid={testId} aria-labelledby={headingId} className={cn('panel-card overflow-hidden', className)}>
-    <div className={cn('flex flex-wrap items-baseline justify-between gap-x-2 gap-y-3 px-[var(--panel-inset)] pt-[var(--panel-inset)]', hasBody ? 'pb-3' : 'pb-[var(--panel-inset)]')}>
+    <div className={cn('flex flex-wrap items-baseline justify-between gap-x-2 gap-y-3 px-[var(--panel-inset)] pt-[var(--panel-inset)]', hasBody ? (flush === 'table' ? 'pb-3 md:pb-0' : 'pb-3') : 'pb-[var(--panel-inset)]')}>
       {subline != null && subline !== false
         ? <div className="min-w-0 flex-[1_1_auto]">
             <h2 id={headingId} className="text-group font-semibold text-foreground">{title}</h2>

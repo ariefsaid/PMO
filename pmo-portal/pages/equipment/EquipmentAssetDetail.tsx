@@ -270,7 +270,7 @@ const EquipmentAssetDetail: React.FC = () => {
   const rented = asset.ownership === 'rented';
   return (
     <div>
-      <RecordHeader primaryAction={<Button variant="primary" onClick={() => navigate('/equipment/availability')}>{t('equipment:nav.availability', 'Availability')}</Button>} panelInset clampNameOnMobile icon={<Icon name="equipment" />} name={asset.name}
+      <RecordHeader primaryAction={<Button variant="primary" onClick={() => navigate('/equipment/availability')}>{t('equipment:nav.availability', 'Availability')}</Button>} panelInset clampNameOnMobile name={asset.name}
         status={<StatusPill variant="neutral">{rented ? t('equipment:assets.rented', 'Rented') : t('equipment:assets.owned', 'Owned')}</StatusPill>}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="record-id">{asset.code}</span>
