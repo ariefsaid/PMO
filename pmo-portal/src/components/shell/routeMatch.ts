@@ -432,6 +432,11 @@ export const ADMINISTRATION_SECTION_LABELS = {
   terminology: 'Terminology',
   'cost-attribution': 'Cost attribution',
   'scheduled-reports': 'Scheduled reports',
+  modules: 'Modules',
+  'document-types': 'Document types',
+  'document-categories': 'Document categories',
+  clearance: 'Clearance',
+  'all-settings': 'All settings',
 } as const;
 
 /**
@@ -457,6 +462,11 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   terminology: 'administration:terminology.nav',
   'cost-attribution': 'costAttribution:title',
   'scheduled-reports': 'emailNotifications:scheduled.title',
+  modules: 'administration:admin.modulesNav',
+  'document-types': 'administration:documentTypesNav',
+  'document-categories': 'administration:documentCategories.nav',
+  clearance: 'administration:clearance.navLabel',
+  'all-settings': 'allSettings.title',
 };
 
 const administrationBreadcrumbForPath = (
