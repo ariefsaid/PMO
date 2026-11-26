@@ -191,22 +191,16 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     size: 132,
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
-      row.externalRef ? (
-        <span className="record-id">{row.externalRef}</span>
-      ) : (
-        <span className="text-sm text-muted-foreground">—</span>
-      ),
+      // The bare marker lets the table drop the column when no record carries one (screen rules: no all-blank column).
+      row.externalRef ? <span className="record-id">{row.externalRef}</span> : '—',
   },
   {
     key: 'groupRef',
     size: 100,
     header: <GroupRefHeader />,
     cell: (row) =>
-      row.groupRef ? (
-        <span className="record-id">{row.groupRef}</span>
-      ) : (
-        <span className="text-sm text-muted-foreground">—</span>
-      ),
+      // The bare marker lets the table drop the column when no record carries one (screen rules: no all-blank column).
+      row.groupRef ? <span className="record-id">{row.groupRef}</span> : '—',
   },
   {
     // One cell for the pair (number over a muted date): two columns pushed the row ⋯ off the 1440 view.
@@ -485,17 +479,27 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       }
       if (row.amount == null && row.valueUnknown) return <span className="text-sm text-muted-foreground" data-testid="receipt-value-unknown">{t('procurement:ledger.valueNotRecorded', 'Value not recorded for this receipt')}</span>;
       if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
-      const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
-      const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
-      const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
-      const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
-      return figures ? <div className="inline-flex flex-col items-end gap-0.5">{total}<WithholdingBreakdown figures={figures} currency={row.currency} />{slipCell}</div> : slipCell ? <div className="inline-flex flex-col items-end gap-0.5">{total}{slipCell}</div> : total;
+      // The amount answers "how much": the figure, with its tax basis under it on the same right edge.
+      return <span className="inline-flex flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
+    },
+  }), [t]);
+
+  // A bill's withholding answers its own question (what is withheld, what the supplier nets, is the slip on file) in its
+  // own column, so the amount cell carries one figure. Only bills fill it; with no bill the column is not drawn.
+  const withholdingColumn = useMemo<Column<LedgerRow>>(() => ({
+    key: 'withholding', size: 196, header: t('procurement:ledger.withholding', 'Withholding'), align: 'num',
+    cell: (row) => {
+      if (row.type !== 'Invoice' || row.amount == null) return null;
+      const figures = withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment);
+      const invoice = invoices.find((item) => item.id === row.recordId);
+      const slipCell = <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} />;
+      return <div className="flex w-full flex-col items-end gap-1 text-right max-sm:items-start max-sm:text-left">{figures && <WithholdingBreakdown figures={figures} currency={row.currency} />}{slipCell}</div>;
     },
   }), [t, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
 
   const columns = useMemo<Column<LedgerRow>[]>(
-    () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
-    [amountColumn, fileColumn],
+    () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, withholdingColumn, ...STATIC_COLUMNS.slice(6), fileColumn],
+    [amountColumn, withholdingColumn, fileColumn],
   );
 
   // The set of record types already present in the ledger — drives the capture
@@ -740,9 +744,6 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
             {t('procurement:ledger.billsHiddenForRole', 'Supplier invoices and payments are not shown for your role.')}
           </p>
         )}
-        <p className="mt-3 text-sm text-muted-foreground">
-          {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types show nothing.')}
-        </p>
       </div>
     </RecordSection>
   );
