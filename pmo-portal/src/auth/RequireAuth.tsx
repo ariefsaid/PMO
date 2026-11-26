@@ -66,12 +66,12 @@ const ProfileErrorPage: React.FC<{ onRetry: () => void; retrying: boolean }> = (
       <div
         role="alert"
         aria-live="assertive"
-        className="w-full max-w-sm rounded-lg border border-destructive/30 bg-destructive/[0.07] px-4 py-3.5"
+        className="w-full max-w-sm rounded-lg border border-border bg-card p-6"
       >
         <div className="flex items-start gap-3">
           <Icon name="alert" className="size-5 shrink-0 text-destructive" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-control font-semibold text-destructive-text">
+            <h1 className="text-page font-semibold text-foreground">
               {t('auth:profileLoadError.title', 'Unable to load your profile.')}
             </h1>
             <p className="mt-px text-control text-muted-foreground">
@@ -80,7 +80,7 @@ const ProfileErrorPage: React.FC<{ onRetry: () => void; retrying: boolean }> = (
           </div>
         </div>
         <div className="mt-3 flex justify-end gap-2">
-          <Button type="button" variant="outline" size="sm" loading={retrying} onClick={onRetry}>
+          <Button type="button" variant="primary" size="sm" loading={retrying} onClick={onRetry}>
             <Icon name="refresh" />
             {t('ui.listState.retry', 'Retry')}
           </Button>
