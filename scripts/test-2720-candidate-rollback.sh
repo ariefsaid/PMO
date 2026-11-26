@@ -23,6 +23,6 @@ sed -n '/^MARK-C$/,/^MARK-D$/p' "$work/out" | sed '1d;$d' > "$work/C"
 sed -n '/^MARK-D$/,$p' "$work/out" | sed '1d' > "$work/D"
 test -s "$work/A" && test -s "$work/C"
 echo "snapshot lines: before=$(wc -l < "$work/A") after-up=$(wc -l < "$work/B") after-down=$(wc -l < "$work/C") after-up-again=$(wc -l < "$work/D")"
-grep -q '^fn ' "$work/B" && grep -v '^fn public.audit_work_order_candidate_row' "$work/B" | grep -q '^fn ' && { echo "FAIL: functions remain after the up"; exit 1; }
+if grep '^fn ' "$work/B" | grep -qv '^fn audit_work_order_candidate_row'; then echo "FAIL: functions remain after the up"; exit 1; fi
 diff "$work/A" "$work/C" && echo "OK down restores the pre-2720 catalog exactly"
 diff "$work/B" "$work/D" && echo "OK up applies again cleanly to the same catalog"
