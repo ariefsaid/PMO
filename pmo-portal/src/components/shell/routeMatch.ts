@@ -377,6 +377,9 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/equipment/assets': '/equipment',
   '/equipment/expiring': '/equipment',
   '/equipment/availability': '/equipment',
+  // #2700: the monthly equipment plan is reached from Procurement (its Back bar names it).
+  '/equipment-plans': '/procurement',
+  '/equipment-plans/settings': '/procurement',
   // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
   '/finance/billing-board': '/finance/receivables',
   '/finance/billing-plan': '/finance/receivables',
@@ -415,6 +418,8 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/equipment/availability': { label: 'Availability', i18nKey: 'equipment:availability.title' }, // i18n-exempt: translated at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/equipment-plans': { label: 'Monthly equipment plan', i18nKey: 'equipmentPlans:title' }, // i18n-exempt: translated at render
+  '/equipment-plans/settings': { label: 'Monthly plan settings', i18nKey: 'equipmentPlans:settings.title' }, // i18n-exempt: translated at render
   '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
   '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
   '/timesheets/review': { label: 'Timesheet review', i18nKey: 'timesheets:review.title' }, // i18n-exempt: translated at render
