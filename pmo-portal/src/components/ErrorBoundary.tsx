@@ -63,23 +63,24 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         <div role="alert" aria-live="assertive" className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-sm">
           <h1 className="text-lg font-semibold text-foreground">{t('ui.errorBoundary.title', 'Something went wrong')}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {t('ui.errorBoundary.body', 'The page hit an unexpected error. You can try again, or head back home.')}
+            {t('ui.errorBoundary.body', 'The page hit an unexpected error. You can try again, or return to the Dashboard.')}
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <Button variant="primary" onClick={this.handleReset}>
               {t('ui.errorBoundary.retry', 'Try again')}
-            </Button>
-            <Button variant="outline" onClick={this.handleReload}>
-              {t('ui.errorBoundary.reload', 'Reload')}
             </Button>
             {/* Real anchor so navigation works even when the router is the thing that threw. */}
             <a
               href="/"
               className={buttonClasses('outline')}
             >
-              {t('ui.errorBoundary.home', 'Home')}
+              {t('ui.errorBoundary.home', 'Dashboard')}
             </a>
           </div>
+          <details className="mt-4 text-control text-muted-foreground">
+            <summary className="cursor-pointer">{t('ui.errorBoundary.more', 'More recovery options')}</summary>
+            <Button variant="ghost" className="mt-2" onClick={this.handleReload}>{t('ui.errorBoundary.reload', 'Reload')}</Button>
+          </details>
         </div>
       </main>
     );
