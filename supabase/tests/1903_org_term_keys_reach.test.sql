@@ -1,5 +1,5 @@
 -- 1903_org_term_keys_reach.test.sql — the 23 general terms are nameable (#2799).
--- AC-TR-001: the key table carries the 16 of 1491 plus the 23 of 1903; an Admin saves a rename under every added key
+-- AC-TR-001: the key table carries the accepted keys; an Admin saves a rename under every added key
 --   in both languages; the front-end registry's key set is the table's (the Vitest registry test reads the same two
 --   migrations); an unknown key is still refused; the key table stays unreadable by clients.
 -- Mutation notes: drop one key from the 1903 insert → the count and the diff go red (1/2); grant select on
@@ -14,7 +14,7 @@ insert into auth.users (id, email) values ('19030000-0000-0000-0000-0000000000a1
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('19030000-0000-0000-0000-0000000000a1', '19030000-0000-0000-0000-000000000001', 'OTR A Admin', 'otr-a-admin@example.com', 'Admin', 'active');
 
-select is((select count(*)::int from public.org_term_keys), 39, 'AC-TR-001 the key table carries the 39 nameable terms');
+select is((select count(*)::int from public.org_term_keys), 41, 'AC-TR-001 the key table carries the 41 nameable terms');
 select is(
   (select string_agg(term_key, ',' order by term_key) from public.org_term_keys where term_key in (
     'serviceRequest','purchaseOrder','dailySiteReport','surveyQuantity','quantityChangeRequest','workOrderTransfer',

@@ -29,10 +29,11 @@ describe('AC-TR-002 the registry and TERM_KEYS are one list', () => {
 });
 
 describe('AC-TR-003 the database seed carries the registry keys', () => {
-  it('1491 plus 1903 insert exactly the registry keys', () => {
+  it('the migrations insert exactly the registry keys', () => {
     const a = keysOf(readFileSync(resolve(ROOT, 'supabase/migrations/1491_org_term_keys_registry.sql'), 'utf8').split('insert into')[1].split(';')[0]);
     const b = keysOf(readFileSync(resolve(ROOT, 'supabase/migrations/1903_org_term_keys_reach.sql'), 'utf8').split('insert into')[1].split(';')[0]);
-    expect([...a, ...b].sort()).toEqual([...TERM_KEYS].sort());
+    const c = keysOf(readFileSync(resolve(ROOT, 'supabase/migrations/2777_additional_term_keys.sql'), 'utf8').split('insert into')[1].split(';')[0]);
+    expect([...a, ...b, ...c].sort()).toEqual([...TERM_KEYS].sort());
   });
 });
 

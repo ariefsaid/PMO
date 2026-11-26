@@ -10,7 +10,7 @@ export const TERM_KEYS = [
   'serviceRequest', 'purchaseOrder', 'dailySiteReport', 'surveyQuantity', 'quantityChangeRequest', 'workOrderTransfer',
   'billingPlan', 'billingStep', 'handoverCertificate', 'stockTransfer', 'stockReceipt', 'stockReturn', 'reservation',
   'crew', 'roster', 'issue', 'checkpoint', 'milestone', 'dailyTarget', 'rootCause', 'safetyRecordType',
-  'candidateWorkOrder', 'closeOut',
+  'candidateWorkOrder', 'closeOut', 'workOrderPlan', 'foreman',
 ] as const;
 export type TermKey = (typeof TERM_KEYS)[number];
 export const TERM_LOCALES = ['en', 'id'] as const;

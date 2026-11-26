@@ -362,6 +362,16 @@
     "plural": [ "closeout", "close-out", "penutupan" ]
    },
    "scope": [ "closeout", "project", "projectTabs", "workInHand" ]
+  },
+  {
+   "key": "workOrderPlan",
+   "en": { "singular": [ "work-order plan", "work order plan" ], "plural": [ "work-order plans", "work order plans" ] },
+   "id": { "singular": [ "rencana work order", "rencana perintah kerja" ], "plural": [ "rencana work order", "rencana perintah kerja" ] }
+  },
+  {
+   "key": "foreman",
+   "en": { "singular": [ "foreman" ], "plural": [ "foremen" ] },
+   "id": { "singular": [ "mandor" ], "plural": [ "mandor" ] }
   }
  ]
 }

@@ -47,7 +47,7 @@ const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
  * term becomes the organisation's word in the email's language (the shared rewriter, `applyOrgTerms`), and each built-in role's
  * English name becomes the organisation's name for it in that language.
  */
-export function renameStoredText(text: string, loc: EmailLocale, naming: OrgNaming | undefined): string {
+export function renameStoredText(text: string, loc: EmailLocale, naming: OrgNaming | undefined, namespace?: string): string {
   if (!text || !naming) return text;
   // Roles first, parked behind placeholders, so a term inside a role's name ("Project Manager") is not renamed as a term and
   // the Admin's own role wording is not rewritten a second time.
@@ -63,15 +63,18 @@ export function renameStoredText(text: string, loc: EmailLocale, naming: OrgNami
       out = out.replace(re, (m) => `\u0001${parked.push(byDefault.get(m) ?? m) - 1}\u0001`);
     }
   }
-  if (naming.terms?.[loc]) out = applyOrgTerms(out, 'en', { en: naming.terms[loc] });
-  return out.replace(/\u0001(\d+)\u0001/g, (_m, i: string) => parked[Number(i)]);
+  if (naming.terms?.[loc]) out = applyOrgTerms(out, 'en', { en: naming.terms[loc] }, { namespace });
+  const marker = String.fromCharCode(1);
+  return out.replace(new RegExp(`${marker}([0-9]+)${marker}`, 'g'), (_m, i: string) => parked[Number(i)]);
 }
 
 export function renderEmail(event: string, locale: string, rawTitle: string, rawBody: string | null, naming?: OrgNaming) {
   const loc: EmailLocale = locale === 'id' ? 'id' : 'en';
-  const title = renameStoredText(rawTitle, loc, naming);
-  const body = rawBody === null ? null : renameStoredText(rawBody, loc, naming);
-  const lead = LEAD[loc][event as EmailEvent] ?? LEAD[loc].approval_request;
+  const namespace = rawTitle === 'Issue is overdue' ? 'emailNotifications'
+    : rawTitle === 'Close-out item is overdue' ? 'closeout' : undefined;
+  const title = renameStoredText(rawTitle, loc, naming, namespace);
+  const body = rawBody === null ? null : renameStoredText(rawBody, loc, naming, namespace);
+  const lead = applyOrgTerms(LEAD[loc][event as EmailEvent] ?? LEAD[loc].approval_request, loc, naming?.terms ?? {});
   const text = [title, '', ...(body ? [body, ''] : []), lead, FOOT[loc]].join('\n');
   const html = `<p><strong>${escapeHtml(title)}</strong></p>${body ? `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>` : ''}<p>${escapeHtml(lead)}</p><p>${escapeHtml(FOOT[loc])}</p>`;
   return { subject: title, text, html };
