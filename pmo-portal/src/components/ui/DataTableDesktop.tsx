@@ -319,7 +319,7 @@ function DataTableRowInner<Row>({
               ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}),
             }}
             className={cn(
-              'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
+              'h-[var(--table-row-min-height)] break-words px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] align-middle [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal',
               compactRows ? 'py-0.5' : 'py-2',
               col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
               columnAlignmentClass(col),
@@ -668,6 +668,9 @@ export function DataTableDesktop<Row>({
     .filter((column) => /(^|\s)hidden($|\s)/.test(column.colClassName ?? ''))
     .reduce((sum, column) => sum + (column.size ?? 0), 0);
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
+  // Default sizes are preferences: let the browser fit columns to the available panel.
+  // Once a person resizes a column, keep the fixed-width layout and its scrollport.
+  const hasUserColumnSizing = Object.keys(columnSizing).length > 0;
 
   return (
     /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
@@ -684,7 +687,7 @@ export function DataTableDesktop<Row>({
         aria-label={accessibleName}
         style={{
           ...columnSizeVars,
-          ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+          ...(hasUserColumnSizing ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
         }}
         className="w-full border-collapse text-control"
       >
@@ -712,7 +715,7 @@ export function DataTableDesktop<Row>({
                     ? { width: columnWidthVar(col.key), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                     : undefined}
                   className={cn(
-                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground break-words select-none',
+                    'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] first:pl-[var(--table-edge-inset,var(--table-cell-inset))] last:pr-[var(--table-edge-inset,var(--table-cell-inset))] text-control font-semibold text-foreground break-words select-none',
                     col.stickyLeft && 'left-0 z-[3]',
                     columnAlignmentClass(col),
                     numericColumnClass(col),
