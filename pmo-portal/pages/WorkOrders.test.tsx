@@ -23,6 +23,12 @@ vi.mock('@/src/hooks/useOrgFeatures', async (importOriginal) => ({
   useOrgFeatures: () => ({ data: { revenue: h.revenue } }),
 }));
 
+vi.mock('@/src/hooks/useWorkOrderProjectChoices', () => ({
+  useWorkOrderProjectChoices: () => ({ isSuccess: true, data: [{ value: 'p1', label: 'Depot', currency: 'USD' }] }),
+}));
+vi.mock('@/src/hooks/useWorkOrderLists', () => ({
+  useWorkOrderLists: () => ({ areas: [], groups: [], liveAreas: [], liveGroups: [], hasLists: false }),
+}));
 vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx: h.exportXlsx, busy: false }) }));
 
 import WorkOrders from './WorkOrders';
@@ -40,6 +46,24 @@ const rowFor = (label: string) => screen.getByRole('row', { name: new RegExp(lab
 beforeEach(() => {
   h.revenue = false;
   h.state = { ...h.state, rows: [], isPending: false, isError: false, canBilling: true, costState: 'shown', disciplines: [], figuresError: false };
+});
+
+describe('#1126 New work order from the page', () => {
+  it('is offered by the create right only, and opens the form led by the Project field', async () => {
+    h.state = { ...h.state, rows: [row({})] };
+    const page = renderPage('/work-orders', 'Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: 'New work order' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('combobox', { name: /Project/ })).toBeEnabled();
+    page.unmount();
+    renderPage('/work-orders', 'Engineer');
+    expect(screen.queryByRole('button', { name: 'New work order' })).toBeNull();
+  });
+
+  it('the empty list offers the same action', () => {
+    renderPage('/work-orders', 'Project Manager');
+    expect(screen.getAllByRole('button', { name: 'New work order' })).toHaveLength(2);
+  });
 });
 
 describe('Work orders dashboard', () => {
