@@ -1,5 +1,133 @@
 -- Reverse of 2750: restore the previous bodies, then drop the helper.
 begin;
+CREATE OR REPLACE FUNCTION public.project_pmo_positions(p_project_ids uuid[] DEFAULT NULL::uuid[])
+ RETURNS TABLE(project_id uuid, spent numeric, spent_complete boolean, committed numeric, committed_complete boolean)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_catalog'
+AS $function$
+  with g as materialized (                         -- the guards of both per-project functions, evaluated once
+    select public.auth_org_id() as org_id,
+           public.is_active_member() as active
+     where not public.org_reads_erp_ledger()
+       and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
+  ), proj as (
+    select p.id, p.org_id, p.currency, p.currency = o.default_currency as charge_in_project_currency
+      from public.projects p join g on p.org_id = g.org_id
+      join public.organizations o on o.id = p.org_id
+     where p_project_ids is null or p.id = any (p_project_ids)
+  ),
+  -- spent (project_pmo_spent_position): pre-tax paid purchases that carry a payment, plus the internal hire charge
+  pay as (
+    select pay.procurement_id,
+           count(*) filter (where pay.amount is null or pay.amount::text in ('NaN','Infinity','-Infinity')
+                               or pay.currency is distinct from pr.currency) as bad,
+           coalesce(sum(pay.amount), 0) as amount
+      from public.procurements pr join public.payments pay on pay.procurement_id = pr.id and pay.org_id = pr.org_id
+      join proj on proj.id = pr.project_id and pr.org_id = proj.org_id
+     where pay.status = 'Paid' and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null
+     group by pay.procurement_id
+  ), inv as (
+    select i.procurement_id,
+           count(*) filter (where i.currency is distinct from pr.currency
+                               or i.amount::text in ('NaN','Infinity','-Infinity')) as bad,
+           sum(case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end) as pre_tax,
+           sum(i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+               - coalesce(i.withheld_amount, 0)) as payable
+      from public.procurements pr join public.procurement_invoices i on i.procurement_id = pr.id and i.org_id = pr.org_id
+      join proj on proj.id = pr.project_id and pr.org_id = proj.org_id
+     where i.amount is not null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     group by i.procurement_id
+  ), paid_pre_tax as (                             -- procurement_paid_pre_tax(pr), one row per purchase
+    select pr.id, pr.project_id, pr.currency,
+           case when pa.bad > 0 then null::numeric
+                when pa.amount = 0 then 0::numeric
+                when iv.bad > 0 then null::numeric
+                when iv.payable > 0 then round(pa.amount * iv.pre_tax / iv.payable, 2)
+                else pa.amount end as paid
+      from public.procurements pr join pay pa on pa.procurement_id = pr.id
+      left join inv iv on iv.procurement_id = pr.id
+     where pr.origin is distinct from 'erp_link'
+       and not public.purchase_costs_as_stock(pr.id)
+    union all select s.record_id,proj.id,s.currency,s.amount from proj cross join lateral public.stock_issue_cost_lines(proj.id) s
+  ), paid_by_project as (
+    select proj.id as project_id,
+           bool_or(case when pp.currency = proj.currency then pp.paid end is null) as any_null,
+           coalesce(sum(case when pp.currency = proj.currency then pp.paid end), 0) as total
+      from proj join paid_pre_tax pp on pp.project_id = proj.id
+     group by proj.id
+  ), charge_by_project as (
+    select c.project_id, bool_or(c.amount is null) as any_null, sum(c.amount) as total
+      from public.equipment_charge_org_actuals(null) c
+     where c.project_id in (select id from proj)
+     group by c.project_id
+  ), spent as (
+    select proj.id as project_id,
+           case when coalesce(pb.any_null, false)
+                  or (cb.project_id is not null and (not proj.charge_in_project_currency or cb.any_null)) then null::numeric
+                else coalesce(pb.total, 0) + coalesce(cb.total, 0) end as amount
+      from proj
+      left join paid_by_project pb on pb.project_id = proj.id
+      left join charge_by_project cb on cb.project_id = proj.id
+  ),
+  -- committed (project_pmo_commitment_position over project_committed_spend, PMO basis): the open commitment of the
+  -- committed-status purchases, in the project currency
+  cprocs as (
+    select pr.id, pr.project_id, pr.org_id, pr.currency, pr.status, pr.origin, pr.total_value
+      from public.procurements pr join proj on proj.id = pr.project_id and pr.org_id = proj.org_id
+     where pr.status::text = any (public.committed_procurement_statuses())
+  ), cpaid as (
+    select pay.procurement_id,
+           count(*) filter (where pay.amount is null or pay.amount::text in ('NaN','Infinity','-Infinity')
+                               or pay.currency is distinct from p.currency) as bad,
+           coalesce(sum(pay.amount), 0) as amount
+      from cprocs p join public.payments pay on pay.procurement_id = p.id and pay.org_id = p.org_id
+     where p.origin is distinct from 'erp_link'
+       and pay.status = 'Paid' and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null
+     group by pay.procurement_id
+  ), cinv as (
+    select i.procurement_id,
+           count(*) filter (where i.currency is distinct from p.currency
+                               or i.amount::text in ('NaN','Infinity','-Infinity')) as bad,
+           sum(case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end) as pre_tax,
+           sum(i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+               - coalesce(i.withheld_amount, 0)) as payable
+      from cprocs p join public.procurement_invoices i on i.procurement_id = p.id and i.org_id = p.org_id
+     where p.origin is distinct from 'erp_link'
+       and i.amount is not null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     group by i.procurement_id
+  ), committed as (
+    select proj.id as project_id,
+           coalesce(sum(case
+                 when p.currency is distinct from proj.currency then null
+                 when p.status::text in ('Cancelled','Rejected') then 0::numeric
+                 when p.origin = 'erp_link' then coalesce(p.total_value, 0)::numeric
+                 else (select case when x.paid is null then coalesce(p.total_value, 0)::numeric
+                                   else greatest(0::numeric, coalesce(p.total_value, 0) - x.paid) end
+                         from (select case when pa.bad > 0 then null::numeric
+                                           when coalesce(pa.amount, 0) = 0 then 0::numeric
+                                           when iv.bad > 0 then null::numeric
+                                           when iv.payable > 0 then round(pa.amount * iv.pre_tax / iv.payable, 2)
+                                           else pa.amount end as paid) x)
+               end), 0) as amount,
+           coalesce(bool_and(coalesce(p.currency = proj.currency, false) and p.total_value is not null
+                             and p.total_value::text not in ('NaN','Infinity','-Infinity')) filter (where p.id is not null), true) as complete
+      from proj
+      left join cprocs p on p.project_id = proj.id
+      left join cpaid pa on pa.procurement_id = p.id
+      left join cinv iv on iv.procurement_id = p.id
+     group by proj.id
+  )
+  select proj.id,
+         case when g.active then s.amount end,
+         case when g.active then s.amount is not null end,
+         c.amount,
+         c.complete
+    from proj cross join g
+    join spent s on s.project_id = proj.id
+    join committed c on c.project_id = proj.id
+$function$;
+
 CREATE OR REPLACE FUNCTION public.stock_issue_cost_lines(p_project uuid)
  RETURNS TABLE(record_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date, reference text, currency text, amount numeric)
  LANGUAGE plpgsql
@@ -375,7 +503,10 @@ begin
     join public.dsr_idle_reasons r on r.id = i.reason_id and r.org_id = v_org
     left join wo_cost w on w.wo = i.wo
    order by i.wo, r.label, i.reason_id;
-end $function$;
+end $function$
+
+
+Output format is unaligned.;
 
 CREATE OR REPLACE FUNCTION public.qcr_over_contract(p_project_id uuid, p_only_over boolean DEFAULT false)
  RETURNS TABLE(boq_item_id uuid, item_code text, description text, unit text, rate numeric, earning_basis text, contract_quantity numeric, progress_quantity numeric, progress_source text, forecast_quantity numeric, over_progress boolean, over_forecast boolean, open_request_id uuid)

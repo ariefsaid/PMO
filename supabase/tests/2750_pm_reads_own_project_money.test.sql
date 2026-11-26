@@ -69,6 +69,9 @@ select throws_ok($$select * from qcr_over_contract('27500000-0000-0000-0000-0000
 select is((select array_agg(project_id order by project_id) from get_projects_money_collection(array['27500000-0000-0000-0000-0000000000d1','27500000-0000-0000-0000-0000000000d2']::uuid[])),
           array['27500000-0000-0000-0000-0000000000d1']::uuid[], 'PS1 money collection returns only the Project Manager''s own project');
 
+select is((select array_agg(project_id order by project_id) from project_pmo_positions(null) where project_id in ('27500000-0000-0000-0000-0000000000d1','27500000-0000-0000-0000-0000000000d2')),
+          array['27500000-0000-0000-0000-0000000000d1']::uuid[], 'PS1 positions of all projects return only the Project Manager''s own project');
+
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000401')), 777::numeric, 'PS1 own work order: tpi_costs shows the estimate');
 select is((select estimate from tpi_costs('27500000-0000-0000-0000-000000000402')), null::numeric, 'PS1 other work order: tpi_costs withholds the money');
 
