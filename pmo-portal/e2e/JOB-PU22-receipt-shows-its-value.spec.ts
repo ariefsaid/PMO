@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { serviceClient, SEED_SUPPLIER_ID } from './procurement-fixture';
 import { openWorkOrderArea } from './support/workOrderArea';
 
@@ -96,7 +97,7 @@ test.beforeAll(async () => {
     procurement_id: procurementId,
     work_order_id: workOrderId,
     status: 'Complete',
-    receipt_date: new Date().toISOString().slice(0, 10),
+    receipt_date: orgToday(),
     org_id: ORG_ID,
   });
   if (receiptError) throw new Error(`JOB-PU22 receipt: ${receiptError.message}`);

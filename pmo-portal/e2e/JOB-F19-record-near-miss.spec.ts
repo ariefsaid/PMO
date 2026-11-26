@@ -8,7 +8,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn, pickComboboxOption } from './helpers';
 import { addIssueType, cleanSiteIssue } from './siteIssueFixture';
-import { need, ORG_ID, serviceClient } from './support/jobJourney';
+import { need, orgToday, ORG_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 
 test.setTimeout(180_000);
@@ -32,13 +32,17 @@ test('JOB-F19 a near miss recorded on a work order is in the register with the w
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel(/^type/i).selectOption({ label: `${run} near miss` });
   await dialog.getByLabel(/severity/i).selectOption('Low');
+  // The form pre-fills the date from the browser's clock (IncidentFormModal.todayLocalISO), which on the
+  // UTC-pinned browser is the organisation's yesterday after 17:00 UTC; the filer means the organisation's
+  // day, so the journey states it explicitly — the same review any filer gives the pre-filled date.
+  await dialog.getByLabel(/^Date/i).fill(orgToday());
   await pickComboboxOption(dialog, page, /^Work order/, new RegExp(wo.title));
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
 
   await page.getByRole('link', { name: new RegExp(`open ${run} near miss`, 'i') }).click();
   await expect(page.getByText(wo.title).first()).toBeVisible({ timeout: 20_000 });
-  const now = new Date();
-  const today = `${now.getDate()} ${now.toLocaleDateString('en-GB', { month: 'short' })}`; // the year is dropped within the current year
-  await expect(page.getByText(today, { exact: true }).first()).toBeVisible();
+  const today = orgToday(); // the screen stamps the incident with the organisation's day
+  const dayMon = `${Number(today.slice(8, 10))} ${new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(new Date(`${today}T00:00:00Z`))}`; // the year is dropped within the current year
+  await expect(page.getByText(dayMon, { exact: true }).first()).toBeVisible();
 });

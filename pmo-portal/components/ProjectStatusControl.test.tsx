@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { setOrgStageNames } from '@/src/lib/status/orgStageNames';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -71,6 +72,24 @@ beforeEach(() => {
     error: null,
     isPending: false,
   } as unknown as ReturnType<typeof useProjectTransition>);
+});
+
+describe('ProjectStatusControl stage names (#2906)', () => {
+  it('AC-STG-007: the status menu offers the organisation name for a renamed stage, in English and in Bahasa', async () => {
+    const rows = [{ status: 'Tender Submitted', label_en: 'Bid sent', label_id: 'Penawaran dikirim' }];
+    try {
+      for (const [locale, name] of [['en', 'Bid sent'], ['id', 'Penawaran dikirim']] as const) {
+        setOrgStageNames(rows, locale);
+        const { unmount } = renderControl(negotiationProject);
+        await userEvent.click(screen.getByRole('button', { name: /change status/i }));
+        expect(screen.getByRole('button', { name })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Loss Tender/i })).toBeInTheDocument();
+        unmount();
+      }
+    } finally {
+      setOrgStageNames([], 'en');
+    }
+  });
 });
 
 describe('ProjectStatusControl', () => {

@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
@@ -47,7 +48,7 @@ test('AC-WCO-012 required close-out items are done with documents, then the work
       issued_at: new Date().toISOString(), order_value: 500_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'EUR',
     });
     if (wo.error) throw new Error('AC-WCO-012 fixture work order: ' + wo.error.message);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = orgToday();
     const items = await admin.from('work_order_closeout_items').insert([
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 1, name: 'Item one ' + suffix, required: true, started_on: today },
       { org_id: orgId, work_order_id: workOrderId, project_id: projectId, position: 2, name: 'Item two ' + suffix, required: true },

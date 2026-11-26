@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn, visibleToast } from './helpers';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
+import { inDays } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { markEveryonePresent } from './support/crewJourney';
 
@@ -70,15 +71,14 @@ test('JOB-A1 an administrator assigns the Quantity Surveyor role and that role g
 async function pendingCrewWeek(svc: ReturnType<typeof serviceClient>, page: import('@playwright/test').Page, run: string) {
   const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
   const PM_ID = '00000000-0000-0000-0000-0000000000a2';
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const from = new Date(Date.now() - 7 * 86_400_000);
+  const from = inDays(-7); // a validity start a week back: in the past under the organisation's clock, which is what the roster reads
   const projectId = need('project', await svc.from('projects').insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id as string;
   const workOrderId = need('work order', await svc.from('work_orders').insert({ org_id: ORG_ID, project_id: projectId, title: `${run} pipe rack`, status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0 }).select('id').single()).id as string;
   const crewId = need('crew', await svc.from('crews').insert({ org_id: ORG_ID, code: run.slice(-18), name: `${run} crew`, kind: 'own', field_controller_id: ENGINEER_ID }).select('id').single()).id as string;
   const workerName = `${run} Ana`;
   const workerId = need('worker', await svc.from('people').insert({ org_id: ORG_ID, kind: 'own', name: workerName }).select('id').single()).id as string;
-  ok('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: workerId, valid_from: iso(from) }));
-  ok('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: iso(from) }));
+  ok('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: workerId, valid_from: from }));
+  ok('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from }));
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
   await expect(page.getByRole('row', { name: workerName })).toBeVisible({ timeout: 20_000 });

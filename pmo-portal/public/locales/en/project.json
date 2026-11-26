@@ -1352,13 +1352,13 @@
       },
       "action": {
         "recordDelivery": "Record delivery",
-        "addCustomerOrder": "Add customer order",
         "openDetails": "View details for {{order}}",
         "editOrder": "Edit order",
         "orderMenuLabel": "Actions for {{order}}",
         "viewPo": "View customer PO",
         "cancelGeneric": "Cancel",
-        "import": "Import work orders"
+        "import": "Import work orders",
+        "openWorkOrders": "Work orders"
       },
       "filter": {
         "orders": "Order",
@@ -1371,7 +1371,7 @@
         "source": "Computed as net contract value less the net value of issued and closed work orders."
       },
       "drafts": "Draft orders",
-      "emptyRegister": "No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.",
+      "emptyRegister": "No work orders yet. Create one on the Work orders tab; it draws down the project contract ceiling once issued.",
       "orderDate": "Order date",
       "billing": {
         "orderRemainingSource": "Source: work-order billing balance after invoices and pending drafts.",
@@ -1469,9 +1469,15 @@
     "projectIncidents": "Project incidents",
     "workOrderForm": {
       "area": "Area",
+      "errors": {
+        "projectRequired": "Choose the project this work order belongs to"
+      },
       "group": "Group",
       "noArea": "No area",
-      "noGroup": "No group"
+      "noGroup": "No group",
+      "noProjects": "There is no project to add a work order to yet.",
+      "project": "Project",
+      "projectPlaceholder": "Choose a project"
     }
   },
   "common": {

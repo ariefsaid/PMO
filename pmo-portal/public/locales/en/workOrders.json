@@ -456,5 +456,8 @@
     "checks_one": "{{count}} check",
     "checks_other": "{{count}} checks"
   },
+  "new": {
+    "action": "New work order"
+  },
   "complete": "Complete"
 }

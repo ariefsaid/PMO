@@ -6,14 +6,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { signIn, pickComboboxOption } from './helpers';
 import { roleJobUser } from './support/roleJobUser';
 import { need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
+import { inDays, orgToday } from './support/jobJourney';
 import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
-const pad = (n: number) => String(n).padStart(2, '0');
-const workDay = new Date(); workDay.setDate(workDay.getDate() - 7);
-const weekdayIndex = (workDay.getDay() + 6) % 7;
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const workDay = inDays(-7); // a week back by the organisation's clock, which is the week the equipment grid is asked for
+const weekdayIndex = (new Date(`${workDay}T00:00:00Z`).getUTCDay() + 6) % 7;
 
 let admin: SupabaseClient;
 let crewId = ''; let assetId = '';
@@ -26,7 +25,7 @@ test.afterEach(async () => {
     assetId = '';
   }
   if (!crewId) { await planner?.cleanup(); return; }
-  const today = iso(new Date());
+  const today = orgToday();
   await admin.from('work_order_crews').update({ valid_to: today }).eq('crew_id', crewId);
   await admin.from('crew_members').update({ valid_to: today }).eq('crew_id', crewId);
   crewId = '';
@@ -39,10 +38,10 @@ test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and
   planner = await roleJobUser(admin, 'planner', `${run}-planner`);
   const fx = await projectWithWorkOrders(admin, run, ['Pipe rack']);
   const wo = fx.workOrders[0];
-  const from = new Date(); const to = new Date(); to.setDate(to.getDate() + 5);
+  const from = orgToday(); const to = inDays(5); // rostered from today by the organisation's clock
   crewId = need('crew', await admin.from('crews').insert({ org_id: ORG_ID, code: run.slice(-18), name: `${run} crew`, kind: 'own', field_controller_id: ENGINEER_ID }).select('id').single()).id;
   const person = need('person', await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', name: `${run} Ana` }).select('id').single()).id;
-  ok('placement', await admin.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: iso(from) }));
+  ok('placement', await admin.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: person, valid_from: from }));
 
   assetId = need('asset', await admin.from('equipment_assets').insert({ org_id: ORG_ID, code: run, name: `${run} crane`, default_unit: 'hours' }).select('id').single()).id;
 
@@ -51,8 +50,8 @@ test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and
   await page.getByRole('button', { name: 'Roster a crew' }).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel(/^crew/i).selectOption(crewId);
-  await dialog.getByLabel(/^from/i).fill(iso(from));
-  await dialog.getByLabel(/^to/i).fill(iso(to));
+  await dialog.getByLabel(/^from/i).fill(from);
+  await dialog.getByLabel(/^to/i).fill(to);
   await dialog.getByRole('button', { name: 'Roster a crew' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 15_000 });
 
@@ -60,10 +59,10 @@ test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and
   const placements = page.getByRole('row').filter({ hasText: `${run} crew` });
   await expect(placements).toBeVisible({ timeout: 15_000 });
   const rosterRows = need('roster', await admin.from('work_order_crews').select('valid_from, valid_to').eq('work_order_id', wo.id));
-  expect(rosterRows).toEqual([{ valid_from: iso(from), valid_to: iso(to) }]);
+  expect(rosterRows).toEqual([{ valid_from: from, valid_to: to }]);
 
   // The planner logs 8 crane hours on the work order (equipment use grid); a project manager approves the week.
-  await page.goto(`/equipment?week=${iso(workDay)}`);
+  await page.goto(`/equipment?week=${workDay}`);
   await page.getByRole('button', { name: 'Add row' }).click();
   await pickComboboxOption(page, page, /^Equipment/, new RegExp(run));
   await pickComboboxOption(page, page, /^Project/, new RegExp(`${run} project$`));
@@ -77,7 +76,7 @@ test('JOB-PC9 a planner rosters a crew and logs crane hours on a work order, and
   await page.getByRole('button', { name: 'Submit week' }).click();
   await expect(page.getByText('Submitted', { exact: true })).toHaveCount(1, { timeout: 15_000 });
   await signIn(page, 'pm@acme.test');
-  await page.goto(`/equipment?week=${iso(workDay)}`);
+  await page.goto(`/equipment?week=${workDay}`);
   await page.getByRole('tab', { name: 'Approvals' }).click();
   await page.getByRole('button', { name: 'Approve week' }).click();
   await page.getByRole('dialog', { name: 'Approve equipment usage week?' }).getByRole('button', { name: 'Approve week' }).click();
