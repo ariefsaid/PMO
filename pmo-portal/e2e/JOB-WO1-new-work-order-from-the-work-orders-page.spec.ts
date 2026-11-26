@@ -34,7 +34,7 @@ test('JOB-WO1 the issuer creates a work order from the Work orders page by choos
     await expect(form.getByRole('button', { name: 'Create draft' })).toBeDisabled();
 
     await form.getByRole('combobox', { name: /Project/ }).click();
-    await page.getByPlaceholder('Search options…').fill(`${run} depot`);
+    await page.getByPlaceholder('Search projects…').fill(`${run} depot`);
     await page.getByRole('listbox').getByRole('option', { name: new RegExp(`${run} depot`) }).click();
     await form.getByRole('button', { name: 'Create draft' }).click();
 
