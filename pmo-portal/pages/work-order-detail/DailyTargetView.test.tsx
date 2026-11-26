@@ -6,7 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import idRp from '../../public/locales/id/workOrderRevenuePlan.json';
 import enRp from '../../public/locales/en/workOrderRevenuePlan.json';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { DailyTarget, DailyTargetDay } from '@/src/lib/dailyTarget';
 import { buildCostView } from '@/src/lib/workOrderCostView';
@@ -30,7 +30,8 @@ const target = (extra: Partial<DailyTarget> = {}): DailyTarget => ({
   days: [day({}), day({ date: '2026-12-02', actual: '0.00', gap: '-100.00', pendingReports: 1 }), day({ date: '2026-12-25', working: false, listed: true, nonWorkingLabel: 'Holiday', target: '30.00', actual: '0.00', gap: '-30.00' })], ...extra,
 });
 const ok = (d: DailyTarget | null) => ({ data: d, isPending: false, isError: false, error: null, refetch: vi.fn() });
-const money = (v: string) => formatExactMoney(v, 'IDR', 'en-US');
+// Read-only money shows whole units through the shared table formatter.
+const money = (v: string) => formatTableMoney(v, 'IDR');
 
 beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); state.asked = []; });
 

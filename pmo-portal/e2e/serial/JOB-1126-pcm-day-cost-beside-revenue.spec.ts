@@ -5,13 +5,14 @@ import { test, expect } from '@playwright/test';
 import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
-import { formatExactMoney } from '../../src/lib/format';
+import { formatTableMoney } from '../../src/lib/format';
 import { openWorkOrderArea } from '../support/workOrderArea';
 
 test.setTimeout(180_000);
 
 type Actor = Awaited<ReturnType<typeof roleJobUser>>;
-const money = (value: string) => formatExactMoney(value, 'USD', 'en-US')!;
+// Read-only money reads in whole units (screen rules), through the app's own table formatter.
+const money = (value: string) => formatTableMoney(value, 'USD')!;
 
 test('JOB-1126 the Project Control Manager sees the day\'s cost beside the day\'s revenue', async ({ page }) => {
   const svc = serviceClient('JOB-1126');

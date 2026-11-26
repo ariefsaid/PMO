@@ -2,8 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
 import { PerformanceGate } from '@/src/components/performance/PerformanceGate';
-import { formatExactMoney, formatIsoDay } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatIsoDay, formatTableMoney } from '@/src/lib/format';
 import { parseExactCents } from '@/src/lib/exactDecimal';
 import { useProjectPerformance } from '@/src/hooks/useWorkOrderPerformance';
 import { useAreaHelp } from './useAreaHelp';
@@ -29,7 +28,7 @@ export const PerformanceFigures: React.FC<{
 }> = ({ performance, currency, bands, idPrefix, showBand = true }) => {
   const { t } = useTranslation('workOrderPva');
   const money = (v: string | null) =>
-    v === null ? t('performance.unknown', 'Unknown') : formatExactMoney(v, currency, getNumberLocale()) ?? t('performance.unknown', 'Unknown');
+    v === null ? t('performance.unknown', 'Unknown') : formatTableMoney(v, currency) ?? t('performance.unknown', 'Unknown');
   const abs = (v: string) => (v.startsWith('-') ? v.slice(1) : v);
   const sign = (v: string | null): 'positive' | 'negative' | 'zero' | null => {
     if (v === null) return null;
