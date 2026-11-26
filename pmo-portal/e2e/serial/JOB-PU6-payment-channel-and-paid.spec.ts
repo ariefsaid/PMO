@@ -91,7 +91,8 @@ test('JOB-PU6 the officer sets the channel, records the payment, and the stages 
   await expect(stage(page, 'Receive')).toContainText('1 receipt');
   await expect(stage(page, 'Pay')).toContainText('1 invoice');
 
-  // How it will be paid.
+  // How it will be paid: one value, a line of the purchase's Details.
+  await page.getByRole('tab', { name: /^Details/ }).click();
   const channel = page.getByTestId('payment-channel-section');
   await expect(channel).toBeVisible({ timeout: 20_000 });
   await channel.getByLabel('Payment channel').selectOption({ label: CHANNEL });

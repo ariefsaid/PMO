@@ -2104,7 +2104,6 @@
     "amount": "Amount",
     "status": "Status",
     "file": "File",
-    "ledgerNote": "Every record appears once, chronological. Empty record types show nothing.",
     "types": {
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
@@ -2457,7 +2456,6 @@
         "titleFallback": "Delete document?"
       },
       "dismiss": "Dismiss",
-      "emptySub": "Add a drawing, specification, or transmittal to start the project's document register.",
       "emptyTitle": "No documents yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load documents",

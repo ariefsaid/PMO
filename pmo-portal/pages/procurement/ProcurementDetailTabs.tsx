@@ -40,8 +40,7 @@ export const ProcurementItemsTab: React.FC<ItemsTabProps> = ({ readOnly = false,
   const { t } = useTranslation();
   const { toast } = useToast();
   return (
-    <div className="space-y-2">
-    <p className="text-sm text-muted-foreground">{p.items.length} {t('procurementRecord:items.countLabel', 'line items')}</p>
+    <div className="flex flex-col gap-3 [&>[data-testid=line-items-section]]:mb-0">
     {!ownershipReady && <p className="text-sm text-muted-foreground">{ownership.mode === 'error' ? t('procurementRecord:items.ownershipError', 'Ownership could not be loaded. Try again.') : t('procurementRecord:items.ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('procurementRecord:items.retry', 'Retry')}</Button>}</p>}
     {ownership.mode === 'external' && canEditItems && !canEditItemValues && <p className="text-sm text-muted-foreground">{casePushInFlight ? t('procurementRecord:items.submitting', 'A case document is being submitted.') : itemEligibility.isError ? t('procurementRecord:items.eligibilityError', 'Line editing availability could not be loaded. Try again.') : (itemEligibility.isPending || itemEligibility.isFetching) ? t('procurementRecord:items.eligibilityChecking', 'Checking line editing availability…') : t('procurementRecord:items.valuesManaged', 'Quantity and unit price are managed by ERP for this purchase.')} {!casePushInFlight && itemEligibility.isError && <Button variant="ghost" size="sm" onClick={() => void itemEligibility.refetch()}>{t('procurementRecord:items.retry', 'Retry')}</Button>}</p>}
     <LineItemsSection
@@ -161,12 +160,13 @@ export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuot
   );
 };
 
-export const ProcurementDetailsTab: React.FC<{ rows: DetailRow[]; canEditHeader: boolean; onEdit: () => void }> = ({ rows: detailRows, canEditHeader, onEdit }) => {
+export const ProcurementDetailsTab: React.FC<{ rows: DetailRow[]; canEditHeader: boolean; onEdit: () => void; extra?: React.ReactNode }> = ({ rows: detailRows, canEditHeader, onEdit, extra }) => {
   const { t } = useTranslation();
   return (
     <Card data-testid="procurement-detail-dl"><CardHead>{t('procurementRecord:tabs.details', 'Details')}</CardHead><CardPad>
       <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
         {detailRows.map((row) => <div key={row.label}><dt className="text-sm font-semibold text-muted-foreground">{row.label}</dt><dd className="mt-0.5 text-sm">{row.value}</dd></div>)}
+        {extra}
       </dl>
       {canEditHeader && <Button className="mt-4" variant="outline" onClick={onEdit}>{t('procurementRecord:editDetails', 'Edit details')}</Button>}
     </CardPad></Card>

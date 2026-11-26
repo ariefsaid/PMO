@@ -4,7 +4,6 @@
     "basis": "Basis",
     "driverTotal": "Driver total",
     "empty": "No usage or costing in the last 12 months",
-    "emptySub": "Approved usage shows here by month and project.",
     "entries": "Entries",
     "error": "Couldn't load allocations",
     "errorSub": "No figure is shown rather than a wrong one. Try again.",
@@ -69,7 +68,9 @@
     "perMonth": "Per month",
     "termsElsewhere": "Rental periods and rate changes are on the equipment's own page.",
     "openRecord": "Open the equipment page",
-    "edit": "Edit"
+    "edit": "Edit",
+    "loggedIn": "Logged in",
+    "inServiceSince": "In service since"
   },
   "availability": {
     "amountInvalid": "Enter the amount as a number with at most 2 decimals",
@@ -185,7 +186,6 @@
     },
     "effectsHeading": "What each status does to planning",
     "proofFailed": "Status saved, but the photo for {{codes}} did not upload. Attach it again from the row.",
-    "statusToday": "Status for today. Pick a different day under Availability.",
     "notifiedBroken": "Marked broken: {{codes}}. Nobody is messaged right away. Admin and Project Manager users are told if it stays down more than {{n}} days; the machine shows as down on this page now.",
     "photoFor": "Photo or document for {{code}} (optional)",
     "photoInputFor": "Photo for {{code}}",
@@ -197,7 +197,29 @@
     "unrecordedNote": "Unrecorded days are days in service with no status. Days before the organisation started recording are not counted.",
     "metricsEmpty": "No figures for this period",
     "hour": "Hour",
-    "hourly": "Hourly rental"
+    "hourly": "Hourly rental",
+    "termsSaved": "Rental terms saved",
+    "rentedToShort": "Rental end",
+    "openEnded": "Open",
+    "per": "Per",
+    "addTerms": "Add rental terms",
+    "noTerms": "No rental terms",
+    "rateFrom": "New rate from",
+    "markOwnedTitle": "Mark this machine owned?",
+    "markOwnedBody": "It leaves the rental invoice check.",
+    "machine": "Machine",
+    "recorded": "Recorded",
+    "proof": "Proof",
+    "downLong": "Escalation",
+    "setStatus": "Set status",
+    "targetShort": "target {{target}}%",
+    "daysAvailable": "Days available",
+    "awaitingApproval": "Awaiting approval",
+    "settings": "Targets and hours",
+    "metricAssetsCount": "Machines: {{count}}",
+    "files": "Files",
+    "noDownDays": "No down days in this period",
+    "statusCol": "Status"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",
@@ -305,9 +327,15 @@
     "renewHelp": "Enter the new expiry date. The person is told once it is saved.",
     "renewDateErr": "Enter the new expiry date",
     "actions": "Actions",
-    "open": "Open",
     "openRecord": "Open the record of {{name}}",
-    "renewLabel": "Renew {{type}} of {{name}}"
+    "renewLabel": "Renew {{type}} of {{name}}",
+    "expiredPill": "Expired",
+    "dueSoon": "Due soon",
+    "state": "Expiry state",
+    "kindPerson": "Person",
+    "kindEquipment": "Equipment",
+    "groupExpired": "Expired",
+    "groupDue": "Due in 30 days"
   },
   "nav": {
     "assets": "Assets",
@@ -413,7 +441,6 @@
     "thisWeek": "This week",
     "title": "Equipment",
     "totalsEmpty": "No usage in the last 12 months",
-    "totalsEmptySub": "Logged hours show here by month and project once approved.",
     "totalsError": "Couldn't load usage totals",
     "moreAssets": "Machines past this page are not loaded yet.",
     "trips": "Trips",
@@ -464,7 +491,6 @@
     "archived": "Document archived",
     "error": "Couldn't load documents",
     "empty": "No documents on this record",
-    "emptySub": "Certificates and permits show here with their expiry dates.",
     "errType": "Choose a document type",
     "errExpiry": "Enter the expiry date",
     "errOrder": "Expiry date must be on or after the issue date",
@@ -478,7 +504,9 @@
   "people": {
     "error": "Couldn't load this person",
     "notFound": "This person was not found",
-    "notFoundSub": "They may have been archived, or you may not have access."
+    "notFoundSub": "They may have been archived, or you may not have access.",
+    "active": "Active",
+    "actions": "Person actions"
   },
   "vendorResponse": {
     "title": "Vendor response to breakdowns",
@@ -509,7 +537,9 @@
     "minutes": "{{count}} min",
     "day": "Day",
     "hour": "Hour (00–23)",
-    "minute": "Minute"
+    "minute": "Minute",
+    "breakdownFrom": "Breakdown from",
+    "responseTime": "Response time"
   },
   "home": {
     "newEquipment": "New equipment",

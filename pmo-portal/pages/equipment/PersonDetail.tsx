@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, RecordHeader, RecordSection, buttonClasses } from '@/src/components/ui';
+import { ListState, RecordHeader, RecordSection, RecordStack, StatusPill, buttonClasses } from '@/src/components/ui';
 import { usePersonChecklist } from '@/src/hooks/useClearance';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
 import { ExpiryDocumentsCard } from './ExpiryDocumentsCard';
@@ -30,11 +30,16 @@ const PersonDetail: React.FC = () => {
     action={{ label: t('equipment:expiry.title', 'Expiring documents'), onClick: () => navigate('/equipment/expiring') }} />;
   return (
     <div>
-      <RecordHeader name={q.data.name} status={<span className="record-id">{q.data.code}</span>}
-        actions={mayMarkLeft ? <Button variant="ghost" onClick={() => setLeaving(true)}>{t('administration:people.markLeft', 'Mark as left')}</Button> : undefined} />
+      {/* One header: name, the on-record state, the code; Mark as left is a record action in the menu. */}
+      <RecordHeader panelInset clampNameOnMobile actionsOnTitleRow name={q.data.name}
+        status={<StatusPill variant="neutral">{t('equipment:people.active', 'Active')}</StatusPill>}
+        meta={<span className="record-id">{q.data.code}</span>}
+        menuItems={mayMarkLeft ? [{ key: 'left', label: t('administration:people.markLeft', 'Mark as left'), danger: true, onSelect: () => setLeaving(true) }] : undefined}
+        menuLabel={t('equipment:people.actions', 'Person actions')} />
+      <RecordStack>
       {/* Walk H2: the checklist read as an empty heading when it was a text link; it is a section with its progress and an Open action. */}
       {showClearance && (
-        <RecordSection className="mb-[var(--space-section)]" data-testid="person-clearance-section"
+        <RecordSection data-testid="person-clearance-section"
           title={t('administration:clearance.person.link', 'Cleared-for-site checklist')}
           actions={<Link to={`/administration/clearance/${q.data.id}`} className={buttonClasses('outline', 'sm')}>{t('administration:clearance.person.open', 'Open checklist')}</Link>}>
           <p className="text-control text-muted-foreground">
@@ -45,6 +50,7 @@ const PersonDetail: React.FC = () => {
         </RecordSection>
       )}
       <ExpiryDocumentsCard kind="person" subjectId={q.data.id} />
+      </RecordStack>
       <MarkLeftDialog person={leaving ? q.data : null} onClose={() => setLeaving(false)} />
     </div>
   );

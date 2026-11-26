@@ -277,6 +277,12 @@
     "editorHelp": "Ubah atau hapus jumlah apa pun. Tidak ada yang tersimpan sampai Anda membuat draf; pengajuan persetujuan seperti biasa.",
     "createDraft": "Buat draf rencana",
     "discard": "Buang",
-    "invalid": "Setiap jumlah harus lebih dari nol."
+    "invalid": "Setiap jumlah harus lebih dari nol.",
+    "col": {
+      "request": "Permintaan",
+      "workOrder": "Work order",
+      "status": "Status",
+      "amount": "Jumlah"
+    }
   }
 }

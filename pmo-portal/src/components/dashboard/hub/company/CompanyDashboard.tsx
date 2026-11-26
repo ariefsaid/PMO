@@ -398,9 +398,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   if (overview) {
     // One grid: 12 columns, one gutter (--space-panel-gap, 24px desktop). At 1440 the canvas is 1168px:
     // 12c + 11 x 24 = 1168 -> c = 75.33; a half is 6c + 5g = 572, a third 4c + 3g = 373.3; 3 x 373.3 + 2 x 24 = 1168.
-    // Rows: figures (12) · Project health (7) | [Waits on you, Finances, and for Executive/Admin Purchasing by stage] (5) · Billing (12) · then
+    // Rows: Waits on you and financial queues (6) | Project health (6) · Figures (12) · Billing (12) · then
     // Executive/Admin: Sales (12); Finance: Billing carries owed by age · Client overdue (12) · Ready to pay (12).
-    // Below 900px every block takes the full width, in the phone order: finding, figures, waits, health, finances, the rest.
+    // Below 900px every block takes the full width, with waits and health ahead of position figures.
     const lossRange = figures.winRateRange;
     const wonAmounts = won?.amounts && won.count !== undefined ? { count: won.count, amounts: won.amounts, href: won.href } : undefined;
     const trendRange = trendWindow(figures.organizationToday);
@@ -436,7 +436,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         retry={retryOwed} />
     );
     const healthCard = (
-      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', finance && 'min-[900px]:col-start-7 min-[900px]:row-start-1', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
+      <ProjectHealthCard className={cn('min-w-0 min-[900px]:col-span-6', 'min-[900px]:col-start-7 min-[900px]:row-start-1', 'max-[899px]:order-4')} rows={healthRows} delivery={healthDelivery.data}
         pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry}
         budgetLinkOnOverBudget={finance} />
     );
@@ -453,13 +453,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     );
     const firstRow = (
       <>
-        {healthCard}
-        {/* Finance reads its chase queue first: on a wide screen Waits on you takes the left, first-read column. */}
-        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', finance && 'min-[900px]:col-start-1 min-[900px]:row-start-1', 'max-[899px]:contents')}>
+        {/* Waiting decisions lead the overview at every width. */}
+        <div className={cn('flex min-w-0 flex-col gap-[var(--space-panel-gap)] min-[900px]:col-span-6', 'min-[900px]:col-start-1 min-[900px]:row-start-1', 'max-[899px]:contents')}>
           {waits}
           {owedCard}
           {!finance && <PurchasingCard className="max-[899px]:order-7" counts={stageCounts} stageName={stageName} pending={figures.dashboardPending} error={figures.dashboardError} retry={figures.dashboardRetry} />}
         </div>
+        {healthCard}
       </>
     );
     // Money in: invoiced and collected by month beside what is left to bill on signed work (one band, one card).
@@ -513,10 +513,10 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               <FigureHiddenLine compact />
             </div>
           </div>
-          {band}
           {/* Every card ends at its own content in every state: a column may end higher than its neighbour, never a blank band inside a card. */}
           <div data-testid="home-grid" className="grid items-start gap-[var(--space-panel-gap)] max-[899px]:grid-cols-1 min-[900px]:grid-cols-12">
             {firstRow}
+            <div className="min-w-0 max-[899px]:order-5 min-[900px]:col-span-12">{band}</div>
             {billingBand}
             {lowerRows}
             <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-10')}>
