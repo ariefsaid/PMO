@@ -72,7 +72,7 @@ export interface BillingTabProps {
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string; source: string }> = ({ testId, label, value, note, source }) => (
   <div>
     <dt className="text-sm text-muted-foreground">{label}</dt>
-    <dd className="cursor-help tabular text-[15px] font-semibold" data-testid={testId}><Tooltip content={source}><span>{value}</span></Tooltip></dd>
+    <dd className="cursor-help break-words text-xl font-semibold tabular-nums" data-testid={testId}><Tooltip content={source}><span>{value}</span></Tooltip></dd>
     {note && <dd className="text-sm text-muted-foreground">{note}</dd>}
   </div>
 );
@@ -80,7 +80,7 @@ const Figure: React.FC<{ testId: string; label: string; value: string; note?: st
 const SourcedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
   <div>
     <dt className="text-sm text-muted-foreground">{label}</dt>
-    <dd className="cursor-help tabular text-[15px] font-semibold"><Tooltip content={detail}><span>{value}</span></Tooltip></dd>
+    <dd className="cursor-help break-words text-base font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd>
   </div>
 );
 
@@ -480,7 +480,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     } },
   ];
 
-  // No BoQ and no claims (both loaded): quantity billing is not in use — fold it away (SUB-B).
+  // Fold unused quantity setup. The claim queue has its own entry point.
   const quantityEmpty = !boq.isPending && !boq.isError && boqRows.length === 0
     && !claims.isPending && !claims.isError && claimRows.length === 0;
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
@@ -550,7 +550,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {may('edit', 'boqItem') && <Button variant="outline" size="sm" onClick={() => { closeRecord(item.id, 'billingBoq'); setBoqFormFor(item); }}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>}
       <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(item.id, 'billingBoq')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
       </div>}>
-      <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
+      <dl className="grid min-w-0 grid-cols-1 gap-4 p-4 text-sm sm:grid-cols-2">
         <SourcedFigure label={t('projectDetail.billing.boq.column.quantity', 'Contract')} value={quantityText(item, Number(item.quantity))} detail={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')} />
         {canViewMoney && <SourcedFigure label={t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency })} value={formatNumberExact(Number(item.rate))} detail={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.')} />}
         {fact && <>
@@ -658,7 +658,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         : <Button variant="outline" size="sm" onClick={() => { closeRecord(claimDetailFor.id, 'billingClaim'); setEvidenceFor(claimDetailFor.id); }}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
       <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(claimDetailFor.id, 'billingClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
-    <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
+    <dl className="grid min-w-0 grid-cols-1 gap-4 p-4 text-sm sm:grid-cols-2">
       <SourcedFigure label={t('projectDetail.billing.claims.column.claimedLabel', 'Claimed')} value={cents(claimDetailFor.gross_amount)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.')} />
       <SourcedFigure label={t('projectDetail.billing.claims.column.recoveryLong', 'Down payment recovered')} value={cents(claimDetailFor.dp_recovery_amount)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.')} />
       <SourcedFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={cents(claimNet(Number(claimDetailFor.gross_amount), Number(claimDetailFor.dp_recovery_amount)))} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.')} />
@@ -775,7 +775,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-[var(--space-section)]">
+      {canReadClaims && claimsCard}
       {canViewMoney && <>
       <Card>
         <CardHead
@@ -804,7 +805,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           ) : billing.isError || !summary ? (
             <ListState variant="error" title={t('projectDetail.billing.summary.error', "Couldn't load billing")} onRetry={() => void billing.refetch()} />
           ) : (
-            <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <dl className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Figure testId="billing-contract" label={t('projectDetail.billing.summary.contract', 'Contract value')} value={money(summary.contractNet)} source={t('projectDetail.billing.source.contract', 'Source: net contract value from the project billing summary.')} />
       <Figure testId="billing-billed" label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={money(summary.workBilled)} source={t('projectDetail.billing.source.billed', 'Source: work and down-payment claims billed to date.')} />
               {summary.assessedToDate !== null && summary.assessedToDate !== 0 && (lineProject || summary.assessment) && (
@@ -847,14 +848,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           </summary>
           <div className="mt-3 space-y-6">
             {boqCard}
-            {canReadClaims && claimsCard}
           </div>
         </details>
       ) : (
-        <>
-          {boqCard}
-          {canReadClaims && claimsCard}
-        </>
+        boqCard
       )}
 
       {canViewMoney && <BillingReconciliation projectId={projectId} workOrderId={null} currency={currency} />}
