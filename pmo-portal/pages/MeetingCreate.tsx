@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  Button, Card, CardHead, CardPad, Combobox, UnsavedChangesDialog, FormFooter, FormGrid,
+  Button, Combobox, UnsavedChangesDialog, FormFooter, FormGrid,
   DateField, ListState, PageHeader, SelectField, TextField, useToast,
   type ComboboxOption,
 } from '@/src/components/ui';
@@ -138,12 +138,11 @@ const MeetingCreate: React.FC = () => {
   if (!may('create', 'meeting')) return <ListState variant="empty" title={tCreate('denied', 'You do not have permission to create meetings.')} />;
 
   return <form onSubmit={onSave} className="mx-auto w-full max-w-[880px] pb-16">
-    {/* One back on desktop, where the shell breadcrumb reads Meetings > New meeting. The breadcrumb
-        hides its parent crumb at phone width, so the guarded bar stays exactly there (#735). */}
+    {/* The in-content Back action also guards an unsaved draft on phone. */}
     <BackBar label={t('meetingDetail.backToMeetings', 'Meetings')} phoneOnly onBack={() => guardLeave(() => returnToList())} />
     <PageHeader title={t('meetings.form.newTitle', 'New meeting')} />
     <section className="mb-4" aria-label={t('meetingDetail.form.sections.details', 'Details')}>
-      <FormGrid className="grid-cols-2">
+      <FormGrid className="grid-cols-2 sm:grid-cols-4">
         <TextField id={title.id} label={t('meetings.form.title.label', 'Title')} required placeholder={t('meetings.form.title.placeholder', 'e.g. Weekly site coordination')} value={title.value} onChange={title.onChange} onBlur={title.onBlur} error={title.error} fullWidth disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <DateField id={when.id} label={t('meetings.form.when.label', 'When')} value={when.value.slice(0, 10)} onChange={(day) => when.onChange(`${day}T${when.value.slice(11) || '09:00'}`)} onBlur={when.onBlur} error={when.error} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
         <TextField label={tCreate('time', 'Time')} type="time" value={when.value.slice(11, 16)} onChange={(time) => when.onChange(`${when.value.slice(0, 10)}T${time}`)} onBlur={when.onBlur} disabled={Boolean(savedMeetingId) || form.isSubmitting} />
@@ -153,7 +152,7 @@ const MeetingCreate: React.FC = () => {
     </section>
     {/* C9: the meeting does not exist until Save, so /action here could only remember a block and drop
         the line — the palette withholds the entry (the record's editor owns the real task flow). */}
-    <Card className="mb-4"><CardHead>{t('meetingDetail.attendees.title', 'Attendees')}</CardHead><CardPad>
+    <section className="mb-4"><h2 className="mb-3 text-group font-semibold">{t('meetingDetail.attendees.title', 'Attendees')}</h2>
       <fieldset disabled={form.isSubmitting}>
       <ul className="mb-3 flex flex-col gap-1.5" data-testid="attendees-list">
         {members.map((member) => (
@@ -198,8 +197,8 @@ const MeetingCreate: React.FC = () => {
         {guestAlreadyAdded && <p role="status" className="text-sm text-muted-foreground">{tCreate('duplicateGuest', 'This guest is already on the list.')}</p>}
       </div>
       </fieldset>
-    </CardPad></Card>
-    <Card className="mb-4"><CardHead>{t('meetingDetail.minutes.title', 'Minutes')}</CardHead><CardPad><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor ref={editorRef} initialBlocks={[]} editable={!form.isSubmitting} tasksExternal onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></CardPad></Card>
+    </section>
+    <section className="mb-4"><h2 className="mb-3 text-group font-semibold">{t('meetingDetail.minutes.title', 'Minutes')}</h2><Suspense fallback={<ListState variant="loading" rows={3} />}><MinutesEditor ref={editorRef} initialBlocks={[]} editable={!form.isSubmitting} tasksExternal onReady={onEditorReady} onChange={(blocks) => { setMinutes(blocks); setMinutesPending(true); }} onRequestAction={() => undefined} /></Suspense></section>
     {saveError && <p role="alert" className="mb-4 text-sm text-destructive-text">{tCreate('partialSaveFailed', 'Meeting saved, but some details were not saved. Save again to retry.')}</p>}
     <FormFooter submitLabel={tCreate('save', 'Save meeting')} cancelLabel={tCreate('cancel', 'Cancel')} onCancel={() => guardLeave(() => returnToList())} disabled={form.isSubmitting || create.isPending} loading={form.isSubmitting} />
     <UnsavedChangesDialog open={pendingLeave !== null} onDiscard={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onKeepEditing={() => setPendingLeave(null)} />
