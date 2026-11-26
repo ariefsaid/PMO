@@ -122,6 +122,7 @@ const SiteReports: React.FC = () => {
           <>
             <div data-testid="dsr-list">
               <DataTable
+                tableId="site-report-list"
                 rows={list.data.rows}
                 rowKey={(r) => r.id}
                 rowHref={(r) => `/site-reports/${r.id}`}

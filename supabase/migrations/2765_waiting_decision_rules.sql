@@ -1,6 +1,41 @@
 -- The decision transitions and waiting queue read shared, internal authorization predicates.
 -- drops: inline actor checks move into the shared predicates. Transition locks, diagnostics
 -- and input validation are kept. The waiting queue also checks assignment and pending state.
+-- drops: approve_subcontract_certificate(uuid) | "if auth.uid() = c.prepared_by or auth.uid() = c.submitted_by then" | certificate_may_decide(c.id) enforces both preparer and submitter separation of duties.
+-- drops: attendance_second_record_decide(uuid,uuid,date,text,text) | "if not public.attendance_second_record_may_decide() then" | attendance_decision_may_decide(v_sec.id) delegates to the same role predicate and also enforces recorder and worker separation.
+-- drops: dsr_validate(uuid) | "if not public.dsr_may_validate(r.project_id) then" | daily_report_may_decide(r.id) delegates to dsr_may_validate after its author separation check.
+-- drops: my_waiting_decisions() | "where d.org_id = v_org and d.status = 'submitted' and d.author_id is distinct from v_uid" | daily_report_may_decide(d.id) supplies author separation and validation authority; org and submitted-status filters remain on the query.
+-- drops: my_waiting_decisions() | "and public.dsr_may_validate(d.project_id)" | daily_report_may_decide(d.id) delegates to dsr_may_validate for project validation authority.
+-- drops: my_waiting_decisions() | "and v_role in ('Admin', 'Executive', 'Project Manager', 'Finance')" | daily_report_may_decide(d.id) delegates to dsr_may_validate for eligible validation roles.
+-- drops: my_waiting_decisions() | "and (public.holds_won_value_authority(v_role)" | work_order_issue_may_decide(w.id) checks value authority or an eligible value setter.
+-- drops: my_waiting_decisions() | "or (w.order_value_set_at is not null and public.is_active_member(w.order_value_set_by)" | work_order_issue_may_decide(w.id) requires a recorded, active value setter.
+-- drops: my_waiting_decisions() | "and public.may_approve_work_of(w.order_value_set_by, v_uid)))" | work_order_issue_may_decide(w.id) requires the caller to outrank the value setter.
+-- drops: my_waiting_decisions() | "and (v_role = 'Admin'" | delivery_record_may_decide(pr.id) checks the eligible delivery role.
+-- drops: my_waiting_decisions() | "or (pr.requested_by_id = v_uid and v_role in ('Executive', 'Project Manager', 'Finance', 'Engineer'))" | delivery_record_may_decide(pr.id) checks requester eligibility by role.
+-- drops: my_waiting_decisions() | "or (v_role = 'Project Manager' and p.project_manager_id = v_uid))" | delivery_record_may_decide(pr.id) allows project managers only for their assigned project.
+-- drops: my_waiting_decisions() | "where q.org_id = v_org and q.status = 'pending_approval' and public.qcr_may_approve_role(v_org)" | quantity_change_may_decide(q.id) supplies org and reviewer-role checks; the pending-status filter remains on the query.
+-- drops: my_waiting_decisions() | "and q.author_id is distinct from v_uid and not (v_uid = any (q.editor_ids)) and q.submitted_by is distinct from v_uid" | quantity_change_may_decide(q.id) excludes authors, editors, and submitters.
+-- drops: my_waiting_decisions() | "where c.org_id = v_org and c.status = 'submitted' and v_role in ('Admin', 'Finance', 'Executive')" | certificate_may_decide(c.id) checks org, eligible role, and the certificate's prepared/submitted users.
+-- drops: my_waiting_decisions() | "and c.prepared_by is distinct from v_uid and c.submitted_by is distinct from v_uid" | certificate_may_decide(c.id) excludes the preparer and submitter.
+-- drops: my_waiting_decisions() | "and sd.created_by is distinct from v_uid" | stock_writeoff_may_decide(sd.id) excludes the write-off author.
+-- drops: my_waiting_decisions() | "and coalesce(public.role_rank(v_role) >= 20, false)" | stock_writeoff_may_decide(sd.id) checks rank or material coordinator authority.
+-- drops: my_waiting_decisions() | "and not (v_uid = any (asr.recorded_by_ids)) and not (v_uid = any (ad.recorded_by_ids))" | attendance_decision_may_decide(asr.id) excludes anyone who recorded either figure.
+-- drops: my_waiting_decisions() | "and public.attendance_second_record_may_decide()" | attendance_decision_may_decide(asr.id) delegates to the attendance decision role predicate.
+-- drops: qcr_assert_approver(public.quantity_change_requests) | "declare v_uid uuid := auth.uid();" | quantity_change_may_decide(p_request.id) reads auth.uid() in its shared author/editor/submitter check.
+-- drops: qcr_assert_approver(public.quantity_change_requests) | "if v_uid = p_request.author_id or v_uid = any (p_request.editor_ids) or v_uid is not distinct from p_request.submitted_by then" | quantity_change_may_decide(p_request.id) rejects author, editor, and submitter self-approval.
+-- drops: qcr_assert_approver(public.quantity_change_requests) | "end if;" | quantity_change_may_decide(p_request.id) owns the completed author/editor/submitter self-approval check.
+-- drops: stock_assert_writeoff_approver(public.stock_documents,uuid) | "v_rank_ok := coalesce(public.role_rank(public.auth_role()) >= 20, false)" | stock_writeoff_may_decide(p_doc.id) checks the required rank or material coordinator authority.
+-- drops: stock_assert_writeoff_approver(public.stock_documents,uuid) | "or coalesce(public.actor_holds_job_role('material_coordinator'), false);" | stock_writeoff_may_decide(p_doc.id) checks the required rank or material coordinator authority.
+-- drops: transition_procurement(uuid,procurement_status,text) | "if not v_is_admin then" | delivery_record_may_decide(p_id) guards Ordered to Received; remaining transitions retain their non-Admin role checks.
+-- drops: transition_procurement(uuid,procurement_status,text) | "when v_from = 'Ordered'   and p_to = 'Received' then case when v_is_requester then array['Executive','Project Manager','Finance','Engineer'] else array['Project Manager'] end" | delivery_record_may_decide(p_id) allows Admin/Project Manager or an eligible requester to receive.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "if coalesce(v_value, 0) > 0" | work_order_issue_may_decide(p_id) includes the positive-value case in its issuance authorization predicate.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "and not public.holds_won_value_authority(v_role)" | work_order_issue_may_decide(p_id) checks value authority before issuance.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "and (    v_set_at is null" | work_order_issue_may_decide(p_id) checks for a recorded eligible value setter.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "or v_set_by is null" | work_order_issue_may_decide(p_id) checks for a recorded eligible value setter.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "or v_set_by is not distinct from auth.uid()" | work_order_issue_may_decide(p_id) excludes self-approval by the value setter.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "or not public.is_active_member(v_set_by)" | work_order_issue_may_decide(p_id) requires the value setter to remain an active member.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "or not public.may_approve_work_of(v_set_by, auth.uid()) )" | work_order_issue_may_decide(p_id) requires the caller to outrank the active value setter.
+-- drops: transition_work_order(uuid,public.work_order_status,boolean) | "then" | work_order_issue_may_decide(p_id) returns false when the issuance authorization conditions are not satisfied.
 
 create function public.stock_writeoff_may_decide(p_record uuid) returns boolean
   language sql stable set search_path = public, pg_temp as $$
@@ -217,15 +252,11 @@ create or replace function public.stock_assert_writeoff_approver(p_doc public.st
 declare v_self_ok boolean; v_rank_ok boolean;
 begin
   v_self_ok := p_doc.created_by is distinct from p_uid;                                                   -- mut:selfapprove
-  if not v_self_ok then
-    raise exception 'STK_SELF_APPROVE: a write-off must be posted by someone other than its author' using errcode = 'P0001';
-  end if;
+  if not v_self_ok then raise exception 'STK_SELF_APPROVE: a write-off must be posted by someone other than its author' using errcode = 'P0001'; end if;
   v_rank_ok := (
     public.stock_writeoff_may_decide(p_doc.id) -- mut:writeoff_rank
   );
-  if not v_rank_ok then
-    raise exception 'STK_RANK: only a Project Manager or above, or the Material Coordinator, posts a write-off' using errcode = 'P0001';
-  end if;
+  if not v_rank_ok then raise exception 'STK_RANK: only a Project Manager or above, or the Material Coordinator, posts a write-off' using errcode = 'P0001'; end if;
 end $$;
 
 create or replace function public.dsr_validate(p_report uuid)
@@ -825,8 +856,7 @@ begin
   if t.status <> 'Sent' then raise exception 'STK_INVALID: this transfer was already received or cancelled' using errcode = 'P0001'; end if;
   if not public.transfer_receipt_may_decide(t.id) then
     if not public.stock_transfer_actor_ok(t, 'receive') then
-      raise exception 'STK_NOT_RECEIVER: you do not keep the destination and the transfer is not addressed to you' using errcode = 'P0001';
-    end if;
+      raise exception 'STK_NOT_RECEIVER: you do not keep the destination and the transfer is not addressed to you' using errcode = 'P0001'; end if;
     raise exception 'STK_SELF_RECEIVE: the person who sent a transfer cannot be the one who receives it' using errcode = 'P0001';
   end if;
   if t.sent_by = v_uid then

@@ -174,7 +174,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               onNoteChange={onNoteChange}
             />
           </div>
-
+          <Button className="touch-target shrink-0" variant="ghost" size="icon" aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })} onClick={() => onDeleteRow?.(r.id)}><Icon name="x" /></Button>
         </div>
       ) : (
         // Read-only branch — project name links to /projects/:id when projectId present
@@ -280,12 +280,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     },
   ];
 
-  if (editable) columns.push({
-    key: 'delete', header: '', size: 48, minSize: 48,
-    cell: (r) => <Button className="touch-target opacity-0 focus:opacity-100 group-hover:opacity-100 hover:opacity-100 [tr:hover_&]:opacity-100" variant="ghost" size="icon"
-      aria-label={t('timesheets.deleteProjectRow', 'Delete {{project}} row', { project: r.project })}
-      onClick={() => onDeleteRow?.(r.id)}><Icon name="x" /></Button>,
-  });
+
 
   const totals = [{
     key: 'daily',
