@@ -1049,3 +1049,7 @@ p { text-wrap: pretty; }
 /* recharts measures label text in an off-screen span (aria-hidden, top -20000px) that it leaves in the body.
    Nobody sees it; hiding it keeps its box (measurement still works) and keeps it out of text audits. */
 #recharts_measurement_span { visibility: hidden; }
+
+/* Record sections share the header surface and inset. */
+.record-page [data-card-surface=bare] { border: 1px solid hsl(var(--border)); border-radius: var(--radius); background: hsl(var(--card)); }
+.record-page [data-card-surface=bare] > * + * { margin-top: 0; }
