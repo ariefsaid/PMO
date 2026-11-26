@@ -43,7 +43,7 @@ test('JOB-A2 a renamed work order term shows on the project tab and the work ord
   const row = page.getByTestId('term-row-workOrder-en');
   await row.getByLabel('Singular').fill('SPK');
   await row.getByLabel('Plural').fill('SPK');
-  await page.getByTestId('term-card-workOrder').getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(visibleToast(page, 'Terminology saved')).toBeVisible({ timeout: 15_000 });
 
   // 2. Any user opens the project: its work orders tab reads SPK, and so does the panel it opens.

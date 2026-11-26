@@ -1,3 +1,4 @@
+import { useSettingsSaveEntry } from '@/src/components/admin/settingsSaveContext';
 import React, { useEffect, useState } from 'react';
 import { usePermission } from '@/src/auth/usePermission';
 import { useTranslation } from 'react-i18next';
@@ -75,6 +76,7 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
   const dirty = TERM_LOCALES.some((l) => isDirty(drafts[l], current?.[l]));
   const invalid = TERM_LOCALES.some((l) => drafts[l].singular.trim() !== '' && validateOverride({ key: termKey, locale: l, singular: drafts[l].singular, plural: drafts[l].plural || drafts[l].singular }) !== null);
   const hasOverride = TERM_LOCALES.some((l) => Boolean(current?.[l]));
+  const pageSave = useSettingsSaveEntry(canEdit ? { dirty, invalid, busy, save: () => save.mutateAsync() } : null);
   const wide = false;
   const shippedEn = shippedTerm('en', termKey);
   const shippedId = shippedTerm('id', termKey);
@@ -110,10 +112,10 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
       </div>
       {canEdit ? (
         <div className="flex gap-2 xl:w-[12.5rem] xl:justify-end">
-          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
+          {!pageSave && <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
-          </Button>
-          <Button variant="outline" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
+          </Button>}
+          <Button variant="ghost" size="sm" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>
