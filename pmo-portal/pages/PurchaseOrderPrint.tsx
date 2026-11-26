@@ -154,7 +154,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
         <div>
           <div className="font-medium text-foreground">{item.name}</div>
           {item.description ? (
-            <div className="text-xs text-muted-foreground mt-0.5">{item.description}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{item.description}</div>
           ) : null}
           {(() => {
             const order = item.work_order_id ? projectOrders.data?.find((w) => w.id === item.work_order_id) : undefined;
@@ -163,7 +163,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
               order ? `${t('purchaseOrderPrint.workOrder', 'Work order')} ${order.wo_number ?? order.title}` : null,
               discipline ? `${t('purchaseOrderPrint.discipline', 'Discipline')} ${discipline.name}` : null,
             ].filter(Boolean);
-            return parts.length > 0 ? <div className="text-xs text-muted-foreground mt-0.5" data-testid="po-line-attribution">{parts.join(' · ')}</div> : null;
+            return parts.length > 0 ? <div className="text-sm text-muted-foreground mt-0.5" data-testid="po-line-attribution">{parts.join(' · ')}</div> : null;
           })()}
         </div>
       ),
@@ -181,7 +181,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
       align: 'right',
       width: '140px',
       render: (item) => (
-        <span className="tabular-nums font-mono text-xs">
+        <span className="tabular-nums font-mono text-sm">
           {formatCurrency(Number(item.rate), currency)}
         </span>
       ),
@@ -192,7 +192,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
       align: 'right',
       width: '160px',
       render: (item) => (
-        <span className="tabular-nums font-mono text-xs font-semibold">
+        <span className="tabular-nums font-mono text-sm font-semibold">
           {formatCurrency(Number(item.amount), currency)}
         </span>
       ),
@@ -248,7 +248,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
             data-testid="authorised-to-collect-section"
             aria-label={t('purchaseOrderPrint.authorisedToCollect', 'Authorised to collect')}
           >
-            <div className="text-xs font-semibold text-muted-foreground">
+            <div className="text-sm font-semibold text-muted-foreground">
               {t('purchaseOrderPrint.authorisedToCollect', 'Authorised to collect')}
             </div>
             <div
@@ -260,7 +260,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
               ) : collectorsList.length > 0 ? (
                 <span>{collectorsList.join(', ')}</span>
               ) : (
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="font-mono text-sm text-muted-foreground">
                   {t(
                     'purchaseOrderPrint.openCollectorLine',
                     '________________________________________',
