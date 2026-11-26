@@ -6,7 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import idPva from '../../public/locales/id/workOrderPva.json';
 import enPva from '../../public/locales/en/workOrderPva.json';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder, type PlanLine } from '@/src/lib/workOrderPlanVsActual';
 import { PlanVsActualSection } from './PlanVsActualSection';
@@ -37,16 +37,20 @@ describe('PlanVsActualSection', () => {
       [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '550.00', note: null }],
     );
     render(<PlanVsActualSection workOrderId="A" query={ok(d)} disciplines={discs} />);
-    expect(screen.getByTestId('wo-page-pva-plan-direct').textContent).toBe(formatExactMoney('550.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-page-pva-direct').textContent).toMatch(/^IDR.600\.00/);
-    expect(screen.getByTestId('wo-page-pva-direct').textContent).toContain('Over plan by ' + formatExactMoney('50.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-page-pva-allocated').textContent).toContain(formatExactMoney('60.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-page-pva-revenue').textContent).toBe(formatExactMoney('1000.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-page-pva-direct-margin').textContent).toBe(formatExactMoney('400.00', 'IDR', 'en-US'));
-    expect(screen.getByTestId('wo-page-pva-result').textContent).toBe(formatExactMoney('340.00', 'IDR', 'en-US'));
+    // Read-only table money in whole units (docs/ux/screen-rules.md), the same as the project tab's row.
+    expect(screen.getByTestId('wo-page-pva-plan-direct').textContent).toBe(formatTableMoney('550.00', 'IDR'));
+    expect(screen.getByTestId('wo-page-pva-direct').textContent).toBe(formatTableMoney('600.00', 'IDR'));
+    const direct = screen.getByTestId('wo-page-pva-direct').closest('tr') as HTMLElement;
+    const over = within(direct).getByText(/^Over plan by/);
+    expect(over.textContent).toBe('Over plan by ' + formatTableMoney('50.00', 'IDR'));
+    expect(over.className).toContain('text-destructive');
+    expect(screen.getByTestId('wo-page-pva-allocated').textContent).toBe(formatTableMoney('60.00', 'IDR'));
+    expect(screen.getByTestId('wo-page-pva-revenue').textContent).toBe(formatTableMoney('1000.00', 'IDR'));
+    expect(screen.getByTestId('wo-page-pva-direct-margin').textContent).toBe(formatTableMoney('400.00', 'IDR'));
+    expect(screen.getByTestId('wo-page-pva-result').textContent).toBe(formatTableMoney('340.00', 'IDR'));
     const civ = screen.getByTestId('wo-page-pva-discipline-civ');
     expect(within(civ).getByText('Civil')).toBeTruthy();
-    expect(civ.textContent).toContain(formatExactMoney('600.00', 'IDR', 'en-US'));
+    expect(civ.textContent).toContain(formatTableMoney('600.00', 'IDR'));
     // the other work order's figures are not shown
     expect(screen.queryByText(/WO-2/)).toBeNull();
   });
@@ -57,7 +61,7 @@ describe('PlanVsActualSection', () => {
       resources: { id: { workOrderPva: idPva }, en: { workOrderPva: enPva } }, react: { useSuspense: false } });
     render(<I18nextProvider i18n={i18n}><PlanVsActualSection workOrderId="A" query={ok(data([wo('A', 'WO-1')], [line({ workOrderId: 'A', amount: '1500000.00' })]))} disciplines={discs} /></I18nextProvider>);
     expect(screen.getAllByText('Biaya langsung').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Rencana langsung').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Biaya bersama').length).toBeGreaterThan(0);
     expect(screen.getByTestId('wo-page-pva-direct').textContent).toMatch(/1\.500\.000/);
   });
   it('shows a loading state', () => {

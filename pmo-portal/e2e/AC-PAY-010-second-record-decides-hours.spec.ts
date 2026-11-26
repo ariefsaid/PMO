@@ -127,7 +127,8 @@ test('AC-PAY-010 a second record of 5 hours against the foreman\'s 8 is decided 
   await signIn(page, 'exec@acme.test');
   await page.goto('/crews?view=attendance');
   const approve = page.getByRole('row', { name: ana.name });
-  await expect(approve.getByText('5 hours')).toBeVisible({ timeout: 20_000 });
+  // The week's hours sit in the waiting table's Hours column.
+  await expect(approve.getByRole('cell', { name: '5', exact: true })).toBeVisible({ timeout: 20_000 });
   await approve.getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByRole('row', { name: ana.name })).toHaveCount(0, { timeout: 15_000 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -104,7 +104,8 @@ describe('leave requests page (#2708)', () => {
     h.rows = [row({ id: 'a', can_decide: true, is_mine: false, person_name: 'Other' }), row({ id: 'b' })];
     page();
     expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
-    expect(screen.getAllByText('Waiting for Person manager to decide')).toHaveLength(2);
+    // The requester's own row names who decides it.
+    expect(within(screen.getByRole('row', { name: /Own Person/ })).getByText('Person manager')).toBeInTheDocument();
     h.decide.mockResolvedValue(undefined);
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
     expect(h.decide).toHaveBeenCalledWith({ id: 'a', decision: 'Approved', note: null });

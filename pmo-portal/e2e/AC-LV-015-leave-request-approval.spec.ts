@@ -89,7 +89,7 @@ test('AC-LV-015 a person requests leave, their line manager approves it, and the
   await page.goto('/leave');
   await expect(page.getByText(/Waiting for your decision/)).toBeVisible({ timeout: 20_000 });
   await shot(page, 'leave-waiting-decision');
-  await page.getByRole('listitem', { name: new RegExp(`${run}|Engineer`) }).first().getByRole('button', { name: 'Approve' }).click();
+  await page.getByRole('row', { name: new RegExp(`${run}|Engineer`) }).first().getByRole('button', { name: 'Approve' }).click();
   await expect(visibleToast(page, 'Leave approved')).toBeVisible({ timeout: 15_000 });
 
   // 3. Goal: the roster for that day marks the person as on leave.
