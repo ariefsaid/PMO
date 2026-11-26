@@ -10,7 +10,8 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoListPicker, repoListNumbers, repoGetWithRefs, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
+const { listRecordHistory, milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoListPicker, repoListNumbers, repoGetWithRefs, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
+  listRecordHistory: vi.fn(),
   listClientCompanies: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Acme', type: 'Client' }]),
   listProjectManagers: vi.fn().mockResolvedValue([{ id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' }]),
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
@@ -23,6 +24,7 @@ const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoL
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
+    recordHistory: { list: listRecordHistory },
     milestone: { milestoneDatesForProjects },
     company: { listClients: listClientCompanies },
     profile: { listProjectManagers },
@@ -50,6 +52,7 @@ import {
   useProjectsMilestoneDates,
   useProjectMutations,
 } from './useProjects';
+import { useRecordHistory } from './useRecordHistory';
 import { projectKeys } from './projectQueryKeys';
 
 /** Fresh QueryClient per test to avoid cross-test cache bleed. */
@@ -175,6 +178,25 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
 });
 
 describe('useProjectMutations history (#2888)', () => {
+  it('refetches the open project History after saving', async () => {
+    const wrapper = makeWrapper();
+    listRecordHistory.mockReset()
+      .mockResolvedValueOnce({ events: [], nextCursor: null })
+      .mockResolvedValueOnce({ events: [{ id: 'project-edit' }], nextCursor: null });
+    const { result } = renderHook(() => ({
+      history: useRecordHistory({ entityType: 'project', entityId: 'p1', includeChildren: true }),
+      updateHeader: useProjectMutations().updateHeader,
+    }), { wrapper });
+
+    await waitFor(() => expect(result.current.history.data?.pages[0].events).toEqual([]));
+    await result.current.updateHeader.mutateAsync({
+      id: 'p1',
+      input: { name: 'Updated project', code: null, client_id: null, end_client_id: null, project_manager_id: null, start_date: null, end_date: null },
+    });
+
+    await waitFor(() => expect(result.current.history.data?.pages[0].events).toEqual([{ id: 'project-edit' }]));
+  });
+
   it('a header update invalidates the record history so the edit shows in place', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidate = vi.spyOn(qc, 'invalidateQueries');

@@ -31,6 +31,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
     'financial-statements-nightly-intent-race.test.mjs',
     'fiscal-year-ensure-mutation.test.mjs',
     'fiscal-year-ensure-race.test.mjs',
+    'check-schema-registrations.test.mjs',
   ];
   const nonDatabase = workflow.match(/node scripts\/run-script-tests\.mjs[^\n]+/);
   assert.ok(nonDatabase, 'CI must discover non-database script tests through the tracked runner (#2332)');
@@ -72,6 +73,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   for (const file of [
     'fiscal-year-ensure-mutation.test.mjs',
     'fiscal-year-ensure-race.test.mjs',
+    'check-schema-registrations.test.mjs',
   ]) {
     const fileIdx = pgtapJob.indexOf(`scripts/${file}`);
     assert.ok(fileIdx !== -1, `pgtap job must run scripts/${file}`);

@@ -7,7 +7,7 @@ import { Checkbox } from '@/src/components/ui/Checkbox';
 import { useRefusalText } from '@/src/lib/refusals';
 import { formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import { milli } from '@/src/lib/progressBilling';
-import type { RecordSurveyInput } from '@/src/lib/db/surveyRecords';
+import type { RecordedSurvey, RecordSurveyInput, SurveyAttachmentFailure } from '@/src/lib/db/surveyRecords';
 
 /**
  * Record a survey (or a correction of a confirmed one) on one work-order line. Who took part is typed data: a name, an optional
@@ -25,13 +25,14 @@ export interface SurveyModalProps {
   correcting?: { id: string; boqItemId: string } | null;
   today: string;
   onClose: () => void;
-  onSave: (input: RecordSurveyInput) => Promise<unknown>;
+  onSave: (input: RecordSurveyInput) => Promise<RecordedSurvey>;
+  onRetryAttachments: (id: string, documentIds: string[]) => Promise<SurveyAttachmentFailure[]>;
 }
 
 interface Person { name: string; company: string; role: string }
 const BLANK: Person = { name: '', company: '', role: '' };
 
-const SurveyModal: React.FC<SurveyModalProps> = ({ workOrderId, lines, documents, correcting = null, today, onClose, onSave }) => {
+const SurveyModal: React.FC<SurveyModalProps> = ({ workOrderId, lines, documents, correcting = null, today, onClose, onSave, onRetryAttachments }) => {
   const { t } = useTranslation('survey');
   const refusal = useRefusalText();
   const [boqItemId, setBoqItemId] = useState(correcting?.boqItemId ?? '');
@@ -44,10 +45,21 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ workOrderId, lines, documents
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
+  const [saved, setSaved] = useState<RecordedSurvey | null>(null);
   const unit = lines.find((l) => l.id === boqItemId)?.unit ?? '';
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+    if (saved) {
+      setSaving(true);
+      setSaveError(null);
+      void onRetryAttachments(saved.id, saved.failures.map(({ documentId }) => documentId))
+        .then((failures) => showResult({ id: saved.id, failures }))
+        .catch(showError)
+        .finally(() => setSaving(false));
+      return;
+    }
     const errs: Record<string, string> = {};
     if (!boqItemId) errs.line = t('form.errors.line', 'Choose a contract line');
     if (!date) errs.date = t('form.errors.date', 'Enter the survey date');
@@ -70,16 +82,38 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ workOrderId, lines, documents
       ...(correcting ? { supersedesId: correcting.id } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
       documentIds: docIds,
-    }).then(onClose).catch((err: unknown) => {
-      const r = refusal(err);
-      setSaveError({ headline: r.headline, detail: r.detail || undefined });
-    }).finally(() => setSaving(false));
+    }).then(showResult).catch(showError).finally(() => setSaving(false));
+  };
+  const showResult = (result: RecordedSurvey) => {
+    if (result.failures.length === 0) onClose();
+    else setSaved(result);
+  };
+  const showError = (err: unknown) => {
+    const r = refusal(err);
+    setSaveError({ headline: r.headline, detail: r.detail || undefined });
   };
   const setPerson = (i: number, patch: Partial<Person>) => setPeople((cur) => cur.map((p, j) => (j === i ? { ...p, ...patch } : p)));
 
+  const title = correcting ? t('form.titleCorrect', 'Correct a survey') : t('form.titleNew', 'Record a survey');
+  if (saved) {
+    return (
+      <EntityFormModal open width="lg" title={title}
+        submitLabel={t('form.retryAttachments', 'Retry attachments')} cancelLabel={t('form.closeSaved', 'Close')}
+        onSubmit={submit} submitError={saveError} onClose={onClose} loading={saving}>
+        <div role="alert" className="space-y-2">
+          <p>{t('form.attachmentsFailed', 'Survey saved, but some documents could not be attached.')}</p>
+          <ul className="list-disc pl-5">
+            {saved.failures.map(({ documentId, error }) => (
+              <li key={documentId}>{documents.find((d) => d.id === documentId)?.title ?? documentId} · {refusal(error).headline}</li>
+            ))}
+          </ul>
+        </div>
+      </EntityFormModal>
+    );
+  }
+
   return (
-    <EntityFormModal open width="lg"
-      title={correcting ? t('form.titleCorrect', 'Correct a survey') : t('form.titleNew', 'Record a survey')}
+    <EntityFormModal open width="lg" title={title}
       submitLabel={t('form.submit', 'Save draft')} onSubmit={submit} submitError={saveError} onClose={onClose} loading={saving}
       dirty={surveyed !== '' || quality !== '' || note !== '' || docIds.length > 0 || people.some((p) => p.name !== '')}>
       <FormSection legend={t('title', 'Surveys')}>

@@ -107,8 +107,10 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
   const peopleForSetup = usePeople('active');
   const placements = useAllCrewMembers(hasFieldUsers);
   const todayIso = formatCalendarDayInTimeZone(new Date(), getActiveOrgTimezone());
-  const setupGap = (u: UserDirectoryRow): 'unlinked' | 'noCrew' | null => {
-    if (!hasFieldUsers || !u.built_in_role || !fieldRoleKeys.includes(u.built_in_role) || !peopleForSetup.data || !placements.data) return null;
+  const setupGap = (u: UserDirectoryRow): 'unlinked' | 'noCrew' | 'unknown' | null => {
+    if (!hasFieldUsers || !u.built_in_role || !fieldRoleKeys.includes(u.built_in_role)) return null;
+    if (peopleForSetup.isError || placements.isError) return 'unknown';
+    if (!peopleForSetup.data || !placements.data) return null;
     const person = peopleForSetup.data.find((p) => p.profile_id === u.id);
     if (!person) return 'unlinked';
     const inCrew = placements.data.some((m) => m.worker_id === person.id && m.valid_from <= todayIso && (!m.valid_to || m.valid_to >= todayIso));
@@ -185,6 +187,11 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
           <StatusPill variant={roleVariant(u.role)}>{u.built_in_role ? roleDisplayName(u.built_in_role) : roleNames.label(u.role)}</StatusPill>
           {u.built_in_role && <span className="ml-2 text-muted-foreground">{roleNames.label(u.role)}</span>}
           {isSoleAdmin(u) && <span className="ml-2 text-muted-foreground">{t('administration:onlyActiveAdmin', 'The only active Admin cannot be disabled')}</span>}
+          {setupGap(u) === 'unknown' && (
+            <span className="mt-1 block text-control text-warning-foreground">
+              {t('administration:admin.users.setup.readError', "Couldn't check field setup")}
+            </span>
+          )}
           {setupGap(u) === 'unlinked' && (
             <span className="mt-1 block text-control text-warning-foreground" data-testid={`setup-gap-${u.id}`}>
               {t('administration:admin.users.setup.unlinked', 'Login not linked to a person, so they cannot be placed in a crew.')}{' '}

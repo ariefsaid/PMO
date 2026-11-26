@@ -54,19 +54,26 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
     },
     onSuccess: () => {
       toast(t('administration:terminology.saved', 'Terminology saved'), undefined, 'success');
-      return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
+    onError: (e) => {
+      setDrafts({ en: draftOf(current?.en), id: draftOf(current?.id) });
+      toast(classifyMutationError(e).headline, undefined, 'error');
+    },
+    onSettled: refresh,
   });
   const reset = useMutation({
     mutationFn: async () => { for (const locale of TERM_LOCALES) if (current?.[locale]) await resetOrgTerm(termKey, locale); },
     onSuccess: () => {
       toast(t('administration:terminology.resetDone', 'Back to the default wording'), undefined, 'success');
-      return refresh();
     },
-    onError: (e) => toast(classifyMutationError(e).headline, undefined, 'error'),
+    onError: (e) => {
+      setDrafts({ en: draftOf(current?.en), id: draftOf(current?.id) });
+      toast(classifyMutationError(e).headline, undefined, 'error');
+    },
+    onSettled: refresh,
   });
 
+  const busy = save.isPending || reset.isPending;
   const dirty = TERM_LOCALES.some((l) => isDirty(drafts[l], current?.[l]));
   const invalid = TERM_LOCALES.some((l) => drafts[l].singular.trim() !== '' && validateOverride({ key: termKey, locale: l, singular: drafts[l].singular, plural: drafts[l].plural || drafts[l].singular }) !== null);
   const hasOverride = TERM_LOCALES.some((l) => Boolean(current?.[l]));
@@ -91,11 +98,11 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
             <p className="mb-1 text-control font-medium xl:mb-0 xl:font-normal xl:text-muted-foreground">{LOCALE_NAME[locale]}</p>
             <div className="grid grid-cols-2 gap-2 xl:contents">
               <div className="min-w-0">
-                <TextField label={t('administration:terminology.singular', 'Singular')} hideLabel={wide} disabled={!canEdit} value={drafts[locale].singular}
+                <TextField label={t('administration:terminology.singular', 'Singular')} hideLabel={wide} disabled={!canEdit || busy} value={drafts[locale].singular}
                   placeholder={shipped.singular} maxLength={60} onChange={(v) => edit(locale, 'singular', v)} fullWidth />
               </div>
               <div className="min-w-0">
-                <TextField label={t('administration:terminology.plural', 'Plural')} hideLabel={wide} disabled={!canEdit} value={drafts[locale].plural}
+                <TextField label={t('administration:terminology.plural', 'Plural')} hideLabel={wide} disabled={!canEdit || busy} value={drafts[locale].plural}
                   placeholder={shipped.plural} maxLength={60} onChange={(v) => edit(locale, 'plural', v)} fullWidth />
               </div>
             </div>
@@ -105,10 +112,10 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
       </div>
       {canEdit ? (
         <div className="flex gap-2 xl:w-[10.5rem] xl:justify-end">
-          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || save.isPending} onClick={() => save.mutate()}>
+          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
           </Button>
-          <Button variant="outline" disabled={!hasOverride || reset.isPending} onClick={() => reset.mutate()}>
+          <Button variant="outline" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>

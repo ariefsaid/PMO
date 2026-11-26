@@ -13,7 +13,7 @@
 --   (1936) same in notify_wo_step_opened (mut:notify) ............................... 'AC-WBS-011 ... is told when it opens'
 begin;
 create extension if not exists pgtap;
-select plan(94);
+select plan(95);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('17700000-0000-0000-0000-0000000000a1', 'WBS Org A', 'IDR', 'UTC', true),
@@ -293,11 +293,16 @@ update email_event_settings set extra_roles = '{Engineer,"Project Manager"}' whe
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('17700000-0000-0000-0000-000000000038', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS email', 'Draft', 10000, 'exclusive', 0);
 update work_orders set status = 'Issued', issued_at = now() where id = '17700000-0000-0000-0000-000000000038';
--- Distinct recipients: with two owners told (1936) each notice carries its own extra-role copies, so a manager gets one per notice.
 select is((select string_agg(distinct o.recipient_id::text, ',' order by o.recipient_id::text) from email_outbox o join notifications n on n.id = o.notification_id
             where n.metadata->'entity'->>'id' = '17700000-0000-0000-0000-000000000038' and o.event_key = 'billing_step'),
   '17700000-0000-0000-0000-0000000000b3,17700000-0000-0000-0000-0000000000b4,17700000-0000-0000-0000-0000000000b9,17700000-0000-0000-0000-0000000000bb,17700000-0000-0000-0000-0000000000bc',
   'AC-WBS-008 the owners (the role holder and the Engineer with no job role, 1936) and the managers who may see the step are emailed; the hidden role, engineers without the right and the field account are not');
+
+select is((select count(*) from email_outbox o join notifications n on n.id = o.notification_id
+            where n.metadata->'entity'->>'id' = '17700000-0000-0000-0000-000000000038' and o.event_key = 'billing_step'),
+          (select count(distinct o.recipient_id) from email_outbox o join notifications n on n.id = o.notification_id
+            where n.metadata->'entity'->>'id' = '17700000-0000-0000-0000-000000000038' and o.event_key = 'billing_step'),
+  'AC-WBS-008 each recipient receives one email for the opening even when told as an owner and by an extra role');
 
 -- ── security: naming a person the step is hidden from is Finance or Admin only ────────────────────────────────────────────────────────────
 select pg_temp.as_user('b3');

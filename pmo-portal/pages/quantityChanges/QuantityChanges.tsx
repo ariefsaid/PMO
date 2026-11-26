@@ -5,12 +5,14 @@ import { Button, Checkbox, DataTable, EntityFormModal, ListState, PageHeader, Re
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
+import { useStoredOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { useOverContract, useQuantityChangeApproverRoles, useQuantityChangeLimit, useQuantityChangeMutations, useQuantityChangeRequests } from '@/src/hooks/useQuantityChanges';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
+import { ORG_SETTINGS } from '@/src/lib/orgSettingsCatalogue';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { OverContractRow } from '@/src/lib/db/quantityChanges';
 import type { RequestStatus } from '@/src/lib/quantityChangeRules';
@@ -195,6 +197,7 @@ const ApproverRolesSection: React.FC = () => {
   const { toast } = useToast();
   const roleName = useBuiltInRoleName();
   const query = useQuantityChangeApproverRoles();
+  const builtInRoles = useStoredOrgSwitch('builtInRoles');
   const { setApproverRoles } = useQuantityChangeMutations();
   const [draft, setDraft] = useState<string[] | null>(null);
   // Save sends the whole list, so the stored list must be known first: never a partial list over the saved one.
@@ -213,6 +216,14 @@ const ApproverRolesSection: React.FC = () => {
   return (
     <RecordSection title={t('approvers.title', 'Who may review requests')} data-testid="qcr-approver-roles">
       <p className="mb-3 text-foreground">{t('approvers.help', 'Admin, Executive and Finance can always approve or return a request. Tick other roles that may too. Whoever raised, edited or submitted a request still cannot approve it.')}</p>
+      {builtInRoles.data === false && (
+        <p className="mb-3 text-foreground">
+          {t('approvers.inactive', 'Saved reviewer roles only take effect when built-in roles are on.')}{' '}
+          <Link className="underline" to={ORG_SETTINGS.builtInRoles.route}>
+            {t('approvers.openSettings', 'Open built-in role settings')}
+          </Link>
+        </p>
+      )}
       {query.isError ? (
         <ListState variant="error" title={t('approvers.error', "Couldn't load the reviewer roles")} onRetry={() => void query.refetch()} />
       ) : query.data === undefined ? (
