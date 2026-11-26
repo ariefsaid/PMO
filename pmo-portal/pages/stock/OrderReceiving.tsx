@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Checkbox, ConfirmDialog, FieldError, ListState, PageHeader, SelectField, TextField } from '@/src/components/ui';
+import { Button, Checkbox, ConfirmDialog, DataTable, FieldError, ListState, PageHeader, SelectField, StatusPill, TextField, type Column } from '@/src/components/ui';
+import { formatDateOnly } from '@/src/lib/format';
 import { DateField } from '@/src/components/ui/DateField';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { useAuth } from '@/src/auth/useAuth';
@@ -18,6 +19,9 @@ import { formatQuantity, isPositiveDecimal, normalizeDecimal } from '@/src/lib/s
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { NO_QUALITY, qualityProblem, qualityWire, type QualityProblem, type QualityValue } from '@/src/lib/receiptQuality';
 import { OrderReceivingLines } from './OrderReceivingLines';
+
+type ReceiptRow = { key: string; count: ReceiptCount; line: ReceiptCount['lines'][number]; first: boolean };
+const RECEIPT_VARIANT = { posted: 'won', approved: 'open', waiting: 'warn', reversed: 'neutral' } as const;
 
 export function OrderReceivingSetting() {
   const { t } = useTranslation('stock');
@@ -37,12 +41,12 @@ export function OrderReceivingSetting() {
       .catch((e: unknown) => setError(refusal(e))).finally(() => setBusy(false));
   };
   if (!may('manage', 'orderReceiving', { record: { viewOnly: realRole !== effectiveRole } })) return null;
-  return <section className="space-y-2 border-t border-border py-4">
+  return <div className="flex flex-wrap items-center gap-2">
     <Checkbox checked={flag.data === true} disabled={busy || flag.isPending || flag.isError} label={t('receiving.enable')} onChange={setNextEnabled}>{t('receiving.enable')}</Checkbox>
     {flag.isError && <Button variant="outline" onClick={() => void flag.refetch()}>{t('receiving.retry')}</Button>}
     <FieldError>{error}</FieldError>
     <ConfirmDialog open={nextEnabled !== null} title={t('receiving.changeMode')} description={t('receiving.changeModeBody')} confirmLabel={t('receiving.confirmAction')} cancelLabel={t('receiving.cancel')} onCancel={() => setNextEnabled(null)} onConfirm={save} />
-  </section>;
+  </div>;
 }
 
 export default function OrderReceiving() {
@@ -107,30 +111,52 @@ export default function OrderReceiving() {
   };
   const pending = orders.isPending || warehouses.isPending || keepers.isPending;
   const failure = orders.isError || warehouses.isError || keepers.isError;
-  return <div className="space-y-6">
-    <PageHeader title={t('receiving.title')} />
-    <OrderReceivingSetting />
-    {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => { void orders.refetch(); void warehouses.refetch(); void keepers.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
+  const lineName = (id: string) => data?.lines.find((l) => l.id === id);
+  const receiptRows: ReceiptRow[] = (data?.requests ?? []).flatMap((count) => count.lines.map((line, index) => ({ key: `${count.id}-${line.item_id}`, count, line, first: index === 0 })));
+  const receiptState = (count: ReceiptCount) => count.reversed ? 'reversed' : count.document_id ? 'posted' : count.approved ? 'approved' : 'waiting';
+  const receiptActions = (count: ReceiptCount) => <div className="flex flex-wrap items-center justify-end gap-2">
+    {count.document_id && <Link className="inline-flex min-h-9 items-center text-control font-medium text-primary-text underline underline-offset-4" to={`/stock/documents/${count.document_id}`}>{t('receiving.openMovement')}</Link>}
+    {!count.document_id && count.approved && count.receiver_id === user?.id && !viewOnly && <Button variant="outline" disabled={busy} onClick={() => void post(count)}>{t('receiving.recordApproved')}</Button>}
+    {may('approve', 'orderReceiving', { currentUserId: user?.id, record: { viewOnly, receivingPurchaser: data?.purchaser, created_by: count.receiver_id } }) && !count.reversed && (!count.document_id && !count.approved || count.document_id && may('post', 'stockDocument', { currentUserId: user?.id, record: { viewOnly, kind: 'adjustment', created_by: count.receiver_id } })) && <Button variant="outline" disabled={busy} onClick={() => { setReason(''); setDecision({ count, reverse: !!count.document_id }); }}>{t(count.document_id ? 'receiving.reverse' : 'receiving.approve')}</Button>}
+  </div>;
+  const receiptColumns: Column<ReceiptRow>[] = [
+    { key: 'item', header: t('receiving.line'), rowHeader: true, cell: (r) => { const l = lineName(r.line.item_id); return l ? (data?.purchaser ? l.name : l.stock_name ?? l.name) : ''; },
+      secondaryCell: undefined },
+    { key: 'qty', header: t('receiving.received'), align: 'num', cell: (r) => <span className="tabular-nums whitespace-nowrap">{formatQuantity(String(r.line.quantity), getNumberLocale())}<span className="text-muted-foreground"> {lineName(r.line.item_id)?.unit ?? ''}</span></span> },
+    { key: 'rejected', header: t('quality.rejected'), align: 'num', cell: (r) => Number(r.line.rejected ?? 0) > 0
+      ? <span className="tabular-nums whitespace-nowrap">{formatQuantity(String(r.line.rejected), getNumberLocale())}<span className="block text-control text-muted-foreground">{r.line.reject_note ?? ''}</span></span> : null },
+  ];
+  const canRecord = !!warehouse && !!(date || day.day) && Object.values(quantities).some((q) => isPositiveDecimal(normalizeDecimal(q))) && !Object.values(quantities).some((q) => q !== '' && !isPositiveDecimal(normalizeDecimal(q)));
+  return <div className="space-y-6 pb-20 md:pb-0">
+    <PageHeader title={t('receiving.title')} action={<OrderReceivingSetting />} />
+    {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert" className="space-y-2"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => { void orders.refetch(); void warehouses.refetch(); void keepers.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField id="receipt-order" label={t('receiving.order')} value={orderId} onChange={(id) => { setSearch(id ? { order: id } : {}); setQuantities({}); setChecks({}); setProblems({}); setRequestId(crypto.randomUUID()); }} options={(orders.data ?? []).map((o) => ({ value: o.id, label: o.number }))} placeholder={t('receiving.chooseOrder')} />
         <SelectField id="receipt-warehouse" label={t('form.warehouse')} placeholder={t('form.warehousePlaceholder')} value={warehouse} onChange={setWarehouse} options={(warehouses.data ?? []).filter((w) => !w.archived_at).map((w) => ({ value: w.id, label: w.name }))} />
         <DateField id="receipt-date" label={t('receiving.date')} value={date || day.day || ''} onChange={setDate} />
       </div>
       {orders.data?.length === 0 && <p className="text-control text-muted-foreground">{t('receiving.noOrders')}</p>}
-      {orderId && (order.isPending ? <ListState variant="loading" rows={3} /> : order.isError ? <div role="alert"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => void order.refetch()}>{t('receiving.retry')}</Button></div> : data && <>
-        {data.purchaser && <section className="space-y-4">{data.lines.map((line) => <div key={line.id} className="grid items-end gap-3 border-b border-border pb-4 md:grid-cols-2">
-          <div><h2 className="text-base font-semibold">{line.name}</h2><p className="text-control">{t('receiving.progress', { ordered: quantity(line.ordered), received: quantity(line.received), outstanding: quantity(line.outstanding) })}</p><p className="text-control text-muted-foreground">{t(`receiving.${line.status}`)}</p></div>
-          {editable ? <div className="space-y-2"><ItemPicker id={`mapping-${line.id}`} label={t('receiving.stockItem')} value={line.stock_item_id} onChange={(id) => void run(() => repository.map(line.id, id))} />{line.stock_item_id && !data.requests.some((r) => r.lines.some((l) => l.item_id === line.id)) && <Button variant="outline" disabled={busy} onClick={() => void run(() => repository.map(line.id, null))}>{t('receiving.clearMapping')}</Button>}</div> : <p>{line.stock_name}</p>}
-        </div>)}</section>}
-        <OrderReceivingLines lines={data.lines} quantities={quantities} disabled={busy || viewOnly} onChange={(id, q) => setQuantities((old) => ({ ...old, [id]: q }))} checks={checks} onCheck={(id, v) => setChecks((old) => ({ ...old, [id]: v }))} problems={problems} />
-        {canReceive && <Button variant="primary" loading={busy} disabled={!warehouse || !(date || day.day) || !Object.values(quantities).some((q) => isPositiveDecimal(normalizeDecimal(q))) || Object.values(quantities).some((q) => q !== '' && !isPositiveDecimal(normalizeDecimal(q)))} onClick={askToRecord}>{t('receiving.record')}</Button>}
-        <section className="space-y-4">{data.requests.map((count) => <div key={count.id} className="space-y-2 border-t border-border pt-4">
-          <p className="text-control font-medium">{t(count.reversed ? 'receiving.reversed' : count.document_id ? 'receiving.posted' : count.approved ? 'receiving.approved' : 'receiving.waiting')}</p>
-          <ul className="text-control">{count.lines.map((line) => <li key={line.item_id}>{data.lines.find((l) => l.id === line.item_id)?.name}: {formatQuantity(String(line.quantity), getNumberLocale())}{Number(line.rejected ?? 0) > 0 && ` · ${t('quality.rejectedQty', { qty: formatQuantity(String(line.rejected), getNumberLocale()), reason: line.reject_note ?? '' })}`}</li>)}</ul>
-          {count.document_id && <Link className="text-control text-primary underline" to={`/stock/documents/${count.document_id}`}>{t('receiving.openMovement')}</Link>}
-          {!count.document_id && count.approved && count.receiver_id === user?.id && !viewOnly && <Button variant="outline" disabled={busy} onClick={() => void post(count)}>{t('receiving.recordApproved')}</Button>}
-          {may('approve', 'orderReceiving', { currentUserId: user?.id, record: { viewOnly, receivingPurchaser: data.purchaser, created_by: count.receiver_id } }) && !count.reversed && (!count.document_id && !count.approved || count.document_id && may('post', 'stockDocument', { currentUserId: user?.id, record: { viewOnly, kind: 'adjustment', created_by: count.receiver_id } })) && <Button variant="outline" disabled={busy} onClick={() => { setReason(''); setDecision({ count, reverse: !!count.document_id }); }}>{t(count.document_id ? 'receiving.reverse' : 'receiving.approve')}</Button>}
-        </div>)}</section>
+      {orderId && (order.isPending ? <ListState variant="loading" rows={3} /> : order.isError ? <div role="alert" className="space-y-2"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => void order.refetch()}>{t('receiving.retry')}</Button></div> : data && <>
+        <OrderReceivingLines lines={data.lines} purchaser={data.purchaser} quantities={quantities} disabled={busy || viewOnly}
+          onChange={(id, q) => setQuantities((old) => ({ ...old, [id]: q }))} checks={checks} onCheck={(id, v) => setChecks((old) => ({ ...old, [id]: v }))} problems={problems}
+          mapping={(line) => editable
+            ? <ItemPicker id={`mapping-${line.id}`} hideLabel label={`${t('receiving.stockItem')} · ${line.name}`} value={line.stock_item_id} onChange={(id) => void run(() => repository.map(line.id, id))} />
+            : line.stock_name}
+          rowMenu={editable ? (line) => line.stock_item_id && !data.requests.some((r) => r.lines.some((l) => l.item_id === line.id))
+            ? [{ label: t('receiving.clearMapping'), onClick: () => void run(() => repository.map(line.id, null)), disabled: busy }] : undefined : undefined} />
+        {canReceive && <div className="fixed inset-x-0 bottom-0 z-20 flex justify-end border-t border-border bg-background p-3 md:static md:border-0 md:bg-transparent md:p-0">
+          <Button variant="primary" className="w-full md:w-auto" loading={busy} disabled={!canRecord} onClick={askToRecord}>{t('receiving.record')}</Button>
+        </div>}
+        {data.requests.length > 0 && <section className="space-y-3" aria-label={t('receiving.receipts')}>
+          <h2 className="text-base font-semibold">{t('receiving.receipts')}</h2>
+          <DataTable<ReceiptRow> rows={receiptRows} columns={receiptColumns} rowKey={(r) => r.key} tableId="order-receiving-receipts" accessibleName={t('receiving.receipts')} embedded cardValuesEnd
+            groupBy={(r) => r.count.id} groupHeaderSpan
+            groupHeader={(_, rows) => { const count = rows[0].count; return <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-1">
+              <StatusPill variant={RECEIPT_VARIANT[receiptState(count)]}>{t(`receiving.${receiptState(count)}`)}</StatusPill>
+              <span className="text-control text-muted-foreground">{formatDateOnly(count.date)}</span>
+              <span className="ml-auto">{receiptActions(count)}</span>
+            </div>; }} />
+        </section>}
       </>)}
     </>}
     <FieldError>{error}</FieldError><p role="status" className="text-control">{message}</p>

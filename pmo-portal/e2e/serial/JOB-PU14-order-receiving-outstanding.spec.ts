@@ -99,5 +99,9 @@ test('JOB-PU14 the storekeeper receives 37 of 40 at the site and a purchasing us
   await signIn(page, 'finance@acme.test');
   await page.goto(`/procurement/${purchase.id}`);
   await page.getByRole('tab', { name: 'Items' }).click();
-  await expect(page.getByText(/Ordered 40 · Received 37 · Outstanding 3/)).toBeVisible({ timeout: 20_000 });
+  // The order's line reads, column by column: Ordered 40 · Received 37 · Outstanding 3.
+  const orderLine = page.getByRole('table', { name: 'Goods received' }).getByRole('row').filter({ hasText: item.name });
+  await expect(orderLine.getByRole('cell').nth(0)).toHaveText(/^40\b/, { timeout: 20_000 });
+  await expect(orderLine.getByRole('cell').nth(1)).toHaveText(/^37\b/);
+  await expect(orderLine.getByRole('cell').nth(2)).toHaveText(/^3\b/);
 });

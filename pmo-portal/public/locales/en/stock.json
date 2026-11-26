@@ -1124,7 +1124,15 @@
     "changeMode": "Change receiving for this organisation?",
     "changeModeBody": "This changes receiving for everyone. Unsaved entries on this form will be discarded.",
     "progressTitle": "Goods received",
-    "openReceiving": "Open receiving"
+    "openReceiving": "Open receiving",
+    "line": "Item",
+    "ordered": "Ordered",
+    "received": "Received",
+    "outstanding": "Outstanding",
+    "status": "Status",
+    "lines": "Order lines",
+    "qualityTitle": "Quality check",
+    "receipts": "Receipts"
   },
   "materialCompletion": {
     "title": "Material completion",
