@@ -1021,7 +1021,8 @@
     "intro": "Rename the built-in roles to match your organisation. Only the displayed name changes; what each role can do stays the same.",
     "name": "Name",
     "saved": "Role name saved",
-    "resetDone": "Back to the default name"
+    "resetDone": "Back to the default name",
+    "role": "Role"
   },
   "terminology": {
     "default": "Default",
@@ -1032,7 +1033,9 @@
     "save": "Save",
     "saved": "Terminology saved",
     "singular": "Singular",
-    "nav": "Terminology"
+    "nav": "Terminology",
+    "term": "Term",
+    "language": "Language"
   },
   "documentCategories": {
     "nav": "Document categories",

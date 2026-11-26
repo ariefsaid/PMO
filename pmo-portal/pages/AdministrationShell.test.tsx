@@ -599,19 +599,20 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
     expect(links.map((l) => l.getAttribute('href'))).toEqual([
+      // #1126: listed by job: people and access, setup, connections, plan; then All settings.
       '/administration/users',
       '/administration/people',
       '/administration/document-types',
-      '/administration/integrations',
       '/administration/modules',
       '/administration/accounting',
       '/administration/projects',
-      '/administration/plan',
-      '/administration/credits',
       '/administration/terminology',
       '/administration/document-categories',
       '/administration/exchange-rates',
       '/administration/cost-attribution',
+      '/administration/integrations',
+      '/administration/plan',
+      '/administration/credits',
       '/administration/all-settings',
     ]);
 
@@ -625,9 +626,6 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     expect(links[3]).toHaveFocus();
     await user.keyboard('{Tab}');
     expect(links[4]).toHaveFocus();
-
-    await user.keyboard('{Tab}');
-    expect(links[5]).toHaveFocus();
     // Enter on the focused Accounting setup link navigates (a real route change).
     await user.keyboard('{Enter}');
     await waitFor(() => expect(screen.getByTestId('administration-panel-accounting')).toBeInTheDocument());

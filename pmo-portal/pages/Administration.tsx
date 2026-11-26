@@ -125,7 +125,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
 type NavGroup = 'access' | 'setup' | 'connections' | 'plan';
 const NAV_GROUPS: ReadonlyArray<{ id: NavGroup; sections: ReadonlyArray<AdministrationSection> }> = [
   { id: 'access', sections: ['users', 'people', 'document-types', 'clearance'] },
-  { id: 'setup', sections: ['modules', 'accounting', 'projects', 'cost-attribution', 'terminology', 'document-categories', 'exchange-rates'] },
+  { id: 'setup', sections: ['modules', 'accounting', 'projects', 'terminology', 'document-categories', 'exchange-rates', 'cost-attribution'] },
   { id: 'connections', sections: ['integrations', 'scheduled-reports'] },
   { id: 'plan', sections: ['plan', 'credits'] },
 ];
@@ -300,7 +300,7 @@ const AdministrationNavigation: React.FC<{
 /** Side-navigation link: 32px row on desktop, the open section on the selected surface. */
 const sideLinkClass = (active: boolean) =>
   cn(
-    'flex min-h-8 min-w-0 items-center rounded-md px-3 py-1 text-control leading-tight transition-colors',
+    'touch-target flex min-h-8 min-w-0 items-center rounded-md px-3 py-1 text-control leading-tight transition-colors',
     'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
     active ? 'bg-secondary font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent hover:text-accent-foreground',
   );
