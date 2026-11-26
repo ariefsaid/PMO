@@ -2090,7 +2090,7 @@
     }
   },
   "procurementLedger": {
-    "title": "Case ledger",
+    "title": "Case documents",
     "filter": {
       "label": "Filter records",
       "all": "All",

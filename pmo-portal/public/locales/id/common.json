@@ -2090,7 +2090,7 @@
     }
   },
   "procurementLedger": {
-    "title": "Buku besar kasus",
+    "title": "Dokumen kasus",
     "filter": {
       "label": "Filter catatan",
       "all": "Semua",
