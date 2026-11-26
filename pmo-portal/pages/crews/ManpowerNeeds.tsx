@@ -209,7 +209,7 @@ export const ManpowerNeeds: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-3 text-muted-foreground">
                     <span className="min-w-0">{projectName(n.project_id)} · {formatDay(n.needed_by)}</span>
-                    <StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill>
+                    <span className="shrink-0"><StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill></span>
                   </div>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
                     {([[t('crews:manpower.asked', 'Asked'), f.asked], [t('crews:manpower.filled', 'Filled'), f.filled],

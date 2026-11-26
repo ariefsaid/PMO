@@ -26,8 +26,8 @@ const STATUSES: TickStatus[] = ['unmarked', 'present', 'absent', 'leave', 'off_r
 const NO_HOLDS: ReadonlyMap<string, ReleaseState> = new Map();
 
 /** The tick form for one crew on one day (FR-CRW-009/010). Keyed by crew, date and held records, so it starts fresh. */
-export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; canMarkRow?: (workerId: string) => boolean; canManage?: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState>; pickedAbove?: boolean }> = ({
-  crew, workOrderId, date, held, canRecord, canMarkRow = () => false, canManage = false, releaseHolds = NO_HOLDS, pickedAbove = false,
+export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; canMarkRow?: (workerId: string) => boolean; canManage?: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState>}> = ({
+  crew, workOrderId, date, held, canRecord, canMarkRow = () => false, canManage = false, releaseHolds = NO_HOLDS,
 }) => {
   const { t } = useTranslation('crews');
   const writeError = useCrewErrorText();
@@ -162,7 +162,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     <Card>
       <CardHead actions={<span className="text-sm text-muted-foreground" data-testid="attendance-present-count">
         {t('crews:presentOf', '{{present}} of {{total}} present', { present: presentCount, total: rows.length })}</span>}>
-        <span className={pickedAbove ? 'max-sm:sr-only' : undefined}>{crew.crew_code} · {crew.crew_name}</span>
+        {crew.crew_code} · {crew.crew_name}
       </CardHead>
       <CardPad>
         {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
@@ -390,7 +390,7 @@ export const AttendanceTick: React.FC = () => {
       )}
       {workOrderId && crew && !day.isPending && !day.isError && (
         <TickForm key={`${crew.crew_id}:${date}:${heldKey}`} crew={crew} workOrderId={workOrderId} date={date} held={day.data ?? []} canRecord={canRecord} canMarkRow={canMarkRow}
-          canManage={canManage} releaseHolds={holds.data} pickedAbove={crews.length > 1} />
+          canManage={canManage} releaseHolds={holds.data} />
       )}
       {workOrderId && crew && !day.isPending && !day.isError && (
         <HeadCountSection key={`${crew.crew_id}:${date}`} crewId={crew.crew_id} fieldControllerId={crew.field_controller_id} workOrderId={workOrderId} date={date}
