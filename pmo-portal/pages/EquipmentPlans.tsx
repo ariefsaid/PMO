@@ -22,14 +22,17 @@ import { formatCurrency, formatDay, formatMonthYear, parseMoneyInputAtScale } fr
 interface LineDraft {
   id: string; description: string; workOrderId: string; categoryId: string; vendorId: string;
   quantity: string; rate: string; dateFrom: string; dateTo: string; procurementId: string | null;
+  /** The saved rate / vendor is hidden from this person (#2788): left empty, it is not sent and the stored one stays. */
+  rateHidden?: boolean; vendorHidden?: boolean;
 }
 
 const newLine = (month: string): LineDraft => ({
   id: crypto.randomUUID(), description: '', workOrderId: '', categoryId: '', vendorId: '', quantity: '1', rate: '', dateFrom: month, dateTo: monthEnd(month), procurementId: null,
 });
 const fromPlan = (plan: EquipmentPlan): LineDraft[] => plan.lines.map((l) => ({
-  id: l.id, description: l.description ?? '', workOrderId: l.workOrderId ?? '', categoryId: l.categoryId ?? '', vendorId: l.vendorId,
-  quantity: String(l.quantity), rate: String(l.rate), dateFrom: l.dateFrom, dateTo: l.dateTo, procurementId: l.procurementId,
+  id: l.id, description: l.description ?? '', workOrderId: l.workOrderId ?? '', categoryId: l.categoryId ?? '', vendorId: l.vendorId ?? '',
+  quantity: String(l.quantity), rate: l.rate === null ? '' : String(l.rate), dateFrom: l.dateFrom, dateTo: l.dateTo, procurementId: l.procurementId,
+  rateHidden: l.rate === null, vendorHidden: l.vendorId === null,
 }));
 
 /** Thirteen months: last month to eleven months ahead. */
@@ -90,15 +93,18 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
     const out: PlanLineInput[] = [];
     lines.forEach((l, i) => {
       const p = parsed[i]!;
+      const keepRate = Boolean(l.rateHidden) && !l.rate.trim();
+      const keepVendor = Boolean(l.vendorHidden) && !l.vendorId;
       if (!l.description.trim()) next[`${l.id}.description`] = t('errors.descriptionRequired', 'Say what is needed.');
-      if (!l.vendorId) next[`${l.id}.vendor`] = t('errors.vendorRequired', 'Choose a vendor.');
+      if (!keepVendor && !l.vendorId) next[`${l.id}.vendor`] = t('errors.vendorRequired', 'Choose a vendor.');
       if (p.q === null || p.q <= 0) next[`${l.id}.quantity`] = t('errors.quantityInvalid', 'Enter a quantity above 0.');
-      if (p.r === null || p.r < 0) next[`${l.id}.rate`] = t('errors.rateInvalid', 'Enter a rate of 0 or more.');
+      if (!keepRate && (p.r === null || p.r < 0)) next[`${l.id}.rate`] = t('errors.rateInvalid', 'Enter a rate of 0 or more.');
       if (!l.dateFrom || !l.dateTo) next[`${l.id}.dates`] = t('errors.datesRequired', 'Choose the dates.');
       else if (l.dateTo < l.dateFrom) next[`${l.id}.dates`] = t('errors.dateOrder', 'The end cannot be before the start.');
       else if (l.dateFrom < month || l.dateTo > monthEnd(month)) next[`${l.id}.dates`] = t('errors.dateMonth', 'The dates must be inside the month.');
-      if (!next[`${l.id}.description`] && !next[`${l.id}.vendor`] && p.q !== null && p.r !== null) {
-        out.push({ id: l.id, workOrderId: l.workOrderId || null, categoryId: l.categoryId || null, description: l.description.trim(), quantity: p.q, rate: p.r, vendorId: l.vendorId, dateFrom: l.dateFrom, dateTo: l.dateTo });
+      if (!next[`${l.id}.description`] && !next[`${l.id}.vendor`] && p.q !== null && (p.r !== null || keepRate)) {
+        out.push({ id: l.id, workOrderId: l.workOrderId || null, categoryId: l.categoryId || null, description: l.description.trim(), quantity: p.q,
+          ...(keepRate || p.r === null ? {} : { rate: p.r }), ...(keepVendor ? {} : { vendorId: l.vendorId }), dateFrom: l.dateFrom, dateTo: l.dateTo });
       }
     });
     setErrors(next);

@@ -53,6 +53,21 @@ describe('#2788 hidden prices: the month list reads plan lines through the maske
   });
 });
 
+describe('#2788 hidden prices: a hidden rate and vendor stay unknown and are not sent back', () => {
+  it('keeps a masked rate and vendor as null (never 0 or empty)', async () => {
+    h.push({ data: [{ id: 'p1', project_id: 'pr', plan_month: '2026-03-01', status: 'Draft', created_by: 'u', reject_reason: null,
+      equipment_plan_lines: [{ id: 'l1', work_order_id: null, category_id: null, description: 'Crane', quantity: 2, rate: null, vendor_id: null, date_from: '2026-03-02', date_to: '2026-03-05', procurement_id: null }] }], error: null });
+    const [plan] = await listPlansForMonth('2026-03-01');
+    expect(plan!.lines[0]).toMatchObject({ rate: null, vendorId: null });
+  });
+  it('omits the rate and vendor keys of a line that does not carry them', async () => {
+    h.push({ data: { id: 'p1' }, error: null });
+    await savePlan({ id: 'p1', projectId: 'pr', month: '2026-03-01', lines: [{ id: 'l1', workOrderId: null, categoryId: null, description: 'Crane', quantity: 2, dateFrom: '2026-03-03', dateTo: '2026-03-05' }] });
+    const line = ((h.calls.rpc[0] as [string, { p_lines: Record<string, unknown>[] }])[1]).p_lines[0]!;
+    expect('rate' in line || 'vendor_id' in line).toBe(false);
+  });
+});
+
 describe('equipment plan IO (#2700)', () => {
   it('settings default to off/spend_approvers/no self-approval when the org has none', async () => {
     h.push({ data: null, error: null });

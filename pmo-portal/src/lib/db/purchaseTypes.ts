@@ -61,14 +61,16 @@ export interface RentalExtensionInput {
   from: string;
   to: string;
   /** Omit to carry the original's lines over as defaults. */
-  lines?: Array<{ id: string; name: string; quantity: number; rate: number; description?: string | null }>;
+  /** A line without `rate` takes the rate of `originalLineId`, a line of the rental being extended (#2788). */
+  lines?: Array<{ id: string; name: string; quantity: number; rate?: number; originalLineId?: string; description?: string | null }>;
 }
 
 /** FR-PTR-010: one new Draft purchase linked to the rental it extends. Returns the new purchase id. */
 export async function extendRentalProcurement(input: RentalExtensionInput): Promise<string> {
   const { data, error } = await supabase.rpc('extend_rental_procurement', {
     p_id: input.id, p_original: input.originalId, p_from: input.from, p_to: input.to,
-    ...(input.lines ? { p_items: input.lines.map((l) => ({ id: l.id, name: l.name, quantity: l.quantity, rate: l.rate, description: l.description ?? null })) } : {}),
+    ...(input.lines ? { p_items: input.lines.map((l) => ({ id: l.id, name: l.name, quantity: l.quantity, ...(l.rate !== undefined ? { rate: l.rate } : {}),
+      ...(l.originalLineId ? { original_line_id: l.originalLineId } : {}), description: l.description ?? null })) } : {}),
   });
   if (error) fail(error);
   return (data as { id: string }).id;
