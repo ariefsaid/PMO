@@ -113,7 +113,7 @@ const Privacy: React.FC = () => {
         <p className="text-muted-foreground">
           {t(
             'privacy.location.body',
-            'Your data is hosted on a per-client Supabase Cloud Pro environment. The hosting location for this deployment is {{hosting}} (configurable per client per ADR-0047).',
+            'Your data is hosted on a per-client Supabase Cloud Pro environment. The hosting location for this deployment is {{hosting}} (configurable per client).',
             { hosting: HOSTING_LOCATION },
           )}
         </p>
