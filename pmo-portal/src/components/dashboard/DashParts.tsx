@@ -269,7 +269,7 @@ export const ProjectRows: React.FC<{
   ] as const;
   const cols = [
     'minmax(0,1.6fr)',
-    ...(showStructuredNeeds ? ['repeat(4,minmax(2.7rem,0.35fr))'] : showReason ? ['minmax(0,1.3fr)'] : []),
+    ...(showStructuredNeeds ? ['repeat(4,minmax(2.7rem,0.35fr))'] : showReason ? ['minmax(14rem,1.8fr)'] : []),
     showDelivery ? '5rem' : null,
     showBudget ? '7.5rem' : null,
     '14rem',
