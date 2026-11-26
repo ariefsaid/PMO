@@ -6,7 +6,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { signIn, visibleToast } from './helpers';
-import { iso, need, ORG_ID, serviceClient } from './support/jobJourney';
+import { need, orgToday, ORG_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 
 test.setTimeout(180_000);
@@ -50,14 +50,14 @@ test('AC-MPN-010 a need shows filled, in progress and open from the checklist an
   const figure = (label: string) => card.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd');
   await expect(figure('In progress')).toHaveText('2');
 
-  must('clear A', await db.from('person_clearances').insert({ org_id: ORG_ID, person_id: workerA, item_id: itemId, done_on: iso(new Date()) }).select('id').single());
+  must('clear A', await db.from('person_clearances').insert({ org_id: ORG_ID, person_id: workerA, item_id: itemId, done_on: orgToday() }).select('id').single());
   await page.reload();
   await expect(figure('Filled')).toHaveText('1', { timeout: 20_000 });
   await expect(figure('In progress')).toHaveText('1');
   await expect(figure('Open')).toHaveText('0');
   await expect(card.getByRole('button', { name: 'Mark as met' })).toBeDisabled();
 
-  must('clear B', await db.from('person_clearances').insert({ org_id: ORG_ID, person_id: workerB, item_id: itemId, done_on: iso(new Date()) }).select('id').single());
+  must('clear B', await db.from('person_clearances').insert({ org_id: ORG_ID, person_id: workerB, item_id: itemId, done_on: orgToday() }).select('id').single());
   await page.reload();
   await card.getByRole('button', { name: 'Mark as met' }).click();
   await expect(visibleToast(page, 'Marked as met')).toBeVisible({ timeout: 15_000 });

@@ -18,4 +18,18 @@ You are the designer and the builder of this screen. Nobody reviews it into shap
 8. **Before READY** merge the integration branch you were given into yours and re-run the gates.
 9. **Report** with `worker_done`: what the screen is for and its first thing; what changed and why in ten lines at most; the measured table; screenshot paths; the skill lines; journeys and gates; what you chose not to do. A decision the owner might not accept (something removed, moved or renamed): build it the way you judge best and list it under "Owner to confirm" with a before/after crop.
 
+## Order of work (owner, 10 and 26 November 2026): settle each layer before the next
+
+1. **Purpose.** Who opens this and the ONE question it answers. A component that answers several questions is several components.
+2. **Structure.** What belongs here, what belongs elsewhere, what comes first. One home per fact: before showing a figure, find the block that already owns it.
+3. **Flow.** What the person does next and where it leads. Setup actions are actions, not columns.
+4. **Layout.** One table when the data is rows; one figure per cell; figures right-aligned on one baseline; headers over their columns; shared left edges.
+5. **Surface.** Type, colour, spacing from the tokens.
+
+On every layer: show, don't tell (figures and marks before sentences); every state (nothing yet, one, many, over, error); one name and one look per thing.
+
+Detail in three tiers: **row** to scan, **right drawer** to triage (essentials and actions, the list stays behind), **full page** for depth. Dense means much information and action per screen in a roomy layout, never cramming. Nothing a person could reach before may become unreachable: every figure shown today has a named home after.
+
+Write the purpose and structure in ten lines (with a text sketch) at the top of your report before the layout work, and build to it.
+
 The repository is public: no client or person names, no attribution lines. Commit and push after each working step. A first complete version within two hours, then polish. Run every command in the foreground.

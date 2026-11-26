@@ -151,18 +151,19 @@ const READY = Boolean(SERVICE_KEY && SERVICE_URL);
  * The week is chosen by the test and written to the DB, so no clock agreement is required.
  */
 function ownedWeekStart(): string {
+  // e2e-org-day: allow — a Monday 20 weeks back on the runner's clock, chosen so no seeded week (current/prior, ERPNext-future) can collide.
   const now = new Date();
   const mondayUtc = Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),
     now.getUTCDate() - ((now.getUTCDay() + 6) % 7),
   );
-  return new Date(mondayUtc - 20 * 7 * 86_400_000).toISOString().slice(0, 10);
+  return new Date(mondayUtc - 20 * 7 * 86_400_000).toISOString().slice(0, 10); // e2e-org-day: allow — 20 weeks back so no seeded week can collide
 }
 
 /** The ISO date `offset` days into `weekStart`. */
 function dayOf(weekStart: string, offset: number): string {
-  return new Date(Date.parse(`${weekStart}T00:00:00.000Z`) + offset * 86_400_000).toISOString().slice(0, 10);
+  return new Date(Date.parse(`${weekStart}T00:00:00.000Z`) + offset * 86_400_000).toISOString().slice(0, 10); // e2e-org-day: allow — arithmetic on the chosen weekStart, not the runner's day
 }
 
 interface OwnedWeek {

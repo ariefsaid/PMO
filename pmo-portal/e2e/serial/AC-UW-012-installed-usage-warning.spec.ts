@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { signIn } from '../helpers';
+import { orgToday } from '../support/jobJourney';
 import { need, ok, ORG_ID, PM_ID, serviceClient } from '../support/jobFixtures';
 import { ENGINEER_ID, makeItem, runSuffix, SEED_PROJECT_ID, userClient } from '../support/stockFixture';
 
@@ -34,7 +35,7 @@ test('AC-UW-012 installed material past the share tells the engineer who reporte
   ok('responsible person', await service.from('work_orders').update({ responsible_person_id: ENGINEER_ID }).eq('id', woId));
 
   ok('report', await service.from('daily_site_reports').insert({ id: reportId, org_id: ORG_ID, project_id: SEED_PROJECT_ID, work_order_id: woId,
-    work_date: new Date().toISOString().slice(0, 10), status: 'submitted', author_id: ENGINEER_ID, submitted_at: new Date().toISOString() }));
+    work_date: orgToday(), status: 'submitted', author_id: ENGINEER_ID, submitted_at: new Date().toISOString() }));
   ok('material line', await service.from('dsr_consumables').insert({ org_id: ORG_ID, report_id: reportId, position: 1, stock_item_id: item.id, quantity: 85, unit: 'BAG' }));
   ok('validate', await service.from('daily_site_reports').update({ status: 'validated', validated_by: PM_ID, validated_at: new Date().toISOString() }).eq('id', reportId));
 

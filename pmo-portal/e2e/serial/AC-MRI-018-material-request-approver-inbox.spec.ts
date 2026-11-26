@@ -2,6 +2,7 @@
 /** AC-MRI-018 — goal: when a material request needs an approver, that approver finds it in the approvals inbox and is notified; once they decide, both are gone and the next approver has it. */
 import { test, expect } from '@playwright/test';
 import { signIn } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { SEED_PROJECT_ID, makeItem, runSuffix, userClient } from '../support/stockFixture';
 
 test.setTimeout(180_000);
@@ -35,7 +36,7 @@ test('AC-MRI-018: an approver is told and sees the request in the approvals inbo
     const engineer = await userClient('engineer@acme.test');
     const saved = await engineer.rpc('mrq_save_draft', {
       p_request_id: null,
-      p_header: { work_order_id: draft.data.id, needed_by: new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10) },
+      p_header: { work_order_id: draft.data.id, needed_by: inDays(5) },
       p_lines: [{ item_id: item.id, quantity: 7, over_plan_reason: 'Extra pour' }],
     });
     if (saved.error) throw new Error('draft: ' + saved.error.message);

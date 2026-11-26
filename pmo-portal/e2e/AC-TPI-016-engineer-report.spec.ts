@@ -3,6 +3,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(120_000);
@@ -50,9 +51,9 @@ test('AC-TPI-016 an Engineer attaches the report photo and sets the result on a 
     if (wo.error) throw new Error('AC-TPI-016 fixture work order: ' + wo.error.message);
     inspectionId = crypto.randomUUID();
     const ins = await admin.from('third_party_inspections').insert({
-      id: inspectionId, org_id: orgId, work_order_id: workOrderId, project_id: projectId, title: testName, planned_date: new Date().toISOString().slice(0, 10),
-      required_for: ['billing'], status: 'executed', invited_on: new Date().toISOString().slice(0, 10), invited_by: profile.data.id,
-      executed_on: new Date().toISOString().slice(0, 10), executed_by: profile.data.id, created_by: profile.data.id,
+      id: inspectionId, org_id: orgId, work_order_id: workOrderId, project_id: projectId, title: testName, planned_date: orgToday(),
+      required_for: ['billing'], status: 'executed', invited_on: orgToday(), invited_by: profile.data.id,
+      executed_on: orgToday(), executed_by: profile.data.id, created_by: profile.data.id,
     });
     if (ins.error) throw new Error('AC-TPI-016 fixture inspection: ' + ins.error.message);
 

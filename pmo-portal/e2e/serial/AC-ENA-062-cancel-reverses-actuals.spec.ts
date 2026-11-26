@@ -117,7 +117,7 @@ test('AC-ENA-062: cancelling a Purchase Invoice in ERPNext brings the project ac
     expect(await projectActuals(admin, orgId, projectId)).toEqual({ net: 0, debit: 0 });
 
     // Post: a submitted Purchase Invoice charged to the project → actuals rise by its amount.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10); // e2e-org-day: allow — bench-side posting date; the assertion reads totals, not a day
     piName = String((await bench('POST', '/api/resource/Purchase%20Invoice', {
       supplier: SUPPLIER, company: COMPANY, posting_date: today, bill_no: `AC-062-${suffix}`,
       items: [{ item_code: ITEM_CODE, qty: 1, rate: AMOUNT, project: erpProject }],

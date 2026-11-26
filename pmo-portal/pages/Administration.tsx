@@ -1,4 +1,5 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
+import OrgStageNames from './admin/OrgStageNames';
 import CostDisciplines from './admin/CostDisciplines';
 import WorkOrderLists from './admin/WorkOrderLists';
 import React, { useContext, useEffect } from 'react';
@@ -379,6 +380,7 @@ const SelectedAdministrationPanel: React.FC<{
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
+            <OrgStageNames />
             <SiteReportLists />
             <DailyReportValidateRoles />
             <OrgSwitchSetting setting="qsReportRevenue"
