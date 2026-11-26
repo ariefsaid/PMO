@@ -238,7 +238,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             const difference = baseline !== null && q.id !== selected?.id ? Number(q.total_amount) - baseline : null;
             return <div><span className="font-semibold">{formatCurrency(Number(q.total_amount), q.currency)}</span>{difference !== null && <span className="block text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, q.currency)}{baseline ? ` · ${difference > 0 ? '+' : ''}${formatPercent(difference / baseline, 1)}` : ''}</span>}</div>;
           } }] : []),
-          { key: 'validUntil', header: t('procurement:vendorQuotes.colValidUntil', 'Valid until'), kind: 'date', size: 120, cell: (q) => q.valid_until ? <span className="text-muted-foreground">{formatDay(q.valid_until)}</span> : null },
+          { key: 'validUntil', keepWhenBlank: true, header: t('procurement:vendorQuotes.colValidUntil', 'Valid until'), kind: 'date', size: 120, cell: (q) => q.valid_until ? <span className="text-muted-foreground">{formatDay(q.valid_until)}</span> : '—' },
           { key: 'attachments', header: t('procurement:vendorQuotes.colAttachments', 'Attachments'), kind: 'text', size: 180, minSize: 140, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} hideHeading /> },
           ...(canSelect ? [{ key: 'select', header: '', kind: 'select' as const, size: 84, minSize: 72, cell: (q: QuotationRow) => {
             const selectable = !isRowSelected(q, selectedId);

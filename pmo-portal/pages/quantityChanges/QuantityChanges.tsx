@@ -126,6 +126,7 @@ const QuantityChanges: React.FC = () => {
           <>
             <div data-testid="qcr-list">
               <DataTable
+                tableId="quantity-change-list"
                 embedded
                 rows={list.data.rows}
                 rowKey={(r) => r.id}

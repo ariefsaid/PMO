@@ -74,7 +74,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[]; tableId: stri
   return (
     <>
       {problem && <p role="alert" className="px-4 py-2 text-sm text-destructive-text">{problem}</p>}
-      <DataTable<LeaveRequestRow> embedded rows={rows} columns={columns} rowKey={(r) => r.id} tableId={tableId}
+      <DataTable<LeaveRequestRow> embedded rows={rows} columns={columns} rowKey={(r) => r.id} tableId={`leave-requests-${tableId}`}
         onActivate={(r) => setOpenId(r.id)}
         rowLabel={(r) => t('crews:leave.openRow', 'Open the leave of {{name}}', { name: r.person_name })}
         rowMenu={rows.some(mayCancel) ? (r) => (mayCancel(r) ? [{ label: t('crews:leave.cancel', 'Cancel request'), onClick: () => cancelRequest(r) }] : []) : undefined} />
