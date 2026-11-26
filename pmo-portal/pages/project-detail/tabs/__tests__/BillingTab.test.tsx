@@ -823,20 +823,11 @@ describe('BillingTab', () => {
       expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. PPN');
     });
 
-    it('SUB-B with no BoQ and no claims, both cards sit inside one closed "Quantity billing" disclosure', () => {
+    it('offers billing terms before any quantity setup or claims exist', () => {
       h.boq = []; h.claims = [];
       renderTab();
-      const details = screen.getByText('Quantity billing').closest('details') as HTMLDetailsElement;
-      expect(details).not.toBeNull();
-      expect(details.open).toBe(false);
-      expect(within(details).getByText('Bill of quantities')).toBeInTheDocument();
-      expect(within(details).getByText('Billing claims')).toBeInTheDocument();
-    });
-
-    it('SUB-B once there is a BoQ line or a claim, the cards render plainly without the disclosure', () => {
-      renderTab();
-      expect(screen.queryByText('Quantity billing')).toBeNull();
-      expect(screen.getByText('Bill of quantities').closest('details')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Billing terms' })).toBeInTheDocument();
+      expect(screen.getByText('No billing claims yet')).toBeVisible();
     });
 
     it('M18 "New claim" is hidden while "Raise invoice" is offered, and shown when it is not', () => {

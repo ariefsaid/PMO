@@ -644,6 +644,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); clearSelection(); } }}
       />}
 
+      {state === undefined && groupsRequested && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} requested={groupsRequested} />}
+
       {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0 || activeTaskGroups.length > 0) && view === 'list' && (
         <MilestoneGroupedList
           milestones={milestoneList}
@@ -709,8 +711,6 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         </React.Suspense>
       )}
       </Card>
-
-      {state === undefined && groupsRequested && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} requested={groupsRequested} />}
 
       {/* Setup stays available after the task register so it does not block daily task work. */}
       <div ref={integrationsRef}>

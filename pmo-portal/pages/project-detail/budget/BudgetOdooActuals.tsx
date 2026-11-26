@@ -28,8 +28,8 @@ export function BudgetOdooActuals({ projectId }: { projectId: string }) {
   const canSetUp = can.manage || can.setValue;
   const detail = may('view', 'odooLedgerHealth');
   return (
-    <section aria-labelledby="budget-odoo-actuals-title" className="space-y-2 border-b border-border pb-3" data-testid="budget-odoo-actuals">
-      <h2 id="budget-odoo-actuals-title" className="text-sm font-semibold text-foreground">{t('odooLedger.budget.title', 'Actuals from Odoo')}</h2>
+    <section aria-labelledby="budget-odoo-actuals-title" className="min-w-0 space-y-4 border-b border-border pb-4" data-testid="budget-odoo-actuals">
+      <h2 id="budget-odoo-actuals-title" className="text-group font-semibold text-foreground">{t('odooLedger.budget.title', 'Actuals from Odoo')}</h2>
       {unlinked && (
         <p role="status" className="text-sm text-muted-foreground">
           {t('odooLedger.budget.unlinked', 'Actual cost cannot be shown yet: no Odoo cost account is linked to this project.')}{' '}
@@ -100,7 +100,7 @@ function CategoryLinesTable({ projectId, category }: { projectId: string; catego
     } finally { setLoadingAll(false); }
   };
   return (
-    <div className="space-y-2" data-testid="odoo-category-lines">
+    <div className="min-w-0 space-y-4" data-testid="odoo-category-lines">
       <DataTable
         embedded
         rows={rows}
