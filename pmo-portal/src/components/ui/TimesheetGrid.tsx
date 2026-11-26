@@ -63,6 +63,8 @@ export interface TimesheetGridProps {
   onDeleteRow?: (rowId: string) => void;
   /** Omit the phone stack's week-total footer when the page already shows the week total beside its actions. */
   hideMobileWeekTotal?: boolean;
+  /** Use the day-stacked layout at every width: for a narrow host such as a side drawer, where 7 day columns do not fit. */
+  stacked?: boolean;
 }
 
 /**
@@ -91,9 +93,10 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   onNoteChange,
   onDeleteRow,
   hideMobileWeekTotal = false,
+  stacked = false,
 }) => {
   const { t } = useTranslation();
-  const isDesktop = useIsDesktop();
+  const isDesktop = useIsDesktop() && !stacked;
 
   // Read-only totals: the shipped numeric reduce. Editable totals: derive from
   // the (string) edited state via the pure, memo-friendly computeTotals selector.
@@ -162,8 +165,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
               {r.project}
             </div>
             {r.code && (
-              <div className="break-words record-id">
-                {r.code}
+              <div className="min-w-0">
+                <span className="record-id">{r.code}</span>
               </div>
             )}
             {/* AC-W6-IXD-NOTE (B-4): demote the per-row note. Collapse-on-demand —
@@ -197,8 +200,8 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             className="break-words text-control font-medium"
           />
           {r.code && (
-            <div className="break-words record-id">
-              {r.code}
+            <div className="min-w-0">
+              <span className="record-id">{r.code}</span>
             </div>
           )}
           {r.workOrderLabel && <div className="break-words text-control text-muted-foreground">{r.workOrderLabel}</div>}
@@ -400,8 +403,8 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                   />
                 )}
                 {r.code && (
-                  <div className="break-words record-id">
-                    {r.code}
+                  <div className="min-w-0">
+                    <span className="record-id">{r.code}</span>
                   </div>
                 )}
                 {!editable && r.workOrderLabel && (

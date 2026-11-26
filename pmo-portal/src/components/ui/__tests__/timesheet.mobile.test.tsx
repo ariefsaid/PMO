@@ -79,6 +79,14 @@ describe('TimesheetGrid mobile/desktop single-render seam (B-C-1)', () => {
     // Mobile branch absent
     expect(document.querySelector('[data-testid="tsgrid-mobile"]')).not.toBeInTheDocument();
   });
+
+  it('a narrow host (a side drawer) asks for the stacked layout: every day is shown at desktop width too', () => {
+    mockViewport(true);
+    render(<TimesheetGrid days={days} rows={rows} stacked />);
+    expect(document.querySelector('[data-testid="tsgrid-mobile"]')).toBeInTheDocument();
+    expect(document.querySelector('table')).toBeNull();
+    for (const day of days) expect(screen.getAllByText(day.label).length).toBeGreaterThan(0);
+  });
 });
 
 // ── All 7 days reachable + editable at mobile ─────────────────────────────────
