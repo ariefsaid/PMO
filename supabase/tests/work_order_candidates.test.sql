@@ -2,7 +2,7 @@
 -- The records stay: candidates, items and proofs read for their own organisation only; the check template still reads.
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(27);
 
 select hasnt_function('public', 'create_work_order_candidate', array['uuid','text','text','text','date','uuid'], '#2915 create function is gone');
 select hasnt_function('public', 'decide_work_order_candidate', array['uuid','text','text'], '#2915 decide function is gone');
@@ -59,6 +59,29 @@ select pg_temp.act_as('29150000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from work_order_candidates), 0, '#2915 another organisation reads no candidate');
 select is((select count(*)::int from work_order_candidate_items) + (select count(*)::int from work_order_checklist_items), 0,
   '#2915 another organisation reads no item or template');
+
+-- Direct write on the candidate table: refused for every role, Admin included (no policy, no grant).
+select pg_temp.act_as('29150000-0000-0000-0000-0000000000a1');
+select throws_ok($$ update work_order_candidates set title = 'renamed' $$, '42501', null, '#2915 an Admin cannot update a candidate directly');
+reset role;
+select is((select title from work_order_candidates where id = '29150000-0000-0000-0000-0000000000c1'), 'Earlier offer', '#2915 the candidate is unchanged');
+set local role authenticated;
+
+-- Proof rows and the proof bucket.
+reset role;
+insert into work_order_candidate_proofs (id, org_id, item_id, file_path, file_name) values
+  ('29150000-0000-0000-0000-0000000000f1', '29150000-0000-0000-0000-00000000000a', '29150000-0000-0000-0000-0000000000e1',
+   '29150000-0000-0000-0000-00000000000a/29150000-0000-0000-0000-0000000000c1/29150000-0000-0000-0000-0000000000f1/site.pdf', 'site.pdf');
+insert into storage.objects (bucket_id, name) values ('work-order-candidate-proofs',
+  '29150000-0000-0000-0000-00000000000a/29150000-0000-0000-0000-0000000000c1/29150000-0000-0000-0000-0000000000f1/site.pdf');
+set local role authenticated;
+select pg_temp.act_as('29150000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from work_order_candidate_proofs), 0, '#2915 another organisation reads no proof row');
+select is((select count(*)::int from storage.objects where bucket_id = 'work-order-candidate-proofs'), 0, '#2915 no client reads a proof file');
+select pg_temp.act_as('29150000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from storage.objects where bucket_id = 'work-order-candidate-proofs'), 0, '#2915 not even a member of the owning organisation');
+select throws_ok($$ insert into storage.objects (bucket_id, name, owner) values ('work-order-candidate-proofs', '29150000-0000-0000-0000-00000000000a/x/y/z.pdf', auth.uid()) $$,
+  '42501', null, '#2915 no client writes a proof file');
 
 select * from finish();
 rollback;

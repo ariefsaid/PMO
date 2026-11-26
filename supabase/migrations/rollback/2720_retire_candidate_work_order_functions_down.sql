@@ -1,38 +1,48 @@
--- Rollback of 2720: restates the objects it dropped, from 1405 (helpers, guards, policies, grants), 1406, 1407 and 1408.
--- Does not restore the audit trigger function (kept) nor any storage object (never deleted).
+-- Rollback of 2720 (#2915): restates what it dropped. Function bodies, grants and search paths are the live catalog at the
+-- level before 2720 (so 1480's light-account guard and 2690's pg_temp are included), not the original 1405-1408 text.
+-- Not restored: audit_work_order_candidate_row (2720 keeps it), and any storage object (2720 never deletes one).
+-- Proof: scripts/test-2720-candidate-rollback.sh (catalog snapshot before, after down, after up again).
 
--- ── 1405: helpers
--- ── §7 who may assess a candidate: Admin, Engineer, or the project's Project Manager (FR-CWO-003) ─────────
--- Invoker: it reads the candidate and project under the caller's own RLS, so it can never widen a read.
-create function public.wo_candidate_can_assess(p_candidate uuid) returns boolean
-  language sql stable set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.wo_candidate_can_assess(p_candidate uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
   select exists (
     select 1 from public.work_order_candidates c join public.projects p on p.id = c.project_id
      where c.id = p_candidate and c.status = 'assessing'
        and c.org_id = (select public.auth_org_id()) and (select public.is_active_member())
        and ((select public.auth_role()) in ('Admin', 'Engineer') or p.project_manager_id = (select auth.uid())))
-$$;
-revoke all on function public.wo_candidate_can_assess(uuid) from public, anon;
+$function$
+;
+revoke all on function public.wo_candidate_can_assess(uuid) from public, anon, authenticated;
+grant execute on function public.wo_candidate_can_assess(uuid) to service_role;
 grant execute on function public.wo_candidate_can_assess(uuid) to authenticated;
 
--- An item's owner may also work their own item while the candidate is assessing.
-create function public.wo_candidate_item_can_edit(p_item uuid) returns boolean
-  language sql stable set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.wo_candidate_item_can_edit(p_item uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
   select exists (
     select 1 from public.work_order_candidate_items i join public.work_order_candidates c on c.id = i.candidate_id
      where i.id = p_item and c.status = 'assessing' and i.org_id = (select public.auth_org_id())
        and (select public.is_active_member())
        and (public.wo_candidate_can_assess(i.candidate_id) or i.owner_id = (select auth.uid())))
-$$;
-revoke all on function public.wo_candidate_item_can_edit(uuid) from public, anon;
+$function$
+;
+revoke all on function public.wo_candidate_item_can_edit(uuid) from public, anon, authenticated;
+grant execute on function public.wo_candidate_item_can_edit(uuid) to service_role;
 grant execute on function public.wo_candidate_item_can_edit(uuid) to authenticated;
 
--- ── 1405: guards
--- ── §5 guards that bind every writer (not only the client roles) ──────────────────────────────────────────
--- Items: the candidate must be on the row's own org and still assessing (FR-CWO-006); a not-applicable item needs a
--- note; the owner is a member of the same org; position is appended on insert; identity columns never move.
-create function public.check_work_order_candidate_item() returns trigger
-  language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.check_work_order_candidate_item()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare v_org uuid; v_status text; v_owner_org uuid;
 begin
   select c.org_id, c.status into v_org, v_status from public.work_order_candidates c where c.id = new.candidate_id;
@@ -60,14 +70,17 @@ begin
   end if;
   if tg_op = 'UPDATE' then new.updated_at := now(); end if;
   return new;
-end $$;
+end $function$
+;
 revoke all on function public.check_work_order_candidate_item() from public, anon, authenticated;
-create trigger zz_work_order_candidate_items_check before insert or update on public.work_order_candidate_items
-  for each row execute function public.check_work_order_candidate_item();
+grant execute on function public.check_work_order_candidate_item() to service_role;
 
--- Proofs: the item's candidate is on the row's org and still assessing; the file sits under {org}/{candidate}/{proof}/.
-create function public.check_work_order_candidate_proof() returns trigger
-  language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.check_work_order_candidate_proof()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare v_org uuid; v_candidate uuid; v_status text;
 begin
   select i.org_id, i.candidate_id, c.status into v_org, v_candidate, v_status
@@ -88,15 +101,17 @@ begin
     raise exception 'CWO_PROOF_PATH: the file must be stored under {organisation}/{candidate}/{proof}/{name}' using errcode = '23514';
   end if;
   return new;
-end $$;
+end $function$
+;
 revoke all on function public.check_work_order_candidate_proof() from public, anon, authenticated;
-create trigger zz_work_order_candidate_proofs_check before insert or update on public.work_order_candidate_proofs
-  for each row execute function public.check_work_order_candidate_proof();
+grant execute on function public.check_work_order_candidate_proof() to service_role;
 
--- Candidate body edits happen only while assessing; the decision columns have no client grant (below) and this guard
--- refuses a body edit after the decision for every writer. The RPCs of 1406/1407 write status through update of status.
-create function public.check_work_order_candidate_update() returns trigger
-  language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.check_work_order_candidate_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 begin
   if new.id is distinct from old.id or new.org_id is distinct from old.org_id or new.project_id is distinct from old.project_id
      or new.created_at is distinct from old.created_at or new.replaces_id is distinct from old.replaces_id then
@@ -106,12 +121,17 @@ begin
     raise exception 'CWO_DECIDED: a decided candidate is never reopened or edited' using errcode = '23514';
   end if;
   return new;
-end $$;
+end $function$
+;
 revoke all on function public.check_work_order_candidate_update() from public, anon, authenticated;
+grant execute on function public.check_work_order_candidate_update() to service_role;
+
+create trigger zz_work_order_candidate_items_check before insert or update on public.work_order_candidate_items
+  for each row execute function public.check_work_order_candidate_item();
+create trigger zz_work_order_candidate_proofs_check before insert or update on public.work_order_candidate_proofs
+  for each row execute function public.check_work_order_candidate_proof();
 create trigger zz_work_order_candidates_check before update on public.work_order_candidates
   for each row execute function public.check_work_order_candidate_update();
-
--- ── 1405: audit triggers on the candidate tables
 create trigger zz_work_order_candidates_audit after insert or update on public.work_order_candidates
   for each row execute function public.audit_work_order_candidate_row();
 create trigger zz_work_order_candidate_items_audit after insert or update on public.work_order_candidate_items
@@ -119,24 +139,21 @@ create trigger zz_work_order_candidate_items_audit after insert or update on pub
 create trigger zz_work_order_candidate_proofs_audit after insert or update on public.work_order_candidate_proofs
   for each row execute function public.audit_work_order_candidate_row();
 
--- ── 1405: write policies and grants
--- Body edit of a candidate while assessing: the assessors. Status and the decision columns are not granted.
 create policy work_order_candidates_update on public.work_order_candidates for update
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.wo_candidate_can_assess(id))
   with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
-
 create policy work_order_candidate_items_insert on public.work_order_candidate_items for insert
   with check (org_id = (select public.auth_org_id()) and (select public.is_active_member())
               and public.wo_candidate_can_assess(candidate_id));
 create policy work_order_candidate_items_update on public.work_order_candidate_items for update
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.wo_candidate_item_can_edit(id))
   with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
-
 create policy work_order_candidate_proofs_insert on public.work_order_candidate_proofs for insert
   with check (org_id = (select public.auth_org_id()) and (select public.is_active_member())
               and public.wo_candidate_item_can_edit(item_id));
 create policy work_order_candidate_proofs_update on public.work_order_candidate_proofs for update
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and public.wo_candidate_item_can_edit(item_id))
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 
 grant update (title, description, client_reference, offered_on) on public.work_order_candidates to authenticated;
 grant insert (candidate_id, label, required, owner_id, target_date, note) on public.work_order_candidate_items to authenticated;
@@ -144,19 +161,18 @@ grant update (status, note, owner_id, target_date) on public.work_order_candidat
 grant insert (id, item_id, file_path, file_name) on public.work_order_candidate_proofs to authenticated;
 grant update (archived_at) on public.work_order_candidate_proofs to authenticated;
 
--- ── 1406: create function
--- Create a candidate under a project and copy the organisation's live checklist onto it, in one transaction.
--- Callers: Admin, Engineer, or the project's Project Manager. p_replaces_id names an earlier REJECTED candidate of the
--- same project (FR-CWO-015). offered_on defaults to today in the organisation's timezone (NFR-CWO-002).
-create function public.create_work_order_candidate(
-  p_project_id uuid, p_title text, p_description text default null, p_client_reference text default null,
-  p_offered_on date default null, p_replaces_id uuid default null) returns uuid
-  language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.create_work_order_candidate(p_project_id uuid, p_title text, p_description text DEFAULT NULL::text, p_client_reference text DEFAULT NULL::text, p_offered_on date DEFAULT NULL::date, p_replaces_id uuid DEFAULT NULL::uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare
   v_org uuid := public.auth_org_id();
   v_uid uuid := auth.uid();
   v_pm uuid; v_id uuid; v_today date; v_prior public.work_order_candidates;
 begin
+  perform public.assert_not_light();
   if v_org is null or v_uid is null or not public.is_active_member() then
     raise exception 'not authorized' using errcode = '42501';
   end if;
@@ -185,25 +201,25 @@ begin
     select v_org, v_id, t.id, t.label, t.position, t.required
       from public.work_order_checklist_items t where t.org_id = v_org and t.archived_at is null order by t.position, t.created_at;
   return v_id;
-end $$;
-revoke all on function public.create_work_order_candidate(uuid, text, text, text, date, uuid) from public, anon;
-grant execute on function public.create_work_order_candidate(uuid, text, text, text, date, uuid) to authenticated;
+end $function$
+;
+revoke all on function public.create_work_order_candidate(uuid,text,text,text,date,uuid) from public, anon, authenticated;
+grant execute on function public.create_work_order_candidate(uuid,text,text,text,date,uuid) to service_role;
+grant execute on function public.create_work_order_candidate(uuid,text,text,text,date,uuid) to authenticated;
 
--- ── 1407: decide function
---
--- The ONLY writer of status and the decision columns (no client grant, 1405). Gate: the candidate's project's Project
--- Manager or an Admin. Rejecting is always allowed; accepting needs every required item passed or not applicable.
--- Accepting creates ONE Draft work order and stops: value 0, no number, no issue (FR-CWO-014): the Draft -> Issued gate
--- and set_work_order_value stay with the existing work-order flow. Calling accept again returns the same work order.
--- Returns {status, work_order_id}.
-create function public.decide_work_order_candidate(p_candidate_id uuid, p_decision text, p_reason text) returns jsonb
-  language plpgsql security definer set search_path = public, pg_temp as $$
+CREATE OR REPLACE FUNCTION public.decide_work_order_candidate(p_candidate_id uuid, p_decision text, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
 declare
   v_org uuid := public.auth_org_id();
   v_uid uuid := auth.uid();
   v_c public.work_order_candidates;
   v_pm uuid; v_tax text; v_reason text; v_blocking text; v_wo uuid;
 begin
+  perform public.assert_not_light();
   if v_org is null or v_uid is null or not public.is_active_member() then
     raise exception 'not authorized' using errcode = '42501';
   end if;
@@ -250,9 +266,11 @@ begin
   update public.work_order_candidates set status = 'accepted', decided_by = v_uid, decided_at = now(),
          decision_reason = v_reason, work_order_id = v_wo where id = v_c.id;
   return jsonb_build_object('status', 'accepted', 'work_order_id', v_wo);
-end $$;
-revoke all on function public.decide_work_order_candidate(uuid, text, text) from public, anon;
-grant execute on function public.decide_work_order_candidate(uuid, text, text) to authenticated;
+end $function$
+;
+revoke all on function public.decide_work_order_candidate(uuid,text,text) from public, anon, authenticated;
+grant execute on function public.decide_work_order_candidate(uuid,text,text) to service_role;
+grant execute on function public.decide_work_order_candidate(uuid,text,text) to authenticated;
 
 -- ── 1408: bucket and policies
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
