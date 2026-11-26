@@ -61,9 +61,10 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-control sm:grid-cols-4">
         {figure('wo-revenue-plan-plan', t('planToDate', 'Plan to date'), data.hasPlan ? money(data.planToDate) : '—')}
         {figure('wo-revenue-plan-actual', t('actualToDate', 'Actual to date'), money(data.actualToDate))}
-        {figure('wo-revenue-plan-gap', t('gap', 'Gap'), data.hasPlan ? gapText : '—')}
+        {figure('wo-revenue-plan-gap', t('gap', 'Gap'), data.hasPlan ? money(data.gap) : '—')}
         {figure('wo-revenue-plan-total', t('planTotal', 'Whole plan'), data.hasPlan ? money(data.planTotal) : '—')}
       </dl>
+      {data.hasPlan && <p className="mt-3 text-control text-muted-foreground">{gapText}</p>}
       {!data.hasPlan && <p className="mt-3 text-control text-muted-foreground">{t('noPlan', 'No plan entered')}</p>}
       {data.pendingReports > 0 && (
         <p className="mt-2 text-control text-muted-foreground" data-testid="wo-revenue-plan-pending">

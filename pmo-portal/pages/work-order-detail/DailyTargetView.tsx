@@ -95,7 +95,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   const figure = (testId: string, label: string, value: React.ReactNode) => (
     <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
       <dt className="self-end text-muted-foreground">{label}</dt>
-      <dd className="self-start font-medium tabular-nums" data-testid={testId}>{value}</dd>
+      <dd className="self-start text-metric font-semibold tabular-nums" data-testid={testId}>{value}</dd>
     </div>
   );
   const costFigure = (v: number | null | undefined) => (typeof v === 'number' ? money(toMoney(v)) : '—');
