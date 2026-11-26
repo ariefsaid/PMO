@@ -1,5 +1,5 @@
--- 2750_pm_reads_own_project_money.test.sql — a Project Manager reads project money for their own projects.
--- Migration under test: 2750_pm_reads_own_project_money.sql.
+-- 2768_pm_reads_own_project_money.test.sql — a Project Manager reads project money for their own projects.
+-- Migration under test: 2768_pm_reads_own_project_money.sql.
 -- Every denial for a Project Manager of another project is the invisible shape (not found, no rows, or the money withheld),
 -- the same as a project that does not exist. Roles above Project Manager and other organisations are unchanged.
 -- Mutation check: make project_money_in_scope return true and the Project Manager "other project" cases below go red.

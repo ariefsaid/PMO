@@ -3,7 +3,7 @@
 -- get_work_in_hand applies, plus the Project Control Manager job role, which the rights catalogue (2046) lets read every project.
 -- Other roles, and money not bound to a project, are unchanged.
 -- A project outside the Project Manager's scope reads as not found, or as no rows, or with the money withheld.
--- Reverse: rollback/2750_pm_reads_own_project_money_down.sql.
+-- Reverse: rollback/2768_pm_reads_own_project_money_down.sql.
 -- drops: each restated function replaces its project-exists test (or filter) with the same test plus project_money_in_scope; nothing else changes.
 begin;
 create or replace function public.project_money_in_scope(p_project uuid)
