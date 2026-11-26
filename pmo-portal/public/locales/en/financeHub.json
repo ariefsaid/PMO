@@ -314,6 +314,7 @@
     "erpPushQueued": "{{count}} activated with the ERPNext push queued behind an earlier budget cancellation; it is pushed automatically once that settles."
   },
   "openingBalances": {
+    "tableLabel": "Scroll table",
     "title": "Opening balances",
     "setupDisabled": "Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows.",
     "loading": "Loading opening balances",
