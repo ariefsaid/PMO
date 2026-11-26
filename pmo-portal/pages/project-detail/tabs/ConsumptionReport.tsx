@@ -62,7 +62,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {range && <div className="flex flex-wrap items-end gap-3">
+      {range && <div className="grid grid-cols-2 items-end gap-3">
         <TextField label={t('consumption.from')} type="month" value={range.fromMonth} max={range.toMonth}
           onChange={(value) => value && setRange({ ...range, fromMonth: value })}
           className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
