@@ -63,7 +63,7 @@ test('AC-WCO-040 Admin assigns material close-out and the Material Coordinator a
     await page.goto(`/work-orders/${woId}`);
     await openWorkOrderArea(page, 'checks');
     await openRowUpdate(page, run);
-    await page.getByRole('combobox', { name: `Document for ${run}` }).selectOption(docId);
+    await page.getByRole('combobox', { name: 'Project documents', exact: true }).selectOption(docId);
     await page.getByRole('button', { name: `Attach to ${run}`, exact: true }).click();
     await page.getByRole('button', { name: `Mark ${run} done`, exact: true }).click();
     await expect(page.getByTestId('closeout-summary')).toContainText('Every required item is done');
