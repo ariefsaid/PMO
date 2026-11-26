@@ -21,7 +21,7 @@ import { useOperationalWaitingRoute, operationalWaitingForText } from '@/src/hoo
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { WorkOrderSupplyWarning } from '@/src/components/SupplyRiskWarning';
 import { ScopeSection } from './work-order-detail/ScopeSection';
 import { CostSection } from './work-order-detail/CostSection';
@@ -208,6 +208,8 @@ const WorkOrderDetail: React.FC = () => {
           { label: t('project', 'Project'), value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
+          // How far it has got, value-weighted over its contract lines (the scope area lists each line).
+          ...(progress?.overallPercent != null ? [{ label: t('complete', 'Complete'), value: <span className="tabular-nums" data-testid="wo-complete">{`${formatNumberExact(Math.round(progress.overallPercent * 10) / 10)}%`}</span> }] : []),
         ]} />
       {issueWaitingApplies && issueWaiting.isPending && (
         <span role="status" className="sr-only">{t('common:ui.listState.loading', 'Loading…')}</span>

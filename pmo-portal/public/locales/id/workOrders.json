@@ -13,7 +13,6 @@
     "error": "Lingkup tidak dapat dimuat",
     "empty": "Belum ada baris kontrak yang dialokasikan ke $t(common:terms.clientWorkOrder) ini.",
     "allocate": "Alokasikan baris di proyek",
-    "overall": "Keseluruhan {{pct}} selesai",
     "lump": "{{done}} dari {{all}}",
     "qty": "{{done}} dari {{all}} {{unit}}",
     "col": {
@@ -456,5 +455,6 @@
     "openWorkOrder": "Buka $t(common:terms.clientWorkOrder)",
     "checks_one": "{{count}} pemeriksaan",
     "checks_other": "{{count}} pemeriksaan"
-  }
+  },
+  "complete": "Selesai"
 }

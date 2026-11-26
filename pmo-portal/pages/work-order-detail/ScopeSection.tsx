@@ -27,7 +27,7 @@ export const ScopeSection: React.FC<Props> = ({ projectId, progress, isPending, 
   }
   const pct = (v: number | null) => (v == null ? '—' : `${formatNumberExact(Math.round(v * 10) / 10)}%`);
   return (
-    <RecordSection title={title} subline={progress.overallPercent != null ? t('scope.overall', 'Overall {{pct}} complete', { pct: pct(progress.overallPercent) }) : undefined}>
+    <RecordSection title={title}>
       <div className="overflow-x-auto">
         <table className="w-full text-control" data-testid="scope-lines">
           <thead><tr className="text-muted-foreground">

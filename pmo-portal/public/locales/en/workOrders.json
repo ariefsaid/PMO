@@ -13,7 +13,6 @@
     "error": "Couldn't load the scope",
     "empty": "No contract lines are allocated to this work order yet.",
     "allocate": "Allocate lines on the project",
-    "overall": "Overall {{pct}} complete",
     "lump": "{{done}} of {{all}}",
     "qty": "{{done}} of {{all}} {{unit}}",
     "col": {
@@ -456,5 +455,6 @@
     "openWorkOrder": "Open the work order",
     "checks_one": "{{count}} check",
     "checks_other": "{{count}} checks"
-  }
+  },
+  "complete": "Complete"
 }

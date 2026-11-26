@@ -244,6 +244,10 @@ describe('WorkOrderDetail', () => {
     renderPage();
     expect(screen.getByTestId('scope-pct-b1').textContent).toBe('50%');
   });
+  it('#1126 the header says how far the work order has got, value-weighted over its contract lines', () => {
+    renderPage();
+    expect(within(screen.getByTestId('record-header')).getByTestId('wo-complete').textContent).toBe('50%');
+  });
   it('AC-WORP-006 costs group by source and discipline with No discipline for the unlabelled record', () => {
     renderPage('cost');
     const po = screen.getByTestId('cost-group-purchase_order');
