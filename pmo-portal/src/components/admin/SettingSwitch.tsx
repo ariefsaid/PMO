@@ -17,7 +17,7 @@ export function SettingSwitch({ label, consequence, checked, onChange, disabled 
   const labelId = useId();
   const helperId = useId();
   return (
-    <label className={`flex min-h-11 max-w-xl items-start gap-3 py-1.5 text-control ${controlPosition === 'end' ? 'flex-row-reverse justify-between' : ''}`}>
+    <label className={`flex min-h-11 items-start gap-3 py-1.5 text-control ${controlPosition === 'end' ? 'max-w-none flex-row-reverse justify-between' : 'max-w-xl'}`}>
       <Switch checked={checked} onChange={onChange} labelledBy={labelId} describedBy={consequence ? helperId : undefined}
         disabled={disabled} className="mt-0.5" />
       <span className="min-w-0">

@@ -41,7 +41,7 @@ export function OrgSwitchSetting({ setting, label, helper, title, id, children, 
         {q.data && children}
       </>
     );
-  if (!title) return <div className="max-w-xl">{body}</div>;
+  if (!title) return <div className={controlPosition === 'end' ? '' : 'max-w-xl'}>{body}</div>;
   return (
     <section id={id} tabIndex={-1} className="scroll-mt-4 mt-6" aria-labelledby={`${id}-heading`}>
       <h2 id={`${id}-heading`} className="text-group font-semibold tracking-[-0.01em]">{title}</h2>
