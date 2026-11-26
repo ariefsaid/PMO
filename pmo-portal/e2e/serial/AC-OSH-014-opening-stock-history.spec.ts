@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import { signIn } from '../helpers';
 import { inDays } from '../support/jobJourney';
 import { makeWarehouse, runSuffix, userClient } from '../support/stockFixture';
+import { onHandCell } from '../support/stockUi';
 
 test.setTimeout(120_000);
 
@@ -63,6 +64,6 @@ test('AC-OSH-014: an Admin previews a movement file, sees the refused row blocke
   // And: the location holds 6 of the bought item and 6 of the client-supplied one, each the sum of its movements
   await page.goto('/stock');
   await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${wh.code} - ${wh.name}` });
-  await expect(page.getByRole('row', { name: new RegExp(bought.code) }).getByRole('cell', { name: /^6\s+\S+$/ })).toBeVisible();
-  await expect(page.getByRole('row', { name: new RegExp(supplied.code) }).getByRole('cell', { name: /^6\s+\S+$/ })).toBeVisible();
+  await expect(await onHandCell(page, bought.code)).toHaveText(/^6\s+\S+$/);
+  await expect(await onHandCell(page, supplied.code)).toHaveText(/^6\s+\S+$/);
 });

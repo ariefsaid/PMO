@@ -32,7 +32,7 @@ vi.mock('@/src/hooks/useStockTransfers', () => ({
   useTransferRefresh: () => async () => [],
 }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useDeliveryNoteSettings: () => ({ data: { enabled: h.dn, signatureBlocks: [] } }) }));
-vi.mock('@/src/hooks/useStock', () => ({ useStockItems: () => ({ data: h.items }), useStockWarehouses: () => ({ data: [{ id: 'w1', name: 'Central store' }, { id: 'w2', name: 'Site one' }] }) }));
+vi.mock('@/src/hooks/useStock', () => ({ useStockItems: () => ({ data: h.items }), useStockUnits: () => ({ data: [] }), useStockWarehouses: () => ({ data: [{ id: 'w1', name: 'Central store' }, { id: 'w2', name: 'Site one' }] }) }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useStockTags: () => ({ data: h.tags }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [{ id: 'me', full_name: 'Dest Keeper' }] }) }));
 vi.mock('@/src/lib/repositories/stockTransfers', () => ({
@@ -80,19 +80,19 @@ describe('StockTransferDetail handover photos (F10)', () => {
 describe('StockTransferDetail receive (AC-TST-024)', () => {
   it('AC-TST-024 counted and accepted start at the sent quantity, and an unflagged item has no quality choice', async () => {
     renderPage();
-    expect(await screen.findByLabelText(/^Counted/)).toHaveValue('10.000');
-    expect(screen.getByLabelText(/^Accepted/)).toHaveValue('10.000');
+    expect(await screen.findByRole('textbox', { name: /^Counted/ })).toHaveValue('10.000');
+    expect(screen.getByRole('textbox', { name: /^Accepted/ })).toHaveValue('10.000');
     expect(screen.queryByLabelText(/Quality check/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm receipt' })).toBeEnabled();
   });
 
   it('AC-TST-024 a short count says the shortfall stays in transit; rejecting part asks why; submit sends the count', async () => {
     renderPage();
-    const counted = await screen.findByLabelText(/^Counted/);
+    const counted = await screen.findByRole('textbox', { name: /^Counted/ });
     await userEvent.clear(counted); await userEvent.type(counted, '8');
     expect(screen.getByText(/2 short: it stays in transit/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Why is some rejected/)).not.toBeInTheDocument();
-    const accepted = screen.getByLabelText(/^Accepted/);
+    const accepted = screen.getByRole('textbox', { name: /^Accepted/ });
     await userEvent.clear(accepted); await userEvent.type(accepted, '6');
     await userEvent.type(await screen.findByLabelText(/Why is some rejected/), 'dented');
     await userEvent.click(screen.getByRole('button', { name: 'Confirm receipt' }));
@@ -105,7 +105,7 @@ describe('StockTransferDetail receive (AC-TST-024)', () => {
     const submit = await screen.findByRole('button', { name: 'Confirm receipt' });
     expect(submit).toBeDisabled();
     await userEvent.selectOptions(screen.getByLabelText(/Quality check/), 'fail');
-    expect(screen.getByLabelText(/^Accepted/)).toHaveValue('0');
+    expect(screen.getByRole('textbox', { name: /^Accepted/ })).toHaveValue('0');
     await userEvent.type(await screen.findByLabelText(/Why is some rejected/), 'failed test');
     expect(submit).toBeEnabled();
   });
@@ -149,7 +149,7 @@ describe('StockTransferDetail receive (AC-TST-024)', () => {
   it('AC-TST-024 quantities that arrive as JSON numbers (PostgREST numeric) render and submit as decimal strings', async () => {
     h.transfer = transfer({ lines: [line({ qtySent: 10 })] });
     renderPage();
-    expect(await screen.findByLabelText(/^Counted/)).toHaveValue('10');
+    expect(await screen.findByRole('textbox', { name: /^Counted/ })).toHaveValue('10');
     await userEvent.click(screen.getByRole('button', { name: 'Confirm receipt' }));
     await waitFor(() => expect(h.receive).toHaveBeenCalledWith('t1', [{ lineId: 'l1', counted: '10', accepted: '10', rejectReason: '', qualityResult: null }], null));
   });
@@ -185,14 +185,14 @@ describe('StockTransferDetail sender (#1122 item 1)', () => {
     h.transfer = transfer({ sentBy: 'me' });
     renderPage();
     expect(await screen.findByText(/someone else counts it on arrival/)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/^Counted/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /^Counted/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirm receipt' })).not.toBeInTheDocument();
   });
 
   it('JOB-1122-1 the named receiver (not a keeper, not the sender) is shown the receive form', async () => {
     h.transfer = transfer({ toUserId: 'me', sentBy: 'someone' });
     renderPage();
-    expect(await screen.findByLabelText(/^Counted/)).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: /^Counted/ })).toBeInTheDocument();
   });
 });
 

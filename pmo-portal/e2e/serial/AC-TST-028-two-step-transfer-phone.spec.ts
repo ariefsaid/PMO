@@ -54,9 +54,9 @@ test('AC-TST-028 AC-WAIT-076 a keeper sends, the receiver counts short on a phon
   // The Engineer (keeper of the destination) counts 7 of 10; a guest with no account signs on this phone.
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/stock/transfers/${transferId}`);
-  const counted = page.getByLabel(/^Counted/);
+  const counted = page.getByRole('textbox', { name: /^Counted/ });
   await counted.fill('7');
-  await expect(page.getByText(/3 short: it stays in transit/)).toBeVisible();
+  await expect(page.getByText(/3 (\S+ )?short: it stays in transit/)).toBeVisible();
   await page.getByRole('checkbox', { name: 'Confirm the handover in PMO now' }).click();
   await page.getByRole('checkbox', { name: 'The person signing has no account' }).click();
   await page.getByLabel(/Name of the person signing/).fill('Gate Guard');

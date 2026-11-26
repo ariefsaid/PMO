@@ -55,17 +55,19 @@ test('JOB-W18 the receiver counts less and rejects part, and the transfer shows 
     // 2. The receiver counts 8, accepts 6 and rejects 2 with a reason.
     await receiver.signIn(page);
     await page.goto(`/stock/transfers/${transferId}`);
-    await page.getByLabel('Counted').fill('8');
-    await page.getByLabel('Accepted').fill('6');
+    await page.getByRole('textbox', { name: 'Counted' }).fill('8');
+    await page.getByRole('textbox', { name: 'Accepted' }).fill('6');
     await page.getByLabel('Why is some rejected?').fill('Two were crushed in the truck');
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 
     // 3. Goal: the transfer shows the sent, counted and rejected quantities.
-    const line = page.getByRole('region', { name: 'Lines' }).getByRole('listitem').filter({ hasText: item.code });
-    await expect(line).toContainText('Sent 10');
-    await expect(line).toContainText('counted 8');
-    await expect(line).toContainText('rejected 2: Two were crushed in the truck');
+    // The lines are one table: Sent, Counted, Accepted, Rejected and Note each in their own cell.
+    const cells = page.getByRole('region', { name: 'Lines' }).getByRole('row').filter({ hasText: item.code }).getByRole('cell');
+    await expect(cells.nth(0)).toHaveText(/^10\b/);
+    await expect(cells.nth(1)).toHaveText(/^8\b/);
+    await expect(cells.nth(3)).toHaveText(/^2\b/);
+    await expect(cells.nth(4)).toHaveText('Two were crushed in the truck');
   } finally {
     if (transferId) {
       sqlAsOwner(`delete from stock_handover_confirmations where transfer_id = '${transferId}'; delete from stock_transfer_lines where transfer_id = '${transferId}'; delete from stock_transfers where id = '${transferId}';`);
