@@ -167,15 +167,17 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
       {meta && metaFullWidth && <div id={metaId} className="mt-1 text-control font-normal text-muted-foreground">{meta}</div>}
       {stats && stats.length > 0 && (
         <div
-          className="mt-4 grid gap-4 border-t border-border pt-4"
+          className="mt-4 grid gap-x-4 gap-y-4 border-t border-border pt-4"
           // Wraps to as many columns as fit (two on a phone) instead of squeezing five facts into 390px.
           style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(8rem, 1fr))' }}
         >
           {stats.map((s, i) => (
-            <div key={i} className="min-w-0">
-              <div className="mb-1 text-control font-medium text-foreground">{s.label}</div>
-              {/* One line per fact (two on a phone), so the facts of a row end level however long a name is; the full value stays in its title. */}
-              <div className="text-group font-semibold tabular max-sm:line-clamp-2 max-sm:break-words sm:truncate" title={s.title ?? (typeof s.value === 'string' ? s.value : undefined)}>{s.value}</div>
+            // Each fact spans two rows of the header's grid: every label sits on the first (bottom-aligned, so labels
+            // share one baseline even when one wraps), every value starts at the top of the second.
+            <div key={i} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
+              <div className="self-end text-control font-medium text-foreground">{s.label}</div>
+              {/* A name reads whole and wraps. */}
+              <div className="self-start text-group font-semibold tabular [overflow-wrap:anywhere]" title={s.title ?? (typeof s.value === 'string' ? s.value : undefined)}>{s.value}</div>
             </div>
           ))}
         </div>
