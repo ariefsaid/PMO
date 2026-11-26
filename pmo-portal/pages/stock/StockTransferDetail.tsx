@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, ConfirmDialog, DataTable, ListState, MobileActionBar, RecordHeader, SelectField, StatusPill, TextField, useToast, type Column } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { HandoverCapture } from '@/src/components/stock/HandoverCapture';
 import { HandoverPhotos } from '@/src/components/stock/HandoverPhotos';
 import { buildConfirmation, emptyHandover, isHandoverComplete, type HandoverValue } from '@/src/components/stock/handoverValue';
@@ -163,7 +164,7 @@ const StockTransferDetail: React.FC = () => {
         name={`${t('transfers.detailTitle')} ${transfer.number}`}
         status={<StatusPill variant={statusVariant}>{t(`transfers.status.${transfer.status}`)}</StatusPill>}
         meta={<Link to="/stock/transfers" className="text-primary-text underline underline-offset-4">{t('transfers.back')}</Link>}
-        actions={deliveryNotes.data?.enabled ? <Link to={`/stock/transfers/${transfer.id}/print`} className="inline-flex min-h-9 items-center rounded-md border border-input px-3 text-control font-medium text-foreground hover:bg-muted">{t('transfers.print.action')}</Link> : undefined}
+        actions={deliveryNotes.data?.enabled ? <Link to={`/stock/transfers/${transfer.id}/print`} className={buttonClasses('outline')}>{t('transfers.print.action')}</Link> : undefined}
         menuItems={canRecall ? [{ key: 'recall', label: t('transfers.recallAction'), danger: true, onSelect: () => { setReason(''); setRecalling(true); } }] : undefined}
       />
       <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={t('transfers.summary')}>
