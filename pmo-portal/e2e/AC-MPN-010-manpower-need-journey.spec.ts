@@ -57,7 +57,7 @@ test('AC-MPN-010 a need shows filled, in progress and open from the checklist an
   await page.reload();
   await expect(figure('Filled')).toHaveText('1', { timeout: 20_000 });
   await expect(figure('In progress')).toHaveText('1');
-  await expect(figure('Open')).toHaveText('0');
+  await expect(figure('To fill')).toHaveText('0');
   await expect(drawer.getByRole('button', { name: 'Mark as met' })).toBeDisabled();
 
   must('clear B', await db.from('person_clearances').insert({ org_id: ORG_ID, person_id: workerB, item_id: itemId, done_on: iso(new Date()) }).select('id').single());

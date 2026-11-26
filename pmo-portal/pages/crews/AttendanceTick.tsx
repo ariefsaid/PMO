@@ -187,7 +187,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
               const locked = !rowMay || busy || hold !== undefined;
               const phoneControl = 'max-sm:min-h-11 max-sm:h-11';
               return (
-                <tr role="row" key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-2 max-sm:py-3">
+                <tr role="row" key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top sm:align-middle max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-2 max-sm:py-3">
                   <th role="rowheader" scope="row" className="py-2 pr-2 text-left font-normal text-foreground max-sm:col-span-2 max-sm:p-0 max-sm:font-semibold">
                     {m.display_name}
                     {hold && (
@@ -214,7 +214,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                     {/* Nobody is present or absent by default: an un-recorded member reads "Not yet present" for every reader. */}
                     {!rowMay && p.status === 'unmarked'
                       ? <span className="text-control text-muted-foreground">{t('crews:status.notYetPresent', 'Not yet present')}</span>
-                      : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
+                      : <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel
                       className={phoneControl}
                       value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as TickStatus })} disabled={locked}
                       options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />}

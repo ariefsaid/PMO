@@ -76,7 +76,7 @@ describe('AC-MPN-008 manpower needs', () => {
     const card = screen.getByTestId('manpower-need-n1');
     expect(screen.getByRole('dialog')).toHaveTextContent('Welder · Site One');
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
-    expect([read('Asked'), read('Filled'), read('In progress'), read('Open')]).toEqual(['3', '1', '1', '1']);
+    expect([read('Asked'), read('Filled'), read('In progress'), read('To fill')]).toEqual(['3', '1', '1', '1']);
     expect(screen.getByText('Worker One')).toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe('AC-MPN-008 manpower needs', () => {
     view();
     const card = screen.getByTestId('manpower-need-n1');
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
-    expect([read('Asked'), read('Filled'), read('In progress'), read('Open')]).toEqual(['3', '—', '—', '0']);
+    expect([read('Asked'), read('Filled'), read('In progress'), read('To fill')]).toEqual(['3', '—', '—', '0']);
     expect(screen.getByText(/shown to the people team and to the roles that read the clearance checklist/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mark as met' })).toBeDisabled();
   });
@@ -95,7 +95,7 @@ describe('AC-MPN-008 manpower needs', () => {
     view();
     const card = screen.getByTestId('manpower-need-n1');
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
-    expect([read('Filled'), read('In progress'), read('Open')]).toEqual(['—', '—', '—']);
+    expect([read('Filled'), read('In progress'), read('To fill')]).toEqual(['—', '—', '—']);
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(h.refetchProgress).toHaveBeenCalled();

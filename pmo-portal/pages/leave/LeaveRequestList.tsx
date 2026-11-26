@@ -77,7 +77,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[]; tableId: stri
       <DataTable<LeaveRequestRow> embedded rows={rows} columns={columns} rowKey={(r) => r.id} tableId={tableId}
         onActivate={(r) => setOpenId(r.id)}
         rowLabel={(r) => t('crews:leave.openRow', 'Open the leave of {{name}}', { name: r.person_name })}
-        rowMenu={(r) => (mayCancel(r) ? [{ label: t('crews:leave.cancel', 'Cancel request'), onClick: () => cancelRequest(r) }] : [])} />
+        rowMenu={rows.some(mayCancel) ? (r) => (mayCancel(r) ? [{ label: t('crews:leave.cancel', 'Cancel request'), onClick: () => cancelRequest(r) }] : []) : undefined} />
       <Drawer open={open !== null} onClose={() => setOpenId(null)}
         title={open ? `${open.person_name} · ${open.type_name}` : ''}
         status={open ? <StatusPill variant={PILL[open.status]}>{statusLabel[open.status]}</StatusPill> : undefined}

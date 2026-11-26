@@ -345,7 +345,6 @@
     "asked": "Diminta",
     "filled": "Terisi",
     "inProgress": "Dalam proses",
-    "open": "Kosong",
     "progressLabel": "{{filled}} dari {{asked}} terisi",
     "people": "Orang yang ditautkan",
     "unlinkNamed": "Lepas {{name}}",
@@ -373,7 +372,8 @@
     "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan.",
     "progressTitle": "Kemajuan",
     "nobodyLinked": "Belum ada yang ditautkan",
-    "openRow": "Buka kebutuhan {{position}}"
+    "openRow": "Buka kebutuhan {{position}}",
+    "toFill": "Belum terisi"
   },
   "undoFollow": "Batalkan ikut kru",
   "undoFollowFor": "Batalkan ikut kru untuk {{name}}",

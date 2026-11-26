@@ -98,12 +98,12 @@ const NeedDrawer: React.FC<DrawerProps> = ({ need, figures, readFailed, title, l
         {readFailed && <ReadFailed onRetry={onRetry} />}
         <section aria-label={t('crews:manpower.progressTitle', 'Progress')}>
           {typeof filled === 'number' && (
-            <ProgressBar value={asked > 0 ? (filled / asked) * 100 : 0} tone="success"
+            <ProgressBar widthless className="w-full" value={asked > 0 ? (filled / asked) * 100 : 0} tone="success"
               aria-label={t('crews:manpower.progressLabel', '{{filled}} of {{asked}} filled', { filled, asked })} />
           )}
-          <dl className="mt-3 grid grid-cols-4 gap-4">
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4">
             {([[t('crews:manpower.asked', 'Asked'), asked], [t('crews:manpower.filled', 'Filled'), filled],
-              [t('crews:manpower.inProgress', 'In progress'), inProgress], [t('crews:manpower.open', 'Open'), open]] as const).map(([label, n]) => (
+              [t('crews:manpower.inProgress', 'In progress'), inProgress], [t('crews:manpower.toFill', 'To fill'), open]] as const).map(([label, n]) => (
               <div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="text-xl font-semibold tabular-nums text-foreground">{n}</dd></div>
             ))}
           </dl>
@@ -183,13 +183,13 @@ export const ManpowerNeeds: React.FC = () => {
   const openNeed = rows.find((n) => n.id === values.need) ?? null;
   const columns: Column<ManpowerNeedRow>[] = [
     { key: 'position', header: t('crews:manpower.position', 'Position'), kind: 'primary', rowHeader: true, cell: (n) => positionName(n.discipline_id) },
-    { key: 'project', header: t('crews:manpower.project', 'Project'), cell: (n) => projectName(n.project_id) },
-    { key: 'needed', header: t('crews:manpower.neededBy', 'Needed by'), kind: 'date', cell: (n) => formatDay(n.needed_by) },
-    { key: 'asked', header: t('crews:manpower.asked', 'Asked'), kind: 'number', cell: (n) => fig(n).asked },
-    { key: 'filled', header: t('crews:manpower.filled', 'Filled'), kind: 'number', cell: (n) => fig(n).filled },
-    { key: 'inProgress', header: t('crews:manpower.inProgress', 'In progress'), kind: 'number', cell: (n) => fig(n).inProgress },
-    { key: 'open', header: t('crews:manpower.open', 'Open'), kind: 'number', cell: (n) => fig(n).open },
-    { key: 'status', header: t('crews:statusHeader', 'Status'), kind: 'status', cell: (n) => <StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill> },
+    { key: 'project', header: t('crews:manpower.project', 'Project'), minSize: 240, cell: (n) => projectName(n.project_id) },
+    { key: 'needed', header: t('crews:manpower.neededBy', 'Needed by'), kind: 'date', size: 120, cell: (n) => formatDay(n.needed_by) },
+    { key: 'asked', size: 104, header: t('crews:manpower.asked', 'Asked'), kind: 'number', cell: (n) => fig(n).asked },
+    { key: 'filled', size: 104, header: t('crews:manpower.filled', 'Filled'), kind: 'number', cell: (n) => fig(n).filled },
+    { key: 'inProgress', size: 104, header: t('crews:manpower.inProgress', 'In progress'), kind: 'number', cell: (n) => fig(n).inProgress },
+    { key: 'open', size: 104, header: t('crews:manpower.toFill', 'To fill'), kind: 'number', cell: (n) => fig(n).open },
+    { key: 'status', header: t('crews:statusHeader', 'Status'), kind: 'status', size: 112, cell: (n) => <StatusPill variant={statusVariant[n.status]}>{statusLabel(t, n.status)}</StatusPill> },
   ];
   return (
     <section data-testid="manpower-needs" aria-labelledby="manpower-title">
