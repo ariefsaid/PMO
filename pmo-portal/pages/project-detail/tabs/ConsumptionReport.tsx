@@ -9,9 +9,10 @@ import { formatUtcMonthYearFull } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ConsumptionMonthRow } from '@/src/lib/db/stockReports';
 
-const th = 'px-3 py-2 text-left text-sm font-semibold text-muted-foreground';
-const thNum = `${th} text-right tabular tabular-nums`;
-const td = 'px-3 py-2 align-top text-sm';
+const th = 'px-4 py-2 text-sm font-normal text-muted-foreground';
+const thText = `${th} text-left`;
+const thNum = `${th} text-right tabular-nums`;
+const td = 'px-4 py-2 align-baseline text-sm';
 const tdNum = `${td} text-right tabular-nums whitespace-nowrap`;
 const phoneMetric = (label: string, value: React.ReactNode, className?: string) => (
   <div className={className}>
@@ -27,9 +28,11 @@ const Item: React.FC<{ code: string; name: string }> = ({ code, name }) => (
   <div className="min-w-0"><span className="block record-id font-semibold text-foreground">{code}</span><span className="block text-sm text-muted-foreground">{name}</span></div>
 );
 const Section: React.FC<{ title: string; sub?: string; children: React.ReactNode }> = ({ title, sub, children }) => (
-  <section className="flex min-w-0 flex-col gap-1.5">
-    <h4 className="text-sm font-semibold">{title}</h4>
-    {sub && <p className="text-sm text-muted-foreground">{sub}</p>}
+  <section className="flex min-w-0 flex-col gap-4">
+    <div>
+      <h4 className="text-group font-semibold">{title}</h4>
+      {sub && <p className="text-control text-muted-foreground">{sub}</p>}
+    </div>
     {/* Focusable so a keyboard user can scroll a wide table at phone width (axe scrollable-region-focusable). */}
     <div tabIndex={0} role="group" aria-label={title} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{children}</div>
   </section>
@@ -81,12 +84,12 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
             <Section title={t('consumption.allowanceTitle')} sub={t('consumption.allowanceSub')}>
               <table className="hidden w-full min-w-[40rem] sm:table" aria-label={t('consumption.allowanceTitle')}>
                 <thead className="border-b border-border"><tr>
-                  <th scope="col" className={th}>{t('consumption.columns.workItem')}</th>
-                  <th scope="col" className={th}>{t('consumption.columns.item')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.workItem')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.item')}</th>
                   <th scope="col" className={thNum}>{t('consumption.columns.allowance')}</th>
                   <th scope="col" className={thNum}>{t('consumption.columns.usedToDate')}</th>
                   <th scope="col" className={thNum}>{t('consumption.columns.variance')}</th>
-                  <th scope="col" className={th}><span className="sr-only">{t('consumption.columns.status')}</span></th>
+                  <th scope="col" className={thText}><span className="sr-only">{t('consumption.columns.status')}</span></th>
                 </tr></thead>
                 <tbody className="divide-y divide-border">
                   {r.allowances.map((a) => (
@@ -103,7 +106,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
               </table>
               <ul className="divide-y divide-border sm:hidden" aria-label={t('consumption.allowanceTitle')} data-testid="consumption-phone-allowances">
                 {r.allowances.map((a) => (
-                  <li key={a.id} className="min-w-0 space-y-2 p-3 text-control">
+                  <li key={a.id} className="min-w-0 space-y-2 p-4 text-control">
                     <dl className="grid min-w-0 grid-cols-2 gap-3">
                       {phoneMetric(t('consumption.columns.workItem'), <WorkItem code={a.boqItemCode} description={a.boqDescription} />, 'min-w-0')}
                       {phoneMetric(t('consumption.columns.item'), <Item code={a.itemCode} name={a.itemName} />, 'min-w-0')}
@@ -127,14 +130,14 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
               <>
               <table className="hidden w-full min-w-[48rem] sm:table" aria-label={t('consumption.monthTitle')}>
                 <thead className="border-b border-border"><tr>
-                  <th scope="col" className={th}>{t('consumption.columns.month')}</th>
-                  <th scope="col" className={th}>{t('consumption.columns.workItem')}</th>
-                  <th scope="col" className={th}>{t('consumption.columns.item')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.month')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.workItem')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.item')}</th>
                   <th scope="col" className={thNum}>{t('consumption.columns.issued')}</th>
                   <th scope="col" className={thNum}>{t('consumption.columns.returned')}</th>
                   <th scope="col" className={thNum}>{t('consumption.columns.net')}</th>
                   {showValue && <th scope="col" className={thNum}>{t('consumption.columns.value')}</th>}
-                  <th scope="col" className={th}>{t('consumption.columns.issuedBy')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.issuedBy')}</th>
                 </tr></thead>
                 <tbody className="divide-y divide-border">
                   {r.months.map((m) => (
@@ -153,7 +156,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
               </table>
               <ul className="divide-y divide-border sm:hidden" aria-label={t('consumption.monthTitle')} data-testid="consumption-phone-months">
                 {r.months.map((m) => (
-                  <li key={`${m.month}:${m.boqItemId}:${m.itemId}`} className="min-w-0 space-y-2 p-3 text-control">
+                  <li key={`${m.month}:${m.boqItemId}:${m.itemId}`} className="min-w-0 space-y-2 p-4 text-control">
                     <dl className="grid min-w-0 grid-cols-2 gap-3">
                       {phoneMetric(t('consumption.columns.month'), monthLabel(m.month))}
                       {phoneMetric(t('consumption.columns.workItem'), <WorkItem code={m.boqItemCode} description={m.boqDescription} />, 'min-w-0')}
@@ -177,8 +180,8 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
             <Section title={t('consumption.unplannedTitle')} sub={t('consumption.unplannedSub')}>
               <table className="hidden w-full min-w-[32rem] sm:table" aria-label={t('consumption.unplannedTitle')}>
                 <thead className="border-b border-border"><tr>
-                  <th scope="col" className={th}>{t('consumption.columns.workItem')}</th>
-                  <th scope="col" className={th}>{t('consumption.columns.item')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.workItem')}</th>
+                  <th scope="col" className={thText}>{t('consumption.columns.item')}</th>
                   <th scope="col" className={thNum}>{t('consumption.columns.usedToDate')}</th>
                 </tr></thead>
                 <tbody className="divide-y divide-border">
@@ -193,7 +196,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
               </table>
               <ul className="divide-y divide-border sm:hidden" aria-label={t('consumption.unplannedTitle')} data-testid="consumption-phone-unplanned">
                 {r.unplanned.map((u) => (
-                  <li key={`${u.boqItemId}:${u.itemId}`} className="min-w-0 space-y-2 p-3 text-control">
+                  <li key={`${u.boqItemId}:${u.itemId}`} className="min-w-0 space-y-2 p-4 text-control">
                     <dl className="grid min-w-0 grid-cols-2 gap-3">
                       {phoneMetric(t('consumption.columns.workItem'), <WorkItem code={u.boqItemCode} description={u.boqDescription} />, 'min-w-0')}
                       {phoneMetric(t('consumption.columns.item'), <Item code={u.itemCode} name={u.itemName} />, 'min-w-0')}
