@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog, ListState, RecordHeader, RecordStack, SelectField, StatusPill, Tabs, tabId, tabPanelId, useToast } from '@/src/components/ui';
+import { ConfirmDialog, ListState, RecordHeader, RecordSection, RecordStack, SelectField, StatusPill, Tabs, tabId, tabPanelId, useToast } from '@/src/components/ui';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -237,7 +237,7 @@ const WorkOrderDetail: React.FC = () => {
       <AreaHelpProvider>{(help) => (<>
       <div data-testid="wo-area-select" className="mt-6 mb-4 flex items-center gap-2 md:hidden">
         <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
-          options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full" />
+          options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full min-w-0 flex-1" />
         <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
       <div data-testid="wo-area-tabs" className="mt-6 hidden items-center border-b border-border md:flex">
@@ -308,7 +308,13 @@ const WorkOrderDetail: React.FC = () => {
           </>}
           {area === 'material' && <>
             {/* #2885: quantities for the stock roles, who have no Contract area; value shows only where the server sends it. */}
-            {stockOn && <div className="space-y-2"><h3 className="text-control font-medium">{t('stock:siteWork.balance.open', 'Stock for this work order')}</h3><WorkOrderStockBalance workOrderId={row.id} currency={row.currency} /></div>}
+            {/* What is on site for it, framed like its siblings: the table flush to the panel, a message or link on the inset. */}
+            {stockOn && (
+              <RecordSection title={t('stock:siteWork.balance.open', 'Stock for this work order')} flush data-testid="wo-stock"
+                bodyClassName="pb-[var(--panel-inset)] [&>section>p]:px-[var(--panel-inset)]">
+                <WorkOrderStockBalance workOrderId={row.id} currency={row.currency} />
+              </RecordSection>
+            )}
             {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
             {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
           </>}
