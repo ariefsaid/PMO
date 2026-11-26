@@ -53,6 +53,7 @@ const SafetySummary: React.FC = () => {
   const order: SafetyFigureKey[] = ['lostTimeIncidents', 'recordableIncidents', 'nearMisses', 'toolboxTalks', 'completeDays', 'daysWithoutRecord', 'workedMinutes', 'safeMinutes'];
   const displayed = client && summary.data ? deriveSafetySummaryView({ ...summary.data, ...toClientExport(summary.data), timezone: '', projectId: null, hidden: summary.data.hidden }) : figures;
   const ordered = [...displayed].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  const hasDrill = !client && ordered.some((f) => DETAIL_KIND[f.key] && f.value !== null && f.value > 0);
 
   return (
     <div className="space-y-6">
@@ -74,7 +75,7 @@ const SafetySummary: React.FC = () => {
         : (
           <>
             <Card>
-              <table className="w-full text-control" data-testid="safety-figures">
+              <table className="w-full text-control" aria-label={t('summary.title', 'Safety summary')} data-testid="safety-figures">
                 <tbody className="divide-y divide-border">
                   {ordered.map((f) => {
                     const kind = DETAIL_KIND[f.key];
@@ -83,12 +84,12 @@ const SafetySummary: React.FC = () => {
                       <tr key={f.key}>
                         <th scope="row" className="px-4 py-4 text-left font-normal">{label(f)}</th>
                         <td className="px-4 py-4 text-right tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</td>
-                        <td className="px-4 py-1 text-right">
+                        {hasDrill && <td className="px-4 py-1 text-right">
                           {drill && (
                             <button type="button" className="min-h-11 whitespace-nowrap text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
                               onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
                           )}
-                        </td>
+                        </td>}
                       </tr>
                     );
                   })}
