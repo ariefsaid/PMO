@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from './helpers';
+import { orgToday } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -53,7 +54,7 @@ test.beforeEach(async () => {
   if (order.error) throw new Error(`AC-RET-004 fixture work order: ${order.error.message}`);
   const allocation = await admin.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: line.data.id, quantity: 10 });
   if (allocation.error) throw new Error(`AC-RET-004 fixture allocation: ${allocation.error.message}`);
-  const month = `${new Date().toISOString().slice(0, 7)}-01`;
+  const month = `${orgToday().slice(0, 7)}-01`; // the progress entry is bucketed by the organisation's month
   const entry = await admin.from('project_progress_entries').insert({ org_id: ORG_ID, project_id: projectId, month, pct_complete: 60 }).select('id').single();
   if (entry.error) throw new Error(`AC-RET-004 fixture progress: ${entry.error.message}`);
   progressEntryId = entry.data.id;

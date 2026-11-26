@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
+import { inDays } from '../support/jobJourney';
 import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 import { roleJobUser } from '../support/roleJobUser';
 import { formatExactMoney } from '../../src/lib/format';
@@ -39,7 +40,7 @@ test('JOB-M9 the Executive sees revenue, cost and profit per discipline, and the
     const costing = await svc.from('stock_issue_cost_settings').select('effective_on').eq('org_id', ORG_ID).maybeSingle();
     ok('costing date read', costing);
     costingBefore = costing.data;
-    ok('costing date', await stock.rpc('set_stock_issue_cost_date', { p_effective_on: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) }));
+    ok('costing date', await stock.rpc('set_stock_issue_cost_date', { p_effective_on: inDays(-1) })); // effective by the organisation's calendar
 
     const clientId = need('client', await svc.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
     projectId = need('project', await svc.from('projects').insert({

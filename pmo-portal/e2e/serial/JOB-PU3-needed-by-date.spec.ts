@@ -2,6 +2,7 @@
 /** JOB-PU3 — a requester cannot send a request with no needed-by date; with one it is saved and the approver sees the date. */
 import { test, expect } from '@playwright/test';
 import { signIn, pickComboboxOption } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { mrqSetup, sendForApproval } from '../support/mrqJobFixture';
 import { SEED_PROJECT_NAME } from '../support/stockFixture';
 
@@ -9,7 +10,7 @@ test.setTimeout(150_000);
 
 test('JOB-PU3 a request without a needed-by date is refused; with one it is saved and the approver sees it', async ({ page }) => {
   const { item, wo } = await mrqSetup([{ role: 'Project Manager', label: 'Plan check' }]);
-  const needed = new Date(Date.now() + 4 * 86_400_000).toISOString().slice(0, 10);
+  const needed = inDays(4); // a needed-by date ahead of the organisation's today
 
   await signIn(page, 'engineer@acme.test');
   await page.goto('/material-requests/new');

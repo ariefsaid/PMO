@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — owns its engineer login, project, work order, three proof-required prerequisite tasks and the proof
 // object; every row it created is removed in afterEach.
-// JOB-PC11 (project control): start-work prerequisites. The engineer opens the work order's prerequisite tasks; the first refuses to
+// JOB-PC11 (project control): start-work prerequisites. The project administrator opens the work order's prerequisite tasks; the first refuses to
 // close without proof, and closes once a photo is attached.
 import { test, expect } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
@@ -11,10 +11,10 @@ test.setTimeout(120_000);
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 
-test('JOB-PC11 an engineer cannot close a start-work prerequisite without proof, and closes it with a photo attached', async ({ page }) => {
+test('JOB-PC11 a project administrator cannot close a start-work prerequisite without proof, and closes it with a photo attached', async ({ page }) => {
   const svc = serviceClient('JOB-PC11');
   const run = runId('JOBPC11');
-  const engineer = await roleJobUser(svc, 'engineer', run);
+  const engineer = await roleJobUser(svc, 'project_administrator', run);
 
   let projectId = '';
   let woId = '';
@@ -35,7 +35,7 @@ test('JOB-PC11 an engineer cannot close a start-work prerequisite without proof,
     taskIds.push(...tasks.map((t: { id: string }) => t.id));
     const first = tasks[0] as { id: string; name: string };
 
-    // The engineer opens the work order and follows its prerequisite tasks.
+    // The project administrator opens the work order and follows its prerequisite tasks.
     await engineer.signIn(page);
     await page.goto(`/work-orders/${woId}`);
     await openWorkOrderArea(page, 'issues');

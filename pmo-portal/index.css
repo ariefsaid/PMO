@@ -793,6 +793,13 @@
   }
 }
 
+/* A form dialog's text inputs sit beside its buttons, selects and comboboxes (all 44px above) at one height, not 38. */
+@media (max-width: 640px) {
+  [role="dialog"] input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]) {
+    min-height: 44px;
+  }
+}
+
 @media (pointer: coarse) {
   .touch-target { position: relative; }
   .touch-target::before {

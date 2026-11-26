@@ -20,6 +20,8 @@ const run = Date.now().toString(36);
 // Jakarta day runs a day ahead between 17:00 and 24:00 UTC, which would put a seeded entry in a column the grid draws as
 // future (and, on a UTC Sunday evening, outside the week it shows). The database accepts the UTC day either way:
 // save_equipment_usage refuses only a date after the organisation's own today.
+// e2e-org-day: allow — the usage grid's week and "today" column come from the BROWSER clock, which
+// playwright.config.ts pins to UTC; an org-day entry could land in a column the grid draws as future.
 const workDay = new Date().toISOString().slice(0, 10);
 const clashCode = `000-CF4A-${run}`;
 const brokenCode = `000-CF4B-${run}`;

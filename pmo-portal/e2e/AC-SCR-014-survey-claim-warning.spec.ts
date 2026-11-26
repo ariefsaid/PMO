@@ -66,7 +66,7 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
     await signIn(page, 'finance@acme.test');
     await page.goto('/work-orders/' + workOrderId);
     await openWorkOrderArea(page, 'billing');
-    await expect(page.getByTestId('survey-empty')).toContainText('records a survey here');
+    await expect(page.getByTestId('survey-empty')).toContainText('No surveys recorded yet');
     await page.getByRole('button', { name: 'Record a survey' }).click();
     const form = page.getByRole('dialog');
     await form.getByLabel(/Contract line/).selectOption(boqId);

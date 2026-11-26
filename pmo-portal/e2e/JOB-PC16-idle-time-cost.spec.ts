@@ -2,7 +2,7 @@
 // JOB-PC16 (idle time becomes cost): a validated site report records four idle hours under a named cause on a work order whose hourly cost is known.
 // Goal: the work order's idle cost rises by four hours at that rate, read by the project control manager on the work order.
 import { test, expect } from '@playwright/test';
-import { formatExactMoney } from '../src/lib/format';
+import { formatTableMoney } from '../src/lib/format';
 import { inDays, orgToday, serviceClient, need } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
 import { openWorkOrderArea } from './support/workOrderArea';
@@ -79,7 +79,7 @@ test('JOB-PC16 idle time recorded on a validated report becomes cost at the work
     await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row).toContainText('Weather');
     await expect(row.locator('td').first()).toHaveText('4');
-    await expect(row).toContainText(formatExactMoney('400000', 'USD', 'en-US') ?? 'unformattable');
+    await expect(row).toContainText(formatTableMoney('400000', 'USD') ?? 'unformattable');
   } finally {
     if (photoPath) await db.storage.from('site-report-photos').remove([photoPath]);
     removeJobOrganization(org.id);

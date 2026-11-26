@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { serviceClient } from './jobFixtures';
+import { inDays } from './jobJourney';
 import { SEED_PROJECT_ID, makeItem, runSuffix, userClient } from './stockFixture';
 
 /** Material-request journeys: an issued work order + item on the seed delivery project, and the org's approval chain set. The chain and cut-off are org-wide, so journeys using this live in e2e/serial/. */
@@ -25,7 +26,7 @@ export async function mrqSetup(steps: Array<{ role: string; label: string }>, cu
 /** A submitted request raised by `email`, needed `daysAhead` days out. */
 export async function submittedRequest(email: string, workOrderId: string, itemId: string, daysAhead = 3): Promise<string> {
   const user = await userClient(email);
-  const needed = new Date(Date.now() + daysAhead * 86_400_000).toISOString().slice(0, 10);
+  const needed = inDays(daysAhead); // needed-by dates are read by the organisation's calendar
   // A project with several delivery locations needs the request to name one (#2608); earlier serial journeys leave extra sites on the seed project.
   const loc = await user.from('stock_warehouses').select('id').eq('project_id', SEED_PROJECT_ID).in('kind', ['site', 'yard', 'staging']).is('archived_at', null).order('code').limit(1);
   const saved = await user.rpc('mrq_save_draft', {

@@ -56,7 +56,7 @@ test('AC-ECA-051 on a PMO org connected to an ERP that holds some of the same re
     const erpProject1 = String((await benchCreate('Project', { project_name: p[0].name, company, is_active: 'Yes' })).name);
     const serviceItem = `ECA051 Service ${suffix}`;
     await benchCreate('Item', { item_code: serviceItem, item_name: serviceItem, item_group: 'Services', stock_uom: 'Nos', is_stock_item: 0 });
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10); // e2e-org-day: allow — bench posting/due and the PMO invoice_date are one deliberate equal pair
     const reference = `ECA051-PO-${suffix}`;
     const erpInvoice = await benchCreate('Sales Invoice', {
       // `set_posting_time` is the user's own "Edit Posting Date and Time": without it ERPNext overwrites posting_date with

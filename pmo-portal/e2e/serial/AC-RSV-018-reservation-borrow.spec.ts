@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { tableCell } from '../support/tableCell';
 import { signIn } from '../helpers';
+import { inDays } from '../support/jobJourney';
 import { mrqSetup } from '../support/mrqJobFixture';
 import { serviceClient } from '../support/jobFixtures';
 import { SEED_PROJECT_ID, SEED_PROJECT_NAME, keeperOf, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
@@ -54,7 +55,7 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   // The second work order asks for 5: 2 are free, 3 are borrowed.
   const engineer = await userClient('engineer@acme.test');
   const saved = await engineer.rpc('mrq_save_draft', {
-    p_request_id: null, p_header: { work_order_id: other.data.id, needed_by: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10), to_warehouse_id: dest.data.id, note: null },
+    p_request_id: null, p_header: { work_order_id: other.data.id, needed_by: inDays(3), to_warehouse_id: dest.data.id, note: null },
     p_lines: [{ item_id: item.id, quantity: '5', over_plan_reason: 'RSV journey' }], p_client_request_id: randomUUID(),
   });
   if (saved.error) throw new Error('draft: ' + saved.error.message);

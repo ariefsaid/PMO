@@ -26,6 +26,12 @@ vi.mock('@/src/lib/db/orgs', () => ({
   getOrgLocaleDefaults: vi.fn(async () => orgDefaults.current),
 }));
 
+vi.mock('@/src/lib/db/stageNames', () => ({
+  listStageNames: vi.fn(async () => [
+    { status: 'Tender Submitted', label_en: 'Bid sent', label_id: 'Penawaran dikirim' },
+  ]),
+}));
+
 // The catalogue load is irrelevant to formatting and would reach for the network.
 vi.mock('./index', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./index')>();
@@ -41,6 +47,7 @@ vi.mock('./index', async (importOriginal) => {
 import { I18nProvider } from './I18nProvider';
 import { useResolvedLocale } from '@/src/hooks/useResolvedLocale';
 import { I18nContext } from 'react-i18next';
+import { StatusPill } from '@/src/components/ui';
 
 const INSTANT = '2026-06-14T23:30:00.000Z';
 
@@ -145,5 +152,22 @@ describe('I18nProvider renders date screens when a stored preference is unusable
     renderTree();
     await waitFor(() => expect(getActiveLocale()).toEqual({ locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' }));
     expect(screen.getByTestId('date-screen')).toHaveTextContent('Jun 15, 2026');
+  });
+});
+
+describe('I18nProvider loads the organisation stage names (#2906)', () => {
+  it('AC-STG-007: the organisation stage names load and a project status pill reads the Bahasa name for a Bahasa reader', async () => {
+    authState.currentUser = {
+      id: 'u1', org_id: 'org-1', locale: 'id', number_locale: 'id-ID', timezone: 'Asia/Jakarta',
+    };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nProvider>
+          <StatusPill record="project" state="Tender Submitted" />
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText('Penawaran dikirim')).toBeInTheDocument();
   });
 });

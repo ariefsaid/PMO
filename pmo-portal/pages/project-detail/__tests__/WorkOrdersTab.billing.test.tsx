@@ -381,8 +381,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     h.list.data = [];
     renderTab('Admin');
 
-    expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
+    expect(screen.getByText(/No work orders yet\. Create one on the Work orders tab/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Work orders' })).toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-summary')).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
   });

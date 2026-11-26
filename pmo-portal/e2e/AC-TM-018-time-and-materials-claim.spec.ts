@@ -115,7 +115,7 @@ test.beforeEach(async () => {
     .eq('user_id', engineerId);
   if (existingSheets.error) throw new Error(`AC-TM-018 timesheet slot check: ${existingSheets.error.message}`);
   const occupiedWeeks = new Set((existingSheets.data ?? []).map((sheet) => sheet.week_start_date));
-  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())); // e2e-org-day: allow — slot-search origin only; the chosen week is weeks ahead and never compared to org today
   dayStart.setUTCDate(dayStart.getUTCDate() - ((dayStart.getUTCDay() + 6) % 7));
   // #1882: AC-TSE-021 uses the SAME engineer and walks forward from next week (at most 26 weeks), so
   // both specs, run in parallel, picked the same "first empty" week and wrote over each other. This
@@ -123,7 +123,7 @@ test.beforeEach(async () => {
   for (let offset = TSE_021_WINDOW_WEEKS + 1; offset < TSE_021_WINDOW_WEEKS + 53; offset += 1) {
     const candidate = new Date(dayStart);
     candidate.setUTCDate(candidate.getUTCDate() + (offset * 7));
-    const candidateWeek = candidate.toISOString().slice(0, 10);
+    const candidateWeek = candidate.toISOString().slice(0, 10); // e2e-org-day: allow — slot-search candidate weeks, weeks ahead of any org day
     if (occupiedWeeks.has(candidateWeek)) continue;
     weekStart = candidateWeek;
     break;

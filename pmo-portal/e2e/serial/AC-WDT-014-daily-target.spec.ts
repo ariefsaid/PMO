@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
+import { orgToday } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 import { openWorkOrderArea } from '../support/workOrderArea';
 
@@ -62,11 +63,11 @@ test('AC-WDT-014 a non-working date is left out of the month spread, and both sc
     });
     if (wo.error) throw new Error('AC-WDT-014 fixture work order: ' + wo.error.message);
 
-    // The first weekday of the current month (UTC), so it is always a date the weekday rule alone would have worked.
-    const now = new Date();
-    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    // The first weekday of the ORGANISATION'S current month, so the date is added to the same month both screens read.
+    const orgNow = orgToday();
+    const first = new Date(Date.UTC(Number(orgNow.slice(0, 4)), Number(orgNow.slice(5, 7)) - 1, 1));
     while (first.getUTCDay() === 0 || first.getUTCDay() === 6) first.setUTCDate(first.getUTCDate() + 1);
-    listedDate = first.toISOString().slice(0, 10);
+    listedDate = first.toISOString().slice(0, 10); // e2e-org-day: allow — month arithmetic on the org month chosen above, not the runner's day
 
     await pinEnglishLocale(page);
     await signIn(page, 'admin@acme.test');
