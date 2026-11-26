@@ -411,9 +411,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
                 {odoo ? <OdooReceiptStatus receipt={payment} fallback={fallbackStatus} /> : fallbackStatus}
                 <span className="shrink-0 text-control text-muted-foreground">{payment.date ? formatDay(payment.date) : '—'}</span>
               </div>
-              <span className="shrink-0 text-right text-control tabular">
-                <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
-                {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
+              <span className="min-w-0 text-right text-control tabular">
+                <span className="block">{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
+                {total != null && <span className="block text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
               </span>
             </div>;
           } : undefined}
