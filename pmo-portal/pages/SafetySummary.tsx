@@ -83,8 +83,8 @@ const SafetySummary: React.FC = () => {
                     return (
                       <tr key={f.key}>
                         <th scope="row" className="px-4 py-4 text-left font-normal">{label(f)}</th>
-                        <td className="px-4 py-4 text-right tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</td>
-                        {hasDrill && <td className="px-4 py-1 text-right">
+                        <td className="w-px whitespace-nowrap px-4 py-4 text-right tabular-nums" data-testid={`safety-figure-${f.key}`}>{value(f)}</td>
+                        {hasDrill && <td className="w-px whitespace-nowrap px-4 py-1 text-right">
                           {drill && (
                             <button type="button" className="min-h-11 whitespace-nowrap text-primary-text hover:underline" aria-expanded={open === f.key} data-testid={`safety-drill-${f.key}`}
                               onClick={() => setOpen(open === f.key ? null : f.key)}>{t('summary.showRows', 'Show the rows')}</button>
