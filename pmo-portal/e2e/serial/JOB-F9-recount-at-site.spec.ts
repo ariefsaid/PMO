@@ -43,11 +43,11 @@ test('JOB-F9 the storekeeper recounts a delivery of 10 as 9 and the shortfall of
     await expect(page.getByRole('heading', { name: new RegExp(fx.number) })).toBeVisible({ timeout: 20_000 });
 
     // 2. Count what arrived: 9 of the 10 sent. The screen says where the 1 goes.
-    const counted = page.getByLabel(/^Counted/);
+    const counted = page.getByRole('textbox', { name: /^Counted/ });
     await expect(counted).toHaveValue(/10/);
     await counted.fill('9');
-    await expect(page.getByLabel(/^Accepted/)).toHaveValue('9');
-    await expect(page.getByText(/1 short: it stays in transit/)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /^Accepted/ })).toHaveValue('9');
+    await expect(page.getByText(/1 (\S+ )?short: it stays in transit/)).toBeVisible();
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 
@@ -55,9 +55,9 @@ test('JOB-F9 the storekeeper recounts a delivery of 10 as 9 and the shortfall of
     await expect(page.getByText('Received, shortfall open')).toBeVisible({ timeout: 20_000 });
     const shortfalls = page.getByRole('region', { name: 'Shortfalls' });
     await expect(shortfalls).toBeVisible({ timeout: 20_000 });
-    await expect(shortfalls.getByText('1 short')).toBeVisible();
+    await expect(shortfalls.getByText(/^1 (\S+ )?short$/)).toBeVisible();
     await page.reload();
-    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText('1 short')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText(/^1 (\S+ )?short$/)).toBeVisible({ timeout: 20_000 });
     await expectOnHand(page, fx.site, fx.itemCode, '9');
   } finally {
     if (previous !== 'two_step') {
@@ -89,18 +89,18 @@ test('JOB-F9 the field user opens the delivery from their home, recounts 10 as 9
     await delivery.click();
     await expect(page.getByRole('heading', { name: new RegExp(fx.number) })).toBeVisible({ timeout: 20_000 });
 
-    const counted = page.getByLabel(/^Counted/);
+    const counted = page.getByRole('textbox', { name: /^Counted/ });
     await expect(counted).toHaveValue(/10/);
     await counted.fill('9');
-    await expect(page.getByLabel(/^Accepted/)).toHaveValue('9');
-    await expect(page.getByText(/1 short: it stays in transit/)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /^Accepted/ })).toHaveValue('9');
+    await expect(page.getByText(/1 (\S+ )?short: it stays in transit/)).toBeVisible();
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
 
     await expect(page.getByText('Received, shortfall open')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText('1 short')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText(/^1 (\S+ )?short$/)).toBeVisible({ timeout: 20_000 });
     await page.reload();
-    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText('1 short')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('region', { name: 'Shortfalls' }).getByText(/^1 (\S+ )?short$/)).toBeVisible({ timeout: 20_000 });
   } finally {
     if (previous !== 'two_step') {
       if (fx) await closeShortfalls(svc, fx.transferId);
