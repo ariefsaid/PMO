@@ -1072,7 +1072,13 @@
     "archivedDone": "Kategori diarsipkan",
     "archiveTitle": "Arsipkan kategori ini?",
     "archiveBody": "Dokumen baru tidak dapat disimpan di dalamnya. Dokumen yang sudah ada tetap terlihat oleh peran yang sama.",
-    "denied": "Kategori dokumen dikelola oleh Admin."
+    "denied": "Kategori dokumen dikelola oleh Admin.",
+    "categoryColumn": "Kategori",
+    "hiddenNoneShort": "Tidak ada",
+    "saveShort": "Simpan",
+    "moreActions": "Tindakan lain untuk {{name}}",
+    "listLabel": "Kategori dokumen",
+    "hiddenFromShort": "Disembunyikan dari"
   },
   "documentTypes": {
     "title": "Jenis dokumen",

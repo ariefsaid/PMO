@@ -1072,7 +1072,13 @@
     "archivedDone": "Category archived",
     "archiveTitle": "Archive this category?",
     "archiveBody": "No new document can be filed in it. Documents already in it stay visible to the same roles.",
-    "denied": "Document categories are managed by an Admin."
+    "denied": "Document categories are managed by an Admin.",
+    "categoryColumn": "Category",
+    "hiddenNoneShort": "None",
+    "saveShort": "Save",
+    "moreActions": "More actions for {{name}}",
+    "listLabel": "Document categories",
+    "hiddenFromShort": "Hidden from"
   },
   "documentTypes": {
     "title": "Document types",

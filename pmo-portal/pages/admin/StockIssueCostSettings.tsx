@@ -34,7 +34,9 @@ export default function StockIssueCostSettings() {
       : q.isLoading ? <ListState variant="loading" rows={2} />
         : <div className="mt-4 max-w-md space-y-4">
           <Checkbox label={t('stockIssueCost.enabled', 'Count stock issues as cost')} checked={current.enabled} disabled={m.isPending}
-            onChange={(enabled) => setDraft({ ...current, enabled })} />
+            onChange={(enabled) => setDraft({ ...current, enabled })} className="min-h-11">
+            {t('stockIssueCost.enabled', 'Count stock issues as cost')}
+          </Checkbox>
           {current.enabled && <DateField label={t('stockIssueCost.date', 'Effective date')} value={current.date} disabled={m.isPending}
             onChange={(date) => setDraft({ ...current, date })} />}
           {error && <p role="alert" className="text-control text-destructive">{error}</p>}
