@@ -30,7 +30,7 @@ export interface TabsProps<V extends string = string> {
   ariaLabel: string;
   /** Namespace for the generated tab/panel ids so they're unique + stable per surface. */
   idBase: string;
-  /** Keep the first tab visible on arrival, even when another tab is initially selected. */
+  /** @deprecated Retained for caller compatibility; the selected tab is always revealed. */
   startAtFirst?: boolean;
   className?: string;
 }
@@ -61,7 +61,6 @@ export function Tabs<V extends string = string>({
   onChange,
   ariaLabel,
   idBase,
-  startAtFirst = false,
   className,
   insetFirstTab = false,
 }: TabsProps<V>) {
@@ -98,8 +97,6 @@ export function Tabs<V extends string = string>({
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
   const mounted = useRef(false);
-  const initialValue = useRef(value);
-  const selectionChanged = useRef(false);
   // Counts arriving after mount widen the tabs, so the selected one is brought back into view then too.
   const widths = items.map((item) => `${item.count ?? ''}${item.detail ?? ''}`).join('|');
   useEffect(() => {
@@ -107,8 +104,6 @@ export function Tabs<V extends string = string>({
     // First mount on the first tab: the strip is already at scroll 0, so skip the forced layout.
     const first = !mounted.current;
     mounted.current = true;
-    if (value !== initialValue.current) selectionChanged.current = true;
-    if (startAtFirst && !selectionChanged.current) return;
     if (first && value === items[0]?.value) return;
     const list = listRef.current;
     if (!list) return;
@@ -124,7 +119,7 @@ export function Tabs<V extends string = string>({
     const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
-  }, [value, widths, stripWidth, syncOverflow, startAtFirst]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+  }, [value, widths, stripWidth, syncOverflow]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   const nudge = (dir: -1 | 1) => {
     const list = listRef.current;
@@ -175,7 +170,7 @@ export function Tabs<V extends string = string>({
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal',
+              'relative inline-flex h-[var(--table-head-height)] max-w-full shrink-0 snap-start items-center px-4 text-control font-normal',
               insetFirstTab === 'panel'
                 ? 'first:ps-[calc(var(--panel-inset)+1px)]'
                 : insetFirstTab
@@ -189,9 +184,9 @@ export function Tabs<V extends string = string>({
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {t.label}
+            <span className="min-w-0 truncate">{t.label}</span>
             {t.count != null && t.countPresentation === 'inline' && (
-              <span className="ml-1.5 tabular text-support font-normal text-muted-foreground">
+              <span className="ml-1.5 shrink-0 tabular text-support font-normal text-muted-foreground">
                 {t.count}
               </span>
             )}
@@ -199,11 +194,11 @@ export function Tabs<V extends string = string>({
               // Count badge: neutral fill + accessible neutral text, full radius, text-support
               // (DESIGN.md §5 Count badge). The number is part of the tab's accessible
               // name (a11y: count read in label, not color-only).
-              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-status-neutral-surface px-1.5 text-support font-medium text-count-foreground">
+              <span className="ml-1.5 inline-flex h-5 shrink-0 min-w-5 items-center justify-center rounded-full bg-status-neutral-surface px-1.5 text-support font-medium text-count-foreground">
                 {t.count}
               </span>
             )}
-            {t.detail && <span className="ml-1.5 tabular text-control font-normal text-muted-foreground">{t.detail}</span>}
+            {t.detail && <span className="ml-1.5 shrink-0 tabular text-control font-normal text-muted-foreground">{t.detail}</span>}
           </BaseTabs.Tab>
         );
       })}

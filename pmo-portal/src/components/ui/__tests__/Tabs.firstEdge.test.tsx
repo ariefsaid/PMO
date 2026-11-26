@@ -52,7 +52,7 @@ describe('Tabs first-tab left edge', () => {
     }
   });
 
-  it('keeps the first tab visible on arrival and follows a later user selection', async () => {
+  it('reveals the selected tab even when a caller requests the legacy first-tab position', async () => {
     const scrollBy = vi.fn();
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       return { left: 0, right: this.getAttribute('role') === 'tab' ? 480 : 390 } as DOMRect;
@@ -65,9 +65,10 @@ describe('Tabs first-tab left edge', () => {
     }
     try {
       render(<Harness />);
-      expect(scrollBy).not.toHaveBeenCalled();
-      await userEvent.click(screen.getByRole('tab', { name: 'Alpha' }));
       expect(scrollBy).toHaveBeenCalled();
+      const initialCalls = scrollBy.mock.calls.length;
+      await userEvent.click(screen.getByRole('tab', { name: 'Alpha' }));
+      expect(scrollBy.mock.calls.length).toBeGreaterThan(initialCalls);
     } finally {
       rect.mockRestore();
       HTMLElement.prototype.scrollBy = previous;
