@@ -207,9 +207,9 @@ describe('list states', () => {
     expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
   });
 
-  it('M17 explains client-PO drawdown in the empty register', () => {
+  it('M17 empty register says where work orders are created and that they draw down the contract', () => {
     renderTab();
-    expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
+    expect(screen.getByText(/No work orders yet\. Create one on the Work orders tab/)).toBeInTheDocument();
   });
 
   it('shows quantity source failure and retry even when no orders or lines loaded', async () => {
