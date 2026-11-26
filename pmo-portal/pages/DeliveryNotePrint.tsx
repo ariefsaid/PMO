@@ -167,7 +167,7 @@ const DeliveryNotePrintPage: React.FC = () => {
       header: t('deliveryNote.remarks', 'Remarks'),
       width: '180px',
       render: (line) => (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {line.overPlanReason ?? '—'}
         </span>
       ),
