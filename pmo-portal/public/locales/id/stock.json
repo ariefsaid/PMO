@@ -874,7 +874,10 @@
       "stage": "Tahap",
       "proof": "Bukti",
       "when": "Waktu",
-      "recordedBy": "Dicatat oleh"
+      "recordedBy": "Dicatat oleh",
+      "transfer": "Transfer",
+      "status": "Status",
+      "open": "Terbuka"
     },
     "lineChecks": "Pemeriksaan baris"
   },

@@ -874,7 +874,10 @@
       "stage": "Step",
       "proof": "Proof",
       "when": "When",
-      "recordedBy": "Recorded by"
+      "recordedBy": "Recorded by",
+      "transfer": "Transfer",
+      "status": "Status",
+      "open": "Open"
     },
     "lineChecks": "Line checks"
   },
