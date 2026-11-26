@@ -11,7 +11,7 @@
     "leave": "Permohonan cuti menunggu Anda ({{count}})",
     "quantity_change": "Perubahan kuantitas untuk diputuskan ({{count}})",
     "transfer_receipt": "Transfer barang untuk diterima ({{count}})",
-    "work_order_issue": "Work order untuk diterbitkan ({{count}})",
+    "work_order_issue": "Perintah kerja untuk diterbitkan ({{count}})",
     "work_order_acceptance": "BAST klien untuk dikonfirmasi ({{count}})",
     "order_receiving": "Kelebihan penerimaan untuk disetujui ({{count}})"
   },
@@ -20,7 +20,7 @@
     "medical_release": "Pelepasan medis",
     "imprest": "Kas lapangan",
     "daily_report": "Laporan harian",
-    "work_order_issue": "Work order untuk diterbitkan",
+    "work_order_issue": "Perintah kerja untuk diterbitkan",
     "delivery_record": "Pengiriman untuk dikonfirmasi",
     "transfer_receipt": "Transfer untuk diterima",
     "quantity_change": "Perubahan kuantitas",

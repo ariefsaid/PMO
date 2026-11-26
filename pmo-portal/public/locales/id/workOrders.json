@@ -24,7 +24,7 @@
   "costs": {
     "title": "Biaya",
     "error": "Biaya tidak dapat dimuat",
-    "empty": "Tidak ada biaya yang terlihat untuk Anda pada work order ini.",
+    "empty": "Tidak ada biaya yang terlihat untuk Anda pada perintah kerja ini.",
     "noDiscipline": "Tanpa disiplin",
     "unknownDiscipline": "Disiplin",
     "restricted": "Jumlah dibatasi untuk peran Anda",
@@ -55,7 +55,8 @@
       "date": "Tanggal",
       "quantity": "Jumlah",
       "amount": "Nilai"
-    }
+    },
+    "open": "Buka biaya"
   },
   "billing": {
     "error": "Angka penagihan tidak dapat dimuat",
@@ -105,14 +106,16 @@
     "empty": "Tidak ada masalah yang menyebut $t(common:terms.clientWorkOrder) ini.",
     "due": "Selesaikan sebelum {{date}}",
     "noDue": "Tanpa batas waktu",
-    "overdue": "Terlambat"
+    "overdue": "Terlambat",
+    "open": "Buka insiden"
   },
   "openTasks": {
     "title": "Tugas terbuka",
     "error": "Tugas terbuka tidak dapat dimuat",
     "empty": "Tidak ada tugas terbuka yang menyebut $t(common:terms.clientWorkOrder) ini.",
     "unassigned": "Belum ditugaskan",
-    "noDue": "Tanpa tenggat"
+    "noDue": "Tanpa tenggat",
+    "open": "Buka tugas"
   },
   "siteLocation": {
     "title": "Lokasi lapangan",
@@ -354,7 +357,8 @@
       "stepAttachment": "Belum ada lampiran untuk langkah \"{{step}}\".",
       "quantityAccept": "{{quantity}} {{unit}} dilaporkan tetapi belum diterima. Catat penerimaannya.",
       "quantityClaim": "{{quantity}} {{unit}} diterima tetapi belum diklaim."
-    }
+    },
+    "noProgress": "Belum ada kuantitas pekerjaan yang dilaporkan."
   },
   "all": {
     "empty": "Anda belum punya $t(common:terms.clientWorkOrder)",
@@ -459,5 +463,6 @@
   "new": {
     "action": "$t(common:terms.clientWorkOrder) baru"
   },
-  "complete": "Selesai"
+  "complete": "Selesai",
+  "stockOpen": "Buka stok"
 }

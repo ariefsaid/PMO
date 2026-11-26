@@ -31,7 +31,7 @@ export const PerformanceFigures: React.FC<{
 }> = ({ performance, currency, bands, idPrefix, showBand = true, otherCurrencyNoted = false }) => {
   const { t } = useTranslation('workOrderPva');
   const money = (v: string | null) =>
-    v === null ? t('performance.unknown', 'Unknown') : formatTableMoney(v, currency) ?? t('performance.unknown', 'Unknown');
+    v === null ? '—' : formatTableMoney(v, currency) ?? '—';
   const abs = (v: string) => (v.startsWith('-') ? v.slice(1) : v);
   const sign = (v: string | null): 'positive' | 'negative' | 'zero' | null => {
     if (v === null) return null;
@@ -72,14 +72,16 @@ export const PerformanceFigures: React.FC<{
               <div data-testid={`${idPrefix}-${kind}-reading`}>{readingText(kind, index.reading)}</div>
             </>
           ) : (
-            <div className={hiddenText === '—' ? 'text-metric font-semibold tabular-nums text-muted-foreground' : 'text-muted-foreground'} data-testid={`${idPrefix}-${kind}-hidden`}>{hiddenText}</div>
+            <div className="text-metric font-semibold tabular-nums text-muted-foreground" data-testid={hiddenText === '—' ? `${idPrefix}-${kind}-hidden` : undefined}>—</div>
           )}
         </dd>
       </div>
     );
   };
-  const cv = sign(performance.costVariance);
-  const sv = sign(performance.scheduleVariance);
+  const noRecordedData = performance.ev !== null && performance.ac !== null && parseExactCents(performance.ev) === 0n && parseExactCents(performance.ac) === 0n;
+  const cv = noRecordedData ? null : sign(performance.costVariance);
+  const sv = noRecordedData ? null : sign(performance.scheduleVariance);
+  if (noRecordedData) return <p className="text-control text-muted-foreground">{t('performance.recordNext', 'Record progress or costs to see performance.')}</p>;
   const acText = performance.ac === null && otherCurrencyNoted && performance.cpi.state === 'not-comparable'
     ? '—'
     : money(performance.ac);
@@ -89,6 +91,7 @@ export const PerformanceFigures: React.FC<{
         {card('cpi', performance.cpi)}
         {card('spi', performance.spi)}
       </dl>
+      <div className="text-control text-muted-foreground">{(['cpi', 'spi'] as const).map((kind) => { const index = performance[kind]; return index.state !== 'value' && hidden(index) !== '—' ? <p key={kind} data-testid={`${idPrefix}-${kind}-hidden`}>{hidden(index)}</p> : null; })}</div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-control sm:grid-cols-3 sm:gap-x-6">
         <div className="min-w-0"><dt className="text-muted-foreground">{t('performance.ev', 'Earned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-ev`}>{money(performance.ev)}</dd></div>
         <div className="min-w-0"><dt className="text-muted-foreground">{t('performance.pv', 'Planned value')}</dt><dd className="tabular-nums" data-testid={`${idPrefix}-pv`}>{money(performance.pv)}</dd></div>

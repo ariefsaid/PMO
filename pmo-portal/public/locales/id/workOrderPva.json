@@ -208,7 +208,8 @@
     "workOrders": "Per $t(common:terms.clientWorkOrder)",
     "col": {
       "workOrder": "$t(common:terms.clientWorkOrder)"
-    }
+    },
+    "recordNext": "Catat kemajuan atau biaya untuk melihat kinerja."
   },
   "earnedBilled": {
     "title": "Pendapatan yang dihasilkan dan yang ditagih",

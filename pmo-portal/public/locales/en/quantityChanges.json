@@ -220,6 +220,7 @@
     "empty": "No quantity change requests on this work order",
     "overLines": "{{count}} contract lines over their quantity",
     "raise": "Request a quantity change",
-    "title": "Quantity changes"
+    "title": "Quantity changes",
+    "raiseShort": "Request change"
   }
 }

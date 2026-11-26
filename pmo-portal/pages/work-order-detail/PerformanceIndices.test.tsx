@@ -88,6 +88,12 @@ describe('AC-CSP-018 the panels are off until the organisation turns them on', (
 });
 
 describe('work-order panel', () => {
+  it('does not judge performance before cost or progress is recorded', () => {
+    h.project.mockReturnValue(read([row({ ev: '0.00', ac: '0.00', pv: null, startDate: null })]));
+    wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
+    expect(screen.queryByText('Earned value equals actual cost')).toBeNull();
+    expect(screen.getByText('Record progress or costs to see performance.')).toBeTruthy();
+  });
   it('shows both indices, readings in words, as-of date and the basis', () => {
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
     expect(screen.getByTestId('wo-page-performance-spi-value').textContent).toBe('0.75');

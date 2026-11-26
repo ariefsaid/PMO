@@ -1089,18 +1089,18 @@
     }
   },
   "lineWorkOrders": {
-    "loadError": "Work order proyek ini tidak bisa dimuat.",
-    "field": "Work order untuk {{line}}",
+    "loadError": "Perintah kerja proyek ini tidak bisa dimuat.",
+    "field": "Perintah kerja untuk {{line}}",
     "disciplineField": "Disiplin untuk {{line}}",
     "noDiscipline": "Tanpa disiplin",
     "unknownDiscipline": "Disiplin yang sudah tidak dipakai",
     "sameAsRequest": "Sama dengan permintaan",
     "sameAsRequestNamed": "Sama dengan permintaan ({{workOrder}})",
-    "unknownWorkOrder": "Work order yang tidak dapat Anda buka",
+    "unknownWorkOrder": "Perintah kerja yang tidak dapat Anda buka",
     "cancelled": "dibatalkan",
-    "noProject": "Pilih proyek dulu: work order milik sebuah proyek, setelah itu tiap baris bisa diberi work order.",
+    "noProject": "Pilih proyek dulu: perintah kerja milik sebuah proyek, setelah itu tiap baris bisa diberi perintah kerja.",
     "save": "Simpan",
-    "saveFailed": "Permintaan sudah tersimpan, tetapi work order beberapa baris belum terpasang.",
+    "saveFailed": "Permintaan sudah tersimpan, tetapi perintah kerja beberapa baris belum terpasang.",
     "saveFailedNext": "Buka permintaan lalu atur di tab Item."
   },
   "orderRoles": {
@@ -1130,10 +1130,10 @@
   "linePlan": {
     "line": "Baris",
     "category": "Kategori",
-    "workOrder": "Work order",
+    "workOrder": "Perintah kerja",
     "discipline": "Disiplin",
     "differs": "Bukan {{workOrder}} milik permintaan",
     "orderDateHelp": "Wajib untuk mengirim pesanan. Mengisi semua baris.",
-    "noWorkOrders": "Proyek ini belum punya work order, jadi baris tanpa work order. Manajer proyek menambahkannya di tab Work order proyek."
+    "noWorkOrders": "Proyek ini belum punya perintah kerja, jadi baris tanpa perintah kerja. Manajer proyek menambahkannya di tab perintah kerja proyek."
   }
 }

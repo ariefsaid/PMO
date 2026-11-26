@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 /** AC-SRC-006: the work order's own reports, each with its crew. */
@@ -14,10 +14,11 @@ describe('SiteReportsSection', () => {
   it('AC-SRC-006 lists this work order\'s reports with their crew and links to each', () => {
     h.q = { data: { rows: [{ id: 'r1', work_date: '2026-03-10', crew_name: 'Pipe crew', author_name: 'Field One', status: 'draft' }, { id: 'r2', work_date: '2026-03-09', crew_name: null, author_name: null, status: 'validated' }] }, isPending: false, isError: false, refetch: vi.fn() };
     renderIt();
+    expect(screen.getByRole('link', { name: 'Open reports' })).toHaveAttribute('href', '/site-reports');
     expect(h.calls.at(-1)).toEqual({ workOrderId: 'w1' });
     expect(screen.getByText('Crew Pipe crew')).toBeInTheDocument();
-    expect(screen.getAllByRole('link')).toHaveLength(2);
-    expect(screen.getAllByRole('link')[0]).toHaveAttribute('href', '/site-reports/r1');
+    expect(within(screen.getByTestId('wo-site-reports')).getAllByRole('link')).toHaveLength(2);
+    expect(within(screen.getByTestId('wo-site-reports')).getAllByRole('link')[0]).toHaveAttribute('href', '/site-reports/r1');
   });
 
   it('AC-SRC-006 shows the named person on a work-order report', () => {

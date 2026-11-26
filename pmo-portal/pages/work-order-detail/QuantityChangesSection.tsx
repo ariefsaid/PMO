@@ -25,8 +25,8 @@ export const QuantityChangesSection: React.FC<{ workOrderId: string; projectId: 
   const overCount = (over.data ?? []).length;
   return (
     <RecordSection title={t('workOrder.title', 'Quantity changes')} data-testid="wo-quantity-changes"
-      actions={mayRaise ? <Button variant="outline" onClick={() => setOpen(true)} disabled={reached}>{t('workOrder.raise', 'Request a quantity change')}</Button> : undefined}>
-      {budget.data && (
+      actions={mayRaise ? <Button aria-label={t('workOrder.raise', 'Request a quantity change')} variant="outline" size="sm" onClick={() => setOpen(true)} disabled={reached}>{t('workOrder.raiseShort', 'Request change')}</Button> : undefined}>
+      {budget.data && (budget.data.request_count > 0 || budget.data.request_limit !== null) && (
         <p className="text-foreground" data-testid="wo-qcr-count">
           {t('workOrder.count', 'Requests')} <span className="tabular-nums">{budget.data.request_count}{budget.data.request_limit !== null ? ` / ${budget.data.request_limit}` : ''}</span>
           {reached ? ` · ${t('raise.limitReached', 'This work order has reached its request limit')}` : ''}
