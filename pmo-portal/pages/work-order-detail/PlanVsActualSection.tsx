@@ -8,6 +8,7 @@ import { planVariance } from '@/src/lib/workOrderPlanVsActual';
 import type { Margin } from '@/src/lib/projectFinances';
 import type { ProjectPlanVsActual } from '@/src/lib/repositories/workOrderFinance';
 import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
+import { OtherCurrencyNote } from './AreaHelp';
 import { LabourByClass } from './LabourByClass';
 import { IdleCostBlock } from './IdleCostBlock';
 
@@ -69,7 +70,8 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
     if (m.amount !== null) return money(m.amount);
     switch (m.reason) {
       case 'restricted-rows': return t('restricted', 'Restricted');
-      case 'different-currencies': return t('notComparable', 'Not comparable (other currency)');
+      // Said once for the area (OtherCurrencyNote), not in each figure.
+      case 'different-currencies': return '—';
       case 'work-unavailable': return t('revenueUnknown', 'Revenue unknown');
       default: return t('costUnknown', 'Cost unknown');
     }
@@ -99,6 +101,7 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
   );
   return (
     <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
+      {(f.directMargin.reason === 'different-currencies' || f.result.reason === 'different-currencies') && <OtherCurrencyNote />}
       <PvaTable dense testId="wo-page-pva-cost" caption={title} firstColumn={<span className="sr-only">{t('col.cost', 'Cost')}</span>} columns={columns} rows={[
         legRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct'),
         legRow('shared', t('col.shared', 'Shared cost'), f.plan.indirect_budget, f.allocated, 'wo-page-pva-plan-indirect', 'wo-page-pva-allocated'),

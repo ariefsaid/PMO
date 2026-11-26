@@ -57,7 +57,7 @@ import { isMicrosoftFolder } from './project-detail/tabs/documentUtils';
 import { WorkOrderStockBalance } from './stock/WorkOrderStockBalance';
 import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
 import { WorkOrderChecksSection } from './work-order-detail/WorkOrderChecksSection';
-import { AreaHelpButton, AreaHelpProvider } from './work-order-detail/AreaHelp';
+import { AreaHelpButton, AreaHelpProvider, AreaNotes } from './work-order-detail/AreaHelp';
 import { useWorkOrderDecision } from './work-order-detail/WorkOrderDecision';
 
 /**
@@ -234,7 +234,7 @@ const WorkOrderDetail: React.FC = () => {
       <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
-      <AreaHelpProvider>{(help) => (<>
+      <AreaHelpProvider>{(help, notes) => (<>
       <div data-testid="wo-area-select" className="mt-6 mb-4 flex items-center gap-2 md:hidden">
         <div className="min-w-0 flex-1">
           <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
@@ -249,6 +249,7 @@ const WorkOrderDetail: React.FC = () => {
         <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
       <div role="tabpanel" id={tabPanelId('wo', area)} aria-labelledby={tabId('wo', area)} data-testid={`wo-area-${area}`} className="pt-4 md:pt-6">
+        <AreaNotes notes={notes} />
         <RecordStack>
           {area === 'scope' && <>
             <SiteCheckpointFlag workOrderId={row.id} />

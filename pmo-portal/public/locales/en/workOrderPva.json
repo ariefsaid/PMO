@@ -252,5 +252,6 @@
   "totalCost": "Total cost, direct and shared",
   "billedTitle": "Billed and margin",
   "byDisciplineTitle": "Cost by discipline",
-  "openPage": "Open full page"
+  "openPage": "Open full page",
+  "otherCurrencyNote": "Some cost is in another currency: figures that would mix currencies are not shown, and that cost is listed apart."
 }
