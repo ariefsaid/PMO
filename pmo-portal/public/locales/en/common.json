@@ -871,7 +871,8 @@
         "noteHelper": "Optional context recorded against the grant."
       },
       "amountRequired": "Amount is required.",
-      "amountPositive": "Grant amount must be positive."
+      "amountPositive": "Grant amount must be positive.",
+      "balanceHelp": "Balance after credit grants and usage."
     },
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",

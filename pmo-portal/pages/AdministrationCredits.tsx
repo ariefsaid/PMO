@@ -141,6 +141,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
               {t('admin.credits.unit', 'credits')}
             </span>
           </span>
+          <p className="text-control text-muted-foreground">{t('admin.credits.balanceHelp', 'Balance after credit grants and usage.')}</p>
           <div className="flex gap-4 text-control"><Link className="font-medium text-primary-text underline" to="/administration/plan">{t('plans:yourPlan.navLabel', 'Your plan')}</Link>{isOperator && <Link className="font-medium text-primary-text underline" to="/administration/usage">{t('admin.nav.usage', 'Usage')}</Link>}</div>
         </div>
       )}

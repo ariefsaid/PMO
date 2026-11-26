@@ -871,7 +871,8 @@
         "noteHelper": "Konteks opsional yang dicatat pada pemberian ini."
       },
       "amountRequired": "Jumlah wajib diisi.",
-      "amountPositive": "Jumlah pemberian harus positif."
+      "amountPositive": "Jumlah pemberian harus positif.",
+      "balanceHelp": "Saldo setelah pemberian dan pemakaian kredit."
     },
     "budgetMap": {
       "sectionLabel": "Peta kategori anggaran ke akun ERP",
