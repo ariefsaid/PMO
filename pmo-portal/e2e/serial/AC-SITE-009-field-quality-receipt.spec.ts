@@ -24,7 +24,7 @@ test('AC-SITE-009 the field receiver counts nine of ten and records the required
   await page.getByRole('textbox',{name:'Counted',exact:true}).fill('9'); await page.getByRole('textbox',{name:'Accepted',exact:true}).fill('9');
   await page.getByRole('combobox',{name:/quality/i}).selectOption('pass'); await page.getByRole('button',{name:'Confirm receipt',exact:true}).click();
   await expect(page.getByRole('button',{name:'Confirm receipt',exact:true})).toHaveCount(0);
-  await page.reload(); await expect(page.getByText(/1 short/)).toBeVisible();
+  await page.reload(); await expect(page.getByText(/1 (\S+ )?short/)).toBeVisible();
   const line=must('count saved',await db.from('stock_transfer_lines').select('qty_counted,qty_accepted,quality_result').eq('transfer_id',transfer).single());
   expect(Number(line.qty_counted)).toBe(9); expect(Number(line.qty_accepted)).toBe(9); expect(line.quality_result).toBe('pass');
  } finally {

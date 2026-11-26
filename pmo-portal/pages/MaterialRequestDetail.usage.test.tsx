@@ -33,6 +33,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
 }));
 vi.mock('@/src/hooks/useStock', () => ({
   useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement' }] }),
+  useStockUnits: () => ({ data: [] }),
   useStockWarehouses: () => ({ data: [{ id: 'w1', code: 'MAIN', name: 'Main store', kind: 'central', archived_at: null }] }),
   useStockKeepers: () => ({ data: h.keepers }),
 }));

@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from './support/stockFixture';
-import { expectOnHand, postTransfer, whLabel } from './support/stockUi';
+import { expectOnHand, onHandCell, postTransfer, whLabel } from './support/stockUi';
 
 test.setTimeout(180_000);
 
@@ -35,7 +35,7 @@ test('AC-SVL-012 pipe sent to a vendor location shows at the vendor, and comes b
   await page.goto('/stock');
   await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: whLabel(vendor) });
   const row = page.getByRole('row', { name: new RegExp(item.code) });
-  await expect(row.getByRole('cell', { name: new RegExp(`^20\\s+\\S+$`) })).toBeVisible({ timeout: 20_000 });
+  await expect(await onHandCell(page, item.code)).toHaveText(/^20\s+\S+$/, { timeout: 20_000 });
   await expect(row).toContainText(`At ${company.data!.name}`);
 
   await postTransfer(page, vendor, warehouse, item.code, '20');
