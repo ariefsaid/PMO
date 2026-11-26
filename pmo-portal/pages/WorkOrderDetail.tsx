@@ -196,7 +196,7 @@ const WorkOrderDetail: React.FC = () => {
   return (
     <>
       <BackBar label={backLabel} phoneOnly onBack={goBack} />
-      <RecordHeader panelInset name={row.wo_number ?? t('notNumbered', 'Not yet numbered')}
+      <RecordHeader panelInset actionsOnTitleRow compactStatsOnMobile name={row.wo_number ?? t('notNumbered', 'Not yet numbered')}
         status={<StatusPill record="workOrder" state={row.status} />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{row.title}</span>
@@ -206,8 +206,8 @@ const WorkOrderDetail: React.FC = () => {
         primaryAction={decision.primaryAction}
         menuItems={decision.menuItems.length > 0 ? decision.menuItems : undefined}
         stats={[
-          { label: t('project', 'Project'), title: project.data?.name, value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
-          { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
+          { label: t('project', 'Project'), title: project.data?.name, secondaryOnMobile: true, value: <Link className="underline" to={`/projects/${row.project_id}`}>{project.data?.name ?? '—'}</Link> },
+          { label: t('client', 'Client'), secondaryOnMobile: true, value: project.data?.client?.name ?? '—' },
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatTableMoney(row.order_value ?? 0, row.currency ?? '') ?? '—'}</span> },
           // How far it has got, value-weighted over its contract lines (the scope area lists each line).
           ...(progress?.overallPercent != null ? [{ label: t('complete', 'Complete'), value: <span className="tabular-nums" data-testid="wo-complete">{`${formatNumberExact(Math.round(progress.overallPercent * 10) / 10)}%`}</span> }] : []),
@@ -235,10 +235,10 @@ const WorkOrderDetail: React.FC = () => {
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
       <AreaHelpProvider>{(help, notes) => (<>
-      <div data-testid="wo-area-select" className="mt-6 mb-4 flex items-center gap-2 md:hidden">
+      <div data-testid="wo-area-select" className="mt-4 mb-3 flex items-center gap-2 md:hidden">
         <div className="min-w-0 flex-1">
           <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
-            options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full" />
+            options={areas.map((a) => ({ value: a, label: a === 'issues' && openCount ? `${areaLabels[a]} (${openCount})` : areaLabels[a] }))} className="touch-target w-full" />
         </div>
         <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
@@ -323,8 +323,7 @@ const WorkOrderDetail: React.FC = () => {
           </>}
           {area === 'checks' && <>
             <InspectionsSection workOrderId={row.id} />
-            <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
-            <MaterialCompletionLink workOrderId={row.id} />
+            <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} footer={<MaterialCompletionLink workOrderId={row.id} />} />
             <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
               steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
               scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}

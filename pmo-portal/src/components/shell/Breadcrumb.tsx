@@ -103,6 +103,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
         const label = resolveCrumb(part);
+        const parentTruncation = i > 0 ? 'min-w-0 truncate' : 'shrink-0 whitespace-nowrap';
         return (
           <React.Fragment key={i}>
             {i > 0 && (
@@ -115,14 +116,18 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               </span>
             )}
             {!last && (part.onClick || part.href) && !canOpen(part.href) ? (
-              <span title={part.title} className="shrink-0 whitespace-nowrap text-muted-foreground max-[920px]:hidden">
+              <span title={part.title ?? label} className={cn(parentTruncation, 'text-muted-foreground max-[920px]:hidden')}>
                 {label}
               </span>
             ) : last || (!part.onClick && !part.href) ? (
               <span
                 aria-current="page"
                 title={part.title ?? (typeof label === 'string' ? label : undefined)}
-                className={cn('min-w-0 truncate font-semibold text-foreground', pageHasTitle && 'max-[920px]:hidden')}
+                className={cn(
+                  'min-w-0 truncate font-semibold text-foreground',
+                  visibleParts.length > 2 && 'min-[921px]:shrink-0 min-[921px]:max-w-[18rem]',
+                  pageHasTitle && 'max-[920px]:hidden',
+                )}
               >
                 {label}
               </span>
@@ -149,8 +154,8 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                     part.onClick();
                   }}
                   aria-label={part.ariaLabel}
-                  title={part.title}
-                  className="shrink-0 whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  title={part.title ?? label}
+                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[920px]:hidden')}
                 >
                   {label}
                 </a>
@@ -159,8 +164,8 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                   type="button"
                   onClick={part.onClick}
                   aria-label={part.ariaLabel}
-                  title={part.title}
-                  className="shrink-0 whitespace-nowrap text-muted-foreground hover:text-foreground max-[920px]:hidden"
+                  title={part.title ?? label}
+                  className={cn(parentTruncation, 'text-muted-foreground hover:text-foreground max-[920px]:hidden')}
                 >
                   {label}
                 </button>
