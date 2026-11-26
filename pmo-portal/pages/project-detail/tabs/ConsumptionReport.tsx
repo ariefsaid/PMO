@@ -65,7 +65,7 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
       const year = start + Math.floor(index / 12);
       const month = String(index % 12 + 1).padStart(2, '0');
       const value = `${year}-${month}`;
-      return { value, label: formatUtcMonthYearFull(new Date(`${value}-01T00:00:00Z`)) };
+      return { value, label: new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}-01T00:00:00Z`)) };
     });
   }, [range, loc]);
   const showValue = (r?.months ?? []).some((m: ConsumptionMonthRow) => m.netValue !== undefined);
