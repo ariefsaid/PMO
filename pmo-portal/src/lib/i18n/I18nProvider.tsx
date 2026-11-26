@@ -49,7 +49,8 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Synchronous, not an effect: a formatter called during THIS render must already see the new
   // locale. An effect would let one paint escape with the previous locale's separators.
   setActiveLocale(stable);
-  setActiveOrgTimezone(useOrgBusinessTimezone());
+  const orgTimezone = useOrgBusinessTimezone();
+  setActiveOrgTimezone(orgTimezone);
 
   // Apply language switches in order: a slower catalogue requested by an older profile must
   // finish before the current profile is applied. Superseded queued work is discarded.
@@ -77,5 +78,8 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // its English source string rather than a raw key or a blank.
   // Passing `defaultNS` prevents any `useTranslation()` rendered before `initI18n` from falling
   // back to i18next's default `'translation'` namespace and fetching `/locales/*/translation.json`.
-  return <I18nextProvider i18n={i18next} defaultNS={DEFAULT_NS}>{children}</I18nextProvider>;
+  return <I18nextProvider i18n={i18next} defaultNS={DEFAULT_NS}>{/* ⚑ keyed on the organisation's timezone: a dialog's default day is read once on mount, and the organisation defaults land after
+          first paint, so a form opened before they did would keep the UTC day. One remount, once, when the timezone changes. */}
+      <React.Fragment key={orgTimezone}>{children}</React.Fragment>
+    </I18nextProvider>;
 };

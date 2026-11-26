@@ -35,6 +35,8 @@ export const RULES = {
   'person-tz-day': (code) => (code.match(/formatCalendarDayInTimeZone\s*\(\s*new\s+Date\s*\(\s*\)\s*,\s*getActiveLocale\s*\(\s*\)\s*\.timezone/g) ?? []).length,
   // A day assembled from the browser's calendar fields of a fresh clock reading: `const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-...``.
   'local-day-template': (code) => (code.match(/new\s+Date\s*\(\s*\)[^`]{0,160}`\s*\$\{[^}]*getFullYear\(\)\s*\}\s*-\s*\$\{[^`]*getMonth\(\)[^`]*getDate\(\)/g) ?? []).length,
+  // The device clock read into a variable and then cut into calendar fields: `const now = new Date(); ... now.getFullYear()` (a month, week or range default).
+  'device-now-calendar-fields': (code) => (code.match(/\b(\w+)\s*=\s*new\s+Date\s*\(\s*\)\s*;[\s\S]{0,250}?\b\1\.(?:getFullYear|getMonth|getDate|setDate)\s*\(/g) ?? []).length,
 };
 
 const blankComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
@@ -99,6 +101,10 @@ function selfTest() {
     ['a local-fields day template is flagged', bad('const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;')['local-day-template'] === 1],
     ['a template over a passed-in date is not flagged', Object.keys(bad('function f(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }')).length === 0],
     ['a path under components/ is scanned', Object.keys(scan({ 'components/X.tsx': 'toIso(new Date())' })).length === 1],
+    ['a month default cut from the device clock is flagged', bad("const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;")['device-now-calendar-fields'] === 1],
+    ['a range from the device clock is flagged', bad('const now = new Date(); const from = new Date(now); from.setDate(now.getDate() - 30);')['device-now-calendar-fields'] === 1],
+    ['calendar fields of a passed-in date are not flagged', Object.keys(bad('function f(d: Date) { const x = d.getFullYear(); }')).length === 0],
+    ['a timestamp from a fresh clock is not flagged', Object.keys(bad('const now = new Date(); save(now.toISOString());')).length === 0],
     ['useOrgToday passes', Object.keys(bad("const today = useOrgToday();")).length === 0],
     ['an unlisted offender fails', compare({ 'pages/X.tsx': { 'toIso-new-date': 1 } }, {}).length === 1],
     ['a listed offender passes', compare({ 'pages/X.tsx': { 'toIso-new-date': 1 } }, allow({ rule: 'toIso-new-date', count: 1, reason: 'this widget shows the viewer\'s own device day by design', verified: '2026-11-26' })).length === 0],

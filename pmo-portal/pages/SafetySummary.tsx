@@ -8,6 +8,7 @@ import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { deriveSafetySummaryView, formatSafetyMinutes, toClientExport, type SafetyFigure, type SafetyFigureKey } from '@/src/lib/safetyDay';
 import { formatDay } from '@/src/lib/format';
 import type { SafetyDetailKind } from '@/src/lib/db/safetyDays';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 
 const DETAIL_KIND: Partial<Record<SafetyFigureKey, SafetyDetailKind>> = {
   lostTimeIncidents: 'lost_time_incidents',
@@ -23,7 +24,7 @@ const FIGURE_LABEL: Record<SafetyFigureKey, string> = {
   nearMisses: 'Near misses', toolboxTalks: 'Toolbox talks held', completeDays: 'Complete days', daysWithoutRecord: 'Days worked without a safety record',
 };
 
-const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const thisMonth = () => orgDayNow().slice(0, 7);
 
 /**
  * `/safety` (#2596, FR-DSF-011..014): the monthly safety summary, per project or for the organisation. One database read;

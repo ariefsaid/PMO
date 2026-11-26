@@ -21,6 +21,7 @@ import {
 import { formatClosingDuration } from '@/src/lib/incidents/closingDuration';
 import type { IssueClosingTimeReportRow } from '@/src/lib/db/issueClosingReport';
 import EffectiveHoursPanel from './EffectiveHoursPanel';
+import { orgDayDate } from '@/src/hooks/useOrgToday';
 
 type DatePreset = '30d' | '90d' | 'ytd' | 'all' | 'custom';
 
@@ -30,7 +31,7 @@ function toIsoDate(d: Date): string {
 }
 
 function computeDateRange(preset: DatePreset, customFrom?: string, customTo?: string): { from?: string; to?: string } {
-  const now = new Date();
+  const now = orgDayDate();
   if (preset === '30d') {
     const from = new Date(now);
     from.setDate(now.getDate() - 30);

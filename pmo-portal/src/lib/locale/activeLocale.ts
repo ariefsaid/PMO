@@ -84,7 +84,7 @@ export function setActiveLocale(resolved: ResolvedLocale): void {
 /** Test/teardown helper — restore the boot default. */
 export function resetActiveLocale(): void {
   active = FALLBACK;
-  activeOrgTimezone = 'UTC';
+  setActiveOrgTimezone('UTC');
 }
 
 /**
@@ -93,11 +93,21 @@ export function resetActiveLocale(): void {
  * `coalesce(default_timezone, 'UTC')` does (#2914).
  */
 let activeOrgTimezone = 'UTC';
+const orgTimezoneListeners = new Set<() => void>();
 export function setActiveOrgTimezone(tz: string): void {
-  activeOrgTimezone = isUsableTimeZone(tz) ? tz : 'UTC';
+  const next = isUsableTimeZone(tz) ? tz : 'UTC';
+  if (next === activeOrgTimezone) return;
+  activeOrgTimezone = next;
+  // Set during a provider's render, so listeners (other components) are told after it, never inside it.
+  queueMicrotask(() => orgTimezoneListeners.forEach((l) => l()));
 }
 export function getActiveOrgTimezone(): string {
   return activeOrgTimezone;
+}
+/** For useSyncExternalStore. */
+export function subscribeActiveOrgTimezone(listener: () => void): () => void {
+  orgTimezoneListeners.add(listener);
+  return () => { orgTimezoneListeners.delete(listener); };
 }
 
 export function getActiveLocale(): ResolvedLocale {

@@ -17,6 +17,7 @@ import { useRoleLabels } from '@/pages/admin-users/roleLabels';
 import { useCanApprovePlan, useEquipmentPlanApprovalRoute, useEquipmentPlanSettings, usePlanCategories, usePlanMutations, usePlansForMonth } from '@/src/hooks/useEquipmentPlans';
 import { monthEnd, monthStart, planTotal, type EquipmentPlan, type PlanLineInput } from '@/src/lib/repositories/equipmentPlans';
 import { formatCurrency, formatDay, formatMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
+import { orgDayDate } from '@/src/hooks/useOrgToday';
 
 /** A line while it is being typed: numbers stay text until saved. */
 interface LineDraft {
@@ -34,7 +35,7 @@ const fromPlan = (plan: EquipmentPlan): LineDraft[] => plan.lines.map((l) => ({
 
 /** Thirteen months: last month to eleven months ahead. */
 const monthOptions = (): Array<{ value: string; label: string }> => {
-  const now = new Date();
+  const now = orgDayDate();
   return Array.from({ length: 13 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 1 + i, 1);
     return { value: monthStart(d), label: formatMonthYear(d) };
@@ -186,7 +187,7 @@ const EquipmentPlansPage: React.FC = () => {
   const settings = useEquipmentPlanSettings();
   const projects = useProjectOptions();
   const [projectId, setProjectId] = useState('');
-  const [month, setMonth] = useState(monthStart(new Date()));
+  const [month, setMonth] = useState(monthStart(orgDayDate()));
   const plans = usePlansForMonth(month, settings.data?.enabled === true);
   const plan = plans.data?.find((p) => p.projectId === projectId) ?? null;
   const months = monthOptions();

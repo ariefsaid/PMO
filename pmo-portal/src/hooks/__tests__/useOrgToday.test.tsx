@@ -65,4 +65,12 @@ describe('useOrgToday', () => {
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     expect(renderHook(() => useOrgToday()).result.current).toBe('2026-11-25');
   });
+
+  it('#2914: a mounted hook follows the organisation timezone when it arrives later', async () => {
+    vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
+    const { result } = renderHook(() => useOrgToday());
+    expect(result.current).toBe('2026-11-25');
+    await act(async () => { setActiveOrgTimezone('Asia/Jakarta'); });
+    expect(result.current).toBe('2026-11-26');
+  });
 });
