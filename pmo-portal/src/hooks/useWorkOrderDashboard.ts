@@ -11,7 +11,7 @@ import { useBoardWorkOrderSteps } from './useBillingSteps';
 import { useOpenCloseoutDue } from './useCloseoutChecklist';
 import { useCostDisciplines } from './useWorkOrderCosts';
 import { workOrderDashboardRepository } from '@/src/lib/repositories/workOrderDashboard';
-import { workOrderFinanceRepository } from '@/src/lib/repositories/workOrderFinance';
+import { projectPlanVsActualQuery } from './useWorkOrderPlanVsActual';
 import { buildDashboardRows, type DashboardRow, type DashboardWorkOrder } from '@/src/lib/workOrderDashboard';
 import { closeoutOverdueByWorkOrder, orgToday } from '@/src/lib/checklistDue';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -67,11 +67,7 @@ export function useWorkOrderDashboard(projectId?: string, costProjectIds?: reado
     return ids.length <= COST_PROJECT_CAP ? ids : null;
   }, [scoped, pid, costProjectIds, workOrders]);
   const costReads = useQueries({
-    queries: (canPlan && costIds ? costIds : []).map((id) => ({
-      queryKey: ['work-order-plan-vs-actual', orgId, id],
-      queryFn: () => workOrderFinanceRepository.projectPlanVsActual(id),
-      enabled: Boolean(orgId),
-    })),
+    queries: (canPlan && costIds ? costIds : []).map((id) => projectPlanVsActualQuery(orgId, id)),
   });
   const costData = costReads.map((q) => q.data);
   const costKey = costReads.map((q) => q.dataUpdatedAt).join(',');

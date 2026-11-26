@@ -5,6 +5,11 @@ import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import i18n from '@/src/lib/i18n';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useWorkOrder, useWorkOrderAllocations } from '@/src/hooks/useWorkOrderRecord';
+import { useWorkOrderCostLines } from '@/src/hooks/useWorkOrderCosts';
+import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
+import { preloadWorkOrder } from '@/src/lib/routeData';
 import { ToastProvider } from '@/src/components/ui';
 
 const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPending: false, isError: false, refetch: vi.fn(), ...over });
@@ -21,19 +26,21 @@ vi.mock('@/src/hooks/useOperationalWaitingRoute', async (orig) => {
 });
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
-const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
+const h = vi.hoisted(() => ({ orgId: undefined as string | undefined, wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
   docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown,
   reads: { alloc: [] as unknown[], claimDocs: [] as unknown[], issues: [] as unknown[], tasks: [] as unknown[], steps: [] as unknown[], costLines: [] as unknown[], billedMonths: [] as unknown[], disciplines: [] as unknown[] } }));
-vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: (id: string | undefined) => { h.reads.alloc.push(id); return h.alloc; }, useWorkOrderClaimDocuments: (id: string | undefined) => { h.reads.claimDocs.push(id); return h.claimDocs; }, useWorkOrderIssues: (id: string | undefined, enabled: boolean) => { h.reads.issues.push([id, enabled]); return h.issues; }, useWorkOrderOpenTasks: (id: string | undefined) => { h.reads.tasks.push(id); return h.tasks; } }));
+vi.mock('@/src/hooks/useWorkOrderRecord', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/hooks/useWorkOrderRecord')>(), useWorkOrder: vi.fn(() => h.wo), useWorkOrderAllocations: vi.fn((id: string | undefined) => { h.reads.alloc.push(id); return h.alloc; }), useWorkOrderClaimDocuments: (id: string | undefined) => { h.reads.claimDocs.push(id); return h.claimDocs; }, useWorkOrderIssues: (id: string | undefined, enabled: boolean) => { h.reads.issues.push([id, enabled]); return h.issues; }, useWorkOrderOpenTasks: (id: string | undefined) => { h.reads.tasks.push(id); return h.tasks; } }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance' } }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance', org_id: h.orgId } }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: (id: string | undefined, enabled: boolean) => { h.reads.billedMonths.push([id, enabled]); return { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; } }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
-vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
-  useWorkOrderCostLines: (id: string | null) => { h.reads.costLines.push(id); return h.lines; }, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: (enabled: boolean = true) => { h.reads.disciplines.push(enabled); return h.discs; }, useWorkOrderTimesheetLabels: () => h.labels,
+vi.mock('@/src/hooks/useWorkOrderCosts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/hooks/useWorkOrderCosts')>(),
+  useWorkOrderCostLines: vi.fn((id: string | null) => { h.reads.costLines.push(id); return h.lines; }), useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: (enabled: boolean = true) => { h.reads.disciplines.push(enabled); return h.discs; }, useWorkOrderTimesheetLabels: () => h.labels,
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
@@ -43,7 +50,8 @@ vi.mock('./work-order-detail/WorkOrderChecksSection', () => ({ WorkOrderChecksSe
 vi.mock('./work-order-detail/WorkOrderDecision', () => ({ useWorkOrderDecision: () => ({ primaryAction: undefined, menuItems: [], dialogs: null }) }));
 vi.mock('./work-order-detail/MissingSection', () => ({ MissingSection: () => null }));
 vi.mock('./work-order-detail/SiteReportsSection', () => ({ SiteReportsSection: () => null }));
-vi.mock('@/src/hooks/useBillingSteps', () => ({ useWorkOrderSteps: (workOrderId: string | undefined) => { h.reads.steps.push(workOrderId); return { data: [], isLoading: false, isError: false, refetch: vi.fn() }; } }));
+vi.mock('@/src/hooks/useBillingSteps', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/hooks/useBillingSteps')>(), useWorkOrderSteps: vi.fn((workOrderId: string | undefined) => { h.reads.steps.push(workOrderId); return { data: [], isLoading: false, isError: false, refetch: vi.fn() }; }) }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));
 // The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
 vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
@@ -110,6 +118,47 @@ beforeEach(async () => {
 });
 
 describe('WorkOrderDetail', () => {
+  it('#2919 every route prefetch is also read by the work order page on its first render', async () => {
+    const [record, costs, billing] = await Promise.all([
+      vi.importActual<typeof import('@/src/hooks/useWorkOrderRecord')>('@/src/hooks/useWorkOrderRecord'),
+      vi.importActual<typeof import('@/src/hooks/useWorkOrderCosts')>('@/src/hooks/useWorkOrderCosts'),
+      vi.importActual<typeof import('@/src/hooks/useBillingSteps')>('@/src/hooks/useBillingSteps'),
+    ]);
+    vi.mocked(useWorkOrder).mockImplementationOnce(record.useWorkOrder);
+    vi.mocked(useWorkOrderAllocations).mockImplementationOnce(record.useWorkOrderAllocations);
+    vi.mocked(useWorkOrderCostLines).mockImplementationOnce(costs.useWorkOrderCostLines);
+    vi.mocked(useWorkOrderSteps).mockImplementationOnce(billing.useWorkOrderSteps);
+    const client = new QueryClient();
+    const prefetch = vi.spyOn(client, 'prefetchQuery').mockResolvedValue(undefined);
+    const wasOnline = onlineManager.isOnline();
+    onlineManager.setOnline(false);
+    h.orgId = 'o1';
+    try {
+      preloadWorkOrder(client, h.orgId, 'w1');
+      const page = render(
+        <QueryClientProvider client={client}>
+          <ToastProvider>
+            <MemoryRouter initialEntries={['/work-orders/w1']}>
+              <Routes><Route path="/work-orders/:id" element={<WorkOrderDetail />} /></Routes>
+            </MemoryRouter>
+          </ToastProvider>
+        </QueryClientProvider>,
+      );
+      try {
+        const prefetchedKeys = prefetch.mock.calls.map(([options]) => options.queryKey);
+        expect(prefetchedKeys).toHaveLength(4);
+        expect(client.getQueryCache().getAll().map((query) => query.queryKey)).toEqual(expect.arrayContaining(prefetchedKeys));
+      } finally {
+        page.unmount();
+      }
+    } finally {
+      client.clear();
+      h.orgId = undefined;
+      onlineManager.setOnline(wasOnline);
+    }
+  });
+
+
   it('#2895 the reads that need only the route id start together with the record read, not after it', () => {
     h.wo = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     renderPage();
