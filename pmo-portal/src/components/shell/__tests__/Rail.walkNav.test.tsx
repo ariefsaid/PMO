@@ -3,7 +3,7 @@
  * People first for HR, and orders itself by what the person's function does daily (HR never sees Sales or Finance).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { Rail } from '../Rail';
@@ -44,7 +44,7 @@ const headings = () => [...screen.getByRole('navigation', { name: 'Primary navig
 beforeEach(() => { localStorage.clear(); state.role = 'Project Manager'; state.key = 'hr_manager'; state.safety = false; });
 
 describe('walk fix — menu entries and daily order', () => {
-  it('MT3: reveals the My Tasks destination when the signed-in role arrives after the route', () => {
+  it('MT3: reveals My Tasks after the role and later navigation items arrive', async () => {
     state.key = 'project_manager';
     state.role = '';
     const revealed: HTMLElement[] = [];
@@ -58,6 +58,10 @@ describe('walk fix — menu entries and daily order', () => {
       const destination = screen.getByRole('link', { name: 'My Tasks' });
       expect(destination).toHaveAttribute('aria-current', 'page');
       expect(revealed).toContain(destination);
+      const initialReveals = revealed.filter((item) => item === destination).length;
+      state.safety = true;
+      page.rerender(tree());
+      await waitFor(() => expect(revealed.filter((item) => item === destination).length).toBeGreaterThan(initialReveals));
     } finally {
       HTMLElement.prototype.scrollIntoView = previous;
     }

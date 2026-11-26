@@ -349,8 +349,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
       active.scrollIntoView?.({ block: 'nearest' });
       return true;
     };
-    if (reveal() || typeof MutationObserver === 'undefined') return;
-    const observer = new MutationObserver(() => { if (reveal()) observer.disconnect(); });
+    reveal();
+    if (typeof MutationObserver === 'undefined') return;
+    // Entitlements can insert rows after the active link first appears; keep it in view as the content settles.
+    const observer = new MutationObserver(() => { reveal(); });
     observer.observe(region, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
     return () => observer.disconnect();
   }, [location.pathname, location.search, role]);
