@@ -25,6 +25,8 @@ const h = vi.hoisted(() => ({
   orgToday: '',
   provenRows: [] as { asset_id: string; proven: boolean }[],
   statusRows: [] as { asset_id: string; status_date: string; status: string }[],
+  latestRows: [] as { asset_id: string; status: string }[],
+  flagRows: [] as { asset_id: string }[],
 }));
 vi.mock('@/src/hooks/useEquipment', () => ({
   useEquipmentAssetPages: () => ({ data: { pages: [{ rows: h.assets, truncated: !!h.nextAssets.length }, ...(h.nextAssets.length ? [{ rows: h.nextAssets, truncated: false }] : [])] }, isPending: false, isError: h.assetsError, refetch: vi.fn(), hasNextPage: false }),
@@ -35,9 +37,9 @@ vi.mock('./RentalInvoiceCheck', () => ({ default: () => <div>Rental invoice chec
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useStatusDays: (from: string, to: string) => { h.statusRange = [from, to]; return { data: h.statusRows, isError: h.statusError }; },
-  useLatestStatusDays: () => ({ data: [] }),
+  useLatestStatusDays: () => ({ data: h.latestRows }),
   useEquipmentProofs: () => ({ data: h.provenRows }),
-  useDowntimeFlags: () => ({ data: [] }),
+  useDowntimeFlags: () => ({ data: h.flagRows }),
   useEquipmentMetrics: (ids: string[]) => { h.metricIds = ids; return { data: [] }; },
   useSetStatusBulk: () => ({ mutateAsync: h.bulk, isPending: false }),
   useAttachProof: () => ({ mutateAsync: h.proof, isPending: false }),
@@ -66,11 +68,23 @@ beforeEach(() => {
   h.workingHours = vi.fn().mockResolvedValue(undefined);
   h.proof = vi.fn().mockResolvedValue(undefined);
   h.nextAssets = [];
-  h.assetsError = false; h.statusError = false; h.statusRows = []; h.provenRows = [];
+  h.assetsError = false; h.statusError = false; h.statusRows = []; h.provenRows = []; h.latestRows = []; h.flagRows = [];
   h.assets = [asset('a1', 'EQU-1'), asset('a2', 'EQU-2'), asset('a3', 'EQU-3', 'rented')];
 });
 
 describe('Equipment availability screen', () => {
+  it('shows an escalated machine before the others', () => {
+    h.flagRows = [{ asset_id: 'a3' }];
+    renderPage();
+    const table = screen.getByRole('table', { name: 'Equipment status' });
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('EQU-3');
+  });
+  it('shows the status legend and unrecorded days explanation in page help', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'About Availability' }));
+    expect(await screen.findByText('What each status does to planning')).toBeInTheDocument();
+    expect(screen.getByText(/Unrecorded days are days in service/)).toBeInTheDocument();
+  });
   it('offers an accessible status selector and upload action without repeating the visible label', () => {
     h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
     renderPage();

@@ -419,7 +419,7 @@ const EquipmentUsagePage: React.FC = () => {
 
   return (
     <ListPage
-      title={t('equipment:usage.title', 'Equipment')}
+      title={t('equipment:home.hoursLog', 'Hours log')}
       count={tab === 'log' && !usageQ.isPending && !usageQ.isError && usageQ.data ? rowCount : undefined}
       filters={header}
     >
@@ -482,16 +482,14 @@ const EquipmentUsagePage: React.FC = () => {
             <strong>{assetName(e.asset_id)} · {projectName(e.project_id)} · {dayLabel(e.work_date)}</strong>
             <ReturnedBanner record="equipmentUsage" reason={e.decision_notes} person={e.rejecter?.full_name} at={e.rejected_at} />
           </div>)}
-          <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
-            accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')}
-            state={gridRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={noMachines
+          {gridRows.length === 0 ? <ListState variant="empty" title={noMachines
               ? t('equipment:usage.noMachines', 'No machines registered')
               : t('equipment:usage.empty', 'No hours logged this week')}
-            emptySub={noMachines && !canCreateAsset ? t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.') : undefined}
-            emptyAction={noMachines && canCreateAsset
+            sub={noMachines && !canCreateAsset ? t('equipment:usage.noMachinesSub', 'An Admin or Project Manager adds the machines.') : undefined}
+            action={noMachines && canCreateAsset
               ? { label: t('equipment:assets.new', 'New asset'), onClick: () => navigate('/equipment/assets') }
-              : undefined} />
+              : undefined} /> : <DataTable<GridRow> embedded rows={gridRows} columns={columns} rowKey={(r) => r.key} tableId="equipment-usage-grid"
+            accessibleName={t('equipment:usage.gridLabel', 'Equipment usage this week')} />}
           {submittable && <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
             <section aria-label={t('equipment:usage.submitSection', 'Submit the week')} className="mt-4 rounded-card border border-border p-3">
               <p className="mb-2 text-sm">{t('equipment:usage.submitWhat', 'Submitting sends {{count}} draft {{entries}} for approval. You cannot change them until they are approved or returned. Approver: {{approver}}.', {

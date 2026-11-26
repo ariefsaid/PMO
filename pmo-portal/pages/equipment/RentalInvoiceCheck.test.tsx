@@ -17,6 +17,11 @@ beforeEach(() => { vi.clearAllMocks(); h.unproven = false; h.diff = '500.00'; h.
 const renderCheck = () => render(<RentalInvoiceCheck assets={[{ id: 'a', code: 'EQU-1', name: 'Machine' }]} today="2026-09-30" monthFrom="2026-09-01" statusLabel={() => 'Broken'} />);
 
 describe('rental invoice check', () => {
+  it('shows read-only currency amounts in whole units', () => {
+    h.diff = '500.33';
+    renderCheck();
+    expect(screen.getByText('Over-billed by IDR 500')).toBeInTheDocument();
+  });
   it('AC-EQM-008 says under-billed in words when the invoice is below the expected amount', () => {
     h.diff = '-1250.00';
     renderCheck();
