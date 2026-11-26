@@ -72,6 +72,7 @@ const JournalsPage: React.FC = () => {
 
   return (
     <ListPage
+      desktopToolbarClassName="md:!items-end"
       title={t('journals:list.title', 'Journals')}
       count={data ? rows.length : undefined} total={data ? all.length : undefined}
       primaryAction={canCreate ? <CanWrite entity="journal" action="create">
