@@ -451,13 +451,11 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | 
       <div className="mt-1 block">
         <Tooltip content={detail}><span className="block w-fit cursor-help text-metric font-semibold tabular-nums text-foreground">{value}</span></Tooltip>
       </div>
-      <div className={caption && percentage != null ? 'sm:flex sm:items-start sm:gap-2' : undefined}>
-        {percentage != null && percentage >= 0 && <span className={caption ? 'mt-2 block w-full max-w-36 sm:w-20 sm:shrink-0' : 'mt-2 block w-full max-w-36'}>
-          <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
-        </span>}
-        {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
-        {caption && <span className="mt-1 block text-sm text-muted-foreground">{caption}</span>}
-      </div>
+      {percentage != null && percentage >= 0 && <span className="mt-2 block w-full max-w-36">
+        <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
+      </span>}
+      {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
+      {caption && <span className="mt-1 block text-sm text-muted-foreground">{caption}</span>}
     </li>
   );
 };
