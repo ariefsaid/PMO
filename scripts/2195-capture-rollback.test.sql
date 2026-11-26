@@ -35,10 +35,13 @@ create temporary table f2_forward as
 select proname,
        -- The level's own body for the catalog entries a later migration guarded above this window: the peeled-head
        -- definition without the one injected guard line (asserted present just above). Every other entry is verbatim.
-       case when proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','unlink_erp_purchase_document')
+       -- 2690 appends pg_temp to the search path of these functions above this window; the level's own path is the one
+       -- its migration set, so that one trailing token is normalized out of the body and the setting (nothing else is).
+       replace(case when proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','unlink_erp_purchase_document')
             then replace(pg_get_functiondef(p.oid), E'\n  perform public.assert_not_light();', '')
-            else pg_get_functiondef(p.oid) end as body,
-       proowner, proconfig, proacl, prosecdef, provolatile, proparallel, prorettype, proargtypes, pronargdefaults
+            else pg_get_functiondef(p.oid) end,
+            $q$ SET search_path TO 'public', 'pg_catalog', 'pg_temp'$q$, $q$ SET search_path TO 'public', 'pg_catalog'$q$) as body,
+       proowner, array_replace(proconfig, 'search_path=public, pg_catalog, pg_temp', 'search_path=public, pg_catalog') as proconfig, proacl, prosecdef, provolatile, proparallel, prorettype, proargtypes, pronargdefaults
 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
 where n.nspname='public' and proname in ('undo_captured_purchase','unlink_erp_purchase_document',
 'purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','capture_source_kind','capture_source_evidence',

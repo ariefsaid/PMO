@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
+import { inDays } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(180_000);
@@ -22,7 +23,7 @@ test('JOB-PU18 a supplier marked at risk shows on the supplier and on its orders
   const orderId = randomUUID();
   const invoiceId = randomUUID();
   const vendorName = `${run} Supply`;
-  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+  const daysAgo = (n: number) => inDays(-n);
   try {
     // Precondition: a supplier whose payable is long unpaid, with an open purchase on a work order.
     need('vendor', await svc.from('companies').insert({ id: vendorId, org_id: ORG_ID, name: vendorName, type: 'Vendor' }).select('id').single());

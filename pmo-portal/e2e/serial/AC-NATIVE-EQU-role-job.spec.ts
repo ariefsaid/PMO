@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { moneyJobRole } from '../support/moneyJobRole';
 import { serviceClient, projectWithWorkOrders, runId, need, ok, ORG_ID } from '../support/jobFixtures';
+import { inDays } from '../support/jobJourney';
 import { userClient } from '../support/stockFixture';
 import { signIn, pickComboboxOption } from '../helpers';
 
@@ -22,9 +23,8 @@ test('AC-NATIVE-EQU project control records crane hours and sees their native co
   const run = runId('split');
   const setup = await projectWithWorkOrders(service, run, ['First']);
   const asset = need('Admin registers crane', await service.from('equipment_assets').insert({ org_id: ORG_ID, code: run, name: `${run} crane`, default_unit: 'hours' }).select('id').single());
-  const date = new Date(); date.setDate(date.getDate() - 7);
-  const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  const dayIndex = (date.getDay() + 6) % 7;
+  const day = inDays(-7); // a week back by the organisation's clock; the grid is asked for this day's week
+  const dayIndex = (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
   const bindings = need('bindings', await service.from('external_org_bindings').select('id,status').eq('org_id', ORG_ID));
   const mappings = need('mappings', await service.from('budget_category_account_map').select('*').eq('org_id', ORG_ID));
   try {

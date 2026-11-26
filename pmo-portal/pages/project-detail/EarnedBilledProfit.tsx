@@ -28,6 +28,10 @@ const EarnedBilledProfit: React.FC<{ projectId: string }> = ({ projectId }) => {
   const canView = may('view', 'workOrderPlan');
   const setting = useOrgSwitch('disciplineProfit', canView);
   const on = canView && setting.data === true;
+  // #2895 review: the rollup reads stay gated on the switch being ON (the sibling DisciplineProfit's
+  // rule, and the hooks' own contracts). The switch read is session-cached, so a warm mount of an
+  // on-organisation resolves it from cache and the reads still start at once; an off-organisation
+  // pays none of them for a panel it will never see.
   const pva = useProjectPlanVsActual(projectId, on);
   const eb = useWorkOrderEarnedBilled(projectId, on);
   const revenue = useDisciplineRevenue(projectId, on);

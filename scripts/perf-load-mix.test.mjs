@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { ROLES, parseArgs, assignRoles, seedVars, crewWorkers, shellCalls } from './perf/load-mix.mjs';
+import { ROLES, parseArgs, assignRoles, seedVars, crewWorkers, shellCalls, remapProjectIds, pool } from './perf/load-mix.mjs';
 import { seedId } from './perf/load-run.mjs';
 
 test('seedId is the uuid Postgres md5(name)::uuid gives', () => {
@@ -53,4 +53,18 @@ test('every screen the mix names is in the captured fixture, with no capture-tim
   const raw = JSON.stringify(fx);
   for (const id of [seedId('lf-wo-1'), seedId('lf-user-field_user-1'), '00000000-0000-0000-0000-000000000001']) assert.ok(!raw.includes(id), id);
   assert.doesNotMatch(raw, /\b20\d\d-\d\d-\d\d\b/);
+});
+
+test('remapProjectIds swaps each captured project id for a real one, consistently', () => {
+  const body = (id) => JSON.stringify({ p_project_id: id });
+  const fx = { a: { calls: [{ body: body('a'.repeat(8) + '-0000-0000-0000-' + '0'.repeat(12)) }, { body: body('b'.repeat(8) + '-0000-0000-0000-' + '0'.repeat(12)) }, { body: body('a'.repeat(8) + '-0000-0000-0000-' + '0'.repeat(12)) }, { body: undefined }] } };
+  remapProjectIds(fx, ['r1', 'r2']);
+  assert.deepEqual(fx.a.calls.map((c) => c.body && JSON.parse(c.body).p_project_id), ['r1', 'r2', 'r1', undefined]);
+  const keep = { a: { calls: [{ body: body('c'.repeat(8) + '-0000-0000-0000-' + '0'.repeat(12)) }] } };
+  remapProjectIds(keep, []); // no real ids found: leave the fixture alone
+  assert.match(keep.a.calls[0].body, /cccccccc/);
+});
+test('pool merges samples and failures of every entry', () => {
+  const p = pool([{ ms: [1, 2], n: 3, err: 1 }, { ms: [10], n: 1, err: 0 }]);
+  assert.deepEqual([p.ms.length, p.n, p.err, p.rate], [3, 4, 1, 0.25]);
 });

@@ -32,6 +32,7 @@ let weekStart = '';
 const users = {} as Record<'engineer', { id: string; email: string }>;
 const dirA = fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-ctm-a-'));
 
+// e2e-org-day: allow — arithmetic on a GIVEN base string, not the runner's day; the whole journey shares this UTC anchor
 const day = (iso: string, add: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + add * 86_400_000).toISOString().slice(0, 10);
 function writeJson(dir: string, name: string, value: unknown): string {
   const file = path.join(dir, name);
@@ -62,7 +63,7 @@ test.beforeAll(async () => {
   const manager = await admin.from('profiles').select('id').eq('email', MANAGER).single();
   if (manager.error) throw new Error(`AC-CTM-017 seeded manager: ${manager.error.message}`);
   users.engineer = await fixtureUser('Engineer', 'eng', { manager_id: manager.data.id });
-  const today = new Date();
+  const today = new Date(); // e2e-org-day: allow — the CLI window and the week deep link share this UTC anchor end to end
   weekStart = day(today.toISOString().slice(0, 10), -((today.getUTCDay() + 6) % 7));
   const company = await admin.from('companies').insert({ org_id: SEED_ORG, name: `E2E CTM-017 ${RUN} Client`, type: 'Client' }).select('id').single();
   if (company.error) throw new Error(`AC-CTM-017 client: ${company.error.message}`);

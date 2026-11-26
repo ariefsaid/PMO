@@ -5,6 +5,7 @@
 // The revenue entitlement is granted by rewriting this page's org_features read (as JOB-M10 does), never a shared row.
 import { test, expect } from '@playwright/test';
 import { serviceClient, runId, ORG_ID, ok } from '../support/jobFixtures';
+import { orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
 
@@ -29,7 +30,7 @@ test('JOB-M13 the Executive reads the management profit and loss, and nothing as
     projectId = project.data.id as string;
     const invoice = await svc.from('sales_invoices').insert({
       org_id: ORG_ID, project_id: projectId, amount: billed, currency: 'USD', tax_treatment: 'exclusive',
-      tax_amount: 0, status: 'Unpaid', invoice_date: new Date().toISOString().slice(0, 10), si_number: `SI-${run}`,
+      tax_amount: 0, status: 'Unpaid', invoice_date: orgToday(), si_number: `SI-${run}`,
     }).select('id').single();
     if (invoice.error) throw new Error('invoice: ' + invoice.error.message);
     invoiceId = invoice.data.id as string;

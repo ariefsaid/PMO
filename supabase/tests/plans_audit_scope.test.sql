@@ -39,7 +39,7 @@ select ok(exists (
   ), 'a check constraint pairs platform scope with a null org and org scope with an org');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'public' and p.proname = 'log_platform_audit'
-              and p.prosecdef and p.proconfig @> array['search_path=public']::text[]),
+              and p.prosecdef and p.proconfig @> array['search_path=public, pg_temp']::text[]),
   1, 'the platform audit writer exists as a security definer with a pinned search_path');
 select ok(not has_function_privilege('anon', 'public.log_platform_audit(text,uuid,jsonb)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.log_platform_audit(text,uuid,jsonb)', 'EXECUTE')

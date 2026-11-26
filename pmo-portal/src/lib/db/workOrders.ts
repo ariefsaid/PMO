@@ -170,10 +170,9 @@ export function isOverCommitmentRefusal(err: unknown): boolean {
 }
 
 /** Attach only the caller's advisory issue decision; unreadable decisions fail closed. */
-async function attachIssueEligibility(rows: WorkOrderRow[]): Promise<WorkOrderRow[]> {
-  const ids = rows.filter((row) => row.status === 'Draft').map((row) => row.id);
-  if (ids.length === 0) return rows;
+async function issueEligibilityMap(ids: string[]): Promise<Map<string, string>> {
   const decisions = new Map<string, string>();
+  if (ids.length === 0) return decisions;
   // Chunked so no response passes db-max-rows; a failed chunk fails closed for its own ids only.
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += ELIGIBILITY_CHUNK) chunks.push(ids.slice(i, i + ELIGIBILITY_CHUNK));
@@ -185,6 +184,12 @@ async function attachIssueEligibility(rows: WorkOrderRow[]): Promise<WorkOrderRo
       // Keep the register readable; missing eligibility never enables Issue.
     }
   });
+  return decisions;
+}
+
+async function attachIssueEligibility(rows: WorkOrderRow[]): Promise<WorkOrderRow[]> {
+  const ids = rows.filter((row) => row.status === 'Draft').map((row) => row.id);
+  const decisions = await issueEligibilityMap(ids);
   return rows.map((row) => row.status === 'Draft'
     ? { ...row, issue_eligibility: decisions.get(row.id) ?? null }
     : row);
@@ -241,14 +246,16 @@ export async function listAllWorkOrders(): Promise<WorkOrderListRow[]> {
 
 /** One work order by id, or null when not found / not readable. RLS scopes the row. */
 export async function getWorkOrder(id: string): Promise<WorkOrderRow | null> {
-  const { data, error } = await supabase
-    .from('work_orders')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
-  if (error) throwWrite(error);
-  if (!data) return null;
-  return (await attachIssueEligibility([data]))[0] ?? null;
+  // #2895: the id is known before either read, so the advisory issue decision travels WITH the row
+  // read instead of one serial round behind it (it gates the header's Issue action). The decision is
+  // still attached only to a Draft, and an unreadable decision still fails closed to null.
+  const [row, decisions] = await Promise.all([
+    supabase.from('work_orders').select('*').eq('id', id).maybeSingle(),
+    issueEligibilityMap([id]),
+  ]);
+  if (row.error) throwWrite(row.error);
+  if (!row.data) return null;
+  return row.data.status === 'Draft' ? { ...row.data, issue_eligibility: decisions.get(id) ?? null } : row.data;
 }
 
 /**

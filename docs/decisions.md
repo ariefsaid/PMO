@@ -4230,3 +4230,6 @@ the owner may revisit it after the client's tests.
   leaving a list is not written to the page left behind.
 - **DD-R1125-13 Cost journeys for an organisation with no accounting connection run with the connection off.** They prove the native
   cost path, not the mirror.
+- **DD-R1125-14 A Project Manager reads money for their own projects only** (owner ruling, 26 November 2026). One shared rule decides
+  "own project" for every project-bound money read; roles that read organisation-wide money are unchanged. Money that is not
+  bound to a project is outside this rule.

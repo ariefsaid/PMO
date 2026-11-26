@@ -4,6 +4,7 @@
 // each required close-out item done; the work order refuses to close while one is open, and closes once all are done.
 import { test, expect } from '@playwright/test';
 import { ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(120_000);
@@ -21,7 +22,7 @@ test('JOB-PC13 a project control manager marks the close-out certificates done a
     projectId = fx.projectId;
     woId = fx.workOrders[0].id;
     const wo = fx.workOrders[0];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = orgToday();
 
     // As an Admin would set the checklist: both items name the project control manager as their owner role.
     ok('close-out items', await svc.from('work_order_closeout_items').insert([
