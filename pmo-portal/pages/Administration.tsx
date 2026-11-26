@@ -606,6 +606,7 @@ const Administration: React.FC = () => {
         .filter((id) => id !== 'document-categories' || canManageDocumentCategories),
       ...(showClearance ? ['clearance' as const] : []),
       ...(canViewCostAttribution ? ['cost-attribution' as const] : []),
+      ...(canManageScheduledReports ? ['scheduled-reports' as const] : []),
     ];
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];

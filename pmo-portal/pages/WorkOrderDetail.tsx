@@ -152,7 +152,7 @@ const WorkOrderDetail: React.FC = () => {
     issues: t('pageIndex.issues', 'Issues and tasks'),
   };
   const backLabel = t('back', 'Work orders');
-  const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/projects');
+  const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/work-orders');
 
   const acceptances = useMemo(() => (bastList.data ?? []).filter((a) => a.work_order_id === id), [bastList.data, id]);
   const progress = useMemo(
@@ -178,7 +178,7 @@ const WorkOrderDetail: React.FC = () => {
   }
   const row = wo.data;
   if (!row) {
-    return <><BackBar label={backLabel} phoneOnly onBack={goBack} />
+    return <><BackBar label={backLabel} onBack={() => navigate('/work-orders')} />
       <ListState variant="empty" icon="doc" title={t('notFound', 'Work order not found')}
         sub={t('notFoundSub', "It doesn't exist, or you don't have access to it.")} /></>;
   }

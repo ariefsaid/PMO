@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button, Card, Combobox, DataTable, Icon, EntityFormModal, FormGrid, ListPage, ListState, TextField, parsePageParam, useClampPage, useEntityForm, useToast, useUrlFilters,
@@ -137,7 +137,7 @@ const ImprestFloatsPage: React.FC = () => {
   const may = usePermission();
   const rows = data?.rows ?? [];
   const columns: Column<FloatListRow>[] = [
-    { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <div className="min-w-0"><span className="font-semibold">{r.project?.name ?? '—'}</span><span className="block text-muted-foreground">{r.custodian?.full_name ?? '—'}</span><PositionFigure floatId={r.id} currency={r.currency} figure="count" /></div>,
+    { key: 'project', header: t('imprest:list.columns.project', 'Project'), cell: (r) => <div className="min-w-0"><Link className="font-semibold text-primary-text hover:underline" to={`/imprest/${r.id}`}>{r.project?.name ?? '—'}</Link><span className="block text-muted-foreground">{r.custodian?.full_name ?? '—'}</span><PositionFigure floatId={r.id} currency={r.currency} figure="count" /></div>,
       exportValue: (r) => r.project?.name ?? '' },
     { key: 'custodian', header: t('imprest:list.columns.custodian', 'Custodian'), cell: (r) => r.custodian?.full_name ?? '—', exportOnly: true,
       exportValue: (r) => r.custodian?.full_name ?? '' },

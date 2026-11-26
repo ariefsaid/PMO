@@ -160,5 +160,7 @@
   },
   "moreActions": "Tindakan sertifikat lainnya",
   "emptyFiltered": "Tidak ada sertifikat dengan status ini",
-  "clearFilter": "Tampilkan semua"
+  "clearFilter": "Tampilkan semua",
+  "openProcurement": "Buka pesanan subkontrak",
+  "prepareRemedy": "Sertifikat disiapkan dari pesanan subkontrak oleh Keuangan atau manajer proyek."
 }

@@ -150,7 +150,7 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
   );
 
   const waitingForYou = (
-    <Card role="region" aria-labelledby="finance-hub-waiting" data-testid="finance-hub-waiting">
+    <Card className="bg-surface-selected" role="region" aria-labelledby="finance-hub-waiting" data-testid="finance-hub-waiting">
       <CardHead id="finance-hub-waiting">{t('financeHub:hub.waitingForYou', 'Waiting for your decision')}{waiting.count !== undefined && ` (${waiting.count})`}</CardHead>
       <CardPad>
         {waiting.isError ? (

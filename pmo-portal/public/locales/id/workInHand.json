@@ -1,10 +1,13 @@
 {
   "asOf": "Per {{date}}",
-  "table": { "scrollLabel": "Kontrak dan perintah kerja {{currency}}" },
+  "table": {
+    "scrollLabel": "Kontrak dan perintah kerja {{currency}}"
+  },
   "attention": {
     "noRate": "Belum ada laju penagihan",
     "over": "Penagihan melebihi nilai",
-    "title": "Perlu dicek"
+    "title": "Perlu dicek",
+    "sharedReason": "{{count}} proyek: {{reason}}"
   },
   "col": {
     "backlog": "Bulan backlog",
@@ -65,7 +68,8 @@
     "open": "Buka {{name}}",
     "over": "Penagihan melebihi nilai",
     "showMonths": "Tampilkan bulan untuk {{name}}",
-    "workOrder": "$t(common:terms.clientWorkOrder)"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "monthDetails": "Rincian bulan"
   },
   "sort": {
     "backlog": "Bulan backlog",

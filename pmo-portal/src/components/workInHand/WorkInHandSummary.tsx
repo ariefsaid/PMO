@@ -100,7 +100,7 @@ export const WorkInHandSummary: React.FC<WorkInHandSummaryProps> = ({
       <div className={`grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${showHeader ? '[&>:first-child]:pt-0 sm:[&>*]:pt-0' : ''}`}>
         <div className="flex min-w-0 flex-col gap-1.5 px-[var(--panel-inset)] py-4" data-testid={`${testId}-value`}>
           <div className="text-control font-medium text-foreground">
-            {t('summary.value', 'Value of work in hand')}
+            {t('sort.leftToBill', 'Left to bill')}
           </div>
           <div className="text-metric font-semibold tracking-[-0.02em] tabular text-foreground">
             {money(summary.orgLeftToBillCents, summary.orgCurrency)}

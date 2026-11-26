@@ -53,7 +53,6 @@ import {
 import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
-import { useBudgetUsed } from '@/src/hooks/useBudgetUsed';
 import { useFxIdrRate } from '@/src/hooks/useFxIdrRate';
 import { idrPosition } from '@/src/lib/budget/idrPosition';
 import { formatFxEquivalent, formatIdrApprox, fxRateCaption, fxRateSourceNote } from '@/src/lib/fxEquivalent';
@@ -188,7 +187,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const position = useBudgetPosition(project, true, { refetchOnMount: false });
   const { t: tCommon } = useTranslation(['common', 'finance']);
   const idrRate = useFxIdrRate();
-  const budgetUsed = useBudgetUsed(project);
   const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
   const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: ['budget-push-status', projectId],
@@ -708,7 +706,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const equivalentNote = (amount: number | null, currency: string): string | undefined =>
     amount !== null && currency === 'USD' && fxMatch ? sourceNote : undefined;
   // A card that carries `≈ IDR … (using IDR … rate)` needs the whole line on one row, so the strip gives its cells that width.
-  const showsEquivalent = [equivalentCaption(totalBudget, activeBudgetCurrency), equivalentCaption(totalSpent, totalSpentCurrency), equivalentCaption(totalCommitted, project.currency)].some((c) => c?.startsWith('≈ IDR'));
   const spentUnknownCaption = t('projectDetail.budget.captionSpendingUnlinked', 'Spending is not linked');
   // The cause is said once, on the Spent card where it is fixed; the figures that depend on it say the same short thing.
   const dependsOnSpending = t('projectDetail.budget.captionNeedsSpending', 'Shown once spending is linked');
@@ -718,10 +715,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       : !budgetAvailable ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : rateReason;
   // With spending unknown there is no percentage: never a cached one.
   // The header reads the same value through the same reader; here an unlinked or hidden spending figure shows no percentage.
-  const usedPercentShown = totalSpent === null ? null : budgetUsed.percent;
-  const usedApproximate = usedPercentShown !== null && budgetUsed.approximate;
-  const usedValue = usedPercentShown === null ? null : budgetUsed.value;
-  const usedCaption = usedPercentShown === null ? unknownCaption : usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
   const leftApproximate = !sameCurrencies && hasForeign && idr.left !== null;
   const leftTile = sameCurrencies || !hasForeign
     ? tileAmount(totalLeft)
@@ -1038,9 +1031,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className={showsEquivalent ? 'grid-cols-1 min-[1024px]:grid-cols-2 min-[1024px]:[&>*:last-child]:col-span-full min-[1360px]:grid-cols-6 min-[1360px]:[&>*]:col-span-2 min-[1360px]:[&>*:nth-child(n+4)]:col-span-3' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5'}>
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? (activeVersion || versions.length === 0 ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : noActiveBudgetCaption) : equivalentCaption(totalBudget, activeBudgetCurrency)} captionWrap captionNote={equivalentNote(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} nowrapLabel keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} captionWrap captionNote={equivalentNote(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} captionWrap captionNote={equivalentNote(totalCommitted, project.currency)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
         <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} nowrapLabel keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
@@ -1053,6 +1045,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <CardHead className="pb-1">{t('projectDetail.budget.byCategory', 'Budget by category')}</CardHead>
           <CardPad className="pt-2">
             <StackedBar
+              minLabelledShare={15}
               ariaLabel={t('projectDetail.budget.byCategory', 'Budget by category')}
               otherLabel={t('projectDetail.budget.otherCategories', 'Other')}
               segments={enrichedRows.filter((row) => row.budget > 0).map((row) => ({

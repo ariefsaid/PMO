@@ -44,7 +44,9 @@
     "withdrawBody": "The request is cancelled and its approvers are no longer asked.",
     "withdrawTitle": "Withdraw this request",
     "withdrawn": "Request withdrawn",
-    "requested": "Requested"
+    "requested": "Requested",
+    "retryLoad": "Try again",
+    "backToList": "Back to material requests"
   },
   "deliveryNote": {
     "number": "Number",

@@ -37,6 +37,7 @@ describe('time record roles setting', () => {
     h.roles.secondRecordRoles = ['quantity_surveyor', 'project_control_manager'];
     view();
     const enter = await screen.findByRole('group', { name: 'May enter a second record' });
+    await userEvent.click(within(enter).getByRole('button', { name: 'Choose roles' }));
     const role = within(enter).getByRole('checkbox', { name: 'Measurement lead', checked: true });
     const save = screen.getByRole('button', { name: 'Save' });
     await userEvent.click(role);

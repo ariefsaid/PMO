@@ -30,7 +30,7 @@ export interface TabsProps<V extends string = string> {
   ariaLabel: string;
   /** Namespace for the generated tab/panel ids so they're unique + stable per surface. */
   idBase: string;
-  /** Keep the first tab visible on arrival, even when another tab is initially selected. */
+  /** @deprecated Retained for caller compatibility; the selected tab is always revealed. */
   startAtFirst?: boolean;
   className?: string;
 }
@@ -61,12 +61,12 @@ export function Tabs<V extends string = string>({
   onChange,
   ariaLabel,
   idBase,
-  startAtFirst = false,
   className,
   insetFirstTab = false,
 }: TabsProps<V>) {
   const { t } = useTranslation('common');
   const listRef = useRef<HTMLDivElement>(null);
+  const [stripWidth, setStripWidth] = useState(0);
   const [overflow, setOverflow] = useState({ left: false, right: false });
 
   const syncOverflow = useCallback(() => {
@@ -80,9 +80,13 @@ export function Tabs<V extends string = string>({
   useEffect(() => {
     const list = listRef.current;
     if (!list) return undefined;
-    syncOverflow();
+    const resize = () => {
+      syncOverflow();
+      setStripWidth(list.clientWidth);
+    };
+    resize();
     list.addEventListener('scroll', syncOverflow, { passive: true });
-    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncOverflow);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
     ro?.observe(list);
     return () => {
       list.removeEventListener('scroll', syncOverflow);
@@ -93,8 +97,6 @@ export function Tabs<V extends string = string>({
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
   const mounted = useRef(false);
-  const initialValue = useRef(value);
-  const selectionChanged = useRef(false);
   // Counts arriving after mount widen the tabs, so the selected one is brought back into view then too.
   const widths = items.map((item) => `${item.count ?? ''}${item.detail ?? ''}`).join('|');
   useEffect(() => {
@@ -102,8 +104,6 @@ export function Tabs<V extends string = string>({
     // First mount on the first tab: the strip is already at scroll 0, so skip the forced layout.
     const first = !mounted.current;
     mounted.current = true;
-    if (value !== initialValue.current) selectionChanged.current = true;
-    if (startAtFirst && !selectionChanged.current) return;
     if (first && value === items[0]?.value) return;
     const list = listRef.current;
     if (!list) return;
@@ -115,11 +115,11 @@ export function Tabs<V extends string = string>({
     const style = getComputedStyle(active);
     const left = tab.left - (parseFloat(style.scrollMarginLeft) || 0);
     const right = tab.right + (parseFloat(style.scrollMarginRight) || 0);
-    // Keep the selected label clear of the right-edge affordance.
-    const offset = left < strip.left ? left - strip.left : right > strip.right - 28 ? right - strip.right + 28 : 0;
+    // The controls occupy separate gutters; reveal the entire selected tab within the track.
+    const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
-  }, [value, widths, syncOverflow, startAtFirst]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+  }, [value, widths, stripWidth, syncOverflow]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   const nudge = (dir: -1 | 1) => {
     const list = listRef.current;
@@ -127,23 +127,16 @@ export function Tabs<V extends string = string>({
     list.scrollBy({ left: dir * Math.max(200, Math.round(list.clientWidth * 0.6)), behavior: scrollBehavior() });
   };
 
-  const maskClass = overflow.left && overflow.right
-    ? '[mask-image:linear-gradient(to_right,transparent_0%,#000_36px,#000_calc(100%-36px),transparent_100%)]'
-    : overflow.right
-      ? '[mask-image:linear-gradient(to_right,#000_calc(100%-36px),transparent_100%)]'
-      : overflow.left
-        ? '[mask-image:linear-gradient(to_right,transparent_0%,#000_36px,#000_100%)]'
-        : '';
-
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
-    <div className="relative flex min-w-0 items-center">
-    {overflow.left && (
+    <div className="relative flex min-w-0 items-center gap-1">
+    {(overflow.left || overflow.right) && (
       <button
         type="button"
         aria-label={t('ui:tabs.scrollLeft', 'Scroll tabs left')}
+        disabled={!overflow.left}
         onClick={() => nudge(-1)}
-        className="absolute left-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+        className="mb-4 flex size-8 shrink-0 disabled:invisible items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >
         <span className="rotate-180"><Icon name="chev" /></span>
       </button>
@@ -157,10 +150,8 @@ export function Tabs<V extends string = string>({
         'mb-4 flex min-w-0 flex-1 flex-nowrap whitespace-nowrap gap-0.5 border-b border-border',
         // Horizontal scroll-snap strip when tabs exceed container width
         'overflow-x-auto snap-x snap-mandatory',
-        overflow.right && 'pe-9',
         // Scrollbar-free (aesthetic — chromeless thin scrollbar on macOS; no layout impact)
         '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        maskClass,
         className,
       )}
     >
@@ -179,7 +170,7 @@ export function Tabs<V extends string = string>({
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal',
+              'relative inline-flex h-[var(--table-head-height)] max-w-full shrink-0 snap-start items-center px-4 text-control font-normal',
               insetFirstTab === 'panel'
                 ? 'first:ps-[calc(var(--panel-inset)+1px)]'
                 : insetFirstTab
@@ -193,9 +184,9 @@ export function Tabs<V extends string = string>({
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {t.label}
+            <span className="min-w-0 truncate">{t.label}</span>
             {t.count != null && t.countPresentation === 'inline' && (
-              <span className="ml-1.5 tabular text-support font-normal text-muted-foreground">
+              <span className="ml-1.5 shrink-0 tabular text-support font-normal text-muted-foreground">
                 {t.count}
               </span>
             )}
@@ -203,21 +194,22 @@ export function Tabs<V extends string = string>({
               // Count badge: neutral fill + accessible neutral text, full radius, text-support
               // (DESIGN.md §5 Count badge). The number is part of the tab's accessible
               // name (a11y: count read in label, not color-only).
-              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-status-neutral-surface px-1.5 text-support font-medium text-count-foreground">
+              <span className="ml-1.5 inline-flex h-5 shrink-0 min-w-5 items-center justify-center rounded-full bg-status-neutral-surface px-1.5 text-support font-medium text-count-foreground">
                 {t.count}
               </span>
             )}
-            {t.detail && <span className="ml-1.5 tabular text-control font-normal text-muted-foreground">{t.detail}</span>}
+            {t.detail && <span className="ml-1.5 shrink-0 tabular text-control font-normal text-muted-foreground">{t.detail}</span>}
           </BaseTabs.Tab>
         );
       })}
     </BaseTabs.List>
-    {overflow.right && (
+    {(overflow.left || overflow.right) && (
       <button
         type="button"
         aria-label={t('ui:tabs.scrollRight', 'Scroll tabs right')}
+        disabled={!overflow.right}
         onClick={() => nudge(1)}
-        className="absolute right-0 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
+        className="mb-4 flex size-8 shrink-0 disabled:invisible items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-xs hover:bg-surface-hover hover:text-foreground [&_svg]:size-4"
       >
         <Icon name="chev" />
       </button>

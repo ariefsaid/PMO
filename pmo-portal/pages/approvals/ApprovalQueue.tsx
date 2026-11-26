@@ -108,7 +108,7 @@ export function QueueButton({
             ? t('approvals.entryOne', 'entry')
             : t('approvals.entryOther', 'entries')}
         </span>
-        <span className="ml-auto text-right tabular text-foreground">{t('timesheets.hoursTotal', '{{count}} hours', { count: sumHours(row), formatted: formatNumberExact(sumHours(row)) })}</span>
+        <span className="ml-auto text-right tabular text-foreground">{t('timesheets:hoursTotal', '{{count}} hours', { count: sumHours(row), formatted: formatNumberExact(sumHours(row)) })}</span>
       </div>
     </button>
   );

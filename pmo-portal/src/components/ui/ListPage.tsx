@@ -151,7 +151,7 @@ export const ListPage: React.FC<ListPageProps> = ({
         ) : (
           <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 ${search ? 'md:grid-cols-[minmax(0,1fr)_220px_auto]' : 'md:grid-cols-[minmax(0,1fr)_auto]'} md:items-center ${desktopToolbarClassName ?? ''}`}>
             {(filters || secondaryFilter) && (
-              <div data-testid="list-page-filter-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-1 md:row-start-1">
+              <div data-testid="list-page-filter-group" className="flex min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-auto [&>*]:max-w-full md:col-start-1 md:row-start-1">
                 {filters}
                 {secondaryFilter}
               </div>
