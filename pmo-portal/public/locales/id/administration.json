@@ -882,7 +882,7 @@
     },
     "dsrValidateRoles": {
       "title": "Validasi laporan harian lokasi",
-      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Centang jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
+      "intro": "Admin, Keuangan, dan Manajer Proyek dari proyek terkait selalu dapat memvalidasi laporan harian lokasi orang lain. Pilih jabatan yang pemegang aktifnya juga boleh memvalidasi laporan di seluruh organisasi Anda.",
       "legend": "Jabatan yang memvalidasi laporan harian lokasi",
       "loadError": "Peran validator laporan lokasi tidak dapat dimuat",
       "adminOnly": "Hanya Admin yang dapat mengubah ini.",

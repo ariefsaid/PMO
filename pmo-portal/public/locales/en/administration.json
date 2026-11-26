@@ -882,7 +882,7 @@
     },
     "dsrValidateRoles": {
       "title": "Validate daily site reports",
-      "intro": "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Tick job roles whose active holders may also validate reports across your organisation.",
+      "intro": "Admin, Finance, and a project's own Project Manager can always validate another person's daily site report. Choose job roles whose active holders may also validate reports across your organisation.",
       "legend": "Job roles that validate daily site reports",
       "loadError": "Couldn't load site report validator roles",
       "adminOnly": "Only an Admin can change this.",

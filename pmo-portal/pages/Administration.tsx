@@ -375,9 +375,15 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
-          <OrgAttendanceTimeRoles />
           <People />
-          <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
+          <div className="mt-8">
+            <SettingsGroups>
+              <SettingsGroup id="people-settings" title={t('admin.settingsGroups.peopleSettings', 'People settings')}>
+                <OrgAttendanceTimeRoles />
+                <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
+              </SettingsGroup>
+            </SettingsGroups>
+          </div>
         </div>
       );
     case 'clearance':

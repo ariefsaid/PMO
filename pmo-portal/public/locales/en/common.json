@@ -996,7 +996,8 @@
       "projectsNumbering": "Numbering and project lists",
       "projectsSite": "Daily site reports",
       "projectsWorkOrders": "Work orders",
-      "projectsIssues": "Issues"
+      "projectsIssues": "Issues",
+      "peopleSettings": "People settings"
     }
   },
   "approvals": {
@@ -5045,5 +5046,10 @@
     "title": "Page not found",
     "body": "The page you're looking for doesn't exist or has been moved.",
     "back": "Back to Dashboard"
+  },
+  "roleChecklist": {
+    "none": "No role chosen",
+    "done": "Done",
+    "choose": "Choose roles"
   }
 }

@@ -996,7 +996,8 @@
       "projectsNumbering": "Penomoran dan daftar proyek",
       "projectsSite": "Laporan harian lapangan",
       "projectsWorkOrders": "Perintah kerja",
-      "projectsIssues": "Masalah"
+      "projectsIssues": "Masalah",
+      "peopleSettings": "Pengaturan orang"
     }
   },
   "approvals": {
@@ -5045,5 +5046,10 @@
     "title": "Halaman tidak ditemukan",
     "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
     "back": "Kembali ke Dasbor"
+  },
+  "roleChecklist": {
+    "none": "Belum ada peran dipilih",
+    "done": "Selesai",
+    "choose": "Pilih peran"
   }
 }
