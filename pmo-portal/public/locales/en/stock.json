@@ -734,7 +734,7 @@
     }
   },
   "atRisk": {
-    "title": "Stock at risk",
+    "title": "Stock value cover",
     "count": "{{count}} locations",
     "countOne": "1 location",
     "columns": {
@@ -758,7 +758,8 @@
     "states": {
       "emptyTitle": "No location holds stock",
       "emptySub": "Locations with stock appear here against the cover recorded on them."
-    }
+    },
+    "scope": "Stock value per location compared with recorded cover. For stock below its reorder level, open Reorder."
   },
   "transfers": {
     "title": "Stock transfers",

@@ -734,7 +734,7 @@
     }
   },
   "atRisk": {
-    "title": "Stok berisiko",
+    "title": "Perlindungan nilai stok",
     "count": "{{count}} lokasi",
     "countOne": "1 lokasi",
     "columns": {
@@ -758,7 +758,8 @@
     "states": {
       "emptyTitle": "Belum ada lokasi yang menyimpan stok",
       "emptySub": "Lokasi yang menyimpan stok muncul di sini bersama perlindungan yang dicatat untuknya."
-    }
+    },
+    "scope": "Nilai stok per lokasi dibandingkan dengan perlindungan yang dicatat. Untuk stok di bawah batas, buka Pesanan ulang."
   },
   "transfers": {
     "title": "Transfer stok",
