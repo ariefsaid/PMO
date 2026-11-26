@@ -43,7 +43,7 @@ select ok(has_function_privilege('service_role','public.procurement_create_refus
           and not has_function_privilege('authenticated','public.procurement_create_refusal(uuid,uuid,text,uuid)','execute')
           and not has_function_privilege('anon','public.procurement_create_refusal(uuid,uuid,text,uuid)','execute'),
   'procurement_create_refusal is executable by the service role only');
-select ok((select prosecdef and proconfig @> array['search_path=public, pg_catalog'] from pg_proc
+select ok((select prosecdef and proconfig @> array['search_path=public, pg_catalog, pg_temp'] from pg_proc
             where oid = 'public.procurement_create_refusal(uuid,uuid,text,uuid)'::regprocedure),
   'procurement_create_refusal is SECURITY DEFINER with a pinned search_path');
 

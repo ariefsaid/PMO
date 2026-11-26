@@ -207,7 +207,7 @@ select ok(not has_function_privilege('anon', 'public.assert_invoice_command_with
           and not has_function_privilege('authenticated', 'public.assert_invoice_command_within_work_order(uuid,text,text,jsonb)', 'execute'),
   'AC-BWO-002 the shared command check is not client-executable');                                                    -- 23
 select is((select p.prosecdef from pg_proc p where p.oid = 'public.claim_outbox_for_commit(uuid,interval)'::regprocedure)
-          and (select p.proconfig from pg_proc p where p.oid = 'public.claim_outbox_for_commit(uuid,interval)'::regprocedure) = array['search_path=public'],
+          and (select p.proconfig from pg_proc p where p.oid = 'public.claim_outbox_for_commit(uuid,interval)'::regprocedure) = array['search_path=public, pg_temp'],
   true, 'AC-BWO-002 the claim keeps SECURITY DEFINER and its pinned search_path');                                     -- 24
 
 select * from finish();
