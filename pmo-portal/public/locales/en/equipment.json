@@ -69,7 +69,9 @@
     "perMonth": "Per month",
     "termsElsewhere": "Rental periods and rate changes are on the equipment's own page.",
     "openRecord": "Open the equipment page",
-    "edit": "Edit"
+    "edit": "Edit",
+    "loggedIn": "Logged in",
+    "inServiceSince": "In service since"
   },
   "availability": {
     "amountInvalid": "Enter the amount as a number with at most 2 decimals",
@@ -197,7 +199,16 @@
     "unrecordedNote": "Unrecorded days are days in service with no status. Days before the organisation started recording are not counted.",
     "metricsEmpty": "No figures for this period",
     "hour": "Hour",
-    "hourly": "Hourly rental"
+    "hourly": "Hourly rental",
+    "termsSaved": "Rental terms saved",
+    "rentedToShort": "Rental end",
+    "openEnded": "Open",
+    "per": "Per",
+    "addTerms": "Add rental terms",
+    "noTerms": "No rental terms",
+    "rateFrom": "New rate from",
+    "markOwnedTitle": "Mark this machine owned?",
+    "markOwnedBody": "It leaves the rental invoice check."
   },
   "basis": {
     "actual_cost": "Actual cost by usage",
@@ -307,7 +318,10 @@
     "actions": "Actions",
     "open": "Open",
     "openRecord": "Open the record of {{name}}",
-    "renewLabel": "Renew {{type}} of {{name}}"
+    "renewLabel": "Renew {{type}} of {{name}}",
+    "expiredPill": "Expired",
+    "dueSoon": "Due soon",
+    "state": "Expiry state"
   },
   "nav": {
     "assets": "Assets",
@@ -478,7 +492,9 @@
   "people": {
     "error": "Couldn't load this person",
     "notFound": "This person was not found",
-    "notFoundSub": "They may have been archived, or you may not have access."
+    "notFoundSub": "They may have been archived, or you may not have access.",
+    "active": "Active",
+    "actions": "Person actions"
   },
   "vendorResponse": {
     "title": "Vendor response to breakdowns",
@@ -509,7 +525,9 @@
     "minutes": "{{count}} min",
     "day": "Day",
     "hour": "Hour (00–23)",
-    "minute": "Minute"
+    "minute": "Minute",
+    "breakdownFrom": "Breakdown from",
+    "responseTime": "Response time"
   },
   "home": {
     "newEquipment": "New equipment",

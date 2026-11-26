@@ -69,7 +69,9 @@
     "perMonth": "Per bulan",
     "termsElsewhere": "Periode sewa dan perubahan tarif ada di halaman alat itu sendiri.",
     "openRecord": "Buka halaman alat",
-    "edit": "Ubah"
+    "edit": "Ubah",
+    "loggedIn": "Dicatat dalam",
+    "inServiceSince": "Beroperasi sejak"
   },
   "availability": {
     "amountInvalid": "Masukkan jumlah sebagai angka dengan paling banyak 2 desimal",
@@ -197,7 +199,16 @@
     "unrecordedNote": "Hari tanpa catatan adalah hari beroperasi tanpa status. Hari sebelum organisasi mulai mencatat tidak dihitung.",
     "metricsEmpty": "Tidak ada angka untuk periode ini",
     "hour": "Jam",
-    "hourly": "Sewa per jam"
+    "hourly": "Sewa per jam",
+    "termsSaved": "Ketentuan sewa disimpan",
+    "rentedToShort": "Akhir sewa",
+    "openEnded": "Terbuka",
+    "per": "Per",
+    "addTerms": "Tambah ketentuan sewa",
+    "noTerms": "Belum ada ketentuan sewa",
+    "rateFrom": "Tarif baru mulai",
+    "markOwnedTitle": "Tandai alat ini milik sendiri?",
+    "markOwnedBody": "Alat keluar dari pemeriksaan tagihan sewa."
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",
@@ -307,7 +318,10 @@
     "actions": "Tindakan",
     "open": "Buka",
     "openRecord": "Buka catatan {{name}}",
-    "renewLabel": "Perpanjang {{type}} milik {{name}}"
+    "renewLabel": "Perpanjang {{type}} milik {{name}}",
+    "expiredPill": "Kedaluwarsa",
+    "dueSoon": "Segera habis",
+    "state": "Status masa berlaku"
   },
   "nav": {
     "assets": "Aset",
@@ -478,7 +492,9 @@
   "people": {
     "error": "Orang ini tidak dapat dimuat",
     "notFound": "Orang ini tidak ditemukan",
-    "notFoundSub": "Mungkin sudah diarsipkan, atau Anda tidak punya akses."
+    "notFoundSub": "Mungkin sudah diarsipkan, atau Anda tidak punya akses.",
+    "active": "Aktif",
+    "actions": "Tindakan orang"
   },
   "vendorResponse": {
     "title": "Respons vendor terhadap kerusakan",
@@ -509,7 +525,9 @@
     "minutes": "{{count}} mnt",
     "day": "Tanggal",
     "hour": "Jam (00–23)",
-    "minute": "Menit"
+    "minute": "Menit",
+    "breakdownFrom": "Rusak sejak",
+    "responseTime": "Waktu tanggap"
   },
   "home": {
     "newEquipment": "Alat baru",
