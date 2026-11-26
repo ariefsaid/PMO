@@ -95,6 +95,14 @@ describe('WorkOrderPlanVsActual', () => {
     expect(screen.queryByTestId('wo-pva-project-hours')).toBeNull();
   });
 
+  it('a work order with cost but no plan is not "nothing yet": its cost row shows', () => {
+    setData({ workOrders: [wo('A', 'WO-1', { revenue: null })], lines: [line({ workOrderId: 'A', amount: '450.00' })] });
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
+    expect(screen.queryByTestId('wo-pva-nothing-yet')).toBeNull();
+    expect(within(screen.getByTestId('wo-pva-row-A')).getByTestId('wo-pva-direct').textContent).toMatch(/450/);
+    expect(within(screen.getByTestId('wo-pva-row-A')).getByTestId('wo-pva-plan-direct').textContent).toBe('No plan');
+  });
+
   it('shows project hours and distinct crew alongside their plans', () => {
     setData({ workOrders: [wo('A', 'WO-1')],
       plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'crew_hours', value: '20.00', note: null }],

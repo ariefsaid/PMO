@@ -260,7 +260,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
   const zero = (v: string | null) => v === null || /^-?0(\.0+)?$/.test(v);
   // Nothing planned and nothing spent: one line and the Plan action, never a wall of zeros.
   const nothingYet = live.length > 0 && rollup.totals.every((tot) => tot.planDirect === null && tot.planIndirect === null && zero(tot.total) && zero(tot.notAssigned) && zero(tot.revenue) && !tot.hasOtherRevenue)
-    && live.every((w) => { const f = figures.get(w.id)!; return zero(w.revenue) && f.plan.equipment_hours === null && f.plan.crew_hours === null && f.equipmentHours === 0 && f.equipmentDays === 0 && f.crewHours === 0 && f.otherCurrency.length === 0; });
+    && live.every((w) => { const f = figures.get(w.id)!; return zero(w.revenue) && zero(f.direct) && zero(f.allocated) && f.plan.direct_budget === null && f.plan.indirect_budget === null && f.plan.equipment_hours === null && f.plan.crew_hours === null && f.equipmentHours === 0 && f.equipmentDays === 0 && f.crewHours === 0 && f.otherCurrency.length === 0; });
 
   const woHead = (w: PvaWorkOrder) => (
     <RowOpenControl href={`/work-orders/${w.id}`} label={t('openDetails', '{{number}} {{title}}, details', { number: w.woNumber ?? t('draftNumber', 'Draft'), title: w.title })} onActivate={() => setOpenBasis(w.id)}>

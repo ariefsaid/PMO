@@ -26,7 +26,8 @@ test('JOB-PC3 project control manager saves a direct and hour plan on a work ord
     await page.goto(`/projects/${projectId}/orders`);
     const row = page.getByTestId(`wo-pva-row-${wo.id}`);
     await expect(row).toBeVisible({ timeout: 30_000 });
-    await expect(row).toContainText('No plan');
+    // Nothing planned and nothing spent yet: the block says so once and offers Plan on the row.
+    await expect(page.getByTestId('wo-pva-nothing-yet')).toBeVisible();
 
     await row.getByRole('button', { name: /^plan$/i }).click();
     const dialog = page.getByRole('dialog');
