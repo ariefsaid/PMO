@@ -480,7 +480,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       if (row.amount == null && row.valueUnknown) return <span className="text-sm text-muted-foreground" data-testid="receipt-value-unknown">{t('procurement:ledger.valueNotRecorded', 'Value not recorded for this receipt')}</span>;
       if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
       // The amount answers "how much": the figure, with its tax basis under it on the same right edge.
-      return <span className="inline-flex flex-col items-end gap-0.5"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
+      return <span className="inline-flex flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
     },
   }), [t]);
 
@@ -493,7 +493,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       const figures = withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment);
       const invoice = invoices.find((item) => item.id === row.recordId);
       const slipCell = <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} />;
-      return <div className="inline-flex flex-col items-end gap-1">{figures && <WithholdingBreakdown figures={figures} currency={row.currency} />}{slipCell}</div>;
+      return <div className="flex w-full flex-col items-end gap-1 text-right max-sm:items-start max-sm:text-left">{figures && <WithholdingBreakdown figures={figures} currency={row.currency} />}{slipCell}</div>;
     },
   }), [t, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
 
