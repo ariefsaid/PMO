@@ -116,6 +116,15 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(qc.isFetching()).toBe(0);
   });
 
+  it('a person record resolves its name from the page\'s own by-id read', async () => {
+    const { qc, result } = setup('/equipment/people/p1');
+    expect(result.current.resolved).toBe(false);
+    act(() => { qc.setQueryData(['people', 'org-1', 'p1'], { id: 'p1', code: 'P-1', name: 'Rigger One', org_id: 'org-1' }); });
+    await waitFor(() => expect(result.current.resolved).toBe(true));
+    expect(recordLabelForPath('/equipment/people/p1', result.current.lists)).toBe('Rigger One');
+    expect(qc.isFetching()).toBe(0);
+  });
+
   it('FR-IMP-074 a site float detail resolves its project name from the cached float list', async () => {
     const { qc, result } = setup('/imprest/f1');
     expect(result.current.resolved).toBe(false);

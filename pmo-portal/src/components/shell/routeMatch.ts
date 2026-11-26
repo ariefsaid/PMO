@@ -758,6 +758,8 @@ export interface RecordLists {
   imprestFloats?: { id: string; name: string }[];
   /** #1519: equipment assets resolve from the cached asset list; the label is the asset name. */
   equipmentAssets?: { id: string; name: string }[];
+  /** A person's record (`/equipment/people/:id`) resolves from the page's own by-id read; the label is the name. */
+  people?: { id: string; name: string }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
   /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
@@ -888,6 +890,9 @@ export function recordLabelForPath(
 
   const equipmentAssetId = idFrom('/equipment/assets');
   if (equipmentAssetId) return lists.equipmentAssets?.find((a) => a.id === equipmentAssetId)?.name;
+
+  const personId = idFrom('/equipment/people');
+  if (personId) return lists.people?.find((p) => p.id === personId)?.name;
 
   const imprestFloatId = idFrom('/imprest');
   if (imprestFloatId) return lists.imprestFloats?.find((f) => f.id === imprestFloatId)?.name;
