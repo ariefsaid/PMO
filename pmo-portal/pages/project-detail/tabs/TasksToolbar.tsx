@@ -179,8 +179,9 @@ const TasksToolbar: React.FC<{
         </div>
 
         <Button variant="outline" className="sm:hidden" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>{t('ui:filters', 'Filters')}</Button>
-        <div className={cn('min-w-0 flex-wrap items-center gap-2 sm:flex sm:[&>div]:min-w-0 sm:[&>div]:flex-1', filtersOpen ? 'flex' : 'hidden')}>
+        <div className={cn('min-w-0 flex-wrap items-center gap-2 sm:flex sm:[&>div]:min-w-0', filtersOpen ? 'flex' : 'hidden')}>
           <ViewToggle<TaskScope>
+            className="shrink-0"
             options={[
               { value: 'mine', label: t('projectDetail.tasks.scope.mine', 'Mine') },
               { value: 'all', label: t('projectDetail.tasks.scope.all', 'All') },

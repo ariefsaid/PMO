@@ -343,6 +343,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     if (!active) { if (region) region.scrollTop = 0; return; }
     const group = active.closest<HTMLElement>('[role="group"]');
     (group ?? active).scrollIntoView?.({ block: 'nearest' });
+    active.scrollIntoView?.({ block: 'nearest' });
   }, [location.pathname, location.search]);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
@@ -644,7 +645,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
                     aria-controls={groupId}
                     onClick={() => toggleGroup(group)}
                     className={cn(
-                      'touch-target flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 text-left text-control font-normal text-muted-foreground hover:bg-surface-hover',
+                      'touch-target sticky top-0 z-10 flex min-h-11 w-full items-center gap-2 rounded-md bg-card px-2.5 text-left text-control font-normal text-muted-foreground hover:bg-surface-hover',
                       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:hover:bg-transparent',
                     )}
                   >

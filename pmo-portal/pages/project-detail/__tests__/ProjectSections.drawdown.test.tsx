@@ -88,6 +88,14 @@ beforeEach(() => {
 });
 
 describe('Project contract drawdown (#566 / OD-CR-13)', () => {
+  it('P3: the financial overview offers the Budget action without repeating the category summary', async () => {
+    state.role = 'Finance';
+    const setArea = vi.fn();
+    render(<FinanceI18nTestProvider><MemoryRouter><ProjectSections project={project} area="overview" setArea={setArea} isPipeline={false} header={<h1>Alpha</h1>} /></MemoryRouter></FinanceI18nTestProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open budget' }));
+    expect(setArea).toHaveBeenCalledWith('budget');
+  });
+
   it('shows the real drawdown figures when the Contract area opens', async () => {
     render(
       <FinanceI18nTestProvider>

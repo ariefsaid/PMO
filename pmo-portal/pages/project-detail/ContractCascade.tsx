@@ -263,7 +263,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               label={t('projectDetail.cascade.paid', 'Paid')}
               value={settlement?.settled == null ? '—' : tableMoney(settlement.settled)}
               percentage={invoiceRows.length > 0 ? percent(settlement?.settled ?? null) : null}
-              caption={settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tableMoney(settlement.gross), interpolation: { escapeValue: false } })}
+              caption={invoiceRows.length === 0 || settlement?.gross == null ? undefined : t('projectDetail.cascade.paidOfInvoiced', 'of {{amount}} invoiced, including tax', { amount: tableMoney(settlement.gross), interpolation: { escapeValue: false } })}
               detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount including tax, less the accounting balance outstanding.')}
             />}
           </ol>
