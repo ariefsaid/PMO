@@ -140,7 +140,7 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
           ? <Button variant="primary" size="sm" onClick={() => { setDialogError(null); setDialog('bill'); }}>{t('subcontractCertificates:actions.bill', 'Create bill')}</Button>
           : c.status === 'billed' && c.invoice_id
             // The bill lives in the purchase's ledger (its Files tab).
-            ? <Link className="inline-flex h-[var(--control-height-sm)] items-center rounded-md border border-border px-3 text-control font-medium text-primary-text" to={`/procurement/${c.procurement_id}/files`}>{t('subcontractCertificates:actions.openBill', 'Open bill')}</Link>
+            ? <Link className="inline-flex h-[var(--control-height-sm)] items-center rounded-md bg-primary px-3 text-control font-medium text-primary-foreground" to={`/procurement/${c.procurement_id}/files`}>{t('subcontractCertificates:actions.openBill', 'Open bill')}</Link>
             : undefined;
   const live = mayPrepare && c.status !== 'cancelled' && c.status !== 'billed';
   const menuItems: RecordMenuItem[] = [
@@ -171,7 +171,7 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
         stats={[
           { label: t('subcontractCertificates:stat.gross', 'Certified work'), value: <span data-testid="spc-gross">{money(d.gross)}</span> },
           { label: t('subcontractCertificates:stat.backcharge', 'Backcharges'), value: <span data-testid="spc-backcharge">{money(d.backcharge_total)}</span> },
-          { label: t('subcontractCertificates:stat.net', 'Payable'), value: <span data-testid="spc-net">{money(d.net)}</span> },
+          { label: t('subcontractCertificates:stat.net', 'Payable'), value: <span data-testid="spc-net" className="text-metric">{money(d.net)}</span> },
         ]}
         // One filled action for the state the certificate is in; the rest in the menu (screen rules: record pages).
         primaryAction={primaryAction}
