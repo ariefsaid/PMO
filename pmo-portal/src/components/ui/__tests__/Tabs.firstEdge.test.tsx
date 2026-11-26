@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { Tabs } from '../Tabs';
 
 const items = [
@@ -45,7 +45,7 @@ describe('Tabs first-tab left edge', () => {
       screen.getByRole('tab', { name: 'Alpha' }).focus();
       await userEvent.keyboard('{End}');
       expect(screen.getByRole('tab', { name: 'Attendance rate' })).toHaveAttribute('aria-selected', 'true');
-      expect(scrollBy).toHaveBeenCalledWith({ left: 118, behavior: expect.any(String) });
+      expect(scrollBy).toHaveBeenCalledWith({ left: 90, behavior: expect.any(String) });
     } finally {
       rect.mockRestore();
       HTMLElement.prototype.scrollBy = previous;
@@ -73,4 +73,29 @@ describe('Tabs first-tab left edge', () => {
       HTMLElement.prototype.scrollBy = previous;
     }
   });
+});
+
+it('keeps the selected tab entirely inside the scrolling track after a resize', () => {
+  const resized: Array<() => void> = [];
+  let trackRight = 400;
+  const scrollBy = vi.fn();
+  const previousScroll = HTMLElement.prototype.scrollBy;
+  const previousObserver = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class { callback: () => void; constructor(callback: () => void) { this.callback = callback; } observe(target: Element) { if (target.getAttribute('role') === 'tablist') resized.push(this.callback); } disconnect() {} unobserve() {} } as unknown as typeof ResizeObserver;
+  HTMLElement.prototype.scrollBy = scrollBy;
+  const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return { left: this.getAttribute('role') === 'tab' ? 200 : 0, right: this.getAttribute('role') === 'tab' ? 340 : trackRight } as DOMRect;
+  });
+  try {
+    render(<Tabs items={items} value="b" onChange={() => {}} ariaLabel="Resize views" idBase="resize" />);
+    scrollBy.mockClear();
+    trackRight = 310;
+    Object.defineProperty(screen.getByRole('tablist'), 'clientWidth', { configurable: true, value: 310 });
+    act(() => [...resized].forEach((callback) => callback()));
+    expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: 30 }));
+  } finally {
+    rect.mockRestore();
+    HTMLElement.prototype.scrollBy = previousScroll;
+    globalThis.ResizeObserver = previousObserver;
+  }
 });

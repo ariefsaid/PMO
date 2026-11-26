@@ -67,6 +67,7 @@ export function Tabs<V extends string = string>({
 }: TabsProps<V>) {
   const { t } = useTranslation('common');
   const listRef = useRef<HTMLDivElement>(null);
+  const [stripWidth, setStripWidth] = useState(0);
   const [overflow, setOverflow] = useState({ left: false, right: false });
 
   const syncOverflow = useCallback(() => {
@@ -80,9 +81,13 @@ export function Tabs<V extends string = string>({
   useEffect(() => {
     const list = listRef.current;
     if (!list) return undefined;
-    syncOverflow();
+    const resize = () => {
+      syncOverflow();
+      setStripWidth(list.clientWidth);
+    };
+    resize();
     list.addEventListener('scroll', syncOverflow, { passive: true });
-    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncOverflow);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
     ro?.observe(list);
     return () => {
       list.removeEventListener('scroll', syncOverflow);
@@ -115,11 +120,11 @@ export function Tabs<V extends string = string>({
     const style = getComputedStyle(active);
     const left = tab.left - (parseFloat(style.scrollMarginLeft) || 0);
     const right = tab.right + (parseFloat(style.scrollMarginRight) || 0);
-    // Keep the selected label clear of the right-edge affordance.
-    const offset = left < strip.left ? left - strip.left : right > strip.right - 28 ? right - strip.right + 28 : 0;
+    // The controls occupy separate gutters; reveal the entire selected tab within the track.
+    const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
-  }, [value, widths, syncOverflow, startAtFirst]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+  }, [value, widths, stripWidth, syncOverflow, startAtFirst]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   const nudge = (dir: -1 | 1) => {
     const list = listRef.current;
