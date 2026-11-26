@@ -378,7 +378,7 @@ const SelectedAdministrationPanel: React.FC<{
           <People />
           <div className="mt-8">
             <SettingsGroups>
-              <SettingsGroup id="people-settings" title={t('administration:adminShell.settingsGroups.peopleSettings', 'People settings')}>
+              <SettingsGroup id="people-settings" title={t('administration:adminShell.settingsGroups.peopleSettings', 'Settings')}>
                 <OrgAttendanceTimeRoles />
                 <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
               </SettingsGroup>
