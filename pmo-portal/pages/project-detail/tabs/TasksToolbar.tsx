@@ -168,7 +168,7 @@ const TasksToolbar: React.FC<{
         </div>
 
         <Button variant="outline" className="sm:hidden" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>{t('ui:filters', 'Filters')}</Button>
-        <div className={cn('min-w-0 flex-wrap items-center gap-2 sm:flex', filtersOpen ? 'flex' : 'hidden')}>
+        <div className={cn('min-w-0 flex-wrap items-center gap-2 sm:flex sm:[&>div]:min-w-0 sm:[&>div]:flex-1', filtersOpen ? 'flex' : 'hidden')}>
           <ViewToggle<TaskScope>
             options={[
               { value: 'mine', label: t('projectDetail.tasks.scope.mine', 'Mine') },
@@ -179,7 +179,7 @@ const TasksToolbar: React.FC<{
             ariaLabel={t('projectDetail.tasks.scopeAriaLabel', 'Task scope')}
             semantics="toggle"
           />
-          <div className="min-w-[128px] flex-1 sm:flex-none">
+          <div className="min-w-[128px] flex-1">
             <SelectField
               id="tasks-filter-status"
               hideLabel
@@ -192,12 +192,12 @@ const TasksToolbar: React.FC<{
               ]}
             />
           </div>
-          <div className="basis-full sm:basis-auto sm:min-w-[144px] sm:flex-none">
+          <div className="basis-full sm:basis-auto sm:min-w-0 sm:flex-1">
             <SelectField id="tasks-filter-work-order" hideLabel
               label={t('tasks:workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={onWorkOrderFilter}
               options={[{ value: 'all', label: t('tasks:workOrderFilter.all', 'All work orders') }, { value: 'none', label: t('tasks:workOrderFilter.none', 'No work order') }, ...workOrderOptions]} />
           </div>
-          <div className="basis-full sm:basis-auto sm:min-w-[144px] sm:flex-none">
+          <div className="basis-full sm:basis-auto sm:min-w-0 sm:flex-1">
             <SelectField
               id="tasks-filter-assignee"
               hideLabel
