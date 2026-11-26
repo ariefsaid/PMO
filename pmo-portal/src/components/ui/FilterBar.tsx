@@ -56,8 +56,8 @@ export function FilterBar({ searchKey, searchLabel, searchPlaceholder, filters, 
       resultCount={shown}
     />
     {filters.map((filter) => filter.kind === 'segment' ?
-      <div key={filter.key} data-testid="status-filter-scroll" className="w-full min-w-0 md:w-auto">
-        {filter.pending ? <div data-testid="status-filters-pending" aria-busy="true" className="pointer-events-none"><ViewToggle className="w-full flex-wrap min-h-[var(--control-height-sm)] p-0 md:w-auto md:flex-nowrap" semantics={filter.semantics ?? "toggle"} ariaLabel={filter.label} value="" onChange={() => undefined} options={[{ value: '', label: all }]} /></div> : <ViewToggle className="w-full flex-wrap min-h-[var(--control-height-sm)] p-0 md:w-auto md:flex-nowrap" semantics={filter.semantics ?? "toggle"} ariaLabel={filter.label} value={values[filter.key] ?? ''} onChange={(value) => onChange(filter.key, value)} options={[{ value: '', label: all }, ...filter.options]} />}
+      <div key={filter.key} data-testid="status-filter-scroll" className="w-full min-w-0 max-w-full overflow-x-auto md:w-auto">
+        {filter.pending ? <div data-testid="status-filters-pending" aria-busy="true" className="pointer-events-none"><ViewToggle className="w-full flex-wrap min-h-[var(--control-height-sm)] p-0 md:w-auto md:min-w-max md:flex-nowrap" semantics={filter.semantics ?? "toggle"} ariaLabel={filter.label} value="" onChange={() => undefined} options={[{ value: '', label: all }]} /></div> : <ViewToggle className="w-full flex-wrap min-h-[var(--control-height-sm)] p-0 md:w-auto md:min-w-max md:flex-nowrap" semantics={filter.semantics ?? "toggle"} ariaLabel={filter.label} value={values[filter.key] ?? ''} onChange={(value) => onChange(filter.key, value)} options={[{ value: '', label: all }, ...filter.options]} />}
       </div> :
       <FilterPick key={filter.key} filter={filter} all={all} value={values[filter.key] ?? ''} onChange={(value) => onChange(filter.key, value)} />)}
     {/* Nothing to clear means no button: a greyed "Clear all" beside untouched filters is noise. */}

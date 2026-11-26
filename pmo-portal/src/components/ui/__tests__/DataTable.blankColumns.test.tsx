@@ -18,6 +18,10 @@ const columns: Column<Row>[] = [
 const headers = () => screen.getAllByRole('columnheader').map((h) => h.textContent);
 
 describe('DataTable: a column blank on every loaded row is not rendered', () => {
+  it('drops a marker wrapped in a styling span, while retaining zero', () => {
+    expect(isBlankCell(<span className="text-muted-foreground">—</span>)).toBe(true);
+    expect(isBlankCell(<span>0</span>)).toBe(false);
+  });
   it('drops columns whose cell is nothing or the "—" marker on every row; keeps one with any value', () => {
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     expect(headers()).toEqual(['Project', 'Budget']);
