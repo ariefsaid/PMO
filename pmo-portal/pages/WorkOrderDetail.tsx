@@ -57,6 +57,7 @@ import { isMicrosoftFolder } from './project-detail/tabs/documentUtils';
 import { WorkOrderStockBalance } from './stock/WorkOrderStockBalance';
 import { WorkOrderCrewLink } from './work-order-detail/WorkOrderCrewLink';
 import { WorkOrderChecksSection } from './work-order-detail/WorkOrderChecksSection';
+import { AreaHelpButton, AreaHelpProvider } from './work-order-detail/AreaHelp';
 import { useWorkOrderDecision } from './work-order-detail/WorkOrderDecision';
 
 /**
@@ -233,12 +234,17 @@ const WorkOrderDetail: React.FC = () => {
       <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       {row.status === 'Draft' && <WorkOrderChecksSection workOrderId={row.id} projectId={row.project_id} />}
-      <div data-testid="wo-area-select" className="mt-6 mb-4 md:hidden">
+      <AreaHelpProvider>{(help) => (<>
+      <div data-testid="wo-area-select" className="mt-6 mb-4 flex items-center gap-2 md:hidden">
         <SelectField label={areasLabel} hideLabel value={area} onChange={(next) => setArea(next as Area)}
           options={areas.map((a) => ({ value: a, label: areaLabels[a] }))} className="touch-target w-full" />
+        <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
-      <div data-testid="wo-area-tabs" className="mt-6 hidden md:block">
-        <Tabs<Area> items={tabItems} value={area} onChange={setArea} ariaLabel={areasLabel} idBase="wo" insetFirstTab="panel" className="mb-0! pr-8" />
+      <div data-testid="wo-area-tabs" className="mt-6 hidden items-center border-b border-border md:flex">
+        <div className="min-w-0 flex-1">
+          <Tabs<Area> items={tabItems} value={area} onChange={setArea} ariaLabel={areasLabel} idBase="wo" insetFirstTab="panel" className="mb-0! border-b-0! pr-8" />
+        </div>
+        <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
       <div role="tabpanel" id={tabPanelId('wo', area)} aria-labelledby={tabId('wo', area)} data-testid={`wo-area-${area}`} className="pt-4 md:pt-6">
         <RecordStack>
@@ -261,7 +267,7 @@ const WorkOrderDetail: React.FC = () => {
             <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
             <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
             {/* #2672: the daily target view; same switch and role gate as the plan above. */}
-            <DailyTargetGate workOrderId={row.id} />
+            <DailyTargetGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
           </>}
           {area === 'billing' && <>
             <BillingSection contractHref={canBilling ? `/projects/${row.project_id}/contract?wo=${row.id}` : null} billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
@@ -334,6 +340,7 @@ const WorkOrderDetail: React.FC = () => {
           </>}
         </RecordStack>
       </div>
+      </>)}</AreaHelpProvider>
     </>
   );
 };

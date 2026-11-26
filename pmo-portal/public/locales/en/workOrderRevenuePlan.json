@@ -81,7 +81,8 @@
     "nonWorking": "Non-working day",
     "nonWorkingLabelled": "Non-working day: {{label}}",
     "empty": "No working days in this month.",
-    "loadError": "Couldn't load the daily target"
+    "loadError": "Couldn't load the daily target",
+    "nothing": "No target and no actual in {{month}}."
   },
   "dailyRollup": {
     "title": "Daily target, month to date",

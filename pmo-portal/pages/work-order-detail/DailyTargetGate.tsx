@@ -5,7 +5,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePlanSettings } from '@/src/hooks/useWorkOrderRevenuePlan';
 import { DailyTargetView } from './DailyTargetView';
 
-interface Props { workOrderId: string }
+interface Props { workOrderId: string; woLabel: string; frozen: boolean }
 
 /**
  * Shows the daily target view only while the organisation has switched the revenue plan on (#2671 FR-WRP-001, #2672
@@ -19,9 +19,10 @@ export const DailyTargetGate: React.FC<Props> = (props) => {
   return <Inner {...props} />;
 };
 
-const Inner: React.FC<Props> = ({ workOrderId }) => {
-  const canView = usePermission()('view', 'workOrderRevenuePlan');
+const Inner: React.FC<Props> = ({ workOrderId, woLabel, frozen }) => {
+  const may = usePermission();
+  const canView = may('view', 'workOrderRevenuePlan');
   const settings = useRevenuePlanSettings();
   if (!canView || settings.data?.enabled !== true) return null;
-  return <DailyTargetView workOrderId={workOrderId} />;
+  return <DailyTargetView workOrderId={workOrderId} plan={may('manage', 'workOrderRevenuePlan') && !frozen ? { woLabel } : null} />;
 };

@@ -6,12 +6,15 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { axisTickStyle, tooltipContentStyle, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { useWorkOrderDailyTarget } from '@/src/hooks/useWorkOrderDailyTarget';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { formatDate, formatExactMoney, formatNumberMax2, formatShortAmount, formatUtcMonthYearFull } from '@/src/lib/format';
+import { formatDay, formatExactMoney, formatNumberMax2, formatShortAmount, formatUtcMonthYearFull } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { asOfForMonth, shiftMonth, visibleDays } from '@/src/lib/dailyTarget';
+import { useAreaHelp } from './AreaHelp';
+import { RevenuePlanModal } from './RevenuePlanModal';
 
-interface Props { workOrderId: string }
+/** `plan`: where the reader may enter a target, the work order's label for the entry form (the empty month offers it). */
+interface Props { workOrderId: string; plan?: { woLabel: string } | null }
 
 /**
  * Daily target on the work-order page (#2672, FR-WDT-020): the month's days against the target, month to date and the
@@ -19,7 +22,7 @@ interface Props { workOrderId: string }
  * one (OD-SCOPE-7). Shows ONLY what the database derived. A refused caller sees "restricted", never a zero; a month with
  * no target says so (FR-WDT-015). The parent mounts this only while the organisation's switch is on.
  */
-export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
+export const DailyTargetView: React.FC<Props> = ({ workOrderId, plan = null }) => {
   const { t } = useTranslation('workOrderRevenuePlan');
   const today = useOrgToday();
   const currentMonth = `${today.slice(0, 7)}-01`;
@@ -30,6 +33,8 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
   const rows = useMemo(() => visibleDays(data?.days ?? []), [data]);
   const chart = useMemo(() => rows.map((d) => ({ date: d.date.slice(8), target: Number(d.target), actual: Number(d.actual) })), [rows]);
   const monthLabel = formatUtcMonthYearFull(new Date(`${month}T00:00:00Z`));
+  const [entering, setEntering] = useState(false);
+  useAreaHelp('daily-target', title, t('daily.note', 'The projection continues the average actual per working day so far. It is a projection, not a target. Enter targets with "Enter plan" above.'));
 
   const nav = (
     <div className="flex items-center gap-2">
@@ -59,6 +64,19 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
     <div key={testId}><dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums" data-testid={testId}>{value}</dd></div>
   );
   const none = t('daily.noTarget', 'No target entered');
+  // Nothing to compare yet: no target and nothing earned in the month. Say so once and offer the one fix, not a chart of zeros.
+  const nothing = !data.hasTarget && data.days.every((d) => Number(d.actual) === 0 && d.pendingReports === 0);
+  if (nothing) {
+    return (
+      <RecordSection title={title} data-testid="wo-page-daily-target" actions={nav}>
+        <div className="flex flex-wrap items-center justify-between gap-3" data-testid="wo-daily-empty">
+          <p className="text-control text-muted-foreground">{t('daily.nothing', 'No target and no actual in {{month}}.', { month: monthLabel })}</p>
+          {plan && <Button variant="outline" size="sm" onClick={() => setEntering(true)}>{t('enter', 'Enter plan')}</Button>}
+        </div>
+        {entering && plan && <RevenuePlanModal workOrderId={workOrderId} woLabel={plan.woLabel} currency={data.currency} onClose={() => setEntering(false)} />}
+      </RecordSection>
+    );
+  }
   const summary = t('daily.chartSummary', 'Daily revenue for {{month}}: target against actual per day.', { month: monthLabel });
 
   return (
@@ -75,9 +93,6 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
           {t('daily.projectedGap', 'Month target {{target}}: the projection is {{words}}.', { target: money(data.monthTarget), words: gapWords(data.projectedGap) })}
         </p>
       )}
-      <p className="mt-1 text-control text-muted-foreground">
-        {t('daily.note', 'The projection continues the average actual per working day so far. It is a projection, not a target. Enter targets with "Enter plan" above.')}
-      </p>
       {data.days.some((d) => d.pendingReports > 0) && (
         <p className="mt-1 text-control text-muted-foreground" data-testid="wo-daily-pending">
           {t('daily.pending', 'Daily reports not yet validated are not counted as actual.')}
@@ -111,7 +126,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId }) => {
               {rows.map((d) => (
                 <tr key={d.date} className="border-t border-border" data-testid={`wo-daily-row-${d.date}`}>
                   <th scope="row" className="py-1 pr-4 text-left font-normal">
-                    {formatDate(d.date)}
+                    {formatDay(d.date)}
                     {d.listed && (
                       <div className="text-muted-foreground" data-testid={`wo-daily-nonworking-${d.date}`}>
                         {d.nonWorkingLabel ? t('daily.nonWorkingLabelled', 'Non-working day: {{label}}', { label: d.nonWorkingLabel }) : t('daily.nonWorking', 'Non-working day')}

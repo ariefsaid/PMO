@@ -60,6 +60,21 @@ describe('DailyTargetView (#2672)', () => {
     expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe('No target entered');
     expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toBe('No target entered');
   });
+  it('#1126 a month with no target and no actual says so once and offers the one fix, with no chart and no rows of zeros', async () => {
+    state.query = ok(target({ hasTarget: false, mtdTarget: '0.00', mtdActual: '0.00', mtdGap: '0.00', monthTarget: '0.00', projection: null, projectedGap: null,
+      days: [day({ hasTarget: false, target: '0.00', actual: '0.00', gap: '0.00' }), day({ date: '2026-12-02', hasTarget: false, target: '0.00', actual: '0.00', gap: '0.00' })] }));
+    render(<DailyTargetView workOrderId="w" plan={{ woLabel: 'WO-1' }} />);
+    expect(screen.getByTestId('wo-daily-empty').textContent).toContain('No target and no actual in Dec 2026');
+    expect(screen.queryByTestId('wo-daily-chart')).toBeNull();
+    expect(screen.queryByTestId('wo-daily-table')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Enter plan' })).toBeTruthy();
+  });
+  it('#1126 the empty month offers no entry to a reader who may not plan', () => {
+    state.query = ok(target({ hasTarget: false, mtdActual: '0.00', days: [day({ hasTarget: false, target: '0.00', actual: '0.00', gap: '0.00' })] }));
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-empty')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Enter plan' })).toBeNull();
+  });
   it('AC-WDT-009 a refused caller sees "restricted", never a zero', () => {
     state.query = { data: undefined, isPending: false, isError: true, error: { code: '42501' }, refetch: vi.fn() };
     render(<DailyTargetView workOrderId="w" />);
