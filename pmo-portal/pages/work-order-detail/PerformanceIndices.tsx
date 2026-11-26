@@ -2,11 +2,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
 import { PerformanceGate } from '@/src/components/performance/PerformanceGate';
-import { formatExactMoney, formatIsoDay } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatIsoDay, formatTableMoney } from '@/src/lib/format';
 import { parseExactCents } from '@/src/lib/exactDecimal';
 import { useProjectPerformance } from '@/src/hooks/useWorkOrderPerformance';
 import { useAreaHelp } from './useAreaHelp';
+import { OtherCurrencyNote } from './AreaHelp';
 import {
   deriveWorkOrderPerformance,
   type Bands,
@@ -26,10 +26,12 @@ export const PerformanceFigures: React.FC<{
   idPrefix: string;
   /** `false`: the range is defined elsewhere (the work-order page's help), not as a line under the figures. */
   showBand?: boolean;
-}> = ({ performance, currency, bands, idPrefix, showBand = true }) => {
+  /** `true`: an index that mixes currencies shows a dash; the page says why once for the area. */
+  otherCurrencyNoted?: boolean;
+}> = ({ performance, currency, bands, idPrefix, showBand = true, otherCurrencyNoted = false }) => {
   const { t } = useTranslation('workOrderPva');
   const money = (v: string | null) =>
-    v === null ? t('performance.unknown', 'Unknown') : formatExactMoney(v, currency, getNumberLocale()) ?? t('performance.unknown', 'Unknown');
+    v === null ? t('performance.unknown', 'Unknown') : formatTableMoney(v, currency) ?? t('performance.unknown', 'Unknown');
   const abs = (v: string) => (v.startsWith('-') ? v.slice(1) : v);
   const sign = (v: string | null): 'positive' | 'negative' | 'zero' | null => {
     if (v === null) return null;
@@ -47,7 +49,7 @@ export const PerformanceFigures: React.FC<{
         return i.undated > 0
           ? t('performance.hidden.acIncompleteUndated', { count: i.undated, defaultValue_one: 'Cost cannot be totalled yet: 1 cost line has no date', defaultValue_other: 'Cost cannot be totalled yet: {{count}} cost lines have no date' })
           : t('performance.hidden.acIncomplete', 'Cost cannot be totalled yet: a cost line has no date or no amount');
-      case 'not-comparable': return t('performance.hidden.notComparable', 'Not comparable: some cost is in another currency');
+      case 'not-comparable': return otherCurrencyNoted ? '—' : t('performance.hidden.notComparable', 'Not comparable: some cost is in another currency');
       default: return t('performance.hidden.excluded', 'No figures for a draft or cancelled work order');
     }
   };
@@ -132,13 +134,15 @@ const PerformancePanel: React.FC<{ projectId: string; workOrderId: string }> = (
   }
   const { rows, bands, asOf } = query.data;
   const row = rows.find((r) => r.workOrderId === workOrderId);
+  const perf = row ? deriveWorkOrderPerformance(row, bands) : null;
   const asOfText = row ? formatIsoDay(row.asOf) : asOf ? formatIsoDay(asOf) : '';
   return (
     <RecordSection title={title} data-testid="wo-page-performance">
       <PerformanceHelp title={title} bands={bands} />
       {asOfText && <p className="mb-3 text-control text-muted-foreground" data-testid="wo-page-performance-asof">{t('performance.asOf', 'As of {{date}}', { date: asOfText })}</p>}
-      {row
-        ? <PerformanceFigures performance={deriveWorkOrderPerformance(row, bands)} currency={row.currency} bands={bands} idPrefix="wo-page-performance" showBand={false} />
+      {perf && (perf.cpi.state === 'not-comparable' || perf.spi.state === 'not-comparable') && <OtherCurrencyNote />}
+      {row && perf
+        ? <PerformanceFigures performance={perf} currency={row.currency} bands={bands} idPrefix="wo-page-performance" showBand={false} otherCurrencyNoted />
         : <p className="text-control text-muted-foreground">{t('performance.nothing', 'Nothing is recorded yet for this work order.')}</p>}
     </RecordSection>
   );

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatQuantityUnit } from '@/src/lib/format';
+import { formatDay, formatQuantityUnit, formatTableMoney } from '@/src/lib/format';
 import { NO_DISCIPLINE, type CostMoney, type SourceGroup } from '@/src/lib/workOrderCostView';
 import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
 
@@ -55,7 +55,7 @@ export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, grou
     return <RecordSection title={title}><p className="text-control text-muted-foreground">{t('costs.empty', 'No costs are attributed to this work order yet.')}</p></RecordSection>;
   }
   const nameOf = (id: string) => (id === NO_DISCIPLINE ? t('costs.noDiscipline', 'No discipline') : disciplines.find((d) => d.id === id)?.name ?? t('costs.unknownDiscipline', 'Discipline'));
-  const money = (m: CostMoney) => formatCurrency(m.amount, m.currency);
+  const money = (m: CostMoney) => formatTableMoney(m.amount, m.currency) ?? '—';
   // One table for every cost: a source row carries its total on the amount column, a discipline row its subtotal,
   // and each record is one row (what, when, how much of it, what it cost). A note that replaces a total sits on its own row.
   const groupNote = (g: SourceGroup) => {

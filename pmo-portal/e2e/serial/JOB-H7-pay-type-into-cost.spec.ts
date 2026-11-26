@@ -3,7 +3,7 @@
 // the Project Control Manager approves it in Approvals; the work order's labour cost rises by the day rate, and the
 // timesheet shows the approved hours with no cost figure. Run with no accounting system connected.
 import { test, expect } from '@playwright/test';
-import { formatExactMoney } from '../../src/lib/format';
+import { formatTableMoney } from '../../src/lib/format';
 import { need, ok, ORG_ID, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { inDays, orgToday } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
@@ -24,7 +24,7 @@ test('JOB-H7 approving a day for a person on a daily rate raises the work order 
   const dayRate = 800_000;
   const day = orgToday();
   const week = inDays(-((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7));
-  const dayRateText = formatExactMoney(String(dayRate), 'USD', 'en-US')!;
+  const dayRateText = formatTableMoney(String(dayRate), 'USD')!;
   let before: { enabled: boolean } | null = null;
   let projectId = ''; let woId = ''; let classId = ''; let sheetId = ''; let rateId = '';
   try {

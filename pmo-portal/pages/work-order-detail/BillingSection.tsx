@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Button, ListState, RecordSection, StatusPill } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatMonthYearShort, formatNumberExact } from '@/src/lib/format';
+import { formatDay, formatTableMoney, formatMonthYearShort, formatNumberExact } from '@/src/lib/format';
 import type { WorkOrderBilledMonths, WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
@@ -30,7 +30,7 @@ export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, 
   const monthsNewestFirst = pm ? [...pm.months].reverse() : [];
   const fig = (k: string, label: string, v: number) => (
     <div key={k} data-testid={`billing-${k}`}><dt className="text-control text-muted-foreground">{label}</dt>
-      <dd className="tabular-nums font-medium">{formatCurrency(v, row!.currency)}</dd></div>
+      <dd className="tabular-nums font-medium">{formatTableMoney(v, row!.currency) ?? '—'}</dd></div>
   );
   const link = contractHref
     ? <Link to={contractHref} className="text-control font-medium text-primary-text hover:underline" data-testid="wo-billing-contract-link">{t('billing.openContract', 'Claims and invoices')}</Link>
@@ -91,7 +91,7 @@ export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, 
                         {formatMonthYearShort(m.month)}
                         {m.toDate && <span className="ml-2 text-control text-muted-foreground">{t('billing.perMonth.toDate', 'to date')}</span>}
                       </span>
-                      <span className="tabular-nums">{formatCurrency(m.billed, pm.currency)}</span>
+                      <span className="tabular-nums">{formatTableMoney(m.billed, pm.currency) ?? '—'}</span>
                     </li>
                   ))}
                 </ul>
@@ -99,7 +99,7 @@ export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, 
               {!pm.incomplete && pm.months.length > 0 && (
                 <div className="flex items-baseline justify-between gap-2 border-t border-border pt-2 font-medium" data-testid="billed-per-month-total">
                   <span>{t('billing.perMonth.total', 'Total billed')}</span>
-                  <span className="tabular-nums">{formatCurrency(pm.total, pm.currency)}</span>
+                  <span className="tabular-nums">{formatTableMoney(pm.total, pm.currency) ?? '—'}</span>
                 </div>
               )}
               <p className="mt-3 text-control text-muted-foreground">{t('billing.perMonth.basis', 'Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.')}</p>

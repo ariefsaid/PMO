@@ -42,7 +42,7 @@ const i18n = (lng: 'en' | 'id') => {
   return i;
 };
 const wrap = (ui: React.ReactElement, lng: 'en' | 'id' = 'en') => render(
-  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><MemoryRouter><I18nextProvider i18n={i18n(lng)}><AreaHelpProvider>{(help) => <>{ui}<output data-testid="page-help">{help.map((e) => e.body).join(' ')}</output></>}</AreaHelpProvider></I18nextProvider></MemoryRouter></AuthContext.Provider></QueryClientProvider>,
+  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><MemoryRouter><I18nextProvider i18n={i18n(lng)}><AreaHelpProvider>{(help, notes) => <>{ui}<output data-testid="page-help">{help.map((e) => e.body).join(' ')}</output><output data-testid="page-notes">{notes.join(' ')}</output></>}</AreaHelpProvider></I18nextProvider></MemoryRouter></AuthContext.Provider></QueryClientProvider>,
 );
 
 beforeEach(() => {
@@ -123,7 +123,9 @@ describe('work-order panel', () => {
   it('says when cost is in another currency or undated', () => {
     h.project.mockReturnValue(read([row({ acStatus: 'not_comparable', ac: null })]));
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
-    expect(screen.getByTestId('wo-page-performance-cpi-hidden').textContent).toMatch(/^Not comparable/);
+    // Said once for the area, not in the figure.
+    expect(screen.getByTestId('wo-page-performance-cpi-hidden').textContent).toBe('—');
+    expect(screen.getByTestId('page-notes').textContent).toContain('Some cost is in another currency');
     cleanup();
     h.project.mockReturnValue(read([row({ acStatus: 'incomplete', ac: null, undatedCostLines: 1 })]));
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
