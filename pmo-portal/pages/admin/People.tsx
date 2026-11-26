@@ -186,7 +186,7 @@ const People: React.FC = () => {
               ? t('administration:people.formerEmpty', 'No former staff. People you mark as left appear here.')
               : t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
             action={staffView === 'active' && canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
-        : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" />)}
+        : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" cardBelow={760} />)}
       {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} managerMode={managerMode} onClose={() => setEditing(null)} />}
       <MarkLeftDialog person={leaving} onClose={() => setLeaving(null)} />
     </div>
