@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export const whLabel = (w: { code: string; name: string }) => `${w.code} - ${w.name}`;
 
@@ -23,5 +23,16 @@ export async function postTransfer(page: Page, from: { code: string; name: strin
 export async function expectOnHand(page: Page, wh: { code: string; name: string }, itemCode: string, qty: string) {
   await page.goto('/stock');
   await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: whLabel(wh) });
-  await expect(page.getByRole('row', { name: new RegExp(itemCode) }).getByRole('cell', { name: new RegExp(`^${qty}\\s+\\S+$`) })).toBeVisible({ timeout: 20_000 });
+  await expect(await onHandCell(page, itemCode)).toHaveText(new RegExp(`^${qty}\\s+\\S+$`), { timeout: 20_000 });
+}
+
+/**
+ * The On hand cell of an item's row on the stock page, found by its column header: with reservations on, the Free and
+ * Reserved columns beside it can read the very same figure, so a figure alone does not say which column it is in.
+ */
+export async function onHandCell(page: Page, itemCode: string): Promise<Locator> {
+  const table = page.getByRole('table', { name: 'Stock' });
+  await expect(table.getByRole('row', { name: new RegExp(itemCode) }).first()).toBeVisible({ timeout: 20_000 });
+  const headers = (await table.getByRole('columnheader').allInnerTexts()).map((h) => h.trim());
+  return table.getByRole('row', { name: new RegExp(itemCode) }).first().locator('th, td').nth(headers.indexOf('On hand'));
 }
