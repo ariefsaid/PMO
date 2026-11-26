@@ -708,7 +708,7 @@ select is(has_function_privilege('authenticated','public.next_procurement_doc_nu
   'AC-WO-094 next_procurement_doc_number is STILL not client-callable — reusing it did not widen its surface by one grant');
 
 select is(
-  (select bool_and(p.prosecdef and 'search_path=public' = any(p.proconfig))
+  (select bool_and(p.prosecdef and 'search_path=public, pg_temp' = any(p.proconfig))
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and p.proname in ('transition_work_order','set_work_order_value')),

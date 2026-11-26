@@ -271,7 +271,7 @@ select throws_ok($q$select create_native_progress_claim_invoice(pg_temp.st('pc1'
 reset role;
 select ok(not has_function_privilege('anon', 'public.create_native_progress_claim_invoice(uuid)', 'execute')
           and has_function_privilege('authenticated', 'public.create_native_progress_claim_invoice(uuid)', 'execute')
-          and (select p.prosecdef and p.proconfig = array['search_path=public'] from pg_proc p where p.oid = 'public.create_native_progress_claim_invoice(uuid)'::regprocedure),
+          and (select p.prosecdef and p.proconfig = array['search_path=public, pg_temp'] from pg_proc p where p.oid = 'public.create_native_progress_claim_invoice(uuid)'::regprocedure),
   'AC-NAR-042 anon cannot execute it, authenticated can, and it is a pinned security definer');
 -- an ERP that owns revenue keeps the ERP path; the module switch refuses
 set local session_replication_role = replica;
