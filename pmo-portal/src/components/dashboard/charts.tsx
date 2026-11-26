@@ -85,12 +85,12 @@ export const BarList: React.FC<{
             <XAxis type="number" hide domain={[0, max]} />
             <YAxis type="category" dataKey="name" width={nameWidth} tick={<NameTick max={nameChars} />} tickLine={false} axisLine={false} interval={0} />
             <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.label : item.payload.label2) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
-            <Bar dataKey="a" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={(value: number) => value === 0 ? 0 : 2}>
+            <Bar dataKey="a" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={(value: number | null | undefined) => value == null || value === 0 ? 0 : 2}>
               {data.map((row) => <Cell key={row.id} fill={toneFill[row.tone ?? 'neutral']} />)}
               <LabelList dataKey="label" position="right" style={LABEL_STYLE} />
             </Bar>
             {paired && (
-              <Bar dataKey="b" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={(value: number) => value === 0 ? 0 : 2}>
+              <Bar dataKey="b" radius={[0, 4, 4, 0]} isAnimationActive={!reduced} minPointSize={(value: number | null | undefined) => value == null || value === 0 ? 0 : 2}>
                 {data.map((row) => <Cell key={row.id} fill={toneFill[row.tone2 ?? 'accent']} />)}
                 <LabelList dataKey="label2" position="right" style={LABEL_STYLE} />
               </Bar>
@@ -233,11 +233,11 @@ export const MonthColumns: React.FC<{
                 ? <YAxis width={76} tickCount={4} interval={0} axisLine={false} tickLine={false} domain={[0, 'auto']} tick={<PlainTick anchor="end" dy={4} format={valueAxis} />} />
                 : <YAxis hide domain={[0, 'auto']} />}
               <Tooltip cursor={tooltipCursorFill} contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(_value, key, item) => [(key === 'a' ? item.payload.labelA : item.payload.labelB) ?? '', key === 'a' ? seriesNames?.[0] ?? '' : seriesNames?.[1] ?? '']} />
-              <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={(value: number) => value === 0 ? 0 : 2}>
+              <Bar dataKey="a" fill={toneFill.accent} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={(value: number | null | undefined) => value == null || value === 0 ? 0 : 2}>
                 <LabelList dataKey="labelA" content={valueAxis ? peakLabel(data, 'a') : columnLabel(data, 'a', !labelAll, two ? 'end' : 'middle', two, pairedLabelsOnBars && two)} />
               </Bar>
               {two && (
-                <Bar dataKey="b" fill={toneFill.second} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={(value: number) => value === 0 ? 0 : 2}>
+                <Bar dataKey="b" fill={toneFill.second} radius={[4, 4, 0, 0]} isAnimationActive={!reduced} minPointSize={(value: number | null | undefined) => value == null || value === 0 ? 0 : 2}>
                   <LabelList dataKey="labelB" content={valueAxis ? peakLabel(data, 'b') : columnLabel(data, 'b', !labelAll || points.length > 6, 'start', true, pairedLabelsOnBars)} />
                 </Bar>
               )}
