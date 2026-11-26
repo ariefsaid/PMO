@@ -53,6 +53,7 @@
     "colEffective": "Efektif",
     "colSource": "Sumber",
     "colPlanDefault": "Bawaan paket",
+    "noPlanDefault": "Tidak ada bawaan paket",
     "colOverride": "Organisasi ini",
     "colGlobal": "Semua organisasi",
     "sourceGlobal": "Semua organisasi",

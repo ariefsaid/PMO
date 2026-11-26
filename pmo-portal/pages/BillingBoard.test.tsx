@@ -43,6 +43,12 @@ describe('BillingBoard', () => {
   beforeEach(() => { state.calls = []; setRows([]); });
   afterEach(() => cleanup());
 
+  it('lets a keyboard user focus the claim steps to scroll across the board', () => {
+    setRows([row({})]);
+    renderBoard();
+    expect(screen.getByRole('region', { name: 'Claim steps' })).toHaveAttribute('tabindex', '0');
+  });
+
   it('AC-BBD-011 cards show no amount and link to the claim', () => {
     setRows([
       row({ claimId: 'c1', woNumber: 'WO-7', ownerRole: 'Finance', dueOn: '2026-01-08' }),

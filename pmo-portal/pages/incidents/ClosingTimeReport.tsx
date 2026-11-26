@@ -21,6 +21,7 @@ import {
 import { formatClosingDuration } from '@/src/lib/incidents/closingDuration';
 import type { IssueClosingTimeReportRow } from '@/src/lib/db/issueClosingReport';
 import EffectiveHoursPanel from './EffectiveHoursPanel';
+import { orgDayDate } from '@/src/hooks/useOrgToday';
 
 type DatePreset = '30d' | '90d' | 'ytd' | 'all' | 'custom';
 
@@ -30,7 +31,7 @@ function toIsoDate(d: Date): string {
 }
 
 function computeDateRange(preset: DatePreset, customFrom?: string, customTo?: string): { from?: string; to?: string } {
-  const now = new Date();
+  const now = orgDayDate();
   if (preset === '30d') {
     const from = new Date(now);
     from.setDate(now.getDate() - 30);
@@ -121,24 +122,28 @@ export const ClosingTimeReport: React.FC = () => {
     },
     {
       key: 'total_issues',
+      align: 'num',
       header: t('closingReport.col.total', 'Total'),
       cell: (r) => <span className="tabular font-medium">{r.total_issues}</span>,
       exportValue: (r) => r.total_issues,
     },
     {
       key: 'closed_issues',
+      align: 'num',
       header: t('closingReport.col.closed', 'Closed'),
       cell: (r) => <span className="tabular text-muted-foreground">{r.closed_issues}</span>,
       exportValue: (r) => r.closed_issues,
     },
     {
       key: 'open_issues',
+      align: 'num',
       header: t('closingReport.col.open', 'Open'),
       cell: (r) => <span className="tabular text-muted-foreground">{r.open_issues}</span>,
       exportValue: (r) => r.open_issues,
     },
     {
       key: 'overdue_issues',
+      align: 'num',
       header: t('closingReport.col.stalled', 'Stalled'),
       cell: (r) =>
         r.overdue_issues > 0 ? (
@@ -150,6 +155,7 @@ export const ClosingTimeReport: React.FC = () => {
     },
     {
       key: 'avg_closing_hours',
+      align: 'num',
       header: t('closingReport.col.avgClosing', 'Avg closing time'),
       cell: (r) => (
         <span className="tabular font-medium">
@@ -160,6 +166,7 @@ export const ClosingTimeReport: React.FC = () => {
     },
     {
       key: 'median_closing_hours',
+      align: 'num',
       header: t('closingReport.col.medianClosing', 'Median closing time'),
       cell: (r) => (
         <span className="tabular text-muted-foreground">
@@ -216,12 +223,9 @@ export const ClosingTimeReport: React.FC = () => {
               {t('closingReport.backToRegister', 'Back to register')}
             </Button>
           </div>
-          <h1 className="text-page-title font-semibold tracking-tight text-foreground">
+          <h1 className="text-page font-semibold tracking-tight text-foreground">
             {t('closingReport.title', 'Issue closing-time report')}
           </h1>
-          <p className="text-control text-muted-foreground mt-1">
-            {t('closingReport.subtitle', 'Average and median time to close issues by department, highlighting where site issues stall.')}
-          </p>
         </div>
       </div>
 
@@ -232,13 +236,13 @@ export const ClosingTimeReport: React.FC = () => {
             <span className="text-control font-medium text-muted-foreground mr-1">
               {t('closingReport.dateRange', 'Date range')}:
             </span>
-            <div className="inline-flex rounded-control border border-border p-0.5 bg-muted/40">
+            <div className="flex flex-wrap rounded-control border border-border p-0.5 bg-muted/40">
               {(['30d', '90d', 'ytd', 'all', 'custom'] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPreset(p)}
-                  className={`px-3 py-1 text-control font-medium rounded-sm transition-colors ${
+                  className={`min-h-11 px-3 py-1 text-control font-medium rounded-sm transition-colors ${
                     preset === p
                       ? 'bg-card text-foreground shadow-xs'
                       : 'text-muted-foreground hover:text-foreground'
@@ -292,8 +296,8 @@ export const ClosingTimeReport: React.FC = () => {
       </Card>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="closing-report-kpis">
-        <Card>
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-4" data-testid="closing-report-kpis">
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <span className="text-control text-muted-foreground">
               {t('closingReport.cards.totalIssues', 'Total issues')}
@@ -302,9 +306,9 @@ export const ClosingTimeReport: React.FC = () => {
               {summary.totalIssues}
             </div>
           </CardPad>
-        </Card>
+        </div>
 
-        <Card>
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <span className="text-control text-muted-foreground">
               {t('closingReport.cards.closedIssues', 'Closed issues')}
@@ -318,9 +322,9 @@ export const ClosingTimeReport: React.FC = () => {
               </span>
             </div>
           </CardPad>
-        </Card>
+        </div>
 
-        <Card>
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <span className="text-control text-muted-foreground">
               {t('closingReport.cards.avgClosingTime', 'Avg time to close')}
@@ -329,26 +333,23 @@ export const ClosingTimeReport: React.FC = () => {
               {formatClosingDuration(summary.overallAvgHours, t)}
             </div>
           </CardPad>
-        </Card>
+        </div>
 
-        <Card className={summary.overdueIssues > 0 ? 'border-warning/50' : ''}>
+        <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-control text-muted-foreground">
                 {t('closingReport.cards.stalledIssues', 'Stalled issues')}
               </span>
-              {summary.overdueIssues > 0 && (
-                <StatusPill variant="warn">{summary.overdueIssues}</StatusPill>
-              )}
             </div>
-            <div className="text-metric font-semibold text-foreground">
+            <div className={`text-metric font-semibold ${summary.overdueIssues > 0 ? 'text-warning-foreground' : 'text-foreground'}`}>
               {summary.overdueIssues}
             </div>
             <p className="text-xs text-muted-foreground">
               {t('closingReport.cards.stalledSub', 'Overdue and open')}
             </p>
           </CardPad>
-        </Card>
+        </div>
       </div>
 
       {/* Data Table */}

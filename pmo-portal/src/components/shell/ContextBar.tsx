@@ -32,9 +32,7 @@ export const ContextBar: React.FC<ContextBarProps> = React.memo(function Context
       className="z-30 flex items-center gap-3.5 border-b border-border bg-[hsl(var(--surface-panel))] px-5"
       style={{ height: 'var(--header-h)', gridArea: 'header' }}
     >
-      <Breadcrumb parts={breadcrumb} />
-
-      <div className="flex-1" />
+      <Breadcrumb parts={breadcrumb} className="min-w-0 flex-1 overflow-hidden" />
 
       {onOpenMore && (
         <button

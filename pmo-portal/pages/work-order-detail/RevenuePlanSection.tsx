@@ -47,13 +47,17 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
     : gap.state === 'ahead' ? t('ahead', '{{amount}} ahead of plan', { amount: money(gap.by) })
     : t('onPlan', 'On plan');
   const figure = (testId: string, label: string, value: React.ReactNode) => (
-    <div key={testId}><dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums" data-testid={testId}>{value}</dd></div>
+    <div key={testId} className="row-span-2 grid min-w-0 grid-rows-subgrid gap-y-1">
+      <dt className="self-end text-muted-foreground">{label}</dt>
+      <dd className="self-start tabular-nums" data-testid={testId}>{value}</dd>
+    </div>
   );
   const summary = t('chartSummary', 'Cumulative revenue: plan {{plan}}, actual {{actual}} to {{date}}.', { plan: money(data.planToDate), actual: money(data.actualToDate), date: formatIsoDay(data.asOf) });
 
   return (
     <RecordSection title={title} data-testid="wo-page-revenue-plan"
       actions={canManage ? <Button variant="outline" size="sm" onClick={() => setOpen(true)}>{t('enter', 'Enter plan')}</Button> : undefined}>
+      <p className="mb-3 text-control text-muted-foreground" data-testid="wo-revenue-plan-asof">{t('asOfDate', 'As of {{date}}', { date: formatIsoDay(data.asOf) })}</p>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-control sm:grid-cols-4">
         {figure('wo-revenue-plan-plan', t('planToDate', 'Plan to date'), data.hasPlan ? money(data.planToDate) : t('noPlan', 'No plan entered'))}
         {figure('wo-revenue-plan-actual', t('actualToDate', 'Actual to date'), money(data.actualToDate))}
@@ -65,9 +69,18 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
           {t('pending', '{{count}} daily report(s) not yet validated are not counted as actual.', { count: data.pendingReports })}
         </p>
       )}
-      <p className="mt-2 text-control text-muted-foreground" data-testid="wo-revenue-plan-asof">{t('asOfDate', 'As of {{date}}', { date: formatIsoDay(data.asOf) })}</p>
       {data.hasPlan && series.length > 1 && (
         <figure role="img" aria-label={summary} className="m-0 mt-4" data-testid="wo-revenue-plan-chart">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-support text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: chartTheme.series.primary }} />
+              {t('seriesPlan', 'Plan')}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="inline-block w-4 border-t-2" style={{ borderColor: chartTheme.series.success }} />
+              {t('seriesActual', 'Actual')}
+            </span>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={series} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
@@ -78,7 +91,6 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
               <Line type="monotone" dataKey="actual" name={t('seriesActual', 'Actual')} stroke={chartTheme.series.success} strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
-          <figcaption className="mt-1 text-control text-muted-foreground">{t('legend', 'Dashed: plan. Solid: actual (cumulative).')}</figcaption>
         </figure>
       )}
       {open && <RevenuePlanModal workOrderId={workOrderId} woLabel={woLabel} currency={data.currency} onClose={() => setOpen(false)} />}

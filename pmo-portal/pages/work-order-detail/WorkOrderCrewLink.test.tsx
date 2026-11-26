@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({ args: [] as unknown[][] }));
 vi.mock('@/src/hooks/useCrews', () => ({
@@ -17,6 +17,7 @@ describe('WorkOrderCrewLink', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       render(<QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { id: 'u1' } } as never}><MemoryRouter>
         <WorkOrderCrewLink workOrderId="w1" /></MemoryRouter></AuthContext.Provider></QueryClientProvider>);

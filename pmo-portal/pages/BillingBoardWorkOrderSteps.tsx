@@ -6,7 +6,7 @@ import { AuthContext } from '@/src/auth/AuthContext';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { useBoardWorkOrderSteps } from '@/src/hooks/useBillingSteps';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
-import { localToday } from '@/src/lib/efaktur';
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import { stepDaysOver, stepStatus } from '@/src/lib/workOrderBillingSteps';
 import type { BoardWorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
@@ -19,7 +19,7 @@ const Body: React.FC<{ projectId: string | null }> = ({ projectId }) => {
   const { t } = useTranslation('billingSteps');
   const roleName = useBuiltInRoleName();
   const query = useBoardWorkOrderSteps(projectId ?? undefined);
-  const today = localToday();
+  const today = orgDayNow();
   const groups = useMemo(() => {
     const byWo = new Map<string, BoardWorkOrderStep[]>();
     for (const s of query.data ?? []) byWo.set(s.workOrderId, [...(byWo.get(s.workOrderId) ?? []), s]);

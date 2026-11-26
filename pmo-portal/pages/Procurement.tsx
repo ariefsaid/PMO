@@ -481,6 +481,7 @@ const ProcurementPage: React.FC = () => {
           onChange={setTab}
           ariaLabel={t('tabs.label', 'Procurement lists')}
           idBase="procurement-list-tabs"
+          startAtFirst
           className="mb-0 min-w-0 gap-5"
         />
 

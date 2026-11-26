@@ -50,7 +50,7 @@ const CrewsPage: React.FC = () => {
       primaryAction={(
         <span className="flex flex-wrap justify-end gap-2">
           {view === 'crews' && <CrewImports />}
-          {canManage && <Button variant="primary" onClick={() => { setFilter('view', ''); setCreating(true); }}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>}
+          {canManage && view === 'crews' && <Button variant="primary" onClick={() => { setFilter('view', ''); setCreating(true); }}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>}
         </span>
       )}
     >

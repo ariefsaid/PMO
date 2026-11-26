@@ -57,6 +57,9 @@ describe('Administration › Validate daily site reports (AC-DRVR-004..006)', ()
   it('AC-DRVR-004 defaults to no job role ticked, hides field roles, shows custom role names, and saves through the repository', async () => {
     const user = userEvent.setup();
     mount();
+    // #1126: nothing chosen reads as one line; the checklist opens from "Choose roles".
+    expect(await screen.findByText('No role chosen')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Choose roles' }));
     const box = await screen.findByRole('checkbox', { name: 'Field Superintendent' });
     expect(box).not.toBeChecked();
     expect(screen.queryAllByRole('checkbox', { checked: true })).toHaveLength(0);
@@ -74,9 +77,10 @@ describe('Administration › Validate daily site reports (AC-DRVR-004..006)', ()
     h.effectiveRole = 'Executive';
     h.get.mockResolvedValue(['site_supervisor']);
     const { unmount } = mount();
-    const box = await screen.findByRole('checkbox', { name: 'Field Superintendent' });
-    expect(box).toBeChecked();
-    expect(box).toBeDisabled();
+    // Read-only: the chosen role shows; the checklist cannot be opened.
+    expect(await screen.findByText('Field Superintendent')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose roles' })).toBeNull();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
     unmount();
@@ -84,14 +88,16 @@ describe('Administration › Validate daily site reports (AC-DRVR-004..006)', ()
     h.realRole = 'Admin';
     h.effectiveRole = 'Project Manager';
     mount();
-    expect(await screen.findByRole('checkbox', { name: 'Field Superintendent' })).toBeDisabled();
+    expect(await screen.findByText('Field Superintendent')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose roles' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 
   it('AC-DRVR-004 disables checkboxes with a clear explanation when built-in roles are off', async () => {
     h.builtInOn = false;
     mount();
-    expect(await screen.findByRole('checkbox', { name: 'Field Superintendent' })).toBeDisabled();
+    expect(await screen.findByText('No role chosen')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose roles' })).toBeNull();
     expect(screen.getByText(/Turn on built-in roles/)).toBeInTheDocument();
   });
 
@@ -99,6 +105,7 @@ describe('Administration › Validate daily site reports (AC-DRVR-004..006)', ()
     h.set.mockRejectedValue(Object.assign(new Error('DSR_VALIDATE_ROLE_OFF: turn on built-in roles before naming roles that validate site reports'), { code: 'P0001' }));
     const user = userEvent.setup();
     const { unmount } = mount();
+    await user.click(await screen.findByRole('button', { name: 'Choose roles' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Field Superintendent' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText(/before naming roles that validate site reports/i)).toBeInTheDocument();

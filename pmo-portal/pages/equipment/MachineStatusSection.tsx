@@ -129,6 +129,8 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
   };
 
   if (status.isError) return <p role="alert">{t('equipment:availability.statusError', 'Could not load statuses')}</p>;
+  const priority = (a: EquipmentAssetRow) => flagged.has(a.id) ? 2 : isDownStatus(todays.get(a.id) ?? lastStatus.get(a.id) ?? 'ready') ? 1 : 0;
+  const orderedRows = [...rows].sort((a, b) => priority(b) - priority(a));
   const canSet = may('create', 'equipmentAvailability', writeCtx);
   const proven = (a: EquipmentAssetRow) => uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id));
   const columns: Column<EquipmentAssetRow>[] = [
@@ -158,7 +160,7 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
     ...(canSet ? [{ key: 'set', header: t('equipment:availability.setStatus', 'Set status'),
       cell: (a: EquipmentAssetRow) => {
         const current = draft[a.id] ?? todays.get(a.id);
-        return <div className="flex min-w-56 flex-col gap-2">
+        return <div className="flex min-w-0 w-full flex-col gap-2">
           <SelectField hideLabel label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
             onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v as EquipmentStatus }))}
             options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...STATUSES.map((st) => ({ value: st, label: statusLabel(t, st) }))]} />
@@ -191,7 +193,7 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
           {t('equipment:availability.notifiedBroken', 'Marked broken: {{codes}}. Nobody is messaged right away. Admin and Project Manager users are told if it stays down more than {{n}} days; the machine shows as down on this page now.', { codes: justBroken.join(', '), n: escalationLimit })}
         </p>}
       </div>}
-      <DataTable<EquipmentAssetRow> embedded rows={rows} columns={columns} rowKey={(a) => a.id} tableId="equipment-status"
+      <DataTable<EquipmentAssetRow> embedded rows={orderedRows} columns={columns} rowKey={(a) => a.id} tableId="equipment-status"
         accessibleName={t('equipment:availability.statusHeading', 'Equipment status')} />
     </RecordSection>
   );
