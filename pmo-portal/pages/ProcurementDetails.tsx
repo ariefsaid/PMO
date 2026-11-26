@@ -99,6 +99,7 @@ import { stageForStatus } from '@/src/lib/procurement/stage';
 import {
   allowedActions,
   canApproveReject,
+  canRecordBillAtStatus,
   canSource,
   INVOICE_PAY_ROLES,
   RECEIPT_ROLES,
@@ -498,6 +499,7 @@ const ProcurementDetails: React.FC = () => {
   }));
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
+  const canEditLineAttribution = !readOnlyDecision && (isRequester || may('edit', 'procItem'));
   const canEditItems = !readOnlyDecision && (ownershipReady && isDraft && (isRequester || may('edit', 'procItem')));
   const casePushInFlight = ownership.mode === 'external' && (
     mutations.pendingPush?.status === 'pushing' || recordMutations.pendingPush?.status === 'pushing'
@@ -564,7 +566,7 @@ const ProcurementDetails: React.FC = () => {
   ) : null;
   // C3: the one line saying why "Mark as Paid" is absent — only to someone who would otherwise be offered it.
   const paidNeedsValue = !hasValue && INVOICE_PAY_ROLES.has(role) && !isApprover
-    && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'].includes(p.status)
+    && (p.status === 'Draft' || canRecordBillAtStatus(p.status))
     && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
   const gateMsg = sodGateMessage(p, role, isRequester, t)
     ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
@@ -913,7 +915,7 @@ const ProcurementDetails: React.FC = () => {
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
-        {tab === 'items' && <><ProcurementItemsTab readOnly={readOnlyDecision} p={p} stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><OrderNeededByPanel procurementId={p.id} items={p.items} editable={!readOnlyDecision && ['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={!readOnlyDecision && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /></>}
+        {tab === 'items' && <><ProcurementItemsTab readOnly={readOnlyDecision} p={p} stockItems={(stockItems.data ?? []).map((item) => ({ id: item.id, code: item.code, name: item.name, archived: Boolean(item.archived_at) }))} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><OrderReceivingProgress orderId={primaryPo?.id} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><OrderNeededByPanel procurementId={p.id} items={p.items} editable={canEditLineAttribution && ['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status)} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={canEditLineAttribution} /></>}
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
