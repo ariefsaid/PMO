@@ -106,6 +106,16 @@ describe('AC-EML-014 per-user opt-out', () => {
     await waitFor(() => expect(repo.setMyOptOut).toHaveBeenCalledWith(true));
   });
 
+  it.each([false, true])('labels the stored opt-out state %s without reversing the switch', async (optedOut) => {
+    repo.getMyOptOut.mockResolvedValue(optedOut);
+    renderUi(<EmailOptOutSetting />, 'Finance');
+    const sw = await screen.findByRole('switch', { name: 'Send me email notifications' });
+    expect(sw).toHaveAttribute('aria-checked', String(!optedOut));
+    expect(screen.getByText('Receive emails from PMO about approvals, overdue items and expiring documents. In-app notifications are not affected.')).toBeInTheDocument();
+    expect(screen.getByText(optedOut ? 'Email notifications are off' : 'Email notifications are on')).toBeInTheDocument();
+    expect(repo.setMyOptOut).not.toHaveBeenCalled();
+  });
+
   it('reads in Bahasa Indonesia', async () => {
     renderUi(<EmailOptOutSetting />, 'Finance', 'id');
     expect(await screen.findByRole('switch', { name: 'Kirim notifikasi email kepada saya' })).toBeInTheDocument();

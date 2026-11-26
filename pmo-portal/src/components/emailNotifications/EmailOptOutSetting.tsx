@@ -36,7 +36,8 @@ export const EmailOptOutSetting: React.FC = () => {
       <h2 id="email-optout-title" className="text-control font-medium">{t('optOut.title', 'Email notifications')}</h2>
       <div className="mt-1 flex items-center justify-between gap-3">
         <p id="email-optout-desc" className="text-control text-muted-foreground">
-          {t('optOut.description', 'Turn off the emails PMO sends about approvals, overdue items and expiring documents. In-app notifications are not affected.')}
+          {t('optOut.description', 'Receive emails from PMO about approvals, overdue items and expiring documents. In-app notifications are not affected.')}
+          <span className="mt-1 block font-medium text-foreground">{optedOut ? t('optOut.off', 'Email notifications are off') : t('optOut.on', 'Email notifications are on')}</span>
         </p>
         <Switch checked={!optedOut} label={label} describedBy="email-optout-desc" disabled={busy} onChange={change} />
       </div>

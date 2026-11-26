@@ -32,8 +32,10 @@
   },
   "optOut": {
     "title": "Notifikasi email",
-    "description": "Matikan email dari PMO tentang persetujuan, item terlambat, dan dokumen yang akan kedaluwarsa. Notifikasi di dalam aplikasi tidak terpengaruh.",
-    "label": "Kirim notifikasi email kepada saya"
+    "description": "Terima email dari PMO tentang persetujuan, item terlambat, dan dokumen yang akan kedaluwarsa. Notifikasi di dalam aplikasi tidak terpengaruh.",
+    "label": "Kirim notifikasi email kepada saya",
+    "on": "Notifikasi email aktif",
+    "off": "Notifikasi email nonaktif"
   },
   "scheduled": {
     "title": "Laporan terjadwal",

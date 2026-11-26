@@ -32,8 +32,10 @@
   },
   "optOut": {
     "title": "Email notifications",
-    "description": "Turn off the emails PMO sends about approvals, overdue items and expiring documents. In-app notifications are not affected.",
-    "label": "Send me email notifications"
+    "description": "Receive emails from PMO about approvals, overdue items and expiring documents. In-app notifications are not affected.",
+    "label": "Send me email notifications",
+    "on": "Email notifications are on",
+    "off": "Email notifications are off"
   },
   "scheduled": {
     "title": "Scheduled reports",
