@@ -222,33 +222,34 @@ const MeetingDetail: React.FC = () => {
               {t('meetingDetail.actionItems.empty', 'No action items yet. Type /action in the minutes to create one.')}
             </p>
           ) : (
-            <ul className="flex flex-col gap-2" data-testid="action-items-list">
-              {actionItems.map((task) => (
-                <li id={`task-${task.id}`} key={task.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  {task.project_id ? (
-                    <Link
-                      to={`/projects/${task.project_id}/tasks#task-${task.id}`}
-                      className="rounded font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {task.name}
-                    </Link>
-                  ) : (
-                    <span className="font-medium">{task.name}</span>
-                  )}
-                  <StatusPill record="task" state={task.status} />
-                  <span className="text-muted-foreground">
-                    {task.assignee
-                      ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
-                      : t('meetingDetail.minutes.unassigned', 'Unassigned: assign an owner')}
-                  </span>
-                  {task.end_date && (
-                    <span className="text-muted-foreground">
-                      {t('meetingDetail.minutes.dueLabel', 'Due date')}: {formatDay(task.end_date)}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto" data-testid="action-items-list">
+              <table className="w-full min-w-[36rem] table-fixed text-left text-sm">
+                <thead className="text-muted-foreground">
+                  <tr className="border-b border-border">
+                    <th scope="col" className="w-2/5 px-2 py-3 font-normal">{t('meetingDetail.actionItems.title', 'Action items')}</th>
+                    <th scope="col" className="px-2 py-3 font-normal">{t('meetingDetail.actionItems.status', 'Status')}</th>
+                    <th scope="col" className="px-2 py-3 font-normal">{t('meetingDetail.minutes.ownerLabel', 'Owner')}</th>
+                    <th scope="col" className="px-2 py-3 font-normal">{t('meetingDetail.minutes.dueLabel', 'Due date')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {actionItems.map((task) => (
+                    <tr id={`task-${task.id}`} key={task.id} className="h-[54px] border-b border-border last:border-0">
+                      <td className="break-words px-2 py-3">
+                        {task.project_id ? (
+                          <Link to={`/projects/${task.project_id}/tasks#task-${task.id}`} className="rounded font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            {task.name}
+                          </Link>
+                        ) : task.name}
+                      </td>
+                      <td className="px-2 py-3"><StatusPill record="task" state={task.status} /></td>
+                      <td className="break-words px-2 py-3">{task.assignee ? task.assignee.full_name : t('meetingDetail.minutes.unassigned', 'Unassigned: assign an owner')}</td>
+                      <td className="whitespace-nowrap px-2 py-3">{task.end_date ? formatDay(task.end_date) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardPad>
       </Card>
