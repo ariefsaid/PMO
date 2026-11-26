@@ -295,7 +295,7 @@ const Meetings: React.FC = () => {
                 labelledBy="meetings-show-archived-label"
               />
             </div>
-            {hasActiveFilters && (
+            {hasActiveFilters && rows.length > 0 && (
               <button
                 type="button"
                 onClick={clear}
