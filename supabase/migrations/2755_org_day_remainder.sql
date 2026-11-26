@@ -1,6 +1,25 @@
 -- Organisation calendar and dated expense costs. Reverse: rollback/2755_org_day_remainder_down.sql
 -- drops: duplicate calendar expressions, the inspection UTC-plus-one allowance, and UTC claim date casts;
 -- dated performance expands each counted claim to its expense lines, while aggregate claim reads keep one row.
+-- drops: equipment_org_today(uuid) | "select (now() at time zone coalesce(o.default_timezone, 'UTC'))::date from public.organizations o where o.id = p_org" | delegate to the shared organisation-day helper
+-- drops: get_executive_dashboard() | "select coalesce((select (now() at time zone coalesce(o.default_timezone, 'UTC'))::date" | read the day from the shared organisation-day helper
+-- drops: get_executive_dashboard() | "from public.organizations o where o.id = public.auth_org_id()), current_date) as today" | read the day from the shared organisation-day helper
+-- drops: guard_crew_loan_archive() | "where (l.home_crew_id = new.id or l.host_crew_id = new.id) and l.valid_to >= current_date) then" | compare loan dates with the crew organisation's day
+-- drops: guard_tpi_transition() | "if new.executed_on > current_date + 1 then" | compare inspection dates with the organisation's day
+-- drops: native_org_date(uuid,timestamptz) | "select (p_at at time zone coalesce(" | delegate calendar conversion to org_date
+-- drops: native_org_date(uuid,timestamptz) | "(select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date" | delegate calendar conversion to org_date
+-- drops: native_org_today(uuid) | "select public.native_org_date(p_org, now())" | delegate today's date to org_today
+-- drops: qcr_org_today(uuid) | "select (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date" | delegate to the shared organisation-day helper
+-- drops: rsv_today(uuid) | "select (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date" | delegate to the shared organisation-day helper
+-- drops: set_procurement_invoice_efaktur(uuid,text,date) | "if p_efaktur_date is not null and p_efaktur_date > (now() at time zone coalesce(" | compare with the invoice organisation's day
+-- drops: set_procurement_invoice_efaktur(uuid,text,date) | "(select o.default_timezone from public.organizations o where o.id = v_row.org_id), 'UTC'))::date then" | compare with the invoice organisation's day
+-- drops: set_sales_invoice_efaktur(uuid,text,date) | "if p_efaktur_date is not null and p_efaktur_date > (now() at time zone coalesce(" | compare with the invoice organisation's day
+-- drops: set_sales_invoice_efaktur(uuid,text,date) | "(select o.default_timezone from public.organizations o where o.id = v_row.org_id), 'UTC'))::date then" | compare with the invoice organisation's day
+-- drops: site_checkpoint_today() | "select (now() at time zone coalesce(" | delegate to the shared organisation-day helper
+-- drops: site_checkpoint_today() | "(select o.default_timezone from public.organizations o where o.id = public.auth_org_id()), 'UTC'))::date" | delegate to the shared organisation-day helper
+-- drops: stock_org_today(uuid) | "select (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date" | delegate to the shared organisation-day helper
+-- drops: work_order_cost_amounts_unrounded(uuid) | "select c.id, c.work_order_id, c.discipline_id, coalesce(c.approved_at, c.created_at)::date as on_date," | retain a date-only cost stamp instead of deriving a UTC timestamp date
+-- drops: wrp_org_today(uuid) | "select (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date" | delegate to the shared organisation-day helper
 create function public.org_date(p_org uuid, p_at timestamptz) returns date
 language sql stable set search_path = public, pg_temp as $$
   select (p_at at time zone coalesce((select o.default_timezone from public.organizations o where o.id = p_org), 'UTC'))::date

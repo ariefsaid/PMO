@@ -30,6 +30,13 @@ npm run migration-registers
 Exit 1 on any miss. A miss prints the fix (the exact registry statement or fragment line shape) and
 names the gate that would have failed. A `✓` line means the branch already carries the entry.
 
+## Applied local schema
+
+After resetting the local database, run `scripts/check-schema-registrations.sh` from the repo root.
+It holds the local database lock and checks change history classification, the isolation denominator,
+and the callable definer inventory against the applied schema. Run it with `--self-test` to plant
+and clear three scratch gaps inside transactions that roll back.
+
 ## What each rule reads
 
 | Rule | Fires when | Register to carry | Authority gate |

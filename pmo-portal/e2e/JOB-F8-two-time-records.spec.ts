@@ -7,10 +7,10 @@
  */
 import { test, expect } from '@playwright/test';
 import { ORG_ID, PM_ID, need, ok, runId, serviceClient } from './support/jobFixtures';
-import { roleJobUser } from './support/roleJobUser';
+import { jobRoleUser } from './support/jobRole';
+import { orgDay } from './support/orgDay';
 import { signIn, visibleToast } from './helpers';
 import { formatDay } from '../src/lib/format';
-import { inDays } from './support/jobJourney';
 import { markEveryonePresent } from './support/crewJourney';
 
 test.setTimeout(180_000);
@@ -20,8 +20,8 @@ const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
 test('JOB-F8 the Construction Manager sees both time records on the daily report and decides which stands', async ({ page }) => {
   const svc = serviceClient('JOB-F8');
   const run = runId('JOBF8');
-  const cm = await roleJobUser(svc, 'construction_manager', run);
-  const from = inDays(-7); // rostered a week back by the organisation's clock
+  const cm = await jobRoleUser({ service: svc, jobRole: 'construction_manager', run: run });
+  const from = await orgDay(-7); // rostered a week back by the organisation's clock
   let projectId: string; let workOrderId = ''; let crewId = ''; let workerId: string; let reportId = '';
   try {
     projectId = need('project', await svc.from('projects').insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
@@ -86,9 +86,9 @@ test('JOB-F8 the Construction Manager sees both time records on the daily report
     // decided_by points at the login, so the decision rows go first; the rest is scoped to this run's own project and crew.
     if (workOrderId) {
       ok('second records cleanup', await svc.from('attendance_second_records').delete().eq('work_order_id', workOrderId));
-      ok('roster cleanup', await svc.from('work_order_crews').update({ valid_to: inDays(-1) }).eq('work_order_id', workOrderId));
+      ok('roster cleanup', await svc.from('work_order_crews').update({ valid_to: await orgDay(-1) }).eq('work_order_id', workOrderId));
     }
-    if (crewId) ok('placements cleanup', await svc.from('crew_members').update({ valid_to: inDays(-1) }).eq('crew_id', crewId));
+    if (crewId) ok('placements cleanup', await svc.from('crew_members').update({ valid_to: await orgDay(-1) }).eq('crew_id', crewId));
     if (reportId) ok('report cleanup', await svc.from('daily_site_reports').delete().eq('id', reportId));
     await cm.cleanup();
   }

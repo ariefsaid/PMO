@@ -17,6 +17,7 @@ vi.mock('@/src/lib/db/orgRoleNames', async (orig) => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
 
+import { listOrgRoleNames } from '@/src/lib/db/orgRoleNames';
 import AdministrationRoleNames from './AdministrationRoleNames';
 
 const wrap = () =>
@@ -28,6 +29,23 @@ const wrap = () =>
 
 describe('AC-TX-008 role names screen', () => {
   beforeEach(() => { vi.clearAllMocks(); permissions.write = true; });
+  it('#2813 shows the stored wording after the second language fails to save', async () => {
+    save.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Failed to fetch'));
+    wrap();
+    const card = await screen.findByTestId('role-name-card-storekeeper');
+    const english = within(screen.getByTestId('role-name-row-storekeeper-en')).getByRole('textbox', { name: 'Name' });
+    const bahasa = within(screen.getByTestId('role-name-row-storekeeper-id')).getByRole('textbox', { name: 'Name' });
+    expect(english).toHaveValue('Yard Lead');
+    vi.mocked(listOrgRoleNames).mockResolvedValueOnce({ en: { storekeeper: 'Yard Supervisor' } });
+    await userEvent.clear(english);
+    await userEvent.type(english, 'Yard Supervisor');
+    await userEvent.type(bahasa, 'Pengawas');
+    const saveButton = within(card).getByRole('button', { name: 'Save' });
+    await userEvent.click(saveButton);
+    await waitFor(() => expect(bahasa).toHaveValue(''));
+    expect(english).toHaveValue('Yard Supervisor');
+    expect(saveButton).toBeDisabled();
+  });
   it('lists all 28 roles with both languages', async () => {
     wrap();
     await screen.findByTestId('role-name-card-storekeeper');

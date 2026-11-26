@@ -33,6 +33,18 @@ describe('time record roles setting', () => {
     expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(1);
   });
 
+  it('#2813 unticking and reticking a saved role keeps Save disabled', async () => {
+    h.roles.secondRecordRoles = ['quantity_surveyor', 'project_control_manager'];
+    view();
+    const enter = await screen.findByRole('group', { name: 'May enter a second record' });
+    const role = within(enter).getByRole('checkbox', { name: 'Measurement lead', checked: true });
+    const save = screen.getByRole('button', { name: 'Save' });
+    await userEvent.click(role);
+    expect(save).toBeEnabled();
+    await userEvent.click(role);
+    expect(save).toBeDisabled();
+  });
+
   it('saves both lists through the Admin write', async () => {
     const user = userEvent.setup();
     view();

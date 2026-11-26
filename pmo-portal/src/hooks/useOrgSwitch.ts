@@ -32,12 +32,17 @@ export function useModuleOn(module: OrgModuleKey | undefined, enabled = true): b
   return q.data !== false;
 }
 
+/** Read the stored switch when a server-side rule uses it directly. */
+export function useStoredOrgSwitch(key: OrgSwitchKey, enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery(orgSwitchQuery(orgId, key, enabled));
+}
+
 /** A switch that lives in a module (the registry's `module`) reads off while its module is off, or while an ERP owns the stock for a stock feature; the stored value is untouched. */
 export function useOrgSwitch(key: OrgSwitchKey, enabled = true) {
-  const orgId = useAuth().currentUser?.org_id;
   const moduleOn = useModuleOn(orgSwitch(key).module);
   const erpOwnsStock = useStockOwnedByErp();
-  const q = useQuery(orgSwitchQuery(orgId, key, enabled));
+  const q = useStoredOrgSwitch(key, enabled);
   const hidden = !moduleOn || (erpOwnsStock && orgSwitch(key).pmoStockOnly === true);
   return hidden && q.data !== undefined ? { ...q, data: false } : q;
 }
