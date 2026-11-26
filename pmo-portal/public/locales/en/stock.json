@@ -1132,7 +1132,8 @@
     "status": "Status",
     "lines": "Order lines",
     "qualityTitle": "Quality check",
-    "receipts": "Receipts"
+    "receipts": "Receipts",
+    "countedColumn": "Counted"
   },
   "materialCompletion": {
     "title": "Material completion",

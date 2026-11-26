@@ -1132,7 +1132,8 @@
     "status": "Status",
     "lines": "Baris pesanan",
     "qualityTitle": "Pemeriksaan mutu",
-    "receipts": "Penerimaan"
+    "receipts": "Penerimaan",
+    "countedColumn": "Dihitung"
   },
   "materialCompletion": {
     "title": "Penyelesaian material",

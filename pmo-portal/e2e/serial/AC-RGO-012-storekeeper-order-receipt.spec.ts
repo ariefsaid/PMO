@@ -44,11 +44,11 @@ test('AC-RGO-012 storekeeper counts blind and buyer sees received and outstandin
     await db.from('profiles').update({ built_in_role: 'buyer' }).eq('id', ENGINEER_ID).throwOnError();
     await signIn(page, 'engineer@acme.test');
     await page.goto(`/stock/new/receive?order=${po}`);
-    // Purchasing reads the line column by column: Ordered 40 · Received 37 · Outstanding 3 (cell 0 is the stock item).
+    // Purchasing reads the line column by column: Ordered 40 · Received 37 · Outstanding 3.
     const orderLine = page.getByRole('table', { name: 'Order lines' }).getByRole('row').filter({ hasText: item.name });
-    await expect(orderLine.getByRole('cell').nth(1)).toHaveText(/^40\b/, { timeout: 20_000 });
-    await expect(orderLine.getByRole('cell').nth(2)).toHaveText(/^37\b/);
-    await expect(orderLine.getByRole('cell').nth(3)).toHaveText(/^3\b/);
+    await expect(orderLine.getByRole('cell').nth(0)).toHaveText(/^40\b/, { timeout: 20_000 });
+    await expect(orderLine.getByRole('cell').nth(1)).toHaveText(/^37\b/);
+    await expect(orderLine.getByRole('cell').nth(2)).toHaveText(/^3\b/);
   } finally {
     await db.from('profiles').update({ built_in_role: profile.built_in_role }).eq('id', ENGINEER_ID).throwOnError();
     await admin.rpc('set_order_receiving_enabled', { p_enabled: setting.data?.enabled ?? false }).throwOnError();
