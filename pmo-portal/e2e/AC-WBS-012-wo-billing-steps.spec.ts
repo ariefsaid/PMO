@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -69,6 +69,7 @@ test('AC-WBS-012 a work order\'s billing steps advance in order and appear on th
     await page.goto('/work-orders/' + workOrderId);
     await openWorkOrderArea(page, 'billing');
     await expect(page.getByTestId('wo-billing-steps-summary')).toContainText('2 steps not finished');
+    await openRowUpdate(page, 'First ' + suffix);
     await expect(page.getByRole('button', { name: 'Mark First ' + suffix + ' done' })).toBeDisabled();
     await page.getByRole('combobox', { name: 'Document for Evidence slot ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Evidence slot ' + suffix }).click();
@@ -76,6 +77,7 @@ test('AC-WBS-012 a work order\'s billing steps advance in order and appear on th
     await expect(page.getByTestId('wo-billing-steps-summary')).toContainText('1 step not finished');
 
     // The next step is now current for its owner; the board lists the same rows.
+    await openRowUpdate(page, 'Second ' + suffix);
     await expect(page.getByRole('button', { name: 'Mark Second ' + suffix + ' done' })).toBeEnabled();
     await page.goto('/finance/billing-board?project=' + projectId);
     await expect(page.getByTestId('billing-board-wo-steps')).toContainText('Second ' + suffix);

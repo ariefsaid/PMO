@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -82,6 +82,7 @@ test('AC-WML-007 open steps and a missing attachment are listed, exported, and l
 
     // Attach the document and finish the first step: its step row and attachment row leave the list; the second step stays.
     await openWorkOrderArea(page, 'billing');
+    await openRowUpdate(page, 'First ' + suffix);
     await page.getByRole('combobox', { name: 'Document for Evidence slot ' + suffix }).selectOption({ label: 'Evidence ' + suffix });
     await page.getByRole('button', { name: 'Attach to Evidence slot ' + suffix }).click();
     await page.getByRole('button', { name: 'Mark First ' + suffix + ' done' }).click();

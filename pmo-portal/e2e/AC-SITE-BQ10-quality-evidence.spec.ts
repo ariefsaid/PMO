@@ -3,7 +3,7 @@ import {signIn} from './helpers';
 import {test,expect} from '@playwright/test';
 import {siteRole,siteWorkOrder} from './support/siteRoleJourney';
 import {ORG_ID,PM_ID,inDays,need} from './support/jobJourney';
-import { openWorkOrderArea } from './support/workOrderArea';
+import { openRowUpdate, openWorkOrderArea } from './support/workOrderArea';
 test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality step',async({page})=>{
  const actor=await siteRole('quality_inspector');const db=actor.db;const fixture=await siteWorkOrder(db);const must=need('AC-SITE-BQ10');
  try{
@@ -11,9 +11,10 @@ test('AC-SITE-BQ10 QC attaches evidence once to its owned work-order quality ste
   const document=must('proof',await db.from('project_documents').insert({id:fixture.run,org_id:ORG_ID,project_id:fixture.project,category:'Acceptance',title:`Quality proof ${fixture.run}`,status:'Approved',author_id:PM_ID,file_path:`${ORG_ID}/${fixture.project}/${fixture.run}/quality.pdf`}).select('id').single()).id;
   const claims=[]; for(let index=0;index<2;index++) claims.push(must('claim',await db.from('progress_claims').insert({org_id:ORG_ID,project_id:fixture.project,work_order_id:fixture.wo,kind:'progress',currency:'IDR',gross_amount:1000,created_at:`2026-01-${14+index}T12:00:00Z`,created_by:PM_ID}).select('id,work_order_id').single()));
   await actor.login(page);await page.goto(`/work-orders/${fixture.wo}`);await openWorkOrderArea(page,'billing');
-  const row=page.getByTestId('wo-billing-step').filter({hasText:'Quality evidence'});
-  await row.getByRole('combobox',{name:'Additional document'}).selectOption(document);await row.getByRole('button',{name:'Attach additional document'}).click();
-  await expect(row.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();await page.reload();await expect(page.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();
+  const row=page.getByTestId('wo-billing-step').filter({hasText:'Quality evidence'});await expect(row).toBeVisible({timeout:30_000});
+  const update=await openRowUpdate(page,'Quality evidence');
+  await update.getByRole('combobox',{name:'Additional document'}).selectOption(document);await update.getByRole('button',{name:'Attach additional document'}).click();
+  await expect(update.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();await page.reload();await expect(page.getByRole('link',{name:`Quality proof ${fixture.run}`})).toBeVisible();
   // QC owns filing; Finance owns opening each claim and following its evidence doorway.
   await signIn(page,'finance@acme.test');
   for(const [index,claim] of claims.entries()){
