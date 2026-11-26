@@ -182,7 +182,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
     await expect(adminPage).toHaveURL(/\/crews/);
     await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
     // The decision is made on this run's own request, not on whatever else the organisation happens to be waiting for.
-    const request = adminPage.getByRole('listitem').filter({ hasText: `${run} slab` });
+    const request = adminPage.getByRole('row').filter({ hasText: `${run} slab` });
     // The area they judge against is on the request.
     await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
     // First decision: refuse with a reason; the worker sees the reason and can try again.

@@ -98,7 +98,7 @@ test('JOB-PC21 project administrator enters unnamed guard head count, project ma
     // 1. Project administrator records a head count of 3 unnamed guards for the work order.
     await fieldAdmin.signIn(page);
     await page.goto(`/crews?view=attendance&wo=${woId}`);
-    await expect(page.getByText(/No head count entered for this day/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('No head count for this day')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('combobox', { name: 'Labour class' }).selectOption({ label: className });
     await page.getByRole('textbox', { name: 'Number of people' }).fill('3');
     await page.getByRole('button', { name: 'Save head count' }).click();

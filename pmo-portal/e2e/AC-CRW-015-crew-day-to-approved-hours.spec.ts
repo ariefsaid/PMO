@@ -97,9 +97,10 @@ test('AC-CRW-015 a crew\'s day is ticked, the week sent, a supervisor approves, 
   // 2. The Project Manager, who recorded none of it, approves each person's week from the same page.
   await signIn(page, 'pm@acme.test');
   await page.goto('/crews?view=attendance');
-  for (const [person, hours] of [[ana, '8 hours'], [budi, '6 hours']] as const) {
+  for (const [person, hours] of [[ana, '8'], [budi, '6']] as const) {
     const row = page.getByRole('row', { name: person.name });
-    await expect(row.getByText(hours)).toBeVisible({ timeout: 20_000 });
+    // The week's hours sit in the waiting table's Hours column.
+    await expect(row.getByRole('cell', { name: hours, exact: true })).toBeVisible({ timeout: 20_000 });
     await row.getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByRole('row', { name: person.name })).toHaveCount(0, { timeout: 15_000 });
   }
