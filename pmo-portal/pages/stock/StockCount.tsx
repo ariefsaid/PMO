@@ -1,3 +1,4 @@
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +32,7 @@ const COST = /^\d+(\.\d{1,4})?$/;
  */
 const CountLineCard = React.memo(function CountLineCard({
   line, number, index, kind, canSeeCost, showRemove, system, variance, unitCode,
-  itemError, qtyError, costError, onPatch, onRemove,
+  itemError, qtyError, costError, onPatch, onRemove, wide = true,
 }: {
   line: Line;
   /** Row suffix for field labels (' 3'), empty when the count has one line. */
@@ -48,10 +49,38 @@ const CountLineCard = React.memo(function CountLineCard({
   costError?: string;
   onPatch: (key: number, patch: Partial<Line>) => void;
   onRemove: (key: number) => void;
+  /** Desktop: the sheet's column headers name the fields, so the per-row labels are for screen readers only. */
+  wide?: boolean;
 }) {
   const { t } = useTranslation('stock');
   const needsCost = kind === 'count' ? system === '0' && variance !== undefined && variance !== '0' : line.direction === 'in';
   const costLabel = `${canSeeCost ? t('form.unitCost') : t('form.unitCostBlind')}${number}`;
+  const diff = variance === undefined ? undefined : variance === '0' || variance.startsWith('-') ? variance : `+${variance}`;
+  if (kind === 'count') {
+    // One row of the count sheet: what you counted next to what the book says and the difference, each in its own column.
+    return (
+      <li className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_9rem_8rem_8rem_6rem] sm:items-start">
+        <ItemPicker label={`${t('form.item')}${number}`} hideLabel={wide} required value={line.itemId} onChange={(id) => onPatch(line.key, { itemId: id })} error={itemError} />
+        <TextField label={`${t('count.counted')}${number}`} hideLabel={wide} required inputMode="decimal" autoComplete="off" className="text-right tabular-nums"
+          value={line.counted} onChange={(x) => onPatch(line.key, { counted: x })} error={qtyError} />
+        <div className="flex items-baseline justify-between gap-2 sm:block sm:pt-2 sm:text-right">
+          <span className="text-control text-muted-foreground sm:sr-only">{t('count.systemNow')}</span>
+          {system === undefined ? <span className="text-muted-foreground">—</span> : <span className="tabular-nums" data-testid={`system-${index}`}>{system} <span className="text-muted-foreground">{unitCode}</span></span>}
+        </div>
+        <div className="flex items-baseline justify-between gap-2 sm:block sm:pt-2 sm:text-right">
+          <span className="text-control text-muted-foreground sm:sr-only">{t('count.variance')}</span>
+          {diff === undefined ? <span className="text-muted-foreground">—</span> : <span className="font-semibold tabular-nums" data-testid={`variance-${index}`}>{diff} <span className="font-normal text-muted-foreground">{unitCode}</span></span>}
+        </div>
+        <div className="sm:text-right">{showRemove && <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(line.key)}>{t('form.removeLine')}</Button>}</div>
+        {needsCost && (
+          <div className="sm:col-span-5 sm:max-w-sm">
+            <TextField label={costLabel} required={system === '0' && !line.costOnFile} inputMode="decimal" autoComplete="off" value={line.unitCost} onChange={(x) => onPatch(line.key, { unitCost: x })}
+              helper={line.costOnFile ? t('count.costOnFile') : system === '0' ? undefined : t('count.costDefault')} error={costError} />
+          </div>
+        )}
+      </li>
+    );
+  }
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <FormGrid>
@@ -60,8 +89,8 @@ const CountLineCard = React.memo(function CountLineCard({
           <SelectField label={`${t('count.direction')}${number}`} required value={line.direction} onChange={(d) => onPatch(line.key, { direction: d as 'in' | 'out' })}
             options={[{ value: 'out', label: t('count.out') }, { value: 'in', label: t('count.in') }]} />
         )}
-        <TextField label={`${t(kind === 'count' ? 'count.counted' : 'form.quantity')}${number}`} required inputMode="decimal" autoComplete="off"
-          value={kind === 'count' ? line.counted : line.quantity} onChange={(x) => onPatch(line.key, kind === 'count' ? { counted: x } : { quantity: x })} error={qtyError} />
+        <TextField label={`${t('form.quantity')}${number}`} required inputMode="decimal" autoComplete="off"
+          value={line.quantity} onChange={(x) => onPatch(line.key, { quantity: x })} error={qtyError} />
         {needsCost && (
           <TextField label={costLabel} required={system === '0' && !line.costOnFile} inputMode="decimal" autoComplete="off" value={line.unitCost} onChange={(x) => onPatch(line.key, { unitCost: x })}
             helper={line.costOnFile ? t('count.costOnFile') : system === '0' ? undefined : t('count.costDefault')} error={costError} />
@@ -70,10 +99,6 @@ const CountLineCard = React.memo(function CountLineCard({
       {system !== undefined && (
         <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <div className="flex gap-2"><dt className="text-muted-foreground">{t('count.systemNow')}</dt><dd className="tabular-nums" data-testid={`system-${index}`}>{system} {unitCode}</dd></div>
-          {kind === 'count' && variance !== undefined && (
-            <div className="flex gap-2"><dt className="text-muted-foreground">{t('count.variance')}</dt>
-              <dd className="font-semibold tabular-nums" data-testid={`variance-${index}`}>{variance === '0' || variance.startsWith('-') ? variance : `+${variance}`} {unitCode}</dd></div>
-          )}
         </dl>
       )}
       {showRemove && (
@@ -114,6 +139,7 @@ const Shell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, 
 );
 
 const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; costs?: StockLineCost[] }> = ({ kind, draft, costs }) => {
+  const wide = useIsDesktop();
   const { t } = useTranslation('stock');
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -208,6 +234,15 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   const linesSettled = !linesPending && !linesError;
   const canAuthor = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
   const variances = lines.map(varianceOf);
+  const renderLine = (l: Line, idx: number) => {
+    const sys = systemOf(l.itemId);
+    const unit = l.itemId ? itemById.get(l.itemId) : undefined;
+    return (
+      <CountLineCard key={l.key} line={l} number={lines.length > 1 ? ` ${idx + 1}` : ''} index={idx + 1} kind={kind} canSeeCost={canSeeCost}
+        showRemove={lines.length > 1} system={sys} variance={variances[idx]} unitCode={unit ? unitCodeById.get(unit.unit_id) ?? '' : ''}
+        itemError={errors[`item${l.key}`]} qtyError={errors[`qty${l.key}`]} costError={errors[`cost${l.key}`]} onPatch={setLine} onRemove={removeLine} wide={wide} />
+    );
+  };
   // FR-STK-062: a count whose every line is known and zero may be posted by its author; anything else goes to another person.
   const hasDifference = kind === 'count' && variances.some((v) => v !== undefined && v !== '0');
   const selfPostable = kind === 'count' && variances.every((v) => v === '0');
@@ -355,31 +390,14 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
             {kind === 'count' && warehouseId && onHand.data && (
               <Button type="button" variant="outline" size="sm" className="mb-3" onClick={fillFromOnHand}>{t('count.fill')}</Button>
             )}
+            {kind === 'count' ? <div className="mb-3 rounded-lg border border-border bg-card">
+              <div className="hidden grid-cols-[minmax(0,1fr)_9rem_8rem_8rem_6rem] gap-3 border-b border-border px-4 py-3 text-control font-semibold sm:grid" aria-hidden="true">
+                <span>{t('form.item')}</span><span className="text-right">{t('count.counted')}</span><span className="text-right">{t('count.systemNow')}</span><span className="text-right">{t('count.variance')}</span><span />
+              </div>
+              <ul className="divide-y divide-border">{lines.map((l, idx) => renderLine(l, idx))}</ul>
+            </div> : null}
             <div className="space-y-3">
-              {lines.map((l, idx) => {
-                const n = lines.length > 1 ? ` ${idx + 1}` : '';
-                const sys = systemOf(l.itemId);
-                const unit = l.itemId ? itemById.get(l.itemId) : undefined;
-                return (
-                  <CountLineCard
-                    key={l.key}
-                    line={l}
-                    number={n}
-                    index={idx + 1}
-                    kind={kind}
-                    canSeeCost={canSeeCost}
-                    showRemove={lines.length > 1}
-                    system={sys}
-                    variance={variances[idx]}
-                    unitCode={unit ? unitCodeById.get(unit.unit_id) ?? '' : ''}
-                    itemError={errors[`item${l.key}`]}
-                    qtyError={errors[`qty${l.key}`]}
-                    costError={errors[`cost${l.key}`]}
-                    onPatch={setLine}
-                    onRemove={removeLine}
-                  />
-                );
-              })}
+              {kind !== 'count' && lines.map((l, idx) => renderLine(l, idx))}
               <Button type="button" variant="outline" size="sm" onClick={() => setLines((ls) => [...ls, blank(nextKey.current++)])}>
                 <Icon name="plus" />
                 {t('form.addLine')}
