@@ -1,3 +1,4 @@
+import { getNumberLocale } from "@/src/lib/locale/activeLocale";
 import React, { memo, useMemo, useRef } from 'react';
 import { rowContentKey, useLiveRowProps } from './useLiveRowProps';
 import { RowOpenControl } from './RowOpenControl';
@@ -627,7 +628,7 @@ export function DataTableDesktop<Row>({
     frozenKeys.current = keyed;
   }
   const { rowKeys, rowKeysSignature } = keyed;
-  const rowFingerprint = i18n.language;
+  const rowFingerprint = `${i18n.language}:${getNumberLocale()}`;
   const resizeHeaderKey = modelHeaders.map((header) => header.id).join('|');
   const resizeColumnVisibilityKey = columns
     .map((column) => `${column.key}:${column.colClassName ?? ''}`)
