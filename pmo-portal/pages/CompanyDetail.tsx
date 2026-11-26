@@ -250,22 +250,9 @@ const CompanyDetail: React.FC = () => {
       {/* #2583: the supplier's supply-risk status, the payables-age suggestion and the exposed work orders. */}
       {company.type === 'Vendor' && <SupplyRiskCard company={company} />}
 
-      {/* AC-IFW-COMPANY-01 + AC-G3C-CD-3: related projects (always) and procurement
-          (always fetch; visible for Vendors or any type when vendor PRs exist). */}
-      <RelatedProjects companyId={company.id} />
-      <RelatedProcurement companyId={company.id} isVendor={company.type === 'Vendor'} />
-      {company.type === 'Client' && canViewSalesInvoices && <CompanyCollections companyId={company.id} />}
-
-      {/* T17: Account-level activity timeline — aggregated across all company contacts.
-          CD-4: pass the add-contact opener so the cold-start card can surface it. */}
-      <AccountActivityCard
-        companyId={company.id}
-        onAddContact={canCreateContact ? () => setAddContactOpen(true) : undefined}
-      />
-
       {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer.
           T14: "Add contact" in-context button in the CardHead (CanWrite-gated). */}
-      <Card variant="bare">
+      <Card variant="bare" className="mb-4">
         <CardHead
           actions={
             canCreateContact && (
@@ -293,6 +280,19 @@ const CompanyDetail: React.FC = () => {
           <CompanyContactsList companyId={company.id} />
         </CardPad>
       </Card>
+
+      {/* AC-IFW-COMPANY-01 + AC-G3C-CD-3: related projects (always) and procurement
+          (always fetch; visible for Vendors or any type when vendor PRs exist). */}
+      <RelatedProjects companyId={company.id} />
+      <RelatedProcurement companyId={company.id} isVendor={company.type === 'Vendor'} />
+      {company.type === 'Client' && canViewSalesInvoices && <CompanyCollections companyId={company.id} />}
+
+      {/* T17: Account-level activity timeline — aggregated across all company contacts.
+          CD-4: pass the add-contact opener so the cold-start card can surface it. */}
+      <AccountActivityCard
+        companyId={company.id}
+        onAddContact={canCreateContact ? () => setAddContactOpen(true) : undefined}
+      />
 
       {/* #719 (spec D5): read-only change history — a collapsed Card section (this page has no tab bar). */}
       <HistorySection entityType="company" entityId={company.id} />
