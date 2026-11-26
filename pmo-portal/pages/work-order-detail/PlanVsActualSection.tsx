@@ -100,7 +100,7 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
     </div>
   );
   return (
-    <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
+    <RecordSection title={title} subline={t('actualBasis', 'Actual follows project financial actuals; the costs below include other records.')} actions={planAction} data-testid="wo-page-pva">
       {(f.directMargin.reason === 'different-currencies' || f.result.reason === 'different-currencies') && <OtherCurrencyNote />}
       <PvaTable dense testId="wo-page-pva-cost" caption={title} firstColumn={<span className="sr-only">{t('col.cost', 'Cost')}</span>} columns={columns} rows={[
         legRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct'),

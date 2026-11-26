@@ -46,16 +46,18 @@ const StockOnHand: React.FC = () => {
   const loc = getNumberLocale();
   // R2: all four filters are URL-owned so Back/refresh keep them; defaults stay out of the URL
   // (empty = all warehouses, zero balances hidden, no search, worklist off).
-  const { values, setFilter } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder', 'tag']);
+  const { values, setFilter, setFilters } = useUrlFilters(['warehouse', 'zero', 'q', 'belowReorder', 'tag', 'page']);
   const warehouseId = values.warehouse;
   const includeZero = values.zero === '1';
   const search = values.q;
   const belowOnly = values.belowReorder === '1';
   const tag = values.tag;
-  const setWarehouseId = (value: string) => setFilter('warehouse', value);
-  const setIncludeZero = (checked: boolean) => setFilter('zero', checked ? '1' : '');
-  const setSearch = (value: string) => setFilter('q', value);
-  const setBelowOnly = (checked: boolean) => setFilter('belowReorder', checked ? '1' : '');
+  const requestedPage = Math.max(1, Number.parseInt(values.page, 10) || 1);
+  const setStockFilter = (key: string, value: string) => setFilters({ [key]: value, page: '' });
+  const setWarehouseId = (value: string) => setStockFilter('warehouse', value);
+  const setIncludeZero = (checked: boolean) => setStockFilter('zero', checked ? '1' : '');
+  const setSearch = (value: string) => setStockFilter('q', value);
+  const setBelowOnly = (checked: boolean) => setStockFilter('belowReorder', checked ? '1' : '');
   const navigate = useNavigate();
   const { canRequest, request: requestPurchase } = useRequestPurchase();
 
@@ -69,6 +71,7 @@ const StockOnHand: React.FC = () => {
   const rsvOn = useReservationsEnabled();
   const figures = useFreeReserved(rsvOn);
   const [reserving, setReserving] = useState<StockOnHandRow | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
   const figureOf = useMemo(() => new Map((figures.data ?? []).map((f) => [`${f.itemId}:${f.warehouseId}`, f])), [figures.data]);
   const mayReserveAt = useCallback((r: StockOnHandRow): boolean => r.warehouseKind !== 'vendor'
     && mayReserve(realRole, realRole !== effectiveRole, (keepers.data ?? []).some((k) => k.user_id === me && k.warehouse_id === r.warehouseId)),
@@ -99,6 +102,9 @@ const StockOnHand: React.FC = () => {
     const visible = q ? tagged.filter((r) => `${r.itemCode} ${r.itemName} ${r.tagName ?? ''}`.toLowerCase().includes(q)) : tagged;
     return [...visible].sort(compareBalanceRows);
   }, [allRows, search, tag]);
+  const pageSize = 25;
+  const page = Math.min(requestedPage, Math.max(1, Math.ceil(rows.length / pageSize)));
+  const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const tagNames = useMemo(() => [...new Set(allRows.flatMap((r) => (r.tagName ? [r.tagName] : [])))].sort((a, b) => a.localeCompare(b)), [allRows]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
   const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
@@ -237,7 +243,7 @@ const StockOnHand: React.FC = () => {
             placeholder={t('onHand.filters.allWarehouses')}
           />
           {tagNames.length > 0 && (
-            <SelectField label={t('onHand.filters.tag', 'Tag')} hideLabel value={tag} onChange={(value) => setFilter('tag', value)}
+            <SelectField label={t('onHand.filters.tag', 'Tag')} hideLabel value={tag} onChange={(value) => setStockFilter('tag', value)}
               options={tagNames.map((n) => ({ value: n, label: n }))} placeholder={t('onHand.filters.allTags', 'All tags')} />
           )}
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
@@ -258,8 +264,9 @@ const StockOnHand: React.FC = () => {
           </div>
         </div>
       </StockFilters>
+      <div className="flex flex-col">
       {state === undefined && (
-        <div className="mb-3">
+        <div className="mb-3 order-2 md:order-1">
           {totalValue !== null && (
             <figure className="mb-2">
               <figcaption className="text-sm font-medium text-muted-foreground">
@@ -297,8 +304,11 @@ const StockOnHand: React.FC = () => {
         />
       )}
       {state === undefined && (
-        <DataTable<StockOnHandRow>
-          rows={rows}
+        <div className="relative order-1 md:order-2"><DataTable<StockOnHandRow>
+          rows={pageRows}
+          total={rows.length}
+          pagination={{ page, pageSize, onPageChange: (p) => setFilter('page', p <= 1 ? '' : String(p)) }}
+          onOverflowChange={setOverflowing}
           columns={columns}
           onActivate={(r) => navigate(`/stock/ledger?item=${r.itemId}`)}
           rowKey={(r) => `${r.itemId}:${r.warehouseId}`}
@@ -330,7 +340,6 @@ const StockOnHand: React.FC = () => {
                   <dd className="min-w-0"><FreeFigure figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} /></dd>
                   <dt className="text-muted-foreground">{t('reservations.reserved')}</dt>
                   <dd className="min-w-0 [&>div]:items-start [&>div]:text-left"><ReservedFigure figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} /></dd>
-                  {mayReserveAt(r) && <dd className="col-span-2 pt-1"><ReserveAction onReserve={() => setReserving(r)} /></dd>}
                 </>
               )}
               {showCost && (
@@ -343,10 +352,12 @@ const StockOnHand: React.FC = () => {
                   <dd className="tabular-nums">{formatStockValue(r.valueOnHand, currency, loc) || <span className="text-muted-foreground">—</span>}</dd>
                 </>
               )}
+              {rsvOn && mayReserveAt(r) && <dd className="col-span-2 pt-1"><ReserveAction onReserve={() => setReserving(r)} /></dd>}
             </dl>
           )}
-        />
+        />{overflowing && <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-r from-transparent to-card" />}</div>
       )}
+      </div>
       {reserving && (
         <ReservationForm itemId={reserving.itemId} itemLabel={`${reserving.itemCode} - ${reserving.itemName}`} warehouseId={reserving.warehouseId}
           warehouseLabel={reserving.warehouseName}

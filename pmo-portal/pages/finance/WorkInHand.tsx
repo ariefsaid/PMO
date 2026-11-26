@@ -138,7 +138,7 @@ const GroupTable: React.FC<{ group: WipCurrencyGroup }> = ({ group }) => {
     </React.Fragment>
   );
   return (
-    <div className="overflow-x-auto" data-testid={`wih-table-${group.currency}`}>
+    <div role="region" aria-label={t('table.scrollLabel', { currency: group.currency, defaultValue: '{{currency}} contracts and work orders' })} tabIndex={0} className="overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" data-testid={`wih-table-${group.currency}`}>
       <table className="w-full min-w-[760px] text-sm">
         <caption className="sr-only">{group.currency}</caption>
         <thead>
@@ -258,13 +258,15 @@ const WorkInHand: React.FC = () => {
               <Card role="region" aria-labelledby="wih-attention">
                 <CardHead id="wih-attention">{t('attention.title', 'Needs a look')}</CardHead>
                 <CardPad>
-                  <ul className="space-y-1" data-testid="wih-attention-list">
-                    {attention.slice(0, ATTENTION_ROWS).map((r) => (
-                      <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                        <Link to={linkFor(r)} className="min-h-11 text-primary-text underline-offset-4 hover:underline">{labelFor(r)}</Link>
-                        <span className={r.overBilled ? 'text-destructive-text' : 'text-warning-text'}>
-                          {r.overBilled ? t('attention.over', 'Billed over value') : `${t('attention.noRate', 'No billing rate')}: ${noRateCause(r)}`}
-                        </span>
+                  <ul className="divide-y divide-border" data-testid="wih-attention-list">
+                    {attention.slice(0, ATTENTION_ROWS).map((r, index) => (
+                      <li key={r.id} className="text-sm">
+                        <Link to={linkFor(r)} aria-label={labelFor(r)} className={`grid min-h-11 gap-1 py-2 underline-offset-4 hover:underline sm:grid-cols-2 sm:gap-4 ${index === 0 ? 'pt-0' : ''}`}>
+                          <span className="text-primary-text">{labelFor(r)}</span>
+                          <span className={r.overBilled ? 'text-destructive-text' : 'text-warning-text'}>
+                            {r.overBilled ? t('attention.over', 'Billed over value') : `${t('attention.noRate', 'No billing rate')}: ${noRateCause(r)}`}
+                          </span>
+                        </Link>
                       </li>
                     ))}
                   </ul>

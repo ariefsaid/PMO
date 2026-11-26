@@ -134,7 +134,8 @@
       "prior": "Sudah diminta",
       "total": "Total baru",
       "sectionPlan": "Rencana {{section}}"
-    }
+    },
+    "savedReason": "Alasan tersimpan"
   },
   "inbox": {
     "scope": "Permintaan material",

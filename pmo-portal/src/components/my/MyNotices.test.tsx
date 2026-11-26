@@ -45,10 +45,12 @@ describe('MyNotices (#2887)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Notice a/ })).toHaveTextContent(/Read/));
   });
 
-  it('JOB-2887-3 says so when there are no notices', async () => {
+  it('JOB-2887-3 omits the empty notices section', async () => {
     listPage.mockResolvedValue({ rows: [], nextCursor: null });
     show();
-    expect(await screen.findByText('No notifications yet.')).toBeInTheDocument();
+    await waitFor(() => expect(listPage).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText('Loading notifications…')).not.toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name: 'Notices' })).not.toBeInTheDocument();
   });
 
   it('F2 renders every fetched notice, not only the first ten', async () => {

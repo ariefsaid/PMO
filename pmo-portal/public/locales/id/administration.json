@@ -1044,7 +1044,7 @@
     "leftTitle": "Tandai {{name}} sudah keluar",
     "leftBody": "Personel ini pindah ke Mantan personel dan keluar dari semua susunan kru mulai hari ini. Dokumen, jam kerja, dan riwayatnya tetap tercatat.",
     "leftOn": "Hari pertama keluar dari susunan kru",
-    "leftOnHelp": "Hari pertama keluar dari susunan kru",
+    "leftOnHelp": "Mulai tanggal ini, orang ini tidak lagi tercantum dalam susunan kru.",
     "markedLeft": "{{name}} sekarang menjadi mantan personel",
     "expiring": "Dokumen akan kedaluwarsa"
   },

@@ -236,7 +236,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             // basis sits behind the card's one help affordance instead of wrapping the title word.
             // The figures carry the currency, so the heading needs no currency line.
             actions={<>
-              {contractTools}
               {showSummary && <HelpPopover subject={t('projectDetail.cascade.title', 'Contract')}>
                 {t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}
               </HelpPopover>}
@@ -245,9 +244,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             {t('projectDetail.cascade.title', 'Contract')}
           </CardHead>
           <CardPad key="contract-summary-body" className="pt-0">
+          {contractTools && <div className="mb-4 min-w-0">{contractTools}</div>}
           {isCascadeError && <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />}
           {showSummary && <React.Fragment key="contract-summary-content">
-          <ol className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))]" aria-label={t('projectDetail.cascade.title', 'Contract')}>
+          <ol className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-3" aria-label={t('projectDetail.cascade.title', 'Contract')}>
             <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tableMoney(contractValue)} caption={contractBasis} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && hasCustomerOrders && <>
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tableMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
@@ -455,7 +455,7 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | 
         <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
       </span>}
       {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
-      {caption && <span className="mt-1 block text-sm text-muted-foreground">{caption}</span>}
+      {caption && <span className="mt-3 block text-sm text-muted-foreground">{caption}</span>}
     </li>
   );
 };

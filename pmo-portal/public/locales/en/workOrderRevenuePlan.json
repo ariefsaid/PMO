@@ -53,6 +53,7 @@
     "loadError": "Couldn't load the setting"
   },
   "daily": {
+    "monthTarget": "Month target",
     "title": "Daily target",
     "prevMonth": "Previous month",
     "nextMonth": "Next month",

@@ -1044,7 +1044,7 @@
     "leftTitle": "Mark {{name}} as left",
     "leftBody": "They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.",
     "leftOn": "First day off crew roster",
-    "leftOnHelp": "First day off crew roster",
+    "leftOnHelp": "From this date onward, this person will no longer appear on crew rosters.",
     "markedLeft": "{{name}} is now former staff",
     "expiring": "Expiring documents"
   },

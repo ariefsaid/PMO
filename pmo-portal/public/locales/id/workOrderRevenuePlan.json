@@ -53,6 +53,7 @@
     "loadError": "Pengaturan tidak dapat dimuat"
   },
   "daily": {
+    "monthTarget": "Target bulan ini",
     "title": "Target harian",
     "prevMonth": "Bulan sebelumnya",
     "nextMonth": "Bulan berikutnya",

@@ -51,4 +51,26 @@ describe('Tabs first-tab left edge', () => {
       HTMLElement.prototype.scrollBy = previous;
     }
   });
+
+  it('keeps the first tab visible on arrival and follows a later user selection', async () => {
+    const scrollBy = vi.fn();
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { left: 0, right: this.getAttribute('role') === 'tab' ? 480 : 390 } as DOMRect;
+    });
+    const previous = HTMLElement.prototype.scrollBy;
+    HTMLElement.prototype.scrollBy = scrollBy;
+    function Harness() {
+      const [value, setValue] = useState('b');
+      return <Tabs items={items} value={value} onChange={setValue} ariaLabel="Views" idBase="start" startAtFirst />;
+    }
+    try {
+      render(<Harness />);
+      expect(scrollBy).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole('tab', { name: 'Alpha' }));
+      expect(scrollBy).toHaveBeenCalled();
+    } finally {
+      rect.mockRestore();
+      HTMLElement.prototype.scrollBy = previous;
+    }
+  });
 });
