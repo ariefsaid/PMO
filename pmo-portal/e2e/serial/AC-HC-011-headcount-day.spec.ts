@@ -72,7 +72,7 @@ test.afterEach(async () => {
 test('AC-HC-011 the foreman enters a head count and a different approver approves it', async ({ page, browser }) => {
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
-  await expect(page.getByText(/No head count entered for this day/)).toBeVisible();
+  await expect(page.getByText('No head count for this day')).toBeVisible();
   await page.getByRole('combobox', { name: 'Labour class' }).selectOption({ label: className });
   await page.getByRole('textbox', { name: 'Number of people' }).fill('6');
   await page.getByRole('button', { name: 'Save head count' }).click();

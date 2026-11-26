@@ -1,4 +1,3 @@
-import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
 import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -41,13 +40,18 @@ function validateLineNum(raw: string, label: string, messages?: LineNumMessages)
 }
 function parseRate(raw: string): number | null {
   const n = parseMoneyInputAtScale(raw, 2);
-  return n !== null && n > 0 ? n : null;
+  return n !== null && n >= 0 ? n : null;
+}
+function validateOptionalRate(raw: string, label: string): string | undefined {
+  if (!raw.trim() || parseRate(raw) !== null) return undefined;
+  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label);
+  return `${label} cannot be negative and must have no more than 2 decimal places.`;
 }
 interface LineItemErrors { name?: string; quantity?: string; rate?: string }
 export type PendingRowCommit =
   | { status: 'empty' }
   | { status: 'invalid' }
-  | { status: 'committed'; input: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null } };
+  | { status: 'committed'; input: { name: string; quantity: number; rate: number | null; description?: string; stockItemId?: string | null } };
 export interface LineItemsSectionHandle {
   commitPendingRow(): PendingRowCommit;
 }
@@ -63,7 +67,7 @@ export interface LineItemsSectionProps {
   valuesEditable?: boolean;
   /** Starting values for the create-form entry row (a typed line that is not yet added). */
   initialDraft?: Partial<ItemDraft>;
-  onAdd: (input: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null }) => Promise<unknown>;
+  onAdd: (input: { name: string; quantity: number; rate: number | null; description?: string; stockItemId?: string | null }) => Promise<unknown>;
   onUpdate: (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string; stockItemId?: string | null }) => Promise<unknown>;
   stockItems?: StockItemOption[];
   erpItems?: { loadOptions: () => Promise<ComboboxOption[]> };
@@ -126,9 +130,9 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     if (!pending.name.trim()) return;
     setAddMutationError(null);
     const quantityError = validateLineNum(pending.quantity, 'Quantity');
-    const rateError = validateLineNum(pending.rate, 'Unit price');
-    const rate = parseRate(pending.rate);
-    if (quantityError || rateError || rate === null) { setAddErrors({ quantity: quantityError, rate: rateError }); return; }
+    const rateError = maySeePrices ? validateOptionalRate(pending.rate, 'Unit price') : undefined;
+    const rate = maySeePrices ? parseRate(pending.rate) : null;
+    if (quantityError || rateError || (maySeePrices && pending.rate.trim() !== '' && rate === null)) { setAddErrors({ quantity: quantityError, rate: rateError }); return; }
     setAddErrors({});
     // The parent owns the new row once its add begins. Clearing the event-time mirror here
     // prevents a same-tick Save from committing the same row a second time.
@@ -164,9 +168,9 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     };
     const nameError = pending.name.trim() ? undefined : t('lineItems.validation.itemRequired', 'Item is required.');
     const quantityError = validateLineNum(pending.quantity, t('lineItems.validation.quantityLabel', 'Quantity'), pendingMessages);
-    const rateError = validateLineNum(pending.rate, t('lineItems.validation.unitPriceLabel', 'Unit price'), pendingMessages);
+    const rateError = maySeePrices ? validateOptionalRate(pending.rate, t('lineItems.validation.unitPriceLabel', 'Unit price')) : undefined;
     const rate = parseRate(pending.rate);
-    if (nameError || quantityError || rateError || rate === null) {
+    if (nameError || quantityError || rateError || (maySeePrices && pending.rate.trim() !== '' && rate === null)) {
       setAddErrors({ name: nameError, quantity: quantityError, rate: rateError });
       return { status: 'invalid' };
     }
@@ -176,13 +180,13 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     if (createFormLayout) onAddRowInputChange?.(false);
     return {
       status: 'committed',
-      input: { name: pending.name.trim(), quantity: num(pending.quantity), rate, ...(erpItems ? { description: pending.description?.trim() ?? '' } : {}), ...(pending.stockItemId ? { stockItemId: pending.stockItemId } : {}) },
+      input: { name: pending.name.trim(), quantity: num(pending.quantity), rate: maySeePrices ? rate : null, ...(erpItems ? { description: pending.description?.trim() ?? '' } : {}), ...(pending.stockItemId ? { stockItemId: pending.stockItemId } : {}) },
     };
   };
   useImperativeHandle(ref, () => ({ commitPendingRow }));
   const draftQuantity = parseMoneyInputAtScale(draft.quantity, 2);
   const draftRate = parseRate(draft.rate);
-  const pendingRowComplete = Boolean(draft.name.trim()) && draftQuantity !== null && draftQuantity > 0 && draftRate !== null;
+  const pendingRowComplete = Boolean(draft.name.trim()) && draftQuantity !== null && draftQuantity > 0 && (maySeePrices ? (draft.rate.trim() === '' || draftRate !== null) : true);
   const pendingRowHasInput = hasAddRowInput(draft) || Boolean(draft.description);
   const addLineAmount = pendingRowComplete
     ? itemsNetTotal([{ quantity: draftQuantity, rate: draftRate }])
@@ -279,11 +283,8 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     // column that room and pads the input only as far as the currency symbol is wide. The create form's columns sum to
     // 750px (the description keeps the primary column's 240px floor), the form's width at a 1024 screen, so it never
     // scrolls sideways; wider screens scale them evenly.
-    // F2: the column stays while the section is editable — a requester whose prices are hidden is
-    // still writing their own draft and needs the price input to add or edit a line (adding requires
-    // a price above zero). Only a read-only section drops the column outright; the saved-row cell
-    // below still never formats a price for someone who may not see one.
-    ...(!maySeePrices && !editable ? [] : [
+    // Requesters whose prices are hidden never receive a price editor or price-bearing column.
+    ...(!maySeePrices ? [] : [
     { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: createFormLayout ? 164 : 150, cell: (row) => {
       if (row.kind === 'add') return <div className="space-y-1" data-add-cell>
         <div className="relative">
@@ -330,7 +331,6 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
   } : undefined;
   return <Card className={'mb-4' + (createFormLayout ? ' [&_td:has([data-add-cell])]:align-top' : '')} data-testid="line-items-section">
     <CardHead className={createFormLayout && isDesktop ? 'px-[var(--table-cell-inset)]!' : undefined}>{t('lineItems.heading', 'Line items')}{!createFormLayout && maySeePrices && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span>}</CardHead>
-    {!maySeePrices && items.length > 0 && <CardPad><WithheldPrice /></CardPad>}
     <DataTable embedded rows={tableRows} columns={columns} rowKey={(row) => row.id} tableId="procurement-line-items" accessibleName={t('lineItems.heading', 'Line items')}
       state={items.length === 0 && !addRowInTable ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={isDesktop && maySeePrices ? [{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }] : undefined}
@@ -340,10 +340,10 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
       <span className="text-right">{estimatedTotalValue}</span>
     </div>}
     {editable && !addRowInTable && <CardPad>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto] sm:items-start" data-testid="line-item-add-row">
+      <div className={`grid grid-cols-1 gap-3 ${maySeePrices ? 'sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto]' : 'sm:grid-cols-[minmax(180px,1fr)_100px_auto]'} sm:items-start`} data-testid="line-item-add-row">
         <div>{erpItems ? <div className="space-y-2"><Combobox label={t('lineItems.erpItem', 'ERP item')} value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => { updateAddDraft({ name }); setAddErrors((p) => ({ ...p, name: undefined })); }} loadOptions={erpItems.loadOptions} noun="ERP item" placeholder={t('lineItems.selectItem', 'Select or search item…')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} required compact error={addErrors.name} /><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.describeItem', 'Describe the work or goods…')} value={draft.description ?? ''} onChange={(e) => updateAddDraft({ description: e.target.value })} /></div> : <div className="space-y-1">{standardPicker(draft, updateAddDraft, t('lineItems.newItemDescription', 'New item description'))}<FieldError>{addErrors.name}</FieldError></div>}</div>
         <div><CellInput numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder="0" value={draft.quantity} onChange={(e) => { updateAddDraft({ quantity: e.target.value }); setAddErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{addErrors.quantity}</FieldError></div>
-        <div><CellInput numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder="0" ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} /><FieldError>{addErrors.rate}</FieldError></div>
+        {maySeePrices && <div><CellInput numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder="0" ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} /><FieldError>{addErrors.rate}</FieldError></div>}
         <div className="flex items-center gap-3"><span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); const amount = itemsNetTotal([{ quantity: qty, rate }]); return amount === null ? '—' : currencyKnown ? formatCurrencyCents(amount, currency) : unknownAmount; })()}</span><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>
       </div>
       {addMutationError && <p role="alert" className="mt-2 text-sm text-destructive-text">{addMutationError.headline}. {addMutationError.detail}</p>}

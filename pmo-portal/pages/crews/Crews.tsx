@@ -47,10 +47,12 @@ const CrewsPage: React.FC = () => {
   return (
     <ListPage
       title={t('crews:title', 'Crews')}
-      importAction={view === 'crews' ? <CrewImports /> : undefined}
-      primaryAction={canManage
-        ? <Button variant="primary" onClick={() => { setFilter('view', ''); setCreating(true); }}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>
-        : undefined}
+      primaryAction={(
+        <span className="flex flex-wrap justify-end gap-2">
+          {view === 'crews' && <CrewImports />}
+          {canManage && <Button variant="primary" onClick={() => { setFilter('view', ''); setCreating(true); }}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>}
+        </span>
+      )}
     >
       <CheckInRequests />
       <Tabs items={tabs} value={view} onChange={(v) => setFilter('view', v === 'crews' ? '' : v)}

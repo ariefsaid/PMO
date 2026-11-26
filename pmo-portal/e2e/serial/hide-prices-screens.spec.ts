@@ -1,9 +1,9 @@
 // @e2e-isolation: serial — the Admin changes an organisation-wide setting and restores it after the journey.
 import { mkdir } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { pinEnglishLocale, signIn } from '../helpers';
+import { signIn } from '../helpers';
 import { createProcurementFixture } from '../procurement-fixture';
-import { ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
+import { ORG_ID, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
 
@@ -12,13 +12,31 @@ const stockPrice = /(?:75[.,]432|150[.,]864)/;
 const requestPrice = /12[.,]000/;
 const requestLine = 'Bahan pengikat';
 
-async function capture(page: Page, screen: string) {
+type Locale = 'en' | 'id';
+
+async function pinLocale(page: Page, getLocale: () => Locale) {
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
+    const response = await route.fetch({ maxRetries: 2 });
+    let body: unknown;
+    try { body = await response.json(); }
+    catch { return route.fulfill({ response }); }
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
+      const locale = getLocale();
+      return route.fulfill({ response, json: { ...body, locale, number_locale: locale === 'id' ? 'id-ID' : 'en-US' } });
+    }
+    return route.fulfill({ response, json: body });
+  });
+}
+
+async function capture(page: Page, screen: string, locale: Locale) {
   const dir = process.env.PRICE_SCREENSHOTS_DIR;
   if (!dir) return;
   await mkdir(dir, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({
-    path: `${dir}/${screen}-${page.viewportSize()?.width}.png`,
+    path: `${dir}/${screen}-${locale}-${page.viewportSize()?.width}.png`,
     animations: 'disabled',
     maskColor: '#e5e7eb',
     mask: [
@@ -46,10 +64,14 @@ test('Admin hides purchase and stock prices from a requester while a procurement
   let requester: Awaited<ReturnType<typeof roleJobUser>> | undefined;
   let purchaser: Awaited<ReturnType<typeof roleJobUser>> | undefined;
   let purchase: Awaited<ReturnType<typeof createProcurementFixture>> | undefined;
+  let requesterDraft: Awaited<ReturnType<typeof createProcurementFixture>> | undefined;
+  let purchaseRequestId: string | undefined;
   let projectId: string | undefined;
   let item: Awaited<ReturnType<typeof makeItem>> | undefined;
   let warehouse: Awaited<ReturnType<typeof makeWarehouse>> | undefined;
   let receipt: string | undefined;
+  let adminLocale: Locale = 'en';
+  let requesterLocale: Locale = 'en';
 
   try {
     ok('start with setting off', await admin.rpc('set_hide_prices_enabled', { p_enabled: false }));
@@ -60,44 +82,95 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     ok('create the project', project);
     projectId = project.data?.id as string;
     purchase = await createProcurementFixture({ status: 'Approved', title: `${title} ${suffix}`, requestedBy: requester.id, projectId, lineName: requestLine });
+    requesterDraft = await createProcurementFixture({ status: 'Draft', title: `Permintaan item ${suffix}`, requestedBy: requester.id, projectId, lineName: `Fixture item ${suffix}` });
+    ok('set the request needed-by date through its write function', await admin.rpc('set_procurement_needed_by', {
+      p_id: requesterDraft.id,
+      p_needed_by: '2026-12-31',
+    }));
+    const purchaseRequest = await service.from('purchase_requests').insert({ procurement_id: requesterDraft.id, pr_number: `PR-${suffix}`, status: 'Draft', date: '2026-11-26' }).select('id').single();
+    ok('create the request attachment target', purchaseRequest);
+    purchaseRequestId = purchaseRequest.data?.id as string;
     item = await makeItem(admin, suffix);
     warehouse = await makeWarehouse(admin, suffix, 'C', 'central');
     receipt = await postReceive(admin, warehouse.id, item.id, '2', '75432');
 
-    await pinEnglishLocale(adminPage);
+    await pinLocale(adminPage, () => adminLocale);
     await signIn(adminPage, 'admin@acme.test');
-    await adminPage.goto('/administration/clearance#org-hide-prices');
+    await adminPage.goto('/administration/accounting#org-hide-prices');
     const card = adminPage.locator('#org-hide-prices');
     await card.getByRole('button', { name: 'Hide prices from requesters', exact: true }).click();
     await expect(card.getByRole('button', { name: 'Show prices to requesters again' })).toBeVisible();
 
+    await pinLocale(requesterPage, () => requesterLocale);
     await requester.signIn(requesterPage);
-    ok('set the disposable requester locale', await service.from('profiles').update({ locale: 'id', number_locale: 'id-ID' }).eq('id', requester.id));
     const stockUrl = `/stock?q=${item.code}`;
     const receiptUrl = `/stock/documents/${receipt}`;
+    for (const locale of ['en', 'id'] as const) {
+      requesterLocale = locale;
+      await requesterPage.reload();
+      const translatedReason = locale === 'id' ? reason : 'Prices are hidden from requesters.';
+      for (const width of [1440, 1024, 390]) {
+        await requesterPage.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+        await requesterPage.goto(`/procurement/${requesterDraft.id}/items`);
+        if (locale === 'en') {
+          await expect(requesterPage.getByLabel('Order needed by')).toHaveValue('2026-12-31');
+        }
+        await expect(requesterPage.getByLabel(/new item unit price|unit price|harga satuan/i)).toHaveCount(0);
+        await capture(requesterPage, 'add-line-form', locale);
 
-    for (const width of [1440, 390]) {
-      await requesterPage.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
-      await requesterPage.goto(`/procurement/${purchase.id}/items`);
-      await expect(requesterPage.getByRole('heading', { name: new RegExp(`${title} ${suffix}`) }).first()).toBeVisible();
-      await expect(requesterPage.getByText(reason, { exact: true }).first()).toBeVisible();
-      await expect(requesterPage.getByText(requestLine, { exact: true }).first()).toBeVisible();
-      await expect(requesterPage.getByText(requestPrice)).toHaveCount(0);
-      await capture(requesterPage, 'purchase-request');
+        await requesterPage.goto(`/procurement/${purchase.id}/items`);
+        await expect(requesterPage.getByRole('heading', { name: new RegExp(`${title} ${suffix}`) }).first()).toBeVisible();
+        await expect(requesterPage.getByText(translatedReason, { exact: true }).first()).toBeVisible();
+        await expect(requesterPage.getByText(requestLine, { exact: true }).first()).toBeVisible();
+        await expect(requesterPage.getByText(requestPrice)).toHaveCount(0);
+        await capture(requesterPage, 'purchase-record', locale);
 
-      await requesterPage.goto(stockUrl);
-      await expect(requesterPage.getByText(item.code, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-      await expect(requesterPage.getByText(reason, { exact: true })).toBeVisible({ timeout: 20_000 });
-      await expect(requesterPage.getByText(stockPrice)).toHaveCount(0);
-      await capture(requesterPage, 'stock-home');
+        await requesterPage.goto(stockUrl);
+        await expect(requesterPage.getByText(item.code, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+        await expect(requesterPage.getByText(translatedReason, { exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(requesterPage.getByText(stockPrice)).toHaveCount(0);
+        await capture(requesterPage, 'stock-home', locale);
 
-      await requesterPage.goto(receiptUrl);
-      await expect(requesterPage.getByText(item.code, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-      await expect(requesterPage.getByText(reason, { exact: true })).toBeVisible({ timeout: 20_000 });
-      await expect(requesterPage.getByText(stockPrice)).toHaveCount(0);
-      await capture(requesterPage, 'receipt');
+        await requesterPage.goto(receiptUrl);
+        await expect(requesterPage.getByText(item.code, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+        await expect(requesterPage.getByText(translatedReason, { exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(requesterPage.getByText(stockPrice)).toHaveCount(0);
+        await capture(requesterPage, 'stock-receipt', locale);
+      }
     }
 
+    // Exercise the requester's own authoring job once after the screenshot matrix is captured.
+    requesterLocale = 'en';
+    await requesterPage.reload();
+    await requesterPage.goto(`/procurement/${requesterDraft.id}/items`);
+    await expect(requesterPage.getByLabel('Order needed by')).toHaveValue('2026-12-31');
+    await requesterPage.getByLabel('New item description').fill('Sarung tangan kerja');
+    await requesterPage.getByLabel('New item quantity').fill('2');
+    await requesterPage.getByRole('button', { name: /add line item/i }).click();
+    let lineSaveError = '';
+    try {
+      await expect(requesterPage.getByText('Sarung tangan kerja', { exact: true })).toBeVisible({ timeout: 8_000 });
+    } catch {
+      lineSaveError = await requesterPage.getByRole('alert').allInnerTexts().then((texts) => texts.join(' ')).catch(() => 'line did not appear after save');
+    }
+    await requesterPage.goto(`/procurement/${requesterDraft.id}/timeline`);
+    const attachInput = requesterPage.getByLabel('Attach a file to this record');
+    const attachInputCount = await attachInput.count();
+    if (attachInputCount) {
+      await attachInput.setInputFiles({ name: 'requester-proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 requester proof') });
+      await expect(requesterPage.getByText('requester-proof.pdf', { exact: true })).toBeVisible({ timeout: 20_000 });
+    }
+    for (const locale of ['en', 'id'] as const) {
+      adminLocale = locale;
+      await adminPage.reload();
+      await adminPage.goto('/administration/accounting#org-hide-prices');
+      const card = adminPage.locator('#org-hide-prices');
+      await expect(card.getByRole('button')).toHaveCount(1);
+      for (const width of [1440, 1024, 390]) {
+        await adminPage.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+        await capture(adminPage, 'administration-settings', locale);
+      }
+    }
     await purchaser.signIn(purchaserPage);
     await purchaserPage.goto(`/procurement/${purchase.id}/items`);
     await expect(purchaserPage.getByText(requestPrice).first()).toBeVisible({ timeout: 20_000 });
@@ -105,6 +178,7 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     await expect(purchaserPage.getByText(stockPrice).first()).toBeVisible({ timeout: 20_000 });
     await purchaserPage.goto(receiptUrl);
     await expect(purchaserPage.getByText(stockPrice).first()).toBeVisible({ timeout: 20_000 });
+    expect({ lineSaveError, attachInputCount }, 'the requester must save an item and attach a file to their own request').toEqual({ lineSaveError: '', attachInputCount: 1 });
   } finally {
     ok('turn price hiding off for restoration', await admin.rpc('set_hide_prices_enabled', { p_enabled: false }));
     ok('restore built-in roles setting', await admin.rpc('set_built_in_roles_enabled', { p_enabled: previousRolesSwitch.data === true }));
@@ -118,6 +192,11 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     if (item) ok('remove the stock item', await service.from('stock_items').delete().eq('id', item.id));
     ok('remove the unit', await service.from('stock_units').delete().eq('code', `E2E-U${suffix}`));
     await purchase?.cleanup();
+    if (purchaseRequestId) {
+      const files = await service.from('purchase_request_files').select('file_path').eq('purchase_request_id', purchaseRequestId);
+      if (files.data?.length) await service.storage.from('procurement-files').remove(files.data.flatMap((file) => file.file_path ? [file.file_path] : []));
+    }
+    await requesterDraft?.cleanup();
     if (projectId) ok('remove the project', await service.from('projects').delete().eq('id', projectId));
     await requester?.cleanup();
     await purchaser?.cleanup();

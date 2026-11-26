@@ -13,6 +13,7 @@ import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, pinEnglishLocale } from '../helpers';
 import { orgToday } from '../support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
@@ -86,6 +87,7 @@ test('AC-DSF-015 a field Engineer records and submits today\'s safety day on a p
   await pinEnglishLocale(page);
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/work-orders/${woId}`);
+  await openWorkOrderArea(page, 'documents');
   const section = page.getByTestId('safety-section');
   await expect(section).toBeVisible({ timeout: 20_000 });
   // Before any record: workers were present and nothing is recorded.
@@ -129,6 +131,7 @@ test('AC-DSF-015 a field Engineer records and submits today\'s safety day on a p
   await expect(page.getByTestId('safety-day-status')).toHaveAttribute('data-status', 'locked', { timeout: 15_000 });
 
   await page.goto(`/work-orders/${woId}`);
+  await openWorkOrderArea(page, 'documents');
   const today1 = page.getByTestId('safety-day-row').filter({ has: page.locator(`[data-date="${today()}"]`) }).or(page.locator(`[data-testid="safety-day-row"][data-date="${today()}"]`)).first();
   await expect(today1).toHaveAttribute('data-complete', 'yes', { timeout: 15_000 });
   await expect(today1).toContainText('Complete');

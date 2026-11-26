@@ -43,7 +43,8 @@
     "withdraw": "Tarik permintaan",
     "withdrawBody": "Permintaan dibatalkan dan penyetujunya tidak lagi diminta.",
     "withdrawTitle": "Tarik permintaan ini",
-    "withdrawn": "Permintaan ditarik"
+    "withdrawn": "Permintaan ditarik",
+    "requested": "Diminta"
   },
   "deliveryNote": {
     "back": "Kembali ke permintaan",
@@ -127,7 +128,13 @@
     "title": "Permintaan material baru",
     "wholeOnly": "Barang ini dihitung dalam satuan utuh. Masukkan bilangan bulat.",
     "workOrder": "$t(common:terms.clientWorkOrder)",
-    "workOrderNoun": "$t(common:terms.clientWorkOrder)"
+    "workOrderNoun": "$t(common:terms.clientWorkOrder)",
+    "figures": {
+      "plan": "Rencana",
+      "prior": "Sudah diminta",
+      "total": "Total baru",
+      "sectionPlan": "Rencana {{section}}"
+    }
   },
   "inbox": {
     "scope": "Permintaan material",
@@ -304,6 +311,9 @@
     "installedSave": "Simpan sumber",
     "installedSaved": "Sumber disimpan",
     "cardTitle": "Material terpasang melewati peringatan pemakaian",
-    "cardLine": "{{item}}: {{installed}} dari {{plan}} {{unit}} rencana terpasang, melewati peringatan {{threshold}}%."
+    "cardItem": "Barang",
+    "cardInstalled": "Terpasang",
+    "cardPlan": "Direncanakan",
+    "cardThreshold": "Peringatan pada"
   }
 }

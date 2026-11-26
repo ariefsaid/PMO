@@ -34,13 +34,17 @@ describe('AC-CAE-002 open purchase requests beside the plan', () => {
   });
   it('AC-CAE-002 lists the requests by purpose and work order, with their lines and totals', () => {
     render(tree());
-    const materials = screen.getByTestId('open-purpose-Materials');
-    expect(within(materials).getByText('WO-A Pump house')).toBeInTheDocument();
-    expect(within(materials).getByText('No work order')).toBeInTheDocument();
-    expect(within(materials).getByText('PR-1')).toHaveAttribute('href', '/procurement/p1');
-    expect(within(materials).getByText(/Cement × 10/)).toBeInTheDocument();
-    expect(within(materials).getByText(/Sand × 5/)).toBeInTheDocument();
-    expect(screen.getByTestId('open-purpose-Equipment')).toHaveTextContent('Scaffold hire');
+    // One table: a group row per purpose, a row per request with its work order, lines and money.
+    const rowOf = (text: string) => screen.getAllByRole('row').find((r) => r.textContent?.includes(text))!;
+    expect(screen.getAllByRole('row').some((r) => r.textContent?.trim().startsWith('Materials'))).toBe(true);
+    expect(screen.getAllByRole('row').some((r) => r.textContent?.trim().startsWith('Equipment'))).toBe(true);
+    const pr1 = rowOf('PR-1');
+    expect(within(pr1).getByText('WO-A Pump house')).toBeInTheDocument();
+    expect(within(pr1).getByRole('link', { name: 'PR-1' })).toHaveAttribute('href', '/procurement/p1');
+    expect(within(pr1).getByText(/Cement × 10/)).toBeInTheDocument();
+    expect(within(pr1).getByText(/Sand × 5/)).toBeInTheDocument();
+    expect(within(rowOf('PR-3')).getByText('No work order')).toBeInTheDocument();
+    expect(rowOf('PR-2')).toHaveTextContent('Scaffold hire');
   });
   it('AC-CAE-008 the empty state says what is missing and who raises a request', () => {
     h.q = ok({ rows: [], truncated: false });
@@ -57,7 +61,7 @@ describe('AC-CAE-002 open purchase requests beside the plan', () => {
   it('AC-CAE-003 a person who cannot create plans sees the list and no action', () => {
     h.can = false;
     render(tree());
-    expect(screen.getByTestId('open-purpose-Materials')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'PR-1' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start the plan from these' })).toBeNull();
   });
   it('AC-CAE-003 with hidden prices the action is disabled and says why', () => {
@@ -65,8 +69,16 @@ describe('AC-CAE-002 open purchase requests beside the plan', () => {
     h.q = ok({ rows: rows.map((r) => ({ ...r, request_total: null, line_amount: null })), truncated: false });
     render(tree());
     expect(screen.getByRole('button', { name: 'Start the plan from these' })).toBeDisabled();
-    expect(screen.getByTestId('open-requests-reason')).toHaveTextContent('— Prices are hidden from requesters.');
+    expect(screen.getByTestId('open-requests-reason')).toHaveTextContent('Prices are hidden from requesters.');
     expect(screen.getByTestId('open-requests-reason')).toHaveTextContent('Add the lines yourself in the plan.');
+  });
+  it('AC-CAE-003 a null price from the data never says there is no purpose and price', () => {
+    h.q = ok({ rows: [{ ...base, procurement_id: 'p1', pr_number: 'PR-1', title: 'Unpriced request', status: 'Requested', budget_category: 'Materials', request_total: null }], truncated: false });
+
+    render(tree());
+
+    expect(screen.getByTestId('open-requests-reason')).toHaveTextContent('Add the lines yourself in the plan.');
+    expect(screen.getByTestId('open-requests-reason')).not.toHaveTextContent('None of these requests has a purpose and a price');
   });
   it('AC-CAE-003 a request in another currency or with no purpose is left out of the plan and counted', async () => {
     const onStartPlan = vi.fn();

@@ -82,7 +82,9 @@ describe('AC-PLP-009 create form line planning', () => {
     renderCreate();
     await addLine();
     await userEvent.selectOptions(screen.getByLabelText('Line category'), 'c1');
-    fireEvent.change(screen.getByLabelText('Needed by'), { target: { value: '2026-12-31' } });
+    const neededBy = screen.getByRole('textbox', { name: 'Needed by' });
+    fireEvent.change(neededBy, { target: { value: '2026-12-31' } });
+    fireEvent.blur(neededBy);
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.setLine).toHaveBeenCalledTimes(1));
     const submitted = mocks.createAtomic.mock.calls[0][0] as { lines: Array<Record<string, unknown>> };

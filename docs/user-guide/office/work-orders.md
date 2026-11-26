@@ -25,7 +25,8 @@ got, what it has cost, what has been billed, what documents and issues belong to
 
 ## Steps
 
-1. On the project's **Contract** tab, use **Add customer order** to record a new client order.
+1. On the **Work orders** page (or the project's **Work orders** tab), use **New work order**, choose the
+   project (already set on the project's tab) and record the client's order.
    A new order starts as a **Draft** and shows **Not yet numbered** until it is issued.
 2. Fill in the order's details and allocate contract lines to it (the quantities this order
    takes from the contract).
@@ -113,8 +114,8 @@ dokumen serta masalah yang melekat padanya.
 
 ## Langkah-langkah
 
-1. Di tab **Kontrak** proyek, gunakan **Tambah pesanan pelanggan** untuk mencatat pesanan
-   klien baru. Pesanan baru menjadi **Draf** dan bertanda **Belum bernomor** sampai
+1. Di halaman **Work order** (atau tab **Work order** proyek), gunakan **Work order baru**, pilih
+   proyek (sudah terisi di tab proyek) lalu catat pesanan klien. Pesanan baru menjadi **Draf** dan bertanda **Belum bernomor** sampai
    diterbitkan.
 2. Isi detail pesanan dan alokasikan baris kontrak padanya (kuantitas yang diambil pesanan ini
    dari kontrak).

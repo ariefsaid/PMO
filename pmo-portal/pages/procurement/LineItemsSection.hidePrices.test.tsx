@@ -28,11 +28,11 @@ describe('AC-009 line items without prices', () => {
     expect(screen.getByText('MIG welding wire')).toBeInTheDocument();
   });
 
-  it('explains withheld line prices for a saved request', () => {
+  it('leaves the single withheld-price notice to the record money block', () => {
     act(() => setPricesHidden(true));
     renderSection();
-    expect(screen.getByText('—')).toBeVisible();
-    expect(screen.getByText('Prices are hidden from requesters.')).toBeVisible();
+    expect(screen.queryByText('—')).toBeNull();
+    expect(screen.queryByText('Prices are hidden from requesters.')).toBeNull();
   });
 
   it('formats supplied prices as before', () => {
@@ -42,28 +42,23 @@ describe('AC-009 line items without prices', () => {
     expect(screen.queryByText('Prices are hidden from requesters.')).toBeNull();
   });
 
-  // F2: a requester writing their own draft must still be able to add and edit a line even while
-  // prices are hidden from them — the price input lives in the Unit price column, so the column
-  // stays while the section is editable and its read-only cell shows the Unknown marker.
-  it('F2 keeps the Unit price column while prices are hidden and the section is editable: the price input is present and a line can be added', async () => {
+  it('DD-R1125-16 a requester whose prices are hidden adds an item and quantity without a price field', async () => {
     act(() => setPricesHidden(true));
     const onAdd = vi.fn().mockResolvedValue(undefined);
     renderSection({ editable: true, onAdd });
-    const priceInput = screen.getByLabelText('New item unit price');
+    expect(screen.queryByLabelText('New item unit price')).toBeNull();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('New item description'), 'Cable ties');
     await user.type(screen.getByLabelText('New item quantity'), '2');
-    await user.type(priceInput, '1500');
     await user.click(screen.getByRole('button', { name: /add line item/i }));
-    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Cable ties', quantity: 2, rate: 1500 })));
-    expect(screen.getByRole('columnheader', { name: 'Unit price' })).toBeInTheDocument();
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Cable ties', quantity: 2, rate: null })));
   });
-  it('F2 a saved row shows the Unknown marker, never a formatted price, while prices are hidden', () => {
+  it('a saved row hides price columns entirely while prices are hidden', () => {
     act(() => setPricesHidden(true));
     const priced = [{ ...items[0], rate: 12000 }] as unknown as ProcurementItemRow[];
     renderSection({ editable: true, items: priced });
-    expect(screen.getByRole('columnheader', { name: 'Unit price' })).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: 'Unknown' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Unit price' })).toBeNull();
+    expect(screen.queryByRole('cell', { name: 'Unknown' })).toBeNull();
     expect(screen.queryByText(/12[.,]000/)).toBeNull();
   });
 });

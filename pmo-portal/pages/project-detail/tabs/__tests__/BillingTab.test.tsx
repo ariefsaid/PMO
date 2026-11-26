@@ -75,8 +75,8 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 // #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
-vi.mock('@/src/hooks/useBillingStages', () => ({
-  claimBillingTraceKey: (orgId: string | undefined, claimId: string) => ['claim-billing-trace', orgId, claimId] as const,
+vi.mock('@/src/hooks/useBillingStages', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/hooks/useBillingStages')>(),
   useBillingReconciliation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
   useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),

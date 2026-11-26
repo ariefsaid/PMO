@@ -10,7 +10,6 @@
   "onPlan": "Sesuai rencana",
   "enter": "Isi rencana",
   "pending": "{{count}} laporan harian belum divalidasi dan tidak dihitung sebagai aktual.",
-  "asOf": "Per {{date}}. Aktual adalah pendapatan harian yang sudah divalidasi.",
   "chartSummary": "Pendapatan kumulatif: rencana {{plan}}, aktual {{actual}} sampai {{date}}.",
   "legend": "Garis putus-putus: rencana. Garis penuh: aktual (kumulatif).",
   "seriesPlan": "Rencana",
@@ -81,7 +80,23 @@
     "nonWorking": "Hari tidak kerja",
     "nonWorkingLabelled": "Hari tidak kerja: {{label}}",
     "empty": "Tidak ada hari kerja pada bulan ini.",
-    "loadError": "Target harian tidak dapat dimuat"
+    "loadError": "Target harian tidak dapat dimuat",
+    "nothing": "Belum ada target dan aktual pada {{month}}.",
+    "cost": {
+      "labour": "Tenaga kerja",
+      "equipment": "Alat",
+      "material": "Bahan",
+      "other": "Lainnya",
+      "total": "Biaya",
+      "net": "Pendapatan dikurangi biaya",
+      "undated": "Tanpa tanggal: {{amount}}",
+      "unreadableDays_one": "1 hari memiliki biaya dalam mata uang lain atau tidak ditampilkan untuk Anda",
+      "unreadableDays_other": "{{count}} hari memiliki biaya dalam mata uang lain atau tidak ditampilkan untuk Anda"
+    },
+    "byDay": "Per hari",
+    "allQuiet": "Belum ada hari di {{month}} yang memiliki target, pendapatan, atau biaya.",
+    "quiet_one": "1 hari tanpa catatan",
+    "quiet_other": "{{count}} hari tanpa catatan"
   },
   "dailyRollup": {
     "title": "Target harian, bulan berjalan",
@@ -103,5 +118,7 @@
     "removeBody": "Tanggal ini kembali dihitung sebagai hari kerja. Target yang sudah diisi tidak berubah.",
     "empty": "Tidak ada hari tidak kerja. Setiap hari kerja dihitung.",
     "loadError": "Hari tidak kerja tidak dapat dimuat"
-  }
+  },
+  "asOfDate": "Per {{date}}",
+  "actualBasis": "Aktual adalah pendapatan harian yang sudah divalidasi."
 }

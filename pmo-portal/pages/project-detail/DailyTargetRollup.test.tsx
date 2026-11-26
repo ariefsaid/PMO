@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatTableMoney } from '@/src/lib/format';
 import type { ProjectDailyTarget } from '@/src/lib/dailyTarget';
 import DailyTargetRollup from './DailyTargetRollup';
 
@@ -44,8 +44,8 @@ describe('DailyTargetRollup (#2672)', () => {
   });
   it('AC-WDT-010 shows one total per currency, never blended', () => {
     renderIt();
-    expect(screen.getByTestId('daily-target-total-IDR').textContent).toContain(formatExactMoney('200.00', 'IDR', 'en-US') as string);
-    expect(screen.getByTestId('daily-target-total-USD').textContent).toContain(formatExactMoney('50.00', 'USD', 'en-US') as string);
+    expect(screen.getByTestId('daily-target-total-IDR').textContent).toContain(formatTableMoney('200.00', 'IDR') as string);
+    expect(screen.getByTestId('daily-target-total-USD').textContent).toContain(formatTableMoney('50.00', 'USD') as string);
     expect(screen.getByTestId('daily-target-total-IDR').textContent).toContain('behind target');
   });
   it('AC-WDT-008 a work order with no target says so, and a null projection reads "not enough days"', () => {

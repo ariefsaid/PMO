@@ -12,6 +12,7 @@ import { inDays, need, ORG_ID, PM_ID, serviceClient } from './support/jobJourney
 import { seedWorkOrder } from './support/crewJourney';
 import { roleJobUser } from './support/roleJobUser';
 import { runId } from './support/jobFixtures';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(240_000);
 const must = need('JOB-E6');
@@ -65,6 +66,7 @@ test('JOB-E6 a crane used on two work orders in a day carries 5 hours on one and
   // Goal: each work order's own page shows its own hours of the crane.
   for (const [x, hours] of [[a, 5], [b, 3]] as const) {
     await page.goto(`/work-orders/${x.workOrderId}`);
+    await openWorkOrderArea(page, 'cost');
     const equipment = page.getByTestId('cost-group-equipment_usage');
     await expect(equipment).toContainText(run, { timeout: 20_000 });
     await expect(equipment).toContainText(new RegExp(`(?:^|\\D)${hours} hours`));

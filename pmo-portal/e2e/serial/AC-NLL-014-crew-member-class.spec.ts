@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { signIn, requireServiceRoleKey } from '../helpers';
+import { openWorkOrderArea } from '../support/workOrderArea';
 
 // AC-NLL-014 (labour cost for crew members with no login): Finance adds a class rate, gives a person with no login a
 // labour class from a date, sees it listed and ends it. Then the work-order page shows that person's approved
@@ -86,6 +87,7 @@ test('AC-NLL-014 the work-order page shows approved no-login attendance as labou
 
   await signIn(page, 'admin@acme.test');
   await page.goto(`/work-orders/${ids.wo}`);
+  await openWorkOrderArea(page, 'cost');
   const block = page.getByTestId('wo-page-pva-labour');
   await expect(block).toBeVisible();
   // 8 h at 40000 + 2 h overtime at 40000 x 1.5 = 440000.

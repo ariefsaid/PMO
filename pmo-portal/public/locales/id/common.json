@@ -2104,7 +2104,6 @@
     "amount": "Jumlah",
     "status": "Status",
     "file": "Berkas",
-    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak menampilkan apa pun.",
     "types": {
       "purchaseRequest": "Permintaan Pembelian",
       "purchaseOrder": "Pesanan Pembelian",
@@ -2457,7 +2456,6 @@
         "titleFallback": "Hapus dokumen ini?"
       },
       "dismiss": "Tutup",
-      "emptySub": "Tambahkan gambar, spesifikasi, atau transmittal untuk memulai register dokumen proyek ini.",
       "emptyTitle": "Belum ada dokumen",
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat dokumen",
@@ -2906,7 +2904,7 @@
         "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
         "value": "Isi nilai order berupa angka non-negatif dengan paling banyak 2 angka desimal"
       },
-      "newSubtitle": "Catat $t(common:terms.clientWorkOrder) klien terhadap kontrak proyek ini. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
+      "newSubtitle": "Catat $t(common:terms.clientWorkOrder) klien terhadap kontrak proyek. Statusnya dimulai sebagai draft dan baru menyerap kontrak setelah diterbitkan.",
       "newTitle": "$t(common:terms.clientWorkOrder) baru",
       "orderDate": "Tanggal order",
       "orderValue": "Nilai order",

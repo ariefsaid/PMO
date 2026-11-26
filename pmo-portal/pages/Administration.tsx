@@ -317,7 +317,6 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-clearance" className="min-w-0">
           <SectionName name={label('clearance')} />
           <ModuleGate module="modulePeopleCrews"><Clearance /></ModuleGate>
-          <OrgHidePrices />
         </div>
       );
     case 'integrations':
@@ -350,6 +349,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgDownPaymentItem />
             <OrgClaimOverCap />
             <OrgProcurementGates />
+            <OrgHidePrices />
             <div id="work-order-checklist" className="scroll-mt-4">
               <OrgSwitchSetting setting="workOrderChecklist"
                 label={t('billingSteps:settings.workOrderChecklist.label', 'Edit issued work-order checklists')}

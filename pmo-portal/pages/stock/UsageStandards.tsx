@@ -103,13 +103,13 @@ const UsageStandards: React.FC = () => {
   return (
     <ListPage
       title={t('title', 'Usage standards')}
+      help={<p>{t('intro', 'How much of a consumable a unit of planned work uses. Work orders turn these into a consumable plan.')}</p>}
       count={state === undefined ? list.data?.total : undefined}
       primaryAction={canCreate && (
         <Button variant="primary" onClick={() => setForm({ row: null })}><Icon name="plus" />{t('actions.new', 'New standard')}</Button>
       )}
     >
       <StockTabs />
-      <p className="mb-3 text-control text-muted-foreground">{t('intro', 'How much of a consumable a unit of planned work uses. Work orders turn these into a consumable plan.')}</p>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="w-full sm:w-64">
           <SelectField label={t('filters.item', 'Item')} value={values.item} onChange={(v) => setFilters({ item: v, page: '' })}

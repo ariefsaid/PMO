@@ -5,7 +5,7 @@
  * empty/filtered-empty states. Uses RTL + the real DataTable (not mocked).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -16,6 +16,7 @@ import enCommon from '@/public/locales/en/common.json';
 import idCommon from '@/public/locales/id/common.json';
 import enProcurement from '@/public/locales/en/procurement.json';
 import idProcurement from '@/public/locales/id/procurement.json';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 
 // ---------------------------------------------------------------------------
 // Stubs — vi.hoisted keeps mock factories before the import block
@@ -245,6 +246,20 @@ const BASE_PROPS = {
   canWrite: true,
   invoices: [] as Parameters<typeof ProcurementLedger>[0]['invoices'],
 };
+
+it('shows only the shared empty marker in each withheld amount cell', () => {
+  act(() => setPricesHidden(true));
+  try {
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[SAMPLE_ROWS[0]]} />);
+    const table = screen.getByRole('table');
+    const amountColumnIndex = Array.from(table.querySelectorAll('thead th')).findIndex((header) => header.getAttribute('data-col-key') === 'amount');
+    const row = within(table).getByRole('row', { name: /PAY-2026-0033/ });
+
+    expect(amountColumnIndex).toBeGreaterThanOrEqual(0);
+    expect(row.children[amountColumnIndex]?.textContent).toBe('—');
+    expect(screen.queryByText('Prices are hidden from requesters.')).not.toBeInTheDocument();
+  } finally { act(() => setPricesHidden(false)); }
+});
 
 describe('PR-1 Bahasa rendered-copy contract', () => {
   it('renders translated filters, headers, record types, and capture action', () => {

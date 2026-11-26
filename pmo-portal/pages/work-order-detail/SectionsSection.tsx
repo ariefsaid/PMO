@@ -13,8 +13,7 @@ import {
 import { READINESS_VALUES, type Readiness, type SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
 import { quantitiesByUnit, readinessRollup } from '@/src/lib/workOrderSections';
 import { useSectionRefusal } from './useSectionRefusal';
-import { formatExactMoney } from '@/src/lib/format';
-import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { formatTableMoney } from '@/src/lib/format';
 import { SectionFormModal } from './SectionFormModal';
 import { SectionReadinessModal } from './SectionReadinessModal';
 import { SectionPlanModal } from './SectionPlanModal';
@@ -93,7 +92,7 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
     );
   }
 
-  const money = (v: string | null) => (v === null ? '—' : formatExactMoney(v, workOrder.currency, getNumberLocale(), { wholeUnits: true }) ?? '—');
+  const money = (v: string | null) => (v === null ? '—' : formatTableMoney(v, workOrder.currency) ?? '—');
   const stateLabel = (r: Readiness) => t(`readiness.${r}`, r === 'ready' ? 'Ready' : r === 'blocked' ? 'Blocked' : 'Not ready');
   const summaryText = summary.state === 'none' ? null
     : summary.state === 'all_ready' ? t('summaryAll', 'All {{live}} ready', { live: summary.live })
@@ -129,12 +128,13 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   };
 
   return (
-    <RecordSection title={title} data-testid="wo-page-sections" subline={summaryText}
+    <RecordSection title={title} data-testid="wo-page-sections"
       actions={<>
         {hasArchived && <Button variant="ghost" size="sm" onClick={() => setShowArchived((v) => !v)}>{showArchived ? t('hideArchived', 'Hide archived') : t('showArchived', 'Show archived')}</Button>}
         {canAdd && <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('add', 'Add {{section}}', vars)}</Button>}
       </>}>
       {problem && <p role="alert" className="mb-3 text-control text-destructive" data-testid="wo-sections-problem">{problem}</p>}
+      {summaryText && <p className="mb-2 text-control text-muted-foreground">{summaryText}</p>}
       {visible.length === 0 ? (
         <p className="text-control text-muted-foreground" data-testid="wo-sections-empty">{t('empty', 'No {{sections}} yet.', vars)}</p>
       ) : (

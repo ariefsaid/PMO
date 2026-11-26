@@ -279,7 +279,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   // The record's one hidden-figures line lives here, so any figure hidden on the record keeps this block.
   const anyHidden = shown.some((entry) => entry.hidden) || (figureScope?.hidden.length ?? 0) > 0;
   // No figure, no hidden figure and no budget line: no empty block.
-  if (!maySeePrices) return <WithheldPrice />;
+  if (!maySeePrices) return <section data-testid="procurement-money-summary" className="border-t border-border pt-3"><WithheldPrice /></section>;
   if (visible.length === 0 && !anyHidden && !budgetSignal && !isEngineer) return null;
 
   // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.

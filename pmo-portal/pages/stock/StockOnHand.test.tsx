@@ -135,8 +135,11 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     renderPage('Engineer');
     expect(await screen.findByText('CEM')).toBeVisible();
     expect(screen.getByText('70')).toBeVisible();
-    expect(screen.getByText('—')).toBeVisible();
-    expect(screen.getByText('Prices are hidden from requesters.')).toBeVisible();
+    const notice = screen.getByText('Prices are hidden from requesters.');
+    expect(notice).toBeVisible();
+    expect(notice).toHaveTextContent(/^Prices are hidden from requesters\.$/);
+    expect(notice.closest('h1')).toBeNull();
+    expect(notice.closest('[data-testid="stock-onhand-toolbar-controls"]')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /^Value$/ })).toBeNull();
   });
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, DataTable, DateField, EntityFormModal, FormGrid, Icon, ListState,
+  Button, Combobox, ConfirmDialog, DataTable, DateField, Drawer, EntityFormModal, FormGrid, Icon, ListState,
   SelectField, TextField, useEntityForm, useToast, type Column, type ComboboxOption, type SubmitError,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -211,7 +211,7 @@ const SetCrewRoleModal: React.FC<{ crew: CrewRow; member: CrewMemberRow; personN
 };
 
 /** The selected crew's people, newest placement first, with end-placement (FR-CRW-003/005). */
-const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew, canManage }) => {
+const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean; onClose: () => void }> = ({ crew, canManage, onClose }) => {
   const { t } = useTranslation('crews');
   const writeError = useCrewErrorText();
   const { toast } = useToast();
@@ -244,12 +244,11 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
     { key: 'to', header: t('crews:to', 'To'), cell: (m) => (m.valid_to ? formatDay(m.valid_to) : t('crews:open', 'Open')) },
   ];
   return (
-    <Card className="mt-6">
-      <CardHead actions={canManage ? <Button variant="outline" size="sm" onClick={() => setPlacing(true)}><Icon name="plus" />{t('crews:place', 'Add person')}</Button> : undefined}>
-        {t('crews:membersOf', 'People in {{crew}}', { crew: crew.name })}
-      </CardHead>
-      <CardPad>
-        {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
+    <Drawer open width="lg" onClose={onClose} nestedOpen={placing || settingRole !== null || ending !== null}
+      title={t('crews:membersOf', 'People in {{crew}}', { crew: crew.name })}
+      headerActions={canManage ? <Button variant="outline" size="sm" onClick={() => setPlacing(true)}><Icon name="plus" />{t('crews:place', 'Add person')}</Button> : undefined}>
+      <div className="space-y-3">
+        {problem && <p role="alert" className="text-sm text-destructive-text">{problem}</p>}
         {members.isPending ? <ListState variant="loading" shape="table" rows={3} /> : members.isError ? (
           <ListState variant="error" title={t('crews:membersError', "Couldn't load this crew's people")} onRetry={() => void members.refetch()}
             retryLabel={t('crews:retry', 'Retry')} />
@@ -265,13 +264,13 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
             emptyAction={canManage ? { label: t('crews:place', 'Add person'), onClick: () => setPlacing(true) } : undefined}
             emptyActionVariant="outline" />
         )}
-      </CardPad>
       {placing && <PlacePersonModal crew={crew} onClose={() => setPlacing(false)} />}
       {settingRole && <SetCrewRoleModal crew={crew} member={settingRole} personName={nameOf(settingRole.worker_id)} onClose={() => setSettingRole(null)} />}
       <ConfirmDialog open={ending !== null} title={t('crews:endTitle', 'End this placement?')}
         description={t('crews:endBody', '{{name}} leaves the crew after today. Recorded attendance stays.', { name: ending ? nameOf(ending.worker_id) : '' })}
         confirmLabel={t('crews:endPlacement', 'End placement')} onCancel={() => setEnding(null)} onConfirm={() => void end()} />
-    </Card>
+      </div>
+    </Drawer>
   );
 };
 
@@ -306,8 +305,8 @@ export const CrewList: React.FC<{ creating: boolean; onCloseCreate: () => void; 
   const columns: Column<CrewRow>[] = [
     { key: 'code', header: t('crews:code', 'Code'), kind: 'primary', rowHeader: true, cell: (c) => <span className="record-id font-semibold text-foreground">{c.code}</span> },
     { key: 'name', header: t('crews:name', 'Name'), cell: (c) => c.name },
-    { key: 'kind', header: t('crews:kind', 'Crew type'), cell: (c) => (c.kind === 'vendor' ? t('crews:kindVendor', 'Vendor crew') : t('crews:kindOwn', 'Own staff')) },
-    { key: 'controller', header: t('crews:controller', 'Field controller'), cell: (c) => controllerName(c.field_controller_id) },
+    { key: 'kind', header: t('crews:kind', 'Crew type'), size: 150, cell: (c) => (c.kind === 'vendor' ? t('crews:kindVendor', 'Vendor crew') : t('crews:kindOwn', 'Own staff')) },
+    { key: 'controller', header: t('crews:controller', 'Field controller'), minSize: 190, cell: (c) => controllerName(c.field_controller_id) },
   ];
   return (
     <>
@@ -326,7 +325,7 @@ export const CrewList: React.FC<{ creating: boolean; onCloseCreate: () => void; 
           emptyAction={canManage ? { label: t('crews:new', 'New crew'), onClick: onCreate } : undefined}
           emptyActionVariant="outline" />
       )}
-      {selectedCrew && <CrewMembersCard crew={selectedCrew} canManage={canManage} />}
+      {selectedCrew && <CrewMembersCard key={selectedCrew.id} crew={selectedCrew} canManage={canManage} onClose={() => setSelected(null)} />}
       {creating && <NewCrewModal onClose={onCloseCreate} />}
       <ConfirmDialog open={archiving !== null} title={t('crews:archiveTitle', 'Archive this crew?')}
         description={t('crews:archiveBody', '{{name}} leaves the pickers. Its past roster and attendance stay.', { name: archiving?.name ?? '' })}

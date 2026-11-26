@@ -119,45 +119,10 @@ const WorkOrdersClaimsCard: React.FC<{
       </div>}>
         {t('projectDetail.billing.claims.title', 'Claims & down payment')}
       </CardHead>
-      <CardPad className="pt-0">
-        <dl className="mb-4 grid grid-cols-1 gap-x-8 gap-y-5 border-b border-border pb-4 sm:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))]">
-          {/* C4: an unknown figure is left out, never a "—"; N13: billing ahead of the work done reads as that, not a negative. */}
-          {summary?.unbilledWork !== null && summary?.unbilledWork !== undefined && <div data-testid="claims-gap">
-            <dt className="text-sm text-muted-foreground">{summary.unbilledWork < 0
-              ? t('projectDetail.billing.summary.billedAhead', 'Billed ahead of progress')
-              : t('projectDetail.billing.summary.gap', 'Work done, not yet billed')}</dt>
-            <dd className="mt-1 w-fit cursor-help text-metric font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }><span>{money(Math.abs(summary.unbilledWork))}</span></Tooltip></dd>
-          </div>}
-          {summary && <div>
-            <dt className="text-sm text-muted-foreground">{t('projectDetail.billing.summary.dpHeld', 'Down payment held')}</dt>
-            <dd className="mt-1 w-fit cursor-help text-metric font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{money(summary.dpHeld)}</span></Tooltip></dd>
-          </div>}
-        </dl>
-        {claimRows.some((claim) => !claim.withdrawn_at && !claim.invoice && (claim.evidence?.length ?? 0) === 0) && <p className="mb-4 text-sm text-muted-foreground">
+      <CardPad className="space-y-4 pt-0">
+        {claimRows.some((claim) => !claim.withdrawn_at && !claim.invoice && (claim.evidence?.length ?? 0) === 0) && <p className="text-sm text-muted-foreground">
           {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}
         </p>}
-        <details className="mb-4 border-b border-border pb-4">
-          <summary className="touch-target w-fit cursor-pointer rounded-sm text-sm font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-            {t('projectDetail.billing.summary.details', 'Billing summary details')}
-          </summary>
-          {summary ? <dl data-testid="work-orders-billing-detail" className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
-            <MoneyFigure label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={money(summary.workBilled)} detail={t('projectDetail.billing.source.billed', 'Source: work and down-payment claims billed to date.')} />
-            <MoneyFigure label={t('projectDetail.billing.summary.contract', 'Contract value')} value={money(summary.contractNet)} detail={t('projectDetail.billing.source.contract', 'Source: net contract value from the project billing summary.')} />
-            <MoneyFigure label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={money(summary.remaining)} detail={t('projectDetail.billing.source.remaining', 'Computed as net contract value less claims billed to date.')} />
-            <MoneyFigure
-              testId={summary.contractLines.length > 0 ? 'work-orders-earned' : undefined}
-              label={summary.contractLines.length > 0
-                ? t('projectTabs:contractQuantities.billing.summary.earned', 'Earned to date')
-                : t('projectDetail.billing.summary.assessed', 'Assessed to date')}
-              value={summary.assessedToDate === null ? '—' : money(summary.assessedToDate)}
-              detail={t('projectDetail.billing.source.assessed', 'Source: earned contract line value or the latest recorded progress assessment.')} />
-            {summary.assessment && <p className="col-span-2 text-sm text-muted-foreground sm:col-span-3" data-testid="work-orders-assessment-period">
-              {t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete', { month: formatUtcMonthYear(new Date(`${summary.assessment.month}T00:00:00Z`)), pct: formatNumberExact(summary.assessment.pctComplete) })}
-            </p>}
-            {!summary.assessment && <p className="col-span-2 text-sm text-muted-foreground sm:col-span-3" data-testid="work-orders-no-assessment">{t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}</p>}
-            <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
-          </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
-        </details>
         {!claimsRead.isPending && !claimsRead.isError && claimRows.length === 0 ? <ListState variant="empty" quiet
           title={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
           sub={emptySub} /> : <DataTable<ProgressClaimWithInvoice>
@@ -188,6 +153,41 @@ const WorkOrdersClaimsCard: React.FC<{
           cardBelow={1000}
           tableId="project-detail-claims-register"
         />}
+        <dl className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* C4: an unknown figure is left out, never a "—"; N13: billing ahead of the work done reads as that, not a negative. */}
+          {summary?.unbilledWork !== null && summary?.unbilledWork !== undefined && <div data-testid="claims-gap">
+            <dt className="text-sm text-muted-foreground">{summary.unbilledWork < 0
+              ? t('projectDetail.billing.summary.billedAhead', 'Billed ahead of progress')
+              : t('projectDetail.billing.summary.gap', 'Work done, not yet billed')}</dt>
+            <dd className="mt-1 w-fit max-w-full cursor-help break-words text-metric font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }><span>{money(Math.abs(summary.unbilledWork))}</span></Tooltip></dd>
+          </div>}
+          {summary && <div>
+            <dt className="text-sm text-muted-foreground">{t('projectDetail.billing.summary.dpHeld', 'Down payment held')}</dt>
+            <dd className="mt-1 w-fit max-w-full cursor-help break-words text-metric font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{money(summary.dpHeld)}</span></Tooltip></dd>
+          </div>}
+        </dl>
+        <details className="border-t border-border pt-4">
+          <summary className="touch-target w-fit cursor-pointer rounded-sm text-sm font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            {t('projectDetail.billing.summary.details', 'Billing summary details')}
+          </summary>
+          {summary ? <dl data-testid="work-orders-billing-detail" className="mt-4 grid min-w-0 grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+            <MoneyFigure label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={money(summary.workBilled)} detail={t('projectDetail.billing.source.billed', 'Source: work and down-payment claims billed to date.')} />
+            <MoneyFigure label={t('projectDetail.billing.summary.contract', 'Contract value')} value={money(summary.contractNet)} detail={t('projectDetail.billing.source.contract', 'Source: net contract value from the project billing summary.')} />
+            <MoneyFigure label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={money(summary.remaining)} detail={t('projectDetail.billing.source.remaining', 'Computed as net contract value less claims billed to date.')} />
+            <MoneyFigure
+              testId={summary.contractLines.length > 0 ? 'work-orders-earned' : undefined}
+              label={summary.contractLines.length > 0
+                ? t('projectTabs:contractQuantities.billing.summary.earned', 'Earned to date')
+                : t('projectDetail.billing.summary.assessed', 'Assessed to date')}
+              value={summary.assessedToDate === null ? '—' : money(summary.assessedToDate)}
+              detail={t('projectDetail.billing.source.assessed', 'Source: earned contract line value or the latest recorded progress assessment.')} />
+            {summary.assessment && <p className="col-span-full text-sm text-muted-foreground" data-testid="work-orders-assessment-period">
+              {t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete', { month: formatUtcMonthYear(new Date(`${summary.assessment.month}T00:00:00Z`)), pct: formatNumberExact(summary.assessment.pctComplete) })}
+            </p>}
+            {!summary.assessment && <p className="col-span-full text-sm text-muted-foreground" data-testid="work-orders-no-assessment">{t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}</p>}
+            <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
+          </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
+        </details>
       </CardPad>
     </Card>
   );

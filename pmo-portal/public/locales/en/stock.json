@@ -673,7 +673,10 @@
       "banner": {
         "title": "Items issued ahead of progress: {{count}}",
         "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",
-        "row": "{{name}}: issued {{issued}}% of planned, progress {{progress}}%, {{gap}} points ahead"
+        "item": "Item",
+        "issued": "Issued of plan",
+        "ahead": "Ahead of progress",
+        "points": "{{gap}} points"
       },
       "setting": {
         "manage": "Issued-versus-progress warning",
@@ -852,6 +855,12 @@
       "to": "To",
       "name": "Name",
       "signatureDate": "Date"
+    },
+    "columns": {
+      "transfer": "Transfer",
+      "sent": "Sent",
+      "rejected": "Rejected",
+      "note": "Note"
     }
   },
   "handover": {
@@ -1002,7 +1011,9 @@
       "roleHelp": "This role decides the last step of a borrowing request.",
       "label": "Name of the approval step",
       "labelDefault": "Borrowing approval"
-    }
+    },
+    "free": "Free",
+    "reserved": "Reserved"
   },
   "dsrIssue": {
     "setting": "Validated daily reports issue their material from stock",
@@ -1102,7 +1113,6 @@
     "date": "Receipt date",
     "noOrders": "No sent orders available.",
     "stockItem": "Stock item",
-    "progress": "Ordered {{ordered}} · Received {{received}} · Outstanding {{outstanding}}",
     "not_received": "Not received",
     "partly_received": "Partly received",
     "fully_received": "Fully received",
@@ -1124,7 +1134,16 @@
     "changeMode": "Change receiving for this organisation?",
     "changeModeBody": "This changes receiving for everyone. Unsaved entries on this form will be discarded.",
     "progressTitle": "Goods received",
-    "openReceiving": "Open receiving"
+    "openReceiving": "Open receiving",
+    "line": "Item",
+    "ordered": "Ordered",
+    "received": "Received",
+    "outstanding": "Outstanding",
+    "status": "Status",
+    "lines": "Order lines",
+    "qualityTitle": "Quality check",
+    "receipts": "Receipts",
+    "countedColumn": "Counted"
   },
   "materialCompletion": {
     "title": "Material completion",
@@ -1146,6 +1165,7 @@
     "print": "Print",
     "back": "Back to the work order",
     "preparedBy": "Prepared by",
-    "checkedBy": "Checked by"
+    "checkedBy": "Checked by",
+    "valueTotal": "Total value"
   }
 }

@@ -2104,7 +2104,6 @@
     "amount": "Amount",
     "status": "Status",
     "file": "File",
-    "ledgerNote": "Every record appears once, chronological. Empty record types show nothing.",
     "types": {
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
@@ -2457,7 +2456,6 @@
         "titleFallback": "Delete document?"
       },
       "dismiss": "Dismiss",
-      "emptySub": "Add a drawing, specification, or transmittal to start the project's document register.",
       "emptyTitle": "No documents yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load documents",
@@ -2906,7 +2904,7 @@
         "treatmentRequired": "Choose whether the order value already includes tax",
         "value": "Enter the order value as a non-negative amount with at most 2 decimal places"
       },
-      "newSubtitle": "Record the client’s purchase order against this project’s contract. It starts as a draft and draws down the contract only once it is issued.",
+      "newSubtitle": "Record the client’s purchase order against the project’s contract. It starts as a draft and draws down the contract only once it is issued.",
       "newTitle": "New work order",
       "orderDate": "Order date",
       "orderValue": "Order value",

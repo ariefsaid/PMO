@@ -109,8 +109,7 @@ const StockAtRisk: React.FC = () => {
             </figure>
           </div>
           <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-            <span>
-              <b className="font-semibold text-foreground tabular-nums">{exposedCount}</b>{' '}
+            <span className="tabular-nums">
               {exposedCount === 1 ? t('atRisk.summary.exposedOne') : t('atRisk.summary.exposed', { count: exposedCount })}
             </span>
           </p>

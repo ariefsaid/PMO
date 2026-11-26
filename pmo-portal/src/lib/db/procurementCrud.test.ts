@@ -120,9 +120,9 @@ describe('vendor recovery writes only vendor_id', () => {
 });
 
 describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stamped, no org_id)', () => {
-  it('AC-PROC-001: inserts a Draft PR with requested_by_id, never sends org_id, returns the new row', async () => {
+  it('AC-PROC-001: inserts a Draft PR with requested_by_id and returns its client-known id without reading the raw row', async () => {
     h.result.value = {
-      data: { id: 'pr1', title: 'Welding consumables', status: 'Draft' },
+      data: null,
       error: null,
     };
     const row = await createProcurement(
@@ -144,8 +144,9 @@ describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stam
     expect(insert.status).toBeUndefined();
     // org_id is NEVER sent (RLS stamps it from auth_org_id()).
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
-    expect(h.calls.single).toBe(1);
-    expect(row.id).toBe('pr1');
+    expect(insert.id).toBe(row.id);
+    expect(h.calls.select).toEqual([]);
+    expect(h.calls.single).toBe(0);
   });
 
   it('AC-PROC-001: omits a null vendor (no vendor_id key) and includes one when provided', async () => {

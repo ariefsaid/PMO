@@ -87,13 +87,21 @@
     "filteredEmpty": "Tidak ada lembar waktu yang cocok dengan filter ini",
     "unknownPerson": "Anggota tim",
     "hoursTotal": "{{hours}} jam",
-    "showEntries": "Tampilkan rincian",
-    "hideEntries": "Sembunyikan rincian",
     "showEntriesFor": "Tampilkan rincian untuk {{name}}",
-    "hideEntriesFor": "Sembunyikan rincian untuk {{name}}",
     "pagination": "Halaman lembar waktu",
     "showingRange": "Menampilkan {{from}}–{{to}} dari {{total}}",
     "previous": "Sebelumnya",
-    "next": "Berikutnya"
+    "next": "Berikutnya",
+    "week": "Minggu",
+    "projects": "Proyek",
+    "hours": "Jam",
+    "status": "Status"
+  },
+  "weekHours": {
+    "project": "Proyek",
+    "total": "Total",
+    "dailyTotal": "Total harian",
+    "weekTotal": "Total minggu",
+    "noHours": "Tanpa jam"
   }
 }

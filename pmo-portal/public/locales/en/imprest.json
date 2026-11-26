@@ -277,6 +277,12 @@
     "editorHelp": "Change or remove any amount. Nothing is saved until you create the draft; you submit it for approval as usual.",
     "createDraft": "Create draft plan",
     "discard": "Discard",
-    "invalid": "Every amount must be more than zero."
+    "invalid": "Every amount must be more than zero.",
+    "col": {
+      "request": "Request",
+      "workOrder": "Work order",
+      "status": "Status",
+      "amount": "Amount"
+    }
   }
 }

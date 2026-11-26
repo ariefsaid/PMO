@@ -256,7 +256,7 @@ const Companies: React.FC = () => {
       count={directory.data ? total : undefined}
       total={directory.data && !unfiltered ? directoryTotal : undefined}
       primaryAction={
-        canCreate && (
+        canCreate && state !== 'loading' && state !== 'empty' && (
           <Button variant="primary" onClick={() => setFormTarget({ company: null })}>
             <Icon name="plus" />
             {t('companies.actions.new', 'New company')}
@@ -380,6 +380,7 @@ const Companies: React.FC = () => {
           title={t('companies.states.emptyTitle', 'No companies yet')}
           stateId="companies-empty"
           role={realRole ?? undefined}
+          action={canCreate ? { label: t('companies.actions.new', 'New company'), onClick: () => setFormTarget({ company: null }) } : undefined}
           module="companies"
         />
       )}
@@ -402,7 +403,8 @@ const Companies: React.FC = () => {
             state={pageRows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
             emptyAction={{ label: t('companies.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
-          tableId="companies-table" />
+            tableId="companies-table"
+          />
 
           {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
           <nav aria-label={t('companies.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">

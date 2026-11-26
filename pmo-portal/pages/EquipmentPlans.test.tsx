@@ -92,8 +92,9 @@ describe('monthly equipment plan page (#2700)', () => {
     h.plans = [plan({ lines: [{ ...plan().lines[0], rate: null, vendorId: null }] })];
     renderPage();
     await pickProject();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit line 1' }));
     const line = screen.getByTestId('plan-line');
-    expect(within(line).getByLabelText('Rate')).toHaveValue('');
+    expect(screen.getByTestId('plan-total')).toHaveTextContent('Prices are hidden from requesters.');
     await userEvent.type(within(line).getByLabelText('What is needed'), ' 25t');
     await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(h.save).toHaveBeenCalledTimes(1);

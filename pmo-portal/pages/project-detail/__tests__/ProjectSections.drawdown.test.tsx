@@ -1,5 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -8,9 +10,16 @@ import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
   role: "Finance",
+  preloadOrders: vi.fn(),
+  preloadTab: vi.fn(),
   drawdown: { committed: 500_000, draft: 100_000, ceiling: 900_000, currency: 'USD', basis: 'net' },
 }));
 
+vi.mock('@/src/lib/routeData', () => ({ preloadProjectOrders: state.preloadOrders }));
+vi.mock('../lazyProjectChunks', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../lazyProjectChunks')>(),
+  preloadProjectTab: state.preloadTab,
+}));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: state.role, effectiveRole: state.role, canImpersonate: false, viewAs: vi.fn() }),
 }));
@@ -122,4 +131,24 @@ it("JOB-BQ5 a permitted claims reader at Engineer level can reach Contract", () 
   state.role = "Engineer";
   render(<MemoryRouter><ProjectSections project={project} area="overview" setArea={vi.fn()} isPipeline={false} header={<h1>Alpha</h1>} /></MemoryRouter>);
   expect(screen.getByRole("option", { name: "Contract" })).toBeVisible();
+});
+
+it('#2895 preloads the orders data and chunk while the reader points at the tab', () => {
+  const client = new QueryClient();
+  const viewer = { id: 'u1', org_id: 'org-1', role: 'Finance', manager_id: null };
+  const setArea = vi.fn();
+  render(
+    <AuthContext.Provider value={{ currentUser: viewer } as AuthContextValue}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ProjectSections project={project} area="procurement" setArea={setArea} isPipeline={false} header={<h1>Project</h1>} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </AuthContext.Provider>,
+  );
+
+  fireEvent.pointerOver(screen.getByRole('tab', { name: 'Work order' }));
+  expect(state.preloadTab).toHaveBeenCalledWith('orders');
+  expect(state.preloadOrders).toHaveBeenCalledWith(client, 'org-1', 'p1', true, viewer);
+  expect(setArea).not.toHaveBeenCalled();
 });

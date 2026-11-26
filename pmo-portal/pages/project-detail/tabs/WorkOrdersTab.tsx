@@ -1,9 +1,10 @@
 import { BillingReconciliation } from './BillingReconciliation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   Button,
+  buttonClasses,
   ListState,
   SelectField,
   TaxBasisLabel,
@@ -113,10 +114,9 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
   const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
-  const navigate = useNavigate();
 
-  // `undefined` = closed · `null` = create a draft · a row = edit that draft's body.
-  const [formFor, setFormFor] = useState<WorkOrderRow | null | undefined>(undefined);
+  // `undefined` = closed · a row = edit that draft's body. New work orders are created on the Work orders tab.
+  const [formFor, setFormFor] = useState<WorkOrderRow | undefined>(undefined);
   const [valueFor, setValueFor] = useState<WorkOrderRow | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
   const [orderFilter, setOrderFilter] = useState('all');
@@ -339,14 +339,6 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   const fail = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);
     toast(headline, detail, 'warning');
-  };
-
-  const runCreate = async (input: Parameters<typeof create.mutateAsync>[0]['input']) => {
-    const created = await create.mutateAsync({ input });
-    toast(t('projectDetail.workOrders.toast.created', 'Draft work order created'), input.title, 'success');
-    setFormFor(undefined);
-    // #2898: the captured Draft opens on its own page, where its checks are added and it is issued or cancelled.
-    if (created?.id) navigate(`/work-orders/${created.id}`);
   };
 
   const runUpdate = async (id: string, patch: Parameters<typeof update.mutateAsync>[0]['patch']) => {
@@ -679,10 +671,10 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
                 {t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')}
               </Button>
             )}
-            {may('create', 'workOrder') && (
-              <Button id="add-customer-order" variant="outline" size="sm" onClick={() => setFormFor(null)}>
-                {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
-              </Button>
+            {may('view', 'workOrder') && (
+              <Link to={`/projects/${encodeURIComponent(projectId)}/orders`} className={buttonClasses('ghost', 'sm')} data-testid="open-work-orders-tab">
+                {t('projectDetail.workOrders.action.openWorkOrders', 'Work orders')}
+              </Link>
             )}
             <WorkOrderImport projectId={projectId} currency={currency} projectManagerId={projectManagerId} />
             <ExportButton size="sm" rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
@@ -765,7 +757,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
               : lineReadsPending ? <ListState variant="loading" rows={3} /> : null)}
             {!showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
               <p className="px-[var(--panel-inset)] py-4 text-sm text-muted-foreground">
-                {t('projectDetail.workOrders.emptyRegister', 'No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.')}
+                {t('projectDetail.workOrders.emptyRegister', 'No work orders yet. Create one on the Work orders tab; it draws down the project contract ceiling once issued.')}
               </p>
             )}
             {showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
@@ -867,6 +859,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
         projectId={projectId}
         projectName={projectName}
         liveDownPayment={liveDownPayment}
+        onCreateOrder={async (input) => { await create.mutateAsync({ input, projectId }); setFormFor(undefined); }}
         evidenceAttachedIds={(claimRows.find((claim) => claim.id === evidenceFor)?.evidence ?? []).map((evidence) => evidence.document_id)}
         evidenceEarlierIds={(() => {
           const current = claimRows.find((claim) => claim.id === evidenceFor);
@@ -907,7 +900,6 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
         onError={fail}
         onClosePercent={() => setPercentOpen(false)}
         onCloseForm={() => setFormFor(undefined)}
-        onCreateOrder={runCreate}
         onUpdateOrder={runUpdate}
         onCloseLines={() => setLinesFor(null)}
         onCreateLine={async (workOrderId, boqItemId, quantity) => { await quantityMutations.createLine.mutateAsync({ workOrderId, boqItemId, quantity }); }}

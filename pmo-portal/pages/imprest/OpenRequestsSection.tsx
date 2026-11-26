@@ -3,7 +3,7 @@ import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, RecordSection, StatusPill } from '@/src/components/ui';
+import { Button, DataTable, ListState, RecordSection, StatusPill, type Column } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useImprestOpenRequests } from '@/src/hooks/useImprest';
 import { OPEN_REQUEST_LIMIT } from '@/src/lib/db/imprest';
@@ -22,20 +22,27 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
   const q = useImprestOpenRequests(floatId);
   const requests = useMemo(() => foldRequests(q.data?.rows ?? []), [q.data]);
   const seed = useMemo(() => seedFromRequests(requests, currency), [requests, currency]);
-  const pricesHidden = !maySeePrices && requests.length > 0;
-  // purpose -> work order (or none) -> requests, in the order the read gave them
-  const groups = useMemo(() => {
-    const byPurpose = new Map<string, Map<string, OpenRequest[]>>();
-    for (const r of requests) {
-      const purpose = r.category ?? '';
-      const wo = r.workOrderLabel ?? '';
-      const inner = byPurpose.get(purpose) ?? new Map<string, OpenRequest[]>();
-      inner.set(wo, [...(inner.get(wo) ?? []), r]);
-      byPurpose.set(purpose, inner);
-    }
-    return [...byPurpose.entries()];
-  }, [requests]);
+  const pricesHidden = !maySeePrices || requests.some((request) => request.total === null || request.lines.some((line) => line.amount === null));
   const money = (v: number | null, cur: string) => (pricesHidden || v === null ? '—' : formatCurrency(Number(v), cur));
+  // One row per request, grouped by purpose: the request and its lines, its work order, its state, and its money on one
+  // right edge (the request total, then each line's amount on the line it belongs to).
+  const columns: Column<OpenRequest>[] = [
+    { key: 'request', header: t('imprest:open.col.request', 'Request'), kind: 'primary', size: 340, ownActivation: true, cell: (r) => (
+      <div className="min-w-0">
+        <Link to={`/procurement/${r.id}`} className="font-medium text-primary-text hover:underline">{r.prNumber ?? r.title}</Link>
+        {r.prNumber && <span className="ml-2 text-foreground">{r.title}</span>}
+        {r.lines.map((l) => <span key={l.id} className="block text-control font-normal text-muted-foreground">{l.name} × {l.quantity}</span>)}
+      </div>
+    ) },
+    { key: 'workOrder', header: t('imprest:open.col.workOrder', 'Work order'), size: 200, cell: (r) => r.workOrderLabel ?? <span className="text-muted-foreground">{t('imprest:open.noWorkOrder', 'No work order')}</span> },
+    { key: 'status', header: t('imprest:open.col.status', 'Status'), size: 150, cell: (r) => <StatusPill record="procurement" state={r.status} /> },
+    { key: 'amount', header: t('imprest:open.col.amount', 'Amount'), kind: 'money', align: 'num', size: 150, cell: (r) => (
+      <div className="flex flex-col items-end">
+        <span className="tabular-nums">{money(r.total, r.currency)}</span>
+        {r.lines.map((l) => <span key={l.id} className="tabular-nums text-control text-muted-foreground">{money(l.amount, r.currency)}</span>)}
+      </div>
+    ) },
+  ];
   const reason = pricesHidden
     ? t('imprest:open.noPrices', 'Add the lines yourself in the plan.')
     : seed.lines.length === 0
@@ -72,35 +79,16 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
                 {t('imprest:open.skipped', '{{count}} request(s) with no purpose, no visible price or another currency are not counted in the plan.', { count: seed.skipped })}
               </p>
             )}
-            {groups.map(([purpose, byWo]) => (
-              <div key={purpose || 'none'} className="space-y-3" data-testid={`open-purpose-${purpose || 'none'}`}>
-                <h3 className="text-sm font-semibold text-foreground">{purpose ? budgetCategoryLabel(purpose as OpenRequest['category'] & string, t) : t('imprest:open.noPurpose', 'No purpose set')}</h3>
-                {[...byWo.entries()].map(([wo, reqs]) => (
-                  <div key={wo || 'none'} className="space-y-1">
-                    <p className="text-control text-muted-foreground">{wo || t('imprest:open.noWorkOrder', 'No work order')}</p>
-                    <ul className="divide-y divide-border text-sm">
-                      {reqs.map((r) => (
-                        <li key={r.id} className="py-2 first:pt-1 last:pb-0">
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <Link to={`/procurement/${r.id}`} className="font-semibold text-primary-text hover:underline">{r.prNumber ?? r.title}</Link>
-                            <span className="min-w-0 basis-full truncate sm:basis-0 sm:flex-1">{r.title}</span>
-                            <StatusPill record="procurement" state={r.status} />
-                            <span className="tabular-nums">{money(r.total, r.currency)}</span>
-                          </div>
-                          {r.lines.length > 0 && (
-                            <ul className="mt-1 pl-4 text-control text-muted-foreground">
-                              {r.lines.map((l) => (
-                                <li key={l.id} className="flex gap-3"><span className="flex-1">{l.name} × {l.quantity}</span><span className="tabular-nums">{money(l.amount, r.currency)}</span></li>
-                              ))}
-                            </ul>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            ))}
+            <DataTable
+              embedded
+              rows={requests}
+              columns={columns}
+              rowKey={(r) => r.id}
+              tableId="imprest-open-requests"
+              accessibleName={t('imprest:open.title', 'Open purchase requests')}
+              groupBy={(r) => r.category ?? ''}
+              groupLabel={(key) => (key ? budgetCategoryLabel(key as OpenRequest['category'] & string, t) : t('imprest:open.noPurpose', 'No purpose set'))}
+            />
             {q.data?.truncated && <p role="status" className="text-control text-muted-foreground">
               {t('imprest:open.truncated', 'Showing the first {{count}} lines only.', { count: OPEN_REQUEST_LIMIT })}
             </p>}

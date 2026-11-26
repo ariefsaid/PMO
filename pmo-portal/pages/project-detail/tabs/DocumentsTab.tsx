@@ -509,8 +509,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   };
 
   return (
-    <div>
-
+    <div className="min-w-0">
       {microsoftEntry && (
         <MicrosoftEntry code={projectCode} onClose={() => setMicrosoftEntry(null)} onSelect={onSelectReference} />
       )}
@@ -637,15 +636,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           // missing and how to start, on the heading's left edge. No second Add control (the toolbar's
           // is the one), no centred block floating in the card.
           <div className="rounded-b-lg border border-border bg-card px-4 py-4" data-testid="documents-register-empty">
-            <div className="min-w-0">
-              <div className="text-group font-semibold">{t('projectDetail.documents.emptyTitle', 'No documents yet')}</div>
-              <div className="text-control text-muted-foreground">
-                {t(
-                  'projectDetail.documents.emptySub',
-                  "Add a drawing, specification, or transmittal to start the project's document register.",
-                )}
-              </div>
-            </div>
+            <p className="text-control text-muted-foreground">{t('projectDetail.documents.emptyTitle', 'No documents yet')}</p>
           </div>
         )}
 

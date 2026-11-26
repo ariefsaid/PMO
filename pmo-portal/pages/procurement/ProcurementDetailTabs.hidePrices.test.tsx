@@ -22,13 +22,13 @@ describe('AC-009 quotes tab without prices', () => {
     expect(screen.getByText(/1,200/)).toBeInTheDocument();
     expect(screen.getByText(/1,500/)).toBeInTheDocument();
   });
-  it('shows the quotations without price or difference when the server hides prices', () => {
+  it('does not add a second withheld notice inside the quotes tab', () => {
     act(() => setPricesHidden(true));
     renderTab();
     expect(screen.queryByText(/1,200/)).toBeNull();
     expect(screen.queryByText(/1,500/)).toBeNull();
     expect(screen.queryByText(/vs chosen/)).toBeNull();
-    expect(screen.queryByText('Quote supplier')).toBeNull();
-    expect(screen.getByTestId('quotation-comparison-cards')).toBeInTheDocument();
+    expect(screen.queryByText('Prices are hidden from requesters.')).toBeNull();
+    expect(screen.queryByTestId('quotation-comparison-cards')).toBeNull();
   });
 });

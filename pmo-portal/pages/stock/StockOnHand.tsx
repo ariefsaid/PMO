@@ -17,7 +17,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseRefusal } from '@/src/lib/refusals';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
-import { ReservedCell } from '@/src/components/stock/ReservedCell';
+import { FreeFigure, ReserveAction, ReservedFigure } from '@/src/components/stock/ReservedCell';
 import { StockItemTag } from '@/src/components/stock/StockItemTag';
 import { ReservationForm } from '@/src/components/stock/ReservationForm';
 import { mayReserve, useFreeReserved, useReservationsEnabled } from '@/src/hooks/useStockReservations';
@@ -120,7 +120,7 @@ const StockOnHand: React.FC = () => {
         cell: (r) => (
           <div className="min-w-0">
             <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate record-id font-semibold text-foreground hover:underline">{r.itemCode}</Link>
-            <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
+            <span className="block truncate text-sm font-normal text-muted-foreground">{r.itemName}</span>
             <StockItemTag name={r.tagName} />
           </div>
         ),
@@ -142,11 +142,19 @@ const StockOnHand: React.FC = () => {
       },
     ];
     if (rsvOn) {
-      cols.push({
-        key: 'reserved', header: t('reservations.column'),
-        cell: (r) => <ReservedCell figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} />,
-        exportValue: (r) => figureOf.get(`${r.itemId}:${r.warehouseId}`)?.freeQty ?? '',
-      });
+      // Free and reserved are two figures, so two right-aligned columns; reserving is an action, so it trails the row (below).
+      cols.push(
+        {
+          key: 'free', header: t('reservations.free'), align: 'num',
+          cell: (r) => <FreeFigure figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} />,
+          exportValue: (r) => figureOf.get(`${r.itemId}:${r.warehouseId}`)?.freeQty ?? '',
+        },
+        {
+          key: 'reserved', header: t('reservations.reserved'), align: 'num',
+          cell: (r) => <ReservedFigure figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} />,
+          exportValue: (r) => figureOf.get(`${r.itemId}:${r.warehouseId}`)?.reservedQty ?? '',
+        },
+      );
     }
     if (showCost) {
       cols.push(
@@ -162,6 +170,12 @@ const StockOnHand: React.FC = () => {
           const b = (below.data ?? []).find((x) => x.itemId === r.itemId && x.warehouseId === r.warehouseId);
           return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b, maySeePrices ? r.avgCost : undefined)}>{t('requestPurchase.action')}</Button> : null;
         },
+      });
+    }
+    if (rsvOn) {
+      cols.push({
+        key: 'reserve', header: <span className="sr-only">{t('reservations.reserve')}</span>, size: 128,
+        cell: (r) => <ReserveAction onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} />,
       });
     }
     return cols;
@@ -184,7 +198,6 @@ const StockOnHand: React.FC = () => {
       title={
         <>
           {t('onHand.title')}
-          {!maySeePrices && onHand.isSuccess && <WithheldPrice />}
       {state === undefined && (
             /* The count is a count OF BALANCES: the title says so, so "21" never stands alone. */
             <span className="ml-2.5 align-middle text-control font-semibold tabular-nums text-muted-foreground">
@@ -232,7 +245,7 @@ const StockOnHand: React.FC = () => {
           )}
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
         </div>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2" data-testid="stock-onhand-toolbar-controls">
           {/* The shared Checkbox carries its own visible words inside the hit target (A2's `children`
               API), so the words toggle it and a screen reader hears the name once. The 32px box keeps
               the control's centre on the same line as the fields beside it. */}
@@ -246,6 +259,7 @@ const StockOnHand: React.FC = () => {
               {t('onHand.filters.includeZero')}
             </Checkbox>
           </div>
+          {!maySeePrices && onHand.isSuccess && <div className="ml-auto max-sm:w-full"><WithheldPrice /></div>}
         </div>
       </StockFilters>
       {state === undefined && (
@@ -316,8 +330,11 @@ const StockOnHand: React.FC = () => {
               </dd>
               {rsvOn && (
                 <>
-                  <dt className="text-muted-foreground">{t('reservations.column')}</dt>
-                  <dd className="min-w-0"><ReservedCell figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} /></dd>
+                  <dt className="text-muted-foreground">{t('reservations.free')}</dt>
+                  <dd className="min-w-0"><FreeFigure figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} /></dd>
+                  <dt className="text-muted-foreground">{t('reservations.reserved')}</dt>
+                  <dd className="min-w-0 [&>div]:items-start [&>div]:text-left"><ReservedFigure figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} /></dd>
+                  {mayReserveAt(r) && <dd className="col-span-2 pt-1"><ReserveAction onReserve={() => setReserving(r)} /></dd>}
                 </>
               )}
               {showCost && (

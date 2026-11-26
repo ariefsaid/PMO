@@ -1,35 +1,27 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad } from '@/src/components/ui';
+import { DataTable, RecordSection, type Column } from '@/src/components/ui';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { formatDuration, useBreakdowns, useVendorNames, useVendorResponseReady } from '@/src/hooks/useVendorResponse';
 import { vendorResponseSummary, type VendorResponseSummary } from '@/src/lib/vendorResponse';
 
-/** Per-vendor table: breakdowns, responded, awaiting, median, average, slowest. Scrolls sideways on a phone, never the page. */
+/** Per-vendor table: breakdowns, responded, awaiting, median, average, slowest. Figures right-aligned on one edge; a phone gets cards. */
 export const VendorResponseSummaryTable: React.FC<{ rows: VendorResponseSummary[] }> = ({ rows }) => {
   const { t } = useTranslation();
   const name = useVendorNames();
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead><tr className="text-left text-muted-foreground">
-          <th scope="col" className="pr-3 font-medium">{t('equipment:vendorResponse.vendor', 'Vendor')}</th>
-          <th scope="col" className="pr-3 font-medium">{t('equipment:vendorResponse.breakdowns', 'Breakdowns')}</th>
-          <th scope="col" className="pr-3 font-medium">{t('equipment:vendorResponse.responded', 'Responded')}</th>
-          <th scope="col" className="pr-3 font-medium">{t('equipment:vendorResponse.awaitingCount', 'Awaiting')}</th>
-          <th scope="col" className="pr-3 font-medium">{t('equipment:vendorResponse.median', 'Median')}</th>
-          <th scope="col" className="pr-3 font-medium">{t('equipment:vendorResponse.average', 'Average')}</th>
-          <th scope="col" className="font-medium">{t('equipment:vendorResponse.slowest', 'Slowest')}</th>
-        </tr></thead>
-        <tbody>{rows.map((r) => (
-          <tr key={r.vendorId}>
-            <th scope="row" className="pr-3 text-left font-normal">{name(r.vendorId)}</th>
-            <td className="pr-3 tabular-nums">{r.breakdowns}</td><td className="pr-3 tabular-nums">{r.responded}</td><td className="pr-3 tabular-nums">{r.awaiting}</td>
-            <td className="pr-3 tabular-nums">{formatDuration(t, r.medianMinutes)}</td><td className="pr-3 tabular-nums">{formatDuration(t, r.averageMinutes)}</td><td className="tabular-nums">{formatDuration(t, r.slowestMinutes)}</td>
-          </tr>))}</tbody>
-      </table>
-    </div>
-  );
+  const num = (key: string, header: string, cell: (r: VendorResponseSummary) => React.ReactNode): Column<VendorResponseSummary> =>
+    ({ key, header, align: 'num', size: 112, cell: (r) => <span className="whitespace-nowrap tabular-nums">{cell(r)}</span> });
+  const columns: Column<VendorResponseSummary>[] = [
+    { key: 'vendor', header: t('equipment:vendorResponse.vendor', 'Vendor'), kind: 'primary', rowHeader: true, size: 220, cell: (r) => name(r.vendorId) },
+    num('breakdowns', t('equipment:vendorResponse.breakdowns', 'Breakdowns'), (r) => r.breakdowns),
+    num('responded', t('equipment:vendorResponse.responded', 'Responded'), (r) => r.responded),
+    num('awaiting', t('equipment:vendorResponse.awaitingCount', 'Awaiting'), (r) => r.awaiting),
+    num('median', t('equipment:vendorResponse.median', 'Median'), (r) => formatDuration(t, r.medianMinutes)),
+    num('average', t('equipment:vendorResponse.average', 'Average'), (r) => formatDuration(t, r.averageMinutes)),
+    num('slowest', t('equipment:vendorResponse.slowest', 'Slowest'), (r) => formatDuration(t, r.slowestMinutes)),
+  ];
+  return <DataTable<VendorResponseSummary> embedded rows={rows} columns={columns} rowKey={(r) => r.vendorId} tableId="vendor-response-summary"
+    accessibleName={t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')} />;
 };
 
 const Card_: React.FC<{ assetIds: string[] }> = ({ assetIds }) => {
@@ -41,10 +33,9 @@ const Card_: React.FC<{ assetIds: string[] }> = ({ assetIds }) => {
   // An organisation that never had a rented breakdown sees nothing new.
   if (q.isPending || q.isError || rows.length === 0) return null;
   return (
-    <Card className="mt-4">
-      <CardHead>{t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')}</CardHead>
-      <CardPad><VendorResponseSummaryTable rows={rows} /></CardPad>
-    </Card>
+    <RecordSection className="mt-6" title={t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')} flush>
+      <VendorResponseSummaryTable rows={rows} />
+    </RecordSection>
   );
 };
 
