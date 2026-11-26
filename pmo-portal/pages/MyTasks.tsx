@@ -411,10 +411,10 @@ const MyTasks: React.FC = () => {
                 {group.items.map((task) => (
                   <div
                     key={task.id}
-                    className="flex flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+                    className="grid min-w-0 gap-2 px-4 py-3 xl:grid-cols-[minmax(0,1fr)_9rem_auto] xl:items-baseline xl:gap-4"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-col items-start gap-1 lg:flex-row lg:items-center lg:gap-2">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                         {/* Fix #6 (AC-FIX6-NAV-01): task name opens the project's Tasks tab.
                             No /tasks/:id route exists; navigating to /projects/:id/tasks is the
                             lower-risk option — the tab is already deep-linkable (App.tsx). */}
@@ -447,17 +447,6 @@ const MyTasks: React.FC = () => {
                             {priorityLabels[task.priority]}
                           </StatusPill>
                         )}
-                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
-                            Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
-                            everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
-                        {isOverdueTask(task, today) && (
-                          <LateText
-                            data-testid={`my-task-late-status-${task.id}`}
-                            emphasis={isMostUrgentLateRow(lateTasks, task)}
-                          >
-                            {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
-                          </LateText>
-                        )}
                       </div>
                       {sourceIssues?.get(task.id) && (
                         <SourceIssueLink
@@ -481,28 +470,28 @@ const MyTasks: React.FC = () => {
                           {task.work_order_name}
                         </Link>
                       )}
-                      {(task.start_date || task.end_date) && (
-                        <span className="mt-0.5 block text-control text-muted-foreground">
-                          {task.start_date && (
-                            <span>
-                              {t('myTasks.start', 'Start {{date}}', {
-                                date: formatDay(task.start_date),
-                              })}
-                            </span>
-                          )}
-                          {task.start_date && task.end_date && <span className="mx-1">·</span>}
-                          {task.end_date && (
-                            <span>
-                              {t('myTasks.due', 'Due {{date}}', {
-                                date: formatDay(task.end_date),
-                              })}
-                            </span>
-                          )}
-                        </span>
+                    </div>
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-control text-muted-foreground xl:flex-col">
+                      {task.end_date && (
+                        <span>{t('myTasks.due', 'Due {{date}}', { date: formatDay(task.end_date) })}</span>
+                      )}
+                      {task.start_date && (
+                        <span>{t('myTasks.start', 'Start {{date}}', { date: formatDay(task.start_date) })}</span>
+                      )}
+                      {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA).
+                          Words (docs/ux/screen-rules.md): a task past its due date is "overdue"
+                          everywhere — rows read "N days overdue"; "late" is reserved for phases. */}
+                      {isOverdueTask(task, today) && (
+                        <LateText
+                          data-testid={`my-task-late-status-${task.id}`}
+                          emphasis={isMostUrgentLateRow(lateTasks, task)}
+                        >
+                          {formatDaysOverdue(task.end_date, tStatus) ?? t('myTasks.overdue', 'Overdue')}
+                        </LateText>
                       )}
                     </div>
                     {/* Action cluster: Log time + status control. */}
-                    <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                       {/* #790: comments for ANY task of mine — also the only surface for a project-less task.
                           Director B6: the word "Comments" is painted beside the icon at both widths;
                           its accessible name still names the row it opens. */}
