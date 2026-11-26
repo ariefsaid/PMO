@@ -397,7 +397,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {bare ? (
           // Record page: the decision figure and its bar, the parts it is made of, then the decision itself.
           <>
-            {leftTile && <StatTiles tiles={[leftTile]} columns={1} variant="bare" />}
+            {leftTile && leftTile.value !== null && <StatTiles tiles={[leftTile]} columns={1} variant="bare" />}
             {bar}
             {overBudget}
             <div className={leftTile ? 'mt-6' : undefined}>{partsList}</div>
@@ -407,7 +407,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             {bar}
             {/* Six tiles go 3 across (3 rows of 2 on a phone): six abreast crowd to 3-4px gaps in Bahasa at 1440.
                 Fewer take as many columns as they have, so no column is left empty. */}
-            <StatTiles tiles={tiles} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures alignRows />
+            <StatTiles tiles={tiles.filter((tile) => tile.value !== null)} columns={tiles.length >= 6 ? 3 : tiles.length} variant="bare" wideFigures alignRows />
           </>
         )}
 
