@@ -100,6 +100,9 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
       // One line in the 56px top bar: a long record name truncates (full name in its title) instead of wrapping out of the bar.
       className={cn('flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-control', className)}
     >
+      {visibleParts.length === 1 && (
+        <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-[7px] bg-primary text-control font-bold text-primary-foreground min-[921px]:hidden">P</span>
+      )}
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
         const label = resolveCrumb(part);
