@@ -24,7 +24,7 @@ import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useAllCrewMembers } from '@/src/hooks/useCrews';
 import { usePeople } from '@/src/hooks/usePeople';
 import { formatCalendarDayInTimeZone } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 /**
  * The Administration › Users directory (CROSS-65 / XG01-002): the body block — toolbar + search,
@@ -106,7 +106,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
   const hasFieldUsers = rows.some((u) => u.built_in_role && fieldRoleKeys.includes(u.built_in_role));
   const peopleForSetup = usePeople('active');
   const placements = useAllCrewMembers(hasFieldUsers);
-  const todayIso = formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone);
+  const todayIso = formatCalendarDayInTimeZone(new Date(), getActiveOrgTimezone());
   const setupGap = (u: UserDirectoryRow): 'unlinked' | 'noCrew' | null => {
     if (!hasFieldUsers || !u.built_in_role || !fieldRoleKeys.includes(u.built_in_role) || !peopleForSetup.data || !placements.data) return null;
     const person = peopleForSetup.data.find((p) => p.profile_id === u.id);

@@ -6,7 +6,8 @@ import { defaultExtensionPeriod } from '@/src/lib/rentalPeriod';
 import { formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { RentalExtensionInput } from '@/src/lib/repositories/purchaseTypes';
 
-export interface ExtensionLine { id: string; name: string; description: string | null; quantity: number; rate: number }
+/** `rate` is null while prices are hidden from this person (#2788): left empty, the server copies the original line's rate. */
+export interface ExtensionLine { id: string; name: string; description: string | null; quantity: number; rate: number | null }
 
 export interface RentalExtensionModalProps {
   title: string;
@@ -29,7 +30,7 @@ const RentalExtensionModal: React.FC<RentalExtensionModalProps> = ({ title, rent
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [qty, setQty] = useState<Record<string, string>>(() => Object.fromEntries(lines.map((l) => [l.id, String(l.quantity)])));
-  const [rate, setRate] = useState<Record<string, string>>(() => Object.fromEntries(lines.map((l) => [l.id, String(l.rate)])));
+  const [rate, setRate] = useState<Record<string, string>>(() => Object.fromEntries(lines.map((l) => [l.id, l.rate === null ? '' : String(l.rate)])));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
@@ -45,8 +46,9 @@ const RentalExtensionModal: React.FC<RentalExtensionModalProps> = ({ title, rent
     for (const l of lines) {
       const q = parseMoneyInputAtScale(qty[l.id]?.trim() ?? '', 2);
       const r = parseMoneyInputAtScale(rate[l.id]?.trim() ?? '', 2);
-      if (q === null || q < 0 || r === null || r < 0) next[`line-${l.id}`] = t('extend.lineInvalid', 'Enter a quantity and a rate of 0 or more.');
-      else out.push({ id: lineIds.current.get(l.id) as string, name: l.name, description: l.description, quantity: q, rate: r });
+      const keepRate = l.rate === null && !(rate[l.id] ?? '').trim();
+      if (q === null || q < 0 || (!keepRate && (r === null || r < 0))) next[`line-${l.id}`] = t('extend.lineInvalid', 'Enter a quantity and a rate of 0 or more.');
+      else out.push({ id: lineIds.current.get(l.id) as string, name: l.name, description: l.description, quantity: q, originalLineId: l.id, ...(keepRate || r === null ? {} : { rate: r }) });
     }
     setErrors(next);
     if (Object.keys(next).length) return;

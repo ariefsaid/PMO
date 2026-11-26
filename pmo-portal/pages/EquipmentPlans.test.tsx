@@ -87,6 +87,21 @@ describe('monthly equipment plan page (#2700)', () => {
     expect(call.lines[0]).toMatchObject({ description: 'Excavator', vendorId: 'v1', quantity: 1, rate: 500 });
   });
 
+  it('#2788 with prices hidden, re-saving a saved line leaves its unknown rate and vendor out (the stored ones stay)', async () => {
+    h.save.mockResolvedValue('pl1');
+    h.plans = [plan({ lines: [{ ...plan().lines[0], rate: null, vendorId: null }] })];
+    renderPage();
+    await pickProject();
+    const line = screen.getByTestId('plan-line');
+    expect(within(line).getByLabelText('Rate')).toHaveValue('');
+    await userEvent.type(within(line).getByLabelText('What is needed'), ' 25t');
+    await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(h.save).toHaveBeenCalledTimes(1);
+    const sent = (h.save.mock.calls[0]![0] as { lines: Array<Record<string, unknown>> }).lines[0]!;
+    expect(sent).toMatchObject({ id: 'l1', description: 'Mobile crane 25t', quantity: 2 });
+    expect('rate' in sent || 'vendorId' in sent).toBe(false);
+  });
+
   it('AC-EQP-016 a line missing its vendor is not sent and says what to fix', async () => {
     renderPage();
     await pickProject();

@@ -1,3 +1,4 @@
+import { orgDayNow } from '@/src/hooks/useOrgToday';
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -28,10 +29,7 @@ interface ClientError { row: number; column: string; message: string }
 interface LoadedFile { id: number; name: string; rows: StockMovementRow[]; clientErrors: ClientError[]; problem: string | null }
 interface Closing { key: string; location: string; item: string; qty: number; value: number | null; zeroCost: boolean }
 
-const todayIso = (): string => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const todayIso = orgDayNow;
 
 /** The last accepted row per location and item, in the order the database applied them (date, then file order). */
 function closingBalances(rows: readonly OpeningPreviewRow[]): Closing[] {

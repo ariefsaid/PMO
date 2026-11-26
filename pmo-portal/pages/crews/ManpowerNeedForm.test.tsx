@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 
 /** AC-MPN-008: the form sends the chosen position, head count and optional work order; the work order list follows the project; a refusal reads as its sentence. */
 const h = vi.hoisted(() => ({ create: vi.fn(), positions: [{ id: 'd1', code: 'WLD', name: 'Welder' }] as unknown[] }));
@@ -43,6 +43,7 @@ describe('AC-MPN-008 manpower need form', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    setActiveOrgTimezone('Asia/Jakarta');
     try {
       view();
       await user.selectOptions(screen.getByRole('combobox', { name: /Project/ }), 'pr1');

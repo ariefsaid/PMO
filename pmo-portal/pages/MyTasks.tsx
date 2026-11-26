@@ -11,13 +11,13 @@ import { recordLinkOf } from '@/src/lib/db/tasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
 import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskPriority, TaskStatus } from '@/src/lib/db/tasks';
 import { statusLabel } from '@/src/lib/status/statusMap';
 
 /** AC-IFW-TASKS-01 / PGA03-008: Today's calendar date string (YYYY-MM-DD) in user's timezone. */
-function todayIso(timezone = getActiveLocale().timezone): string {
+function todayIso(timezone = getActiveOrgTimezone()): string {
   return formatCalendarDayInTimeZone(new Date(), timezone);
 }
 
