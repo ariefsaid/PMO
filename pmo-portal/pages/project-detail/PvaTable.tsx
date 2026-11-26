@@ -58,7 +58,7 @@ export const PvaTable: React.FC<{
   // Too narrow for every column (container width, not viewport): a row becomes a small card. Mid widths lay its figures in
   // three columns, label over value; a phone width lists them, label left and value right. Tailwind needs literal classes.
   const k = dense ? NARROW_ONLY : MID_AND_NARROW;
-  const cell = cn('py-2.5 align-baseline first:pl-0 last:pr-0', dense ? 'pl-4' : 'pl-6');
+  const cell = cn('py-2.5 align-baseline first:pl-0 last:pr-0', 'pl-4');
   const head = 'sticky left-0 z-[1] bg-card py-2.5 pr-4 text-left align-baseline';
   return (
     <div className={cn('@container overflow-x-auto', !dense && '-mx-[var(--panel-inset)] px-[var(--panel-inset)]')} data-testid={testId} data-layout-ignore>
@@ -69,7 +69,7 @@ export const PvaTable: React.FC<{
             <tr>
               <td className="sticky left-0 z-[1] bg-card" />
               {groups.map(([label, span], i) => (
-                <th key={i} scope="colgroup" colSpan={span} className="pl-6 pt-1 font-medium text-foreground">
+                <th key={i} scope="colgroup" colSpan={span} className={cn('pt-1 font-medium text-foreground', 'pl-4')}>
                   <span className="block border-b border-border pb-1.5 text-center">{label}</span>
                 </th>
               ))}
@@ -86,7 +86,7 @@ export const PvaTable: React.FC<{
           {rows.map((r) => (
             <tr key={r.key} data-testid={r.testId}
               className={cn('border-b border-border last:border-b-0', k.row, r.total && 'border-t border-t-foreground/30 font-semibold')}>
-              <th scope="row" className={cn(head, k.rowHead, !dense && 'min-w-[13rem] max-w-[24rem]', r.total ? 'font-semibold' : 'font-normal')}>{r.head}</th>
+              <th scope="row" className={cn(head, k.rowHead, !dense && 'min-w-[11rem] max-w-[24rem]', r.total ? 'font-semibold' : 'font-normal')}>{r.head}</th>
               {r.cells.map((c, i) => (
                 <td key={columns[i]?.key ?? i} data-testid={c?.testId} data-label={phoneLabel(i)}
                   className={cn(cell, 'whitespace-nowrap text-right tabular-nums', k.cell, c === null && k.empty, c?.text === '—' && k.dash,
