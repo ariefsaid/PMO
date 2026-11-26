@@ -36,6 +36,7 @@ describe('Opening balances screen (AC-OBS-004..006)', () => {
     const tables = screen.getAllByRole('region', { name: 'Scroll table' });
     expect(tables).toHaveLength(3);
     for (const table of tables) expect(table).toHaveAttribute('tabindex', '0');
+    expect(screen.getByText('Scroll sideways to see every column.')).toBeInTheDocument();
   });
   it('AC-OBS-004 shows each location with its items, the load date and who loaded it', () => {
     state.data = [stock(), order()];
