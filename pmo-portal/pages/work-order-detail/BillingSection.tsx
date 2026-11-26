@@ -77,14 +77,13 @@ export const BillingSection: React.FC<Props> = ({ contractHref = null, billing, 
           </ul>
         )}
       </RecordSection>
-      {perMonth && (
+      {perMonth && (perMonth.isPending || perMonth.isError || pm?.incomplete || (pm?.months.length ?? 0) > 0) && (
         <RecordSection title={t('billing.perMonth.title', 'Billed per month')} data-testid="billed-per-month-block">
           {perMonth.isPending && <ListState variant="loading" rows={1} />}
           {perMonth.isError && <ListState variant="error" title={t('billing.perMonth.error', "Couldn't load the billed months")} onRetry={perMonth.onRetry} />}
           {pm && !perMonth.isError && (
             <>
               {pm.incomplete && <p className="text-control text-muted-foreground" data-testid="billed-per-month-incomplete">{t('billing.perMonth.incomplete', "Some invoices could not be totalled in this work order's currency, so no monthly figures are shown.")}</p>}
-              {!pm.incomplete && pm.months.length === 0 && <p className="text-control text-muted-foreground">{t('billing.perMonth.empty', 'No submitted invoice yet.')}</p>}
               {!pm.incomplete && pm.months.length > 0 && (
                 <ul className="divide-y divide-border" data-testid="billed-per-month">
                   {monthsNewestFirst.map((m) => (

@@ -106,7 +106,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;
         const label = resolveCrumb(part);
-        const parentTruncation = i > 0 ? 'min-w-0 truncate' : 'shrink-0 whitespace-nowrap';
+        const parentTruncation = i > 0 ? 'min-w-[4rem] flex-1 truncate max-w-[10rem]' : 'min-w-[3rem] max-w-[6rem] truncate';
         return (
           <React.Fragment key={i}>
             {i > 0 && (
@@ -128,7 +128,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
                 title={part.title ?? (typeof label === 'string' ? label : undefined)}
                 className={cn(
                   'min-w-0 truncate font-semibold text-foreground',
-                  visibleParts.length > 2 && 'min-[921px]:shrink-0 min-[921px]:max-w-[18rem]',
+                  visibleParts.length > 2 && 'min-[921px]:min-w-[4rem] min-[921px]:flex-1 min-[921px]:max-w-[18rem]',
                   pageHasTitle && 'max-[920px]:max-w-[12rem]',
                 )}
               >

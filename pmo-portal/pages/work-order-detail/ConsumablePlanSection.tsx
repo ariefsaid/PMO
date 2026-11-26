@@ -105,9 +105,9 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
           <span className="grid grid-cols-3 items-baseline gap-x-4 gap-y-2 tabular-nums text-control lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.5fr)] [&>span]:min-w-0 [&>span]:break-words [&>span]:lg:text-right">
             {source === 'none'
               ? <span className="text-muted-foreground">{t('plan.noPlan', 'No plan')}</span>
-              : <span><span className="lg:sr-only">{t('plan.col.planned', 'Plan')} </span>{qty(planned)} {unit}</span>}
-            <span className="text-muted-foreground"><span className="lg:sr-only">{t('plan.col.requested', 'Requested')} </span>{qty(requested)}</span>
-            <span className={remaining.startsWith('-') ? 'font-medium text-warning-foreground' : ''} data-testid={`consumable-remaining-${id}`}><span className="lg:sr-only">{t('plan.col.remaining', 'Remaining')} </span>{qty(remaining)}</span>
+              : <span><span className="block text-muted-foreground lg:sr-only">{t('plan.col.planned', 'Plan')}{' '}</span><span className="whitespace-nowrap">{qty(planned)} {unit}</span></span>}
+            <span><span className="block text-muted-foreground lg:sr-only">{t('plan.col.requested', 'Requested')}{' '}</span><span className="whitespace-nowrap">{qty(requested)}</span></span>
+            <span className={remaining.startsWith('-') ? 'font-medium text-warning-foreground' : ''} data-testid={`consumable-remaining-${id}`}><span className="block text-muted-foreground lg:sr-only">{t('plan.col.remaining', 'Remaining')}{' '}</span><span className="whitespace-nowrap">{qty(remaining)}</span></span>
             <span className="col-span-3 min-w-0 lg:col-span-1 lg:justify-self-end"><StatusPill variant={source === 'adjusted' ? 'warn' : 'neutral'}>{sourceLabel(source)}</StatusPill></span>
           </span>
         </div>
@@ -158,8 +158,8 @@ export const ConsumablePlanSection: React.FC<Props> = ({ workOrderId, workOrderS
             )}
           </>,
           canAdjust ? <>
-            <Button variant="ghost" size="sm" onClick={() => setEditing({ line: l })}>{t('plan.adjust', 'Adjust')}</Button>
-            {l.source === 'adjusted' && <Button variant="ghost" size="sm" onClick={() => void revert(l)}>{t('plan.revert', 'Use generated quantity')}</Button>}
+            <Button variant="outline" size="sm" onClick={() => setEditing({ line: l })}>{t('plan.adjust', 'Adjust')}</Button>
+            {l.source === 'adjusted' && <Button variant="outline" size="sm" onClick={() => void revert(l)}>{t('plan.revert', 'Use generated quantity')}</Button>}
           </> : undefined))}
         {p.unplanned.map((u) => row(`u-${u.itemId}`, <>{u.itemCode} <span className="font-normal text-muted-foreground">{u.itemName}</span></>, u.plannedQty, u.priorQty, u.unitCode, u.source))}
       </ul>

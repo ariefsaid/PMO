@@ -94,6 +94,12 @@ describe('work-order panel', () => {
     expect(screen.queryByText('Earned value equals actual cost')).toBeNull();
     expect(screen.getByText('Record progress or costs to see performance.')).toBeTruthy();
   });
+  it('names missing costs and plan when accepted progress is already recorded', () => {
+    h.project.mockReturnValue(read([row({ ev: '0.00', ac: '0.00', pv: null, startDate: null })]));
+    wrap(<PerformanceIndices projectId="p" workOrderId="w1" recordedProgress={60} />);
+    expect(screen.getByText('Record actual costs or enter a cost plan to see performance.')).toBeTruthy();
+    expect(screen.queryByText('Record progress or costs to see performance.')).toBeNull();
+  });
   it('shows both indices, readings in words, as-of date and the basis', () => {
     wrap(<PerformanceIndices projectId="p" workOrderId="w1" />);
     expect(screen.getByTestId('wo-page-performance-spi-value').textContent).toBe('0.75');

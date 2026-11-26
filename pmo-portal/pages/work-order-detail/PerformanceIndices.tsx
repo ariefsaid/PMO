@@ -26,9 +26,10 @@ export const PerformanceFigures: React.FC<{
   idPrefix: string;
   /** `false`: the range is defined elsewhere (the work-order page's help), not as a line under the figures. */
   showBand?: boolean;
+  recordedProgress?: number | null;
   /** `true`: an index that mixes currencies shows a dash; the page says why once for the area. */
   otherCurrencyNoted?: boolean;
-}> = ({ performance, currency, bands, idPrefix, showBand = true, otherCurrencyNoted = false }) => {
+}> = ({ performance, currency, bands, idPrefix, showBand = true, otherCurrencyNoted = false, recordedProgress = null }) => {
   const { t } = useTranslation('workOrderPva');
   const money = (v: string | null) =>
     v === null ? '—' : formatTableMoney(v, currency) ?? '—';
@@ -81,7 +82,7 @@ export const PerformanceFigures: React.FC<{
   const noRecordedData = performance.ev !== null && performance.ac !== null && parseExactCents(performance.ev) === 0n && parseExactCents(performance.ac) === 0n;
   const cv = noRecordedData ? null : sign(performance.costVariance);
   const sv = noRecordedData ? null : sign(performance.scheduleVariance);
-  if (noRecordedData) return <p className="text-control text-muted-foreground">{t('performance.recordNext', 'Record progress or costs to see performance.')}</p>;
+  if (noRecordedData) return <p className="text-control text-muted-foreground">{recordedProgress !== null && recordedProgress > 0 ? t('performance.recordCostsNext', 'Record actual costs or enter a cost plan to see performance.') : t('performance.recordNext', 'Record progress or costs to see performance.')}</p>;
   const acText = performance.ac === null && otherCurrencyNoted && performance.cpi.state === 'not-comparable'
     ? '—'
     : money(performance.ac);
@@ -125,11 +126,11 @@ export const PerformanceFigures: React.FC<{
 };
 
 /** The work-order page's panel. Renders nothing at all, and issues no request, until the organisation turns it on. */
-export const PerformanceIndices: React.FC<{ projectId: string; workOrderId: string }> = ({ projectId, workOrderId }) => (
-  <PerformanceGate><PerformancePanel projectId={projectId} workOrderId={workOrderId} /></PerformanceGate>
+export const PerformanceIndices: React.FC<{ projectId: string; workOrderId: string; recordedProgress?: number | null }> = ({ projectId, workOrderId, recordedProgress }) => (
+  <PerformanceGate><PerformancePanel projectId={projectId} workOrderId={workOrderId} recordedProgress={recordedProgress} /></PerformanceGate>
 );
 
-const PerformancePanel: React.FC<{ projectId: string; workOrderId: string }> = ({ projectId, workOrderId }) => {
+const PerformancePanel: React.FC<{ projectId: string; workOrderId: string; recordedProgress?: number | null }> = ({ projectId, workOrderId, recordedProgress }) => {
   const { t } = useTranslation('workOrderPva');
   const query = useProjectPerformance(projectId, true);
   const title = t('performance.title', 'Cost and schedule performance');
@@ -151,7 +152,7 @@ const PerformancePanel: React.FC<{ projectId: string; workOrderId: string }> = (
       {asOfText && <p className="mb-3 text-control text-muted-foreground" data-testid="wo-page-performance-asof">{t('performance.asOf', 'As of {{date}}', { date: asOfText })}</p>}
       {perf && (perf.cpi.state === 'not-comparable' || perf.spi.state === 'not-comparable') && <OtherCurrencyNote />}
       {row && perf
-        ? <PerformanceFigures performance={perf} currency={row.currency} bands={bands} idPrefix="wo-page-performance" showBand={false} otherCurrencyNoted />
+        ? <PerformanceFigures performance={perf} currency={row.currency} bands={bands} idPrefix="wo-page-performance" showBand={false} otherCurrencyNoted recordedProgress={recordedProgress} />
         : <p className="text-control text-muted-foreground">{t('performance.nothing', 'Nothing is recorded yet for this work order.')}</p>}
     </RecordSection>
   );

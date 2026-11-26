@@ -45,9 +45,9 @@ describe('BillingSection: billed per month (AC-BPM-005..007)', () => {
     expect(screen.getByTestId('billed-per-month-incomplete')).toBeTruthy();
     expect(screen.queryByTestId('billed-per-month')).toBeNull();
   });
-  it('AC-BPM-006 nothing billed says so, not a zero', () => {
+  it('AC-BPM-006 no submitted invoices omits the redundant monthly breakdown', () => {
     render(<BillingSection billing={billing()} perMonth={perMonth(months({ months: [], total: 0 }))} {...base} />);
-    expect(screen.getByText('No submitted invoice yet.')).toBeTruthy();
+    expect(screen.queryByTestId('billed-per-month-block')).toBeNull();
     expect(screen.queryByTestId('billed-per-month')).toBeNull();
   });
   it('AC-BPM-006 a failed read shows its own error with retry', () => {

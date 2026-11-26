@@ -268,7 +268,7 @@ const WorkOrderDetail: React.FC = () => {
               onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
             {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}
             <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
-            <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
+            <PerformanceIndices projectId={row.project_id} workOrderId={row.id} recordedProgress={progress?.overallPercent} />
             {/* #2672: the daily target view; same switch and role gate as the plan above. */}
             <DailyTargetGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} costGroups={groups} />
           </>}
