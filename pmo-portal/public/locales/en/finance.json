@@ -221,7 +221,8 @@
     "moreActions": "More actions",
     "exportList": "Export",
     "receiptUnknown_one": "{{count}} receipt amount unknown",
-    "receiptUnknown_other": "{{count}} receipt amounts unknown"
+    "receiptUnknown_other": "{{count}} receipt amounts unknown",
+    "vsLastMonthWithAmount": "{{delta}} vs last month ({{previous}})"
   },
   "invoices": {
     "clearProject": "Clear project filter"
