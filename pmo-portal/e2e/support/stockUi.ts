@@ -32,7 +32,12 @@ export async function expectOnHand(page: Page, wh: { code: string; name: string 
  */
 export async function onHandCell(page: Page, itemCode: string): Promise<Locator> {
   const table = page.getByRole('table', { name: 'Stock' });
-  await expect(table.getByRole('row', { name: new RegExp(itemCode) }).first()).toBeVisible({ timeout: 20_000 });
-  const headers = (await table.getByRole('columnheader').allInnerTexts()).map((h) => h.trim());
-  return table.getByRole('row', { name: new RegExp(itemCode) }).first().locator('th, td').nth(headers.indexOf('On hand'));
+  // A filter change re-renders the table (it is briefly replaced while the filtered list loads), so the header list is
+  // read until it holds the column, never once: a one-off read in that gap finds no header at all.
+  let index = -1;
+  await expect.poll(async () => {
+    index = (await table.getByRole('columnheader').allInnerTexts()).map((h) => h.trim()).indexOf('On hand');
+    return index;
+  }, { timeout: 20_000 }).toBeGreaterThanOrEqual(0);
+  return table.getByRole('row', { name: new RegExp(itemCode) }).first().locator('th, td').nth(index);
 }
