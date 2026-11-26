@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, ConfirmDialog, DataTable, EntityFormModal, ErrBanner, FormGrid, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack,
-  SelectField, StatusPill, TextField, useToast, type Column, type SubmitError,
+  Button, ConfirmDialog, DataTable, DateField, EntityFormModal, ErrBanner, FormGrid, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack,
+  SelectField, StatusPill, TextField, useToast, type Column, type RecordMenuItem, type SubmitError,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
@@ -125,6 +125,39 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
     { key: 'aside', header: '', cell: (x) => <Button size="sm" variant="ghost" onClick={() => { setDialogError(null); setDialog({ setAside: x }); }}>{t('subcontractCertificates:setAside', 'Set aside')}</Button> },
   ];
 
+  const submitAction = () => void run(() => m.submit.mutateAsync(c.id), t('subcontractCertificates:toast.submitted', 'Submitted for approval'));
+  const approveAction = () => void run(() => m.approve.mutateAsync(c.id), t('subcontractCertificates:toast.approved', 'Approved'));
+  const primaryAction = editable
+    ? <Button variant="primary" size="sm" onClick={submitAction} loading={m.submit.isPending}>{t('subcontractCertificates:actions.submit', 'Submit')}</Button>
+    : mayApprove
+      ? <div className="flex items-center gap-2">
+          {mayReturn && <Button variant="outline" size="sm" onClick={() => { setDialogError(null); setDialog('return'); }}>{t('subcontractCertificates:actions.return', 'Return')}</Button>}
+          <Button variant="primary" size="sm" onClick={approveAction} loading={m.approve.isPending}>{t('subcontractCertificates:actions.approve', 'Approve')}</Button>
+        </div>
+      : mayReturn
+        ? <Button variant="outline" size="sm" onClick={() => { setDialogError(null); setDialog('return'); }}>{t('subcontractCertificates:actions.return', 'Return')}</Button>
+        : mayBill
+          ? <Button variant="primary" size="sm" onClick={() => { setDialogError(null); setDialog('bill'); }}>{t('subcontractCertificates:actions.bill', 'Create bill')}</Button>
+          : c.status === 'billed' && c.invoice_id
+            // The bill lives in the purchase's ledger (its Files tab).
+            ? <Link className="inline-flex h-[var(--control-height-sm)] items-center rounded-md border border-border px-3 text-control font-medium text-primary-text" to={`/procurement/${c.procurement_id}/files`}>{t('subcontractCertificates:actions.openBill', 'Open bill')}</Link>
+            : undefined;
+  const live = mayPrepare && c.status !== 'cancelled' && c.status !== 'billed';
+  const menuItems: RecordMenuItem[] = [
+    ...(live ? [{ key: 'acceptance', label: t('subcontractCertificates:actions.acceptance', 'Prepare acceptance'), onSelect: () => void run(() => m.prepareAcceptance.mutateAsync(c.id), t('subcontractCertificates:toast.acceptance', 'Draft acceptance prepared')) }] : []),
+    { key: 'print', label: t('subcontractCertificates:actions.print', 'Print'), onSelect: () => window.print() },
+    ...(live ? [{ key: 'cancel', danger: true, label: t('subcontractCertificates:actions.cancel', 'Cancel certificate'), onSelect: () => { setDialogError(null); setDialog('cancel'); } }] : []),
+  ];
+
+  // Backcharges are rows with an amount: one table, the amount in a right-aligned money column.
+  const backchargeColumns: Column<CertificateView['derived']['backcharges'][number]>[] = [
+    { key: 'reason', header: t('subcontractCertificates:reasonLabel', 'Reason'), rowHeader: true,
+      cell: (b) => <span>{t(`subcontractCertificates:backchargeReason.${b.reason_code}`, BACKCHARGE_REASON_DEFAULT[b.reason_code] ?? b.reason_code)}{b.reason_text && <span className="block text-muted-foreground">{b.reason_text}</span>}</span> },
+    { key: 'amount', header: t('subcontractCertificates:col.amount', 'Amount'), align: 'num', kind: 'money', cell: (b) => money(b.amount) },
+    ...(editable ? [{ key: 'remove', header: <span className="sr-only">{t('subcontractCertificates:remove', 'Remove')}</span>, kind: 'actions' as const,
+      cell: (b: CertificateView['derived']['backcharges'][number]) => <Button size="sm" variant="ghost" onClick={() => void run(() => m.setBackcharge.mutateAsync({ certificateId: c.id, backchargeId: b.id, include: false }), t('subcontractCertificates:toast.removed', 'Backcharge removed'))}>{t('subcontractCertificates:remove', 'Remove')}</Button> }] : []),
+  ];
+
   const includedIds = new Set(d.backcharges.map((b) => b.id));
   const freeBackcharges = (open.data ?? []).filter((b) => !includedIds.has(b.id) && (b.claimed_by_certificate_id === null) && b.currency === c.currency);
 
@@ -140,24 +173,16 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
           { label: t('subcontractCertificates:stat.backcharge', 'Backcharges'), value: <span data-testid="spc-backcharge">{money(d.backcharge_total)}</span> },
           { label: t('subcontractCertificates:stat.net', 'Payable'), value: <span data-testid="spc-net">{money(d.net)}</span> },
         ]}
-        actions={(
-          <div className="flex flex-wrap gap-2 print:hidden">
-            {editable && <Button variant="primary" onClick={() => void run(() => m.submit.mutateAsync(c.id), t('subcontractCertificates:toast.submitted', 'Submitted for approval'))} loading={m.submit.isPending}>{t('subcontractCertificates:actions.submit', 'Submit')}</Button>}
-            {mayApprove && <Button variant="primary" onClick={() => void run(() => m.approve.mutateAsync(c.id), t('subcontractCertificates:toast.approved', 'Approved'))} loading={m.approve.isPending}>{t('subcontractCertificates:actions.approve', 'Approve')}</Button>}
-            {mayReturn && <Button variant="outline" onClick={() => { setDialogError(null); setDialog('return'); }}>{t('subcontractCertificates:actions.return', 'Return')}</Button>}
-            {mayBill && <Button variant="primary" onClick={() => { setDialogError(null); setDialog('bill'); }}>{t('subcontractCertificates:actions.bill', 'Create bill')}</Button>}
-            {c.status === 'billed' && c.invoice_id && <Link className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm" to={`/procurement/${c.procurement_id}/ledger`}>{t('subcontractCertificates:actions.openBill', 'Open bill')}</Link>}
-            {mayPrepare && c.status !== 'cancelled' && c.status !== 'billed' && <Button variant="outline" onClick={() => void run(() => m.prepareAcceptance.mutateAsync(c.id), t('subcontractCertificates:toast.acceptance', 'Draft acceptance prepared'))}>{t('subcontractCertificates:actions.acceptance', 'Prepare acceptance')}</Button>}
-            {mayPrepare && c.status !== 'cancelled' && c.status !== 'billed' && <Button variant="outline" onClick={() => { setDialogError(null); setDialog('cancel'); }}>{t('subcontractCertificates:actions.cancel', 'Cancel certificate')}</Button>}
-            <Button variant="ghost" onClick={() => window.print()}>{t('subcontractCertificates:actions.print', 'Print')}</Button>
-          </div>
-        )}
+        // One filled action for the state the certificate is in; the rest in the menu (screen rules: record pages).
+        primaryAction={primaryAction}
+        menuItems={menuItems}
+        menuLabel={t('subcontractCertificates:moreActions', 'More certificate actions')}
       >
         {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="spc-waiting-for">{waitingLine}</p>}
+        {sameApprover && <p role="status">{t('subcontractCertificates:errors.needsDifferentApprover', 'A certificate needs a different approver than the person who prepared and submitted it.')}</p>}
       </RecordHeader>
       {c.status === 'returned' && c.returned_reason && <ErrBanner title={t('subcontractCertificates:returned', 'Returned for changes')} sub={c.returned_reason} />}
       {c.bill_refusal && <ErrBanner title={t('subcontractCertificates:billRefused', 'The bill was refused')} sub={c.bill_refusal} />}
-      {sameApprover && <p role="status" className="mb-3 text-sm text-muted-foreground">{t('subcontractCertificates:errors.needsDifferentApprover', 'A certificate needs a different approver than the person who prepared and submitted it.')}</p>}
       <RecordStack>
         <RecordSection title={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')}>
           {d.lines.length === 0
@@ -176,17 +201,9 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
         </RecordSection>
         <RecordSection title={t('subcontractCertificates:section.backcharges', 'Backcharges')}
           actions={editable ? <Button size="sm" variant="outline" onClick={() => { setDialogError(null); setDialog('backcharge'); }}>{t('subcontractCertificates:recordBackcharge', 'Record a backcharge')}</Button> : undefined}>
-          {d.backcharges.length === 0 && <p className="text-sm text-muted-foreground">{t('subcontractCertificates:noBackcharges', 'No backcharges in this certificate.')}</p>}
-          <ul className="divide-y">
-            {d.backcharges.map((b) => (
-              <li key={b.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span>{t(`subcontractCertificates:backchargeReason.${b.reason_code}`, BACKCHARGE_REASON_DEFAULT[b.reason_code] ?? b.reason_code)}{b.reason_text ? ` · ${b.reason_text}` : ''}</span>
-                <span className="flex items-center gap-3"><span className="tabular">{money(b.amount)}</span>
-                  {editable && <Button size="sm" variant="ghost" onClick={() => void run(() => m.setBackcharge.mutateAsync({ certificateId: c.id, backchargeId: b.id, include: false }), t('subcontractCertificates:toast.removed', 'Backcharge removed'))}>{t('subcontractCertificates:remove', 'Remove')}</Button>}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {d.backcharges.length === 0
+            ? <p className="text-sm text-muted-foreground">{t('subcontractCertificates:noBackcharges', 'No backcharges in this certificate.')}</p>
+            : <DataTable accessibleName={t('subcontractCertificates:section.backcharges', 'Backcharges')} columns={backchargeColumns} rows={d.backcharges} rowKey={(b) => b.id} tableId="subcontract-certificate-backcharges" />}
           {editable && freeBackcharges.length > 0 && (
             <div className="mt-3 flex items-end gap-2 print:hidden">
               <SelectField label={t('subcontractCertificates:includeBackcharge', 'Include a recorded backcharge')} value={include} onChange={setInclude}
@@ -228,7 +245,7 @@ const BillDialog: React.FC<{ loading: boolean; error: string | null; net: string
       description={(
         <div className="space-y-3">
           <p>{t('subcontractCertificates:billBody', { defaultValue: 'The bill is created from the approved lines. The payable is {{net}} after backcharges.', net })}</p>
-          <TextField label={t('subcontractCertificates:billDate', 'Bill date')} type="date" value={date} onChange={setDate} />
+          <DateField label={t('subcontractCertificates:billDate', 'Bill date')} value={date} onChange={setDate} />
           <TextField label={t('subcontractCertificates:billReference', 'Reference')} value={reference} onChange={setReference} />
         </div>
       )}

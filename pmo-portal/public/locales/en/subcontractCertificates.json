@@ -156,5 +156,6 @@
     "returned": "Returned",
     "setAside": "Set aside",
     "submitted": "Submitted for approval"
-  }
+  },
+  "moreActions": "More certificate actions"
 }
