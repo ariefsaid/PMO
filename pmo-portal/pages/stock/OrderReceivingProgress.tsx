@@ -23,7 +23,7 @@ export function OrderReceivingProgress({ orderId }: { orderId: string | undefine
     { key: 'ordered', header: t('receiving.ordered'), align: 'num', cell: (line) => figure(line.ordered, line) },
     { key: 'received', header: t('receiving.received'), align: 'num', cell: (line) => figure(line.received, line) },
     { key: 'outstanding', header: t('receiving.outstanding'), align: 'num', cell: (line) => figure(line.outstanding, line) },
-    { key: 'status', header: t('receiving.status'), kind: 'status', cell: (line) => line.status ? <StatusPill variant={RECEIVING_VARIANT[line.status]}>{t(`receiving.${line.status}`)}</StatusPill> : null },
+    { key: 'status', header: t('receiving.status'), kind: 'status', size: 176, cell: (line) => line.status ? <StatusPill variant={RECEIVING_VARIANT[line.status]}>{t(`receiving.${line.status}`)}</StatusPill> : null },
   ];
   return <section className="space-y-3 border-t border-border pt-4" aria-label={t('receiving.progressTitle')}>
     <div className="flex flex-wrap items-center justify-between gap-2">
