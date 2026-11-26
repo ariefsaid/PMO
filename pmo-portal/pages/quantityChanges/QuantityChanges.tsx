@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, EntityFormModal, ListState, PageHeader, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, EntityFormModal, ListState, PageHeader, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
@@ -77,27 +77,39 @@ const QuantityChanges: React.FC = () => {
         ) : over.data.length === 0 ? (
           <p className="text-muted-foreground">{t('quantityChanges:over.none', 'No contract line is over its contract quantity')}</p>
         ) : (
-          <ul className="divide-y divide-border" data-testid="qcr-over-list">
+          <div className="overflow-x-auto" data-testid="qcr-over-list">
+          <table className="w-full min-w-[760px] text-control">
+            <thead className="text-muted-foreground">
+              <tr>
+                <th scope="col" className="py-2 pr-4 text-left font-medium">{t('quantityChanges:over.item', 'Contract item')}</th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">{t('quantityChanges:over.contract', 'Contract')}</th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">{t('quantityChanges:over.measured', 'Progress / forecast')}</th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">{t('quantityChanges:over.excess', 'Over by')}</th>
+                <th scope="col" className="py-2 text-left font-medium">{t('quantityChanges:over.actions', 'Actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
             {over.data.map((r) => {
               const figure = r.over_progress ? r.progress_quantity : (r.forecast_quantity ?? 0);
               return (
-                <li key={r.boq_item_id} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 py-2" data-testid="qcr-over-row">
-                  <StatusPill variant="warn">{t('quantityChanges:over.flag', 'Over contract')}</StatusPill>
-                  <span className="min-w-0 flex-1 font-medium text-foreground">{r.item_code} · {r.description}</span>
-                  <span className="tabular-nums text-foreground">
-                    {t('quantityChanges:over.contract', 'Contract')} {r.contract_quantity} {r.unit}
-                  </span>
-                  <span className="tabular-nums text-foreground">
+                <tr key={r.boq_item_id} data-testid="qcr-over-row">
+                  <td className="py-2 pr-4"><span className="font-medium text-foreground">{r.item_code} · {r.description}</span> <StatusPill variant="warn">{t('quantityChanges:over.flag', 'Over contract')}</StatusPill></td>
+                  <td className="py-2 pr-4 text-right tabular-nums"><span className="sr-only">{t('quantityChanges:over.contract', 'Contract')} </span>{r.contract_quantity} {r.unit}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">
                     {t(`quantityChanges:over.kind.${r.over_progress ? 'progress' : 'forecast'}`)} {figure}
                     {r.over_progress && r.progress_source ? ` (${t(`quantityChanges:over.source.${r.progress_source}`)})` : ''}
-                  </span>
-                  <span className="tabular-nums text-foreground">{t('quantityChanges:over.overBy', { defaultValue: 'Over by {{quantity}} {{unit}}', quantity: Math.round((figure - r.contract_quantity) * 1000) / 1000, unit: r.unit })}</span>
+                  </td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{t('quantityChanges:over.overBy', { defaultValue: 'Over by {{quantity}} {{unit}}', quantity: Math.round((figure - r.contract_quantity) * 1000) / 1000, unit: r.unit })}</td>
+                  <td className="py-2"><div className="flex flex-wrap items-center gap-2">
                   {r.open_request_id && <Link to={`/quantity-changes/${r.open_request_id}`} className="text-primary-text hover:underline">{t('quantityChanges:over.openRequest', 'Open request')}</Link>}
                   {mayForecast && <Button variant="ghost" onClick={() => setForecastFor(r)}>{t('quantityChanges:over.recordForecast', 'Record forecast')}</Button>}
-                </li>
+                  </div></td>
+                </tr>
               );
             })}
-          </ul>
+            </tbody>
+          </table>
+          </div>
         )}
       </RecordSection>
 
@@ -110,19 +122,23 @@ const QuantityChanges: React.FC = () => {
           <p className="text-muted-foreground">{t('quantityChanges:list.empty', 'No quantity change requests yet')}</p>
         ) : (
           <>
-            <ul className="divide-y divide-border" data-testid="qcr-list">
-              {list.data.rows.map((r) => (
-                <li key={r.id}>
-                  <Link to={`/quantity-changes/${r.id}`} className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 py-2 hover:bg-surface-hover">
-                    <span className="tabular-nums text-foreground">{formatDay(r.created_at)}</span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.work_order_label}</span>
-                    <span className="text-muted-foreground">{t('quantityChanges:list.line', { count: r.line_count, defaultValue: '{{count}} lines' })}</span>
-                    <span className="text-muted-foreground">{r.author_name ?? '—'}</span>
-                    <StatusPill record="quantityChange" state={r.status} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <div data-testid="qcr-list">
+              <DataTable
+                embedded
+                rows={list.data.rows}
+                rowKey={(r) => r.id}
+                rowHref={(r) => `/quantity-changes/${r.id}`}
+                onActivate={(r) => navigate(`/quantity-changes/${r.id}`)}
+                rowLabel={(r) => r.work_order_label}
+                columns={[
+                  { key: 'workOrder', header: t('quantityChanges:detail.workOrder', 'Work order'), kind: 'primary', size: 240, cell: (r) => r.work_order_label },
+                  { key: 'date', header: t('quantityChanges:list.date', 'Date'), kind: 'date', cell: (r) => formatDay(r.created_at) },
+                  { key: 'lines', header: t('quantityChanges:lines.title', 'Lines'), align: 'num', cell: (r) => t('quantityChanges:list.line', { count: r.line_count, defaultValue: '{{count}} lines' }) },
+                  { key: 'author', header: t('quantityChanges:list.author', 'Author'), cell: (r) => r.author_name ?? '—' },
+                  { key: 'status', header: t('quantityChanges:list.status', 'Status'), kind: 'status', size: 180, minSize: 180, cell: (r) => <StatusPill record="quantityChange" state={r.status} /> },
+                ]}
+              />
+            </div>
             {(page > 0 || list.data.hasMore) && (
               <nav className="mt-3 flex items-center justify-end gap-2" aria-label={t('quantityChanges:list.pages', 'Pages')}>
                 <Button variant="ghost" disabled={page === 0} onClick={() => setParam('page', String(page - 1))}>{t('quantityChanges:list.previous', 'Previous')}</Button>
