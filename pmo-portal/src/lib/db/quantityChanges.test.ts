@@ -7,7 +7,7 @@ const h = vi.hoisted(() => {
   const calls: Array<[string, unknown[]]> = [];
   const rpcCalls: Array<[string, unknown]> = [];
   const builder: Record<string, unknown> = {};
-  for (const k of ['select', 'limit', 'eq', 'in', 'is', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
+  for (const k of ['select', 'eq', 'in', 'is', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
     builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
   }
   const next = () => (result.queue.length ? result.queue.shift()! : result.value);
@@ -85,23 +85,23 @@ describe('writes', () => {
   });
 
   it('AC-QCR-022 a limit write that changed no row is reported as not allowed (the Admin-only policy filters it)', async () => {
-    h.result.queue = [{ data: [{ id: 'o1' }], error: null }, { data: [], error: null }];
-    await expect(dal.setLimit(3)).rejects.toMatchObject({ code: '42501' });
+    h.result.value = { data: [], error: null };
+    await expect(dal.setLimit('o1', 3)).rejects.toMatchObject({ code: '42501' });
     h.result.value = { data: [{ id: 'o1' }], error: null };
-    await expect(dal.setLimit(3)).resolves.toBeUndefined();
+    await expect(dal.setLimit('o1', 3)).resolves.toBeUndefined();
   });
 });
 
 describe('reviewer roles (change-review)', () => {
   it('AC-CHR-005 reads the list (empty when unset) and reports a write that changed no row as not allowed', async () => {
     h.result.queue = [{ data: { quantity_change_approver_roles: ['project_control_manager'] }, error: null }];
-    await expect(dal.getApproverRoles()).resolves.toEqual(['project_control_manager']);
+    await expect(dal.getApproverRoles('o1')).resolves.toEqual(['project_control_manager']);
     h.result.queue = [{ data: null, error: null }];
-    await expect(dal.getApproverRoles()).resolves.toEqual([]);
-    h.result.queue = [{ data: [{ id: 'o1' }], error: null }, { data: [], error: null }];
-    await expect(dal.setApproverRoles(['executive'])).rejects.toMatchObject({ code: '42501' });
+    await expect(dal.getApproverRoles('o1')).resolves.toEqual([]);
+    h.result.value = { data: [], error: null };
+    await expect(dal.setApproverRoles('o1', ['executive'])).rejects.toMatchObject({ code: '42501' });
     h.result.value = { data: [{ id: 'o1' }], error: null };
-    await expect(dal.setApproverRoles(['executive'])).resolves.toBeUndefined();
+    await expect(dal.setApproverRoles('o1', ['executive'])).resolves.toBeUndefined();
   });
 });
 
@@ -198,11 +198,11 @@ describe('AC-QCR detail and derived reads (#2578)', () => {
 
   it('AC-QCR-021 the org limit reads as null when unset; the archive stamps the file row', async () => {
     h.result.queue = [{ data: { quantity_change_limit: 12 }, error: null }];
-    await expect(dal.getLimit()).resolves.toBe(12);
+    await expect(dal.getLimit('o1')).resolves.toBe(12);
     h.result.queue = [{ data: { quantity_change_limit: null }, error: null }];
-    await expect(dal.getLimit()).resolves.toBeNull();
+    await expect(dal.getLimit('o1')).resolves.toBeNull();
     h.result.queue = [{ data: null, error: null }];
-    await expect(dal.getLimit()).resolves.toBeNull();
+    await expect(dal.getLimit('o1')).resolves.toBeNull();
     h.result.queue = [{ data: null, error: null }];
     await dal.archiveFile('f1');
     const upd = h.calls.find(([k]) => k === 'update')?.[1][0] as Record<string, unknown>;
@@ -216,27 +216,4 @@ describe('AC-QCR detail and derived reads (#2578)', () => {
     h.storage.createSignedUrl.mockResolvedValue({ data: null, error: { message: 'gone' } });
     await expect(dal.fileUrl('x')).rejects.toBeInstanceOf(AppError);
   });
-});
-
-it('resolves the organisation through row visibility before writing a setting', async () => {
-  h.result.queue = [
-    { data: [{ id: 'visible-org' }], error: null },
-    { data: [{ id: 'visible-org' }], error: null },
-  ];
-  await expect(dal.setLimit(3)).resolves.toBeUndefined();
-  expect(h.calls).toEqual([
-    ['from', ['organizations']],
-    ['select', ['id']],
-    ['limit', [2]],
-    ['from', ['organizations']],
-    ['update', [{ quantity_change_limit: 3 }]],
-    ['eq', ['id', 'visible-org']],
-    ['select', ['id']],
-  ]);
-});
-
-it('refuses to change any setting when the visible organisation is ambiguous', async () => {
-  h.result.value = { data: [{ id: 'o1' }, { id: 'o2' }], error: null };
-  await expect(dal.setApproverRoles(['executive'])).rejects.toMatchObject({ code: 'no-org' });
-  expect(h.calls.some(([operation]) => operation === 'update')).toBe(false);
 });
