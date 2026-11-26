@@ -181,14 +181,14 @@ export default function ReceivablesPage() {
         action={<div className="flex flex-wrap items-center gap-2">
           <BillingBoardLink />
           <BillingPlanLink />
-          {canCreateInvoice && <div data-testid="receivables-header-new-invoice"><Button type="button" variant="primary" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
-          {canCreatePayment && <div data-testid="receivables-header-receive-payment"><Button type="button" variant="outline" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button></div>}
+          {canCreateInvoice && <div data-testid="receivables-header-new-invoice"><Button type="button" variant={view === 'invoices' ? 'primary' : 'outline'} onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
+          {canCreatePayment && <div data-testid="receivables-header-receive-payment"><Button type="button" variant={view === 'payments' ? 'primary' : 'outline'} onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button></div>}
         </div>}
       />
 
       <div className="order-2 mb-3"><FigureHiddenLine /></div>
 
-      <div className="order-4 max-sm:order-5 min-w-0">
+      <div className={view === 'payments' ? 'order-6 min-w-0' : 'order-4 max-sm:order-5 min-w-0'}>
         <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className={`mb-5 ${figureCols((owedTile || receivablesPending || receivablesError ? 1 : 0) + (overdueTile || receivablesPending || receivablesError ? 1 : 0) + 2)}`}>
           <KPITile
             icon="grid" tone="blue" label={t('finance:receivables.owed', 'Owed to you')} caption={t('financeHub:hub.taxIncluded', 'tax included')}

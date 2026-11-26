@@ -3,7 +3,7 @@ import { Link, type useLocation } from 'react-router';
 import type { useTranslation } from 'react-i18next';
 import { StatusPill, type Column } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
-import { formatCurrency, formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDayYear } from '@/src/lib/format';
 import type { IncomingPaymentRow, IncomingPaymentStatus } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -133,7 +133,7 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
       key: 'date',
       header: t('financeCopy.date', "Date"),
       kind: 'date',
-      cell: (p) => (p.date ? formatDateOnly(p.date) : '—'),
+      cell: (p) => (p.date ? formatDayYear(p.date) : '—'),
       exportValue: (p) => p.date ?? '',
     },
     {
