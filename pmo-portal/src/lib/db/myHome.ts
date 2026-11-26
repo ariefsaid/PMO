@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 
@@ -49,12 +50,10 @@ export async function setMyTaskStatus(taskId: string, status: 'To Do' | 'In Prog
  * photo and confirmation go through the transfer page and `receive_stock_transfer`.
  */
 export async function getMyDeliveries(userId: string): Promise<MyDelivery[]> {
-  const { data, error } = await (supabase as unknown as { from: (t: string) => any }) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const rows = await fetchAllPages((from, to) => supabase
     .from('stock_transfers').select('id, number, note, sent_by, stock_transfer_lines(id)')
-    .eq('status', 'Sent').eq('to_user_id', userId).order('sent_at', { ascending: false }).limit(20);
-  if (error) throw new AppError(error.message, error.code);
-  return ((data ?? []) as { id: string; number: string; note: string | null; sent_by: string; stock_transfer_lines: unknown[] | null }[])
-    .filter((r) => r.sent_by !== userId) // the sender never counts their own shipment
+    .eq('status', 'Sent').eq('to_user_id', userId).order('sent_at', { ascending: false }).order('id').range(from, to));
+  return rows.filter((r) => r.sent_by !== userId) // the sender never counts their own shipment
     .map((r) => ({ id: r.id, number: r.number, description: r.note ?? '', lineCount: r.stock_transfer_lines?.length ?? 0 }));
 }
 

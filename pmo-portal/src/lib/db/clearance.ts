@@ -35,10 +35,9 @@ function fail(error: { message: string; code?: string }): never { throw new AppE
 
 
 export async function listClearanceItems(): Promise<ClearanceItemRow[]> {
-  const { data, error } = await supabase.from('clearance_items').select('id, name, is_required, sort_order, document_type_id, target_days')
-    .is('archived_at', null).order('sort_order', { ascending: true }).order('name', { ascending: true }).limit(500);
-  if (error) fail(error);
-  return (data ?? []).map((r) => ({
+  const rows = await fetchAllPages((from, to) => supabase.from('clearance_items').select('id, name, is_required, sort_order, document_type_id, target_days')
+    .is('archived_at', null).order('sort_order', { ascending: true }).order('name', { ascending: true }).order('id').range(from, to));
+  return rows.map((r) => ({
     id: r.id, name: r.name, is_required: r.is_required, sort_order: r.sort_order,
     document_type_id: r.document_type_id, target_days: r.target_days ?? null,
   }));

@@ -11,10 +11,10 @@ export interface WaitingMaterialAlert { workOrderId: string; projectId: string; 
 
 /** How many items on one work order are ahead of progress right now (open alerts). */
 export async function getOpenMaterialAlertCount(workOrderId: string): Promise<OpenMaterialAlertCount> {
-  const { data, error } = await supabase.from('material_installed_usage_alerts').select('item_id')
-    .eq('work_order_id', workOrderId).eq('kind', 'issued_ahead').is('resolved_at', null).limit(500);
+  const { count, error } = await supabase.from('material_installed_usage_alerts').select('item_id', { count: 'exact', head: true })
+    .eq('work_order_id', workOrderId).eq('kind', 'issued_ahead').is('resolved_at', null);
   if (error) throw toAppError(error);
-  return { workOrderId, itemCount: (data ?? []).length };
+  return { workOrderId, itemCount: count ?? 0 };
 }
 
 /** The open alerts on work orders the caller is the one told about (the needs-you pointer). Derived on read: a resolved alert is not returned. */
