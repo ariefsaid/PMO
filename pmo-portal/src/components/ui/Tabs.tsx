@@ -192,7 +192,7 @@ export function Tabs<V extends string = string>({
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative inline-flex h-[var(--table-head-height)] max-w-[calc(100%-2*var(--space-content-inset))] shrink-0 snap-start snap-always items-center px-4 text-control font-normal',
+              'relative inline-flex h-[var(--table-head-height)] max-w-[calc(100%-2*var(--space-content-inset))] shrink-0 snap-start items-center px-4 text-control font-normal',
               insetFirstTab === 'panel'
                 ? 'first:ps-[calc(var(--panel-inset)+1px)]'
                 : insetFirstTab
