@@ -102,7 +102,11 @@
     "retire": "Nonaktifkan",
     "restore": "Aktifkan lagi",
     "retired": "Nonaktif",
-    "empty": "Belum ada kategori."
+    "empty": "Belum ada kategori.",
+    "stepShort": {
+      "spend_approvers": "Penyetuju proyek",
+      "senior_role": "Penyetuju senior"
+    }
   },
   "pickProject": "Pilih proyek untuk melihat rencananya bulan ini."
 }

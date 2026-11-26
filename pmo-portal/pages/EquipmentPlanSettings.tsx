@@ -73,8 +73,8 @@ const SwitchSection: React.FC<{ canManage: boolean }> = ({ canManage }) => {
       {!settings.isError && (
         <div className="flex flex-col items-start gap-4">
           <Checkbox checked={enabled} onChange={(v) => setDraft({ ...draft, enabled: v })} disabled={!canManage || settings.isPending} label={t('settings.enabled', 'The monthly plan is on')}>{t('settings.enabled', 'The monthly plan is on')}</Checkbox>
-          <div className="w-full max-w-xl"><SelectField label={t('settings.stepLabel', 'Approval step')} value={step} onChange={(v) => setDraft({ ...draft, step: v as ApprovalStep })} disabled={!canManage || settings.isPending}
-            options={[{ value: 'spend_approvers', label: t('settings.step.spend_approvers', 'The spend approvers of the project') }, { value: 'senior_role', label: t('settings.step.senior_role', 'Anyone whose role can approve spend') }]} fullWidth /></div>
+          <div className="w-full max-w-xl"><SelectField label={t('settings.stepLabel', 'Approval step')} helper={t(`settings.step.${step}`)} value={step} onChange={(v) => setDraft({ ...draft, step: v as ApprovalStep })} disabled={!canManage || settings.isPending}
+            options={[{ value: 'spend_approvers', label: t('settings.stepShort.spend_approvers', 'Project approvers') }, { value: 'senior_role', label: t('settings.stepShort.senior_role', 'Senior approvers') }]} fullWidth /></div>
           <Checkbox checked={self} onChange={(v) => setDraft({ ...draft, self: v })} disabled={!canManage || settings.isPending} label={t('settings.selfApproval', 'The author may approve their own plan')}>{t('settings.selfApproval', 'The author may approve their own plan')}</Checkbox>
           {canManage && <Button variant="primary" size="sm" disabled={Object.keys(draft).length === 0} loading={m.setSettings.isPending} onClick={() => void save()}>{t('settings.save', 'Save')}</Button>}
         </div>
