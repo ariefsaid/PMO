@@ -256,7 +256,7 @@ const Companies: React.FC = () => {
       count={directory.data ? total : undefined}
       total={directory.data && !unfiltered ? directoryTotal : undefined}
       primaryAction={
-        canCreate && state !== 'empty' && (
+        canCreate && state !== 'loading' && state !== 'empty' && (
           <Button variant="primary" onClick={() => setFormTarget({ company: null })}>
             <Icon name="plus" />
             {t('companies.actions.new', 'New company')}

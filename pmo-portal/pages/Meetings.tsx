@@ -260,7 +260,7 @@ const Meetings: React.FC = () => {
     <ListPage
       title={t('meetings.title', 'Meetings')}
       primaryAction={
-        canCreate && state !== 'empty' && (
+        canCreate && state !== 'loading' && state !== 'empty' && (
           <Button variant="primary" onClick={() => openRecord('/meetings/new')}>
             <Icon name="plus" />
             {t('meetings.actions.new', 'New meeting')}
