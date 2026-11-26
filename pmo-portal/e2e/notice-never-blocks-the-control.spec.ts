@@ -51,6 +51,8 @@ async function expectControlReachableThroughNotice(
   { expectPaintOver }: { expectPaintOver: boolean },
 ) {
   await expect(notice).toBeVisible({ timeout: 15_000 });
+  // Sonner animates in from outside the viewport; hit-test only once its whole body is on screen.
+  await expect(notice).toBeInViewport({ ratio: 1 });
   await expect(control).toBeVisible();
   const noticeBox = (await notice.boundingBox())!;
   const controlBox = (await control.boundingBox())!;
@@ -120,6 +122,7 @@ async function createOwnProject(admin: Admin, label: string) {
 async function openTaskArea(page: Page) {
   if ((page.viewportSize()?.width ?? 1280) < 768) {
     await page.getByTestId('mobile-project-area-select').getByRole('combobox').selectOption('tasks');
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
   } else {
     await page.getByRole('tab', { name: /tasks/i }).click();
   }
@@ -193,7 +196,7 @@ for (const viewport of VIEWPORTS) {
 
       const base = new URL(page.url()).pathname.replace(/\/$/, '');
       await page.goto(`${base}/procurement`);
-      await page.waitForLoadState('networkidle');
+      await expect(page.getByRole('button', { name: 'Row actions' }).last()).toBeVisible();
       await waitForFonts(page);
 
       const lastActions = page.getByRole('button', { name: 'Row actions' }).last();

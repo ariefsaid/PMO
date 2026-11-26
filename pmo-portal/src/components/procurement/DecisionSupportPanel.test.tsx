@@ -971,12 +971,12 @@ describe('AC-RB-017 — unknown figures are not drawn', () => {
     expect(notKnown.className).toMatch(/whitespace-nowrap/);
   });
 
-  it('spending only unknown, inside a figure scope: the page line carries the Left reason, the explicit line stays visible', async () => {
+  it.each([false, true])('spending only unknown, inside a figure scope (bare=%s): the page line carries the Left reason, the explicit line stays visible', async (bare) => {
     budgetState.data = 1000;
     committedState.data = 400;
     reservedState.data = 50;
     positionState.reading = reading({ spent: null });
-    renderPanel(asked(), undefined, true);
+    renderPanel({ ...asked(), bare }, undefined, true);
     expect(await screen.findByTestId('figures-hidden')).toHaveTextContent('Spending not known yet');
     expect(screen.getByText(/Without spending: \$525 left after orders, reserved and this purchase\./)).toBeInTheDocument();
   });
