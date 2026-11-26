@@ -63,9 +63,9 @@ export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, grou
   const num = 'py-2.5 text-right align-baseline tabular-nums';
   return (
     <RecordSection title={title}>
-      <div className="-mx-[var(--panel-inset)] overflow-x-auto px-[var(--panel-inset)]">
-        <table className="w-full min-w-[36rem] text-control">
-          <thead><tr className="text-muted-foreground">
+      <div>
+        <table className="w-full text-control max-sm:block">
+          <thead className="max-sm:sr-only"><tr className="text-muted-foreground">
             <th scope="col" className="pb-2 pr-4 text-left font-normal">{t('costs.col.record', 'Record')}</th>
             <th scope="col" className="pb-2 pr-4 text-right font-normal">{t('costs.col.date', 'Date')}</th>
             <th scope="col" className="pb-2 pr-4 text-right font-normal">{t('costs.col.quantity', 'Quantity')}</th>
@@ -74,16 +74,16 @@ export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, grou
           {groups.map((g) => {
             const note = groupNote(g);
             return (
-              <tbody key={g.source} data-testid={`cost-group-${g.source}`}>
-                <tr className="border-t border-border">
-                  <th scope="rowgroup" colSpan={3} className={`${cell} text-left font-medium`}>{t(`costs.source.${g.source}`, g.source)}</th>
+              <tbody key={g.source} data-testid={`cost-group-${g.source}`} className="max-sm:block">
+                <tr className="border-t border-border max-sm:flex">
+                  <th scope="rowgroup" colSpan={3} className={`${cell} text-left font-medium max-sm:flex-1`}>{t(`costs.source.${g.source}`, g.source)}</th>
                   <td className={`${num} font-medium`}>{g.totals.length > 0 && <span data-testid={`cost-total-${g.source}`}>{g.totals.map(money).join(' · ')}</span>}</td>
                 </tr>
-                {note && <tr><td colSpan={4} className="pb-2.5 text-muted-foreground">{note}</td></tr>}
+                {note && <tr className="max-sm:block"><td colSpan={4} className="pb-2.5 text-muted-foreground max-sm:block">{note}</td></tr>}
                 {g.disciplines.map((d) => (
                   <React.Fragment key={d.disciplineId}>
-                    <tr className="text-muted-foreground" data-testid={`cost-discipline-${g.source}-${d.disciplineId}`}>
-                      <th scope="row" colSpan={3} className={`${cell} pl-4 text-left font-normal`}>{nameOf(d.disciplineId)}</th>
+                    <tr className="text-muted-foreground max-sm:flex" data-testid={`cost-discipline-${g.source}-${d.disciplineId}`}>
+                      <th scope="row" colSpan={3} className={`${cell} pl-4 text-left font-normal max-sm:flex-1`}>{nameOf(d.disciplineId)}</th>
                       <td className={num}>{d.totals.length > 0 && d.totals.map(money).join(' · ')}</td>
                     </tr>
                     {d.lines.map((l) => {
@@ -98,14 +98,14 @@ export const CostSection: React.FC<Props> = ({ reasons = {}, labels, links, grou
                         || (l.source === 'equipment_usage' && !g.restricted));
                       const state = l.source === 'stock_document' ? stockState(l.recordId) : null;
                       return (
-                        <tr key={l.recordId} className="border-t border-border-subtle" data-testid={`cost-line-${l.recordId}`}>
-                          <td className={`${cell} pl-8`}>
+                        <tr key={l.recordId} className="border-t border-border-subtle max-sm:flex max-sm:flex-wrap max-sm:py-1.5" data-testid={`cost-line-${l.recordId}`}>
+                          <td className={`${cell} pl-8 max-sm:w-full max-sm:py-0.5`}>
                             {href ? <Link className="underline" to={href}>{label}</Link> : label}
                             {state && <div className="text-muted-foreground">{state}</div>}
                           </td>
-                          <td className={`${num} pr-4 whitespace-nowrap`}>{l.occurredOn ? formatDay(l.occurredOn) : '—'}</td>
-                          <td className={`${num} pr-4 whitespace-nowrap`}>{l.quantity != null ? `${formatNumberExact(l.quantity)} ${l.quantityUnit ?? ''}`.trim() : '—'}</td>
-                          <td className={`${num} whitespace-nowrap`}>
+                          <td className={`${num} pr-4 whitespace-nowrap max-sm:py-0.5 max-sm:pl-8 max-sm:text-muted-foreground`}>{l.occurredOn ? formatDay(l.occurredOn) : '—'}</td>
+                          <td className={`${num} pr-4 whitespace-nowrap max-sm:py-0.5 max-sm:text-muted-foreground`}>{l.quantity != null ? `${formatNumberExact(l.quantity)} ${l.quantityUnit ?? ''}`.trim() : '—'}</td>
+                          <td className={`${num} whitespace-nowrap max-sm:ml-auto max-sm:py-0.5`}>
                             {lineMoney ? <span>{money(lineMoney)}</span> : notShown ? <span className="text-muted-foreground">{t('costs.amountNotShown', 'Line amount not shown')}</span> : '—'}
                           </td>
                         </tr>

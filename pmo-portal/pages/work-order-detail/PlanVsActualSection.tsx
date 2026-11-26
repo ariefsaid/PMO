@@ -92,23 +92,27 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
     </div>
   );
   // One question per row: what was planned, what it has cost, and what is left or over (stacked under the actual).
+  const planLabel = t('col.planShort', 'Plan');
+  const actualLabel = t('col.actualShort', 'Actual');
+  // A phone reads each row as its name over two labelled figures; wider screens read one table.
+  const stackedCell = 'max-sm:flex max-sm:justify-between max-sm:gap-4 max-sm:py-1 max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-label)]';
   const costRow = (key: string, label: string, plan: string | null, actual: string | null, planId: string, actualId: string) => (
-    <tr key={key} className="border-t border-border">
-      <th scope="row" className="py-3 pr-4 text-left font-normal">{label}</th>
-      <td className="py-3 pr-4 text-right tabular-nums" data-testid={planId}>{planText(plan)}</td>
-      <td className="py-3 text-right tabular-nums" data-testid={actualId}>{money(actual)}{plan !== null && <div className="text-muted-foreground">{variantText(plan, actual)}</div>}</td>
+    <tr key={key} className="border-t border-border max-sm:block max-sm:py-2">
+      <th scope="row" className="py-3 pr-4 text-left font-normal max-sm:block max-sm:py-1 max-sm:font-medium">{label}</th>
+      <td className={`py-3 pr-4 text-right tabular-nums max-sm:pr-0 ${stackedCell}`} data-label={planLabel} data-testid={planId}>{planText(plan)}</td>
+      <td className={`py-3 text-right tabular-nums ${stackedCell}`} data-label={actualLabel} data-testid={actualId}><span>{money(actual)}{plan !== null && <span className="block text-muted-foreground">{variantText(plan, actual)}</span>}</span></td>
     </tr>
   );
   return (
     <RecordSection title={title} actions={planAction} data-testid="wo-page-pva">
-      <div className="overflow-x-auto">
-        <table className="w-full text-control" data-testid="wo-page-pva-cost">
-          <thead><tr className="text-right text-muted-foreground">
+      <div>
+        <table className="w-full text-control max-sm:block" data-testid="wo-page-pva-cost">
+          <thead className="max-sm:sr-only"><tr className="text-right text-muted-foreground">
             <th scope="col" className="pb-2 pr-4 text-left font-normal"><span className="sr-only">{t('col.cost', 'Cost')}</span></th>
-            <th scope="col" className="pb-2 pr-4 font-normal">{t('col.planShort', 'Plan')}</th>
-            <th scope="col" className="pb-2 font-normal">{t('col.actualShort', 'Actual')}</th>
+            <th scope="col" className="pb-2 pr-4 font-normal">{planLabel}</th>
+            <th scope="col" className="pb-2 font-normal">{actualLabel}</th>
           </tr></thead>
-          <tbody>
+          <tbody className="max-sm:block">
             {costRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct')}
             {costRow('shared', t('col.shared', 'Shared cost'), f.plan.indirect_budget, f.allocated, 'wo-page-pva-plan-indirect', 'wo-page-pva-allocated')}
           </tbody>

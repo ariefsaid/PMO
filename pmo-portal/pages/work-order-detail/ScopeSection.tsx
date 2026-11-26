@@ -39,8 +39,8 @@ export const ScopeSection: React.FC<Props> = ({ projectId, progress, isPending, 
             {progress.lines.map((l) => (
               <tr key={l.id} className="border-t border-border" data-testid={`scope-line-${l.boqItemId}`}>
                 <td className="py-2.5 pr-4 align-baseline">
-                  <span className="font-medium">{l.itemCode ?? '—'}</span>
-                  {l.description && <span className="ml-2 text-muted-foreground">{l.description}</span>}
+                  <span className="whitespace-nowrap font-medium">{l.itemCode ?? '—'}</span>
+                  {l.description && <span className="block text-muted-foreground sm:ml-2 sm:inline">{l.description}</span>}
                 </td>
                 <td className="whitespace-nowrap py-2.5 pr-4 text-right align-baseline tabular-nums">
                   {l.lumpSum
