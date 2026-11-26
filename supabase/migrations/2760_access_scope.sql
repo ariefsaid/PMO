@@ -5,8 +5,16 @@ alter policy storage_objects_qcr_file_write on storage.objects to authenticated;
 alter policy storage_objects_proc_file_read on storage.objects to authenticated;
 revoke execute on function public.actor_may_order_purchases() from public, anon;
 revoke execute on function public.qcr_file_object_access(text) from public, anon;
-create or replace function public.stock_handover_scope_of(p_org uuid) returns text language sql stable security definer set search_path = public, pg_temp as $$ select coalesce((select o.stock_handover_scope from public.organizations o where o.id = p_org and o.id = public.auth_org_id()), 'transfers') $$;
-create or replace function public.po_needed_by_required_from_of(p_org uuid) returns timestamptz language sql stable security definer set search_path = public, pg_temp as $$ select (select o.po_needed_by_required_from from public.organizations o where o.id = p_org and o.id = public.auth_org_id()) $$;
+create or replace function public.stock_handover_scope_of(p_org uuid) returns text
+  language sql stable security definer set search_path = public, pg_temp as $$
+  select q.* from (select coalesce((select o.stock_handover_scope from public.organizations o where o.id = p_org and o.id = public.auth_org_id()), 'transfers')
+) q where public.assert_not_light()
+$$;
+create or replace function public.po_needed_by_required_from_of(p_org uuid) returns timestamptz
+  language sql stable security definer set search_path = public, pg_temp as $$
+  select q.* from (select (select o.po_needed_by_required_from from public.organizations o where o.id = p_org and o.id = public.auth_org_id())
+) q where public.assert_not_light()
+$$;
 create or replace function public.extend_rental_procurement(p_id uuid, p_original uuid, p_from date, p_to date, p_items jsonb default null)
   returns public.procurements language plpgsql security definer set search_path = pg_catalog, public, pg_temp as $$
 declare v_org uuid := public.auth_org_id(); v_o public.procurements%rowtype; v_items jsonb; v_header jsonb;
