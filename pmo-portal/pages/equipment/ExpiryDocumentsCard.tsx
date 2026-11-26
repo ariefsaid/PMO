@@ -27,7 +27,7 @@ type FormValues = {
 };
 
 /** Whole days from `today` to `day` (both ISO days); negative once it has passed. */
-export const daysUntil = (day: string, today: string): number => Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+const daysUntil = (day: string, today: string): number => Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
 
 /** The expiry mark: red once expired, amber inside the 30-day warning window, nothing while it is far off. */
 export const ExpiryMark: React.FC<{ daysLeft: number }> = ({ daysLeft }) => {

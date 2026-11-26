@@ -203,7 +203,7 @@
     "termsSaved": "Ketentuan sewa disimpan",
     "rentedToShort": "Akhir sewa",
     "openEnded": "Terbuka",
-    "per": "Per",
+    "per": "Satuan",
     "addTerms": "Tambah ketentuan sewa",
     "noTerms": "Belum ada ketentuan sewa",
     "rateFrom": "Tarif baru mulai",
@@ -214,14 +214,14 @@
     "proof": "Bukti",
     "downLong": "Eskalasi",
     "setStatus": "Atur status",
-    "targetShort": "target {{target}}%",
+    "targetShort": "sasaran {{target}}%",
     "daysAvailable": "Hari tersedia",
     "awaitingApproval": "Menunggu persetujuan",
     "settings": "Target dan jam kerja",
     "metricAssetsCount": "Alat: {{count}}",
     "files": "Berkas",
     "noDownDays": "Tidak ada hari rusak pada periode ini",
-    "statusCol": "Status"
+    "statusCol": "Keadaan"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",
