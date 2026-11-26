@@ -301,7 +301,7 @@ const ReviewDrawer: React.FC<{ sheet: TimesheetForReview; projectFilterId: strin
       subtitle={t('timesheets:review.hoursTotal', '{{hours}} h', { hours: formatNumberMax2(view.hours) })}>
       {gridRows.length === 0
         ? <p className="text-control text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
-        : <TimesheetGrid days={gridDays} rows={gridRows} />}
+        : <TimesheetGrid days={gridDays} rows={gridRows} stacked />}
     </Drawer>
   );
 };
