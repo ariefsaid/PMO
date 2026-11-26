@@ -78,8 +78,8 @@ const QuantityChanges: React.FC = () => {
           <p className="text-muted-foreground">{t('quantityChanges:over.none', 'No contract line is over its contract quantity')}</p>
         ) : (
           <div className="overflow-x-auto" data-testid="qcr-over-list">
-          <table className="block w-full text-control md:table md:min-w-[760px]">
-            <thead className="sr-only text-muted-foreground md:table-header-group md:not-sr-only">
+          <table className="block w-full text-control min-[1200px]:table min-[1200px]:min-w-[760px]">
+            <thead className="sr-only text-muted-foreground min-[1200px]:table-header-group min-[1200px]:not-sr-only">
               <tr>
                 <th scope="col" className="py-2 pr-4 text-left font-medium">{t('quantityChanges:over.item', 'Contract item')}</th>
                 <th scope="col" className="py-2 pr-4 text-right font-medium">{t('quantityChanges:over.contract', 'Contract')}</th>
@@ -88,19 +88,19 @@ const QuantityChanges: React.FC = () => {
                 <th scope="col" className="py-2 text-left font-medium">{t('quantityChanges:over.actions', 'Actions')}</th>
               </tr>
             </thead>
-            <tbody className="block divide-y divide-border md:table-row-group">
+            <tbody className="block divide-y divide-border min-[1200px]:table-row-group">
             {over.data.map((r) => {
               const figure = r.over_progress ? r.progress_quantity : (r.forecast_quantity ?? 0);
               return (
-                <tr key={r.boq_item_id} className="grid gap-2 py-3 md:table-row" data-testid="qcr-over-row">
-                  <td className="block md:table-cell md:py-2 md:pr-4"><span className="font-medium text-foreground">{r.item_code} · {r.description}</span> <StatusPill variant="warn">{t('quantityChanges:over.flag', 'Over contract')}</StatusPill></td>
-                  <td className="block tabular-nums md:table-cell md:py-2 md:pr-4 md:text-right"><span className="md:sr-only">{t('quantityChanges:over.contract', 'Contract')} </span>{r.contract_quantity} {r.unit}</td>
-                  <td className="block tabular-nums md:table-cell md:py-2 md:pr-4 md:text-right">
+                <tr key={r.boq_item_id} className="grid gap-2 py-3 min-[1200px]:table-row" data-testid="qcr-over-row">
+                  <td className="block min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4"><span className="font-medium text-foreground">{r.item_code} · {r.description}</span> <StatusPill variant="warn">{t('quantityChanges:over.flag', 'Over contract')}</StatusPill></td>
+                  <td className="block tabular-nums min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4 min-[1200px]:text-right"><span className="min-[1200px]:sr-only">{t('quantityChanges:over.contract', 'Contract')} </span>{r.contract_quantity} {r.unit}</td>
+                  <td className="block tabular-nums min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4 min-[1200px]:text-right">
                     {t(`quantityChanges:over.kind.${r.over_progress ? 'progress' : 'forecast'}`)} {figure}
                     {r.over_progress && r.progress_source ? ` (${t(`quantityChanges:over.source.${r.progress_source}`)})` : ''}
                   </td>
-                  <td className="block tabular-nums md:table-cell md:py-2 md:pr-4 md:text-right">{t('quantityChanges:over.overBy', { defaultValue: 'Over by {{quantity}} {{unit}}', quantity: Math.round((figure - r.contract_quantity) * 1000) / 1000, unit: r.unit })}</td>
-                  <td className="block md:table-cell md:py-2"><div className="flex flex-wrap items-center gap-2">
+                  <td className="block tabular-nums min-[1200px]:table-cell min-[1200px]:py-2 min-[1200px]:pr-4 min-[1200px]:text-right">{t('quantityChanges:over.overBy', { defaultValue: 'Over by {{quantity}} {{unit}}', quantity: Math.round((figure - r.contract_quantity) * 1000) / 1000, unit: r.unit })}</td>
+                  <td className="block min-[1200px]:table-cell min-[1200px]:py-2"><div className="flex flex-wrap items-center gap-2">
                   {r.open_request_id && <Link to={`/quantity-changes/${r.open_request_id}`} className="text-primary-text hover:underline">{t('quantityChanges:over.openRequest', 'Open request')}</Link>}
                   {mayForecast && <Button variant="ghost" onClick={() => setForecastFor(r)}>{t('quantityChanges:over.recordForecast', 'Record forecast')}</Button>}
                   </div></td>
