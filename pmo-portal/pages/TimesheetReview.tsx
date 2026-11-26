@@ -141,7 +141,8 @@ const TimesheetReviewPage: React.FC = () => {
             value={from}
             max={to || undefined}
             onChange={(next) => setFilters({ from: next, page: '' })}
-            className="w-full sm:w-40"
+            wrapperClassName="w-full sm:w-40"
+            fullWidth
           />
           <DateField
             id="ts-review-to"
@@ -150,7 +151,8 @@ const TimesheetReviewPage: React.FC = () => {
             value={to}
             min={from || undefined}
             onChange={(next) => setFilters({ to: next, page: '' })}
-            className="w-full sm:w-40"
+            wrapperClassName="w-full sm:w-40"
+            fullWidth
           />
           <SelectField
             id="ts-review-project"
