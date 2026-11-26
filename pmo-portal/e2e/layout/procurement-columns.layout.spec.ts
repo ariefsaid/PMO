@@ -103,6 +103,11 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791: at 390px the pr
   });
   // Owner 2026-11-17: one line that scrolls sideways, never two wrapped lines.
   expect(new Set(edges.map((e) => e.top)).size).toBe(1);
+  // The strip deliberately starts at its first tab. Selecting a tab must reveal it.
+  const strip = page.getByRole('tablist').first();
+  const selectedName = await strip.getByRole('tab', { selected: true }).getAttribute('id');
+  await strip.getByRole('tab').first().click();
+  await page.locator(`[id="${selectedName}"]`).click();
   await expect.poll(async () => page.evaluate(() => {
     const list = document.querySelector<HTMLElement>('[role="tablist"]')!;
     const box = list.getBoundingClientRect();

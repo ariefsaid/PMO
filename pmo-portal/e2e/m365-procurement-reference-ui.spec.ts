@@ -85,7 +85,7 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
   await page.reload();
   await page.getByRole('tab', { name: 'Files', exact: true }).click();
   await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByText(FOLDER_NAME)).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('tab', { name: 'Timeline', exact: true }).click();
+  await page.getByRole('tab', { name: /^Timeline(?: \d+)?$/ }).click();
   await page.getByRole('tab', { name: 'Files', exact: true }).click();
   await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByText(FOLDER_NAME)).toBeVisible();
   await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByRole('link', { name: /Open folder in/ }).first()).toBeEnabled();
