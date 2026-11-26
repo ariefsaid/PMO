@@ -20,9 +20,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection, type LineItemsSectionHandle } from './procurement/LineItemsSection';
-import { LinePlanningSection } from './procurement/LinePlanningSection';
-import type { LinePlanningValue } from './procurement/linePlanningValue';
-import { LineWorkOrdersSection } from './procurement/LineWorkOrdersSection';
+import { LinePlanTable } from './procurement/LinePlanTable';
+import { EMPTY_PLANNING, type LinePlanningValue } from './procurement/linePlanningValue';
 import { ownAttributionByLine, type LineAttributionValue } from './procurement/lineWorkOrderValue';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
@@ -180,6 +179,8 @@ export default function ProcurementCreate() {
   const lineDisciplines = useCostDisciplines();
   const stockItems = useStockItems(true);
   const projectWorkOrders = useProjectWorkOrders(selectedProject ?? '');
+  const woOptions = (projectWorkOrders.data ?? []).map((wo) => ({ id: wo.id, label: wo.wo_number ?? wo.title, cancelled: wo.status === 'Cancelled' }));
+  const { t: tp } = useTranslation('procurement');
   const refusalLine = useRefusalLine();
   useEffect(() => { setLineWorkOrders({}); }, [selectedProject]);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
@@ -537,26 +538,37 @@ export default function ProcurementCreate() {
               currencyKnown={currencyKnown}
             />
           </fieldset>
-          {have === 'need' && lines.length > 0 && !(selectedProject && projectWorkOrders.isLoading) && (
-            <LineWorkOrdersSection
-              lines={lines}
-              values={lineWorkOrders}
-              onChange={(lineId, next) => setLineWorkOrders((current) => ({ ...current, [lineId]: next }))}
-              disciplines={(lineDisciplines.data ?? []).map((d) => ({ id: d.id, label: d.name }))}
-              requestWorkOrder={attribution.workOrderId ? { id: attribution.workOrderId, label: (projectWorkOrders.data ?? []).find((wo) => wo.id === attribution.workOrderId)?.wo_number ?? (projectWorkOrders.data ?? []).find((wo) => wo.id === attribution.workOrderId)?.title ?? '' } : null}
-              workOrders={selectedProject ? (projectWorkOrders.data ?? []).map((wo) => ({ id: wo.id, label: wo.wo_number ?? wo.title, cancelled: wo.status === 'Cancelled' })) : null}
-              busy={saving || Boolean(attempt)}
-            />
-          )}
-          {linePlanningOn && (
-            <LinePlanningSection
-              lines={lines}
-              values={planning}
-              onChange={(lineId, next) => setPlanning((current) => ({ ...current, [lineId]: next }))}
-              categories={lineCategories.data ?? []}
-              busy={saving || Boolean(attempt)}
-            />
-          )}
+          {/* One table plans every line (category, needed by, work order), under the money table. */}
+          {(() => {
+            const showWorkOrders = have === 'need' && Boolean(selectedProject) && !projectWorkOrders.isLoading && woOptions.length > 0;
+            const messages = [
+              have === 'need' && !selectedProject && <p key="no-project" data-testid="line-work-orders-empty" className="text-control text-muted-foreground">{tp('lineWorkOrders.noProject', 'Choose a project first: work orders belong to a project, and each line can then be given one.')}</p>,
+              have === 'need' && selectedProject && !projectWorkOrders.isLoading && woOptions.length === 0 && <p key="no-wo" data-testid="line-work-orders-empty" className="text-control text-muted-foreground">{tp('linePlan.noWorkOrders', 'No work orders on this project yet, so lines take none. A project manager adds them on the project’s Work orders tab.')}</p>,
+              linePlanningOn && (lineCategories.data ?? []).filter((c) => !c.archived_at).length === 0 && <p key="no-cats" data-testid="line-planning-no-categories" className="text-control text-muted-foreground">{tp('linePlanning.noCategoriesHere', 'No categories yet. An Admin adds them under Line planning in Accounting setup.')}</p>,
+            ].filter(Boolean);
+            if (lines.length === 0 || (!linePlanningOn && !showWorkOrders && messages.length === 0)) return null;
+            const requestWo = attribution.workOrderId ? woOptions.find((wo) => wo.id === attribution.workOrderId) : undefined;
+            return (
+              <Card data-testid="line-plan-section" className="mb-4">
+                <CardHead>{tp('linePlanning.heading', 'Line planning')}</CardHead>
+                <LinePlanTable
+                  lines={lines}
+                  busy={saving || Boolean(attempt)}
+                  category={linePlanningOn ? { values: Object.fromEntries(lines.map((l) => [l.id, planning[l.id]?.categoryId ?? ''])), categories: lineCategories.data ?? [], editable: true,
+                    onChange: (lineId, categoryId) => setPlanning((current) => ({ ...current, [lineId]: { ...(current[lineId] ?? EMPTY_PLANNING), categoryId } })) } : undefined}
+                  neededBy={linePlanningOn ? { values: Object.fromEntries(lines.map((l) => [l.id, planning[l.id]?.neededBy ?? ''])), editable: true,
+                    onChange: (lineId, neededBy) => setPlanning((current) => ({ ...current, [lineId]: { ...(current[lineId] ?? EMPTY_PLANNING), neededBy } })) } : undefined}
+                  workOrders={showWorkOrders ? {
+                    values: lineWorkOrders, options: woOptions, editable: true,
+                    requestWorkOrder: attribution.workOrderId ? { id: attribution.workOrderId, label: requestWo?.label ?? '' } : null,
+                    disciplines: (lineDisciplines.data ?? []).map((d) => ({ id: d.id, label: d.name })),
+                    onChange: (lineId, next) => setLineWorkOrders((current) => ({ ...current, [lineId]: next })),
+                  } : undefined}
+                />
+                {messages.length > 0 && <CardPad className="flex flex-col gap-2">{messages}</CardPad>}
+              </Card>
+            );
+          })()}
           </>
         )}
         {/* The ONE place for the primary action: form footer, Cancel left of the primary. */}

@@ -1,6 +1,6 @@
 import { orgDayNow } from '@/src/hooks/useOrgToday';
 import React, { useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, DataTable, DateField, ListPage, ListState, useToast, type Column } from '@/src/components/ui';
@@ -159,11 +159,6 @@ const StockOpeningHistory: React.FC = () => {
 
   return (
     <ListPage title={t('stock:opening.title')}>
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        <Link to="/stock/setup" className="touch-target inline-flex min-h-9 items-center rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('stock:opening.backToSetup')}
-        </Link>
-      </div>
       <StockTabs />
       {!canLoad ? (
         <ListState variant="empty" icon="folder" title={t('stock:opening.notAdmin.title')} sub={t('stock:opening.notAdmin.sub')} />
@@ -171,7 +166,7 @@ const StockOpeningHistory: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('stock:opening.done.title')} sub={t('stock:opening.done.sub', { count: loaded })}
           action={{ label: t('stock:opening.done.openLedger'), onClick: () => navigate('/stock/ledger') }} />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 pb-24 md:pb-0">
           <section aria-labelledby="osh-template" className="flex flex-col gap-3">
             <h2 id="osh-template" className="m-0 text-group font-semibold text-foreground">{t('stock:opening.template.title')}</h2>
             <DataTable

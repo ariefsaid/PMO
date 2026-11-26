@@ -1,4 +1,5 @@
 {
+  "actualBasis": "Actual follows project financial actuals; the costs below include other records.",
   "basis": "Basis",
   "basisCaption": "Cost records behind these figures",
   "basisCustom": "Shared cost uses the saved split.",
@@ -18,7 +19,11 @@
     "result": "After shared cost",
     "revenue": "Billed revenue",
     "shared": "Shared cost",
-    "workOrder": "Work order"
+    "workOrder": "Work order",
+    "planShort": "Plan",
+    "actualShort": "Actual",
+    "cost": "Cost",
+    "difference": "Left or over"
   },
   "costUnknown": "Cost unknown",
   "crewHours": "Crew hours",
@@ -242,5 +247,12 @@
     "people": "People",
     "equipment": "Equipment",
     "noteFull": "Shown apart: the people hours are already in labour cost and the standby money is already in equipment cost, so they are not added again. People are the crew present each day at the work order's average hourly cost."
-  }
+  },
+  "openDetails": "{{number}} {{title}}, details",
+  "nothingYet": "Nothing planned or spent yet. Plan a work order to compare its cost with the plan.",
+  "totalCost": "Total cost, direct and shared",
+  "billedTitle": "Billed and margin",
+  "byDisciplineTitle": "Cost by discipline",
+  "openPage": "Open full page",
+  "otherCurrencyNote": "Some cost is in another currency: figures that would mix currencies are not shown, and that cost is listed apart."
 }

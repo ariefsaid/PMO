@@ -4,8 +4,9 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from './helpers';
-import { formatExactMoney } from '../src/lib/format';
+import { formatTableMoney } from '../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(60_000);
 
@@ -66,15 +67,17 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     const tab = {
       direct: sameAmount(await amountOf('wo-pva-direct')),
       allocated: sameAmount(await amountOf('wo-pva-allocated')),
-      result: sameAmount(await amountOf('wo-pva-result')),
+      result: sameAmount((await page.getByTestId('wo-pva-margin-row-' + workOrderId).getByTestId('wo-pva-result').innerText()).trim()),
     };
-    // The Work order tab's row opens the work order (walk M1 moved the plan-vs-actual panel onto this tab).
-    await page.locator('a[href="/work-orders/' + workOrderId + '"]').first().click();
+    // The Work order tab's row opens the work order: its drawer, then the full page.
+    await row.locator('a[href="/work-orders/' + workOrderId + '"]').first().click();
+    await page.getByTestId('wo-pva-open-page').click();
 
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + workOrderId);
+    await openWorkOrderArea(page, 'cost');
     const panel = page.getByTestId('wo-page-pva');
     await expect(panel).toBeVisible();
-    await expect(panel.getByTestId('wo-page-pva-plan-direct')).toHaveText(formatExactMoney('5000.00', 'EUR', 'en-US') ?? 'unformattable');
+    await expect(panel.getByTestId('wo-page-pva-plan-direct')).toHaveText(formatTableMoney('5000.00', 'EUR') ?? 'unformattable');
     await expect(panel.getByTestId('wo-page-pva-direct')).toHaveText(tab.direct);
     await expect(panel.getByTestId('wo-page-pva-allocated')).toHaveText(tab.allocated);
     await expect(panel.getByTestId('wo-page-pva-result')).toHaveText(tab.result);

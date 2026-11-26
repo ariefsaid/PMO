@@ -124,7 +124,6 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
-import { headerActions } from '@/pages/__tests__/helpers/procurementHeader';
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -217,7 +216,7 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     renderPage();
 
     // Click "Approve" (the phone-only bar repeats it, so scope to the header)
-    const approveBtn = headerActions().getByRole('button', { name: /approve/i });
+    const approveBtn = screen.getByRole('button', { name: /approve/i });
     await userEvent.click(approveBtn);
 
     // The confirm dialog body should contain the project name as a link
@@ -233,7 +232,7 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     detailState.data = { ...baseProcurement, status: 'Requested' as const };
     renderPage();
 
-    await userEvent.click(headerActions().getByRole('button', { name: /approve/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent).toContain('Approve $25,000 on Bridge Alpha, requested by Eng User?');
@@ -249,7 +248,7 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     };
     renderPage();
 
-    await userEvent.click(headerActions().getByRole('button', { name: /approve/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent).toContain('Approve $25,000?');
@@ -289,7 +288,7 @@ describe('AC-002 #1325: ProcurementDetails shows the short name but keeps money 
   it('the Approve money sentence names the contractual project', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested' as const, project: { name: 'Bridge Alpha Contractual', short_name: 'Bridge', code: 'PRJ-001' } };
     renderPage();
-    await userEvent.click(headerActions().getByRole('button', { name: /approve/i }));
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
     expect(screen.getByRole('dialog').textContent).toContain('on Bridge Alpha Contractual,');
   });
 });

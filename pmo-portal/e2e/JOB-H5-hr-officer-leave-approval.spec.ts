@@ -80,13 +80,13 @@ test('JOB-H5 HR officer files leave for a worker, the HR manager approves it, an
     await hrManager.signIn(page);
     await page.goto('/leave');
     await expect(page.getByText(/Waiting for your decision/)).toBeVisible({ timeout: 20_000 });
-    await page.getByRole('listitem', { name: new RegExp(`${run} Crew Worker`) }).first().getByRole('button', { name: 'Approve' }).click();
+    await page.getByRole('row', { name: new RegExp(`${run} Crew Worker`) }).first().getByRole('button', { name: 'Approve' }).click();
     await expect(visibleToast(page, 'Leave approved')).toBeVisible({ timeout: 15_000 });
 
     // 3. Goal: the roster marks THIS worker On leave on both days of the leave.
     for (const day of [startDay, endDay]) {
       await page.goto(`/crews?view=roster&wo=${workOrderId}&date=${day}`);
-      const workerRow = page.getByRole('listitem').filter({ hasText: `${run} Crew Worker` });
+      const workerRow = page.getByRole('row').filter({ hasText: `${run} Crew Worker` });
       await expect(workerRow).toBeVisible({ timeout: 20_000 });
       await expect(workerRow.getByText('On leave')).toBeVisible({ timeout: 20_000 });
     }

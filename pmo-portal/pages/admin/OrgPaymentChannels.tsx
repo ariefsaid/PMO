@@ -47,10 +47,10 @@ export default function OrgPaymentChannels() {
                     ) : (
                       <>
                         <span className={cn('min-w-0 flex-1 truncate', c.archived && 'text-muted-foreground')}>{c.name}{c.archived && <span className="ml-2 text-support">{t('procurement:paymentChannel.archivedTag', 'Archived')}</span>}</span>
-                        {canManage && !c.archived && <Button variant="ghost" size="sm" aria-label={`${t('procurement:paymentChannel.rename', 'Rename')} ${c.name}`} onClick={() => setEditing({ id: c.id, name: c.name })}>{t('procurement:paymentChannel.rename', 'Rename')}</Button>}
+                        {canManage && !c.archived && <Button variant="outline" size="sm" aria-label={`${t('procurement:paymentChannel.rename', 'Rename')} ${c.name}`} onClick={() => setEditing({ id: c.id, name: c.name })}>{t('procurement:paymentChannel.rename', 'Rename')}</Button>}
                         {canManage && (c.archived
-                          ? <Button variant="ghost" size="sm" aria-label={`${t('procurement:paymentChannel.restore', 'Restore')} ${c.name}`} onClick={() => m.archive.mutate({ id: c.id, archived: false })}>{t('procurement:paymentChannel.restore', 'Restore')}</Button>
-                          : <Button variant="ghost" size="sm" aria-label={`${t('procurement:paymentChannel.archive', 'Archive')} ${c.name}`} onClick={() => setArchiving(c)}>{t('procurement:paymentChannel.archive', 'Archive')}</Button>)}
+                          ? <Button variant="outline" size="sm" aria-label={`${t('procurement:paymentChannel.restore', 'Restore')} ${c.name}`} onClick={() => m.archive.mutate({ id: c.id, archived: false })}>{t('procurement:paymentChannel.restore', 'Restore')}</Button>
+                          : <Button variant="outline" size="sm" aria-label={`${t('procurement:paymentChannel.archive', 'Archive')} ${c.name}`} onClick={() => setArchiving(c)}>{t('procurement:paymentChannel.archive', 'Archive')}</Button>)}
                       </>
                     )}
                   </li>

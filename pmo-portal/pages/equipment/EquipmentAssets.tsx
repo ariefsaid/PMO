@@ -56,6 +56,7 @@ const EquipmentAssetsPage: React.FC = () => {
   const columns: Column<EquipmentAssetRow>[] = [
     { key: 'code', header: t('equipment:assets.code', 'Code'), kind: 'primary', rowHeader: true, cell: (a) => <span className="record-id font-semibold text-foreground">{a.code}</span> },
     { key: 'name', header: t('equipment:assets.name', 'Name'), cell: (a) => <span>{a.name}</span> },
+    { key: 'ownership', header: t('equipment:assets.ownership', 'Owned or rented'), cell: (a) => (a.ownership === 'rented' ? t('equipment:assets.rented', 'Rented') : t('equipment:assets.owned', 'Owned')) },
     { key: 'unit', header: t('equipment:assets.unit', 'Default unit'), cell: (a) => unitLabel(t, a.default_unit) },
     { key: 'ref', header: t('equipment:assets.externalRef', 'ERP reference'),
       cell: (a) => a.external_ref ? <span className="record-id">{a.external_ref}</span> : null },
@@ -66,11 +67,11 @@ const EquipmentAssetsPage: React.FC = () => {
       title={t('equipment:assets.title', 'Assets')}
       count={total}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
-        <EquipmentAssetImport onImported={() => void refetch()} />
-        <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
+        <span className="flex flex-wrap items-center gap-2"><EquipmentAssetImport onImported={() => void refetch()} />
+        <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button></span>
       </CanWrite>}
     >
-      {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
+      {problem && <p role="alert" className="mb-3 text-destructive-text">{problem}</p>}
       {isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!isPending && (isError || !data) && (
         <ListState variant="error" title={t('equipment:assets.error', "Couldn't load equipment assets")}

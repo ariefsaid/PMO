@@ -6,7 +6,9 @@
  * order page carries no list of its incidents, so "lists under the work order" is asserted on the incident's own record.
  */
 import { test, expect } from '@playwright/test';
-import { signIn, pickComboboxOption } from './helpers';
+import { pickComboboxOption } from './helpers';
+import { roleJobUser } from './support/roleJobUser';
+import { runId } from './support/jobFixtures';
 import { addIssueType, cleanSiteIssue } from './siteIssueFixture';
 import { need, orgToday, ORG_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
@@ -26,7 +28,9 @@ test.afterEach(async () => {
 
 test('JOB-F19 a near miss recorded on a work order is in the register with the work order and its date', async ({ page }) => {
   await addIssueType(`${run} near miss`);
-  await signIn(page, 'pm@acme.test');
+  const officer = await roleJobUser(db, 'safety_officer', runId('f19-so'));
+  try {
+  await officer.signIn(page);
   await page.goto(`/incidents?project=${wo.projectId}`);
   await page.getByRole('button', { name: /file incident/i }).click();
   const dialog = page.getByRole('dialog');
@@ -45,4 +49,5 @@ test('JOB-F19 a near miss recorded on a work order is in the register with the w
   const today = orgToday(); // the screen stamps the incident with the organisation's day
   const dayMon = `${Number(today.slice(8, 10))} ${new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(new Date(`${today}T00:00:00Z`))}`; // the year is dropped within the current year
   await expect(page.getByText(dayMon, { exact: true }).first()).toBeVisible();
+  } finally { await officer.cleanup(); }
 });

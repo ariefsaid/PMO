@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, FieldError, TextField, useToast } from '@/src/components/ui';
 import type { MyHomeCheckIn, MyHomeWorkOrder } from '@/src/lib/repositories/myHome';
-import { builtInRoleName } from '@/src/auth/builtInRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { usePhoneCheckIn } from '@/src/hooks/usePhoneCheckIn';
 import { useRefusalText } from '@/src/lib/refusals';
 import {
@@ -28,7 +28,8 @@ export const ClockInSection: React.FC<{
   deciderRole?: string | null;
   locationCheck?: (workOrderId: string) => Promise<string | null>;
 }> = ({ workOrders, deciderRole = null, locationCheck }) => {
-  const { t, i18n } = useTranslation('myHome');
+  const { t } = useTranslation('myHome');
+  const roleName = useBuiltInRoleName();
   const refusal = useRefusalText();
   const { toast } = useToast();
   const checkIn = usePhoneCheckIn();
@@ -41,7 +42,7 @@ export const ClockInSection: React.FC<{
   const resumed = useRef(false);
   const keyOf = (wo: MyHomeWorkOrder) => `${wo.work_order_id}:${wo.crew_id}`;
   const timeText = (at: string | null | undefined) => at ? formatInstantTime(at) : '';
-  const who = deciderRole ? builtInRoleName(deciderRole, i18n.language) : t('myHome:clockIn.whoDefault', 'your supervisor');
+  const who = deciderRole ? roleName(deciderRole) : t('myHome:clockIn.whoDefault', 'your supervisor');
 
   const failureText = (f: PositionFailure) => ({
     denied: t('myHome:clockIn.positionDenied', 'Location is blocked for this site. Allow it in your browser, or ask your supervisor to approve your check-in.'),

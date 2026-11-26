@@ -16,6 +16,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from './helpers';
 import { inDays } from './support/jobJourney';
+import { jobRoleUser } from './support/jobRole';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -103,20 +104,14 @@ test.beforeEach(async () => {
 
   const suffix = crypto.randomUUID();
   run = `E2E-PCI-${Date.now()}-${suffix.slice(0, 6)}`;
-  email = `e2e-pci-${suffix}@example.invalid`;
-  password = `${crypto.randomUUID()}-Aa1!`;
 
   try {
     // A disposable Field user: its own login, profile (the role lives on the profile row, as it does for every person) and
     // workforce person. The seeded Engineer keeps its own role, so no journey running beside this one can read this run's role.
-    const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
-    if (created.error || !created.data.user) {
-      throw new Error(`AC-PCI-E2E login: ${created.error?.message ?? 'no user returned'}`);
-    }
-    workerId = created.data.user.id;
-    need('profile', await admin.from('profiles').insert({
-      id: workerId, org_id: ORG_ID, email, full_name: `${run} field user`, role: 'Engineer', built_in_role: 'field_user',
-    }).select('id').single());
+    const worker = await jobRoleUser({ jobRole: 'field_user', role: 'Engineer', org: ORG_ID, service: admin, run: `e2e-pci-${suffix}`, displayName: `${run} field user` });
+    workerId = worker.id;
+    email = worker.email;
+    password = worker.password;
     personId = need('person', await admin.from('people').insert({
       org_id: ORG_ID, kind: 'own', code: `PCI-${suffix.slice(0, 8)}`, name: `${run} person`, profile_id: workerId,
     }).select('id').single()).id;
@@ -182,7 +177,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
     await expect(adminPage).toHaveURL(/\/crews/);
     await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
     // The decision is made on this run's own request, not on whatever else the organisation happens to be waiting for.
-    const request = adminPage.getByRole('listitem').filter({ hasText: `${run} slab` });
+    const request = adminPage.getByRole('row').filter({ hasText: `${run} slab` });
     // The area they judge against is on the request.
     await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
     // First decision: refuse with a reason; the worker sees the reason and can try again.

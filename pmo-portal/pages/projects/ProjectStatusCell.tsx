@@ -14,14 +14,15 @@ export function ProjectStatusCell({ state, exception, lateDays }: {
   return (
     <div className="flex min-w-0 flex-col items-start gap-0.5">
       {exception === null
-        ? <StatusPill record="project" state={state} className="whitespace-nowrap" />
+        ? <StatusPill record="project" state={state} wrap className="whitespace-normal" />
         : (
-          <StatusPill variant={exception === 'overBudget' ? 'overdue' : 'warn'} className="whitespace-nowrap">
+          <StatusPill variant={exception === 'overBudget' ? 'overdue' : 'warn'} wrap className="whitespace-normal">
             {exception === 'overBudget'
               ? tp('health.statusOverBudget', '{{status}} · over budget', { status: name })
               : tp('health.statusAtRisk', '{{status}} · at risk', { status: name })}
           </StatusPill>
         )}
+      {state === 'Won, Pending KoM' && <span className="text-control text-muted-foreground">{t('project.kickoffDetail', 'Waiting for kickoff')}</span>}
       {lateDays !== null && (
         // One form in every row: a second pill would read as a second status.
         <span className="whitespace-nowrap text-control text-warning-foreground">{tp('health.pastEnd', { count: lateDays, defaultValue_one: '{{count}} day past end date', defaultValue_other: '{{count}} days past end date' })}</span>

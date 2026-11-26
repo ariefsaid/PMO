@@ -120,7 +120,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         ? { label: t('projectDetail.cascade.openDraftOrder', 'Open draft order'), to: `/projects/${encodeURIComponent(project.id)}/contract?wo=${encodeURIComponent(draftOrder.id)}` }
         : undefined
       : may('create', 'workOrder')
-        ? { label: t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order'), to: `/projects/${encodeURIComponent(project.id)}/contract#add-customer-order` }
+        ? { label: t('projectDetail.workOrderForm.newTitle', 'New work order'), to: `/projects/${encodeURIComponent(project.id)}/orders` }
         : undefined
     : undefined;
   const allocationOrder = !hasAllocatedLines
@@ -236,7 +236,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             // basis sits behind the card's one help affordance instead of wrapping the title word.
             // The figures carry the currency, so the heading needs no currency line.
             actions={<>
-              {contractTools}
               {showSummary && <HelpPopover subject={t('projectDetail.cascade.title', 'Contract')}>
                 {t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.')}
               </HelpPopover>}
@@ -245,9 +244,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             {t('projectDetail.cascade.title', 'Contract')}
           </CardHead>
           <CardPad key="contract-summary-body" className="pt-0">
+          {contractTools && <div className="mb-4 min-w-0">{contractTools}</div>}
           {isCascadeError && <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />}
           {showSummary && <React.Fragment key="contract-summary-content">
-          <ol className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-[repeat(auto-fill,minmax(19rem,1fr))]" aria-label={t('projectDetail.cascade.title', 'Contract')}>
+          <ol className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-3" aria-label={t('projectDetail.cascade.title', 'Contract')}>
             <MoneyStep label={t('projectDetail.cascade.contract', 'Contract value')} value={tableMoney(contractValue)} caption={contractBasis} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && hasCustomerOrders && <>
               <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={tableMoney(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
@@ -315,10 +315,14 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                   {billabilityReason}
                 </p>
               )}
-              <ol aria-label={t('projectDetail.cascade.billingSteps', 'Billing steps')} className="mt-3 space-y-2">
+              <ol aria-label={t('projectDetail.cascade.billingSteps', 'Billing steps')} className="mt-4 divide-y divide-border">
                 {billabilitySteps.map((step) => (
-                  <li key={step.id} aria-label={step.label} data-testid={`billability-step-${step.id}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-control">
-                    {!step.action && <span className="min-w-0 font-medium text-foreground">{step.label}</span>}
+                  <li key={step.id} aria-label={step.label} data-testid={`billability-step-${step.id}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-2 text-control">
+                    {step.action ? (
+                      <Link className="touch-target inline-flex min-h-11 items-center rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" to={step.action.to}>
+                        {step.action.label}
+                      </Link>
+                    ) : <span className="min-w-0 break-words font-medium text-foreground">{step.label}</span>}
                     {(() => {
                       const { icon: StateIcon, className } = BILLABILITY_STATE_ICONS[step.state];
                       const stateLabel = step.state === 'done'
@@ -333,11 +337,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                         </span>
                       );
                     })()}
-                    {step.action && (
-                      <Link className="touch-target inline-flex min-h-11 items-center rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" to={step.action.to}>
-                        {step.action.label}
-                      </Link>
-                    )}
                   </li>
                 ))}
               </ol>
@@ -452,13 +451,11 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage?: number | 
       <div className="mt-1 block">
         <Tooltip content={detail}><span className="block w-fit cursor-help text-metric font-semibold tabular-nums text-foreground">{value}</span></Tooltip>
       </div>
-      <div className={caption && percentage != null ? 'sm:flex sm:items-start sm:gap-2' : undefined}>
-        {percentage != null && percentage >= 0 && <span className={caption ? 'mt-2 block w-full max-w-36 sm:w-20 sm:shrink-0' : 'mt-2 block w-full max-w-36'}>
-          <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
-        </span>}
-        {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
-        {caption && <span className="mt-1 block text-sm text-muted-foreground">{caption}</span>}
-      </div>
+      {percentage != null && percentage >= 0 && <span className="mt-2 block w-full max-w-36">
+        <ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} />
+      </span>}
+      {percentage != null && percentage < 0 && <span className="mt-2 block text-sm tabular-nums text-muted-foreground">{percentage}%</span>}
+      {caption && <span className="mt-3 block text-sm text-muted-foreground">{caption}</span>}
     </li>
   );
 };

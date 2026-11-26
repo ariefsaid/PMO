@@ -2,9 +2,10 @@
 // JOB-PC28 (labour cost in money): a week with eight normal and two overtime hours is approved by the project control manager, and the
 // work order's labour cost rises by the right amount (overtime beyond the day's hours at the rate's multiplier).
 import { test, expect } from '@playwright/test';
-import { formatExactMoney } from '../src/lib/format';
+import { formatTableMoney } from '../src/lib/format';
 import { inDays, orgToday, serviceClient, need } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
 
@@ -43,6 +44,7 @@ test('JOB-PC28 approving eight normal and two overtime hours raises the work ord
     // Before approval nothing is costed.
     await pcm.signIn(page);
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'cost');
     await expect(page.getByTestId('cost-total-timesheet_entry')).toHaveCount(0, { timeout: 30_000 });
 
     // The project control manager approves the week in the timesheet approvals list.
@@ -61,9 +63,10 @@ test('JOB-PC28 approving eight normal and two overtime hours raises the work ord
 
     // The work order's labour cost is 1,100,000 for those ten hours.
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'cost');
     // A project control manager reads labour as a cost by class (the Costs list shows hours only for this role).
     const total = page.getByRole('table', { name: 'Labour cost by class' });
-    await expect(total).toContainText(formatExactMoney('1100000', 'USD', 'en-US') ?? 'unformattable', { timeout: 30_000 });
+    await expect(total).toContainText(formatTableMoney('1100000', 'USD') ?? 'unformattable', { timeout: 30_000 });
   } finally {
     removeJobOrganization(org.id);
     await engineer.remove();

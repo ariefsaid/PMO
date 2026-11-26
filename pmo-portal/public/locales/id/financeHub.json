@@ -4,6 +4,7 @@
     "noAccessTitle": "Keuangan",
     "noAccessDescription": "Keuangan tersedia untuk peran Finance, Executive, dan Admin.",
     "areas": "Area keuangan",
+    "billingAndWork": "Penagihan dan pekerjaan",
     "receivables": "Piutang",
     "payables": "Utang",
     "reports": "Laporan",
@@ -313,6 +314,7 @@
     "erpPushQueued": "{{count}} diaktifkan dengan pengiriman ERPNext diantrekan setelah pembatalan anggaran sebelumnya; pengiriman berjalan otomatis setelah pembatalan itu selesai."
   },
   "openingBalances": {
+    "tableLabel": "Gulir tabel",
     "title": "Saldo awal",
     "setupDisabled": "Saldo awal dimatikan untuk organisasi ini. Minta Admin mengaktifkan alur kerja penyiapan.",
     "loading": "Memuat saldo awal",

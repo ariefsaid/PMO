@@ -10,9 +10,11 @@ interface Props {
   procurementId: string;
   /** UX gate only: the database decides who may set it, by the request's status (1356). */
   canSet: boolean;
+  /** One value, so one line of the record's details list (a dt/dd pair) rather than a section of its own. */
+  asDetailRow?: boolean;
 }
 
-const ChannelForm: React.FC<{ procurementId: string; currentId: string }> = ({ procurementId, currentId }) => {
+const ChannelForm: React.FC<{ procurementId: string; currentId: string; inline?: boolean }> = ({ procurementId, currentId, inline }) => {
   const { t } = useTranslation();
   const list = usePaymentChannelList(true);
   const { setOnRequest } = usePaymentChannelMutations();
@@ -27,7 +29,7 @@ const ChannelForm: React.FC<{ procurementId: string; currentId: string }> = ({ p
   }
   return (
     <form
-      className="flex max-w-md flex-col gap-3"
+      className={inline ? 'flex max-w-md flex-wrap items-start gap-2' : 'flex max-w-md flex-col gap-3'}
       onSubmit={(e) => { e.preventDefault(); setOnRequest.mutate({ procurementId, channelId: value || null }); }}
     >
       <SelectField
@@ -36,14 +38,15 @@ const ChannelForm: React.FC<{ procurementId: string; currentId: string }> = ({ p
         value={value}
         onChange={setValue}
         options={options}
-        fullWidth
+        fullWidth={!inline}
+        compact={inline}
       />
       <div>
         <Button type="submit" variant="outline" loading={setOnRequest.isPending} disabled={value === currentId}>
           {t('procurement:paymentChannel.saveChannel', 'Save channel')}
         </Button>
       </div>
-      {error && <FieldError>{error.detail || error.headline}</FieldError>}
+      {error && <div className="basis-full"><FieldError>{error.detail || error.headline}</FieldError></div>}
     </form>
   );
 };
@@ -52,12 +55,23 @@ const ChannelForm: React.FC<{ procurementId: string; currentId: string }> = ({ p
  * #2698 — how this request will be paid, beside its payment status. Renders nothing while the organisation's switch is
  * off (and without a data provider, which the hooks tolerate), so an existing organisation sees no change.
  */
-export const PaymentChannelSection: React.FC<Props> = ({ procurementId, canSet }) => {
+export const PaymentChannelSection: React.FC<Props> = ({ procurementId, canSet, asDetailRow }) => {
   const { t } = useTranslation();
   const { on } = usePaymentChannelsOn();
   const current = useRequestPaymentChannel(procurementId, on);
   if (!on || !current.data) return null;
   const currentId = current.data.channelId ?? '';
+  const value = canSet
+    ? <ChannelForm key={currentId} procurementId={procurementId} currentId={currentId} inline={asDetailRow} />
+    : <p className="text-sm" data-testid="payment-channel-value">{current.data.name ?? t('procurement:paymentChannel.notSet', 'Not set')}</p>;
+  if (asDetailRow) {
+    return (
+      <div data-testid="payment-channel-section" className="sm:col-span-2">
+        <dt className="text-sm font-semibold text-muted-foreground">{t('procurement:paymentChannel.field', 'Payment channel')}</dt>
+        <dd className="mt-0.5 text-sm">{value}</dd>
+      </div>
+    );
+  }
   return (
     <Card data-testid="payment-channel-section" className="mt-3">
       <CardHead>{t('procurement:paymentChannel.field', 'Payment channel')}</CardHead>

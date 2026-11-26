@@ -673,7 +673,10 @@
       "banner": {
         "title": "Barang dikeluarkan melebihi progres: {{count}}",
         "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres $t(common:terms.clientWorkOrder) ({{progress}}%). Ini hanya peringatan.",
-        "row": "{{name}}: dikeluarkan {{issued}}% dari rencana, progres {{progress}}%, lebih {{gap}} poin"
+        "item": "Barang",
+        "issued": "Dikeluarkan dari rencana",
+        "ahead": "Di depan progres",
+        "points": "{{gap}} poin"
       },
       "setting": {
         "manage": "Peringatan pengeluaran terhadap progres",
@@ -851,7 +854,19 @@
       "from": "Dari",
       "to": "Ke",
       "name": "Nama",
-      "signatureDate": "Tanggal"
+      "signatureDate": "Tanggal",
+      "backShort": "Kembali",
+      "number": "Nomor",
+      "signature": "Tanda tangan",
+      "dispatchedBy": "Dikirim oleh",
+      "deliveredBy": "Diantar oleh",
+      "receivedBy": "Diterima oleh"
+    },
+    "columns": {
+      "transfer": "No. transfer",
+      "sent": "Dikirim",
+      "rejected": "Ditolak",
+      "note": "Catatan"
     }
   },
   "handover": {
@@ -1003,7 +1018,9 @@
       "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
       "label": "Nama langkah persetujuan",
       "labelDefault": "Persetujuan peminjaman"
-    }
+    },
+    "free": "Bebas",
+    "reserved": "Dicadangkan"
   },
   "dsrIssue": {
     "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",
@@ -1103,7 +1120,6 @@
     "date": "Tanggal penerimaan",
     "noOrders": "Belum ada pesanan terkirim.",
     "stockItem": "Barang stok",
-    "progress": "Dipesan {{ordered}} · Diterima {{received}} · Sisa {{outstanding}}",
     "not_received": "Belum diterima",
     "partly_received": "Diterima sebagian",
     "fully_received": "Diterima seluruhnya",
@@ -1125,7 +1141,16 @@
     "changeMode": "Ubah penerimaan untuk organisasi ini?",
     "changeModeBody": "Ini mengubah penerimaan untuk semua pengguna. Isian formulir yang belum disimpan akan dibuang.",
     "progressTitle": "Barang diterima",
-    "openReceiving": "Buka penerimaan"
+    "openReceiving": "Buka penerimaan",
+    "line": "Barang",
+    "ordered": "Dipesan",
+    "received": "Diterima",
+    "outstanding": "Sisa",
+    "status": "Status",
+    "lines": "Baris pesanan",
+    "qualityTitle": "Pemeriksaan mutu",
+    "receipts": "Penerimaan",
+    "countedColumn": "Dihitung"
   },
   "materialCompletion": {
     "title": "Penyelesaian material",
@@ -1147,6 +1172,7 @@
     "print": "Cetak",
     "back": "Kembali ke perintah kerja",
     "preparedBy": "Disiapkan oleh",
-    "checkedBy": "Diperiksa oleh"
+    "checkedBy": "Diperiksa oleh",
+    "valueTotal": "Total nilai"
   }
 }

@@ -1,5 +1,6 @@
 {
   "asOf": "Per {{date}}",
+  "table": { "scrollLabel": "Kontrak dan perintah kerja {{currency}}" },
   "attention": {
     "noRate": "Belum ada laju penagihan",
     "over": "Penagihan melebihi nilai",
@@ -76,7 +77,7 @@
     "Issued": "Diterbitkan",
     "On Hold": "Ditahan",
     "Ongoing Project": "Berjalan",
-    "Won, Pending KoM": "Menang, menunggu KoM"
+    "Won, Pending KoM": "Menang"
   },
   "tile": {
     "backlog": "Bulan backlog",

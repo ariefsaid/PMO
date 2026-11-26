@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, Icon, ListState, RecordHeader, StatusPill, Switch, useToast, type Column,
+  Button, ConfirmDialog, DataTable, Icon, ListState, RecordHeader, RecordSection, RecordStack, StatusPill, Switch, useToast, type Column,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -76,29 +76,25 @@ const AllocationsCard: React.FC<{ assetId: string; today: string; projectName: (
         </Button>) },
   ];
   return (
-    <Card role="region" aria-label={t('equipment:allocations.title', 'Allocations')} className="mb-4">
-      <CardHead>{t('equipment:allocations.title', 'Allocations')}</CardHead>
-      <CardPad className="pt-0">
+    <RecordSection title={t('equipment:allocations.title', 'Allocations')} flush={!q.isPending && !q.isError && Boolean(q.data) && rows.length > 0}>
         {q.isPending && <ListState variant="loading" rows={3} />}
         {!q.isPending && (q.isError || !q.data) && <ListState variant="error" title={t('equipment:allocations.error', "Couldn't load allocations")}
           sub={t('equipment:allocations.errorSub', 'No figure is shown rather than a wrong one. Try again.')} onRetry={() => void q.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />}
         {!q.isPending && !q.isError && q.data && (
           <>
-            {q.data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">{t('equipment:allocations.truncated', 'Showing the first rows only. Narrow the range to see the rest.')}</p>}
-            <DataTable<EquipmentAllocationRow> embedded rows={rows} columns={columns} rowKey={rowId} tableId="equipment-allocations"
-              accessibleName={t('equipment:allocations.title', 'Allocations')}
-              state={rows.length === 0 ? 'empty' : undefined}
-              emptyTitle={t('equipment:allocations.empty', 'No usage or costing in the last 12 months')}
-              emptySub={t('equipment:allocations.emptySub', 'Approved usage shows here by month and project.')} />
+            {q.data.truncated && <p role="status" className="mb-2 px-[var(--panel-inset)] text-sm text-muted-foreground">{t('equipment:allocations.truncated', 'Showing the first rows only. Narrow the range to see the rest.')}</p>}
+            {rows.length === 0
+              ? <p className="text-muted-foreground">{t('equipment:allocations.empty', 'No usage or costing in the last 12 months')}</p>
+              : <DataTable<EquipmentAllocationRow> embedded rows={rows} columns={columns} rowKey={rowId} tableId="equipment-allocations"
+                accessibleName={t('equipment:allocations.title', 'Allocations')} />}
             {rows.filter((r) => open.has(rowId(r))).map((r) => (
-              <div key={rowId(r)} className="mt-2 border-t border-border pt-1">
+              <div key={rowId(r)} className="border-t border-border px-[var(--panel-inset)] pb-3 pt-2">
                 <p className="text-sm font-medium text-muted-foreground">{formatMonthYear(fromIso(r.month))}{r.project_id ? ` · ${projectName(r.project_id)}` : ''}</p>
                 <Calculation r={r} t={t} money={(n) => money(n, r.project_id)} />
               </div>))}
           </>
         )}
-      </CardPad>
-    </Card>
+    </RecordSection>
   );
 };
 
@@ -147,14 +143,12 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
     setEnding(false);
   };
   return (
-    <Card role="region" aria-label={t('equipment:costing.title', 'Costing')} className="mb-4">
-      <CardHead actions={<CanWrite entity="equipmentCosting" action="manage" ctx={{ record: { viewOnly: realRole !== effectiveRole } }}>
+    <RecordSection title={t('equipment:costing.title', 'Costing')} actions={<CanWrite entity="equipmentCosting" action="manage" ctx={{ record: { viewOnly: realRole !== effectiveRole } }}>
         <span className="flex gap-2">
           {current && current.basis !== 'none' && <Button variant="outline" size="sm" onClick={() => setEnding(true)}>{t('equipment:costing.end', 'End costing')}</Button>}
-          <Button variant="primary" size="sm" onClick={() => setChanging(true)}>{t('equipment:costing.change', 'Change costing')}</Button>
+          <Button variant="outline" size="sm" onClick={() => setChanging(true)}>{t('equipment:costing.change', 'Change costing')}</Button>
         </span>
-      </CanWrite>}>{t('equipment:costing.title', 'Costing')}</CardHead>
-      <CardPad className="pt-0">
+      </CanWrite>}>
         {q.isPending && <ListState variant="loading" rows={2} />}
         {!q.isPending && (q.isError || !q.data) && <ListState variant="error" title={t('equipment:costing.error', "Couldn't load the costing setting")}
           sub={t('equipment:costing.errorSub', 'Try again.')} onRetry={() => void q.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />}
@@ -168,21 +162,20 @@ const CostingCard: React.FC<{ asset: { id: string; name: string; default_unit: s
                 <p className="text-sm text-muted-foreground">{t('equipment:costing.since', 'From {{date}} · version {{version}}', { date: formatDay(current.effective_from), version: current.version })}</p>
               </div>
               : <p className="text-sm text-muted-foreground">{t('equipment:costing.none', 'No costing set. Usage is recorded and totalled per project, with no amount.')}</p>}
-            <div className="mt-3 flex items-center gap-2 text-sm">
+            {mine.length > 0 && <div className="mt-3 flex items-center gap-2 text-sm">
               <Switch checked={history} onChange={setHistory} label={t('equipment:costing.showHistory', 'Show history')} />
               <span aria-hidden="true">{t('equipment:costing.showHistory', 'Show history')}</span>
-            </div>
+            </div>}
             {history && <div className="mt-2"><DataTable<EquipmentCostingRow> embedded rows={mine} columns={columns} rowKey={(s) => s.id} tableId="equipment-costing-history"
               accessibleName={t('equipment:costing.historyLabel', 'Costing history')} state={mine.length === 0 ? 'empty' : undefined}
               emptyTitle={t('equipment:costing.historyEmpty', 'No costing history')} /></div>}
           </>
         )}
-      </CardPad>
       {changing && <EquipmentCostingForm asset={assetRow} current={current} projectName={projectName} money={money} onClose={() => setChanging(false)} />}
       <ConfirmDialog open={ending} tone="destructive" title={t('equipment:costing.endTitle', 'End this costing?')}
         description={t('equipment:costing.endBody', 'From today the asset has no costing. Earlier months keep their amounts.')}
         confirmLabel={t('equipment:costing.end', 'End costing')} onCancel={() => setEnding(false)} onConfirm={() => void doEnd()} />
-    </Card>
+    </RecordSection>
   );
 };
 
@@ -210,11 +203,9 @@ const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: st
   }, [rows]);
   const oneUnit = new Set(rows.map((row) => row.unit)).size === 1;
   return (
-    <Card role="region" aria-label={t('equipment:usage.cardTitle', 'Usage')} className="mb-4">
-      <CardHead>{t('equipment:usage.cardTitle', 'Usage')}</CardHead>
-      <CardPad className="pt-0">
+    <RecordSection title={t('equipment:usage.cardTitle', 'Usage')} flush={!q.isPending && !q.isError && Boolean(q.data) && rows.length > 0}>
         {!q.isPending && !q.isError && perMonth.length >= 3 && oneUnit && perMonth.every((month) => month.units != null) && (
-          <div role="img" aria-label={t('equipment:usage.chartLabel', 'Work per month, {{unit}}', { unit: unitLabel(t, rows[0].unit) })} className="mb-3 h-36">
+          <div role="img" aria-label={t('equipment:usage.chartLabel', 'Work per month, {{unit}}', { unit: unitLabel(t, rows[0].unit) })} className="mb-3 h-36 px-[var(--panel-inset)]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={perMonth} margin={{ top: 16, right: 4, left: 4, bottom: 0 }}>
                 <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: chartTheme.axis, fontSize: 12 }} />
@@ -228,12 +219,11 @@ const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: st
         {q.isPending && <ListState variant="loading" rows={3} />}
         {!q.isPending && (q.isError || !q.data) && <ListState variant="error" title={t('equipment:usage.totalsError', "Couldn't load usage totals")}
           sub={t('equipment:usage.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('equipment:usage.retry', 'Retry')} />}
-        {!q.isPending && !q.isError && q.data && <DataTable<EquipmentUsageTotalRow> embedded rows={rows} columns={columns}
-          rowKey={(r) => `${r.project_id}|${r.month}|${r.unit}`} tableId="equipment-usage-totals" accessibleName={t('equipment:usage.cardTitle', 'Usage')}
-          state={rows.length === 0 ? 'empty' : undefined} emptyTitle={t('equipment:usage.totalsEmpty', 'No usage in the last 12 months')}
-          emptySub={t('equipment:usage.totalsEmptySub', 'Logged hours show here by month and project once approved.')} />}
-      </CardPad>
-    </Card>
+        {/* Nothing yet is one line, not an empty table frame. */}
+        {!q.isPending && !q.isError && q.data && rows.length === 0 && <p className="text-muted-foreground">{t('equipment:usage.totalsEmpty', 'No usage in the last 12 months')}</p>}
+        {!q.isPending && !q.isError && q.data && rows.length > 0 && <DataTable<EquipmentUsageTotalRow> embedded rows={rows} columns={columns}
+          rowKey={(r) => `${r.project_id}|${r.month}|${r.unit}`} tableId="equipment-usage-totals" accessibleName={t('equipment:usage.cardTitle', 'Usage')} />}
+    </RecordSection>
   );
 };
 
@@ -275,20 +265,27 @@ const EquipmentAssetDetail: React.FC = () => {
   );
   if (!asset) return <ListState variant="empty" title={t('equipment:assets.notFound', 'This asset was not found')}
     sub={t('equipment:assets.notFoundSub', 'It may have been archived.')} action={{ label: t('equipment:assets.backToList', 'Back to assets'), onClick: () => navigate('/equipment/assets') }} />;
+  const rented = asset.ownership === 'rented';
   return (
     <div>
-      <RecordHeader icon="$" name={asset.name}
-        status={<span className="record-id">{asset.code}</span>}
+      <RecordHeader panelInset clampNameOnMobile icon={<Icon name="equipment" />} name={asset.name}
+        status={<StatusPill variant="neutral">{rented ? t('equipment:assets.rented', 'Rented') : t('equipment:assets.owned', 'Owned')}</StatusPill>}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>{t('equipment:assets.unitLine', 'Logged in {{unit}}', { unit: unitLabel(t, asset.default_unit) })}</span>
+          <span className="record-id">{asset.code}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}
-        </span>} />
-      {may('manage', 'equipmentAvailability', { record: { viewOnly: realRole !== effectiveRole, ownership: asset.ownership } }) && <EquipmentRentalTerms key={asset.id} asset={asset} />}
-      <VendorResponsePanel asset={asset} today={today} />
-      <ExpiryDocumentsCard kind="equipment" subjectId={asset.id} />
-      <UsageCard assetId={asset.id} today={today} projectName={projectName} />
-      {may('view', 'equipmentCosting') && <CostingCard asset={asset} assetRow={asset} projectName={projectName} money={money} />}
-      {may('view', 'equipmentUsage') && <AllocationsCard assetId={asset.id} today={today} projectName={projectName} money={money} />}
+        </span>}
+        stats={[
+          { label: t('equipment:assets.loggedIn', 'Logged in'), value: unitLabel(t, asset.default_unit) },
+          ...(asset.in_service_on ? [{ label: t('equipment:assets.inServiceSince', 'In service since'), value: formatDay(asset.in_service_on) }] : []),
+        ]} />
+      <RecordStack>
+        <ExpiryDocumentsCard kind="equipment" subjectId={asset.id} />
+        {may('manage', 'equipmentAvailability', { record: { viewOnly: realRole !== effectiveRole, ownership: asset.ownership } }) && <EquipmentRentalTerms key={asset.id} asset={asset} />}
+        <VendorResponsePanel asset={asset} today={today} />
+        <UsageCard assetId={asset.id} today={today} projectName={projectName} />
+        {may('view', 'equipmentCosting') && <CostingCard asset={asset} assetRow={asset} projectName={projectName} money={money} />}
+        {may('view', 'equipmentUsage') && <AllocationsCard assetId={asset.id} today={today} projectName={projectName} money={money} />}
+      </RecordStack>
     </div>
   );
 };

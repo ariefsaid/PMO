@@ -250,8 +250,6 @@ const Projects: React.FC = () => {
         onFilter={(next) => model.setWorkingSet((ws) => ({ ...ws, filter: next }))} />}
       {...toolbar}
     >
-      {/* M8: Work in hand value and capacity-based months under Projects for eligible roles. */}
-      <WorkInHandSummary testId="projects-work-in-hand" className="mb-4" />
       {/* Body */}
       {projectScopeRead && tasksError && (
         <ListState variant="error" title={t('projectDetail.tasks.errorTitle', "Couldn't load tasks")} onRetry={() => void refetchTasks()} />
@@ -341,7 +339,7 @@ const Projects: React.FC = () => {
       ) : (
         <div
           className="grid gap-3.5"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))' }}
         >
           {displayFiltered.map((p) => (
             <div
@@ -380,6 +378,8 @@ const Projects: React.FC = () => {
           toast(headline, detail, 'warning');
         }}
       />
+      {/* M8: Work in hand value and capacity-based months under Projects for eligible roles. */}
+      <WorkInHandSummary testId="projects-work-in-hand" className="mt-6" />
     </ListPage>
   );
 };

@@ -325,7 +325,7 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
   it('AC-IXD-WP-003: Approve opens a confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(headerActions().getByRole('button', { name: /^approve$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^approve$/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -376,7 +376,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       requested_by: { full_name: 'Alice Manager' },
     };
     renderPage();
-    await userEvent.click(headerActions().getByRole('button', { name: /^approve$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^approve$/i }));
     const dialog = await screen.findByRole('dialog');
     // confirm against the money: amount + project + requester all restated
     expect(dialog).toHaveTextContent('$85,000');

@@ -129,7 +129,7 @@ const BillingBoard: React.FC = () => {
         </p>
       )}
       {query.isSuccess && columns.length > 0 && (
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:overflow-x-auto md:pb-2">
+        <div role="region" aria-label={t('billingBoard.claimSteps', 'Claim steps')} tabIndex={0} className="flex flex-col gap-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring md:flex-row md:items-start md:overflow-x-auto md:pb-2">
           {columns.map((c) => <Column key={c.key || 'done'} column={c} />)}
         </div>
       )}

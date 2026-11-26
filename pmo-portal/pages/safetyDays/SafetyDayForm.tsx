@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordStack, StatusPill, useToast } from '@/src/components/ui';
-import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
@@ -29,7 +28,7 @@ const SafetyDayForm: React.FC = () => {
   const query = useSafetyDay(dayId);
   const { t } = useTranslation('safety');
   const navigate = useNavigate();
-  const back = <div className="hidden max-[920px]:block"><BackBar label={t('form.back', 'Back')} onBack={() => navigate(-1)} /></div>;
+  const back = <div className="mb-3.5 hidden max-[920px]:block"><Button variant="outline" onClick={() => navigate(-1)}>{t('form.back', 'Back')}</Button></div>;
   if (query.isPending) return (<>{back}<ListState variant="loading" rows={6} /></>);
   if (query.isError) return (<>{back}<ListState variant="error" title={t('form.error', "Couldn't load this safety day")} onRetry={() => void query.refetch()} /></>);
   if (!query.data) return (<>{back}<ListState variant="empty" icon="reports" title={t('form.notFound', 'Safety day not found')} /></>);

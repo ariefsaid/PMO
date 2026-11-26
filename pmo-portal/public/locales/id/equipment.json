@@ -4,7 +4,6 @@
     "basis": "Dasar",
     "driverTotal": "Total pemicu",
     "empty": "Belum ada pemakaian atau biaya dalam 12 bulan terakhir",
-    "emptySub": "Pemakaian yang disetujui tampil di sini per bulan dan proyek.",
     "entries": "Entri",
     "error": "Alokasi tidak dapat dimuat",
     "errorSub": "Lebih baik tidak menampilkan angka daripada angka yang salah. Coba lagi.",
@@ -69,7 +68,9 @@
     "perMonth": "Per bulan",
     "termsElsewhere": "Periode sewa dan perubahan tarif ada di halaman alat itu sendiri.",
     "openRecord": "Buka halaman alat",
-    "edit": "Ubah"
+    "edit": "Ubah",
+    "loggedIn": "Dicatat dalam",
+    "inServiceSince": "Beroperasi sejak"
   },
   "availability": {
     "amountInvalid": "Masukkan jumlah sebagai angka dengan paling banyak 2 desimal",
@@ -185,7 +186,6 @@
     },
     "effectsHeading": "Pengaruh tiap status pada perencanaan",
     "proofFailed": "Status tersimpan, tetapi foto untuk {{codes}} gagal diunggah. Lampirkan lagi dari barisnya.",
-    "statusToday": "Status hari ini. Untuk hari lain, buka Ketersediaan.",
     "notifiedBroken": "Ditandai rusak: {{codes}}. Belum ada yang dikirimi pesan saat ini. Pengguna Admin dan Project Manager diberi tahu jika alat tetap rusak lebih dari {{n}} hari; alat sudah tampil sebagai rusak di halaman ini.",
     "photoFor": "Foto atau dokumen untuk {{code}} (opsional)",
     "photoInputFor": "Foto untuk {{code}}",
@@ -197,7 +197,29 @@
     "unrecordedNote": "Hari tanpa catatan adalah hari beroperasi tanpa status. Hari sebelum organisasi mulai mencatat tidak dihitung.",
     "metricsEmpty": "Tidak ada angka untuk periode ini",
     "hour": "Jam",
-    "hourly": "Sewa per jam"
+    "hourly": "Sewa per jam",
+    "termsSaved": "Ketentuan sewa disimpan",
+    "rentedToShort": "Akhir sewa",
+    "openEnded": "Terbuka",
+    "per": "Satuan",
+    "addTerms": "Tambah ketentuan sewa",
+    "noTerms": "Belum ada ketentuan sewa",
+    "rateFrom": "Tarif baru mulai",
+    "markOwnedTitle": "Tandai alat ini milik sendiri?",
+    "markOwnedBody": "Alat keluar dari pemeriksaan tagihan sewa.",
+    "machine": "Alat",
+    "recorded": "Tercatat",
+    "proof": "Bukti",
+    "downLong": "Eskalasi",
+    "setStatus": "Atur status",
+    "targetShort": "sasaran {{target}}%",
+    "daysAvailable": "Hari tersedia",
+    "awaitingApproval": "Menunggu persetujuan",
+    "settings": "Target dan jam kerja",
+    "metricAssetsCount": "Alat: {{count}}",
+    "files": "Berkas",
+    "noDownDays": "Tidak ada hari rusak pada periode ini",
+    "statusCol": "Keadaan"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",
@@ -305,9 +327,15 @@
     "renewHelp": "Masukkan tanggal kedaluwarsa baru. Personel diberi tahu setelah disimpan.",
     "renewDateErr": "Masukkan tanggal kedaluwarsa baru",
     "actions": "Tindakan",
-    "open": "Buka",
     "openRecord": "Buka catatan {{name}}",
-    "renewLabel": "Perpanjang {{type}} milik {{name}}"
+    "renewLabel": "Perpanjang {{type}} milik {{name}}",
+    "expiredPill": "Kedaluwarsa",
+    "dueSoon": "Segera habis",
+    "state": "Status masa berlaku",
+    "kindPerson": "Orang",
+    "kindEquipment": "Peralatan",
+    "groupExpired": "Kedaluwarsa",
+    "groupDue": "Habis dalam 30 hari"
   },
   "nav": {
     "assets": "Aset",
@@ -413,7 +441,6 @@
     "thisWeek": "Minggu ini",
     "title": "Peralatan",
     "totalsEmpty": "Belum ada pemakaian dalam 12 bulan terakhir",
-    "totalsEmptySub": "Jam yang dicatat tampil di sini per bulan dan proyek setelah disetujui.",
     "totalsError": "Total pemakaian tidak dapat dimuat",
     "moreAssets": "Alat setelah halaman ini belum dimuat.",
     "trips": "Perjalanan",
@@ -464,7 +491,6 @@
     "archived": "Dokumen diarsipkan",
     "error": "Dokumen tidak dapat dimuat",
     "empty": "Belum ada dokumen pada catatan ini",
-    "emptySub": "Sertifikat dan izin tampil di sini beserta tanggal kedaluwarsanya.",
     "errType": "Pilih jenis dokumen",
     "errExpiry": "Isi tanggal kedaluwarsa",
     "errOrder": "Tanggal kedaluwarsa harus sama dengan atau setelah tanggal terbit",
@@ -478,7 +504,9 @@
   "people": {
     "error": "Orang ini tidak dapat dimuat",
     "notFound": "Orang ini tidak ditemukan",
-    "notFoundSub": "Mungkin sudah diarsipkan, atau Anda tidak punya akses."
+    "notFoundSub": "Mungkin sudah diarsipkan, atau Anda tidak punya akses.",
+    "active": "Aktif",
+    "actions": "Tindakan orang"
   },
   "vendorResponse": {
     "title": "Respons vendor terhadap kerusakan",
@@ -509,7 +537,9 @@
     "minutes": "{{count}} mnt",
     "day": "Tanggal",
     "hour": "Jam (00–23)",
-    "minute": "Menit"
+    "minute": "Menit",
+    "breakdownFrom": "Rusak sejak",
+    "responseTime": "Waktu tanggap"
   },
   "home": {
     "newEquipment": "Alat baru",

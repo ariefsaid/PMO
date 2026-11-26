@@ -26,6 +26,9 @@ describe('time record roles setting', () => {
   it('shows the organisation\'s own name for a role and the saved choice', async () => {
     view();
     const enter = await screen.findByRole('group', { name: 'May enter a second record' });
+    // #1126: the chosen roles read as tags; the full checklist opens from "Choose roles".
+    expect(within(enter).getByText('Measurement lead')).toBeInTheDocument();
+    await userEvent.click(within(enter).getByRole('button', { name: 'Choose roles' }));
     expect(within(enter).getByRole('checkbox', { name: 'Measurement lead', checked: true })).toBeInTheDocument();
     expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(1);
   });
@@ -34,6 +37,7 @@ describe('time record roles setting', () => {
     h.roles.secondRecordRoles = ['quantity_surveyor', 'project_control_manager'];
     view();
     const enter = await screen.findByRole('group', { name: 'May enter a second record' });
+    await userEvent.click(within(enter).getByRole('button', { name: 'Choose roles' }));
     const role = within(enter).getByRole('checkbox', { name: 'Measurement lead', checked: true });
     const save = screen.getByRole('button', { name: 'Save' });
     await userEvent.click(role);
@@ -45,8 +49,8 @@ describe('time record roles setting', () => {
   it('saves both lists through the Admin write', async () => {
     const user = userEvent.setup();
     view();
-    await screen.findAllByRole('checkbox');
-    const deciders = screen.getByRole('group', { name: 'Decides which hours stand' });
+    const deciders = await screen.findByRole('group', { name: 'Decides which hours stand' });
+    await user.click(within(deciders).getByRole('button', { name: 'Choose roles' }));
     await user.click(within(deciders).getByRole('checkbox', { name: 'project_control_manager' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(h.save).toHaveBeenCalledWith({ secondRecordRoles: ['quantity_surveyor'], deciderRoles: ['project_control_manager'] }));
@@ -55,8 +59,11 @@ describe('time record roles setting', () => {
   it('is read-only for anyone but an Admin and says so', async () => {
     h.admin = false;
     view();
-    await screen.findAllByRole('checkbox');
-    expect(screen.getAllByRole('checkbox').every((c) => c.hasAttribute('disabled') || c.getAttribute('aria-disabled') === 'true')).toBe(true);
+    const enter = await screen.findByRole('group', { name: 'May enter a second record' });
+    expect(within(enter).getByText('Measurement lead')).toBeInTheDocument();
+    // Read-only: the choice shows, the checklist cannot be opened.
+    expect(screen.queryByRole('button', { name: 'Choose roles' })).toBeNull();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
   });

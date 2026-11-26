@@ -122,7 +122,7 @@
     }
   },
   "health": {
-    "atRisk": "{{count}} dari {{total}} berisiko",
+    "atRisk": "{{count}} dari {{total}} anggarannya berisiko",
     "overBudget": "{{count}} melebihi anggaran",
     "late": "{{count}} terlambat",
     "overBudgetFilter": "Melebihi anggaran",

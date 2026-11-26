@@ -84,9 +84,11 @@ describe('CommandPalette', () => {
     render(<CommandPalette open items={withCodeLikeView} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), 'site-12');
     await waitFor(() => expect(screen.getByRole('option', { name: /HV cabling kit/ })).toBeInTheDocument());
-    const options = screen.getAllByRole('option').map((option) => option.textContent ?? '');
-    expect(options[0]).toContain('HV cabling kit');
-    expect(options.some((text) => text.includes('Site-12 weekly view'))).toBe(true);
+    await waitFor(() => {
+      const options = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+      expect(options[0]).toContain('HV cabling kit');
+      expect(options.some((text) => text.includes('Site-12 weekly view'))).toBe(true);
+    });
   });
 
   it('renders a modal dialog when open', () => {
@@ -319,14 +321,17 @@ describe('CommandPalette', () => {
     ];
     render(<CommandPalette open items={recs} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), 'pr-9');
-    // After the debounce both rows match; the exact-code row must be first.
-    await screen.findByText('Crane hire');
-    const recordOptions = screen
-      .getAllByRole('option')
-      .filter((o) => /Procurement/.test(o.textContent ?? ''));
-    expect(recordOptions).toHaveLength(2);
-    expect(recordOptions[0]).toHaveTextContent('Crane hire'); // exact-code first
-    expect(recordOptions[1]).toHaveTextContent('PR-90 staging works');
+    // The record ranking reads the DEBOUNCED query (FILTER_DEBOUNCE_MS), so the settled order can
+    // lag the last keystroke — wait for the settled list and hold the goal there: the exact-code
+    // row renders first, the substring decoy after it.
+    await waitFor(() => {
+      const recordOptions = screen
+        .getAllByRole('option')
+        .filter((o) => /Procurement/.test(o.textContent ?? ''));
+      expect(recordOptions).toHaveLength(2);
+      expect(recordOptions[0]).toHaveTextContent('Crane hire'); // exact-code first
+      expect(recordOptions[1]).toHaveTextContent('PR-90 staging works');
+    });
   });
 
   // a11y: a polite live region announces the result count as the filter narrows.

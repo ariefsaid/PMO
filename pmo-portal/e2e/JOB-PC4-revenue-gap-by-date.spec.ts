@@ -2,10 +2,11 @@
 // JOB-PC4 (project control): revenue gap by date. The project manager supplies a dated revenue plan on a work order;
 // the project control manager reads plan to date, actual to date from validated progress, and the gap on both work-order and project screens.
 import { test, expect } from '@playwright/test';
-import { formatExactMoney } from '../src/lib/format';
+import { formatTableMoney } from '../src/lib/format';
 import { cleanupAll, need, ok, ORG_ID, runId, serviceClient } from './support/jobFixtures';
 import { ENGINEER_ID, inDays } from './support/jobJourney';
 import { roleJobUser } from './support/roleJobUser';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -99,6 +100,7 @@ test('JOB-PC4 project control manager reads plan to date, actual to date, and re
     // 1. Project manager supplies a dated revenue plan for last month (wholly in the past, so plan to date is the whole amount).
     await pm.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     const pmSection = page.getByTestId('wo-page-revenue-plan');
     await expect(pmSection).toBeVisible({ timeout: 30_000 });
     await expect(pmSection.getByTestId('wo-revenue-plan-gap')).toHaveText('No plan entered');
@@ -108,13 +110,14 @@ test('JOB-PC4 project control manager reads plan to date, actual to date, and re
     await page.getByRole('button', { name: 'Save plan', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
 
-    const expectedPlan = formatExactMoney('1000.00', 'USD', 'en-US') ?? 'unformattable';
-    const expectedActual = formatExactMoney('400.00', 'USD', 'en-US') ?? 'unformattable';
-    const expectedGap = formatExactMoney('600.00', 'USD', 'en-US') ?? 'unformattable';
+    const expectedPlan = formatTableMoney('1000.00', 'USD') ?? 'unformattable';
+    const expectedActual = formatTableMoney('400.00', 'USD') ?? 'unformattable';
+    const expectedGap = formatTableMoney('600.00', 'USD') ?? 'unformattable';
 
     // 2. Project control manager reads plan to date, actual to date, and gap on both the work order and the project roll-up.
     await pcm.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'cost');
     const pcmSection = page.getByTestId('wo-page-revenue-plan');
     await expect(pcmSection).toBeVisible({ timeout: 30_000 });
     await expect(pcmSection.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);

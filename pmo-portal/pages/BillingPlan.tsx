@@ -29,7 +29,7 @@ const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => voi
   const age = doneNotClaimedAge(c.acceptedOn, c.today);
   const over = isOverLimit(age, limit, alertOn);
   return (
-    <li data-testid="billing-plan-line" className="flex min-h-11 items-start gap-3 border-b border-border py-2 last:border-b-0">
+    <li data-testid="billing-plan-line" className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 border-b border-border py-2 last:border-b-0 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)_minmax(0,auto)]">
       <Checkbox checked={picked} onChange={onToggle} label={t('billingPlan.pick', { defaultValue: 'Pick {{item}}', item: title })} />
       <div className="min-w-0 flex-1">
         <span className="block truncate text-control font-medium">{title}</span>
@@ -45,13 +45,13 @@ const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => voi
         )}
       </div>
       {/* #2675: the age of "done, not yet claimed": information on every line; flagged only when the reminder is on and over the limit. */}
-      <span data-testid="billing-plan-age-slot" className="flex flex-col items-end gap-1 text-control text-muted-foreground">
+      <span data-testid="billing-plan-age-slot" className="col-start-2 flex flex-col items-start gap-1 text-control text-muted-foreground sm:col-start-auto sm:items-end">
         {age !== null && <span data-testid="billing-plan-age" className="tabular-nums">{t('billingPlan.ageSince', { count: age, defaultValue_one: '{{count}} day since accepted', defaultValue_other: '{{count}} days since accepted' })}</span>}
         {over && limit !== null && (
           <StatusPill variant="overdue" data-testid="billing-plan-over-limit">{t('billingPlan.overLimit', { count: limit, defaultValue_one: 'Over the {{count}}-day limit', defaultValue_other: 'Over the {{count}}-day limit' })}</StatusPill>
         )}
       </span>
-      <span className="tabular-nums text-control font-medium">{formatCurrency(c.value, c.currency)}</span>
+      <span className="col-start-2 tabular-nums text-control font-medium sm:col-start-auto sm:text-right">{formatCurrency(c.value, c.currency)}</span>
     </li>
   );
 };

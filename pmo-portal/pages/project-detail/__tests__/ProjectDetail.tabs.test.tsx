@@ -249,7 +249,7 @@ describe('ProjectDetail — primary action scope', () => {
     },
   );
 
-  it('keeps the primary action on Overview and limits Contract to Chase payment', async () => {
+  it('keeps Chase payment available on Overview without repeating the primary action on Contract', async () => {
     invoiceState.data = [{
       id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20',
       erp_payment_terms_days: 30, erp_outstanding_amount: '500',
@@ -262,7 +262,7 @@ describe('ProjectDetail — primary action scope', () => {
     overview.unmount();
 
     await renderAt('/projects/p1/contract', 'Finance');
-    expect(screen.getAllByRole('button', { name: 'Chase payment' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Chase payment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
   });
 });

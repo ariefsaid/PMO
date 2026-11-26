@@ -1,31 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
+import { MONEY_STALE_TIME } from '@/src/lib/queryPolicies';
 import { useAuth } from '@/src/auth/useAuth';
 import type { CompleteStageInput, RetentionReleaseInput, StageTemplateInput } from '@/src/lib/db/billingStages';
 
-/** One claim's billing-stage trace, org-scoped (#2522). BillingTab's deep-link prefetch shares this key (#2893). */
-export const claimBillingTraceKey = (orgId: string | undefined, claimId: string) =>
-  ['claim-billing-trace', orgId, claimId] as const;
-
 /** One claim's billing stages, retention and the project's invoice deadline (#2522). Keys carry org_id. */
+const claimBillingTraceKey = (orgId: string | undefined, claimId: string, projectId: string) =>
+  ['claim-billing-trace', orgId, claimId, projectId] as const;
+
+export const claimBillingTraceQuery = (orgId: string | undefined, claimId: string, projectId: string) => ({
+  queryKey: claimBillingTraceKey(orgId, claimId, projectId),
+  queryFn: () => repositories.billingStages.trace(claimId, projectId),
+  enabled: Boolean(orgId) && Boolean(claimId) && Boolean(projectId),
+});
+
 export function useClaimBillingTrace(claimId: string, projectId: string) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: claimBillingTraceKey(orgId, claimId),
-    queryFn: () => repositories.billingStages.trace(claimId, projectId),
-    enabled: Boolean(orgId) && Boolean(claimId) && Boolean(projectId),
-  });
+  return useQuery(claimBillingTraceQuery(useAuth().currentUser?.org_id, claimId, projectId));
 }
 
 /** Per-item reconciliation of progress, measured and billed quantities (the server's one derivation). */
+export const billingReconciliationQuery = (orgId: string | undefined, projectId: string, workOrderId: string | null) => ({
+  queryKey: ['billing-reconciliation', orgId, projectId, workOrderId],
+  queryFn: () => repositories.billingStages.reconciliation(projectId, workOrderId),
+  staleTime: workOrderId ? MONEY_STALE_TIME : 0,
+  enabled: Boolean(orgId) && Boolean(projectId),
+});
+
 export function useBillingReconciliation(projectId: string, workOrderId: string | null) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['billing-reconciliation', orgId, projectId, workOrderId],
-    queryFn: () => repositories.billingStages.reconciliation(projectId, workOrderId),
-    staleTime: 0,
-    enabled: Boolean(orgId) && Boolean(projectId),
-  });
+  return useQuery(billingReconciliationQuery(useAuth().currentUser?.org_id, projectId, workOrderId));
 }
 
 /**
@@ -36,7 +38,7 @@ export function useBillingStageMutations(claimId: string, projectId: string) {
   const qc = useQueryClient();
   const orgId = useAuth().currentUser?.org_id;
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['claim-billing-trace', orgId, claimId] });
+    void qc.invalidateQueries({ queryKey: claimBillingTraceKey(orgId, claimId, projectId) });
     void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
   };
   const attachDocument = useMutation({
@@ -90,7 +92,7 @@ export function useRetentionReleases(claimId: string, projectId: string) {
   const orgId = useAuth().currentUser?.org_id;
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['retention-releases', orgId, claimId] });
-    void qc.invalidateQueries({ queryKey: ['claim-billing-trace', orgId, claimId] });
+    void qc.invalidateQueries({ queryKey: claimBillingTraceKey(orgId, claimId, projectId) });
     void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
   };
   const releases = useQuery({ queryKey: ['retention-releases', orgId, claimId], queryFn: () => repositories.billingStages.listReleases(claimId), enabled: Boolean(orgId && claimId) });

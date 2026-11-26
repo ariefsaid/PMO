@@ -49,7 +49,7 @@ export const EffectiveHoursPanel: React.FC<{ from?: string; to?: string }> = ({ 
       <CardPad className="space-y-4" data-testid="effective-hours-panel">
         <div>
           <h2 className="text-group font-semibold tracking-[-0.01em]">{t('effectiveHours.title', 'Effective working hours')}</h2>
-          <p className="mt-1 max-w-prose text-control text-muted-foreground">
+          <p className="mt-3 max-w-prose text-control text-muted-foreground">
             {t('effectiveHours.basis', 'Per day for one work order: the site day from the validated daily report, minus the stopped time recorded on it.')}
           </p>
         </div>

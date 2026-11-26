@@ -130,6 +130,8 @@
     "version": "Version {{n}}"
   },
   "list": {
+    "date": "Date",
+    "author": "Author",
     "allProjects": "All projects",
     "allStatuses": "All statuses",
     "empty": "No quantity change requests yet",
@@ -146,6 +148,10 @@
   },
   "newRequest": "New request",
   "over": {
+    "item": "Contract item",
+    "measured": "Progress / forecast",
+    "excess": "Over by",
+    "actions": "Actions",
     "contract": "Contract",
     "error": "Couldn't load contract lines",
     "flag": "Over contract",

@@ -29,7 +29,7 @@ let claimId = '';
 let tag = '';
 
 test.beforeEach(async () => {
-  worker = await moneyJobRole("billing_officer", "Finance");
+  worker = await moneyJobRole("finance_officer", "Finance");
   const key = requireServiceRoleKey();
   if (!key) throw new Error('JOB-BQ3-BOARD needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
@@ -70,7 +70,7 @@ test.afterEach(async () => {
   if (companyId) { fail('company', (await admin.from('companies').delete().eq('id', companyId)).error); companyId = ''; }
 });
 
-test('JOB-BQ3-BOARD Billing officer finds the claim under its current step on the billing board and opens it', async ({ page }) => {
+test('JOB-BQ3-BOARD Finance officer finds the claim under its current step on the billing board and opens it', async ({ page }) => {
   await worker.login(page);
   await page.goto("/finance/billing-board");
   await expect(page).toHaveURL(/\/finance\/billing-board/);

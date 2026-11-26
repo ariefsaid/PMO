@@ -77,7 +77,7 @@ test('JOB-W6 the receiver is refused without the signed paper, and later the one
     // 2. Once proof may follow, that delivery is received without the paper and waits for it…
     expect((await admin.rpc('set_stock_proof_timing', { p_timing: 'may_follow' })).error).toBeNull();
     await page.reload();
-    await page.getByLabel('Counted').fill('2');
+    await page.getByRole('textbox', { name: 'Counted' }).fill('2');
     await page.getByRole('button', { name: 'Confirm receipt' }).click();
     await expect(visibleToast(page, 'Receipt recorded')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('region', { name: 'Summary' })).toContainText('Proof outstanding');
@@ -87,7 +87,7 @@ test('JOB-W6 the receiver is refused without the signed paper, and later the one
     transferIds.push(await send());
     await receiver.signIn(page);
     await page.goto(`/stock/transfers/${transferIds[1]}`);
-    await page.getByLabel('Counted').fill('2');
+    await page.getByRole('textbox', { name: 'Counted' }).fill('2');
     await page.getByRole('checkbox', { name: 'Confirm the handover in PMO now' }).click();
     // The page also lists "Handover confirmations" with its own proof picker: take the one inside the receiving form.
     const receiving = page.locator('form').filter({ has: page.getByRole('button', { name: 'Confirm receipt' }) });

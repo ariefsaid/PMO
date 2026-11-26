@@ -232,16 +232,23 @@
     "approvedBy": "Disetujui oleh {{name}}",
     "rejectedBy": "Ditolak oleh {{name}}",
     "nobodyToFileFor": "Anda hanya dapat mengajukan cuti untuk diri sendiri dan orang yang Anda kelola. Minta atasan langsung atau Admin yang mengajukannya.",
-    "goesTo": "Permintaan Anda diputuskan oleh manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang memasukkan permintaan tidak boleh memutuskan. Hasilnya akan masuk ke notifikasi Anda."
+    "goesTo": "Permintaan Anda diputuskan oleh manajer aktif pada data orang. Jika tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang memasukkan permintaan tidak boleh memutuskan. Hasilnya akan masuk ke notifikasi Anda.",
+    "dates": "Tanggal",
+    "daysHeader": "Hari",
+    "decider": "Pemutus",
+    "noDecider": "Tanpa penyetuju",
+    "decision": "Keputusan",
+    "openRow": "Buka cuti {{name}}",
+    "waitingForLabel": "Menunggu",
+    "approvedByLabel": "Disetujui oleh",
+    "rejectedByLabel": "Ditolak oleh",
+    "noteLabel": "Catatan"
   },
   "checkIn": {
     "requestsTitle": "Absen menunggu Anda",
-    "requestsHelper": "Orang-orang ini absen dari ponsel di luar area kerja, di luar jadwal, atau tanpa posisi. Menyetujui akan mencatat kehadiran mereka.",
     "outcomeOutside": "Di luar area kerja",
     "outcomeNotRostered": "Tidak terdaftar hari ini",
     "outcomeNoPosition": "Tanpa posisi",
-    "distance": "{{metres}} m dari area",
-    "hours": "{{hours}} jam",
     "approve": "Setujui",
     "reject": "Tolak",
     "rejectSubject": "absen",
@@ -269,7 +276,10 @@
     "areaLocateDenied": "Lokasi diblokir untuk situs ini. Izinkan di peramban Anda, atau ketik angkanya.",
     "areaLocateUnavailable": "Posisi Anda tidak dapat dibaca. Coba lagi, atau ketik angkanya.",
     "areaLocateTimeout": "Membaca posisi Anda terlalu lama. Coba lagi, atau ketik angkanya.",
-    "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m"
+    "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m",
+    "why": "Alasan menunggu",
+    "distanceHeader": "Jarak dari area (m)",
+    "requestsCaption": "Menyetujui mencatat kehadiran mereka"
   },
   "release": {
     "error": "Pelepasan medis tidak bisa dimuat",
@@ -335,7 +345,6 @@
     "asked": "Diminta",
     "filled": "Terisi",
     "inProgress": "Dalam proses",
-    "open": "Kosong",
     "progressLabel": "{{filled}} dari {{asked}} terisi",
     "people": "Orang yang ditautkan",
     "unlinkNamed": "Lepas {{name}}",
@@ -354,14 +363,20 @@
     "reopened": "Kebutuhan dibuka lagi",
     "error": "Kebutuhan tenaga kerja tidak dapat dimuat",
     "empty": "Belum ada kebutuhan tenaga kerja",
-    "emptyWriter": "Catat posisi yang dibutuhkan sebuah lokasi dan batas waktunya.",
     "emptyReader": "Manajer proyek atau tim SDM mencatat posisi yang dibutuhkan sebuah lokasi.",
     "status": {
       "open": "Terbuka",
       "met": "Terpenuhi",
       "cancelled": "Dibatalkan"
     },
-    "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan."
+    "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan.",
+    "progressTitle": "Kemajuan",
+    "nobodyLinked": "Belum ada yang ditautkan",
+    "openRow": "Buka kebutuhan {{position}}",
+    "toFill": "Belum terisi",
+    "positionGone": "Posisi tidak lagi tersedia",
+    "projectGone": "Proyek tidak lagi tersedia",
+    "neededByColumn": "Tenggat"
   },
   "undoFollow": "Batalkan ikut kru",
   "undoFollowFor": "Batalkan ikut kru untuk {{name}}",
@@ -370,9 +385,7 @@
   "followUndone": "Ikut kru dibatalkan",
   "headCount": {
     "title": "Jumlah orang",
-    "named": "{{n}} orang bernama sudah ditandai hadir pada kru ini hari ini. Hitung di sini hanya orang yang tidak tercatat namanya di daftar.",
     "error": "Jumlah orang tidak dapat dimuat",
-    "empty": "Belum ada jumlah orang untuk hari ini. Mandor kru atau pengelola kru mengisinya di sini. Seseorang tercatat dengan nama dan ditandai di atas, atau dihitung di sini, tidak keduanya.",
     "class": "Kelas tenaga kerja",
     "people": "Orang",
     "state": "Status",
@@ -409,7 +422,10 @@
       "category": "Kategori dokumen",
       "choose": "Pilih foto atau dokumen",
       "attached": "Berkas terlampir"
-    }
+    },
+    "namedPresent": "{{n}} orang bernama hadir di atas",
+    "onlyUnnamed": "Hitung hanya orang yang tidak disebut di atas",
+    "emptyDay": "Belum ada jumlah orang untuk hari ini"
   },
   "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}",
   "roleNotSet": "Posisi kru belum diisi",
@@ -429,5 +445,9 @@
   "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
   "reportedAbsent": "Melaporkan tidak masuk: {{reason}}",
   "absentSick": "sakit",
-  "absentOther": "alasan lain"
+  "absentOther": "alasan lain",
+  "workOrders": "Perintah kerja",
+  "week": "Minggu",
+  "decision": "Keputusan",
+  "presentOf": "{{present}} dari {{total}} hadir"
 }

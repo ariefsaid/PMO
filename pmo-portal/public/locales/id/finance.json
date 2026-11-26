@@ -1158,6 +1158,7 @@
     "empty": "Belum ada snapshot"
   },
   "billingBoard": {
+    "claimSteps": "Tahap klaim",
     "title": "Papan penagihan",
     "filterProject": "Proyek",
     "allProjects": "Semua proyek",

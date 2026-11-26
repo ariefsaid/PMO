@@ -18,7 +18,7 @@
  */
 import type { CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 import React, { useEffect, useRef, useState } from 'react';
-import { Icon, SelectField } from '@/src/components/ui';
+import { Button, Icon, SelectField } from '@/src/components/ui';
 import { RecordCaptureForm, type RecordKind, type StagedRecord } from './RecordCaptureForm';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import { gateHold, type GateHold } from './firstDocument';
@@ -251,17 +251,21 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
                 : t('procurement:ledger.paymentInErp', 'Record the payment in ERPNext; it links here on the next sync.')}
             </p>
           ) : (<>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-testid="ledger-capture-open"
             onClick={() => setOpen(true)}
             disabled={paymentBlocked}
             aria-describedby={paymentBlocked ? 'ledger-payment-sod-reason' : undefined}
-            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="ml-auto"
           >
             <Icon name="plus" className="size-3.5" />
-            {t('procurementLedger.capture.action', 'Capture {{record}}', { record: label })}
-          </button>
+            {nextKind === 'payment'
+              ? t('procurementRecord:action.recordPayment', 'Record payment')
+              : t('procurementLedger.capture.action', 'Capture {{record}}', { record: label })}
+          </Button>
           {paymentBlocked && (
             <span id="ledger-payment-sod-reason" className="basis-full text-right text-sm text-muted-foreground">
               {t('procurementDetail.paymentApproverCannotPay', 'Separation of duties: the approver cannot pay their own procurement.')}

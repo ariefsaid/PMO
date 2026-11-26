@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { usePermission } from '@/src/auth/usePermission';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, ListState, TextField, ViewToggle, useToast } from '@/src/components/ui';
+import { Button, ListState, TextField, ViewToggle, useToast } from '@/src/components/ui';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { RenameHeader, RenameList } from './admin/RenameRows';
+import { RENAME_LANGUAGE_LINE, renameRow } from './admin/renameRowClasses';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { resetOrgTerm, saveOrgTerm, validateOverride } from '@/src/lib/db/orgTerminology';
 import { ORG_TERMINOLOGY_KEY, useOrgTerminology } from '@/src/hooks/useOrgTerminology';
@@ -74,37 +77,50 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
   const dirty = TERM_LOCALES.some((l) => isDirty(drafts[l], current?.[l]));
   const invalid = TERM_LOCALES.some((l) => drafts[l].singular.trim() !== '' && validateOverride({ key: termKey, locale: l, singular: drafts[l].singular, plural: drafts[l].plural || drafts[l].singular }) !== null);
   const hasOverride = TERM_LOCALES.some((l) => Boolean(current?.[l]));
+  const wide = useIsDesktop(1280);
+  const shippedEn = shippedTerm('en', termKey);
+  const shippedId = shippedTerm('id', termKey);
   return (
-    <Card className="space-y-3 p-4" data-testid={`term-card-${termKey}`}>
-      <h3 className="text-base font-semibold">{shippedTerm('en', termKey).singular}</h3>
+    <div role="listitem" className={renameRow('language-lines')} data-testid={`term-card-${termKey}`}>
+      <div className="min-w-0 xl:pt-2">
+        <h3 className="text-control font-semibold">{shippedEn.singular}</h3>
+        {hasOverride && (
+          <p className="text-control text-muted-foreground">
+            {t('administration:terminology.default', 'Default')}: {shippedEn.singular} / {shippedEn.plural} · {shippedId.singular} / {shippedId.plural}
+          </p>
+        )}
+      </div>
+      <div className="min-w-0 space-y-3 xl:space-y-2">
       {TERM_LOCALES.map((locale) => {
         const shipped = shippedTerm(locale, termKey);
         return (
-          <div key={locale} className="space-y-2" data-testid={`term-row-${termKey}-${locale}`}>
-            <div className="text-sm font-medium">{LOCALE_NAME[locale]}</div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_1fr_1fr] sm:items-end">
-              <div className="text-sm text-text-secondary">
-                {t('administration:terminology.default', 'Default')}: {shipped.singular} / {shipped.plural}
+          <div key={locale} className={RENAME_LANGUAGE_LINE} data-testid={`term-row-${termKey}-${locale}`}>
+            <p className="mb-1 text-control font-medium xl:mb-0 xl:font-normal xl:text-muted-foreground">{LOCALE_NAME[locale]}</p>
+            <div className="grid grid-cols-2 gap-2 xl:contents">
+              <div className="min-w-0">
+                <TextField label={t('administration:terminology.singular', 'Singular')} hideLabel={wide} disabled={!canEdit || busy} value={drafts[locale].singular}
+                  placeholder={shipped.singular} maxLength={60} onChange={(v) => edit(locale, 'singular', v)} fullWidth />
               </div>
-              <TextField label={t('administration:terminology.singular', 'Singular')} disabled={!canEdit || busy} value={drafts[locale].singular}
-                placeholder={shipped.singular} maxLength={60} onChange={(v) => edit(locale, 'singular', v)} fullWidth />
-              <TextField label={t('administration:terminology.plural', 'Plural')} disabled={!canEdit || busy} value={drafts[locale].plural}
-                placeholder={shipped.plural} maxLength={60} onChange={(v) => edit(locale, 'plural', v)} fullWidth />
+              <div className="min-w-0">
+                <TextField label={t('administration:terminology.plural', 'Plural')} hideLabel={wide} disabled={!canEdit || busy} value={drafts[locale].plural}
+                  placeholder={shipped.plural} maxLength={60} onChange={(v) => edit(locale, 'plural', v)} fullWidth />
+              </div>
             </div>
           </div>
         );
       })}
-      {canEdit && (
-        <div className="flex gap-2">
-          <Button variant="primary" disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
+      </div>
+      {canEdit ? (
+        <div className="flex gap-2 xl:w-[10.5rem] xl:justify-end">
+          <Button variant={dirty ? 'primary' : 'outline'} disabled={!dirty || invalid || busy} onClick={() => save.mutate()}>
             {t('administration:terminology.save', 'Save')}
           </Button>
           <Button variant="outline" disabled={!hasOverride || busy} onClick={() => reset.mutate()}>
             {t('administration:terminology.reset', 'Reset')}
           </Button>
         </div>
-      )}
-    </Card>
+      ) : <span className="hidden xl:block xl:w-[10.5rem]" />}
+    </div>
   );
 };
 
@@ -123,14 +139,20 @@ const AdministrationTerminology: React.FC = () => {
         ]} />
       {view === 'roles' ? <AdministrationRoleNames /> : (
         <>
-          <p className="text-sm text-text-secondary">
+          <p className="text-control text-muted-foreground">
             {t('administration:terminology.intro', 'Rename these terms to match how your organisation talks. The new wording replaces the default everywhere it is shown, in each language, and is used exactly as you type it.')}
           </p>
           {isLoading ? <ListState variant="loading" /> : null}
           {isError ? <ListState variant="error" onRetry={() => void refetch()} /> : null}
-          {!isLoading && !isError ? TERM_KEYS.map((key) => (
-            <TermCard key={key} termKey={key} current={{ en: data?.en?.[key], id: data?.id?.[key] }} />
-          )) : null}
+          {!isLoading && !isError ? (
+            <RenameList label={t('administration:terminology.viewTerms', 'Terms')}>
+              <RenameHeader layout="language-lines" first={t('administration:terminology.term', 'Term')}
+                columns={[t('administration:terminology.language', 'Language'), t('administration:terminology.singular', 'Singular'), t('administration:terminology.plural', 'Plural')]} />
+              {TERM_KEYS.map((key) => (
+                <TermCard key={key} termKey={key} current={{ en: data?.en?.[key], id: data?.id?.[key] }} />
+              ))}
+            </RenameList>
+          ) : null}
         </>
       )}
     </div>

@@ -115,6 +115,7 @@ const TasksToolbar: React.FC<{
   selectedActiveCount,
 }) => {
   const { t } = useTranslation('project');
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
   return (
     <>
       <div className="mb-3.5 flex flex-col gap-3 p-[var(--panel-inset)]">
@@ -166,7 +167,8 @@ const TasksToolbar: React.FC<{
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Button variant="outline" className="sm:hidden" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>{t('ui:filters', 'Filters')}</Button>
+        <div className={cn('min-w-0 flex-wrap items-center gap-2 sm:flex', filtersOpen ? 'flex' : 'hidden')}>
           <ViewToggle<TaskScope>
             options={[
               { value: 'mine', label: t('projectDetail.tasks.scope.mine', 'Mine') },
@@ -209,7 +211,7 @@ const TasksToolbar: React.FC<{
               ]}
             />
           </div>
-          <div className="min-w-[160px] flex-1">
+          <div className="min-w-0 basis-full xl:basis-auto xl:flex-1">
             {/* F6: the shared list-toolbar search (SearchMini) — same shell, magnifier and
                 searchbox role the FilterBar/DataTable toolbars give. TextField has no leading
                 icon, and inventing a second search look is exactly what the picture sitting caught. */}
@@ -218,7 +220,7 @@ const TasksToolbar: React.FC<{
               placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')}
               value={searchText}
               onChange={(event) => onSearchText(event.target.value)}
-              containerClassName="sm:min-w-0"
+              containerClassName="w-full min-w-0"
             />
           </div>
           {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>

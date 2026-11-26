@@ -6,6 +6,7 @@ import { createDocument, documentRow, issueDocument, showRegister } from '../doc
 import { ORG_ID, need, ok, ownProject, runId, serviceClient } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 import { userClient } from '../support/stockFixture';
+import { openRowUpdate, openWorkOrderArea } from '../support/workOrderArea';
 
 const PDF_FIXTURE = fileURLToPath(new URL('../fixtures/tiny-upload.pdf', import.meta.url));
 
@@ -60,6 +61,8 @@ test('AC-WCO-040 Admin assigns material close-out and the Material Coordinator a
 
     await actor.signIn(page);
     await page.goto(`/work-orders/${woId}`);
+    await openWorkOrderArea(page, 'checks');
+    await openRowUpdate(page, run);
     await page.getByRole('combobox', { name: `Document for ${run}` }).selectOption(docId);
     await page.getByRole('button', { name: `Attach to ${run}`, exact: true }).click();
     await page.getByRole('button', { name: `Mark ${run} done`, exact: true }).click();
