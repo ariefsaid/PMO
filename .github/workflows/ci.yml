@@ -293,6 +293,7 @@ jobs:
           node scripts/check-redirect-targets.mjs --self-test
           node scripts/ci-test-scope.mjs --self-test
           bash scripts/check-e2e-isolation.sh --self-test
+          bash scripts/check-e2e-org-day.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
           bash scripts/renumber-migration.sh --self-test
@@ -892,6 +893,9 @@ jobs:
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
+      - name: E2E org-day check
+        working-directory: .
+        run: bash scripts/check-e2e-org-day.sh
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.122.1

@@ -123,7 +123,7 @@ reset role;
 -- ── function posture ──────────────────────────────────────────────────────────────────────────
 select ok(not has_function_privilege('anon','public.set_sales_invoice_billing_kind(uuid,text)','execute')
           and has_function_privilege('authenticated','public.set_sales_invoice_billing_kind(uuid,text)','execute')
-          and (select prosecdef and proconfig = array['search_path=public'] from pg_proc where oid='public.set_sales_invoice_billing_kind(uuid,text)'::regprocedure),
+          and (select prosecdef and proconfig = array['search_path=public, pg_temp'] from pg_proc where oid='public.set_sales_invoice_billing_kind(uuid,text)'::regprocedure),
           'AC-007 the kind setter is a definer with a pinned search_path and no anon grant');
 select * from finish();
 rollback;

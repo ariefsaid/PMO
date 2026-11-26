@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
+import { orgToday } from '../support/jobJourney';
 import { createJobRoleUser } from '../support/jobRoleUser';
 
 test.setTimeout(180_000);
@@ -37,7 +38,7 @@ test.beforeEach(async () => {
     }));
     ok(`${label} allocation`, await db.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: boqId, quantity: 20 }));
     const acceptanceId = need(`${label} acceptance`, await db.from('work_order_acceptances').insert({
-      org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: new Date().toISOString().slice(0, 10),
+      org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: orgToday(),
       is_final: false, status: 'Confirmed', prepared_by: finance.id, confirmed_by: finance.id, confirmed_at: new Date().toISOString(), confirm_basis: 'standard',
     }).select('id').single()).id as string;
     ok(`${label} acceptance line`, await db.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: boqId, quantity: 12 }));

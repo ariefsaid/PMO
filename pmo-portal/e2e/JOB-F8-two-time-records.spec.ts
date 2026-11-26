@@ -10,19 +10,18 @@ import { ORG_ID, PM_ID, need, ok, runId, serviceClient } from './support/jobFixt
 import { roleJobUser } from './support/roleJobUser';
 import { signIn, visibleToast } from './helpers';
 import { formatDay } from '../src/lib/format';
+import { inDays } from './support/jobJourney';
 import { markEveryonePresent } from './support/crewJourney';
 
 test.setTimeout(180_000);
 
 const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4';
-const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 test('JOB-F8 the Construction Manager sees both time records on the daily report and decides which stands', async ({ page }) => {
   const svc = serviceClient('JOB-F8');
   const run = runId('JOBF8');
   const cm = await roleJobUser(svc, 'construction_manager', run);
-  const from = new Date(); from.setDate(from.getDate() - 7);
+  const from = inDays(-7); // rostered a week back by the organisation's clock
   let projectId: string; let workOrderId = ''; let crewId = ''; let workerId: string; let reportId = '';
   try {
     projectId = need('project', await svc.from('projects').insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
@@ -33,8 +32,8 @@ test('JOB-F8 the Construction Manager sees both time records on the daily report
       org_id: ORG_ID, code: run.slice(-18), name: `${run} crew`, kind: 'own', field_controller_id: ENGINEER_ID,
     }).select('id').single()).id;
     workerId = need('worker', await svc.from('people').insert({ org_id: ORG_ID, kind: 'own', name: `${run} Ana` }).select('id').single()).id;
-    need('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: workerId, valid_from: iso(from) }).select('id').single());
-    need('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: iso(from) }).select('id').single());
+    need('placement', await svc.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: workerId, valid_from: from }).select('id').single());
+    need('roster', await svc.from('work_order_crews').insert({ org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from }).select('id').single());
 
     // Precondition: a day with two different times. The foreman ticks 8 hours; a Project Manager adds a second record of 5.
     await signIn(page, 'engineer@acme.test');
@@ -87,10 +86,9 @@ test('JOB-F8 the Construction Manager sees both time records on the daily report
     // decided_by points at the login, so the decision rows go first; the rest is scoped to this run's own project and crew.
     if (workOrderId) {
       ok('second records cleanup', await svc.from('attendance_second_records').delete().eq('work_order_id', workOrderId));
-      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-      ok('roster cleanup', await svc.from('work_order_crews').update({ valid_to: iso(yesterday) }).eq('work_order_id', workOrderId));
+      ok('roster cleanup', await svc.from('work_order_crews').update({ valid_to: inDays(-1) }).eq('work_order_id', workOrderId));
     }
-    if (crewId) ok('placements cleanup', await svc.from('crew_members').update({ valid_to: iso(new Date(Date.now() - 86_400_000)) }).eq('crew_id', crewId));
+    if (crewId) ok('placements cleanup', await svc.from('crew_members').update({ valid_to: inDays(-1) }).eq('crew_id', crewId));
     if (reportId) ok('report cleanup', await svc.from('daily_site_reports').delete().eq('id', reportId));
     await cm.cleanup();
   }

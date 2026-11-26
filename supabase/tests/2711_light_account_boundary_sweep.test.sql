@@ -102,6 +102,7 @@ insert into la_fn_allow values
   ('actor_may_see_billing_steps', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('actor_may_run_billing_steps', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('actor_holds_job_role', 'helper', 'a job-role right gate the policies and functions read; a field account holds no named job role and no manager level, so it answers false'),
+  ('actor_holds_owner_job_role', 'helper', 'a job-role right gate the policies and functions read: it answers only about the caller, returns one boolean and writes nothing, and a light (field) job-role key never matches, so it answers false for field accounts'),
   ('actor_may_enter_leave_for_others', 'helper', 'a job-role right gate the policies and functions read; a field account holds no named job role and no manager level, so it answers false'),
   ('actor_may_lend_workers', 'helper', 'a job-role right gate the policies and functions read; a field account holds no named job role and no manager level, so it answers false'),
   ('actor_may_manage_document_types', 'helper', 'a job-role right gate the policies and functions read; a field account holds no named job role and no manager level, so it answers false'),

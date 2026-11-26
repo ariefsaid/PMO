@@ -51,6 +51,17 @@ export interface OpenCloseoutDueRow {
   doneOn: string | null;
 }
 
+/** One waiting close-out item of the viewer (#2907; migration 2685): open, its owner job role held by them. */
+export interface WaitingCloseoutItem {
+  itemId: string;
+  workOrderId: string;
+  projectId: string;
+  projectName: string;
+  workOrderLabel: string;
+  itemName: string;
+  dueOn: string | null;
+}
+
 /** The organisation's list, in order. */
 export async function getCloseoutTemplate(): Promise<CloseoutTemplateItem[]> {
   const { data, error } = await supabase.from('closeout_checklist_templates')
@@ -118,6 +129,20 @@ export async function listOpenCloseoutDue(): Promise<OpenCloseoutDueRow[]> {
     return { data, error };
   });
   return rows.map((r) => ({ workOrderId: r.work_order_id, dueOn: r.due_on ?? null, doneOn: r.done_on ?? null }));
+}
+
+/**
+ * The viewer's waiting close-out items (#2907, migration 2685): open items on an Issued work order whose owner job role
+ * they hold. The database decides who holds a role and skips light (field) accounts, which cannot open the item, so
+ * none is asked. No organisation id is sent; the read runs under the items' own policies.
+ */
+export async function getWaitingCloseoutItems(): Promise<WaitingCloseoutItem[]> {
+  const { data, error } = await supabase.rpc('my_waiting_closeout_items');
+  if (error) fail(error);
+  return (data ?? []).map((r) => ({
+    itemId: r.item_id, workOrderId: r.work_order_id, projectId: r.project_id, projectName: r.project_name,
+    workOrderLabel: r.work_order_label, itemName: r.item_name, dueOn: r.due_on ?? null,
+  }));
 }
 
 export async function attachCloseoutItemDocument(itemId: string, documentId: string): Promise<void> {

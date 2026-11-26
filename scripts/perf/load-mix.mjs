@@ -10,6 +10,7 @@
 // Output: <out>/summary.md (per screen / write / endpoint p50 p95 p99 and errors; DB connections, lock waits, CPU;
 // top statements) and <out>/raw.json.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -33,6 +34,28 @@ export const ROLES = {
   executive: { share: 0.02, think: 15000, screens: { 'exec-home': 3, 'exec-reports': 1, 'exec-work-orders': 1 } },
   administrator: { share: 0.01, think: 15000, screens: { 'admin-home': 1, 'admin-administration': 1 } },
 };
+
+// The fixture's project ids come from the database it was captured on; a reset makes new ones and project-scoped RPCs
+// then 500 (P0002). Map each distinct captured p_project_id to a real project of the seeded database, in order.
+export function remapProjectIds(fixture, realIds) {
+  const re = /"p_project_id":"([0-9a-f-]{36})"/g;
+  const map = new Map();
+  const swap = (s) => s?.replace(re, (_, id) => {
+    if (!map.has(id)) map.set(id, realIds[map.size % realIds.length]);
+    return `"p_project_id":"${map.get(id)}"`;
+  });
+  if (!realIds.length) return fixture;
+  for (const r of Object.values(fixture)) for (const c of r.calls) { c.body = swap(c.body); }
+  return fixture;
+}
+
+// One distribution over every entry's samples and failures (calls, screens or writes), as the whole run saw them.
+export function pool(entries) {
+  const ms = entries.flatMap((e) => e.ms);
+  const err = entries.reduce((s, e) => s + e.err, 0);
+  const n = entries.reduce((s, e) => s + e.n, 0);
+  return { n, err, ms, rate: n ? err / n : 0 };
+}
 
 export function parseArgs(argv) {
   const o = { users: 100, ramp: 120, duration: 600, thinkScale: 1, maxInflight: 256, out: null, url: 'http://127.0.0.1:54321', allowRemote: false };
@@ -128,6 +151,11 @@ async function main() {
   };
   for (let i = 0; i < vus.length; i += 20) await Promise.all(vus.slice(i, i + 20).map(signIn));
   console.error(`${vus.length} accounts signed in`);
+  const viewer = vus.find((v) => ['executive', 'administrator', 'project_manager'].includes(v.role));
+  if (viewer) {
+    const rows = await (await fetch(`${o.url}/rest/v1/projects?select=id&order=code.asc&limit=30&code=like.LG-*`, { headers: { apikey: anon, authorization: `Bearer ${viewer.token}` } })).json();
+    if (Array.isArray(rows)) remapProjectIds(fixture, rows.map((r) => r.id));
+  }
 
   // ── samples ──
   const t0 = performance.now();
@@ -241,7 +269,7 @@ async function main() {
         ]);
         const [total, active, lockWait, rest, restActive, maxConn] = a.split('\t').map(Number);
         const cpu = Object.fromEntries(d.trim().split('\n').map((l) => { const [n, c] = l.split(' '); return [n.replace(/^supabase_|_pmo-portal$/g, ''), parseFloat(c)]; }));
-        samples.push({ t: Math.round((performance.now() - steadyAt) / 1000), total, active, lockWait, rest, restActive, maxConn, cpu, load: fs.readFileSync('/proc/loadavg', 'utf8').split(' ')[0] });
+        samples.push({ t: Math.round((performance.now() - steadyAt) / 1000), total, active, lockWait, rest, restActive, maxConn, cpu, load: os.loadavg()[0].toFixed(1) });
       } catch (e) { samples.push({ error: e.message }); }
     }
   })();
@@ -262,6 +290,7 @@ async function main() {
   const totalPages = Object.values(pages).reduce((s, e) => s + e.n, 0);
   const avg = (k) => samples.filter((s) => s.cpu).reduce((s, x) => s + (k(x) || 0), 0) / Math.max(1, samples.filter((s) => s.cpu).length);
   const max = (k) => Math.max(...samples.filter((s) => s.cpu).map(k));
+  const poolCalls = pool(Object.values(calls)), poolPages = pool(Object.values(pages));
   const mix = Object.entries(vus.reduce((m, v) => ({ ...m, [v.role]: (m[v.role] || 0) + 1 }), {})).map(([r, n]) => `${r} ${n}`).join(', ');
   const md = [
     `# Load mix: ${o.users} users`, '',
@@ -269,6 +298,8 @@ async function main() {
     `Calls failed: ${Object.values(calls).reduce((s, e) => s + e.err, 0)} of ${totalCalls} (${Object.entries(Object.values(calls).reduce((m, e) => { for (const [c, x] of Object.entries(e.codes)) m[c] = (m[c] || 0) + x; return m; }, {})).map(([c, x]) => `${c} x${x}`).join(', ') || 'none'}).`,
     `Steady state: ${totalPages} screens (${(totalPages / o.duration).toFixed(1)}/s), ${totalCalls} API calls (${(totalCalls / o.duration).toFixed(1)}/s).`,
     `Load generator event-loop delay p99 ${f(lag.percentile(99) / 1e6)} ms (a high value means the generator, not the server, was saturated).`, '',
+    `Overall (all API calls pooled): p50 ${f(percentile(poolCalls.ms, 50))} ms, p95 ${f(percentile(poolCalls.ms, 95))} ms, p99 ${f(percentile(poolCalls.ms, 99))} ms; error rate ${(poolCalls.rate * 100).toFixed(2)}% (${poolCalls.err} of ${poolCalls.n}).`,
+    `Overall (whole screens pooled): p50 ${f(percentile(poolPages.ms, 50))} ms, p95 ${f(percentile(poolPages.ms, 95))} ms, p99 ${f(percentile(poolPages.ms, 99))} ms; error rate ${(poolPages.rate * 100).toFixed(2)}% (${poolPages.err} of ${poolPages.n}).`, '',
     '## Screens (whole screen: every call in parallel, first to last)', '', head('Screen'),
     ...Object.entries(pages).sort((a, b) => percentile(b[1].ms, 95) - percentile(a[1].ms, 95)).map(([k, e]) => row(k, e)), '',
     '## Writes', '', head('Write'), ...Object.entries(writes).map(([k, e]) => row(k, e)), '',
@@ -283,7 +314,7 @@ async function main() {
     ...top.split('\n').filter(Boolean).map((l) => `| ${l.split('\t').map((x) => x.replaceAll('|', '/')).join(' | ')} |`), '',
   ].join('\n');
   fs.writeFileSync(path.join(out, 'summary.md'), md);
-  fs.writeFileSync(path.join(out, 'raw.json'), JSON.stringify({ options: o, mix, busyMs, stmtCalls, samples, pages: strip(pages), writes: strip(writes), calls: strip(calls), top }, null, 1));
+  fs.writeFileSync(path.join(out, 'raw.json'), JSON.stringify({ options: o, mix, overall: { calls: { n: poolCalls.n, err: poolCalls.err, p50: percentile(poolCalls.ms, 50), p95: percentile(poolCalls.ms, 95), p99: percentile(poolCalls.ms, 99) }, pages: { n: poolPages.n, err: poolPages.err, p50: percentile(poolPages.ms, 50), p95: percentile(poolPages.ms, 95), p99: percentile(poolPages.ms, 99) } }, busyMs, stmtCalls, samples, pages: strip(pages), writes: strip(writes), calls: strip(calls), top }, null, 1));
   console.log(md);
 }
 const strip = (m) => Object.fromEntries(Object.entries(m).map(([k, e]) => [k, { n: e.n, err: e.err, codes: e.codes, p50: percentile(e.ms, 50), p95: percentile(e.ms, 95), p99: percentile(e.ms, 99), max: Math.max(...e.ms, 0) }]));
