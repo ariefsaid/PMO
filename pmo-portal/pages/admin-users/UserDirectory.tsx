@@ -222,7 +222,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
         const manager = u.manager_id ? byId.get(u.manager_id) : undefined;
         const name = manager?.full_name ?? u.manager?.full_name ?? null;
         if (!u.manager_id) return <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>;
-        if (!name) return <span className="text-muted-foreground">{t('admin.users.managerUnavailable', 'Manager name unavailable')}</span>;
+        if (!name) return <span className="text-muted-foreground">{t('administration:admin.users.managerUnavailable', 'Manager name unavailable')}</span>;
         return (
           <button
             type="button"

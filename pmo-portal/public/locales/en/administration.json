@@ -677,6 +677,7 @@
       "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
+      "managerUnavailable": "Manager name unavailable",
       "builtIn": {
         "tier": {
           "manager": "Managers",

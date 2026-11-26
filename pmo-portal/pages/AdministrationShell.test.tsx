@@ -417,6 +417,12 @@ describe('Administration route-backed shell', () => {
     }
   });
 
+  it('explains who can change the tax settings to a read-only viewer', async () => {
+    renderShell('/administration/accounting', 'Executive');
+    const taxSettings = await screen.findByRole('region', { name: 'Tax and fiscal year' });
+    expect(within(taxSettings).getByText('Only an Admin can change this.')).toBeVisible();
+  });
+
   it('AC-ADMIA-005: an Executive still gets the existing read-only Users directory notice', () => {
     renderShell('/administration/users', 'Executive');
 

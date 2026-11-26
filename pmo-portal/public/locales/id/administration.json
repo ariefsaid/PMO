@@ -677,6 +677,7 @@
       "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
+      "managerUnavailable": "Nama manajer tidak tersedia",
       "builtIn": {
         "tier": {
           "manager": "Manajer",
