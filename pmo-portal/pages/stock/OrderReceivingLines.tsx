@@ -6,8 +6,8 @@ import type { QualityProblem, QualityValue } from '@/src/lib/receiptQuality';
 import { formatQuantity, isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ReceivingLine } from '@/src/lib/db/orderReceiving';
+import { RECEIVING_VARIANT } from './receivingStatus';
 
-export const RECEIVING_VARIANT = { not_received: 'neutral', partly_received: 'neutral', fully_received: 'won' } as const;
 
 /**
  * The order's lines as ONE table: a row per line, the counted quantity in its own right-aligned column.

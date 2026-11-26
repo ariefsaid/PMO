@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, StatusPill, type Column } from '@/src/components/ui';
 import type { ReceivingLine } from '@/src/lib/db/orderReceiving';
-import { RECEIVING_VARIANT } from './OrderReceivingLines';
+import { RECEIVING_VARIANT } from './receivingStatus';
 import { useOrderReceiving, useOrderReceivingEnabled } from '@/src/hooks/useOrderReceiving';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';

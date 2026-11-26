@@ -1105,7 +1105,6 @@
     "date": "Receipt date",
     "noOrders": "No sent orders available.",
     "stockItem": "Stock item",
-    "progress": "Ordered {{ordered}} · Received {{received}} · Outstanding {{outstanding}}",
     "not_received": "Not received",
     "partly_received": "Partly received",
     "fully_received": "Fully received",

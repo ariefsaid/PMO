@@ -77,7 +77,6 @@ export default function OrderReceiving() {
   const [decision, setDecision] = useState<{ count: ReceiptCount; reverse: boolean } | null>(null);
   const [reason, setReason] = useState('');
   const data = order.data;
-  const quantity = (value: string | undefined) => value === undefined ? '—' : formatQuantity(value, getNumberLocale());
   const editable = may('edit', 'orderReceiving', { record: { viewOnly, receivingPurchaser: data?.purchaser } });
   const canReceive = may('create', 'stockDocument', { record: { viewOnly, isKeeper: (keepers.data ?? []).some((k) => k.warehouse_id === warehouse && k.user_id === user?.id) } });
   const refresh = async () => {
