@@ -282,7 +282,7 @@ const ReviewTable: React.FC<{
       <DataTable<TimesheetForReview> embedded rows={rows} columns={columns} rowKey={(s) => s.id} tableId="timesheet-review-table"
         onActivate={(s) => onOpen(s.id)} selectedKey={open?.id}
         rowLabel={(s) => t('timesheets:review.showEntriesFor', 'Show entries for {{name}}', { name: personName(s) })} />
-      {open && <ReviewDrawer sheet={open} projectFilterId={projectFilterId} title={`${personName(open)} · ${week(open)}`} onClose={() => onOpen(null)} />}
+      {open && <ReviewDrawer sheet={open} projectFilterId={projectFilterId} title={`${personName(open)} ·\u00a0${week(open)}`} onClose={() => onOpen(null)} />}
     </>
   );
 };

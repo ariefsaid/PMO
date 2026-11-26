@@ -16,7 +16,7 @@ const LeaveSettingsPage: React.FC = () => {
   const { realRole, effectiveRole } = useEffectiveRole();
   const isAdmin = may('manage', 'leaveRequest', { record: { viewOnly: realRole !== effectiveRole } });
   const types = useLeaveTypes();
-  const { save, createType, archiveType } = useLeaveSettingsMutations();
+  const { createType, archiveType } = useLeaveSettingsMutations();
   const [name, setName] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   if (!isAdmin) return <GateNotice variant="blocked">{t('crews:leave.adminOnly', 'Only an Admin can change leave settings')}</GateNotice>;
@@ -33,12 +33,6 @@ const LeaveSettingsPage: React.FC = () => {
           <CardHead>{t('crews:leave.switchHeading', 'Leave requests')}</CardHead>
           <CardPad>
             <p className="text-sm text-muted-foreground">{t('crews:leave.approvalRouting', 'A pending request goes to the active manager on the person record. If missing or inactive, it goes to an HR Manager, then an Admin. The person on leave and the person who entered the request cannot decide it.')}</p>
-            <div className="mt-4">
-              <Button variant="primary" loading={save.isPending}
-                onClick={() => void guard(() => save.mutateAsync({ enabled: true, approver_role: null }), t('crews:leave.saved', 'Settings saved'))}>
-                {t('crews:leave.saveSettings', 'Save settings')}
-              </Button>
-            </div>
           </CardPad>
         </Card>
         <Card seam>
@@ -58,7 +52,7 @@ const LeaveSettingsPage: React.FC = () => {
               )}
             <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void guard(async () => { await createType.mutateAsync(name); setName(''); }); }}>
               <TextField label={t('crews:leave.typeName', 'New type')} value={name} onChange={setName} />
-              <Button type="submit" variant="outline" disabled={!name.trim()}>{t('crews:leave.addType', 'Add type')}</Button>
+              <Button type="submit" className="whitespace-nowrap" variant="outline" disabled={!name.trim()}>{t('crews:leave.addType', 'Add type')}</Button>
             </form>
           </CardPad>
         </Card>
