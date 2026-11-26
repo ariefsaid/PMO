@@ -344,7 +344,7 @@
         "scopeContract": "Lines with no work order",
         "title": "New billing claim",
         "prefill": "Start from the {{month}} assessment",
-        "kindProgress": "Progress: quantities against the bill of quantities"
+        "kindProgress": "Progress: contract quantities"
       },
       "areaRates": {
         "title": "Rates by area",
