@@ -36,6 +36,14 @@ describe('Administration › stage names (#2906)', () => {
     expect(screen.getAllByTestId(/^stage-name-row-/)).toHaveLength(12);
   });
 
+  it('lists the pipeline stages in pipeline order: Quotation before PQ', async () => {
+    wrap();
+    await screen.findByTestId('stage-name-row-Leads');
+    const keys = screen.getAllByTestId(/^stage-name-row-/).map((r) => r.getAttribute('data-testid')!.replace('stage-name-row-', ''));
+    expect(keys.slice(0, 5)).toEqual(['Leads', 'Quotation Submitted', 'PQ Submitted', 'Tender Submitted', 'Negotiation']);
+    expect(keys).toHaveLength(12);
+  });
+
   it('AC-STG-009: someone who may not manage stages sees no card', () => {
     permissions.manage = false;
     wrap();

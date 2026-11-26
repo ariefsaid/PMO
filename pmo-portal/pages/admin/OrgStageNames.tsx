@@ -6,7 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { saveStageName, validateStageName } from '@/src/lib/db/stageNames';
 import { ORG_STAGE_NAMES_KEY, useOrgStageNames } from '@/src/hooks/useOrgStageNames';
-import { projectStatusGroup, type ProjectStatus, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
+import { PIPELINE_STATUSES, projectStatusGroup, type ProjectStatus, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { STATUS_MAP, shippedStatusLabel } from '@/src/lib/status/statusMap';
 import type { StageNameRow } from '@/src/lib/status/orgStageNames';
 
@@ -17,7 +17,8 @@ import type { StageNameRow } from '@/src/lib/status/orgStageNames';
  */
 const GROUPS: ProjectStatusGroup[] = ['pipeline', 'onHand', 'lost', 'internal'];
 const english = (_k: string, d: string) => d;
-const STAGE_ORDER = Object.keys(STATUS_MAP.project);
+// Pipeline stages in pipeline order (#1793), then the rest in the shared map's order.
+const STAGE_ORDER = [...PIPELINE_STATUSES, ...Object.keys(STATUS_MAP.project).filter((k) => !PIPELINE_STATUSES.includes(k))];
 const COLS = 'md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_minmax(0,1fr)]';
 type Draft = { en: string; id: string };
 type Lang = 'en' | 'id';
