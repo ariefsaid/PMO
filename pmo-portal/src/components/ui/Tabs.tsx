@@ -52,8 +52,7 @@ export interface TabsProps<V extends string = string> {
  * The first tab has no left padding, so its label starts on the same edge as the page heading above it.
  *
  * Tokens: `primary` underline (`.ptab-active::after`), `muted-foreground` inactive
- * text, `border` bottom divider. No new tokens; the mask-image gradient uses #000
- * (opaque mask, not a color) to transparent — compositor-only, no repaint.
+ * text, `border` bottom divider. Overflow fades use the foreground and content-inset tokens.
  */
 export function Tabs<V extends string = string>({
   items,
@@ -115,8 +114,11 @@ export function Tabs<V extends string = string>({
     const style = getComputedStyle(active);
     const left = tab.left - (parseFloat(style.scrollMarginLeft) || 0);
     const right = tab.right + (parseFloat(style.scrollMarginRight) || 0);
-    // The controls occupy separate gutters; reveal the entire selected tab within the track.
-    const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
+    // Keep the active tab outside the edge fades as well as inside the physical track.
+    const fadeInset = parseFloat(getComputedStyle(list).scrollPaddingInlineStart) || 0;
+    const safeLeft = strip.left + (list.scrollLeft > 2 ? fadeInset : 0);
+    const safeRight = strip.right - (list.scrollLeft + list.clientWidth < list.scrollWidth - 2 ? fadeInset : 0);
+    const offset = left < safeLeft ? left - safeLeft : right > safeRight ? right - safeRight : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
   }, [value, widths, stripWidth, syncOverflow]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
@@ -124,8 +126,27 @@ export function Tabs<V extends string = string>({
   const nudge = (dir: -1 | 1) => {
     const list = listRef.current;
     if (!list) return;
-    list.scrollBy({ left: dir * Math.max(200, Math.round(list.clientWidth * 0.6)), behavior: scrollBehavior() });
+    const start = list.scrollLeft;
+    const trackLeft = list.getBoundingClientRect().left;
+    const inset = parseFloat(getComputedStyle(list).scrollPaddingInlineStart) || 0;
+    const maximum = Math.max(0, list.scrollWidth - list.clientWidth);
+    const boundaries = Array.from(list.querySelectorAll<HTMLElement>('[role="tab"]'))
+      .map((tab) => Math.min(maximum, Math.max(0, start + tab.getBoundingClientRect().left - trackLeft - inset)));
+    const next = dir > 0
+      ? boundaries.find((boundary) => boundary > start + 2) ?? maximum
+      : boundaries.reverse().find((boundary) => boundary < start - 2) ?? 0;
+    list.scrollBy({ left: next - start, behavior: scrollBehavior() });
   };
+
+  const ink = 'hsl(var(--foreground))';
+  const fade = 'var(--space-content-inset)';
+  const edgeMask = overflow.left && overflow.right
+    ? `linear-gradient(to right, transparent, ${ink} ${fade}, ${ink} calc(100% - ${fade}), transparent)`
+    : overflow.left
+      ? `linear-gradient(to right, transparent, ${ink} ${fade})`
+      : overflow.right
+        ? `linear-gradient(to right, ${ink} calc(100% - ${fade}), transparent)`
+        : undefined;
 
   return (
     <BaseTabs.Root value={value} onValueChange={(next) => onChange(next as V)} className="contents">
@@ -145,6 +166,7 @@ export function Tabs<V extends string = string>({
       ref={listRef}
       aria-label={ariaLabel}
       activateOnFocus
+      style={{ maskImage: edgeMask, scrollPaddingInline: 'var(--space-content-inset)' }}
       className={cn(
         // Layout: flex strip, no wrap, gap between tabs
         'mb-4 flex min-w-0 flex-1 flex-nowrap whitespace-nowrap gap-0.5 border-b border-border',
@@ -170,7 +192,7 @@ export function Tabs<V extends string = string>({
               // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative inline-flex h-[var(--table-head-height)] max-w-full shrink-0 snap-start items-center px-4 text-control font-normal',
+              'relative inline-flex h-[var(--table-head-height)] max-w-[calc(100%-2*var(--space-content-inset))] shrink-0 snap-start items-center px-4 text-control font-normal',
               insetFirstTab === 'panel'
                 ? 'first:ps-[calc(var(--panel-inset)+1px)]'
                 : insetFirstTab
