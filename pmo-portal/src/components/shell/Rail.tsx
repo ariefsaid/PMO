@@ -243,7 +243,8 @@ export function visibleNavItems({ role, realRole, featureEnabled, canViewStateme
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets)
          || (i.to === '/procurement' && mayOrderPurchases === true && role === realRole))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true).filter((i) => i.to !== '/safety' || safetyEnabled === true)
-    .filter((i) => { const gate = NAV_PERMISSION[i.to]; return !may || !gate || may(gate[0], gate[1]); });
+    .filter((i) => { const gate = NAV_PERMISSION[i.to]; return !may || !gate || may(gate[0], gate[1]); })
+    .map((item) => item.to === '/imprest' && (role === UserRole.Finance || role === UserRole.Executive) ? { ...item, group: 'Finance' as const } : item);
 }
 
 export interface RailProps {

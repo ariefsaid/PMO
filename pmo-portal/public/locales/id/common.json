@@ -2089,7 +2089,7 @@
     }
   },
   "procurementLedger": {
-    "title": "Buku besar kasus",
+    "title": "Dokumen kasus",
     "filter": {
       "label": "Filter catatan",
       "all": "Semua",
@@ -2107,7 +2107,8 @@
       "purchaseRequest": "Permintaan Pembelian",
       "purchaseOrder": "Pesanan Pembelian",
       "payment": "Pembayaran",
-      "rfq": "RFQ"
+      "rfq": "RFQ",
+      "quote": "Penawaran"
     },
     "capture": {
       "action": "Catat {{record}}",

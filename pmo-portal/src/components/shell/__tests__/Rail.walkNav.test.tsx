@@ -105,6 +105,14 @@ describe('walk fix — menu entries and daily order', () => {
     expect(headings()[0]).toBe('Delivery');
   });
 
+  it('JOB-NAV-CASH: Finance keeps site cash beside its financial statements and journals', () => {
+    state.role = 'Finance'; state.key = 'finance';
+    renderRail();
+    const cash = screen.getByRole('link', { name: 'Site cash' });
+    expect(cash).toHaveAttribute('href', '/imprest');
+    expect(cash.closest('[role="group"]')).toHaveAttribute('aria-label', 'Finance');
+  });
+
   it('JOB-NAV-CLAIMS: Finance has the billing board in its Finance group', () => {
     state.role = 'Finance'; state.key = 'finance_manager';
     renderRail();

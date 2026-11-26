@@ -59,6 +59,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
       )}
     >
       <div data-testid="open-requests">
+        <p className="px-[var(--panel-inset)] pb-3 text-sm text-muted-foreground">{t('imprest:open.source', 'Project requests for planning, not float expenditure.')}</p>
         {q.isPending && <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="loading" rows={2} /></div>}
         {q.isError && <div className="px-[var(--panel-inset)] pb-[var(--panel-inset)]"><ListState variant="error" title={t('imprest:open.error', "Couldn't load the open purchase requests")} onRetry={() => void q.refetch()} /></div>}
         {!q.isPending && !q.isError && requests.length === 0 && (
@@ -68,7 +69,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
         )}
         {!q.isPending && !q.isError && requests.length > 0 && (
           <div className="space-y-3">
-            {reason && <p className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-reason">{reason}</p>}
+            {pricesHidden && reason && <p className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-reason">{reason}</p>}
             {!reason && seed.skipped > 0 && (
               <p className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-skipped">
                 {t('imprest:open.skipped', '{{count}} request(s) with no purpose, no visible price or another currency are not counted in the plan.', { count: seed.skipped })}

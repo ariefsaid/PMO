@@ -2089,7 +2089,7 @@
     }
   },
   "procurementLedger": {
-    "title": "Case ledger",
+    "title": "Case documents",
     "filter": {
       "label": "Filter records",
       "all": "All",
@@ -2107,7 +2107,8 @@
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
       "payment": "Payment",
-      "rfq": "RFQ"
+      "rfq": "RFQ",
+      "quote": "Quote"
     },
     "capture": {
       "action": "Capture {{record}}",
