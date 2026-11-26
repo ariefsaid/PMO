@@ -246,12 +246,9 @@
   },
   "checkIn": {
     "requestsTitle": "Absen menunggu Anda",
-    "requestsHelper": "Orang-orang ini absen dari ponsel di luar area kerja, di luar jadwal, atau tanpa posisi. Menyetujui akan mencatat kehadiran mereka.",
     "outcomeOutside": "Di luar area kerja",
     "outcomeNotRostered": "Tidak terdaftar hari ini",
     "outcomeNoPosition": "Tanpa posisi",
-    "distance": "{{metres}} m dari area",
-    "hours": "{{hours}} jam",
     "approve": "Setujui",
     "reject": "Tolak",
     "rejectSubject": "absen",
@@ -279,7 +276,10 @@
     "areaLocateDenied": "Lokasi diblokir untuk situs ini. Izinkan di peramban Anda, atau ketik angkanya.",
     "areaLocateUnavailable": "Posisi Anda tidak dapat dibaca. Coba lagi, atau ketik angkanya.",
     "areaLocateTimeout": "Membaca posisi Anda terlalu lama. Coba lagi, atau ketik angkanya.",
-    "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m"
+    "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m",
+    "why": "Alasan menunggu",
+    "distanceHeader": "Jarak dari area (m)",
+    "requestsCaption": "Menyetujui mencatat kehadiran mereka"
   },
   "release": {
     "error": "Pelepasan medis tidak bisa dimuat",
