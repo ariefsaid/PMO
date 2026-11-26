@@ -260,7 +260,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
   const zero = (v: string | null) => v === null || /^-?0(\.0+)?$/.test(v);
   // Nothing planned and nothing spent: one line and the Plan action, never a wall of zeros.
   const nothingYet = live.length > 0 && rollup.totals.every((tot) => tot.planDirect === null && tot.planIndirect === null && zero(tot.total) && zero(tot.notAssigned) && zero(tot.revenue) && !tot.hasOtherRevenue)
-    && live.every((w) => { const f = figures.get(w.id)!; return f.plan.equipment_hours === null && f.plan.crew_hours === null && f.equipmentHours === 0 && f.equipmentDays === 0 && f.crewHours === 0 && f.otherCurrency.length === 0; });
+    && live.every((w) => { const f = figures.get(w.id)!; return zero(w.revenue) && f.plan.equipment_hours === null && f.plan.crew_hours === null && f.equipmentHours === 0 && f.equipmentDays === 0 && f.crewHours === 0 && f.otherCurrency.length === 0; });
 
   const woHead = (w: PvaWorkOrder) => (
     <RowOpenControl href={`/work-orders/${w.id}`} label={t('openDetails', '{{number}} {{title}}, details', { number: w.woNumber ?? t('draftNumber', 'Draft'), title: w.title })} onActivate={() => setOpenBasis(w.id)}>
@@ -349,7 +349,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
         {title}
       </CardHead>
       <CardPad className="pt-0">
-        {workOrders.length === 0 && rollup.totals.length === 0 && <p className="text-control text-muted-foreground">{t('empty', 'No work orders on this project yet.')}</p>}
+        {workOrders.length === 0 && <p className="mb-3 text-control text-muted-foreground">{t('empty', 'No work orders on this project yet.')}</p>}
         {nothingYet
           ? <>
               <p className="text-control text-muted-foreground" data-testid="wo-pva-nothing-yet">{t('nothingYet', 'Nothing planned or spent yet. Plan a work order to compare its cost with the plan.')}</p>

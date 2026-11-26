@@ -24,6 +24,7 @@ vi.mock('@/src/auth/usePermission', async () => {
   return { usePermission: () => (action: never, entity: never) => can(action, entity, { realRole: h.role as never }) };
 });
 
+import { MemoryRouter } from 'react-router';
 import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
 
 const wo = (id: string, n: string, extra: Partial<PvaWorkOrder> = {}): PvaWorkOrder =>
@@ -52,12 +53,15 @@ describe('WorkOrderPlanVsActual', () => {
       lines: [line({ workOrderId: 'A', amount: '600.00' }), line({ workOrderId: 'B', amount: '400.00' }), line({ amount: '100.00' })],
       plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '550.00', note: null }],
     });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     const a = screen.getByTestId('wo-pva-row-A');
-    expect(within(a).getByTestId('wo-pva-direct').textContent).toMatch(/Over plan by .*50/);
+    expect(within(a).getByTestId('wo-pva-direct').textContent).toMatch(/600/);
+    const over = within(a).getByTestId('wo-pva-difference');
+    expect(over.textContent).toMatch(/Over plan by .*50/);
+    expect(over.className).toContain('text-destructive');
     expect(within(a).getByTestId('wo-pva-allocated').textContent).toMatch(/60/);
-    expect(within(a).getByTestId('wo-pva-result').textContent).toMatch(/340/);
-    expect(screen.getByTestId('wo-pva-total-IDR').textContent).toMatch(/1[.,]100/);
+    expect(within(screen.getByTestId('wo-pva-margin-row-A')).getByTestId('wo-pva-result').textContent).toMatch(/340/);
+    expect(screen.getByTestId('wo-pva-total-cost-IDR').textContent).toMatch(/1[.,]100/);
     expect(screen.getAllByTestId('wo-pva-basis-note')[0].textContent).toMatch(/share of direct cost/);
   });
 
@@ -67,21 +71,35 @@ describe('WorkOrderPlanVsActual', () => {
       lines: [line({ workOrderId: 'A', amount: '10.00' }), line({ amount: '5.00' })],
       split: [{ workOrderId: 'A', percent: '50' }, { workOrderId: 'B', percent: '50' }],
     });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(screen.getAllByTestId('wo-pva-basis-note').map((n) => n.textContent).join(' ')).toMatch(/stale.*default is used/);
   });
 
   it('shows order value as the ceiling beside billed revenue', () => {
     setData({ workOrders: [wo('A', 'WO-1', { orderValue: '1500.00' })], lines: [] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
-    expect(within(screen.getByTestId('wo-pva-row-A')).getByText(/Order value/).textContent).toMatch(/1[.,]500/);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
+    const row = screen.getByTestId('wo-pva-margin-row-A');
+    expect(within(row).getByTestId('wo-pva-order-value').textContent).toMatch(/1[.,]500/);
+    expect(within(row).getByTestId('wo-pva-revenue').textContent).toMatch(/1[.,]000/);
+    expect(within(screen.getByTestId('wo-pva-billed')).getByText('Order value (ceiling)')).toBeTruthy();
+  });
+
+  it('when nothing is planned or spent, says so once and offers Plan instead of rows of zeros', () => {
+    setData({ workOrders: [wo('A', 'WO-1', { orderValue: '350000000.00', revenue: null })], lines: [] });
+    h.role = 'Project Manager';
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
+    expect(screen.getByTestId('wo-pva-nothing-yet').textContent).toMatch(/Nothing planned or spent yet/);
+    expect(within(screen.getByTestId('wo-pva-row-A')).getByTestId('wo-pva-order-value').textContent).toMatch(/350[.,]000[.,]000/);
+    expect(within(screen.getByTestId('wo-pva-row-A')).getByRole('button', { name: 'Plan' })).toBeTruthy();
+    expect(screen.queryByTestId('wo-pva-billed')).toBeNull();
+    expect(screen.queryByTestId('wo-pva-project-hours')).toBeNull();
   });
 
   it('shows project hours and distinct crew alongside their plans', () => {
     setData({ workOrders: [wo('A', 'WO-1')],
       plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'crew_hours', value: '20.00', note: null }],
       lines: [line({ workOrderId: 'A', source: 'timesheet_entry', reason: 'no-rate', amount: null, quantity: 7, quantityUnit: 'hours', personId: 'u1' })] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     const summary = screen.getByTestId('wo-pva-project-hours');
     expect(summary.textContent).toMatch(/7/);
     expect(summary.textContent).toMatch(/20/);
@@ -95,11 +113,12 @@ describe('WorkOrderPlanVsActual', () => {
         line({ workOrderId: 'A', source: 'timesheet_entry', reason: 'no-rate', amount: null, quantity: 4, quantityUnit: 'hours', personId: 'u1' }),
         line({ workOrderId: 'A', source: 'timesheet_entry', reason: 'not-posted', amount: null, quantity: 6, quantityUnit: 'hours', personId: 'u2' }),
       ] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     const summary = screen.getByTestId('wo-pva-project-hours');
-    expect(summary.textContent).toMatch(/Crew hours4/);
+    expect(within(summary).getByTestId('wo-pva-hours-crew').textContent).toBe('4');
+    expect(within(summary).getByTestId('wo-pva-hours-plan-crew').textContent).toBe('5');
     expect(summary.textContent).toMatch(/6 h on timesheets not yet approved are not counted/);
-    fireEvent.click(within(screen.getByTestId('wo-pva-row-A')).getAllByRole('button')[0]);
+    fireEvent.click(within(screen.getByTestId('wo-pva-row-A')).getByRole('link', { name: /WO-1/ }));
     expect(screen.queryByText(/Over plan by/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/6 h on timesheets not yet approved are not counted/).length).toBe(2);
   });
@@ -107,7 +126,7 @@ describe('WorkOrderPlanVsActual', () => {
   it('states project direct-cost overspend in words', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', amount: '60.00' })],
       plans: [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '50.00', note: null }] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(within(screen.getByTestId('wo-pva-total-IDR')).getByText(/Over plan by/).textContent).toMatch(/10/);
   });
 
@@ -117,20 +136,21 @@ describe('WorkOrderPlanVsActual', () => {
       plans: [{ id: 'a', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '150.00', note: null },
         { id: 'b', workOrderId: 'A', disciplineId: null, kind: 'indirect_budget', value: '25.00', note: null }],
       projectRevenue: [{ currency: 'IDR', work_revenue: '200.00', missing_work: 0 }] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     const total = screen.getByTestId('wo-pva-total-IDR');
     expect(total.textContent).toMatch(/150/);
     expect(total.textContent).toMatch(/25/);
-    expect(total.textContent).toMatch(/200/);
-    expect(total.textContent).toMatch(/140/);
-    expect(total.textContent).toMatch(/100/);
+    const billed = screen.getByTestId('wo-pva-margin-total-IDR');
+    expect(billed.textContent).toMatch(/200/);
+    expect(within(billed).getByTestId('wo-pva-total-direct-margin').textContent).toMatch(/140/);
+    expect(screen.getByTestId('wo-pva-total-cost-IDR').textContent).toMatch(/100/);
     expect(screen.getByText('Other revenue').closest('tr')?.textContent).toMatch(/30/);
   });
 
   it('states other revenue even when its billed amount is zero', () => {
     setData({ workOrders: [wo('A', 'WO-1')], projectRevenue: [{ currency: 'IDR', work_revenue: '0.00', missing_work: 0 }],
       lines: [line({ source: 'other_revenue', reason: 'other-revenue', amount: '0.00' })] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(screen.getByText('Other revenue').closest('tr')?.textContent).toMatch(/0/);
   });
 
@@ -138,10 +158,10 @@ describe('WorkOrderPlanVsActual', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', disciplineId: 'civ', amount: '60.00' })],
       plans: [{ id: 'p', workOrderId: 'A', disciplineId: 'civ', kind: 'direct_budget', value: '100.00', note: null },
         { id: 'q', workOrderId: 'A', disciplineId: 'civ', kind: 'indirect_budget', value: '20.00', note: null }] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     const table = screen.getByTestId('wo-pva-disciplines');
-    expect(within(table).getByText('Planned direct')).toBeTruthy();
-    expect(within(table).getByText('Planned indirect')).toBeTruthy();
+    expect(within(table).getByText('Direct cost')).toBeTruthy();
+    expect(within(table).getByText('Shared cost')).toBeTruthy();
     expect(table.textContent).toMatch(/100/);
     expect(table.textContent).toMatch(/20/);
     expect(table.textContent).toMatch(/60/);
@@ -150,22 +170,22 @@ describe('WorkOrderPlanVsActual', () => {
   it('states discipline overspend in words', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', disciplineId: 'civ', amount: '60.00' })],
       plans: [{ id: 'p', workOrderId: 'A', disciplineId: 'civ', kind: 'direct_budget', value: '50.00', note: null }] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(within(screen.getByTestId('wo-pva-disciplines')).getByText(/Over plan by/).textContent).toMatch(/10/);
   });
 
   it('shows unassigned project cost even when no work orders exist', () => {
     setData({ workOrders: [], lines: [line({ amount: '25.00', reason: 'unassigned' })] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(screen.getByText('No work orders on this project yet.')).toBeTruthy();
     expect(screen.getByTestId('wo-pva-not-assigned-IDR').textContent).toMatch(/25/);
-    expect(screen.getByTestId('wo-pva-total-IDR').textContent).toMatch(/25/);
+    expect(screen.getByTestId('wo-pva-total-cost-IDR').textContent).toMatch(/25/);
   });
 
   it('names each currency when allocation bases differ', () => {
     setData({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2', { currency: 'USD' })],
       lines: [line({ workOrderId: 'A', amount: '100.00' }), line({ currency: 'USD', amount: '10.00' })] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     const notes = screen.getAllByTestId('wo-pva-basis-note').map((node) => node.textContent).join(' ');
     expect(notes).toMatch(/IDR.*share of direct cost/);
     expect(notes).toMatch(/USD.*remains unassigned/);
@@ -173,15 +193,15 @@ describe('WorkOrderPlanVsActual', () => {
 
   it('AC-WPVA-009 a restricted read shows restricted, never a zero', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [], restricted: true });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(screen.getByRole('status').textContent).toMatch(/restricted for your role/);
     expect(screen.queryByTestId('wo-pva-row-A')).toBeNull();
   });
 
   it('AC-WPVA-010 a cost in another currency makes margin "not comparable"', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [line({ workOrderId: 'A', amount: '10.00' }), line({ workOrderId: 'A', amount: '1.00', currency: 'USD' })] });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
-    expect(within(screen.getByTestId('wo-pva-row-A')).getByTestId('wo-pva-direct-margin').textContent).toMatch(/Not comparable/);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
+    expect(within(screen.getByTestId('wo-pva-margin-row-A')).getByTestId('wo-pva-direct-margin').textContent).toMatch(/Not comparable/);
   });
 
   it('AC-WPVA-013 the basis shows equipment hours and keeps days apart; every line says how it counts', () => {
@@ -193,26 +213,27 @@ describe('WorkOrderPlanVsActual', () => {
         line({ workOrderId: 'A', source: 'purchase_order', amount: null, reason: 'commitment', reference: 'PO-1' }),
       ],
     });
-    render(<WorkOrderPlanVsActual projectId="p1" />);
-    fireEvent.click(within(screen.getByTestId('wo-pva-row-A')).getByRole('button', { name: 'Basis' }));
-    const basis = screen.getByTestId('wo-pva-row-A').nextElementSibling as HTMLElement;
-    expect(within(basis).getByText('Equipment hours').nextSibling?.textContent).toMatch(/^6/);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
+    fireEvent.click(within(screen.getByTestId('wo-pva-row-A')).getByRole('link', { name: /WO-1/ }));
+    const basis = screen.getByTestId('wo-pva-drawer-A');
+    expect(within(basis).getByText('Equipment hours').closest('tr')?.textContent).toMatch(/Equipment hours.*6/);
     expect(within(basis).getByText('Equipment days (kept apart)').nextSibling?.textContent).toBe('1');
+    expect(within(basis).getByText('Equipment days (kept apart)').closest('dl')).toBeTruthy();
     expect(within(basis).getByText(/Commitment, not summed/)).toBeTruthy();
   });
 
   it('AC-WPVA-015 the split action is offered to Finance, not to a Project Manager; an Engineer sees no card', () => {
     setData({ workOrders: [wo('A', 'WO-1')], lines: [] });
-    const { unmount } = render(<WorkOrderPlanVsActual projectId="p1" />);
+    const { unmount } = render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(screen.getByRole('button', { name: 'Shared-cost split' })).toBeTruthy();
     unmount();
     h.role = 'Project Manager';
-    const pm = render(<WorkOrderPlanVsActual projectId="p1" />);
+    const pm = render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(screen.queryByRole('button', { name: 'Shared-cost split' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Plan' })).toBeTruthy();
     pm.unmount();
     h.role = 'Engineer';
-    render(<WorkOrderPlanVsActual projectId="p1" />);
+    render(<WorkOrderPlanVsActual projectId="p1" />, { wrapper: MemoryRouter });
     expect(screen.queryByTestId('wo-plan-vs-actual')).toBeNull();
   });
 });
