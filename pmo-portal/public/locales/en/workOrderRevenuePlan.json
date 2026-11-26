@@ -89,7 +89,9 @@
       "other": "Other",
       "total": "Cost",
       "net": "Revenue less cost",
-      "undated": "Not dated to a day: {{amount}}"
+      "undated": "Not dated to a day: {{amount}}",
+      "unreadableDays_one": "1 day has cost in another currency or not shown to you",
+      "unreadableDays_other": "{{count}} days have cost in another currency or not shown to you"
     },
     "byDay": "Each day",
     "allQuiet": "No day in {{month}} has a target, revenue or cost yet.",

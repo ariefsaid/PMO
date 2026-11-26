@@ -46,12 +46,18 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   const shown = useMemo(() => (data?.days ?? []).filter((d) => visibleDays([d]).length > 0 || daily?.days[d.date] !== undefined), [data, daily]);
   const chart = useMemo(() => shown.map((d) => ({ date: d.date.slice(8), target: Number(d.target), actual: Number(d.actual) })), [shown]);
   // A day earns a row when something is on it: a target, revenue, a report waiting, cost, or a listed closure.
-  const busy = (d: (typeof shown)[number]) => d.hasTarget || Number(d.actual) !== 0 || d.pendingReports > 0 || d.listed || daily?.days[d.date] !== undefined;
-  const rows = useMemo(() => shown.filter(busy), [shown, daily]); // eslint-disable-line react-hooks/exhaustive-deps -- busy reads only shown/daily
-  const quiet = shown.length - rows.length;
   const costCells = useMemo(() => (daily ? [...Object.values(daily.days), ...(daily.undated ? [daily.undated] : [])] : []), [daily]);
   const costCols = DAY_CATEGORIES.filter((k) => costCells.some((c) => typeof c[k] === 'number'));
   const hasCostTotal = costCells.some((c) => typeof c.total === 'number');
+  // A day earns a row when something on it can be shown: a target, revenue, a report waiting, a listed closure, or cost
+  // this reader can read. A day whose only cost cannot be read here (another currency, a restricted amount) is counted apart.
+  const readableCost = (date: string) => {
+    const c = daily?.days[date];
+    return c !== undefined && (typeof c.total === 'number' || costCols.some((k) => typeof c[k] === 'number'));
+  };
+  const rows = shown.filter((d) => d.hasTarget || Number(d.actual) !== 0 || d.pendingReports > 0 || d.listed || readableCost(d.date));
+  const unreadable = shown.filter((d) => !rows.includes(d) && daily?.days[d.date] !== undefined).length;
+  const quiet = shown.length - rows.length - unreadable;
   const monthLabel = formatUtcMonthYearFull(new Date(`${month}T00:00:00Z`));
 
   const nav = (
@@ -100,7 +106,7 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
   }
 
   // Phone: each day is a card (its date over labelled figures); wider screens read one table.
-  const cell = 'py-2.5 pr-4 text-right align-baseline tabular-nums max-sm:flex max-sm:justify-between max-sm:gap-4 max-sm:py-0.5 max-sm:pr-0 max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-label)]';
+  const cell = 'py-2.5 text-right align-baseline tabular-nums max-sm:flex max-sm:justify-between max-sm:gap-4 max-sm:py-0.5 max-sm:before:text-muted-foreground max-sm:before:content-[attr(data-label)]';
   const L = {
     target: t('daily.target', 'Target'), actual: t('daily.actual', 'Actual'), gap: t('daily.dayGap', 'Gap'),
     total: t('daily.cost.total', 'Cost'), net: t('daily.cost.net', 'Revenue less cost'),
@@ -167,14 +173,14 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
                         </div>
                       )}
                     </th>
-                    <td className={cell} data-label={L.target}>{d.hasTarget ? money(d.target) : '—'}</td>
-                    <td className={cell} data-label={L.actual}>
+                    <td className={`${cell} pr-4 max-sm:pr-0`} data-label={L.target}>{d.hasTarget ? money(d.target) : '—'}</td>
+                    <td className={`${cell} pr-4 max-sm:pr-0`} data-label={L.actual}>
                       <span>{money(d.actual)}{d.pendingReports > 0 && <span className="block text-muted-foreground">{t('daily.dayPending', '{{count}} not yet validated', { count: d.pendingReports })}</span>}</span>
                     </td>
-                    <td className={`${cell} ${costCols.length || hasCostTotal ? '' : 'pr-0'}`} data-label={L.gap}>{d.hasTarget ? gapWords(d.gap) : '—'}</td>
-                    {costCols.map((k) => <td key={k} className={cell} data-label={t(`daily.cost.${k}`, k)} data-testid={`wo-daily-cost-${k}-${d.date}`}>{costFigure(dayCost?.[k])}</td>)}
-                    {hasCostTotal && <td className={cell} data-label={L.total} data-testid={`wo-daily-cost-total-${d.date}`}>{costFigure(dayCost?.total)}</td>}
-                    {hasCostTotal && <td className={`${cell} pr-0 font-medium`} data-label={L.net} data-testid={`wo-daily-cost-net-${d.date}`}>
+                    <td className={`${cell} ${costCols.length || hasCostTotal ? 'pr-4 max-sm:pr-0' : ''}`} data-label={L.gap}>{d.hasTarget ? gapWords(d.gap) : '—'}</td>
+                    {costCols.map((k) => <td key={k} className={`${cell} pr-4 max-sm:pr-0`} data-label={t(`daily.cost.${k}`, k)} data-testid={`wo-daily-cost-${k}-${d.date}`}>{costFigure(dayCost?.[k])}</td>)}
+                    {hasCostTotal && <td className={`${cell} pr-4 max-sm:pr-0`} data-label={L.total} data-testid={`wo-daily-cost-total-${d.date}`}>{costFigure(dayCost?.total)}</td>}
+                    {hasCostTotal && <td className={`${cell} font-medium`} data-label={L.net} data-testid={`wo-daily-cost-net-${d.date}`}>
                       {typeof dayCost?.total === 'number' ? money(toMoney((Math.round(Number(d.actual) * 100) - Math.round(dayCost.total * 100)) / 100)) : '—'}
                     </td>}
                   </tr>
@@ -183,9 +189,10 @@ export const DailyTargetView: React.FC<Props> = ({ workOrderId, costGroups = nul
             </tbody>
           </table>
         )}
-        {(quiet > 0 || undated !== null) && (
+        {(quiet > 0 || unreadable > 0 || undated !== null) && (
           <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-control text-muted-foreground">
             {quiet > 0 && rows.length > 0 && <span data-testid="wo-daily-quiet">{t('daily.quiet', { count: quiet, defaultValue_one: '1 day with nothing on it', defaultValue_other: '{{count}} days with nothing on them' })}</span>}
+            {unreadable > 0 && <span data-testid="wo-daily-cost-unreadable">{t('daily.cost.unreadableDays', { count: unreadable, defaultValue_one: '1 day has cost in another currency or not shown to you', defaultValue_other: '{{count}} days have cost in another currency or not shown to you' })}</span>}
             {undated !== null && <span data-testid="wo-daily-cost-undated">{t('daily.cost.undated', 'Not dated to a day: {{amount}}', { amount: money(toMoney(undated)) })}</span>}
           </p>
         )}

@@ -89,7 +89,9 @@
       "other": "Lainnya",
       "total": "Biaya",
       "net": "Pendapatan dikurangi biaya",
-      "undated": "Tanpa tanggal: {{amount}}"
+      "undated": "Tanpa tanggal: {{amount}}",
+      "unreadableDays_one": "1 hari memiliki biaya dalam mata uang lain atau tidak ditampilkan untuk Anda",
+      "unreadableDays_other": "{{count}} hari memiliki biaya dalam mata uang lain atau tidak ditampilkan untuk Anda"
     },
     "byDay": "Per hari",
     "allQuiet": "Belum ada hari di {{month}} yang memiliki target, pendapatan, atau biaya.",

@@ -169,6 +169,14 @@ describe('DailyTargetView (#2672)', () => {
       expect(screen.queryByTestId('wo-daily-cost-undated')).toBeNull();
       expect(screen.getByTestId('wo-daily-table')).toBeTruthy();
     });
+    it('a day whose only cost cannot be read here gets no row of dashes; the days are counted apart', () => {
+      state.query = ok(target({ days: [day({}), day({ date: '2026-12-04', hasTarget: false, target: '0.00', actual: '0.00', gap: '0.00' })] }));
+      render(<DailyTargetView workOrderId="w" costGroups={buildCostView([line('stock_document', 's1', '2026-12-01'), line('equipment_usage', 'e4', '2026-12-04')],
+        { stock_document: { s1: idr(20) }, equipment_usage: { e4: { amount: 9, currency: 'USD' } } })} />);
+      expect(screen.queryByTestId('wo-daily-row-2026-12-04')).toBeNull();
+      expect(screen.getByTestId('wo-daily-cost-unreadable').textContent).toBe('1 day has cost in another currency or not shown to you');
+      expect(screen.getByTestId('wo-daily-cost-total-2026-12-01').textContent).toBe(money('20.00'));
+    });
     it('without cost groups the view is unchanged', () => {
       state.query = ok(target());
       render(<DailyTargetView workOrderId="w" />);
