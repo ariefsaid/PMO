@@ -20,7 +20,7 @@ test('AC-PLP-009 line planning is on for everyone (#2746) with starter categorie
   await page.getByLabel('New item unit price').fill('10');
   await page.getByRole('button', { name: 'Add line item' }).click();
   await page.getByLabel('Line category').selectOption({ label: 'Project' });
-  await page.getByLabel('Needed by').fill('2026-12-31');
+  await page.getByRole('textbox', { name: 'Needed by' }).fill('2026-12-31');
   await page.getByRole('button', { name: 'Save draft' }).click();
 
   await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 15_000 });

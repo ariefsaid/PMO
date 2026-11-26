@@ -33,9 +33,9 @@ test('JOB-PU2 the Buyer sets one line to a work order and one to overhead, and e
       await addRow.getByRole('button', { name: /add line item/i }).click();
     }
     // Line one is for the work order; line two stays on no work order (overhead).
-    await page.getByTestId('line-work-orders-section').getByRole('combobox', { name: `Work order for ${run} site pipe` }).selectOption({ label: `WO-${run}` });
-    const planning = page.getByTestId('line-planning-section');
-    const rowOf = (name: string) => planning.getByRole('listitem').filter({ hasText: name });
+    await page.getByTestId('line-plan-section').getByRole('combobox', { name: `Work order for ${run} site pipe` }).selectOption({ label: `WO-${run}` });
+    const planning = page.getByTestId('line-plan-section');
+    const rowOf = (name: string) => planning.getByRole('row').filter({ hasText: name });
     await rowOf(`${run} site pipe`).getByLabel('Line category').selectOption({ label: 'Project' });
     await rowOf(`${run} office paper`).getByLabel('Line category').selectOption({ label: 'Overhead' });
     await page.getByRole('button', { name: 'Save draft' }).click();
