@@ -418,17 +418,7 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Compose with AI button (FR-AS-014, AC-AS-011/012) — hidden when flags off */}
-          {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
-            <Button
-              variant="outline"
-              onClick={() => setAIComposerOpen(true)}
-              aria-label={t('viewBuilder.composeWithAi', 'Compose view with AI')}
-            >
-              {t('viewBuilder.composeWithAi', 'Compose view with AI')}
-            </Button>
-          )}
+        <div className="flex flex-nowrap gap-2">
           <Button
             variant="ghost"
             onClick={() => {
@@ -517,8 +507,9 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
               </p>
             )}
 
+            <div className="mt-3 flex flex-wrap items-center gap-2">
             {panels.length < MAX_PANELS_PER_VIEW ? (
-              <Button variant="outline" onClick={handleAddPanel} className="mt-3">
+              <Button variant="outline" onClick={handleAddPanel}>
                 {t('viewBuilder.addPanel', '+ Add panel')}
               </Button>
             ) : (
@@ -526,6 +517,17 @@ const ViewBuilderPage: React.FC<{ mode: 'create' | 'edit' }> = ({ mode }) => {
                 {t('viewBuilder.maximumPanelsReached', 'Maximum of {{count}} panels reached.', { count: MAX_PANELS_PER_VIEW })}
               </p>
             )}
+          {/* Compose with AI button (FR-AS-014, AC-AS-011/012) — hidden when flags off */}
+          {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
+            <Button
+              variant="outline"
+              onClick={() => setAIComposerOpen(true)}
+              aria-label={t('viewBuilder.composeWithAi', 'Compose view with AI')}
+            >
+              {t('viewBuilder.composeWithAi', 'Compose view with AI')}
+            </Button>
+          )}
+            </div>
           </FormSection>
 
         </div>

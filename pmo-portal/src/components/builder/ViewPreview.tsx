@@ -116,7 +116,7 @@ const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
           compiledQuery: null,
         };
         const colSpan = panel.layout?.colSpan;
-        const panelStyle = colSpan ? { gridColumn: `span ${colSpan}` } : undefined;
+        const panelStyle = spec.panels.length === 1 ? { gridColumn: '1 / -1' } : colSpan ? { gridColumn: `span ${colSpan}` } : undefined;
 
         // Per-panel compile error callout (OD-VB-7, FR-VB-054)
         if (state.compileError) {
@@ -155,7 +155,7 @@ const ViewPreview: React.FC<ViewPreviewProps> = ({ spec }) => {
           <div
             key={panel.id}
             style={panelStyle}
-            className="rounded-lg border border-border bg-card p-4"
+            className="min-w-0"
           >
             <ChartFrame
               state={
