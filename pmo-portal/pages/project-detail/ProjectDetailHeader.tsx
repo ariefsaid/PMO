@@ -615,7 +615,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         {t('projectDetail.header.projectDetails', 'Project details')}
       </PopoverTrigger>
       <PopoverContent align="end" className="max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto p-1">
-        {onPhone && facts && <div className="border-b border-border px-3 py-3">{facts}</div>}
+        {!isDesktopHeader && facts && <div className="border-b border-border px-3 py-3">{facts}</div>}
         {menuContent && (
           <>
             <div id="project-menu-details" className="border-b border-border px-2 py-3">{menuContent}</div>

@@ -338,8 +338,11 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const scrollRegionRef = useRef<HTMLDivElement>(null);
   const [hasScrollCue, setHasScrollCue] = useState(false);
   useLayoutEffect(() => {
-    const active = scrollRegionRef.current?.querySelector<HTMLElement>('a[aria-current="page"]');
-    active?.scrollIntoView?.({ block: 'nearest' });
+    const region = scrollRegionRef.current;
+    const active = region?.querySelector<HTMLElement>('a[aria-current="page"]');
+    if (!active) { if (region) region.scrollTop = 0; return; }
+    const group = active.closest<HTMLElement>('[role="group"]');
+    (group ?? active).scrollIntoView?.({ block: 'nearest' });
   }, [location.pathname, location.search]);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
