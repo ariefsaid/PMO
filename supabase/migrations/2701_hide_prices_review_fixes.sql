@@ -10,7 +10,7 @@
 --    on the hosted project); 2700's test asserts the attribute locally.
 -- Defaults (revisitable): a person who cannot see prices writes no rental term or rate (equipment_can_edit_terms); while prices are
 -- hidden, only built-in roles that see prices may be named to order, and hiding cannot be switched on while such a role is named.
--- drops: create_purchase_order's early return gains the price mask; create_purchase_order, create_procurement_quotation and set_hide_prices_enabled pin search_path = public, pg_temp; equipment_can_edit_terms' last line gains the price test; nothing else is removed.
+-- drops: create_purchase_order's early return gains the price mask; create_purchase_order, create_procurement_quotation and set_hide_prices_enabled pin search_path = public, pg_temp; guard_purchase_order_job_roles adds pg_temp last; equipment_can_edit_terms' last line gains the price test; nothing else is removed.
 -- Rollback: rollback/2701_hide_prices_review_fixes_down.sql
 
 create or replace view public.purchase_orders_masked with (security_invoker = false, security_barrier = true) as
@@ -244,7 +244,7 @@ CREATE OR REPLACE FUNCTION public.create_procurement_quotation(p_procurement_id 
  RETURNS procurement_quotations
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare v_org uuid; v_row public.procurement_quotations;
 begin
@@ -268,7 +268,7 @@ begin
 end; $function$;
 
 create or replace function public.guard_purchase_order_job_roles() returns trigger
-  language plpgsql security definer set search_path = pg_catalog, public as $$
+  language plpgsql security definer set search_path = pg_catalog, public, pg_temp as $$
 begin
   if tg_op = 'UPDATE' and new.order_job_roles is not distinct from old.order_job_roles then return new; end if;
   new.order_job_roles := coalesce(array(select distinct k from unnest(new.order_job_roles) k order by k), array[]::text[]);

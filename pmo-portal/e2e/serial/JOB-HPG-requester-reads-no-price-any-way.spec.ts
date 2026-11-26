@@ -3,7 +3,7 @@
  * JOB-HPG (#2788) — the database keeps the hide-prices promise on every way of reading: with the setting on, a Site Supervisor opens
  * their own request on screen, and the same signed-in session asking the database directly for that request's table, its lines and
  * its order gets no price (the request comes back only through the price-free read, without its total). Finance still reads the total.
- * The same person adds, edits and removes a line on their own draft request while hiding is on.
+ * The same person adds, edits and removes a line on their own draft request while hiding is on, and the edit keeps the price they entered.
  */
 import { expect, test, type Page } from '@playwright/test';
 import { createProcurementFixture, type ProcurementFixture } from '../procurement-fixture';
@@ -93,6 +93,11 @@ test('JOB-HPG the Site Supervisor adds, edits and removes a line on their own dr
   await lines.getByLabel(`Edit quantity for ${item}`).fill('5');
   await lines.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(saved.getByRole('cell', { name: '5', exact: true })).toBeVisible({ timeout: 20_000 });
+  // The edit kept the price the supervisor entered: Finance reads 5 × 4.
+  const finance = await userClient('finance@acme.test');
+  const kept = await finance.from('procurement_items').select('quantity, rate').eq('procurement_id', draft.id).eq('name', item).single();
+  ok('finance line read', kept);
+  expect([Number((kept.data as { quantity: number }).quantity), Number((kept.data as { rate: number }).rate)]).toEqual([5, 4]);
 
   await saved.getByRole('button', { name: `Remove ${item}` }).click();
   await page.getByRole('button', { name: 'Remove item' }).click();
