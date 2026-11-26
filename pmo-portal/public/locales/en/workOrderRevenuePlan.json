@@ -81,7 +81,20 @@
     "nonWorkingLabelled": "Non-working day: {{label}}",
     "empty": "No working days in this month.",
     "loadError": "Couldn't load the daily target",
-    "nothing": "No target and no actual in {{month}}."
+    "nothing": "No target and no actual in {{month}}.",
+    "cost": {
+      "labour": "Labour",
+      "equipment": "Equipment",
+      "material": "Material",
+      "other": "Other",
+      "total": "Cost",
+      "net": "Revenue less cost",
+      "undated": "Not dated to a day: {{amount}}"
+    },
+    "byDay": "Each day",
+    "allQuiet": "No day in {{month}} has a target, revenue or cost yet.",
+    "quiet_one": "1 day with nothing on it",
+    "quiet_other": "{{count}} days with nothing on them"
   },
   "dailyRollup": {
     "title": "Daily target, month to date",

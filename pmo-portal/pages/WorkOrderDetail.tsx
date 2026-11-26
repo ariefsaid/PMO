@@ -267,7 +267,7 @@ const WorkOrderDetail: React.FC = () => {
             <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
             <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
             {/* #2672: the daily target view; same switch and role gate as the plan above. */}
-            <DailyTargetGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
+            <DailyTargetGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} costGroups={groups} />
           </>}
           {area === 'billing' && <>
             <BillingSection contractHref={canBilling ? `/projects/${row.project_id}/contract?wo=${row.id}` : null} billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
