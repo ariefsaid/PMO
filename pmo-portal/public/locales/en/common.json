@@ -1670,7 +1670,6 @@
       "heading": "Expense claims awaiting you ({{count}})",
       "label": "Expense claims awaiting you",
       "noReceipts": "No receipts attached.",
-      "reviewDecision": "Review and decide",
       "previewEvidence": "Preview claim evidence",
       "receiptsError": "Couldn't load receipts.",
       "receiptsLoading": "Loading receipts…"
@@ -3225,7 +3224,7 @@
       "quotationSubmitted": "Quotation Submitted",
       "tenderSubmitted": "Tender Submitted",
       "negotiation": "Negotiation",
-      "wonPendingKom": "Won",
+      "wonPendingKom": "Won, pending kickoff",
       "ongoingProject": "Ongoing Project",
       "onHold": "On Hold",
       "closeOut": "Close Out",
@@ -3527,7 +3526,6 @@
     }
   },
   "timesheets": {
-    "hoursTotal": "{{formatted}} hours",
     "accessDenied": {
       "sub": "Timesheets and approvals are part of the workforce surface. Finance work lives on your dashboard, projects, and procurement.",
       "title": "You don't have access to Timesheets"

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, DecisionContextSummary, ListState, StatusPill } from '@/src/components/ui';
+import { Button, buttonClasses, Card, CardHead, DecisionContextSummary, ListState, StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
@@ -78,7 +78,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
                 {route?.isException && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                 <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
                 <span className="tabular-nums">{formatCurrency(Number(claim.amount), claim.float?.currency ?? claim.currency)}</span>
-                <Link to={`/expenses/${claim.id}`} className="touch-target inline-flex items-center rounded-lg bg-primary px-3 py-1.5 text-control font-medium text-primary-foreground hover:bg-primary/90">{t('expenses.approvals.reviewDecision', 'Review and decide')}</Link>
+                <Link to={`/expenses/${claim.id}`} className={buttonClasses('primary', 'sm')}>{t('expenseClaims:approvals.reviewDecision', 'Review and decide')}</Link>
                 <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
                   {t('expenses.approvals.previewEvidence', 'Preview claim evidence')}
                 </Button>
