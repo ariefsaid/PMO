@@ -51,14 +51,18 @@ export function mulRound(a: string, b: string, scale: number): bigint | null {
   return roundUnits(x.units * y.units, x.scale + y.scale, scale);
 }
 
-/** Exact sum of decimal strings at `scale` decimals; null and malformed entries are skipped. */
+/** Sum at full precision, skipping null and malformed entries, then round once to the requested scale. */
 export function sumDecimal(values: readonly (string | null)[], scale: number): string {
   let total = 0n;
+  let totalScale = scale;
   for (const value of values) {
-    const units = value === null ? null : parseDecimal(value, scale);
-    if (units !== null) total += units;
+    const parsed = value === null ? null : parseUnits(value);
+    if (parsed === null) continue;
+    const nextScale = Math.max(totalScale, parsed.scale);
+    total = roundUnits(total, totalScale, nextScale) + roundUnits(parsed.units, parsed.scale, nextScale);
+    totalScale = nextScale;
   }
-  return formatDecimal(total, scale);
+  return formatDecimal(roundUnits(total, totalScale, scale), scale);
 }
 
 /** Convert a validated, signed scale-two decimal to integer minor units. */
