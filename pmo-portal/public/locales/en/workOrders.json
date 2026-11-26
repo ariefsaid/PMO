@@ -58,7 +58,6 @@
     }
   },
   "billing": {
-    "title": "Billing and acceptances",
     "error": "Couldn't load the billing figures",
     "noFigures": "No billing figures for this work order yet.",
     "invoiced": "Invoiced",
@@ -89,7 +88,8 @@
       "toDate": "to date",
       "total": "Total billed"
     },
-    "openContract": "Claims and invoices"
+    "openContract": "Claims and invoices",
+    "invoicesTitle": "Invoices"
   },
   "documents": {
     "title": "Documents",

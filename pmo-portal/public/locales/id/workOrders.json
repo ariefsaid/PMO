@@ -58,7 +58,6 @@
     }
   },
   "billing": {
-    "title": "Penagihan dan penerimaan",
     "error": "Angka penagihan tidak dapat dimuat",
     "noFigures": "Belum ada angka penagihan untuk $t(common:terms.clientWorkOrder) ini.",
     "invoiced": "Ditagihkan",
@@ -89,7 +88,8 @@
       "toDate": "sampai hari ini",
       "total": "Total ditagih"
     },
-    "openContract": "Klaim dan invoice"
+    "openContract": "Klaim dan invoice",
+    "invoicesTitle": "Faktur"
   },
   "documents": {
     "title": "Dokumen",
