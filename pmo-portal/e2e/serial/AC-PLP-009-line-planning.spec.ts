@@ -25,7 +25,7 @@ test('AC-PLP-009 line planning is on for everyone (#2746) with starter categorie
 
   await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 15_000 });
   await page.getByRole('tab', { name: /line items/i }).click();
-  const panel = page.getByTestId('line-planning-panel');
+  const panel = page.getByTestId('line-plan-panel');
   await expect(panel.getByLabel('Line category')).toHaveValue(/.+/);
-  await expect(panel.getByLabel('Needed by')).toHaveValue('2026-12-31');
+  await expect(panel.getByLabel('Needed by')).toHaveValue('31 Dec 2026');
 });

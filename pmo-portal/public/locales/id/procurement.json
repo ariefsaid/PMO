@@ -1140,5 +1140,14 @@
     "settingLabel": "Wajibkan tanggal dibutuhkan sebelum pesanan dikirim",
     "loadError": "Tidak dapat memuat pengaturan ini",
     "valueLoadError": "Tidak dapat memuat tanggal kebutuhan pesanan ini"
+  },
+  "linePlan": {
+    "line": "Baris",
+    "category": "Kategori",
+    "workOrder": "Work order",
+    "discipline": "Disiplin",
+    "differs": "Bukan {{workOrder}} milik permintaan",
+    "orderDateHelp": "Wajib untuk mengirim pesanan. Mengisi semua baris.",
+    "noWorkOrders": "Proyek ini belum punya work order, jadi baris tanpa work order. Manajer proyek menambahkannya di tab Work order proyek."
   }
 }

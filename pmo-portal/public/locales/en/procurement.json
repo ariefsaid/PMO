@@ -1140,5 +1140,14 @@
     "settingLabel": "Require a needed-by date before an order is sent",
     "loadError": "Couldn’t load this setting",
     "valueLoadError": "Couldn’t load this order’s needed-by date"
+  },
+  "linePlan": {
+    "line": "Line",
+    "category": "Category",
+    "workOrder": "Work order",
+    "discipline": "Discipline",
+    "differs": "Not the request’s {{workOrder}}",
+    "orderDateHelp": "Required to send the order. Fills every line.",
+    "noWorkOrders": "No work orders on this project yet, so lines take none. A project manager adds them on the project’s Work orders tab."
   }
 }

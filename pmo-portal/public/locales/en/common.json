@@ -2104,7 +2104,6 @@
     "amount": "Amount",
     "status": "Status",
     "file": "File",
-    "ledgerNote": "Every record appears once, chronological. Empty record types show nothing.",
     "types": {
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
@@ -2114,7 +2113,8 @@
     "capture": {
       "action": "Capture {{record}}",
       "next": "+ Capture {{record}}: the next record for this phase."
-    }
+    },
+    "withholding": "Withholding"
   },
   "procurementDetail": {
     "accessDenied": {

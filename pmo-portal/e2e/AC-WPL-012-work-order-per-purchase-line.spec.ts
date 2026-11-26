@@ -75,7 +75,7 @@ test('AC-WPL-012 each purchase line names its work order; all-the-same is copied
 
     // Change line two to WO-2 on the Items tab: the lines now differ, and the request keeps WO-1.
     await page.getByRole('tab', { name: /Line items/i }).click();
-    const panel = page.getByTestId('line-work-orders-panel');
+    const panel = page.getByTestId('line-plan-panel');
     await expect(panel).toBeVisible({ timeout: 15_000 });
     await panel.getByRole('combobox', { name: 'Work order for Line two ' + suffix }).selectOption({ label: 'WO2-' + suffix });
     await panel.getByRole('button', { name: 'Save' }).click();

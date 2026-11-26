@@ -44,7 +44,7 @@ test('JOB-PU2 the Buyer sets one line to a work order and one to overhead, and e
 
     // Each line shows its own category on the saved request.
     await page.getByRole('tab', { name: /line items/i }).click();
-    const panel = page.getByTestId('line-planning-panel');
+    const panel = page.getByTestId('line-plan-panel');
     await expect(panel).toBeVisible({ timeout: 30_000 });
     await expect(rowOfPanel(panel, `${run} site pipe`).getByLabel('Line category')).toHaveValue(categories.find((c) => c.name === 'Project')!.id);
     await expect(rowOfPanel(panel, `${run} office paper`).getByLabel('Line category')).toHaveValue(categories.find((c) => c.name === 'Overhead')!.id);
@@ -59,5 +59,5 @@ test('JOB-PU2 the Buyer sets one line to a work order and one to overhead, and e
 });
 
 function rowOfPanel(panel: import('@playwright/test').Locator, name: string) {
-  return panel.getByRole('listitem').filter({ hasText: name });
+  return panel.getByRole('row').filter({ hasText: name });
 }

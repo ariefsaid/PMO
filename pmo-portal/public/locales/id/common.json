@@ -2104,7 +2104,6 @@
     "amount": "Jumlah",
     "status": "Status",
     "file": "Berkas",
-    "ledgerNote": "Setiap catatan ditampilkan satu kali secara kronologis. Jenis catatan yang kosong tidak menampilkan apa pun.",
     "types": {
       "purchaseRequest": "Permintaan Pembelian",
       "purchaseOrder": "Pesanan Pembelian",
@@ -2114,7 +2113,8 @@
     "capture": {
       "action": "Catat {{record}}",
       "next": "+ Catat {{record}}: dokumen berikutnya untuk tahap ini."
-    }
+    },
+    "withholding": "Pemotongan pajak"
   },
   "procurementDetail": {
     "accessDenied": {
