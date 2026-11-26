@@ -377,6 +377,9 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/equipment/assets': '/equipment',
   '/equipment/expiring': '/equipment',
   '/equipment/availability': '/equipment',
+  // #2700: the monthly equipment plan is reached from Procurement (its Back bar names it).
+  '/equipment-plans': '/procurement',
+  '/equipment-plans/settings': '/procurement',
   // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
   '/finance/billing-board': '/finance/receivables',
   '/finance/billing-plan': '/finance/receivables',
@@ -416,6 +419,8 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/equipment/availability': { label: 'Availability', i18nKey: 'equipment:availability.title' }, // i18n-exempt: translated at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/equipment-plans': { label: 'Monthly equipment plan', i18nKey: 'equipmentPlans:title' }, // i18n-exempt: translated at render
+  '/equipment-plans/settings': { label: 'Monthly plan settings', i18nKey: 'equipmentPlans:settings.title' }, // i18n-exempt: translated at render
   '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
   '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
   '/timesheets/review': { label: 'Timesheet review', i18nKey: 'timesheets:review.title' }, // i18n-exempt: translated at render
@@ -771,6 +776,8 @@ export interface RecordLists {
   imprestFloats?: { id: string; name: string }[];
   /** #1519: equipment assets resolve from the cached asset list; the label is the asset name. */
   equipmentAssets?: { id: string; name: string }[];
+  /** A person's record (`/equipment/people/:id`) resolves from the page's own by-id read; the label is the name. */
+  people?: { id: string; name: string }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
   /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
@@ -901,6 +908,9 @@ export function recordLabelForPath(
 
   const equipmentAssetId = idFrom('/equipment/assets');
   if (equipmentAssetId) return lists.equipmentAssets?.find((a) => a.id === equipmentAssetId)?.name;
+
+  const personId = idFrom('/equipment/people');
+  if (personId) return lists.people?.find((p) => p.id === personId)?.name;
 
   const imprestFloatId = idFrom('/imprest');
   if (imprestFloatId) return lists.imprestFloats?.find((f) => f.id === imprestFloatId)?.name;
