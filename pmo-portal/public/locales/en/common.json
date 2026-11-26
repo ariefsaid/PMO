@@ -1019,8 +1019,7 @@
           "detail": "{{ok}} approved, {{failed}} failed (separation of duties or stale)",
           "headline": "Partially approved"
         }
-      },
-      "selectTimesheets": "Select timesheets"
+      }
     },
     "accessDenied": {
       "sub": "Approvals are for the roles that sign off procurement or timesheets. Your work lives on your dashboard, projects, and tasks.",
