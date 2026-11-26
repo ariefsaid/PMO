@@ -8,7 +8,7 @@ import { usePurchaseOrderSettings } from '@/src/hooks/usePurchaseOrderSettings';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useOrgName } from '@/src/hooks/useOrgName';
-import { formatDay, formatCurrency } from '@/src/lib/format';
+import { formatDayYear, formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 import {
@@ -100,7 +100,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
   const metaItems: PrintHeaderMetaItem[] = [
     {
       label: t('purchaseOrderPrint.date', 'Order date'),
-      value: formatDay(po.date || po.created_at),
+      value: formatDayYear(po.date || po.created_at),
     },
     {
       label: t('purchaseOrderPrint.procurementRef', 'Procurement reference'),
@@ -217,7 +217,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
 
       {/* Screen-only: choose one collector for this printed copy, or print every named collector. */}
       {collectorsList.length > 0 ? (
-        <div className="print:hidden mx-auto flex max-w-4xl items-end justify-end px-4 pt-4 sm:px-6">
+        <div className="print:hidden mx-auto flex max-w-4xl items-end justify-start px-4 pt-4 sm:px-0">
           <SelectField
             id="po-collector-picker"
             data-testid="collector-picker-select"
@@ -271,6 +271,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
           </section>
 
           <PrintTable<ProcurementItemRow>
+            mobileStack
             columns={columns}
             data={items}
             keyExtractor={(item) => item.id}
