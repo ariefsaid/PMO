@@ -5,6 +5,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
 import en from '@/public/locales/en/stock.json';
+import { tableCell } from '@/src/test/tableCell';
 const h = vi.hoisted(() => ({ enabled: true, purchaser: true }));
 vi.mock('@/src/hooks/useOrderReceiving', () => ({
   useOrderReceivingEnabled: () => ({ data: h.enabled, isPending: false, isError: false }),
@@ -18,7 +19,10 @@ const mount = async () => {
 beforeEach(() => { h.enabled = true; h.purchaser = true; });
 describe('order receipt position on the purchase record', () => {
   it('shows purchasing the exact order progress and opens its receiving record', async () => {
-    await mount(); expect(screen.getByText('Ordered 10 · Received 4 · Outstanding 6')).toBeInTheDocument();
+    await mount();
+    expect(tableCell('Goods received', 'Goods', 'Ordered')).toHaveTextContent('10');
+    expect(tableCell('Goods received', 'Goods', 'Received')).toHaveTextContent('4');
+    expect(tableCell('Goods received', 'Goods', 'Outstanding')).toHaveTextContent('6');
     expect(screen.getByRole('link', { name: 'Open receiving' })).toHaveAttribute('href', '/stock/new/receive?order=po');
   });
   it('does not show ordered or outstanding quantities to a receiver', async () => {

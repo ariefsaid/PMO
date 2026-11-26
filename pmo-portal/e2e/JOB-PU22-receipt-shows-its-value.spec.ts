@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 import { serviceClient, SEED_SUPPLIER_ID } from './procurement-fixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -200,6 +201,7 @@ test('JOB-PU22 the receipt row shows its value read from the order lines (Rp 45 
 
   // Navigate to real work-order cost page as lawful role (Finance)
   await page.goto(`/work-orders/${workOrderId}`);
+  await openWorkOrderArea(page, 'cost');
   await expect(page.getByRole('heading', { name: woNumber })).toBeVisible({ timeout: 20_000 });
 
   // Assert goods receipt commitment explanation: no bill recorded, so 0 recognized direct cost

@@ -6,6 +6,7 @@ import { test, expect } from '@playwright/test';
 import { cleanupAll, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { makeItem, runSuffix, userClient } from './support/stockFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(120_000);
 
@@ -59,6 +60,7 @@ test('JOB-PC7 engineer generates a work order consumable plan from usage standar
 
     // 1. Engineer opens the work order, generates the consumable plan (150 x 2 = 300), and inspects the breakdown.
     await page.goto(`/work-orders/${wo.id}`);
+    await openWorkOrderArea(page, 'material');
     const plan = page.getByTestId('consumable-plan');
     await expect(plan).toBeVisible({ timeout: 30_000 });
     await plan.getByRole('button', { name: 'Generate plan' }).click();

@@ -50,7 +50,7 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
       return card.getByRole('row').filter({ hasText: site.code }).getByRole('cell').nth(4);
     };
     await signIn(page, 'admin@acme.test');
-    await expect(await woBalance()).toHaveText('4', { timeout: 20_000 });
+    await expect(await woBalance()).toHaveText(/^4\b/, { timeout: 20_000 });
 
     // 1. Storekeeper returns the 4 leftover units from the site store to the project.
     await storekeeper.signIn(page);
@@ -77,7 +77,7 @@ test('JOB-W10 storekeeper returns 4 leftover units and the warehouse reads 10 ag
     await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: site.name }).locator('span.tabular-nums').first()).toHaveText(/^10(?:[.,]0+)?(?:\s|$)/);
     // ...and the work order's balance falls: the 4 issued to it are returned, so it holds 0.
     await signIn(page, 'admin@acme.test');
-    await expect(await woBalance()).toHaveText('0', { timeout: 20_000 });
+    await expect(await woBalance()).toHaveText(/^0\b/, { timeout: 20_000 });
   } finally {
     const ids = docIds.filter(Boolean);
     if (ids.length) {

@@ -18,7 +18,10 @@
     "result": "After shared cost",
     "revenue": "Billed revenue",
     "shared": "Shared cost",
-    "workOrder": "Work order"
+    "workOrder": "Work order",
+    "planShort": "Plan",
+    "actualShort": "Actual",
+    "cost": "Cost"
   },
   "costUnknown": "Cost unknown",
   "crewHours": "Crew hours",

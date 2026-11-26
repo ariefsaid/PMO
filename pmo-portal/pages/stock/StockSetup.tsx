@@ -233,13 +233,15 @@ const StockSetup: React.FC = () => {
       </div>
       <StockTabs />
       {canKeepers && ownership === 'external' && <p className="my-3 text-sm text-muted-foreground">{t('siteWork.tags.connectedUnavailable')}</p>}
-      {canKeepers && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={tagsOpen} onClick={() => setTagsOpen(!tagsOpen)}>{t('siteWork.tags.manage')}</Button>
-        {tagsOpen && <StockTagsPanel />}
+      {((canKeepers || canThreshold) && tagsEnabled) && <div className="my-4 flex flex-wrap items-start gap-2" data-testid="stock-setup-settings">
+        {canKeepers && tagsEnabled && <div className="has-[[aria-expanded=true]]:basis-full"><Button variant="outline" aria-expanded={tagsOpen} onClick={() => setTagsOpen(!tagsOpen)}>{t('siteWork.tags.manage')}</Button>
+          {tagsOpen && <StockTagsPanel />}
+        </div>}
+        {canThreshold && tagsEnabled && <div className="has-[[aria-expanded=true]]:basis-full"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
+          {thresholdOpen && <WorkOrderIssueThresholdPanel />}
+        </div>}
+        {canKeepers && tagsEnabled && <div className="has-[[aria-expanded=true]]:basis-full [&>div]:my-0"><StockTransferSettings /></div>}
       </div>}
-      {canThreshold && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
-        {thresholdOpen && <WorkOrderIssueThresholdPanel />}
-      </div>}
-      {canKeepers && tagsEnabled && <StockTransferSettings />}
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
           className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1 [&>[role=tab]:first-child]:pl-0"

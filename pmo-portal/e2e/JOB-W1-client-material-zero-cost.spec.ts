@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test';
 import { need, ok, runId, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { roleJobUser } from './support/roleJobUser';
 import { keeperOf, makeItem, runSuffix, SEED_PROJECT_ID, userClient } from './support/stockFixture';
+import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(300_000);
 const slip = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
@@ -47,6 +48,7 @@ test('JOB-W1 storekeeper records the pickup of client material on the work order
     // Precondition: the work order has a client requisition for 8 with the client's reservation recorded (by the coordinator).
     await coordinator.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'material');
     await expect(page.getByTestId('client-material-section')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'New requisition' }).click();
     const form = page.getByRole('dialog');
@@ -67,6 +69,7 @@ test('JOB-W1 storekeeper records the pickup of client material on the work order
     // 1–3. The storekeeper opens Work orders → [work order] → Client material → Record pickup and attaches the slip.
     await storekeeper.signIn(page);
     await page.goto(`/work-orders/${workOrderId}`);
+    await openWorkOrderArea(page, 'material');
     await expect(page.getByTestId('client-material-section')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Record pickup' }).click();
     const pick = page.getByRole('dialog');
