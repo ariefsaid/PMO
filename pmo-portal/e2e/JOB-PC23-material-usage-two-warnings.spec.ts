@@ -1,8 +1,8 @@
-// @e2e-isolation: self-isolated — its own organisation, role logins, project, work order, allowance, item, delivery location, approval chain and thresholds; deletes the organisation and its users in finally.
+// @e2e-isolation: self-isolated — its own organisation, role logins, project, work orders, allowance, item, delivery location, approval chain and thresholds; deletes the organisation and its users in finally.
 // JOB-PC23 (alert when material runs down): two usage thresholds are set. Goal: the engineer is warned when use passes the first
 // threshold, and warned again at the second. The warnings are the request-time line warning (FR-MUT-002) and the in-app notification
-// to the project's manager (FR-MUT-003); then the same two levels on ISSUED material (#2884, OD-R1125-4): the Engineer who is the work
-// order's responsible person, and is NOT the project's manager, reads both warnings. The installed-usage banner is a separate rule (FR-UW-006).
+// to the project's manager (FR-MUT-003); then the same two levels on ISSUED material (#2884, OD-R1125-4): an engineer assigned to another
+// work order on the project reads both warnings. The installed-usage banner is a separate rule (FR-UW-006).
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { sendForApproval } from './support/mrqJobFixture';
@@ -22,8 +22,13 @@ test('JOB-PC23 material use passing the first threshold warns the engineer, and 
   try {
     const project = must('project', await db.from('projects').insert({ org_id: org.id, name: 'Quay extension', status: 'Ongoing Project', currency: 'USD', project_manager_id: manager.id }).select('id').single());
     const wo = must('work order', await db.from('work_orders').insert({
-      org_id: org.id, project_id: project.id, wo_number: 'WO-PC23', title: 'Quay slab', status: 'Issued', order_value: 20_000, responsible_person_id: engineer.id,
+      org_id: org.id, project_id: project.id, wo_number: 'WO-PC23', title: 'Quay slab', status: 'Issued', order_value: 20_000,
       issued_at: new Date().toISOString(), tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD',
+    }).select('id').single());
+    must('engineering assignment', await db.from('work_orders').insert({
+      org_id: org.id, project_id: project.id, title: 'Quay survey', status: 'Issued', order_value: 1,
+      responsible_person_id: engineer.id, issued_at: new Date().toISOString(),
+      tax_treatment: 'exclusive', tax_amount: 0, currency: 'USD',
     }).select('id').single());
     const unit = must('unit', await db.from('stock_units').insert({ org_id: org.id, code: 'bag', name: 'Bag', whole_only: true }).select('id').single());
     const item = must('item', await db.from('stock_items').insert({ org_id: org.id, code: 'CEM-PC23', name: 'Cement', unit_id: unit.id }).select('id').single());

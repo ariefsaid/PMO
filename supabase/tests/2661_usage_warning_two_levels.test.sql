@@ -3,7 +3,7 @@
 -- MUTATION: replace the recipient loop's `select v_resp union select v_pm` with `select v_resp` -> 'the project manager is told' goes red.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(21);
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('26610000-0000-0000-0000-0000000000a1', 'TL Org A', 'IDR', 'UTC', true), ('26610000-0000-0000-0000-0000000000a2', 'TL Org B', 'IDR', 'UTC', true);
 insert into auth.users (id, email) values
@@ -65,13 +65,12 @@ select is(pg_temp._alerts('26610000-0000-0000-0000-0000000000d1'), 2, 'more issu
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b1', '%usage warning%'), 2, 'and the responsible person has exactly two notices');
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b3', '%'), 0, 'another engineer of the organisation is not told');
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b4', '%'), 0, 'a person of another organisation is not told');
--- no responsible person: the manager alone, at both levels
+-- no responsible person: the manager and project engineer are told at both levels
 select pg_temp._issue('26610000-0000-0000-0000-0000000000d2', 'TL-5', 105);
 select is(pg_temp._alerts('26610000-0000-0000-0000-0000000000d2'), 2, 'a work order with no responsible person raises both levels');
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b2', '%TL WO none%'), 2, 'and the manager alone is told both');
-select is(pg_temp._told('26610000-0000-0000-0000-0000000000b1', '%TL WO none%'), 0, 'nobody else is told');
+select is(pg_temp._told('26610000-0000-0000-0000-0000000000b1', '%TL WO none%'), 2, 'the project engineer is told both levels');
 -- an issue posted first and tied to the work order afterwards still raises the warnings
-update work_orders set responsible_person_id = '26610000-0000-0000-0000-0000000000b1' where id = '26610000-0000-0000-0000-0000000000d2';
 create function pg_temp._issue_then_tie(p_wo uuid, p_num text, p_qty numeric) returns void language plpgsql as $$
 declare v_doc uuid := gen_random_uuid(); v_line uuid := gen_random_uuid();
 begin
@@ -86,7 +85,12 @@ end $$;
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, responsible_person_id) values
   ('26610000-0000-0000-0000-0000000000d3', '26610000-0000-0000-0000-0000000000a1', '26610000-0000-0000-0000-0000000000c1', 'TL WO tied', 'Issued', 10000, 'exclusive', 0, '26610000-0000-0000-0000-0000000000b1');
 insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values ('26610000-0000-0000-0000-0000000000a1', '26610000-0000-0000-0000-0000000000d3', '26610000-0000-0000-0000-0000000000e1', 10);
+-- An engineer assigned to another work order on this project also receives both levels.
+update work_orders set responsible_person_id = '26610000-0000-0000-0000-0000000000b3'
+ where id = '26610000-0000-0000-0000-0000000000d2';
 select pg_temp._issue_then_tie('26610000-0000-0000-0000-0000000000d3', 'TL-6', 105);
+select is(pg_temp._told('26610000-0000-0000-0000-0000000000b3', '%TL WO tied%80%% usage warning%'), 1, 'a project engineer receives the first level for another work order');
+select is(pg_temp._told('26610000-0000-0000-0000-0000000000b3', '%TL WO tied%100%% usage warning%'), 1, 'a project engineer receives the second level for another work order');
 select is(pg_temp._alerts('26610000-0000-0000-0000-0000000000d3'), 2, 'an issue tied to its work order after posting raises both levels');
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b1', '%TL WO tied%'), 2, 'and the responsible person is told both');
 -- a project whose manager is a field account: that manager gets no warning, the responsible person still does
@@ -105,5 +109,6 @@ insert into boq_material_allowances (org_id, boq_item_id, item_id, planned_quant
 select pg_temp._issue('26610000-0000-0000-0000-0000000000d4', 'TL-7', 85);
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b5', '%'), 0, 'a project manager who is a field account is not told');
 select is(pg_temp._told('26610000-0000-0000-0000-0000000000b1', '%TL WO field%'), 1, 'the responsible person still is');
+select is(pg_temp._told('26610000-0000-0000-0000-0000000000b3', '%TL WO field%'), 0, 'an engineer assigned only to another project is not told');
 select * from finish();
 rollback;
