@@ -585,11 +585,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       <div className="flex min-w-0 flex-col">
       <div className="order-2 mt-6 md:order-1 md:mt-0">
       {isPending && !pack ? (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
           {figureSpecs.map((spec) => <KPITile key={spec.key} loading tone="blue" icon="grid" label={spec.label} value="" />)}
         </KPIRow>
       ) : showFigures && homeMonth && (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
+        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
           {figureSpecs.map((spec) => {
             const tile = tileFor(spec);
             return (
@@ -663,7 +663,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             </div>
           )}
           {/* N6: group spacing between the filter panel and the table it introduces. */}
-          <h2 className="mb-2 mt-6 text-[16px] font-semibold">
+          <h2 className="mb-2 mt-4 text-[16px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
             <span className="ml-2 text-control font-normal text-muted-foreground">{t('finance:managementPack.exclTax', 'excl. tax')}</span>
           </h2>
