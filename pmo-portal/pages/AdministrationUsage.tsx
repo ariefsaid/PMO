@@ -84,17 +84,22 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     // UTC pin the sibling agent-cost dashboard uses for its month buckets.
     { key: 'month', size: 125, header: t('usage.month', 'Month'), cell: (r) => monthBucket(r.month) ?? t('usage.monthUnavailable', 'Month unavailable') },
     { key: 'action', size: 140, header: t('usage.action', 'Action'), cell: (r) => r.action },
-    { key: 'runs', size: 75, header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
+    { key: 'runs', kind: 'number', size: 75, header: t('usage.runs', 'Runs'), cell: (r) => formatNumber(r.run_count) },
     {
-      key: 'tokens',
-      size: 125,
-      header: t('usage.tokens', 'Tokens'),
-      cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
+      key: 'promptTokens', kind: 'number', size: 125,
+      header: t('usage.promptTokens', 'Input tokens'),
+      cell: (r) => formatNumber(r.prompt_tokens),
+    },
+    {
+      key: 'completionTokens', kind: 'number', size: 125,
+      header: t('usage.completionTokens', 'Output tokens'),
+      cell: (r) => formatNumber(r.completion_tokens),
     },
     ...(hasProviderCost
       ? [
           {
             key: 'providerCost',
+            kind: 'money',
             size: 135,
             header: t('usage.providerCost', 'Provider cost'),
             keepWhenBlank: true,
@@ -108,9 +113,9 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', size: 105, header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', kind: 'money', size: 105, header: t('usage.cost', 'Cost (USD)'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', size: 105, header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? t('usage.marginUnavailable', 'Pricing unavailable') : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', kind: 'money', size: 105, header: t('usage.margin', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? t('usage.marginUnavailable', 'Pricing unavailable') : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 
