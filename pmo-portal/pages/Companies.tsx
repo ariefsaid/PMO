@@ -407,7 +407,7 @@ const Companies: React.FC = () => {
           />
 
           {/* #1989: the pager under the server page — the Master-data/AdminUsers anatomy. */}
-          <nav aria-label={t('companies.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
+          {total > 0 && <nav aria-label={t('companies.pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
             <span>
               {total === 0
                 ? ''
@@ -437,7 +437,7 @@ const Companies: React.FC = () => {
                 <Icon name="chev" aria-hidden="true" />
               </Button>
             </span>
-          </nav>
+          </nav>}
         </>
       )}
 
