@@ -227,7 +227,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
         )}
         <NumberField
           id={amountField.id}
-          label={t('projectDetail.workOrders.billing.modal.amount', 'Amount (excl. PPN)')}
+          label={t('projectDetail.workOrders.billing.modal.amount', 'Amount (excl. tax)')}
           required
           prefix={currencySymbol(workOrder.currency)}
           value={amountField.value}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient } from '@tanstack/react-query';
@@ -162,6 +162,31 @@ describe('DealBand — mark-won shows the booked value (AC-IXD-DASH-005)', () =>
     expect(probabilityToast).toHaveBeenLastCalledWith('Opportunity estimate updated', '% Get: 40%', 'success');
     expect(invalidateQueries).toHaveBeenCalledTimes(2);
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
+  });
+
+  it.each([
+    ['Chance the project proceeds (%)', repositoryUpdateGoProbability],
+    ['Chance we win if the client proceeds (%)', repositoryUpdateGetProbability],
+  ] as const)('shows a failed blur save for %s and lets the person retry', async (label, save) => {
+    const user = userEvent.setup();
+    save.mockRejectedValueOnce(new Error('Save unavailable'));
+    renderLens();
+    const input = screen.getByLabelText(label);
+    const probabilityForm = within(input.closest('form')!);
+    await user.clear(input);
+    await user.type(input, '65');
+    await user.tab();
+    expect(await probabilityForm.findByRole('alert')).toHaveTextContent("Couldn't save this probability. Check your access and retry.");
+    expect(save).toHaveBeenCalledWith('d1', 0.65);
+    expect(probabilityToast).not.toHaveBeenCalled();
+    expect(invalidateQueries).not.toHaveBeenCalled();
+    expect(input).toBeEnabled();
+    await user.click(input);
+    await user.tab();
+    await vi.waitFor(() => expect(probabilityToast).toHaveBeenCalledWith('Opportunity estimate updated', expect.any(String), 'success'));
+    expect(probabilityForm.queryByRole('alert')).not.toBeInTheDocument();
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith('d1', 0.65);
   });
 
   it('AC-1796: terminal opportunities do not expose editable probability controls', () => {

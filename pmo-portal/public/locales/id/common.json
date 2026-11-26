@@ -1335,7 +1335,6 @@
       "empty": "Belum ada proyek terkait",
       "heading": "Proyek terkait"
     },
-    "sectionTitle": "Detail perusahaan",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
       "activityLogged": "Aktivitas dicatat",
@@ -2107,8 +2106,7 @@
       "purchaseRequest": "Permintaan Pembelian",
       "purchaseOrder": "Pesanan Pembelian",
       "payment": "Pembayaran",
-      "rfq": "RFQ",
-      "quote": "Penawaran"
+      "rfq": "RFQ"
     },
     "capture": {
       "action": "Catat {{record}}",

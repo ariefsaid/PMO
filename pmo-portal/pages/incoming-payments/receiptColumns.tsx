@@ -97,6 +97,7 @@ export function receiptColumns({ t, embedded, location, invoiceNumberById, odoo 
     {
       key: 'customer_id',
       header: t('financeCopy.customer', "Customer"),
+      keepWhenBlank: true,
       cell: (p) => (
         <span className="truncate" title={p.customer_name ?? ''}>
           {p.customer_name ?? '—'}

@@ -194,7 +194,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     leftToBill: label.leftToBill,
     leftToBillNoValue: noValueNote,
     basis: t('managementPack.col.basis', 'Basis'),
-    taxBasisValue: t('tax.basis.exclusive', 'excl. PPN'),
+    taxBasisValue: t('tax.basis.exclusive', 'excl. tax'),
     unassigned: t('managementPack.unassigned', 'Unassigned'),
     total: t('managementPack.total', 'Total'),
     basisInvoiced: t('managementPack.basis.invoiced', 'Invoiced'),

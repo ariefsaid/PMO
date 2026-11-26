@@ -1335,7 +1335,6 @@
       "empty": "No related projects yet",
       "heading": "Related projects"
     },
-    "sectionTitle": "Company detail",
     "toast": {
       "activityDeleted": "Activity deleted",
       "activityLogged": "Activity logged",
@@ -2107,8 +2106,7 @@
       "purchaseRequest": "Purchase Request",
       "purchaseOrder": "Purchase Order",
       "payment": "Payment",
-      "rfq": "RFQ",
-      "quote": "Quote"
+      "rfq": "RFQ"
     },
     "capture": {
       "action": "Capture {{record}}",

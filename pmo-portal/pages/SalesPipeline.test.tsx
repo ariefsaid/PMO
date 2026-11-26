@@ -897,7 +897,7 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
     const r = within(row as HTMLElement);
-    expect(r.getByText(/excl\. PPN/i)).toBeInTheDocument();
+    expect(r.getByText(/excl\. tax/i)).toBeInTheDocument();
     expect(r.queryByText(/11%/)).toBeNull();
   });
 
@@ -1067,8 +1067,8 @@ describe('SalesPipeline board caption', () => {
 
     const summary = screen.getByLabelText('Pipeline summary');
     expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
-    expect(screen.getAllByText('incl. PPN', { exact: true })).toHaveLength(1);
-    expect(screen.getAllByText('excl. PPN', { exact: true })).toHaveLength(1);
+    expect(screen.getAllByText('incl. tax', { exact: true })).toHaveLength(1);
+    expect(screen.getAllByText('excl. tax', { exact: true })).toHaveLength(1);
     const wonCard = screen.getByText('Won Exclusive Deal').closest('[data-testid="project-card"]') as HTMLElement;
     expect(within(wonCard).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
   });
@@ -1082,7 +1082,7 @@ describe('SalesPipeline board caption', () => {
 
     const summary = screen.getByLabelText('Pipeline summary');
     expect(within(summary).queryByTestId('pipeline-funnel-caption')).toBeNull();
-    expect(within(summary).queryByText('excl. PPN', { exact: true })).toBeNull();
+    expect(within(summary).queryByText('excl. tax', { exact: true })).toBeNull();
     expect(screen.getAllByTestId('tax-basis').length).toBeGreaterThan(0);
   });
 });

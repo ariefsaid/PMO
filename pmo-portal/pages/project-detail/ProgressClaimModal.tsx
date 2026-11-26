@@ -240,7 +240,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
       {kind === 'down_payment' ? (
         <FormSection legend={t('projectDetail.billing.claimForm.kindDownPayment', 'Down payment')}>
           <FormGrid>
-            <NumberField id="claim-dp-amount" label={t('projectDetail.billing.claimForm.dpAmount', 'Down payment amount (excl. PPN)')}
+            <NumberField id="claim-dp-amount" label={t('projectDetail.billing.claimForm.dpAmount', 'Down payment amount (excl. tax)')}
               required prefix={currencySymbolPrefix} value={dpAmount} onChange={setDpAmount} error={errors.dpAmount} localeAware />
             <NumberField id="claim-recovery-pct" label={t('projectDetail.billing.claimForm.recoveryPct', 'Recovered from each claim (%)')}
               required value={recoveryPct} onChange={setRecoveryPct} error={errors.recoveryPct} localeAware

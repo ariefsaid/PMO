@@ -44,8 +44,8 @@ export function thisMonth(): string {
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
 export function treatmentLabel(treatment: string, t: TFunction): string {
   return treatment === 'inclusive'
-    ? t('projectDetail.workOrders.tax.inclusive', 'incl. PPN')
-    : t('projectDetail.workOrders.tax.exclusive', 'excl. PPN');
+    ? t('projectDetail.workOrders.tax.inclusive', 'incl. tax')
+    : t('projectDetail.workOrders.tax.exclusive', 'excl. tax');
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.

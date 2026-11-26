@@ -108,7 +108,7 @@ const LedgerTypeLabel: React.FC<{ type: LedgerRow['type'] }> = ({ type }) => {
   const { t } = useTranslation();
   const label = type === 'PR' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
     : type === 'PO' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
-      : type === 'Quote' ? t('procurementLedger.types.quote', 'Quote')
+      : type === 'Quote' ? t('procurement:progression.quote', 'Quote')
       : type === 'Payment' ? t('procurementLedger.types.payment', 'Payment') : type;
   return <>{label}</>;
 };
@@ -594,7 +594,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     // all on the panel inset (the record's one left edge).
     <RecordSection
       data-testid="procurement-ledger"
-      title={t('procurementLedger.title', 'Case ledger')}
+      title={t('procurementLedger.title', 'Case documents')}
       flush
       actions={
         /* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */

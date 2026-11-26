@@ -173,7 +173,7 @@ export const MODULES: ModuleDef[] = [
   // Safety summary: every role reads; the rail shows it only where the organisation switched the module on.
   { module: 'safety', icon: 'circle-check', label: 'Safety summary', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'safety:summary.title', path: '/safety' },
-  { module: "quantity-changes", icon: "doc", label: "Quantity change requests", labelKey: "quantityChanges:title", path: "/quantity-changes" },
+  { module: "quantity-changes", icon: "doc", label: "Quantity change requests", labelKey: "quantityChanges:title", path: "/quantity-changes" }, // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
   // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
   { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },

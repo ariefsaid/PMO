@@ -22,6 +22,12 @@ describe('DataTable: a column blank on every loaded row is not rendered', () => 
     expect(isBlankCell(<span className="text-muted-foreground">—</span>)).toBe(true);
     expect(isBlankCell(<span>0</span>)).toBe(false);
   });
+  it('keeps unavailable values that carry an accessible or tooltip reason', () => {
+    expect(isBlankCell(<span role="img" aria-label="No active budget">—</span>)).toBe(false);
+    expect(isBlankCell(<span aria-labelledby="budget-reason">—</span>)).toBe(false);
+    expect(isBlankCell(<span title="Spending could not be read">—</span>)).toBe(false);
+  });
+
   it('drops columns whose cell is nothing or the "—" marker on every row; keeps one with any value', () => {
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     expect(headers()).toEqual(['Project', 'Budget']);

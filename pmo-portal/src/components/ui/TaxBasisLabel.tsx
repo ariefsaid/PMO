@@ -21,7 +21,7 @@ import { formatPercent } from '@/src/lib/format';
  *
  * ⚑ AN UNKNOWN TREATMENT RENDERS NOTHING. `null`, `''` and any out-of-domain string return null,
  * not a guess and not a placeholder dash. A NULL treatment is legitimate — 0197 pairs it with a
- * zero contract value, where there is no figure to qualify — and inventing "excl. PPN" for it would
+ * zero contract value, where there is no figure to qualify — and inventing "excl. tax" for it would
  * put a confident claim where the database deliberately holds none.
  */
 export interface TaxBasisLabelProps {
@@ -55,8 +55,8 @@ export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate
   // still live, and it would go on being translated long after the code stopped reading it.
   const label =
     treatment === 'inclusive'
-      ? t('tax.basis.inclusive', 'incl. PPN')
-      : t('tax.basis.exclusive', 'excl. PPN');
+      ? t('tax.basis.inclusive', 'incl. tax')
+      : t('tax.basis.exclusive', 'excl. tax');
   const rateLabel = taxRate != null ? formatPercent(taxRate / 100, 2) : t('tax.details.unknownRate', 'rate not recorded');
   const baseLabel = taxBaseUnknown ? t('tax.details.unknownBase', 'DPP not recorded') : `DPP ${taxBaseNumerator}/${taxBaseDenominator}`;
   return (
