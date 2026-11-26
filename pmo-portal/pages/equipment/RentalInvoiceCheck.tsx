@@ -74,7 +74,8 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
       })()}
       <p className="mt-1 text-muted-foreground">{t('equipment:availability.unrecordedRented', 'Days with no status recorded are counted as rented; only recorded down days are deducted.')}</p>
       <h3 className="mt-6 mb-2 font-semibold">{t('equipment:availability.days', 'Down days')}</h3>
-      <DataTable<RentalCheckDay> embedded rows={check.data.days} columns={[
+      {check.data.days.length === 0 && <p className="text-muted-foreground">{t('equipment:availability.noDownDays', 'No down days in this period')}</p>}
+      {check.data.days.length > 0 && <DataTable<RentalCheckDay> embedded rows={check.data.days} columns={[
         { key: 'date', header: t('equipment:availability.day', 'Day'), kind: 'primary', rowHeader: true, cell: (d) => <span className="whitespace-nowrap">{formatIsoDay(d.date)}</span> },
         { key: 'status', header: t('equipment:availability.statusCol', 'Status'), cell: (d) => statusLabel(d.status) },
         { key: 'proof', header: t('equipment:availability.proof', 'Proof'), cell: (d) => d.proven ? t('equipment:availability.proven', 'Proven') : d.deducted ? t('equipment:availability.unprovenIncluded', 'Unproven — included with reason') : t('equipment:availability.unproven', 'Unproven — not deducted') },
@@ -82,7 +83,7 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
           ? <a key={proof.id} href={proofLinks[proof.file_path]} target="_blank" rel="noreferrer" className="text-primary-text underline">{proof.file_name}</a>
           : <Button key={proof.id} variant="ghost" size="sm" onClick={() => void proofLink(proof.file_path)}>{t('equipment:availability.openProof', 'Open {{name}}', { name: proof.file_name })}</Button>)}</span> },
       ] satisfies Column<RentalCheckDay>[]} rowKey={(d) => d.date} tableId="rental-check-days" accessibleName={t('equipment:availability.days', 'Down days')}
-        state={check.data.days.length === 0 ? 'empty' : undefined} emptyTitle={t('equipment:availability.noDownDays', 'No down days in this period')} />
+        />}
       {check.data.unproven_days.length > 0 && !check.data.included_unproven_reason && !canIncludeUnproven && <p className="mt-3 text-sm text-muted-foreground">{t('equipment:availability.onlyFinanceIncludes', 'Unproven down days are not deducted. Only an Admin or Finance user can include them, with a reason.')}</p>}
       {check.data.unproven_days.length > 0 && !check.data.included_unproven_reason && canIncludeUnproven && <div className="mt-3">
         <TextField label={t('equipment:availability.reason', 'Reason to include unproven days')} value={reason} onChange={setReason} />
