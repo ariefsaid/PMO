@@ -114,10 +114,12 @@ export default function ReceivablesPage() {
   const dueSoonByCurrency = useMemo(() => dueSoonTotals(dueSoon.map(({ invoice }) => invoice)), [dueSoon]);
   const thisMonthCash = useMemo(() => today ? monthlyCash(payments, monthStart(today), nextMonthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
   const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : { totals: {}, unknown: 0 }, [payments, today]);
-  const cashDeltaCents = (thisMonthCash.totals[orgCurrency] ?? 0) - (lastMonthCash.totals[orgCurrency] ?? 0);
+  const cashCurrencies = Object.keys(thisMonthCash.totals);
+  const cashComparisonCurrency = cashCurrencies.length === 1 ? cashCurrencies[0] : orgCurrency;
+  const cashDeltaCents = (thisMonthCash.totals[cashComparisonCurrency] ?? 0) - (lastMonthCash.totals[cashComparisonCurrency] ?? 0);
   const cashDelta = (() => {
     if (!today || cashPending || cashError || thisMonthCash.unknown || lastMonthCash.unknown) return undefined;
-    const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, orgCurrency);
+    const amount = formatTileMoney(Math.abs(cashDeltaCents) / 100, cashComparisonCurrency);
     const cashIncreased = cashDeltaCents > 0;
     const cashDecreased = cashDeltaCents < 0;
     return amount === null ? undefined : cashIncreased ? `+${amount}` : cashDecreased ? `−${amount}` : amount;
