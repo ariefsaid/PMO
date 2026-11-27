@@ -151,6 +151,24 @@ describe('ClaimBillingStages', () => {
     expect(screen.queryByText('Complete every stage before raising the invoice.')).toBeNull();
   });
 
+  it('AC-BIS-004 an invoiced claim with an invoice step still records its open steps, and names the invoice step', async () => {
+    const current = trace();
+    h.trace = { ...current, stages: current.stages.map((stage) => (stage.id === 's2' ? { ...stage, invoiceStep: true } : stage)) };
+    renderIt({ invoiced: true });
+    expect(within(screen.getByRole('listitem', { name: 'Joint survey' })).getByText('Invoice step')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Client's document number"), 'JS-9');
+    await user.click(screen.getByRole('button', { name: 'Complete Joint survey' }));
+    expect(h.complete).toHaveBeenCalledWith(expect.objectContaining({ stageId: 's2', clientReference: 'JS-9' }));
+  });
+
+  it('AC-BIS-003 before the invoice, the gate line names the invoice step', () => {
+    const current = trace();
+    h.trace = { ...current, stages: current.stages.map((stage) => (stage.id === 's3' ? { ...stage, invoiceStep: true } : stage)) };
+    renderIt();
+    expect(screen.getByText('Complete the stages before Client approval to raise the invoice.')).toBeInTheDocument();
+  });
+
   it('FR-BST-032 hides the invoice deadline once every billing stage is complete', () => {
     const current = trace();
     h.trace = { ...current, stages: current.stages.map((stage) => ({ ...stage, completedOn: '2026-03-20' })) };

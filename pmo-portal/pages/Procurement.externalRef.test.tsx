@@ -98,6 +98,6 @@ describe('Procurement index — external reference search (#769)', () => {
 
   it('AC-EXT-001: the index asks for the reference embeds (and only the index does)', () => {
     renderPage();
-    expect(useProcurementsMock).toHaveBeenCalledWith({ withRefs: true, withSharedDetails: true });
+    expect(useProcurementsMock).toHaveBeenCalledWith(expect.objectContaining({ withRefs: true, withSharedDetails: true }));
   });
 });

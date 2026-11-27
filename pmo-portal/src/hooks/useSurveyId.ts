@@ -8,14 +8,15 @@ const MAX_TRIES = 8;
 /**
  * The PostHog id of a published survey, or null: the org switch is off, analytics is not live, or the owner has
  * not published it. The SDK starts after first render (parent effect) and loads surveys over the network, so the
- * lookup retries for ~12 s instead of assuming the first answer is final.
+ * lookup retries for ~12 s instead of assuming the first answer is final. `wanted: false` skips the lookup
+ * entirely (a caller that cannot show the survey yet has no use for the id).
  */
-export function useSurveyId(key: SurveyKey): string | null {
+export function useSurveyId(key: SurveyKey, wanted = true): string | null {
   const enabled = useFeedbackSurveysEnabled();
   const [id, setId] = useState<string | null>(null);
   useEffect(() => {
     setId(null);
-    if (!enabled || !surveysLive()) return;
+    if (!wanted || !enabled || !surveysLive()) return;
     let alive = true;
     let tries = 0;
     const look = () => {
@@ -33,6 +34,6 @@ export function useSurveyId(key: SurveyKey): string | null {
       alive = false;
       clearInterval(timer);
     };
-  }, [enabled, key]);
+  }, [enabled, key, wanted]);
   return id;
 }

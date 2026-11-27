@@ -735,6 +735,101 @@ node scripts/pmo.mjs rpc reverse_opening_balance '{"p_id":"<opening id>"}'
 
 **Only for billing PMO will not also read from the accounting system:** load a work order's claimed quantity only for invoices that are not brought in from the connected ERP under that work order. If the ERP's invoices for the work order are mirrored into PMO, leave the claimed quantity at 0 and let the mirror carry them; loading both counts the billing twice. A corrected opening may follow a reversal on the same work order or location.
 
+### 13. Owner-supplied material workbook load (`material load`)
+
+**Goal:** load owner-supplied material opening stage totals (planned, requested, set-aside, received, issued, returned, transferred, owner return) and verbatim evidence from a client workbook once, with preview by default and repeatable reruns (#3010, Contract v2).
+
+**Who:** an active Admin. The command uses the signed-in Admin's ordinary OAuth session; it never uses a service credential and never modifies existing unrelated work orders or stock ledger rows.
+
+**One-time isolated Python setup:** the loader spawns an isolated Python interpreter (`-I`) with `openpyxl` pinned in `scripts/requirements-owner-material.txt` so untrusted workbooks are read without executing formulas, macros, or external links. The CLI never auto-installs packages.
+
+```bash
+python3 -I -m venv /tmp/owner-material-loader-venv
+/tmp/owner-material-loader-venv/bin/pip install -r scripts/requirements-owner-material.txt
+```
+
+Set `PMO_OWNER_MATERIAL_PYTHON` (or pass `--python <path>`) if your venv lives elsewhere.
+
+**Private mapping file (keep outside the repository):**
+
+```json
+{
+  "source_key": "stable-source-id-v1",
+  "as_of": "2026-11-27",
+  "zero_cost_tag_name": "Owner Supplied Material",
+  "reconciliation_scale": [
+    { "name": "Prepared", "position": 1, "percentage": 20 },
+    { "name": "Closed", "position": 2, "percentage": 100 }
+  ],
+  "policy": { "closing_conflict": "refuse", "duplicate_items": "refuse" },
+  "work_order_defaults": {
+    "tax_treatment": "exclusive",
+    "tax_amount": "0",
+    "order_value": "0",
+    "currency": "IDR"
+  },
+  "owner_warehouses": {
+    "WH NORTH": { "code": "WH_NORTH", "name": "North Owner Warehouse" }
+  },
+  "workbook": {
+    "item_list_sheet": { "name": "ITEMS", "header_contains": ["ITEM_CODE"], "columns": { "item_code": "ITEM_CODE", "description": "DESC", "unit": "UNIT" } },
+    "validation_only_sheets": [],
+    "excluded_sheets": [],
+    "template_sheets": [],
+    "location_sheet": {
+      "header_contains": ["PART_NO", "DESC"],
+      "warehouse_band": { "single_row_after_fields": ["reservation_date"], "end_field": "total_set_aside", "required": true },
+      "columns": { "item_code": ["PART_NO"], "description": ["DESC"], "unit": ["UNIT"], "planned": ["PLAN_QTY"], "order_number": ["ORDER_NO"], "total_set_aside": ["SET_ASIDE_TOTAL"] },
+      "evidence_columns": { "reservation_date": ["SET_ASIDE_DATE"] },
+      "field_presence": { "item_code": "required", "description": "required", "unit": "required", "planned": "required", "order_number": "required", "total_set_aside": "required", "reservation_date": "required" }
+    }
+  },
+  "sheets": {}
+}
+```
+
+- `source_key`: stable logical source identity (never a file digest). Keep the same `source_key` across retries and reruns so identical records skip safely.
+- `as_of`: required ISO date (`YYYY-MM-DD`) for the loaded opening position (overridable per sheet under `sheets.<name>.as_of`).
+- `zero_cost_tag_name`: required name of an existing zero-cost stock tag in the organisation (resolved via `om_material_config().zero_cost_tags`; never created by the loader).
+- `reconciliation_scale`: optional ordered scale (`[{ name, position, percentage }]`, ending at 100). Compared against `om_material_config().steps` before loading sections; skipped if identical, previewed as before/after, and applied via `om_material_set_scale` on `--confirm`. If refused by the server, sections are not sent.
+- `policy.closing_conflict`: `"refuse"` (default) refuses any line where workbook closing/stage totals disagree with component columns or where computed closing is negative; `"movements_win"` lets component column sums win over stale totals, accepts negative closing, and flags every affected row in the report.
+- `policy.duplicate_items`: `"refuse"` (default) skips repeated item rows within a location at line level (marking the section partial); `"sum"` consolidates repeated rows for the same item into one planned line with summed quantities, agreed category (or none), and all source rows preserved verbatim in `evidence.rows`, flagged in the report.
+- `work_order_defaults`: explicit commercial inputs (`tax_treatment`, `currency`, optional `order_value` / `tax_amount`) required when the workbook contains owner order numbers not yet in the project. Missing work orders are created first via `import_work_orders` in `Draft` status (requires organisation setup workflows enabled). Never guessed or defaulted.
+- `workbook`: defines every workbook-specific sheet name, header marker, column heading/alias, excluded column, and warehouse band so the tracked parser stays generic.
+- `workbook.location_sheet.field_presence`: required map declaring every mapped field (every key of `columns`, `sub_header_columns`, and `evidence_columns`) as `"required"` or `"optional"`; where the layout variants differ, declare per variant with `{ "two_row": "...", "single_row": "..." }`. A sheet whose headers match no column for a `required` field is refused whole before any row is read, with the reason naming the field and the header aliases looked for (under every policy, including `movements_win`); an absent `optional` column stays zero. A mapping that does not declare every field is rejected before anything is parsed or sent.
+- Skipped-row counts are per source row: a section payload's `skipped_source_rows` and the report's `counts.skipped_lines` / `partial_sections[].skipped_source_rows` count DISTINCT source rows (sheet + row number), even when one row carries several reasons. `partial_sections[].skipped_lines` stays the per-reason detail — one entry per reason (class, coordinate, human reason) — so one skipped row can appear there more than once, and `counts.empty_lines` never counts as skipped rows.
+- `workbook.location_sheet.warehouse_band.required`: required boolean declaring whether every location sheet must carry at least one owner-warehouse column; when `true`, a sheet whose band matches no warehouse column is refused whole (`missing_required_column`).
+- `owner_warehouses`: maps every normalized owner-warehouse column header discovered inside the configured `workbook.location_sheet.warehouse_band`. Unknown headers are refused, never guessed.
+- `units`: optional map of upper-case unit code -> `{ name, whole_only }` used when creating missing units (defaults to `name = code`, `whole_only = false`; unit chunks are sent before items and preview lists every unit it would create).
+
+**Exact commands:**
+
+```bash
+# 1. Confirm signed-in identity, role and target URL
+node scripts/pmo.mjs whoami
+
+# 2. Preview (default — writes nothing; writes full JSON report outside the repo)
+node scripts/pmo.mjs material load /private/material.xlsx \
+  --project <project-uuid> \
+  --map /private/material-map.json \
+  --report /private/material-load-report.json
+
+# 3. Inspect refused_sections, work_orders, policy_flagged_sections, and suggested_stock_openings.
+#    Re-run with --confirm to apply accepted records:
+node scripts/pmo.mjs material load /private/material.xlsx \
+  --project <project-uuid> \
+  --map /private/material-map.json \
+  --report /private/material-load-report.json \
+  --confirm
+```
+
+**Prerequisites & reruns:**
+- Setup-workflow opt-in: a run that would create missing work orders needs the organisation's setup-workflow opt-in turned on ("Enable setup workflows", which an organisation Admin turns on in the app, Finance hub). Every preview that lists work orders to create prints this as `work_orders.prerequisite`; if the opt-in is off, `--confirm` stops at the work-order import with error `setup_workflows_disabled` (exit 1) and nothing is written — turn the setting on, then re-run the identical command.
+- Project, units, zero-cost tag, and receiving locations must already exist. If an earlier estimated demo load posted overlapping stock documents or requisitions, reverse/cancel them through supported workflows first.
+- A second confirmed run with the identical workbook and mapping creates zero new work orders and skips every unchanged catalogue and section row. Changed planned quantities or opening totals update with `before`/`after` reported.
+- If a network failure leaves a section's write outcome unknown (`outcome_unknown`), do not change `source_key`; re-run the identical command to resume safely.
+- Exit `0` means complete (zero refused sections); exit `1` means partial/incomplete (accepted sections loaded, refused sections unwritten and listed with exact sheet/row/column coordinates) or a confirmed run stopped before any write (`setup_workflows_disabled`); exit `2` means usage, role, or mapping error before sending anything.
+
 ## Command scope and current constraints
 
 The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `pmo correct`, `pmo bid`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases undo-import`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, every `tm` write (a preview unless `--apply`), and `org add` do support previews. The only command that deletes records is `purchases undo-import`, for the rows of one import.

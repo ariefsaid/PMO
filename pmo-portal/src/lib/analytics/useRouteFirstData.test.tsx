@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const capture = vi.fn();
-vi.mock('./client', () => ({ analyticsClient: { capture: (...a: unknown[]) => capture(...a) } }));
+const startLoad = vi.fn();
+vi.mock('./client', () => ({ analyticsClient: { capture: (...a: unknown[]) => capture(...a), startLoad: () => startLoad() } }));
 
 import { useRouteFirstData } from './useRouteFirstData';
 
@@ -33,7 +34,7 @@ const pending = (client: QueryClient, key: string) => {
 };
 
 describe('useRouteFirstData', () => {
-  beforeEach(() => { vi.useFakeTimers(); capture.mockClear(); });
+  beforeEach(() => { vi.useFakeTimers(); capture.mockClear(); startLoad.mockClear(); });
   afterEach(() => vi.useRealTimers());
 
   it('emits once per navigation with route pattern, never the URL; first is cold, later warm', async () => {
@@ -51,6 +52,17 @@ describe('useRouteFirstData', () => {
     await advance(400);
     expect(capture).toHaveBeenCalledTimes(2);
     expect(capture.mock.calls[1][1]).toMatchObject({ route: '/companies', temperature: 'warm' });
+  });
+
+  it('releases the deferred analytics start only once the first screen\'s data has settled', async () => {
+    const client = new QueryClient();
+    mount(client);
+    const release = pending(client, 'slow');
+    await advance(400);
+    expect(startLoad).not.toHaveBeenCalled();
+    release();
+    await advance(10);
+    expect(startLoad).toHaveBeenCalledTimes(1);
   });
 
   it('does not settle on the first tick when nothing has fetched yet (idle window)', async () => {
@@ -121,6 +133,16 @@ describe('useRouteFirstData', () => {
     mount();
     await advance(400);
     act(() => nav('/companies'));
+    expect(capture).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rescan every query on each cache event (in-flight count is tracked incrementally)', async () => {
+    const client = new QueryClient();
+    const isFetching = vi.spyOn(client, 'isFetching');
+    mount(client);
+    for (let i = 0; i < 20; i++) await client.fetchQuery({ queryKey: ['churn', i], queryFn: async () => i });
+    await advance(1000);
+    expect(isFetching).not.toHaveBeenCalled();
     expect(capture).toHaveBeenCalledTimes(1);
   });
 });

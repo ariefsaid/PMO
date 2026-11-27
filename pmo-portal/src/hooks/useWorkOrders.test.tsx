@@ -23,6 +23,8 @@ const { workOrder } = vi.hoisted(() => ({
     update: vi.fn(),
     setValue: vi.fn(),
     transition: vi.fn(),
+    cancel: vi.fn(),
+    reopen: vi.fn(),
     drawdown: vi.fn(),
   },
 }));
@@ -57,6 +59,8 @@ beforeEach(() => {
   workOrder.update.mockResolvedValue(undefined);
   workOrder.setValue.mockResolvedValue(undefined);
   workOrder.transition.mockResolvedValue(undefined);
+  workOrder.cancel.mockResolvedValue(undefined);
+  workOrder.reopen.mockResolvedValue(undefined);
 });
 
 describe('reads', () => {
@@ -120,6 +124,7 @@ describe('every write refreshes the list AND the drawdown', () => {
       (m) => m.setValue.mutateAsync({ id: 'wo-1', value: 1, taxTreatment: 'exclusive', taxAmount: 0 }),
     ],
     ['transition', (m) => m.transition.mutateAsync({ id: 'wo-1', to: 'Cancelled' })],
+    ['reopen', (m) => m.reopen.mutateAsync({ id: 'wo-1', reason: 'Closed prematurely' })],
   ];
 
   for (const [name, run] of cases) {

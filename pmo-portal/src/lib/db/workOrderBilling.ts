@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError } from '@/src/lib/appError';
+import { wireValidator } from '@/src/lib/wireDoc';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import { fromCents, toCents } from '@/src/lib/reports/managementPack';
 
@@ -69,28 +70,13 @@ export interface UnbilledWorkOrders {
 }
 
 export const WORK_ORDER_BILLING_ROW_LIMIT = 500;
-const MALFORMED = 'malformed-billing';
-const STATUSES: readonly string[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
+const STATUSES: readonly WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
+const UNBILLED_STATUSES = ['Issued', 'Closed'] as const;
 const COLS = 'work_order_id, project_id, status, currency, order_net, invoiced, pending, paid, remaining, figures_complete, line_count, unpaid_count';
 
-function num(v: unknown, field: string): number {
-  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : Number.NaN;
-  if (!Number.isFinite(n)) throw new AppError(`Work order billing: ${field} is missing or not a number`, MALFORMED);
-  return n;
-}
-function text(v: unknown, field: string): string {
-  if (typeof v !== 'string' || v === '') throw new AppError(`Work order billing: ${field} is missing`, MALFORMED);
-  return v;
-}
-function flag(v: unknown, field: string): boolean {
-  if (typeof v !== 'boolean') throw new AppError(`Work order billing: ${field} is missing`, MALFORMED);
-  return v;
-}
-function status(v: unknown): WorkOrderStatus {
-  const s = text(v, 'status');
-  if (!STATUSES.includes(s)) throw new AppError(`Work order billing: unknown status ${s}`, MALFORMED);
-  return s as WorkOrderStatus;
-}
+const v = wireValidator('Work order billing', 'malformed-billing');
+const { num, str: text, bool: flag } = v;
+const status = (val: unknown): WorkOrderStatus => v.oneOf(val, STATUSES, 'status');
 
 /** One row per work order on the project (view `work_order_billing`). */
 export async function listWorkOrderBilling(projectId: string): Promise<WorkOrderBillingRow[]> {
@@ -261,29 +247,26 @@ type UnbilledDocument = Pick<UnbilledWorkOrders, 'totals' | 'incompleteCount'> &
 };
 
 export function parseUnbilledWorkOrders(data: unknown): UnbilledDocument {
-  const doc = data as { totals?: unknown; incomplete_count?: unknown; rows?: unknown } | null;
-  if (!doc || !Array.isArray(doc.totals) || !Array.isArray(doc.rows)) {
-    throw new AppError('Work order billing: the still-to-invoice document is malformed', MALFORMED);
-  }
+  const doc = v.rec(data, 'response');
   return {
-    totals: (doc.totals as Array<Record<string, unknown>>).map((t) => ({
-      currency: text(t.currency, 'currency'), remaining: num(t.remaining, 'remaining'), count: num(t.count, 'count'),
-    })),
+    totals: v.arr(doc.totals, 'totals').map((item, idx) => {
+      const t = v.rec(item, `totals[${idx}]`);
+      return { currency: text(t.currency, 'currency'), remaining: num(t.remaining, 'remaining'), count: num(t.count, 'count') };
+    }),
     incompleteCount: num(doc.incomplete_count, 'incomplete_count'),
-    rows: (doc.rows as Array<Record<string, unknown>>).map((r) => {
-      const s = text(r.status, 'status');
-      if (s !== 'Issued' && s !== 'Closed') throw new AppError(`Work order billing: unexpected status ${s}`, MALFORMED);
+    rows: v.arr(doc.rows, 'rows').map((item, idx) => {
+      const r = v.rec(item, `rows[${idx}]`);
       return {
         workOrderId: text(r.work_order_id, 'work_order_id'),
-        woNumber: r.wo_number == null ? null : text(r.wo_number, 'wo_number'),
+        woNumber: v.nonEmptyStrOrNull(r.wo_number, 'wo_number'),
         title: text(r.title, 'title'),
         projectId: text(r.project_id, 'project_id'),
         projectName: text(r.project_name, 'project_name'),
-        status: s,
+        status: v.oneOf(r.status, UNBILLED_STATUSES, 'status'),
         currency: text(r.currency, 'currency'),
         remaining: num(r.remaining, 'remaining'),
-        daysSinceClosed: r.days_since_closed == null ? null : num(r.days_since_closed, 'days_since_closed'),
-        daysSinceAcceptance: r.days_since_acceptance == null ? null : num(r.days_since_acceptance, 'days_since_acceptance'),
+        daysSinceClosed: v.numOrNull(r.days_since_closed, 'days_since_closed'),
+        daysSinceAcceptance: v.numOrNull(r.days_since_acceptance, 'days_since_acceptance'),
       };
     }),
   };
@@ -330,12 +313,11 @@ export interface WorkOrderBilledMonths {
 export async function getWorkOrderBilledMonths(workOrderId: string): Promise<WorkOrderBilledMonths> {
   const { data, error } = await supabase.rpc('get_work_order_billed_months', { p_work_order: workOrderId });
   if (error) throw new AppError(error.message, error.code);
-  const d = data as Record<string, unknown> | null;
-  if (d === null || typeof d !== 'object' || !Array.isArray(d.months)) throw new AppError('Work order billed months: response is malformed', MALFORMED);
-  const months = (d.months as unknown[]).map((m): WorkOrderBilledMonth => {
-    const r = (m ?? {}) as Record<string, unknown>;
+  const d = v.rec(data, 'response');
+  const months = v.arr(d.months, 'months').map((m, idx): WorkOrderBilledMonth => {
+    const r = v.rec(m, `months[${idx}]`);
     const month = text(r.month, 'month');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(month)) throw new AppError('Work order billed months: month is not a date', MALFORMED);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(month)) v.fail('month', 'is not a date');
     return { month, billed: num(r.billed, 'billed'), toDate: flag(r.to_date, 'to_date') };
   });
   return {

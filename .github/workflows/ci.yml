@@ -272,6 +272,9 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
+      - name: Owner material loader python (script tests run the real workbook reader)
+        working-directory: .
+        run: python3 -I -m venv /tmp/owner-material-loader-venv && /tmp/owner-material-loader-venv/bin/pip install -q -r scripts/requirements-owner-material.txt
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
@@ -585,7 +588,7 @@ jobs:
     needs: scope
     if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'dev' && needs.scope.outputs.pgtap == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     defaults:
       run:
         # supabase CLI must be run from repo root (where supabase/config.toml lives)

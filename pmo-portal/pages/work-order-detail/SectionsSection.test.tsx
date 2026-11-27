@@ -217,4 +217,25 @@ describe('SectionsSection (#2576)', () => {
     expect(screen.getByRole('button', { name: 'Tambah bagian' })).toBeTruthy();
     expect(screen.getByTestId('wo-sections-empty').textContent).toBe('Belum ada bagian.');
   });
+
+  it('#2976 a failed validated-quantities read shows Retry while keeping loaded sections visible', async () => {
+    const refetch = vi.fn();
+    h.roll = ok([row({})]);
+    h.progress = { data: undefined, isPending: false, isError: true, refetch };
+    await mount();
+    expect(screen.getByTestId('wo-section-A')).toBeTruthy();
+    expect(screen.getByText("Couldn't load validated quantities").closest('[role="alert"]')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it('#2976 a failed sections refresh keeps loaded sections visible alongside Retry', async () => {
+    const refetch = vi.fn();
+    h.roll = { data: [row({})], isPending: false, isError: true, isSuccess: false, refetch };
+    await mount();
+    expect(screen.getByTestId('wo-section-A')).toBeTruthy();
+    expect(screen.getByText("Couldn't load sections").closest('[role="alert"]')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
 });

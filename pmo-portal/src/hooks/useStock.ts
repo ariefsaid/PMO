@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -32,6 +33,16 @@ export function useStockAtRisk() {
 export function useStockKeepers() {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-keepers', orgId], queryFn: () => repositories.stock.master.listKeepers(), enabled: Boolean(orgId) });
+}
+
+/** The locations the signed-in person keeps (#2749). The one place `user_id === me` is read; screens ask `keeps(id)` per location or `keepsAny` for a header action. An Admin is not listed here: `can()` grants Admin on its own. */
+export function useMyStockLocations() {
+  const me = useAuth().currentUser?.id;
+  const keepers = useStockKeepers();
+  return useMemo(() => {
+    const ids = new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id));
+    return { ids, keeps: (id: string | null | undefined) => !!id && ids.has(id), keepsAny: ids.size > 0, isError: keepers.isError, isPending: keepers.isPending, refetch: keepers.refetch };
+  }, [keepers.data, keepers.isError, keepers.isPending, keepers.refetch, me]);
 }
 
 type MasterTable = 'stock_units' | 'stock_items' | 'stock_warehouses';

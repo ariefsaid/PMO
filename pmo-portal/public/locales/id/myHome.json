@@ -41,6 +41,7 @@
   },
   "deliveries": {
     "title": "Ada kiriman untuk Anda",
+    "error": "Kiriman tidak dapat dimuat",
     "lines_one": "{{count}} baris barang untuk dihitung",
     "lines_other": "{{count}} baris barang untuk dihitung",
     "open": "Hitung dan konfirmasi"

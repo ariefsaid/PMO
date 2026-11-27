@@ -1,3 +1,4 @@
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { OPEN_CLIENT_INVOICE_STATUSES } from '@/src/lib/revenue/clientInvoiceStatus';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -12,9 +13,9 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
-import { getOverdueInvoiceCount } from './revenue';
+import { listOverdueInvoiceFacts } from './revenue';
 
-describe('getOverdueInvoiceCount', () => {
+describe('listOverdueInvoiceFacts', () => {
   it('counts overdue open invoices from a narrow read and excludes paired copies', async () => {
     const builder = {
       select: h.select,
@@ -36,9 +37,10 @@ describe('getOverdueInvoiceCount', () => {
       { status: 'Unpaid', invoice_date: '2026-01-01', erp_due_date: '2026-11-06', received_date: null, companies: null },
     ];
 
-    await expect(getOverdueInvoiceCount('2026-11-05')).resolves.toBe(2);
+    const facts = await listOverdueInvoiceFacts();
+    expect(facts.filter(row => clientInvoiceOverdueDays(row, '2026-11-05') !== null)).toHaveLength(2);
     expect(h.from).toHaveBeenCalledWith('sales_invoices');
-    expect(h.select).toHaveBeenCalledWith('id,status,invoice_date,erp_due_date,received_date,erp_outstanding_amount,retention_held,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
+    expect(h.select).toHaveBeenCalledWith('id,status,currency,invoice_date,erp_due_date,received_date,erp_outstanding_amount,retention_held,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
     expect(h.inFilter).toHaveBeenCalledWith('status', [...OPEN_CLIENT_INVOICE_STATUSES]);
     expect(h.isFilter).toHaveBeenCalledWith('paired_erp_invoice_id', null);
   });

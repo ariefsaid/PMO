@@ -4,7 +4,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  countOverdueInvoices: vi.fn(),
+  listOverdueInvoiceFacts: vi.fn(),
   submitInvoice: vi.fn(),
   createPayment: vi.fn(),
   createInvoice: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     revenue: {
-      countOverdueInvoices: h.countOverdueInvoices,
+      listOverdueInvoiceFacts: h.listOverdueInvoiceFacts,
       submitInvoice: h.submitInvoice,
       createPayment: h.createPayment,
       createInvoice: h.createInvoice,
@@ -51,7 +51,9 @@ vi.mock('@/src/lib/analytics', async (importOriginal) => ({
 }));
 
 import { useOverdueInvoiceCount } from './useOverdueInvoiceCount';
-import { useAssignInvoiceProject, useRevenueMutations } from './useRevenue';
+import { useOverdueInvoiceFacts, useAssignInvoiceProject, useRevenueMutations } from './useRevenue';
+
+const facts = (count: number) => Array.from({ length: count }, (_, i) => ({ id: String(i), status: 'Unpaid', invoice_date: '2026-01-01', erp_due_date: '2026-11-01', received_date: null, erp_outstanding_amount: 10, retention_held: 0, erp_payment_terms_days: 30, currency: 'USD' }));
 
 function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -66,7 +68,8 @@ function makeWrapper(client: QueryClient) {
 function useRailAndMutations() {
   const count = useOverdueInvoiceCount();
   const mutations = useRevenueMutations();
-  return { count, mutations };
+  const dashboard = useOverdueInvoiceFacts();
+  return { count, mutations, dashboard };
 }
 
 function useRailAndPairing() {
@@ -80,71 +83,85 @@ describe('useOverdueInvoiceCount', () => {
     vi.clearAllMocks();
   });
 
-  it('shares a short-lived count query instead of mounting finance tables', async () => {
-    h.countOverdueInvoices.mockResolvedValue(3);
+  it('rail and dashboard observers share one facts transport and one cache entry', async () => {
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(3));
     const client = makeClient();
-    const { result } = renderHook(() => useOverdueInvoiceCount(), { wrapper: makeWrapper(client) });
+    const { result } = renderHook(() => { const badge = useOverdueInvoiceCount(); useOverdueInvoiceFacts(); return badge; }, { wrapper: makeWrapper(client) });
     await waitFor(() => expect(result.current.data).toBe(3));
 
-    expect(h.countOverdueInvoices).toHaveBeenCalledTimes(1);
-    expect(h.countOverdueInvoices).toHaveBeenCalledWith('2026-11-05');
-    const query = client.getQueryCache().find({ queryKey: ['overdue-invoice-count', 'org-1', '2026-11-05'] });
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledTimes(1);
+    expect(client.getQueryCache().getAll()).toHaveLength(1);
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledWith();
+    const query = client.getQueryCache().find({ queryKey: ['salesInvoices', 'org-1', 'overdue-facts'] });
     const options = query?.options as { staleTime?: number; refetchOnWindowFocus?: boolean } | undefined;
     expect(options?.staleTime).toBe(10_000);
     expect(options?.refetchOnWindowFocus).toBe(false);
   });
 
+  it('one invalidation refreshes both observers and the badge counts only overdue facts', async () => {
+    h.listOverdueInvoiceFacts.mockResolvedValue([...facts(2), { ...facts(1)[0], id: 'future', erp_due_date: '2026-12-01' }]);
+    const client = makeClient();
+    const { result } = renderHook(() => ({ badge: useOverdueInvoiceCount(), dashboard: useOverdueInvoiceFacts() }), { wrapper: makeWrapper(client) });
+    await waitFor(() => expect(result.current.badge.data).toBe(2));
+    expect(result.current.dashboard.data).toHaveLength(3);
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledTimes(1);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(1));
+    await act(async () => { await client.invalidateQueries({ queryKey: ['salesInvoices', 'org-1'] }); });
+    await waitFor(() => expect(result.current.badge.data).toBe(1));
+    expect(result.current.dashboard.data).toHaveLength(1);
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledTimes(2);
+  });
+
   it('does not read while disabled and starts the existing count query when enabled', async () => {
-    h.countOverdueInvoices.mockResolvedValue(3);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(3));
     const { result, rerender } = renderHook(
       ({ enabled }: { enabled: boolean }) => useOverdueInvoiceCount(enabled),
       { initialProps: { enabled: false }, wrapper: makeWrapper(makeClient()) },
     );
 
-    expect(h.countOverdueInvoices).not.toHaveBeenCalled();
+    expect(h.listOverdueInvoiceFacts).not.toHaveBeenCalled();
     rerender({ enabled: true });
     await waitFor(() => expect(result.current.data).toBe(3));
 
-    expect(h.countOverdueInvoices).toHaveBeenCalledTimes(1);
-    expect(h.countOverdueInvoices).toHaveBeenCalledWith('2026-11-05');
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledTimes(1);
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledWith();
   });
 
   it('returns a cached count while disabled without starting another read', () => {
     const client = makeClient();
-    client.setQueryData(['overdue-invoice-count', 'org-1', '2026-11-05'], 4);
+    client.setQueryData(['salesInvoices', 'org-1', 'overdue-facts'], facts(4));
     const { result } = renderHook(() => useOverdueInvoiceCount(false), { wrapper: makeWrapper(client) });
 
     expect(result.current.data).toBe(4);
     expect(result.current.isPending).toBe(false);
-    expect(h.countOverdueInvoices).not.toHaveBeenCalled();
+    expect(h.listOverdueInvoiceFacts).not.toHaveBeenCalled();
   });
 
-  // Review finding 4: `staleTime` only marks a query stale — it schedules nothing, and focus
-  // refetch is off for money reads. An invoice/payment write MUST invalidate the rail's key, or a
-  // mounted rail keeps yesterday's overdue badge for the rest of the session.
+  // The shared facts invalidation must refresh both observers after a money write.
   it('refreshes a mounted rail after an invoice is submitted', async () => {
-    h.countOverdueInvoices.mockResolvedValue(3);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(3));
     h.submitInvoice.mockResolvedValue(undefined);
     const { result } = renderHook(() => useRailAndMutations(), { wrapper: makeWrapper(makeClient()) });
     await waitFor(() => expect(result.current.count.data).toBe(3));
 
-    h.countOverdueInvoices.mockResolvedValue(4);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(4));
     await act(async () => {
       await result.current.mutations.submitInvoice.mutateAsync({ siId: 'si-1' });
     });
 
     await waitFor(() => expect(result.current.count.data).toBe(4));
-    expect(h.countOverdueInvoices).toHaveBeenCalledTimes(2);
+    expect(result.current.dashboard.data).toHaveLength(4);
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledTimes(2);
   });
 
   it('refreshes a mounted rail after a payment is recorded or cancelled', async () => {
-    h.countOverdueInvoices.mockResolvedValue(2);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(2));
     h.createPayment.mockResolvedValue(undefined);
     h.cancelPayment.mockResolvedValue(undefined);
     const { result } = renderHook(() => useRailAndMutations(), { wrapper: makeWrapper(makeClient()) });
     await waitFor(() => expect(result.current.count.data).toBe(2));
 
-    h.countOverdueInvoices.mockResolvedValue(1);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(1));
     await act(async () => {
       await result.current.mutations.createPayment.mutateAsync({
         customerId: 'c-1',
@@ -156,26 +173,26 @@ describe('useOverdueInvoiceCount', () => {
     });
     await waitFor(() => expect(result.current.count.data).toBe(1));
 
-    h.countOverdueInvoices.mockResolvedValue(2);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(2));
     await act(async () => {
       await result.current.mutations.cancelPayment.mutateAsync({ ipId: 'ip-1' });
     });
     await waitFor(() => expect(result.current.count.data).toBe(2));
-    expect(h.countOverdueInvoices).toHaveBeenCalledTimes(3);
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledTimes(3);
   });
 
   it('refreshes a mounted rail after an invoice is paired or re-attributed to a project', async () => {
-    h.countOverdueInvoices.mockResolvedValue(5);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(5));
     h.setProject.mockResolvedValue(undefined);
     const { result } = renderHook(() => useRailAndPairing(), { wrapper: makeWrapper(makeClient()) });
     await waitFor(() => expect(result.current.count.data).toBe(5));
 
-    h.countOverdueInvoices.mockResolvedValue(4);
+    h.listOverdueInvoiceFacts.mockResolvedValue(facts(4));
     await act(async () => {
       await result.current.assign.mutateAsync({ siId: 'si-1', projectId: 'p-1', oldProjectId: null });
     });
 
     await waitFor(() => expect(result.current.count.data).toBe(4));
-    expect(h.countOverdueInvoices).toHaveBeenCalledTimes(2);
+    expect(h.listOverdueInvoiceFacts).toHaveBeenCalledTimes(2);
   });
 });

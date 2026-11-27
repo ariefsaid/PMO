@@ -441,7 +441,13 @@
     "cancel": "Cancel work order",
     "cancelReason": "Reason for cancelling",
     "cancelHelper": "Cancelling is final. The reason stays on the work order.",
-    "cancelledBecause": "Cancelled because: {{reason}}"
+    "cancelledBecause": "Cancelled because: {{reason}}",
+    "reopen": "Reopen work order",
+    "reopenTitle": "Reopen this work order?",
+    "reopenReason": "Reason for reopening",
+    "reopenHelper": "Returns this work order to Issued. The reason is recorded in the audit trail.",
+    "reopenConfirm": "Reopen work order",
+    "reopenedToast": "Work order reopened"
   },
   "candidateRecords": {
     "title": "Earlier candidate work orders",
@@ -465,5 +471,12 @@
     "action": "New work order"
   },
   "complete": "Complete",
-  "stockOpen": "Open stock"
+  "stockOpen": "Open stock",
+  "ownerMaterial": {
+    "rollup": {
+      "view": "Materials",
+      "board": "Work orders",
+      "viewLabel": "Work orders view"
+    }
+  }
 }

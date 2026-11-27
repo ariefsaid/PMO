@@ -393,6 +393,8 @@
         "deadline_other": "Invoice deadline {{date}} · {{count}} days left",
         "retentionHeld": "Retention held: {{amount}} ({{pct}}%)",
         "gate": "Complete every stage before raising the invoice.",
+        "gateBefore": "Complete the stages before {{stage}} to raise the invoice.",
+        "invoiceStep": "Invoice step",
         "clientSide": "In the client's system",
         "age_one": "{{count}} day",
         "age_other": "{{count}} days",
@@ -551,7 +553,8 @@
         "retentionHelp": "Retention is held from each new progress claim; the invoice and its VAT stay at full value.",
         "targetDays": "Target (days)",
         "targetInvalid": "Enter 1 to 365 days, or leave it empty.",
-        "optionalStage": "Optional stage"
+        "optionalStage": "Optional stage",
+        "invoiceStep": "Invoice is raised at this step"
       },
       "reconciliation": {
         "title": "Billing reconciliation",

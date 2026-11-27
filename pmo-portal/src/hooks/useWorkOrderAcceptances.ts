@@ -37,6 +37,19 @@ export function useWorkOrderAcceptances(projectId: string) {
   });
 }
 
+/**
+ * The acceptances of ONE work order (its record page), not the whole project's. The key extends the project key,
+ * so the acceptance mutations' `['work-order-acceptances', orgId, projectId]` invalidation refreshes it.
+ */
+export function useWorkOrderAcceptancesFor(projectId: string, workOrderId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-acceptances', orgId, projectId, 'work-order', workOrderId],
+    queryFn: () => repositories.workOrderAcceptance.listByWorkOrder(projectId, workOrderId as string),
+    enabled: Boolean(orgId) && Boolean(projectId) && Boolean(workOrderId),
+  });
+}
+
 /** Every allocation on a project's work orders in ONE query (grouped by work order in the tab). */
 export function useProjectWorkOrderLines(projectId: string) {
   const orgId = useAuth().currentUser?.org_id;

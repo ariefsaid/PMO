@@ -16,7 +16,7 @@ vi.mock('@/src/hooks/useQuantityChanges', () => ({
   useWorkOrderRequestBudget: () => ({ data: h.budget }),
   useQuantityChangeMutations: () => ({ raise: h.raise }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {

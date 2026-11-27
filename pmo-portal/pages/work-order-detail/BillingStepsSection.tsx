@@ -1,6 +1,5 @@
 import BillingStepTemplatesModal from '../project-detail/tabs/BillingStepTemplatesModal';
 import React, { useContext, useId, useState } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -304,8 +303,7 @@ const BillingStepsBody: React.FC<BillingStepsSectionProps> = ({ workOrderId, pro
 /** Renders nothing outside the auth and query providers (the page's read-only tests mount it bare) and nothing for a Draft. */
 export const BillingStepsSection: React.FC<BillingStepsSectionProps> = (props) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient) return null;
+  if (!auth) return null;
   return <BillingStepsBody {...props} />;
 };
 

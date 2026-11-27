@@ -1,0 +1,2 @@
+# #3024 work order reopen: Admin-only authenticated RPC, re-asserting org, active membership and Admin role; 2787_work_order_reopen pgTAP.
+reopen_work_order  # reopen_work_order(uuid,text): Admin-only audited reopen of a Closed work order without a confirmed final acceptance

@@ -1,4 +1,3 @@
-import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
 import { RequestBorrowingNotice } from '@/src/components/stock/RequestBorrowingNotice';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -11,7 +10,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useDeliveryNoteSettings, useMaterialRequest, useMaterialRequestMutations, useStepPins, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
-import { useStockItems, useStockKeepers, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
+import { useStockItems, useMyStockLocations, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatDay } from '@/src/lib/format';
@@ -45,7 +44,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const { data: items } = useStockItems(true);
   const { data: units } = useStockUnits(true);
   const { data: warehouses } = useStockWarehouses();
-  const { data: keepers } = useStockKeepers();
+  const myLocations = useMyStockLocations();
   const m = useMaterialRequestMutations();
   const pins = useStepPins(q.data?.projectId);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -92,7 +91,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   ];
   const sourceWarehouses = (warehouses ?? []).filter((w) => w.kind === 'central' && !w.archived_at);
   const retrySourceOptions = sourceWarehouses
-    .filter((w) => may('create', 'stockDocument', { record: { isKeeper: keepers?.some((k) => k.warehouse_id === w.id && k.user_id === currentUser?.id) ?? false } }))
+    .filter((w) => may('create', 'stockDocument', { record: { isKeeper: myLocations.keeps(w.id) } }))
     .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
   // The retry RPC refuses both the author and anyone who is not a source-warehouse keeper or Admin.
   const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) &&
@@ -144,7 +143,7 @@ const MaterialRequestDetailPage: React.FC = () => {
       </RecordHeader>
 
       <RecordStack>
-        <ReservationsSlot><RequestBorrowingNotice requestId={req.id} /></ReservationsSlot>
+        <RequestBorrowingNotice requestId={req.id} />
         {req.transferDocumentId && (
           <RecordSection title={t('detail.transfer', 'Delivery')}>
             <p>

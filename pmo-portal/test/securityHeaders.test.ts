@@ -57,10 +57,19 @@ describe('security headers (AC-CLI-016)', () => {
   it('AC-CLI-017: hashed /assets/* are cached for a year as immutable; index.html is not given that rule', () => {
     const all = rules(HEADERS);
     expect(all.get('/assets/*')?.get('cache-control')).toBe('public, max-age=31536000, immutable');
+    // Content-addressed language catalogues are the only other long-lived path (src/lib/build/catalogueVersion.ts).
+    expect(all.get('/catalogues/*')?.get('cache-control')).toBe('public, max-age=31536000, immutable');
     // The site-wide rule and any non-asset rule must not make the HTML shell long-lived.
     for (const [pattern, headers] of all) {
-      if (pattern === '/assets/*') continue;
+      if (pattern === '/assets/*' || pattern === '/catalogues/*' || pattern === '/fonts/*') continue; // catalogues and fonts are pinned by their own caching tests
       expect(headers.get('cache-control') ?? '', `rule ${pattern}`).not.toMatch(/immutable|max-age=[1-9]/);
     }
+  });
+});
+
+describe('font caching', () => {
+  it('fonts are cached for 30 days (not immutable: file names carry no hash)', () => {
+    const fonts = rules(HEADERS).get('/fonts/*');
+    expect(fonts?.get('cache-control')).toBe('public, max-age=2592000');
   });
 });

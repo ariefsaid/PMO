@@ -31,6 +31,12 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   return { ...actual, transitionProject };
 });
 vi.mock('@/src/lib/repositories/projectErpSetup', () => ({ synchronizeErpProject }));
+vi.mock('@/src/auth/useFeature', () => ({
+  // AC-3023: the sales-pipeline entitlement feeding the move list; these tests cover the
+  // feature-on shapes, so the default ON is the contract under test here.
+  useFeature: vi.fn(() => true),
+}));
+
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] } }),
 }));

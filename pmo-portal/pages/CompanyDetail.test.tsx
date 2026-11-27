@@ -33,6 +33,7 @@ vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/d
 vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => partyMappings }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanyTaxNumber: () => ({ query: { data: undefined, isSuccess: false }, save: vi.fn() }),
   useCompany: () => detailState,
   useCompanyMutations: () => mutations,
   // AC-IFW-COMPANY-01 hooks — default to empty/idle so existing tests are unaffected.

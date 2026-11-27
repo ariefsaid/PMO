@@ -15,7 +15,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1' } }) }));
 vi.mock('./expenses/useOwnAdvanceOptions', () => ({ useOwnAdvanceOptions: () => ({ options: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Project one', short_name: 'North' }], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Project one', short_name: 'North' }], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: () => ({ data: { rows: [] } }), useExpenseClaimMutations: () => ({ create: { mutateAsync: vi.fn() }, addLine: { mutateAsync: vi.fn() }, transition: { mutateAsync: vi.fn() } }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloatChoices: () => ({ data: [] }), useImprestProcurementLimit: () => ({ data: null }), useSetClaimFloat: () => ({ mutateAsync: vi.fn() }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }) }));

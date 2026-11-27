@@ -136,10 +136,10 @@ describe('section writes', () => {
   });
 
   it('archive writes a timestamp or clears it; delete proves it landed or refuses', async () => {
-    h.push({ data: null, error: null });
+    h.push({ data: [{ id: 's1' }], error: null });
     await setSectionArchived('s1', true);
     expect((h.calls.update.at(-1) as Record<string, unknown>).archived_at).toBeTruthy();
-    h.push({ data: null, error: null });
+    h.push({ data: [{ id: 's1' }], error: null });
     await setSectionArchived('s1', false);
     expect((h.calls.update.at(-1) as Record<string, unknown>).archived_at).toBeNull();
 
@@ -149,4 +149,9 @@ describe('section writes', () => {
     await expect(deleteSection('s1')).rejects.toMatchObject({ code: '42501' });
     await expect(deleteSection('s1')).rejects.toBeInstanceOf(AppError);
   });
+});
+
+it("refuses a section archive that did not land", async () => {
+ h.push({ data: [], error: null });
+ await expect(setSectionArchived("s", true)).rejects.toMatchObject({ code: "42501" });
 });

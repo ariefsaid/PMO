@@ -3,8 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAuth } from '@/src/auth/useAuth';
-import { useStockKeepers } from '@/src/hooks/useStock';
+import { useMyStockLocations } from '@/src/hooks/useStock';
 import { useProofStatus, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { formatClockTime, formatDate } from '@/src/lib/format';
 import type { ProofStatusRow } from '@/src/lib/db/stockTransfers';
@@ -21,19 +20,17 @@ const hrefOf = (r: ProofStatusRow): string => (r.mode === 'two_step' ? `/stock/t
  */
 export const ProofChaseCard: React.FC = () => {
   const { t } = useTranslation('stock');
-  const me = useAuth().currentUser?.id;
   const { realRole } = useEffectiveRole();
   const settings = useTransferSettings();
-  const keepers = useStockKeepers();
+  const mine = useMyStockLocations();
   const [all, setAll] = React.useState(false);
   const mayFollow = settings.data?.proofTiming === 'may_follow';
-  const kept = new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id));
   const isAdmin = realRole === 'Admin';
-  const canAttach = isAdmin || kept.size > 0;
+  const canAttach = isAdmin || mine.keepsAny;
   const proof = useProofStatus('outstanding', mayFollow && canAttach);
   if (!mayFollow || !canAttach || !proof.data) return null;
   const rows = proof.data
-    .filter((r) => r.proofStatus === 'outstanding' && (isAdmin || kept.has(r.fromWarehouseId) || kept.has(r.toWarehouseId)))
+    .filter((r) => r.proofStatus === 'outstanding' && (isAdmin || mine.keeps(r.fromWarehouseId) || mine.keeps(r.toWarehouseId)))
     .sort(byOldest);
   if (rows.length === 0) return null;
   const shown = all ? rows : rows.slice(0, FIRST);

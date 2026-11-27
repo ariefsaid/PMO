@@ -10,6 +10,8 @@ import { setOrgStageNames } from '@/src/lib/status/orgStageNames';
 // ---------------------------------------------------------------------------
 
 const winEligibility = vi.hoisted(() => ({ data: 'allowed' as string | undefined, isFetching: false, isError: false }));
+// AC-3023: the sales-pipeline entitlement the control's move list is shaped by.
+const featureState = vi.hoisted(() => ({ pipelineOn: true }));
 
 const mockEligibility = vi.fn((..._args: unknown[]) => winEligibility);
 const mockMutate = vi.fn();
@@ -17,6 +19,12 @@ const mockMutateAsync = vi.fn();
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: vi.fn(() => ({ effectiveRole: 'Project Manager' })),
+}));
+
+vi.mock('@/src/auth/useFeature', () => ({
+  // AC-3023's sales-pipeline gate: tests here default to the pipeline ON (the static map);
+  // the feature-off menu shape is pinned separately below.
+  useFeature: vi.fn(() => featureState.pipelineOn),
 }));
 
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
@@ -47,7 +55,7 @@ const wonProject = {
 };
 
 // useToast requires a ToastProvider ancestor (PR1-PR3 toast-on-resolve).
-const renderControl = (project: typeof negotiationProject | typeof wonProject) =>
+const renderControl = (project: React.ComponentProps<typeof ProjectStatusControl>['project']) =>
   render(
     <ToastProvider>
       <ProjectStatusControl project={project} />
@@ -60,6 +68,7 @@ const getConfirmButton = (label: RegExp) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  featureState.pipelineOn = true;
   winEligibility.data = 'allowed';
   winEligibility.isFetching = false;
   winEligibility.isError = false;
@@ -72,6 +81,26 @@ beforeEach(() => {
     error: null,
     isPending: false,
   } as unknown as ReturnType<typeof useProjectTransition>);
+});
+
+describe('ProjectStatusControl — the pipeline-off move list (AC-3023)', () => {
+  it('AC-3023: with the sales-pipeline module off, a Lead menu offers the direct win and no pipeline stage; with it on, the Lead menu keeps the stage and no win', async () => {
+    const user = userEvent.setup();
+    const lead = { id: 'proj-lead', status: 'Leads' as const, customer_contract_ref: null };
+
+    featureState.pipelineOn = false;
+    const { unmount } = renderControl(lead);
+    await user.click(screen.getByRole('button', { name: /change status/i }));
+    expect(screen.getByRole('button', { name: /Won, Pending KoM/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Quotation Submitted/i })).not.toBeInTheDocument();
+    unmount();
+
+    featureState.pipelineOn = true;
+    renderControl(lead);
+    await user.click(screen.getByRole('button', { name: /change status/i }));
+    expect(screen.getByRole('button', { name: /Quotation Submitted/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Won, Pending KoM/i })).not.toBeInTheDocument();
+  });
 });
 
 describe('ProjectStatusControl stage names (#2906)', () => {

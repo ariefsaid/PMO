@@ -145,3 +145,18 @@ test('AC-WOS-019: sections with foremen and planned amounts, a request on one, r
   expect([a, b, rest]).toEqual([40, 10, 20]);
   expect(a + b + rest).toBe(70);
 });
+
+
+test('AC-WOS-020: the engineer reads section progress for live tasks only', async ({ page }) => {
+  const { admin, wo } = await fixture();
+  const section = await admin.from('work_order_sections').insert({ work_order_id: wo.id, code: 'P', name: 'Progress' }).select('id').single();
+  if (section.error) throw section.error;
+  const tasks = await admin.from('tasks').insert([
+    { project_id: SEED_PROJECT_ID, work_order_id: wo.id, section_id: section.data.id, name: 'Live leaf', status: 'To Do' },
+    { project_id: SEED_PROJECT_ID, work_order_id: wo.id, section_id: section.data.id, name: 'Deleted leaf', status: 'Done', tombstoned_at: new Date().toISOString() },
+  ]);
+  if (tasks.error) throw tasks.error;
+  await signIn(page, 'engineer@acme.test');
+  await page.goto(`/work-orders/${wo.id}`);
+  await expect(page.getByTestId('wo-section-P')).toContainText('0 of 1 tasks done');
+});

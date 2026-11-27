@@ -18,6 +18,10 @@ text=Path('scripts/contract-quantities-rollback.test.sql').read_text()
 # to work_order_lines; 1047 / 1046 opening balances reference work_order_acceptances; 1040's dsr_progress_lines
 # references work_order_lines; 1041 holds the functions over 1040's tables.
 dependents=[
+    # Owner-material views (2791) read 1321's dsr_stock_postings; 2790's tables and columns sit on 1162's requisitions.
+    'supabase/migrations/rollback/2793_owner_material_closed_reconciliation_down.sql',
+    'supabase/migrations/rollback/2791_owner_material_rpcs_down.sql',
+    'supabase/migrations/rollback/2790_owner_material_schema_down.sql',
     # Area-rate policy and report RPCs depend on the daily report functions reverted below.
     'supabase/migrations/rollback/2132_areas_and_area_rates_down.sql',
     'supabase/migrations/rollback/2130_site_report_crew_link_down.sql',

@@ -1,6 +1,5 @@
 import React, { useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { Button, TextField, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -8,12 +7,8 @@ import { EquipmentTargetsContext, useEquipmentTargets, useSetEquipmentTargets } 
 import { DEFAULT_EQUIPMENT_TARGETS } from '@/src/lib/db/equipmentAvailability';
 
 /** #2701: the availability target, the use target and the escalation limit are organisation settings. Both pieces here
- *  render nothing extra (defaults, no form) when the data providers are absent. */
-const useHasProviders = (): boolean => {
-  const queryClient = useContext(QueryClientContext);
-  const auth = useContext(AuthContext);
-  return Boolean(queryClient) && Boolean(auth);
-};
+ *  render nothing extra (defaults, no form) when signed out. */
+const useHasProviders = (): boolean => Boolean(useContext(AuthContext));
 
 const Loaded: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const q = useEquipmentTargets();

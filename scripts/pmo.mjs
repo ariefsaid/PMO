@@ -69,6 +69,7 @@ import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaim
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
 import { DOCUMENT_BUCKET, DOCUMENT_WRITE_TABLES, categoryResolutionNote, checkFile, planEntry, storagePath, uploadRefusal } from './lib/pmo-documents.mjs';
+import { MATERIAL_LOAD_RPCS, MaterialLoadError, MaterialOutcomeUnknown, runMaterialLoad } from './lib/pmo-owner-material.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ export const READ_ONLY_TABLES = Object.freeze({
  */
 export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
 /** The operator read tier (migration 0367): active Admin/Executive/PM/Finance tokens, GET only. Mirrors the guard's `operator_read_tables`. */
-export const OPERATOR_READ_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps', 'contract_rate_lines', 'contract_rate_assignees']);
+export const OPERATOR_READ_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps', 'contract_rate_lines', 'contract_rate_assignees', 'work_orders']);
 export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link_m365_documents_batch']);
 
 /**
@@ -134,7 +135,7 @@ export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
  * load_work_order_opening, load_stock_opening, reverse_opening_balance, opening_balance_report: go-live opening
  * balances (#2588, migrations 1046/1047; docs/specs/opening-balances.spec.md).
  */
-export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report', 'preview_stock_opening_history', 'load_stock_opening_history']);
+export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report', 'preview_stock_opening_history', 'load_stock_opening_history', 'import_work_orders', 'om_material_config', 'om_material_import', 'om_material_set_scale']);
 
 /** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
@@ -146,9 +147,11 @@ export { DOCUMENT_WRITE_TABLES };
 export { TM_READ_RPCS };
 /** Operator RPCs `pmo rpc` refuses by name (#2280), and the readiness classifier `pmo org add` uses (#2257). */
 export { OPERATOR_ORG_RPCS, classifyOrgReadiness };
+/** The owner-supplied material import RPCs (#3010), used only by `pmo material load`. */
+export { MATERIAL_LOAD_RPCS };
 
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'correct', 'stages', 'stage-date', 'bid', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'correct', 'stages', 'stage-date', 'bid', 'purchases', 'erp', 'connect', 'documents', 'm365', 'budgets', 'accounts', 'attribution', 'equipment', 'tm', 'org', 'material']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -716,7 +719,7 @@ const BID_USAGE = `  pmo bid win <project> --ref <client order no> --date <YYYY-
 const VALUE_FLAGS = new Set([
   'url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'asset', 'from', 'source', 'to', 'version', 'line', 'status', 'date', 'intent', 'reason', 'revision', 'request',
   'invoice-document', 'amount', 'name', 'admin-email', 'admin-name', 'currency', 'locale', 'number-locale', 'timezone', 'plan', 'state', 'feature',
-  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'attach', 'ref', 'value', 'note', 'set', 'client', 'line-key', 'work-order', 'document',
+  'tier', 'proposal', 'pmo', 'external', 'category', 'title', 'code', 'file', 'attach', 'ref', 'value', 'note', 'set', 'client', 'line-key', 'work-order', 'document', 'map', 'report', 'python',
 ]);
 const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history', 'assignees', 'all', 'apply', 'confirm']);
 
@@ -891,6 +894,7 @@ ${BID_USAGE}
   pmo tm claim withdraw <claim-id> --project <id> [--apply]   (active Admin, Finance)
   pmo tm signoff prepare <claim-id> --project <id> --document <document-id> [--note <text>] [--apply]   (active Admin, Finance)
   pmo org add --name <name> --admin-email <email> --admin-name <name> --currency <cur> --locale <loc> [--number-locale <numloc>] --timezone <tz> --plan <plan> [--feature <key>=on|off ...] [--state live|demo|test] [--confirm]
+  pmo material load <workbook.xlsx> --project <uuid> --map <mapping.json> [--report <path>] [--python <bin>] [--confirm]   (active Admin: owner-supplied material opening totals; previews unless --confirm)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -1171,6 +1175,8 @@ async function dispatch(ctx, command, positionals, flags) {
       return timeAndMaterials(ctx, positionals, flags);
     case 'org':
       return org(ctx, positionals, flags);
+    case 'material':
+      return materialCommand(ctx, positionals, flags);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
@@ -2091,6 +2097,63 @@ function orgApi(ctx) {
 
 async function org(ctx, positionals, flags) {
   return orgAdd(ctx, positionals, flags, orgApi(ctx), { usage, CliError, Printed });
+}
+
+/**
+ * `pmo material load` (#3010): load owner-supplied material opening stage totals from an untrusted XLSX workbook
+ * through an isolated Python venv (`-I`) and the ordinary signed-in active Admin session. Previews by default;
+ * only `--confirm` writes.
+ */
+async function materialCommand(ctx, positionals, flags) {
+  const [sub, workbookPath, ...extra] = positionals;
+  if (sub !== 'load' || !workbookPath || extra.length > 0) {
+    throw usage('Use: pmo material load <workbook.xlsx> --project <uuid> --map <mapping.json> [--report <path>] [--python <bin>] [--confirm]');
+  }
+  if (!flags.project) throw usage('material load requires --project <uuid>');
+  if (!flags.map) throw usage('material load requires --map <mapping.json>');
+  const mapRaw = await readText(ctx, flags.map);
+  let mapping;
+  try {
+    mapping = JSON.parse(mapRaw);
+  } catch (e) {
+    throw usage(`Mapping file '${flags.map}' is not valid JSON (${e.message})`);
+  }
+  const { user, profile } = await readMe(ctx);
+  if (profile.role !== 'Admin' || profile.status !== 'active') {
+    throw usage("pmo material load is for an active Admin. Sign in as the organisation's Admin.");
+  }
+  const api = {
+    get: (table, q) => authed(ctx, 'GET', `/rest/v1/${table}?${q}`),
+    rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }),
+  };
+  try {
+    const { report, exit } = await runMaterialLoad(
+      {
+        workbookPath,
+        mappingPath: flags.map,
+        mapping,
+        projectId: flags.project,
+        confirm: Boolean(flags.confirm),
+        reportPath: flags.report,
+        pythonBin: flags.python ?? ctx.env.PMO_OWNER_MATERIAL_PYTHON,
+        target: { url: ctx.supabaseUrl, user: user?.email ?? null },
+      },
+      api,
+    );
+    return new Reported(report, exit);
+  } catch (err) {
+    if (err instanceof MaterialLoadError) {
+      throw new CliError(err.message, { exit: err.exit, code: err.code, details: err.details });
+    }
+    if (err instanceof MaterialOutcomeUnknown) {
+      throw new CliError(err.message, {
+        exit: 1,
+        code: err.code,
+        details: { source_key: err.sourceKey, entity_key: err.entityKey, stage: err.stage },
+      });
+    }
+    throw err;
+  }
 }
 
 /**

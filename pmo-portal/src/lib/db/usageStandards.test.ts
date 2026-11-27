@@ -105,9 +105,16 @@ describe('consumable plan DAL (#2577)', () => {
     expect(p.unplanned[0]).toMatchObject({ itemCode: 'GAS', source: 'none' });
   });
 
-  it('an empty or missing payload reads as an empty plan, not a crash', () => {
-    expect(parseConsumablePlan(null)).toMatchObject({ lines: [], noStandard: [], unplanned: [], outOfDate: false, generatedAt: null,
-      approval: { authorId: null, authorIsPcm: false, approved: false, approvedBy: null, approvedAt: null } });
+  it('a missing or malformed payload throws a field-named refusal instead of blank quantities (#2983)', () => {
+    expect(() => parseConsumablePlan(null)).toThrow(/response/);
+    expect(() => parseConsumablePlan({ ...raw, lines: [{ ...raw.lines[0], generated_qty: null }] }))
+      .toThrow(/lines\[0\]\.generated_qty/);
+    expect(() => parseConsumablePlan({ ...raw, lines: [{ ...raw.lines[0], basis: [{ ...raw.lines[0].basis[0], margin_pct: 'bad' }] }] }))
+      .toThrow(/lines\[0\]\.basis\[0\]\.margin_pct/);
+    expect(() => parseConsumablePlan(raw, null)).toThrow(/approval/);
+    let caught: unknown;
+    try { parseConsumablePlan(null); } catch (e) { caught = e; }
+    expect(caught).toMatchObject({ code: 'consumable-plan-malformed' });
   });
 
   it('FR-CUS-005 generation calls the server function and returns the number of lines', async () => {

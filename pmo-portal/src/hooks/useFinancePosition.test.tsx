@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   payments: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   procurements: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  procurementCalls: [] as unknown[],
   orgDay: { day: '2026-11-12' as string | null, isPending: false, isError: false, retry: vi.fn() },
 }));
 
@@ -14,7 +15,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => state.orgDay }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.procurements }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: (opts?: unknown) => { state.procurementCalls.push(opts); return state.procurements; } }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useIncomingPayments: () => state.payments,
   useSalesInvoices: () => state.invoices,
@@ -30,6 +31,12 @@ describe('useFinancePosition source states', () => {
     state.procurements.isError = false;
     state.orgDay.isPending = false;
     state.orgDay.isError = false;
+  });
+
+  it('reads the purchase list under the one shared key every finance screen uses', () => {
+    state.procurementCalls.length = 0;
+    renderHook(() => useFinancePosition());
+    expect(state.procurementCalls).toEqual([{ lean: true, enabled: true }]);
   });
 
   it('exposes source-specific pending and error flags alongside the legacy unions', () => {

@@ -1,5 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { parseDecimal } from '@/src/lib/exactDecimal';
+import { readOrgColumns } from './orgSettingsBatch';
 
 /**
  * Attendance rate per crew against the organisation's target (#2706, migrations 1436/1437).
@@ -34,7 +36,7 @@ export interface CrewAttendanceRateRow {
 export function attendanceTargetIssue(value: number | null): 'range' | 'precision' | null {
   if (value === null) return null;
   if (!Number.isFinite(value) || value < 0 || value > 100) return 'range';
-  if (Math.round(value * 100) !== value * 100) return 'precision';
+  if (parseDecimal(String(value), 2) === null) return 'precision';
   return null;
 }
 
@@ -45,9 +47,9 @@ export function isBelowTarget(row: Pick<CrewAttendanceRateRow, 'rate' | 'meets_t
 
 /** The organisation's target rate, or `null` when it is off. One row under RLS, `org_id` never sent. */
 export async function getAttendanceTarget(): Promise<number | null> {
-  const { data, error } = await supabase.from('organizations').select('attendance_target_rate').limit(1);
+  const { data, error } = await readOrgColumns(['attendance_target_rate']);
   if (error) throw new AppError(error.message, error.code);
-  const value = data?.[0]?.attendance_target_rate;
+  const value = data?.attendance_target_rate;
   return value === null || value === undefined ? null : Number(value);
 }
 

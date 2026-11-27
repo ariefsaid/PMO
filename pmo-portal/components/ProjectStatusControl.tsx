@@ -2,10 +2,11 @@ import { orgStageName } from '@/src/lib/status/orgStageNames';
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
+import { useFeature } from '@/src/auth/useFeature';
 import { useProjectTransition, useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { Button, useToast } from '@/src/components/ui';
 import {
-  LEGAL_PROJECT_TRANSITIONS,
+  legalProjectTransitionsFor,
   type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
 import { ProjectTransitionConfirm } from './project-status/ProjectTransitionConfirm';
@@ -69,7 +70,10 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   // Confirm-before-write (owner rule, PR1-PR3): a chosen non-win target is
   // staged here and only commits when the ConfirmDialog's Confirm is pressed.
   const [confirmTarget, setConfirmTarget] = useState<ProjectStatus | null>(null);
-  const legalTargets = (LEGAL_PROJECT_TRANSITIONS[project.status as string] ?? []) as ProjectStatus[];
+  // #3023: with the sales-pipeline module off, the legal map is the feature-off shape (a Lead
+  // gains the direct win; pipeline stages drop out) — the RPC stays the authority.
+  const salesPipelineOn = useFeature('sales_pipeline');
+  const legalTargets = legalProjectTransitionsFor(project.status as string, salesPipelineOn) as ProjectStatus[];
   const mayTransition = can('transition', 'project');
   const winEligibility = useProjectWinEligibility(project.id, mayTransition && (open || pendingTarget === 'Won, Pending KoM') && legalTargets.includes('Won, Pending KoM'));
   const canWin = mayTransition && legalTargets.includes('Won, Pending KoM') && winEligibility.data === 'allowed' && !winEligibility.isPending && !winEligibility.isFetching && !winEligibility.isError;

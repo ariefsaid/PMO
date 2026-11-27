@@ -20,8 +20,8 @@ vi.mock('@/src/hooks/useCrews', () => ({
   useAttendanceDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useManagedPeople: () => ({ data: [] }),
   useAwaitingAttendance: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useAllCrewMembers: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useCrewWorkers: () => ({ data: [] }),
+  useCrewPlacementsOn: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useCrewWorkersByIds: () => ({ data: [], isPending: false }),
   useCrewWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-1', title: 'Pipe rack' }], isLoading: false, isError: false, refetch: vi.fn() }),
   useAttendanceMutations: () => ({
     record: { mutateAsync: h.record }, uploadPhoto: { mutateAsync: vi.fn() }, generateWeek: { mutateAsync: vi.fn() }, decideWeek: { mutateAsync: vi.fn() },

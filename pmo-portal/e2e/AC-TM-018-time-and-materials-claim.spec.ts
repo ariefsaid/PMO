@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — creates a unique client, project, evidence document, rates and claim; uses the first empty week for the dedicated TSE-021 engineer. A confirmed claim is immutable, so that complete fixture (including its PMO-native invoice) is retained and its project archived per AC-CQ-020.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { expect, test, type Route } from '@playwright/test';
+import { prepareTmJourney } from './support/tmJourneySetup';
 import { randomUUID } from 'node:crypto';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 import {
@@ -40,45 +41,11 @@ let itemCode = '';
 
 test.setTimeout(180_000);
 
-const FIXTURE_PROJECT_PATTERN = 'Time materials TM018-%';
-
-/** Preserve older confirmed fixture records while keeping them out of active project lists. */
-async function archiveEarlierSignedOffFixtures(service: SupabaseClient): Promise<void> {
-  const projects = await service
-    .from('projects')
-    .select('id')
-    .eq('org_id', orgId)
-    .like('name', FIXTURE_PROJECT_PATTERN)
-    .is('archived_at', null);
-  if (projects.error) throw new Error(`AC-TM-018 prior fixture projects: ${projects.error.message}`);
-
-  let archivedCount = 0;
-  for (const project of projects.data ?? []) {
-    const claims = await service
-      .from('tm_claims')
-      .select('id')
-      .eq('project_id', project.id)
-      .eq('status', 'SignedOff')
-      .limit(1);
-    if (claims.error) throw new Error(`AC-TM-018 prior fixture claim: ${claims.error.message}`);
-    if (!claims.data?.length) continue;
-
-    const archived = await service
-      .from('projects')
-      .update({ archived_at: new Date().toISOString() })
-      .eq('id', project.id)
-      .is('archived_at', null)
-      .select('id')
-      .maybeSingle();
-    if (archived.error) throw new Error(`AC-TM-018 prior fixture archive: ${archived.error.message}`);
-    if (archived.data) archivedCount += 1;
-  }
-  if (archivedCount > 0) {
-    console.info(`AC-TM-018 archived ${archivedCount} earlier confirmed fixture project(s); immutable records were retained per AC-CQ-020.`);
-  }
-}
-
-test.beforeEach(async () => {
+test.beforeEach(async ({ request: _request }, testInfo) => {
+  projectId = '';
+  companyId = '';
+  weekStart = '';
+  timesheetSlotReserved = false;
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-TM-018 requires the local fixture service client.');
 
@@ -107,8 +74,6 @@ test.beforeEach(async () => {
   managerId = manager.id;
   financeId = finance.id;
 
-  await archiveEarlierSignedOffFixtures(admin);
-
   const existingSheets = await admin
     .from('timesheets')
     .select('week_start_date')
@@ -120,7 +85,7 @@ test.beforeEach(async () => {
   // #1882: AC-TSE-021 uses the SAME engineer and walks forward from next week (at most 26 weeks), so
   // both specs, run in parallel, picked the same "first empty" week and wrote over each other. This
   // spec searches only the weeks beyond that window, so the two can never choose the same one.
-  for (let offset = TSE_021_WINDOW_WEEKS + 1; offset < TSE_021_WINDOW_WEEKS + 53; offset += 1) {
+  for (let offset = TSE_021_WINDOW_WEEKS + 1 + testInfo.parallelIndex; offset < TSE_021_WINDOW_WEEKS + 53; offset += 4) {
     const candidate = new Date(dayStart);
     candidate.setUTCDate(candidate.getUTCDate() + (offset * 7));
     const candidateWeek = candidate.toISOString().slice(0, 10); // e2e-org-day: allow — slot-search candidate weeks, weeks ahead of any org day
@@ -253,10 +218,10 @@ test.afterEach(async () => {
   if (cleanupFailures.length > 0) throw new Error(`AC-TM-018 cleanup failed: ${cleanupFailures.join('; ')}`);
 });
 
-test('AC-TM-018 Finance rates a week, its manager assembles it, and a second user confirms the claim math', async ({ page }) => {
-  const serviceClient = admin;
-  if (!serviceClient) throw new Error('AC-TM-018 fixture client was not initialized.');
 
+test('AC-TM-018 Finance saves a labour rate, sales item and person assignment', async ({ page }) => {
+  const serviceClient = admin!;
+  const billingUrl = `/projects/${projectId}/billing`;
   // The item catalog is an external read, so supply a local catalog row while the actual rate and mapping writes use the app.
   const ownershipUrl = '**/rest/v1/external_domain_ownership?*';
   const ownershipStub = async (route: Route) => {
@@ -288,7 +253,6 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   });
   await pinEnglishLocale(page);
 
-  const billingUrl = `/projects/${projectId}/billing`;
   await login(page, FINANCE_EMAIL);
   await page.goto(billingUrl);
   await expect(page.getByRole('heading', { name: 'Time and materials' })).toBeVisible({ timeout: 20_000 });
@@ -318,7 +282,11 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await assignmentDialog.getByRole('button', { name: 'Assign person' }).click();
   await expect(assignmentDialog).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(ENGINEER_NAME, { exact: true })).toBeVisible();
+});
 
+test('AC-TM-018 the engineer submits the rated hours for the week', async ({ page }) => {
+  const serviceClient = admin!;
+  await prepareTmJourney('rated', { projectId, engineerId, weekStart, documentId, itemCode });
   await login(page, ENGINEER_EMAIL);
   await page.goto(`/timesheets?week=${weekStart}`);
   await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
@@ -337,6 +305,19 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(submitDialog).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Submitted', { exact: true })).toBeVisible({ timeout: 15_000 });
 
+  const submitted = await serviceClient
+    .from('timesheets')
+    .select('id, status')
+    .eq('user_id', engineerId)
+    .eq('week_start_date', weekStart)
+    .single();
+  if (submitted.error) throw new Error(`AC-TM-018 submitted week: ${submitted.error.message}`);
+  expect(submitted.data.status).toBe('Submitted');
+});
+
+test('AC-TM-018 the line manager reads and approves the submitted week', async ({ page }) => {
+  const serviceClient = admin!;
+  await prepareTmJourney('submitted', { projectId, engineerId, weekStart, documentId, itemCode });
   const submitted = await serviceClient
     .from('timesheets')
     .select('id, status')
@@ -370,7 +351,12 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   const approved = await serviceClient.from('timesheets').select('status, approved_by').eq('id', submitted.data.id).single();
   if (approved.error) throw new Error(`AC-TM-018 approved week: ${approved.error.message}`);
   expect(approved.data).toMatchObject({ status: 'Approved', approved_by: managerId });
+});
 
+test('AC-TM-018 the manager assembles approved hours and prepares client sign-off', async ({ page }) => {
+  const billingUrl = `/projects/${projectId}/billing`;
+  await prepareTmJourney('approved', { projectId, engineerId, weekStart, documentId, itemCode });
+  await login(page, MANAGER_EMAIL);
   await page.goto(billingUrl);
   const assembly = page.locator('section[aria-labelledby="tm-assemble-heading"]');
   await expect(assembly).toBeVisible({ timeout: 20_000 });
@@ -449,7 +435,12 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await page.setViewportSize({ width: 1280, height: 800 });
   await expect(claimDrawer.getByText('A different user must confirm this sign-off.')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Confirm sign-off' })).toHaveCount(0);
+});
 
+test('AC-TM-018 a second user confirms the frozen claim math', async ({ page }) => {
+  const serviceClient = admin!;
+  const billingUrl = `/projects/${projectId}/billing`;
+  await prepareTmJourney('prepared', { projectId, engineerId, weekStart, documentId, itemCode });
   await login(page, FINANCE_EMAIL);
   await page.goto(billingUrl);
   const financeClaims = page.locator('section[aria-labelledby="tm-claims-heading"]');
@@ -464,8 +455,6 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
 
   // The ERP stubs above only supplied the sales-item catalogue for the rate card. The seeded organisation has no ERP, so from here
   // the page reads its real ownership: revenue is PMO's, and the signed-off claim is invoiced in PMO (#1817).
-  await page.unroute(ownershipUrl, ownershipStub);
-  await page.unroute(overviewUrl, overviewStub);
   await page.reload();
   const signedOffClaims = page.locator('section[aria-labelledby="tm-claims-heading"]');
   await expect(signedOffClaims.getByText('Signed off', { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -493,7 +482,16 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   const lineResult = await serviceClient.from('tm_claim_lines').select('units, rate, amount').eq('claim_id', claimResult.data.id).single();
   if (lineResult.error) throw new Error(`AC-TM-018 frozen claim line: ${lineResult.error.message}`);
   expect(lineResult.data).toMatchObject({ units: HOURS, rate: RATE, amount: HOURS * RATE });
+});
 
+test('AC-TM-018 Finance drafts the signed-off claim invoice in PMO', async ({ page }) => {
+  const serviceClient = admin!;
+  const billingUrl = `/projects/${projectId}/billing`;
+  await prepareTmJourney('signedOff', { projectId, engineerId, weekStart, documentId, itemCode });
+  await login(page, FINANCE_EMAIL);
+  await page.goto(billingUrl);
+  const signedOffClaims = page.locator('section[aria-labelledby="tm-claims-heading"]');
+  const claimResult = await serviceClient.from('tm_claims').select('id').eq('project_id', projectId).single().throwOnError();
   // Finance creates the invoice from the signed-off claim, in PMO.
   const claimRow = signedOffClaims.getByRole('listitem').filter({ hasText: 'Signed off' });
   await claimRow.getByRole('button', { name: 'Create invoice' }).click();
@@ -515,7 +513,11 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   expect(draft.data.native_lines).toEqual([
     expect.objectContaining({ description: `${LINE_LABEL} (hour)`, qty: HOURS, rate: RATE, amount: HOURS * RATE }),
   ]);
+});
 
+test('AC-TM-018 a second person approves the claim invoice after reading its lines', async ({ page }) => {
+  const billingUrl = `/projects/${projectId}/billing`;
+  await prepareTmJourney('invoiced', { projectId, engineerId, weekStart, documentId, itemCode });
   // A second person approves it from the Approvals queue, after reading the lines; the claim row then shows the invoice number.
   const clientName = `${projectName.replace('Time materials ', '')} Client`;
   await login(page, 'admin@acme.test');
@@ -533,4 +535,5 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
 
   await page.goto(billingUrl);
   await expect(page.locator('section[aria-labelledby="tm-claims-heading"]')).toContainText(/Invoiced · INV-\d{10}/, { timeout: 20_000 });
+
 });

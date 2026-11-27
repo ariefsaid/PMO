@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useInstalledUsageWarnings } from '@/src/hooks/useMaterialRequests';
@@ -43,6 +42,5 @@ const Inner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
 
 export const WorkOrderUsageWarningBanner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   const auth = useContext(AuthContext);
-  const queries = useContext(QueryClientContext);
-  return Boolean(auth) && Boolean(queries) ? <Inner workOrderId={workOrderId} /> : null;
+  return auth ? <Inner workOrderId={workOrderId} /> : null;
 };

@@ -6,14 +6,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
-  const calls = { from: [] as string[], rpc: [] as Array<[string, Record<string, unknown>]>, eq: [] as unknown[], in: [] as unknown[], limit: [] as unknown[] };
+  const calls = { from: [] as string[], rpc: [] as Array<[string, Record<string, unknown>]>, eq: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], range: [] as unknown[] };
   const next = () => queue.shift() ?? { data: null, error: null };
   const builder: Record<string, unknown> = {};
   for (const k of ['select', 'order'] as const) builder[k] = () => builder;
-  for (const k of ['eq', 'in', 'limit'] as const) builder[k] = (...a: unknown[]) => { calls[k].push(a); return builder; };
+  for (const k of ['eq', 'in', 'limit', 'range'] as const) builder[k] = (...a: unknown[]) => { calls[k].push(a); return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(next());
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
-  const rpc = vi.fn((n: string, a: Record<string, unknown>) => { calls.rpc.push([n, a]); return Promise.resolve(next()); });
+  const rpc = vi.fn((n: string, a: Record<string, unknown>) => { calls.rpc.push([n, a]); return builder; });
   return { from, rpc, calls, queue };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
@@ -25,7 +25,7 @@ import { clientRequisitionRepository } from '@/src/lib/repositories/clientRequis
 
 beforeEach(() => {
   h.from.mockClear(); h.rpc.mockClear();
-  h.calls.from.length = 0; h.calls.rpc.length = 0; h.calls.eq.length = 0; h.calls.in.length = 0; h.calls.limit.length = 0;
+  h.calls.from.length = 0; h.calls.rpc.length = 0; h.calls.eq.length = 0; h.calls.in.length = 0; h.calls.limit.length = 0; h.calls.range.length = 0;
   h.queue.length = 0;
 });
 
@@ -96,6 +96,6 @@ describe('getWorkOrderClientMaterial', () => {
     expect(r.events[0]).toMatchObject({ kind: 'reserved', quantity: '60', lineId: 'l1' });
     expect(r.pickups[0]).toMatchObject({ quantity: '50', stockDocumentId: 'd1' });
     expect(h.calls.rpc[0]).toEqual(['csr_work_order_rollup', { p_work_order_id: 'wo1' }]);
-    expect(h.calls.limit.length).toBeGreaterThanOrEqual(3);
+    expect(h.calls.range).toEqual(Array.from({ length: 5 }, () => [0, 999]));
   });
 });

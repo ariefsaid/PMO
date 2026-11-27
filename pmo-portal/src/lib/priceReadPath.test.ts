@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { maskSelection, priceEmbed, priceFn, priceSource, setHidePricesActive } from './priceReadPath';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { maskSelection, priceFn, priceSource, setHidePricesActive } from './priceReadPath';
+
+beforeEach(() => setHidePricesActive(false));
 
 afterEach(() => setHidePricesActive(false));
 
@@ -8,7 +10,6 @@ describe('AC-001 (#2699) setting off: the read path is unchanged', () => {
     const sel = '*, project:projects(name), purchase_orders(amount), items:procurement_items(*)';
     expect(priceSource('procurements')).toBe('procurements');
     expect(maskSelection(sel)).toBe(sel);
-    expect(priceEmbed('payments', 'amount')).toBe('payments(amount)');
   });
 });
 
@@ -31,7 +32,6 @@ describe('AC-003 (#2699) setting on: the request screens read the masked views',
     expect(maskSelection('*, project:projects(name), purchase_orders(amount), items:procurement_items(*), payments(amount)'))
       .toBe('*, project:projects(name), purchase_orders:purchase_orders_masked(amount), items:procurement_items_masked(*), payments:payments_masked(amount)');
     expect(maskSelection('invoices:procurement_invoices(*, voider:profiles!x(full_name))')).toBe('invoices:procurement_invoices_masked(*, voider:profiles!x(full_name))');
-    expect(priceEmbed('payments', 'amount')).toBe('payments:payments_masked(amount)');
   });
 
   it('preserves PostgREST foreign-key and join hints when rewriting an embed', () => {

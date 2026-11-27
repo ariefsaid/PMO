@@ -8,7 +8,7 @@ import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useStockKeepers, useStockUnits, useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
+import { useStockKeepers, useMyStockLocations, useStockUnits, useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
 import { useTransferRefresh, useIsTwoStep } from '@/src/hooks/useStockTransfers';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
@@ -49,8 +49,8 @@ const StockTransferSend: React.FC = () => {
   // FR-SKD-005: one guard before the consequential post, naming the items, their quantities and both locations.
   const [confirming, setConfirming] = useState(false);
   const isAdmin = realRole === 'Admin';
-  const kept = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id)), [keepers.data, me]);
-  const sources = useMemo(() => (warehouses.data ?? []).filter((w) => w.kind !== 'transit' && (isAdmin || kept.has(w.id))), [warehouses.data, isAdmin, kept]);
+  const mine = useMyStockLocations();
+  const sources = useMemo(() => (warehouses.data ?? []).filter((w) => w.kind !== 'transit' && (isAdmin || mine.keeps(w.id))), [warehouses.data, isAdmin, mine]);
   const destinations = useMemo(() => (warehouses.data ?? []).filter((w) => w.kind !== 'transit' && w.id !== from), [warehouses.data, from]);
   const whole = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);

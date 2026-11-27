@@ -33,6 +33,9 @@ let sdk: Posthog | null = null;
 let loading: Promise<void> | null = null;
 let queue: Array<(ph: Posthog) => void> = [];
 const MAX_QUEUE = 200;
+// A deferred start (the app shell) waits for the first screen's data, or this ceiling, before the SDK chunk is fetched; calls buffer meanwhile.
+const START_CEILING_MS = 4000;
+let releaseStart: (() => void) | null = null;
 
 /** Run now if the SDK is loaded, else buffer until it is (bounded; oldest dropped). */
 function withSdk(fn: (ph: Posthog) => void): void {
@@ -378,12 +381,19 @@ export function buildPosthogInitOptions(config: AnalyticsConfig): Parameters<typ
   };
 }
 
-function doInit(config: AnalyticsConfig): void {
+function doInit(config: AnalyticsConfig, defer = false): void {
   activeConfig = config;
   if (!config.enabled || initialized || loading || !config.posthogKey || readOptOut() || isDoNotTrack()) return;
   initialized = true;
   const key = config.posthogKey;
-  loading = import('posthog-js')
+  const load = () => import('posthog-js');
+  const started = defer
+    ? new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, START_CEILING_MS);
+        releaseStart = () => { clearTimeout(timer); resolve(); };
+      })
+    : null;
+  loading = (started ? started.then(load) : load())
     .then(({ default: ph }) => {
       // Consent revoked (or DNT set) while the chunk loaded: never init, drop the buffer.
       if (readOptOut() || isDoNotTrack()) {
@@ -415,8 +425,15 @@ function doInit(config: AnalyticsConfig): void {
 }
 
 export const analyticsClient = {
-  init(config: AnalyticsConfig) {
-    doInit(config);
+  /** `defer`: fetch the SDK after `startLoad()` (first screen's data settled) or a ceiling; events buffer until then. */
+  init(config: AnalyticsConfig, opts: { defer?: boolean } = {}) {
+    doInit(config, opts.defer === true);
+  },
+
+  /** Release a deferred `init`; a no-op when nothing waits. */
+  startLoad() {
+    releaseStart?.();
+    releaseStart = null;
   },
 
   /** FR-CON-002: has this browser opted out of analytics? Survives reloads. */
@@ -598,5 +615,6 @@ export const analyticsClient = {
     sdk = null;
     loading = null;
     queue = [];
+    releaseStart = null;
   },
 };

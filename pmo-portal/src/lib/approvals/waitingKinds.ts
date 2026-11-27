@@ -60,9 +60,6 @@ export const WAITING_KIND_META: Record<WaitingKind, WaitingKindMeta> = {
 
 export const isDatabaseListedKind = (kind: string): kind is DatabaseListedKind => (DATABASE_LISTED_KINDS as readonly string[]).includes(kind);
 
-/** The scope label's i18n key with its namespace (`common` unless the key names its own), so any screen can resolve it. */
-export const scopeKeyWithNamespace = (meta: WaitingKindMeta): string => (meta.scopeKey.includes(':') ? meta.scopeKey : `common:${meta.scopeKey}`);
-
 type Translate = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
 
 /**

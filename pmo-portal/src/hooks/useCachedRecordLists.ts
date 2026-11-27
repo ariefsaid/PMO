@@ -1,5 +1,5 @@
-import { useMemo, useSyncExternalStore } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import type { RecordLists } from '@/src/components/shell/routeMatch';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -7,28 +7,43 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { SalesPipeline, PipelineProject } from '@/src/lib/db/dashboard';
 import type { UserViewListRow } from '@/src/lib/db/userViews';
 
+type CachedKey = readonly unknown[] | undefined;
+type CachedState = ReturnType<QueryClient['getQueryState']>;
+
 /**
- * Reads a query's CACHED data and status PASSIVELY — no observer is ever attached to the page's
- * key, so it can neither fetch nor leak a `queryFn` onto the shared query (#840). It subscribes to
- * the query cache and re-reads on any change a page's own query writes under the same key.
+ * Reads the CACHED state of several queries PASSIVELY — no observer is ever attached to a page's
+ * key, so it can neither fetch nor leak a `queryFn` onto the shared query (#840). ONE query-cache
+ * subscription serves every key (the cache notifies each listener on every event; one listener
+ * instead of one per watched list), and the snapshot is a tuple that keeps its identity until a
+ * watched query's state object changes, so unrelated cache events cause no re-render.
+ * ⚑ The subscription callback is DEFERRED (#891): the query cache notifies synchronously — and a
+ * page mounted after the shell (lazy chunk) creates its queries and subscribes its observers
+ * mid-render, so an immediate setState here is React's "Cannot update a component (ShellChrome)
+ * while rendering a different component (ExecutiveDashboard)". A microtask runs after that
+ * render's stack unwinds; useSyncExternalStore re-reads the snapshot on every notification, so
+ * coalescing several cache events into one deferred re-render loses nothing.
  */
-function useCached<T>(key: readonly unknown[] | undefined, enabledByOrg: boolean) {
+function useCachedStates(keys: CachedKey[], enabledByOrg: boolean): CachedState[] {
   const qc = useQueryClient();
   const cache = qc.getQueryCache();
-  const live = Boolean(key) && enabledByOrg;
-  // Stable snapshot: the Query's state object only changes identity when the query updates.
-  // ⚑ The subscription callback is DEFERRED (#891): the query cache notifies synchronously — and a
-  // page mounted after the shell (lazy chunk) creates its queries and subscribes its observers
-  // mid-render, so an immediate setState here is React's "Cannot update a component (ShellChrome)
-  // while rendering a different component (ExecutiveDashboard)". A microtask runs after that
-  // render's stack unwinds; useSyncExternalStore re-reads the snapshot on every notification, so
-  // coalescing several cache events into one deferred re-render loses nothing.
-  const state = useSyncExternalStore(
-    (cb) => cache.subscribe(() => queueMicrotask(cb)),
-    () => (live ? qc.getQueryState<T>(key as readonly unknown[]) : undefined),
+  const last = useRef<CachedState[]>([]);
+  const subscribe = useCallback(
+    (cb: () => void) => cache.subscribe(() => queueMicrotask(cb)),
+    [cache],
   );
+  return useSyncExternalStore(subscribe, () => {
+    const next = keys.map((key) => (key && enabledByOrg ? qc.getQueryState(key) : undefined));
+    const prev = last.current;
+    if (prev.length === next.length && prev.every((state, i) => state === next[i])) return prev;
+    last.current = next;
+    return next;
+  });
+}
+
+function asCached<T>(state: CachedState) {
+  const typed = state as { data?: T; status?: string } | undefined;
   // A key-less / org-less read stays unsettled, which callers treat as "not resolved yet".
-  return { data: state?.data, settled: Boolean(state) && state?.status !== 'pending' };
+  return { data: typed?.data, settled: Boolean(typed) && typed?.status !== 'pending' };
 }
 
 /** The detail query key (the page's own by-id read) for a detail route, plus its record id. */
@@ -88,24 +103,48 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
   const orgId = currentUser?.org_id;
   const has = Boolean(orgId);
 
-  const projects = useCached<ProjectWithRefs[]>(['projects', orgId], has);
-  const procurements = useCached<ProcurementWithRefs[]>(['procurements', orgId], has);
-  const pipeline = useCached<SalesPipeline>(['sales-pipeline', orgId], has);
-  const lostDeals = useCached<PipelineProject[]>(['lost-deals', orgId], has);
-  const incidents = useCached<{ id: string; type: string }[]>(['incidents', orgId, 'all'], has);
-  const companies = useCached<{ id: string; name: string }[]>(['companies', orgId, 'all'], has);
-  const contacts = useCached<{ id: string; full_name: string }[]>(['contacts', orgId], has);
-  const meetings = useCached<{ id: string; title: string }[]>(['meetings', orgId, 'all', ''], has);
-  const userViews = useCached<UserViewListRow[]>(['user_views', orgId], has);
-  // The register is read in pages (`useEquipmentAssetPages`): the label comes from every page loaded so far.
-  const equipmentAssets = useCached<{ pages: { rows: { id: string; name: string }[] }[] }>(['equipment-assets', orgId, 'pages'], has);
-  const imprestFloats = useCached<{ rows: { id: string; project: { name: string } | null }[] }>(['imprest-floats', orgId], has);
-
   const detailRoute = detailKeyFor(pathname, orgId, currentUser?.id, currentUser?.role);
   const detailPrefix = detailRoute?.prefix;
-  const detail = useCached<Record<string, unknown> | null>(detailRoute?.key, has);
-  const woProjectId = detailPrefix === '/work-orders/' && typeof detail.data?.project_id === 'string' ? detail.data.project_id : undefined;
-  const woProject = useCached<ProjectWithRefs | null>(woProjectId ? ['project', orgId, woProjectId] : undefined, has);
+  // The work-order's project key depends on the detail record read from the same snapshot, so it is
+  // derived from a second read of the cache (a plain lookup, no subscription of its own).
+  const qc = useQueryClient();
+  const woDetail = detailPrefix === '/work-orders/' && has && detailRoute
+    ? (qc.getQueryState<Record<string, unknown> | null>(detailRoute.key)?.data ?? undefined)
+    : undefined;
+  const woProjectId = typeof woDetail?.project_id === 'string' ? woDetail.project_id : undefined;
+
+  const states = useCachedStates(
+    [
+      ['projects', orgId],
+      ['procurements', orgId],
+      ['sales-pipeline', orgId],
+      ['lost-deals', orgId],
+      ['incidents', orgId, 'all'],
+      ['companies', orgId, 'all'],
+      ['contacts', orgId],
+      ['meetings', orgId, 'all', ''],
+      ['user_views', orgId],
+      // The register is read in pages (`useEquipmentAssetPages`): the label comes from every page loaded so far.
+      ['equipment-assets', orgId, 'pages'],
+      ['imprest-floats', orgId],
+      detailRoute?.key,
+      woProjectId ? ['project', orgId, woProjectId] : undefined,
+    ],
+    has,
+  );
+  const projects = asCached<ProjectWithRefs[]>(states[0]);
+  const procurements = asCached<ProcurementWithRefs[]>(states[1]);
+  const pipeline = asCached<SalesPipeline>(states[2]);
+  const lostDeals = asCached<PipelineProject[]>(states[3]);
+  const incidents = asCached<{ id: string; type: string }[]>(states[4]);
+  const companies = asCached<{ id: string; name: string }[]>(states[5]);
+  const contacts = asCached<{ id: string; full_name: string }[]>(states[6]);
+  const meetings = asCached<{ id: string; title: string }[]>(states[7]);
+  const userViews = asCached<UserViewListRow[]>(states[8]);
+  const equipmentAssets = asCached<{ pages: { rows: { id: string; name: string }[] }[] }>(states[9]);
+  const imprestFloats = asCached<{ rows: { id: string; project: { name: string } | null }[] }>(states[10]);
+  const detail = asCached<Record<string, unknown> | null>(states[11]);
+  const woProject = asCached<ProjectWithRefs | null>(states[12]);
 
   return useMemo(() => {
     const one = <T,>(list: T[] | undefined, match: boolean): T[] | undefined => {

@@ -83,7 +83,7 @@ vi.mock('@/src/hooks/useExpenseCapture', async () => {
     },
   };
 });
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloatChoices: () => ({ data: [] }) }));

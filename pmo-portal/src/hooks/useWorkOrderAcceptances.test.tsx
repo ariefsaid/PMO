@@ -5,6 +5,7 @@ import React from 'react';
 
 const h = vi.hoisted(() => ({
   listByProject: vi.fn(async () => [{ id: 'a1', lines: [] }]),
+  listByWorkOrder: vi.fn(async () => [{ id: 'a2', lines: [] }]),
   listAwaitingConfirmation: vi.fn(async () => [{ id: 'acc-1', work_order_id: 'wo-1' }]),
   listProjectLines: vi.fn(async () => [{ id: 'l1' }]),
   createLine: vi.fn(async () => ({ id: 'l1' })),
@@ -19,7 +20,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrderAcceptance: 
 const auth = vi.hoisted(() => ({ orgId: 'org-1' as string | undefined }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { id: 'u-1', org_id: auth.orgId } : null }) }));
 
-import { useWorkOrderAcceptances, useWorkOrderAcceptanceMutations, useProjectWorkOrderLines, useAcceptancesAwaitingConfirmation } from './useWorkOrderAcceptances';
+import { useWorkOrderAcceptances, useWorkOrderAcceptancesFor, useWorkOrderAcceptanceMutations, useProjectWorkOrderLines, useAcceptancesAwaitingConfirmation } from './useWorkOrderAcceptances';
 import { useBillingReconciliation } from './useBillingStages';
 
 function setup() {
@@ -47,6 +48,16 @@ describe('contract-quantity read hooks', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(h.listByProject).toHaveBeenCalledWith('p1');
     expect(client.getQueryData(['work-order-acceptances', 'org-1', 'p1'])).toEqual([{ id: 'a1', lines: [] }]);
+  });
+
+  it('AC-CQ-015 a record page reads one work order\'s acceptances, under a key the project invalidation still reaches', async () => {
+    const { client, wrapper } = setup();
+    const { result } = renderHook(() => useWorkOrderAcceptancesFor('p1', 'wo-1'), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(h.listByWorkOrder).toHaveBeenCalledWith('p1', 'wo-1');
+    expect(h.listByProject).not.toHaveBeenCalled();
+    await client.invalidateQueries({ queryKey: ['work-order-acceptances', 'org-1', 'p1'] });
+    expect(h.listByWorkOrder).toHaveBeenCalledTimes(2);
   });
 
   it('AC-CQ-015 allocations are one project query under an org-scoped key', async () => {

@@ -15,6 +15,7 @@ vi.mock('@/src/hooks/useStock', () => ({
     { id: 'w1', code: 'CEN', name: 'Central', kind: 'central' }, { id: 'w2', code: 'SITE1', name: 'Site one', kind: 'site' },
     { id: 'w9', code: 'TRN-1', name: 'In transit TST-1', kind: 'transit' }] }),
   useStockKeepers: () => ({ data: [{ user_id: 'me', warehouse_id: 'w1' }, { user_id: 'p2', warehouse_id: 'w2' }, { user_id: 'p3', warehouse_id: 'w1' }] }),
+  useMyStockLocations: () => ((rows: { user_id: string; warehouse_id: string }[], me: string) => { const ids = new Set(rows.filter((k) => k.user_id === me).map((k) => k.warehouse_id)); return { ids, keeps: (id?: string | null) => !!id && ids.has(id), keepsAny: ids.size > 0, isError: false, isPending: false, refetch: () => undefined }; })([{ user_id: 'me', warehouse_id: 'w1' }], 'me'),
   useStockItems: () => ({ data: [{ id: 'i1', code: 'PIPE', name: 'Pipe', unit_id: 'u1', archived_at: null }] }),
   useStockUnits: () => ({ data: [{ id: 'u1', code: 'pc', whole_only: false }] }),
 }));

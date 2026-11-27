@@ -4246,3 +4246,5 @@ the owner may revisit it after the client's tests.
 - **DD-R1127-2 A route loads its own sections and repository implementations with the route; other routes remain lazy.** See ADR-0126.
 
 - **DD-R1127-3 The purchasing Pay stage counts invoices and payments separately.** One invoice and one payment read as one invoice and one payment; recording a payment never increases the invoice count. The purchase still reaches Paid through the existing payment journey (fd538e6722d).
+
+- **DD-R1127-4 A billing step list may name one invoice step; the invoice waits only for the steps before it** (ruling, 27 November 2026, #3022). The invoice step and the later steps stay open and completable after the invoice; nothing completes them automatically. A list with no invoice step keeps the full gate. Only Finance or an Admin sets or moves the mark (the same right that edits a list or removes a claim step); it is fixed once the claim has an invoice. Billing steps do not gate payment recording, before or after this ruling. Invoice approval and the other separation-of-duties rules are unchanged.

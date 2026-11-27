@@ -7,7 +7,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { LineItemsSection } from './LineItemsSection';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
-import { setPricesHidden } from '@/src/lib/priceReadPath';
+import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
 import enProcurement from '@/public/locales/en/procurement.json';
 import idProcurement from '@/public/locales/id/procurement.json';
 
@@ -55,7 +55,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
 }
 
 const catalog = vi.hoisted(() => ({ connected: false }));
-beforeEach(() => { vi.clearAllMocks(); catalog.connected = false; });
+beforeEach(() => { vi.clearAllMocks(); catalog.connected = false; setPricesHidden(false); setHidePricesActive(false); });
 afterEach(() => vi.unstubAllGlobals());
 
 it('shows a line\'s stored description under its name, also without an ERP catalogue', () => {

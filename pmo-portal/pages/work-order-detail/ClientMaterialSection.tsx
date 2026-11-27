@@ -9,11 +9,12 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import type { Action } from '@/src/auth/policy';
 import { useClientRequisitionMutations, useWorkOrderClientMaterial } from '@/src/hooks/useClientRequisitions';
-import { useStockItems, useStockKeepers, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
+import { useStockItems, useMyStockLocations, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { rollupClientRequisitions, rollupEvents, type CsrLineFigures } from '@/src/lib/clientRequisitionRollup';
 import type { ClientRequisitionLineRow, ClientRequisitionRow, ClientRequisitionStatus } from '@/src/lib/repositories/clientRequisitions';
 import { formatDay, formatNumberExact } from '@/src/lib/format';
+import { OwnerMaterialPipeline } from './OwnerMaterialPipeline';
 import { PickupDialog, ReleaseDialog, RequisitionFormDialog, ReservationDialog, type RequisitionDraftLine } from './ClientMaterialDialogs';
 import { useSubmitError, type Option } from './clientMaterialText';
 
@@ -47,7 +48,14 @@ const Figure: React.FC<{ label: string; value: string; testId?: string }> = ({ l
  * pickup rows (never stored); an item in two units shows twice (AC-CSR-002); a work order with no requisition shows an
  * empty state, not zeros (AC-CSR-003). Every action is gated by can() and enforced by the csr_* RPCs.
  */
-export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId, workOrderStatus, allocationOptions }) => {
+export const ClientMaterialSection: React.FC<Props> = (props) => (
+  <>
+    <OwnerMaterialPipeline workOrderId={props.workOrderId} />
+    <ClientRequisitionsSection {...props} />
+  </>
+);
+
+const ClientRequisitionsSection: React.FC<Props> = ({ workOrderId, projectId, workOrderStatus, allocationOptions }) => {
   const { t } = useTranslation('workOrders');
   const { t: tAll } = useTranslation();
   const submitError = useSubmitError();
@@ -67,7 +75,6 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
   );
   const units = useStockUnits();
   const warehouses = useStockWarehouses();
-  const keepers = useStockKeepers();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -90,12 +97,12 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
     () => (warehouses.data ?? []).filter((w) => w.project_id === projectId && ['site', 'yard', 'staging'].includes(w.kind)),
     [warehouses.data, projectId],
   );
-  const myKept = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === userId).map((k) => k.warehouse_id)), [keepers.data, userId]);
+  const mine = useMyStockLocations();
   // Only an Admin may record a pickup without keeping the location (the policy's keeper test fails for them): any location of the project.
-  const isKeeper = projectLocations.some((w) => myKept.has(w.id));
+  const isKeeper = projectLocations.some((w) => mine.keeps(w.id));
   const isAdmin = may('recordPickup', 'clientRequisition', { currentUserId: userId, record: { status: 'open', isKeeper: false, viewOnly } });
   const pickupLocations: Option[] = projectLocations
-    .filter((w) => isAdmin || myKept.has(w.id))
+    .filter((w) => isAdmin || mine.keeps(w.id))
     .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
 
   const takeoffDescriptor = useMemo(() => makeClientTakeoffImportDescriptor({

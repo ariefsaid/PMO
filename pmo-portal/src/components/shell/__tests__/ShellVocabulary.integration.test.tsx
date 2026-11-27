@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -47,6 +47,9 @@ vi.mock('@/src/components/shell', async (importOriginal) => ({
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { ShellChrome } from '@/App';
 
+// The palette loads on first open; warm it so the cold jsdom import is not inside findByRole's 1 s.
+beforeAll(async () => { await import('@/src/components/shell/CommandPalette'); }, 60_000);
+
 const LocationProbe = () => { const loc = useLocation(); return <output data-testid="location">{loc.pathname + loc.search}</output>; };
 /** `App` mounts a QueryClientProvider above the shell (#2699's price-visibility sync reads the cache). */
 const withQueryClient = (ui: React.ReactNode) => (
@@ -67,7 +70,7 @@ describe('UXS-006 localized shell vocabulary', () => {
     expect(document.querySelector('#rail-my-tasks-hint')).toBeNull();
     const choose = async (query: string, name: RegExp, location: string, crumb: string) => {
       await user.keyboard('{Control>}k{/Control}');
-      await user.type(screen.getByRole('combobox'), query);
+      await user.type(await screen.findByRole('combobox'), query);
       await user.click(await screen.findByRole('option', { name }));
       await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(location));
       // C4 (fan-out round 1): the breadcrumb landmark is named from the catalogue, so the lookup is
@@ -79,7 +82,7 @@ describe('UXS-006 localized shell vocabulary', () => {
     // With CRM on the rail hides the Suppliers alias — and the palette Navigate group must hide
     // it too (registry parity: the vendors entry is unlessFeature-gated like its Rail twin).
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(screen.getByRole('combobox'), 'supplier');
+    await user.type(await screen.findByRole('combobox'), 'supplier');
     expect(screen.queryByRole('option', { name: /^Supplier$/ })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
     await choose('my tasks', /^Tugas Saya/, '/my-tasks', 'Tugas Saya');

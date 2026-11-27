@@ -14,7 +14,7 @@ insert into auth.users (id, email) values ('19030000-0000-0000-0000-0000000000a1
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('19030000-0000-0000-0000-0000000000a1', '19030000-0000-0000-0000-000000000001', 'OTR A Admin', 'otr-a-admin@example.com', 'Admin', 'active');
 
-select is((select count(*)::int from public.org_term_keys), 39, 'AC-TR-001 the key table carries the 39 nameable terms');
+select is((select count(*)::int from public.org_term_keys where term_key not like 'stage%' and term_key <> 'materialReconciliation'), 39, 'AC-TR-001 the key table carries the 39 nameable terms (2792 adds eight more)');
 select is(
   (select string_agg(term_key, ',' order by term_key) from public.org_term_keys where term_key in (
     'serviceRequest','purchaseOrder','dailySiteReport','surveyQuantity','quantityChangeRequest','workOrderTransfer',

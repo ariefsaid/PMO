@@ -1,10 +1,17 @@
 import '@testing-library/jest-dom/vitest';
 import 'jest-axe/extend-expect';
 import { createElement } from 'react';
-import { afterAll, vi } from 'vitest';
+import { afterAll, beforeEach, vi } from 'vitest';
+import { setHidePricesActive, setPricesHidden } from '@/src/lib/priceReadPath';
 import { assertNodeMajor } from './nodeMajorGuard';
 
 assertNodeMajor(process.versions.node);
+
+// #1128: the app starts with price visibility unresolved (hidden) until the shell's sync hears the server. Suites render
+// screens without that shell, so each test starts as if the server answered "the organisation does not hide prices", the
+// state these suites assumed before the three-state store. Only the test environment's start changes; the app's own
+// default and the server's masking are untouched. Suites about hiding, loading or failure seed that state themselves.
+beforeEach(() => { setHidePricesActive(false); setPricesHidden(false, true); });
 
 // Projects page suites predating the collection-money query intentionally render
 // without a QueryClient. Their concerns are independent of this new read seam;

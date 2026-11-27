@@ -41,6 +41,7 @@
   },
   "deliveries": {
     "title": "A delivery for you",
+    "error": "Couldn't load deliveries",
     "lines_one": "{{count}} item line to count",
     "lines_other": "{{count}} item lines to count",
     "open": "Count and confirm"

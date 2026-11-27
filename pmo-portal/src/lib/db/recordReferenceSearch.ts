@@ -20,18 +20,6 @@ export interface ReferenceSearchPage {
   hasMore: boolean;
 }
 
-interface ReferenceSearchRpcResponse {
-  data: unknown;
-  error: { message: string; code?: string; details?: string } | null;
-}
-
-interface ReferenceSearchRpcClient {
-  rpc(
-    functionName: 'search_record_references',
-    args: { p_query: string; p_limit: typeof REFERENCE_SEARCH_LIMIT },
-  ): PromiseLike<ReferenceSearchRpcResponse>;
-}
-
 function isReferenceHit(value: unknown): value is ReferenceHit {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const hit = value as Record<string, unknown>;
@@ -59,8 +47,7 @@ function isReferenceSearchPage(value: unknown): value is ReferenceSearchPage {
 
 /** Query-specific, server-bounded lookup. The RPC and RLS enforce the caller's read scope. */
 export async function searchRecordReferences(query: string): Promise<ReferenceSearchPage> {
-  const rpcClient = supabase as unknown as ReferenceSearchRpcClient;
-  const { data, error } = await rpcClient.rpc('search_record_references', {
+  const { data, error } = await supabase.rpc('search_record_references', {
     p_query: query,
     p_limit: REFERENCE_SEARCH_LIMIT,
   });

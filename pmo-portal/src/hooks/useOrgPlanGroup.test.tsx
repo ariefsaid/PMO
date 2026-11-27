@@ -10,7 +10,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 const analytics = vi.hoisted(() => ({ group: vi.fn() }));
-vi.mock('@/src/lib/analytics/client', () => ({ analyticsClient: analytics }));
+const consent = vi.hoisted(() => ({ state: 'active' as 'disabled' | 'dnt' | 'opted-out' | 'active' }));
+vi.mock('@/src/lib/analytics/client', () => ({
+  analyticsClient: analytics,
+  getConsentState: () => consent.state,
+}));
 
 const currentPlan = vi.hoisted(() => vi.fn());
 const getOrgPlan = vi.hoisted(() => vi.fn());
@@ -48,6 +52,7 @@ beforeEach(() => {
   currentPlan.mockReset();
   getOrgPlan.mockReset();
   authState.currentUser = { id: 'u1', org_id: 'org-1' };
+  consent.state = 'active';
 });
 
 afterEach(() => {
@@ -81,6 +86,18 @@ describe('useOrgPlanGroup — FR-PLN-016', () => {
     await waitFor(() => expect(currentPlan).toHaveBeenCalled());
     expect(analytics.group).not.toHaveBeenCalled();
   });
+
+  it.each(['disabled', 'dnt', 'opted-out'] as const)(
+    'does not read the plan while analytics is %s (the read only feeds the consent-gated group)',
+    async (state) => {
+      consent.state = state;
+      currentPlan.mockResolvedValue({ plan_id: 'starter', plan_name: 'Starter', seat_limit: 10, project_limit: 25, ai_monthly_messages: 300 });
+      renderProbe();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(currentPlan).not.toHaveBeenCalled();
+      expect(analytics.group).not.toHaveBeenCalled();
+    },
+  );
 
   it('does not read the plan without a signed-in org', () => {
     authState.currentUser = null;

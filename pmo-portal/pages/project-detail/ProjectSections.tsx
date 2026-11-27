@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { preloadProjectOrders } from '@/src/lib/routeData';
@@ -25,6 +25,8 @@ import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity'
 
 import { AREAS, type Area } from './projectDetailAreas';
 import { useTerms } from '@/src/lib/i18n/terms';
+
+import { afterPaintIdle } from '@/src/lib/afterPaintIdle';
 
 type Lens = 'money' | 'delivery';
 
@@ -81,9 +83,14 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   const showDeliveryAttention = lens === 'delivery'
     && (attention.isPending || Boolean(attention.error) || visibleDeliveryAttention.length > 0);
   // F8: the curve is gated on data only (ProjectSCurve draws nothing without dated phases), never on role.
+  // Mount after Overview commits so a warm prefetched overview never blocks first paint on the chart chunk.
+  const [chartMounted, setChartMounted] = useState(false);
+  useEffect(() => { setChartMounted(true); }, []);
   const curve = useMemo(() => !isPipeline
-    ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
-    : null, [isPipeline, project.id]);
+    ? chartMounted
+      ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
+      : <div className="h-72" />
+    : null, [isPipeline, project.id, chartMounted]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
   const canSeeMoney = useMayViewProjectMoney();
   if (isPipeline) {
@@ -248,6 +255,12 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const currentCounts = loadedCounts.projectId === project.id ? loadedCounts.values : {};
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
   const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
+  useEffect(() => {
+    if (overviewPending || panel !== 'overview') return;
+    return afterPaintIdle(() => {
+      for (const next of AREAS) preloadProjectTab(next);
+    });
+  }, [project.id, overviewPending, panel]);
   const items: TabItem<Area>[] = areas.map((a) => {
     if (a === 'procurement' || a === 'tasks' || a === 'documents') {
       return { value: a, label: labels[a], count: currentCounts[a] ?? null, countPresentation: 'inline' };

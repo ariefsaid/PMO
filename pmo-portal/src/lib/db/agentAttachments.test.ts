@@ -167,5 +167,6 @@ describe('agent attachment DAL', () => {
       cleanupAgentAttachmentObject('org/org-1/agent-attachments/att-1'),
     ).rejects.toMatchObject({ code: '42501' });
     expect(h.calls.update.length).toBeGreaterThan(0);
+    expect(h.storageCalls.remove).toEqual([]);
   });
 });

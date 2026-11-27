@@ -5,6 +5,8 @@ import {
   type ExpenseClaimStatus, type ExpenseClaimWithRefs, type ExpenseKind, type ExpenseLineInput,
 } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 export { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
@@ -19,17 +21,8 @@ export interface ExpenseClaimAwaiting {
   route: ExpenseClaimRoute | null;
 }
 
-function useOrgId(): string | undefined {
-  return useAuth().currentUser?.org_id;
-}
-
 export function useExpenseClaims(filters: ExpenseClaimFilters = {}) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['expense-claims', orgId, filters],
-    queryFn: () => repositories.expenseClaim.list(filters),
-    enabled: Boolean(orgId),
-  });
+  return useOrgQuery(['expense-claims', filters], () => repositories.expenseClaim.list(filters));
 }
 
 /**
@@ -60,59 +53,33 @@ export function useExpenseClaimPages(filters: ExpenseClaimFilters = {}, page = 1
 }
 
 export function useExpenseClaim(id: string | undefined) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['expense-claim', orgId, id],
-    queryFn: () => repositories.expenseClaim.get(id as string),
-    enabled: Boolean(orgId) && Boolean(id),
-  });
+  return useOrgQuery(['expense-claim', id], () => repositories.expenseClaim.get(id as string), { enabled: Boolean(id) });
 }
 
 export function useExpenseClaimLines(id: string | undefined) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['expense-claim-lines', orgId, id],
-    queryFn: () => repositories.expenseClaim.lines(id as string),
-    enabled: Boolean(orgId) && Boolean(id),
-  });
+  return useOrgQuery(['expense-claim-lines', id], () => repositories.expenseClaim.lines(id as string), { enabled: Boolean(id) });
 }
 
 /** The route of ONE Submitted record (detail page). */
 export function useExpenseClaimRoute(id: string | undefined, status: ExpenseClaimStatus | undefined) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['expense-claim-route', orgId, id],
-    queryFn: async () => (await repositories.expenseClaim.routes([id as string]))[0] ?? null,
-    enabled: Boolean(orgId) && Boolean(id) && status === 'Submitted',
-  });
+  return useOrgQuery(
+    ['expense-claim-route', id],
+    async () => (await repositories.expenseClaim.routes([id as string]))[0] ?? null,
+    { enabled: Boolean(id) && status === 'Submitted' },
+  );
 }
 
 export function useExpenseAdvanceOutstanding(advanceId: string | null | undefined) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['expense-advance-outstanding', orgId, advanceId],
-    queryFn: () => repositories.expenseClaim.outstanding(advanceId as string),
-    enabled: Boolean(orgId) && Boolean(advanceId),
-  });
+  return useOrgQuery(['expense-advance-outstanding', advanceId], () => repositories.expenseClaim.outstanding(advanceId as string), { enabled: Boolean(advanceId) });
 }
 
 export function useExpenseAdvanceAging() {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['expense-advance-aging', orgId],
-    queryFn: () => repositories.expenseClaim.aging(),
-    enabled: Boolean(orgId),
-  });
+  return useOrgQuery(['expense-advance-aging'], () => repositories.expenseClaim.aging());
 }
 
 /** Bucket totals over every visible advance (the aggregate read), not a sum of the capped list. */
 export function useExpenseAdvanceAgingTotals() {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['expense-advance-aging', orgId, 'totals'],
-    queryFn: () => repositories.expenseClaim.agingTotals(),
-    enabled: Boolean(orgId),
-  });
+  return useOrgQuery(['expense-advance-aging', 'totals'], () => repositories.expenseClaim.agingTotals());
 }
 
 /** The signed-in user's own outstanding advances, filtered on the server before the page cap (claim form choices). */

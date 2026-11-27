@@ -1,3 +1,5 @@
+import { projectWorkOrdersQuery } from '@/src/lib/routeQueries/useWorkOrders';
+export { projectWorkOrdersQuery, type ProjectOrdersViewer } from '@/src/lib/routeQueries/useWorkOrders';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   repositories,
@@ -6,7 +8,6 @@ import {
   type WorkOrderStatus,
   type SetWorkOrderValueInput,
 } from '@/src/lib/repositories';
-import type { Profile } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -15,13 +16,6 @@ import { useAuth } from '@/src/auth/useAuth';
  */
 
 /** Every work order on a project, newest first. */
-export const projectWorkOrdersQuery = (user: ProjectOrdersViewer | null | undefined, projectId: string) => ({
-  queryKey: ['work-orders', user?.org_id, projectId, user?.id, user?.role, user?.manager_id],
-  queryFn: () => repositories.workOrder.list(projectId),
-  enabled: Boolean(user?.org_id) && Boolean(projectId),
-});
-
-export type ProjectOrdersViewer = Pick<Profile, 'org_id' | 'id' | 'role' | 'manager_id'>;
 
 export function useProjectWorkOrders(projectId: string) {
   return useQuery(projectWorkOrdersQuery(useAuth().currentUser, projectId));
@@ -126,7 +120,16 @@ export function useWorkOrderMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { create, update, setValue, transition, cancel };
+  const reopen = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => repositories.workOrder.reopen(id, reason),
+    onSuccess: () => {
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['work-orders', orgId, 'all'] });
+      void qc.invalidateQueries({ queryKey: ['work-order-dashboard', orgId] });
+    },
+  });
+
+  return { create, update, setValue, transition, cancel, reopen };
 }
 
 /** Every work order the reader may see, across projects (the menu's Work orders page). RLS-scoped, no money. */

@@ -1291,6 +1291,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          invoice_step: boolean
           optional: boolean
           org_id: string
           owner_role: Database["public"]["Enums"]["user_role"] | null
@@ -1303,6 +1304,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          invoice_step?: boolean
           optional?: boolean
           org_id: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -1315,6 +1317,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          invoice_step?: boolean
           optional?: boolean
           org_id?: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -1388,6 +1391,7 @@ export type Database = {
           hidden_from_role_keys: string[]
           id: string
           name: string
+          invoice_step: boolean
           optional: boolean
           org_id: string
           owner_role: Database["public"]["Enums"]["user_role"] | null
@@ -1402,6 +1406,7 @@ export type Database = {
           hidden_from_role_keys?: string[]
           id?: string
           name: string
+          invoice_step?: boolean
           optional?: boolean
           org_id: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -1416,6 +1421,7 @@ export type Database = {
           hidden_from_role_keys?: string[]
           id?: string
           name?: string
+          invoice_step?: boolean
           optional?: boolean
           org_id?: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -2765,6 +2771,7 @@ export type Database = {
           id: string
           name: string
           note: string | null
+          invoice_step: boolean
           optional: boolean
           org_id: string
           overdue_notified_at: string | null
@@ -2788,6 +2795,7 @@ export type Database = {
           id?: string
           name: string
           note?: string | null
+          invoice_step?: boolean
           optional?: boolean
           org_id: string
           overdue_notified_at?: string | null
@@ -2811,6 +2819,7 @@ export type Database = {
           id?: string
           name?: string
           note?: string | null
+          invoice_step?: boolean
           optional?: boolean
           org_id?: string
           overdue_notified_at?: string | null
@@ -2974,6 +2983,7 @@ export type Database = {
           kind: string
           line_id: string | null
           org_id: string
+          owner_warehouse_id: string | null
           pickup_id: string | null
           quantity: number | null
           reason: string | null
@@ -2990,6 +3000,7 @@ export type Database = {
           kind: string
           line_id?: string | null
           org_id?: string
+          owner_warehouse_id?: string | null
           pickup_id?: string | null
           quantity?: number | null
           reason?: string | null
@@ -3006,6 +3017,7 @@ export type Database = {
           kind?: string
           line_id?: string | null
           org_id?: string
+          owner_warehouse_id?: string | null
           pickup_id?: string | null
           quantity?: number | null
           reason?: string | null
@@ -3029,6 +3041,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "client_requisition_events_owner_warehouse_id_org_id_fkey"
+            columns: ["owner_warehouse_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_warehouses"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
             foreignKeyName: "client_requisition_events_requisition_id_fkey"
             columns: ["requisition_id"]
             isOneToOne: false
@@ -3044,6 +3063,7 @@ export type Database = {
           org_id: string
           requested_quantity: number
           requisition_id: string
+          section_material_plan_id: string | null
           stock_item_id: string
           takeoff_quantity: number
           unit_code: string
@@ -3055,6 +3075,7 @@ export type Database = {
           org_id?: string
           requested_quantity: number
           requisition_id: string
+          section_material_plan_id?: string | null
           stock_item_id: string
           takeoff_quantity: number
           unit_code: string
@@ -3066,6 +3087,7 @@ export type Database = {
           org_id?: string
           requested_quantity?: number
           requisition_id?: string
+          section_material_plan_id?: string | null
           stock_item_id?: string
           takeoff_quantity?: number
           unit_code?: string
@@ -3085,6 +3107,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "client_requisitions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_requisition_lines_section_material_plan_id_org_id_s_fkey"
+            columns: ["section_material_plan_id", "org_id", "stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_section_material_plan"
+            referencedColumns: ["id", "org_id", "item_id"]
           },
           {
             foreignKeyName: "client_requisition_lines_stock_item_id_fkey"
@@ -3195,6 +3224,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          import_batch_id: string | null
           number: string
           org_id: string
           project_id: string
@@ -3213,6 +3243,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          import_batch_id?: string | null
           number: string
           org_id?: string
           project_id: string
@@ -3231,6 +3262,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          import_batch_id?: string | null
           number?: string
           org_id?: string
           project_id?: string
@@ -3248,6 +3280,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_requisitions_import_batch_id_org_id_fkey"
+            columns: ["import_batch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_import_batches"
+            referencedColumns: ["id", "org_id"]
           },
           {
             foreignKeyName: "client_requisitions_org_id_fkey"
@@ -3380,6 +3419,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          address: string | null
           archived_at: string | null
           client_number_segment: string | null
           created_at: string
@@ -3398,14 +3438,17 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          payment_terms_days: number | null
           short_name: string | null
           supply_risk_reason: string | null
           supply_risk_set_at: string | null
           supply_risk_set_by: string | null
           supply_risk_status: string
           type: Database["public"]["Enums"]["company_type"]
+          vendor_code: string | null
         }
         Insert: {
+          address?: string | null
           archived_at?: string | null
           client_number_segment?: string | null
           created_at?: string
@@ -3424,14 +3467,17 @@ export type Database = {
           id?: string
           name: string
           org_id?: string
+          payment_terms_days?: number | null
           short_name?: string | null
           supply_risk_reason?: string | null
           supply_risk_set_at?: string | null
           supply_risk_set_by?: string | null
           supply_risk_status?: string
           type: Database["public"]["Enums"]["company_type"]
+          vendor_code?: string | null
         }
         Update: {
+          address?: string | null
           archived_at?: string | null
           client_number_segment?: string | null
           created_at?: string
@@ -3450,12 +3496,14 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          payment_terms_days?: number | null
           short_name?: string | null
           supply_risk_reason?: string | null
           supply_risk_set_at?: string | null
           supply_risk_set_by?: string | null
           supply_risk_status?: string
           type?: Database["public"]["Enums"]["company_type"]
+          vendor_code?: string | null
         }
         Relationships: [
           {
@@ -3470,6 +3518,42 @@ export type Database = {
             columns: ["supply_risk_set_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_tax_numbers: {
+        Row: {
+          company_id: string
+          org_id: string
+          tax_number: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          org_id?: string
+          tax_number: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          org_id?: string
+          tax_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_tax_numbers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_tax_numbers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -21930,6 +22014,7 @@ export type Database = {
           description: string | null
           id: string
           lead_time_days: number | null
+          material_category_id: string | null
           name: string
           needs_quality_check: boolean
           org_id: string
@@ -21944,6 +22029,7 @@ export type Database = {
           description?: string | null
           id?: string
           lead_time_days?: number | null
+          material_category_id?: string | null
           name: string
           needs_quality_check?: boolean
           org_id?: string
@@ -21958,6 +22044,7 @@ export type Database = {
           description?: string | null
           id?: string
           lead_time_days?: number | null
+          material_category_id?: string | null
           name?: string
           needs_quality_check?: boolean
           org_id?: string
@@ -21965,6 +22052,13 @@ export type Database = {
           unit_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_items_material_category_id_org_id_fkey"
+            columns: ["material_category_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stock_material_categories"
+            referencedColumns: ["id", "org_id"]
+          },
           {
             foreignKeyName: "stock_items_org_id_fkey"
             columns: ["org_id"]
@@ -26660,9 +26754,11 @@ export type Database = {
       }
       work_order_section_material_plan: {
         Row: {
+          category_id: string | null
           created_at: string
           created_by: string | null
           id: string
+          import_batch_id: string | null
           item_id: string
           org_id: string
           quantity: number
@@ -26672,9 +26768,11 @@ export type Database = {
           work_order_id: string
         }
         Insert: {
+          category_id?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
+          import_batch_id?: string | null
           item_id: string
           org_id?: string
           quantity: number
@@ -26684,9 +26782,11 @@ export type Database = {
           work_order_id: string
         }
         Update: {
+          category_id?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
+          import_batch_id?: string | null
           item_id?: string
           org_id?: string
           quantity?: number
@@ -26696,6 +26796,20 @@ export type Database = {
           work_order_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "work_order_section_material_plan_category_id_org_id_fkey"
+            columns: ["category_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "stock_material_categories"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "work_order_section_material_plan_import_batch_id_org_id_fkey"
+            columns: ["import_batch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_import_batches"
+            referencedColumns: ["id", "org_id"]
+          },
           {
             foreignKeyName: "work_order_section_material_plan_item_id_fkey"
             columns: ["item_id"]
@@ -26811,6 +26925,8 @@ export type Database = {
       }
       work_order_sections: {
         Row: {
+          skipped_source_rows: number
+          skipped_reason_codes: string[]
           archived_at: string | null
           code: string
           created_at: string
@@ -26820,6 +26936,7 @@ export type Database = {
           location_note: string | null
           name: string
           org_id: string
+          owner_cost_code: string | null
           project_id: string
           readiness: string
           readiness_note: string | null
@@ -26831,6 +26948,8 @@ export type Database = {
           work_order_id: string
         }
         Insert: {
+          skipped_source_rows?: number
+          skipped_reason_codes?: string[]
           archived_at?: string | null
           code: string
           created_at?: string
@@ -26840,6 +26959,7 @@ export type Database = {
           location_note?: string | null
           name: string
           org_id?: string
+          owner_cost_code?: string | null
           project_id: string
           readiness?: string
           readiness_note?: string | null
@@ -26851,6 +26971,8 @@ export type Database = {
           work_order_id: string
         }
         Update: {
+          skipped_source_rows?: number
+          skipped_reason_codes?: string[]
           archived_at?: string | null
           code?: string
           created_at?: string
@@ -26860,6 +26982,7 @@ export type Database = {
           location_note?: string | null
           name?: string
           org_id?: string
+          owner_cost_code?: string | null
           project_id?: string
           readiness?: string
           readiness_note?: string | null
@@ -27157,6 +27280,467 @@ export type Database = {
             columns: ["site_warehouse_id"]
             isOneToOne: false
             referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_material_import_batches: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          org_id: string
+          schema_version: number
+          source_digest: string | null
+          source_key: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          org_id: string
+          schema_version: number
+          source_digest?: string | null
+          source_key: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          org_id?: string
+          schema_version?: number
+          source_digest?: string | null
+          source_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_import_batches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_material_import_rows: {
+        Row: {
+          batch_id: string
+          entity_key: string
+          org_id: string
+          payload_hash: string
+          result_ids: Json
+        }
+        Insert: {
+          batch_id: string
+          entity_key: string
+          org_id: string
+          payload_hash: string
+          result_ids: Json
+        }
+        Update: {
+          batch_id?: string
+          entity_key?: string
+          org_id?: string
+          payload_hash?: string
+          result_ids?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_import_rows_batch_id_org_id_fkey"
+            columns: ["batch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_import_batches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "owner_material_import_rows_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_material_import_witness: {
+        Row: {
+          actor_id: string
+          backend_pid: number
+          batch_id: string
+          org_id: string
+          transaction_id: number
+        }
+        Insert: {
+          actor_id: string
+          backend_pid: number
+          batch_id: string
+          org_id: string
+          transaction_id: number
+        }
+        Update: {
+          actor_id?: string
+          backend_pid?: number
+          batch_id?: string
+          org_id?: string
+          transaction_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_import_witness_batch_id_org_id_fkey"
+            columns: ["batch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_import_batches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "owner_material_import_witness_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_material_movement_links: {
+        Row: {
+          document_id: string
+          item_id: string
+          org_id: string
+          section_material_plan_id: string
+          stage: string
+          stock_line_id: string
+        }
+        Insert: {
+          document_id: string
+          item_id: string
+          org_id: string
+          section_material_plan_id: string
+          stage: string
+          stock_line_id: string
+        }
+        Update: {
+          document_id?: string
+          item_id?: string
+          org_id?: string
+          section_material_plan_id?: string
+          stage?: string
+          stock_line_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_movement_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_material_movement_links_section_material_plan_id_org_fkey"
+            columns: ["section_material_plan_id", "org_id", "item_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_section_material_plan"
+            referencedColumns: ["id", "org_id", "item_id"]
+          },
+          {
+            foreignKeyName: "owner_material_movement_links_stock_line_id_document_id_or_fkey"
+            columns: ["stock_line_id", "document_id", "org_id", "item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_document_lines"
+            referencedColumns: ["id", "document_id", "org_id", "item_id"]
+          },
+          {
+            foreignKeyName: "owner_material_movement_links_stock_line_id_document_id_or_fkey"
+            columns: ["stock_line_id", "document_id", "org_id", "item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_document_lines_masked"
+            referencedColumns: ["id", "document_id", "org_id", "item_id"]
+          },
+        ]
+      }
+      owner_material_openings: {
+        Row: {
+          as_of: string
+          created_at: string
+          created_by: string
+          evidence: Json
+          import_batch_id: string
+          issued: number
+          org_id: string
+          owner_return: number
+          received: number
+          requested: number
+          returned: number
+          section_material_plan_id: string
+          set_aside: number
+          transfer_in: number
+          transfer_out: number
+          updated_at: string
+        }
+        Insert: {
+          as_of: string
+          created_at?: string
+          created_by: string
+          evidence?: Json
+          import_batch_id: string
+          issued?: number
+          org_id: string
+          owner_return?: number
+          received?: number
+          requested?: number
+          returned?: number
+          section_material_plan_id: string
+          set_aside?: number
+          transfer_in?: number
+          transfer_out?: number
+          updated_at?: string
+        }
+        Update: {
+          as_of?: string
+          created_at?: string
+          created_by?: string
+          evidence?: Json
+          import_batch_id?: string
+          issued?: number
+          org_id?: string
+          owner_return?: number
+          received?: number
+          requested?: number
+          returned?: number
+          section_material_plan_id?: string
+          set_aside?: number
+          transfer_in?: number
+          transfer_out?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_openings_import_batch_id_org_id_fkey"
+            columns: ["import_batch_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_import_batches"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "owner_material_openings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_material_openings_section_material_plan_id_org_id_fkey"
+            columns: ["section_material_plan_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_section_material_plan"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      owner_material_reconciliation: {
+        Row: {
+          changed_by: string
+          changed_on: string
+          org_id: string
+          reason: string | null
+          section_id: string
+          step_id: string
+        }
+        Insert: {
+          changed_by: string
+          changed_on?: string
+          org_id: string
+          reason?: string | null
+          section_id: string
+          step_id: string
+        }
+        Update: {
+          changed_by?: string
+          changed_on?: string
+          org_id?: string
+          reason?: string | null
+          section_id?: string
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_reconciliation_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_material_reconciliation_section_id_org_id_fkey"
+            columns: ["section_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_sections"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "owner_material_reconciliation_step_id_org_id_fkey"
+            columns: ["step_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_reconciliation_steps"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      owner_material_reconciliation_events: {
+        Row: {
+          changed_by: string
+          changed_on: string
+          id: string
+          org_id: string
+          previous_step_id: string | null
+          reason: string | null
+          section_id: string
+          step_id: string
+        }
+        Insert: {
+          changed_by: string
+          changed_on?: string
+          id?: string
+          org_id: string
+          previous_step_id?: string | null
+          reason?: string | null
+          section_id: string
+          step_id: string
+        }
+        Update: {
+          changed_by?: string
+          changed_on?: string
+          id?: string
+          org_id?: string
+          previous_step_id?: string | null
+          reason?: string | null
+          section_id?: string
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_reconciliation_even_previous_step_id_org_id_fkey"
+            columns: ["previous_step_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_reconciliation_steps"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "owner_material_reconciliation_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_material_reconciliation_events_section_id_org_id_fkey"
+            columns: ["section_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_sections"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "owner_material_reconciliation_events_step_id_org_id_fkey"
+            columns: ["step_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "owner_material_reconciliation_steps"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      owner_material_reconciliation_steps: {
+        Row: {
+          archived_at: string | null
+          id: string
+          name: string
+          org_id: string
+          percentage: number
+          position: number
+        }
+        Insert: {
+          archived_at?: string | null
+          id?: string
+          name: string
+          org_id: string
+          percentage: number
+          position: number
+        }
+        Update: {
+          archived_at?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          percentage?: number
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_reconciliation_steps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_material_warehouses: {
+        Row: {
+          archived_at: string | null
+          code: string
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          id?: string
+          name: string
+          org_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_material_warehouses_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_material_categories: {
+        Row: {
+          archived_at: string | null
+          code: string
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          id?: string
+          name: string
+          org_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_material_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -29202,6 +29786,119 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_material_posted_quantities: {
+        Row: {
+          kind: string | null
+          plan_id: string | null
+          qty_delta: number | null
+          stage: string | null
+        }
+        Relationships: []
+      }
+      owner_material_stage_totals: {
+        Row: {
+          as_of: string | null
+          category_code: string | null
+          closing: number | null
+          closing_pct: number | null
+          evidence: Json | null
+          issued: number | null
+          issued_pct: number | null
+          item_code: string | null
+          item_id: string | null
+          item_name: string | null
+          owner_cost_code: string | null
+          owner_return: number | null
+          plan_id: string | null
+          planned: number | null
+          project_id: string | null
+          received: number | null
+          received_pct: number | null
+          requested: number | null
+          requested_pct: number | null
+          returned: number | null
+          section_id: string | null
+          set_aside: number | null
+          set_aside_pct: number | null
+          transfer_in: number | null
+          transfer_out: number | null
+          unit: string | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_section_material_plan_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_section_material_plan_section_wo_fk"
+            columns: ["section_id", "work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_sections"
+            referencedColumns: ["id", "work_order_id"]
+          },
+          {
+            foreignKeyName: "work_order_section_material_plan_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "work_order_section_material_plan_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "work_order_section_material_plan_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_material_unallocated_totals: {
+        Row: {
+          n: number | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "stock_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "stock_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -36809,6 +37506,10 @@ export type Database = {
         Args: { p_claim: string; p_open_ids: string[]; p_start: string }
         Returns: undefined
       }
+      reopen_work_order: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       reopen_equipment_plan: {
         Args: { p_id: string }
         Returns: {
@@ -39335,6 +40036,7 @@ export type Database = {
         Returns: boolean
       }
       work_order_dashboard_costs: { Args: { p_project_ids: string[] }; Returns: Json }
+      work_order_cost_left_out: { Args: { p_work_order_id: string }; Returns: Json }
       work_order_cost_amounts: {
         Args: { p_project_id: string }
         Returns: {
@@ -39634,6 +40336,103 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      om_material_catalogue_entity: { Args: { p_entity: Json }; Returns: Json }
+      om_material_config: { Args: never; Returns: Json }
+      om_material_import: {
+        Args: {
+          p_confirm?: boolean
+          p_payload: Json
+          p_schema_version: number
+          p_source_key: string
+        }
+        Returns: Json
+      }
+      om_material_lines: {
+        Args: {
+          p_page?: number
+          p_page_size?: number
+          p_section_id?: string
+          p_work_order_id: string
+        }
+        Returns: {
+          as_of: string
+          category_code: string
+          closing: string
+          closing_pct: string
+          evidence: Json
+          issued: string
+          issued_pct: string
+          item_code: string
+          item_id: string
+          item_name: string
+          owner_cost_code: string
+          owner_return: string
+          plan_id: string
+          planned: string
+          received: string
+          received_pct: string
+          requested: string
+          requested_pct: string
+          returned: string
+          section_id: string
+          set_aside: string
+          set_aside_pct: string
+          total_count: number
+          transfer_in: string
+          transfer_out: string
+          unit: string
+        }[]
+      }
+      om_material_rollup: {
+        Args: {
+          p_page?: number
+          p_page_size?: number
+          p_project_id: string
+          p_work_order_id?: string
+        }
+        Returns: {
+          partial_section_count: number
+          closing_pct: string
+          issued_pct: string
+          number: string
+          received_pct: string
+          reconciliation_pct: string
+          reconciliation_step: string
+          requested_pct: string
+          section_count: number
+          set_aside_pct: string
+          title: string
+          total_count: number
+          unallocated_movement_count: number
+          work_order_id: string
+        }[]
+      }
+      om_material_section_rollup: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          skipped_source_rows: number
+          skipped_reason_codes: string[]
+          as_of: string
+          closing_pct: string
+          issued_pct: string
+          line_count: number
+          owner_cost_code: string
+          received_pct: string
+          reconciliation_pct: string
+          reconciliation_step: string
+          reconciliation_step_id: string
+          requested_pct: string
+          section_code: string
+          section_id: string
+          section_name: string
+          set_aside_pct: string
+        }[]
+      }
+      om_material_set_reconciliation: {
+        Args: { p_reason?: string; p_section_id: string; p_step_id: string }
+        Returns: Json
+      }
+      om_material_set_scale: { Args: { p_steps: Json }; Returns: Json }
     }
     Enums: {
       budget_category:

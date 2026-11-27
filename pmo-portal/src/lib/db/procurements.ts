@@ -61,8 +61,12 @@ const SELECT_WITH_REFS =
 
 /** PERF-DASH-1: the dashboards' list. The shared list's money/stage inputs without the SQL open commitment (a
  *  per-row function, most of the read's cost) and the search-only record-reference embeds, which no dashboard shows. */
+const LEAN_DETAILS = PROCUREMENT_LIST_DETAILS.split(', ')
+  // The dashboards derive money, ageing and the supplier balance only; stage age and stage dates (stage-event and receipt rows) are read by the shared list alone.
+  .filter((embed) => !embed.includes('procurement_status_events') && !embed.includes('procurement_receipts'))
+  .join(', ');
 const SELECT_LEAN_DETAILS =
-  `*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), ${PROCUREMENT_LIST_DETAILS}`;
+  `*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), ${LEAN_DETAILS}`;
 
 const SELECT_WITH_SHARED_DETAILS =
   `${SELECT_SHARED_LIST}, ${PROCUREMENT_LIST_DETAILS}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
@@ -168,10 +172,7 @@ async function attachOpenCommitments<T extends { id: string }>(rows: T[]): Promi
   if (rows.length === 0) return rows;
   const chunks: string[][] = [];
   for (let i = 0; i < rows.length; i += OPEN_COMMITMENT_CHUNK) chunks.push(rows.slice(i, i + OPEN_COMMITMENT_CHUNK).map((r) => r.id));
-  const results = await Promise.all(chunks.map((p_ids) => supabase.rpc(priceFn('procurement_open_commitments') as never, { p_ids } as never) as unknown as PromiseLike<{
-    data: { procurement_id: string; amount: number | string | null }[] | null;
-    error: { message: string; code?: string } | null;
-  }>));
+  const results = await Promise.all(chunks.map((p_ids) => supabase.rpc(priceFn('procurement_open_commitments') as 'procurement_open_commitments', { p_ids })));
   const byId = new Map<string, number | null>();
   for (const { data, error } of results) {
     if (error) throw new Error(error.message);
@@ -180,23 +181,41 @@ async function attachOpenCommitments<T extends { id: string }>(rows: T[]): Promi
   return rows.map((r) => (byId.has(r.id) ? { ...r, open_commitment: byId.get(r.id) } : r));
 }
 
+const MAX_SCOPE_PROJECTS = 100;
+
+/**
+ * Server-side form of the list's Project Manager view: requests the person raised plus purchases on the
+ * projects they manage. The browser applies the same predicate to what it receives, and RLS stays the
+ * authority on what is readable. Returns null (no narrowing; the browser filter still applies) when the
+ * person manages more projects than fit a request URL.
+ */
+async function ownAndManagedFilter(userId: string): Promise<string | null> {
+  const { data, error } = await supabase.from('projects').select('id').eq('project_manager_id', userId).limit(MAX_SCOPE_PROJECTS + 1);
+  if (error) throw new Error(error.message);
+  const ids = (data ?? []).map((p) => p.id);
+  if (ids.length > MAX_SCOPE_PROJECTS) return null;
+  return ids.length ? `requested_by_id.eq.${userId},project_id.in.(${ids.join(',')})` : `requested_by_id.eq.${userId}`;
+}
+
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
  * scopes rows (FR-DAL-PROC-001). Reads every page by keyset (ordered by id) so the list is never cut at the row cap: the ⌘K CommandPalette record search indexes
  * the full cached list. `status` filters server-side (the approvals queue reads only `Requested`).
  */
 export async function listProcurements(
-  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: ProcurementRow['status'] },
+  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; status?: ProcurementRow['status']; scope?: { userId: string } },
 ): Promise<ProcurementWithRefs[]> {
+  const scopeFilter = opts?.scope ? await ownAndManagedFilter(opts.scope.userId) : null;
   const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
     let query = supabase.from(priceSource('procurements') as 'procurements').select(maskSelection(selection)).order('id', { ascending: true }).limit(limit);
     if (opts?.status) query = query.eq('status', opts.status);
+    if (scopeFilter) query = query.or(scopeFilter);
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
   });
   const rows = selection === SELECT_WITH_SHARED_DETAILS ? await attachOpenCommitments(data) : data;
-  return opts?.withoutRoutes ? rows : attachApprovalRoutes(rows);
+  return attachApprovalRoutes(rows);
 }
 
 /**

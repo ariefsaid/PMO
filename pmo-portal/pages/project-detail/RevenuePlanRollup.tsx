@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -18,9 +17,8 @@ interface Props { projectId: string }
  */
 const RevenuePlanRollup: React.FC<Props> = ({ projectId }) => {
   // Outside the app's providers (a bare render) there is nothing to read: show nothing, as when the plan is off.
-  const queries = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
-  if (!queries || !auth) return null;
+  if (!auth) return null;
   return <RollupInner projectId={projectId} />;
 };
 

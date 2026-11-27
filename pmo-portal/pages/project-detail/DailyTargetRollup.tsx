@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -18,9 +17,8 @@ interface Props { projectId: string }
  * off or for a role that may not read it. Same SQL figures as the work-order page, so the two always agree (AC-WDT-014).
  */
 const DailyTargetRollup: React.FC<Props> = ({ projectId }) => {
-  const queries = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
-  if (!queries || !auth) return null;
+  if (!auth) return null;
   return <Inner projectId={projectId} />;
 };
 
