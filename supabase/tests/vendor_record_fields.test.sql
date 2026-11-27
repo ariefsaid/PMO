@@ -77,10 +77,15 @@ select throws_ok(
   '42501', null,
   'AC-3025: an Engineer cannot create a company row with vendor fields (write policy unchanged)');
 
-select throws_ok(
+-- RLS on UPDATE raises nothing: the Engineer's update matches zero rows and the value stays.
+select lives_ok(
   $$ update companies set vendor_code = 'VEN-HACK' where id = '30250000-0000-0000-0000-000000000010' $$,
-  '42501', null,
-  'AC-3025: an Engineer cannot update the vendor fields (write policy unchanged)');
+  'AC-3025: an Engineer''s update of the vendor fields runs without error');
+
+select is(
+  (select vendor_code from companies where id = '30250000-0000-0000-0000-000000000010'),
+  null,
+  'AC-3025: an Engineer cannot update the vendor fields (zero rows changed, value unchanged)');
 
 -- ── The org seam: a second organisation cannot read the row at all ─────────
 set local request.jwt.claims = '{"sub":"30250000-0000-0000-0000-0000000000b1","role":"authenticated"}';
