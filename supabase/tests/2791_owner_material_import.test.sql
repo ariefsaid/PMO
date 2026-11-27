@@ -206,5 +206,19 @@ insert into results values('bad-confirm',om_material_import('synthetic-opening',
 select ok((select v->'results'->0->>'reason' like '%expected.closing%Check%' from results where k='bad-preview'),'AC-006 preview names an invalid closing value');
 select is((select v->'results'->0->>'reason' from results where k='bad-preview'),(select v->'results'->0->>'reason' from results where k='bad-confirm'),'AC-006 confirm uses the same human refusal as preview');
 select throws_ok($$select om_material_catalogue_entity('{}')$$,'42501',null,'AC-005 catalogue helper is not a public write path');
+insert into results values('structured-evidence',om_material_import('synthetic-opening',2,
+ jsonb_set(pg_temp.payload('structured-evidence'),'{entities,0,lines,0,evidence,reference}','{"text":"Synthetic reference"}'),false));
+select is((select v->>'complete' from results where k='structured-evidence'),'false','AC-006 evidence values use scalar text');
+insert into results values('numeric-evidence',om_material_import('synthetic-opening',2,
+ jsonb_set(pg_temp.payload('numeric-evidence'),'{entities,0,lines,0,evidence,reference}','7'),false));
+select is((select v->>'complete' from results where k='numeric-evidence'),'false','AC-006 evidence quantities are supplied as text');
+insert into results values('large-value',om_material_import('synthetic-opening',2,
+ jsonb_set(pg_temp.payload('large-value'),'{entities,0,lines,0,evidence,reference}',to_jsonb(repeat('X',4097))),false));
+select is((select v->>'complete' from results where k='large-value'),'false','AC-006 evidence value is bounded at 4096 bytes');
+select ok((select v->'results'->0->>'reason' like '%evidence.reference%' from results where k='large-value'),'AC-006 evidence refusal identifies its field');
+select is(om_material_import('synthetic-opening',2,
+ jsonb_set(pg_temp.payload('boundary-value'),'{entities,0,lines,0,evidence,reference}',to_jsonb(repeat('X',4096))),false)->>'complete','true','AC-006 bounded scalar evidence remains accepted');
+select is(om_material_import('synthetic-opening',2,
+ jsonb_set(pg_temp.payload('multibyte-value'),'{entities,0,lines,0,evidence,reference}',to_jsonb(repeat('界',1366))),false)->>'complete','false','AC-006 evidence bounds count UTF-8 bytes');
 select * from finish();
 rollback;

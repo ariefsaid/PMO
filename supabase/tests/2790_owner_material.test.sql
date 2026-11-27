@@ -244,5 +244,19 @@ select pg_temp.act_as('30100000-0000-0000-0000-0000000001b1');
 select is((select count(*) from owner_material_posted_quantities),0::bigint,'AC-005 foreign tenant cannot read quantity projection');
 select is((select count(*) from owner_material_unallocated_totals),0::bigint,'AC-005 foreign tenant cannot read unallocated projection');
 reset role;
+select set_config('request.jwt.claims','{}',true);
+insert into auth.users(id,email) values('30100000-0000-0000-0000-0000000001a6','om-phone@example.com');
+insert into profiles(id,org_id,full_name,email,role,status,built_in_role) values
+ ('30100000-0000-0000-0000-0000000001a6','30100000-0000-0000-0000-00000000010a','OM Phone','om-phone@example.com','Engineer','active','foreman');
+insert into crews(id,org_id,code,name,field_controller_id) values
+ ('30100000-0000-0000-0000-000000008001','30100000-0000-0000-0000-00000000010a','OM-CREW','Synthetic crew','30100000-0000-0000-0000-0000000001a6');
+insert into work_order_crews(org_id,work_order_id,crew_id,valid_from) values
+ ('30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000008001',current_date);
+set local role authenticated;
+select pg_temp.act_as('30100000-0000-0000-0000-0000000001a6');
+select ok(light_can_see_work_order('30100000-0000-0000-0000-000000001401'),'AC-005 phone fixture has its current crew assignment');
+select is((select count(*) from owner_material_posted_quantities),0::bigint,'AC-005 phone scope excludes material movement quantities');
+select is((select count(*) from owner_material_unallocated_totals),0::bigint,'AC-005 phone scope excludes unallocated quantities');
+reset role;
 select * from finish();
 rollback;

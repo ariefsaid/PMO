@@ -72,14 +72,14 @@ join public.work_order_section_material_plan p on p.id=x.section_material_plan_i
 join public.stock_documents d on d.id=x.document_id and d.org_id=x.org_id and d.status='Posted'
 join public.stock_ledger g on g.document_id=d.id and g.line_id=x.stock_line_id and g.org_id=x.org_id
 where x.org_id=(select public.auth_org_id()) and (select public.is_active_member())
-and ((select public.actor_is_light()) is not true or public.light_can_see_work_order(p.work_order_id))
+and (select public.actor_is_light()) is not true
 and not exists(select 1 from public.order_receiving_requests r join public.order_receiving_reversals v on v.request_id=r.id where r.stock_document_id=d.id)
 and not exists(select 1 from public.dsr_stock_postings s where s.issue_document_id=d.id and s.reversed_at is not null);
 create view public.owner_material_unallocated_totals with (security_barrier=true) as
 select d.work_order_id,count(distinct g.line_id) n
 from public.stock_documents d join public.stock_ledger g on g.document_id=d.id and g.org_id=d.org_id
 where d.org_id=(select public.auth_org_id()) and (select public.is_active_member()) and d.status='Posted'
-and ((select public.actor_is_light()) is not true or public.light_can_see_work_order(d.work_order_id))
+and (select public.actor_is_light()) is not true
 and not exists(select 1 from public.owner_material_movement_links x where x.stock_line_id=g.line_id)
 group by d.work_order_id;
 revoke all on public.owner_material_posted_quantities,public.owner_material_unallocated_totals from public,anon,authenticated;
@@ -294,7 +294,7 @@ declare
  v_item public.stock_items;v_category uuid;v_id uuid;v_unit uuid;v_tag uuid;v_type text;v_status text;
  v_hash text;v_old_hash text;v_old_ids jsonb;v_before jsonb;v_after jsonb;v_quantity numeric;v_q numeric;
  v_requested numeric;v_reserved numeric;v_received numeric;v_issued numeric;v_returned numeric;v_in numeric;v_out numeric;v_owner numeric;
- v_complete boolean:=true;v_partial boolean:=false;v_dependency jsonb;v_scale jsonb;v_expected_scale jsonb;v_section_note text;v_reason_override text;v_field text:='entities';v_value text;v_rule text:='Invalid material import';
+ v_complete boolean:=true;v_partial boolean:=false;v_dependency jsonb;v_scale jsonb;v_expected_scale jsonb;v_evidence_key text;v_evidence_value jsonb;v_section_note text;v_reason_override text;v_field text:='entities';v_value text;v_rule text:='Invalid material import';
  v_closing numeric;v_flag boolean;v_asof date;v_count integer;v_key text;v_code text;v_name text;v_err text;v_message text;
 begin
  perform public.assert_is_active_member();perform public.assert_not_light();
@@ -411,6 +411,13 @@ begin
  if jsonb_typeof(v_line->'opening') is distinct from 'object' then raise exception using detail='material-invalid';end if;
  v_field:='evidence';v_value:=(v_line->'evidence')::text;v_rule:='Evidence must be an object of at most 32768 bytes';
  if jsonb_typeof(v_line->'evidence') is distinct from 'object' or octet_length(v_value)>32768 then raise exception using detail='material-invalid';end if;
+ select e.key,e.value into v_evidence_key,v_evidence_value from jsonb_each(v_line->'evidence') e
+ where jsonb_typeof(e.value)<>'string' or octet_length(e.value #>> '{}')>4096 order by e.key limit 1;
+ if found then
+ v_field:='evidence.'||v_evidence_key;
+ v_value:=case when jsonb_typeof(v_evidence_value)='string' then v_evidence_value #>> '{}' else v_evidence_value::text end;
+ v_rule:='Evidence value must be scalar text and at most 4096 bytes (received '||jsonb_typeof(v_evidence_value)||')';
+ raise exception using detail='material-invalid';end if;
  v_field:='item_code';v_value:=btrim(v_line->>'item_code');v_rule:='Material code must identify one live item';
  if (select count(*) from public.stock_items i where i.org_id=v_org and btrim(i.code)=v_value and i.archived_at is null)<>1 then raise exception using detail='material-invalid';end if;
  select * into v_item from public.stock_items i where i.org_id=v_org and btrim(i.code)=v_value and i.archived_at is null;
@@ -491,7 +498,7 @@ begin
  get stacked diagnostics v_err=PG_EXCEPTION_DETAIL,v_message=MESSAGE_TEXT;
  if v_err not in ('material-invalid','material-conflict','material-overlap','material-work-order-missing') or v_err is null or v_err='' then v_err:='material-invalid';end if;
  return jsonb_build_object('batch_id',null,'complete',false,'results',jsonb_build_array(jsonb_build_object('entity_key',coalesce(v_key,''),'status','refused','ids','{}'::jsonb,
- 'reason_code',v_err,'reason',coalesce(v_reason_override,left(v_rule,160)||': '||v_field||'='||coalesce(to_jsonb(left(v_value,120))::text,'null')),'sheet',v_entity->>'sheet','row',coalesce(v_line->'row',v_entity->'row'))));
+ 'reason_code',v_err,'reason',coalesce(v_reason_override,left(v_rule,160)||': '||left(v_field,80)||'='||coalesce(to_jsonb(left(v_value,120))::text,'null')),'sheet',v_entity->>'sheet','row',coalesce(v_line->'row',v_entity->'row'))));
  end;
  select coalesce(jsonb_agg(jsonb_build_object('reason_code',null,'reason',null)||r order by r->>'entity_key'),'[]') into v_results from jsonb_array_elements(v_results) r;
  return jsonb_build_object('batch_id',v_batch,'results',v_results,'complete',v_complete);
