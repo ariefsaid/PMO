@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const load = (lng: string) =>
-  JSON.parse(readFileSync(resolve(__dirname, `../../../public/locales/${lng}/common.json`), 'utf8')).meetingDetail;
+  JSON.parse(readFileSync(resolve(__dirname, `../../../public/locales/${lng}/commonPages.json`), 'utf8')).meetingDetail;
 const en = load('en');
 const id = load('id');
 

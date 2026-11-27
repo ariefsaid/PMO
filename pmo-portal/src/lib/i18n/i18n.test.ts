@@ -280,7 +280,7 @@ describe('init config', () => {
     const i18n = await initI18n();
     expect(i18n.language).toBe('en');
     expect(i18n.options.fallbackLng).toEqual(['en']);
-    expect(i18n.options.fallbackNS).toEqual(['common']);
+    expect(i18n.options.fallbackNS).toEqual(['common', 'commonPages']);
     expect(i18n.options.returnEmptyString).toBe(false);
     // A catalogue arriving after the first paint must re-render its subscribers — with only
     // `common` resident, an on-demand namespace lands mid-session.
