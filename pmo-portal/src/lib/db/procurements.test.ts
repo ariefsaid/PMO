@@ -20,6 +20,7 @@ import {
   COMMITTED_STATUSES,
   RESERVED_STATUSES,
 } from './procurements';
+import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
 
 function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
@@ -41,7 +42,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   return builder;
 }
 
-beforeEach(() => { mockOr.mockReset(); mockEq.mockReset(); mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
+beforeEach(() => { setPricesHidden(false); setHidePricesActive(false); mockOr.mockReset(); mockEq.mockReset(); mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
 
 describe('listProcurements scope', () => {
   it('PERF-1128: scope.userId reads only own requests plus the managed projects\' purchases, server-side', async () => {
