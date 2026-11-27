@@ -272,6 +272,9 @@ jobs:
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
+      - name: Owner material loader python (script tests run the real workbook reader)
+        working-directory: .
+        run: python3 -I -m venv /tmp/owner-material-loader-venv && /tmp/owner-material-loader-venv/bin/pip install -q -r scripts/requirements-owner-material.txt
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
