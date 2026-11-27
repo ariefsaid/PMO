@@ -48,6 +48,16 @@ const HAND = {
 };
 const renderIt = () => render(<ClientMaterialSection workOrderId="w" projectId="p1" workOrderStatus="Issued" allocationOptions={[]} />);
 
+it('an engineer editing only the draft reference preserves its contract line', async () => {
+  h.role = 'Engineer'; h.realRole = 'Engineer'; h.userId = 'u-eng';
+  h.query = ok({ requisitions: [{ ...REQ, status: 'draft' }], lines: [{ ...LINE, requisitionStatus: 'draft', workOrderLineId: 'allocation-1' }], events: [], pickups: [] });
+  renderIt();
+  await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+  await userEvent.type(screen.getByLabelText('Client reference'), '-changed');
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect((h.mutations as { updateDraft: { mutateAsync: ReturnType<typeof vi.fn> } }).updateDraft.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ lines: [expect.objectContaining({ workOrderLineId: 'allocation-1' })] }));
+});
+
 beforeEach(async () => {
   await i18n.changeLanguage('en');
   h.role = 'Project Manager'; h.realRole = 'Project Manager'; h.userId = 'u-pm';
