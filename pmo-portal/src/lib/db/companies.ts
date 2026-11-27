@@ -14,6 +14,12 @@ export interface CompanyInput {
   name: string;
   type: CompanyType;
   short_name?: string | null;
+  /** #3025: the buyer's own vendor code for the record — PMO-native, never the ERP mirror. */
+  vendor_code?: string | null;
+  /** #3025: the vendor's address, PMO-native. */
+  address?: string | null;
+  /** #3025: agreed payment terms in days — PMO-native (erp_payment_terms_days stays the ERP mirror). */
+  payment_terms_days?: number | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -39,10 +45,19 @@ function throwWrite(error: PostgrestErrorLike): never {
  */
 export type CompanyListRow = Pick<
   CompanyRow,
-  'id' | 'name' | 'short_name' | 'type' | 'client_number_segment' | 'supply_risk_status'
+  | 'id'
+  | 'name'
+  | 'short_name'
+  | 'type'
+  | 'client_number_segment'
+  | 'supply_risk_status'
+  | 'vendor_code'
+  | 'address'
+  | 'payment_terms_days'
 >;
 
-export const COMPANY_LIST_COLUMNS = 'id,name,short_name,type,client_number_segment,supply_risk_status';
+export const COMPANY_LIST_COLUMNS =
+  'id,name,short_name,type,client_number_segment,supply_risk_status,vendor_code,address,payment_terms_days';
 
 /** The directory's display row for pickers/exports that must offer EVERY company. */
 export type CompanyOptionRow = Pick<CompanyRow, 'id' | 'name' | 'short_name' | 'type'>;
@@ -222,7 +237,14 @@ export async function getCompaniesByIds(ids: readonly string[]): Promise<Company
 export async function createCompany(input: CompanyInput): Promise<CompanyRow> {
   const { data, error } = await supabase
     .from('companies')
-    .insert({ name: input.name, type: input.type, ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}) })
+    .insert({
+      name: input.name,
+      type: input.type,
+      ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}),
+      ...(input.vendor_code !== undefined ? { vendor_code: input.vendor_code?.trim() || null } : {}),
+      ...(input.address !== undefined ? { address: input.address?.trim() || null } : {}),
+      ...(input.payment_terms_days !== undefined ? { payment_terms_days: input.payment_terms_days } : {}),
+    })
     .select()
     .single();
   if (error) throwWrite(error);
@@ -236,7 +258,14 @@ export async function createCompany(input: CompanyInput): Promise<CompanyRow> {
 export async function updateCompany(id: string, input: CompanyInput): Promise<void> {
   const { data, error } = await supabase
     .from('companies')
-    .update({ name: input.name, type: input.type, ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}) })
+    .update({
+      name: input.name,
+      type: input.type,
+      ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}),
+      ...(input.vendor_code !== undefined ? { vendor_code: input.vendor_code?.trim() || null } : {}),
+      ...(input.address !== undefined ? { address: input.address?.trim() || null } : {}),
+      ...(input.payment_terms_days !== undefined ? { payment_terms_days: input.payment_terms_days } : {}),
+    })
     .eq('id', id)
     .select('id');
   if (error) throwWrite(error);

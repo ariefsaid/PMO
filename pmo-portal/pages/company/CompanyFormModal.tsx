@@ -30,6 +30,10 @@ interface FormValues {
   short_name: string;
   type: CompanyType;
   clientNumberSegment: string;
+  /** #3025: PMO-native vendor master data — code, address, payment terms. */
+  vendorCode: string;
+  address: string;
+  paymentTermsDays: string;
 }
 
 /**
@@ -42,10 +46,18 @@ const makeValidate =
     const errors: Partial<Record<keyof FormValues, string>> = {};
     if (!v.name.trim())
       errors.name = t('companies.form.errors.nameRequired', 'Company name is required.');
+    if (!paymentTermsValid(v.paymentTermsDays))
+      errors.paymentTermsDays = t(
+        'companies.form.paymentTermsDays.errors.daysRequired',
+        'Payment terms are a whole number of days, or empty.',
+      );
     return errors;
   };
 
 function ownershipReadyForForm(mode: CompanyFormModalProps['ownership']) { return mode === 'pmo' || mode === 'external'; }
+
+/** A non-negative whole number of days, or empty to clear. #3025. */
+const paymentTermsValid = (v: string) => v.trim() === '' || (/^\d+$/.test(v.trim()) && Number(v.trim()) <= 3650);
 
 /**
  * Outcome of the caller's edit save. PGA02-001: the record save and the client-number segment
@@ -94,7 +106,15 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
     ];
   }, [t, isEdit, ownership]);
   const form = useEntityForm<FormValues>({
-    initialValues: { name: company?.name ?? '', short_name: company?.short_name ?? '', type: company?.type ?? 'Client', clientNumberSegment: company?.client_number_segment ?? '' },
+    initialValues: {
+      name: company?.name ?? '',
+      short_name: company?.short_name ?? '',
+      type: company?.type ?? 'Client',
+      clientNumberSegment: company?.client_number_segment ?? '',
+      vendorCode: company?.vendor_code ?? '',
+      address: company?.address ?? '',
+      paymentTermsDays: company?.payment_terms_days == null ? '' : String(company.payment_terms_days),
+    },
     validate,
     idPrefix: 'company-form',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name is present.
@@ -132,6 +152,15 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
         type: values.type,
         ...(nativeReadOnly || values.short_name.trim() || company?.short_name
           ? { short_name: values.short_name.trim() || null }
+          : {}),
+        // #3025: the vendor master data travels whenever the form could have shown it — present
+        // for a vendor (so clearing works), omitted otherwise so a client edit never writes it.
+        ...(values.type === 'Vendor'
+          ? {
+            vendor_code: values.vendorCode.trim() || null,
+            address: values.address.trim() || null,
+            payment_terms_days: values.paymentTermsDays.trim() === '' ? null : Number(values.paymentTermsDays.trim()),
+          }
           : {}),
       };
       try {
@@ -261,6 +290,38 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
           )}
         </FormGrid>
       </FormSection>
+      {form.values.type === 'Vendor' && (
+        <FormSection legend={t('companies.form.sections.vendorDetails', 'Vendor details')}>
+          <FormGrid>
+            <TextField
+              id={vendorCodeField.id}
+              label={t('companies.form.vendorCode.label', 'Vendor code')}
+              helper={t('companies.form.vendorCode.hint', "The buyer's own code for this vendor, kept in PMO.")}
+              value={vendorCodeField.value}
+              onChange={vendorCodeField.onChange}
+              onBlur={vendorCodeField.onBlur}
+            />
+            <TextField
+              id={paymentTermsDaysField.id}
+              label={t('companies.form.paymentTermsDays.label', 'Payment terms (days)')}
+              helper={t('companies.form.paymentTermsDays.hint', 'Agreed payment terms in days, e.g. 30.')}
+              value={paymentTermsDaysField.value}
+              onChange={paymentTermsDaysField.onChange}
+              onBlur={paymentTermsDaysField.onBlur}
+              error={paymentTermsDaysField.error}
+              inputMode="numeric"
+            />
+            <TextField
+              id={addressField.id}
+              label={t('companies.form.address.label', 'Address')}
+              value={addressField.value}
+              onChange={addressField.onChange}
+              onBlur={addressField.onBlur}
+              fullWidth
+            />
+          </FormGrid>
+        </FormSection>
+      )}
     </EntityFormModal>
   );
 };

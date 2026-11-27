@@ -1204,7 +1204,8 @@
       "newSubmit": "Buat perusahaan",
       "newTitle": "Perusahaan baru",
       "sections": {
-        "identity": "Identitas"
+        "identity": "Identitas",
+        "vendorDetails": "Detail vendor"
       },
       "type": {
         "label": "Tipe"
@@ -1216,6 +1217,20 @@
       "clientNumberSegment": {
         "label": "Segmen nomor klien",
         "placeholder": "mis. RIS"
+      },
+      "vendorCode": {
+        "label": "Kode vendor",
+        "hint": "Kode vendor dari pembeli, disimpan di PMO."
+      },
+      "paymentTermsDays": {
+        "label": "Termin pembayaran (hari)",
+        "hint": "Termin pembayaran yang disepakati dalam hari, cth. 30.",
+        "errors": {
+          "daysRequired": "Termin pembayaran adalah bilangan bulat hari, atau kosong."
+        }
+      },
+      "address": {
+        "label": "Alamat"
       },
       "partialSave": {
         "headline": "Perusahaan tersimpan, tetapi satu perubahan tidak bertahan",
@@ -1316,7 +1331,8 @@
     },
     "field": {
       "primaryContact": "Kontak utama",
-      "clientNumberSegment": "Segmen nomor klien"
+      "clientNumberSegment": "Segmen nomor klien",
+      "address": "Alamat"
     },
     "notFound": {
       "sub": "Perusahaan ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
